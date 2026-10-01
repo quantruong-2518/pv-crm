@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Plus } from '@pv/ui'
-import { Button, GlassCard, Icon, MetaPill, SectionTitle, SegmentedControl, Timeline } from '@pv/ui'
+import { GlassCard, MetaPill, SectionTitle, SegmentedControl, Timeline } from '@pv/ui'
 import type { TouchKind } from '@pv/contracts'
 import { dm } from '@/lib/date'
 import { subjectLettersQuery } from '@/data/mail-letters'
@@ -9,10 +8,10 @@ import { lifecycleTitle, type TouchFocus } from '@/data/touches'
 import { NO_TOUCHES } from '@/data/lead-profile'
 import type { TouchEvent } from '@/data/touches'
 import { useCan } from '@/app/auth'
-import { objectThreadsQuery } from '@/data/comms'
+import { subjectCommIndexQuery } from '@/data/comm-records'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { salesCatalogQuery, stopReasonLabel } from '@/data/sales-config'
-import { CommsPanel } from './comms-card'
+import { CommTimeline } from './comms-card'
 import { LetterLines } from './mail-letter/letter-lines'
 
 /** The three timelines of a lead behind three doors — mail, activity, talk.
@@ -32,34 +31,23 @@ import { LetterLines } from './mail-letter/letter-lines'
  *  about data nobody knows yet. */
 type HistoryTab = 'activity' | 'mail' | 'comms'
 
-const TAB_HINT: Record<HistoryTab, string> = {
-  activity: 'Những gì đã xảy ra với hồ sơ này.',
-  mail: 'Email đã gửi và tín hiệu trả về.',
-  comms: 'Nội dung hai bên đã trao đổi.',
-}
-
 export function LeadHistoryPanel({
   code,
   touches,
   focus,
-  seedAddress,
 }: {
   code: string
   /** The lead's touch rows, `undefined` while the read has not answered. */
   touches: readonly TouchEvent[] | undefined
   /** The `sales.touch` row to jump to — normally a vector face just pressed. */
   focus?: TouchFocus | null
-  seedAddress?: string | null
 }) {
   const [tab, setTab] = useState<HistoryTab>('activity')
-  /* The capture drawer opens from the tab row, which the panel does not own. */
-  const [capturing, setCapturing] = useState(false)
   const mail = useQuery(subjectLettersQuery('lead', code))
-  const comms = useCommsTabHead(code)
+  const commCount = useCommRecordCount(code)
 
   useEffect(() => {
     setTab('activity')
-    setCapturing(false)
   }, [code])
 
   /* A vector face points at a touch row, and only this tab draws those rows —
@@ -71,55 +59,32 @@ export function LeadHistoryPanel({
 
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="Lịch sử">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <SegmentedControl
-          label="Dòng lịch sử"
-          hideLabel
-          tone="quiet"
-          value={tab}
-          onChange={(value) => setTab(value as HistoryTab)}
-          options={[
-            { value: 'activity', label: 'Hoạt động', count: touches?.length },
-            { value: 'mail', label: 'Email', count: mail.data?.rows.length },
-            { value: 'comms', label: 'Trao đổi', count: comms.count },
-          ]}
-        />
-        {tab === 'comms' && comms.canCapture && (
-          <Button size="md" variant="secondary" onClick={() => setCapturing(true)}>
-            <Icon icon={Plus} size={16} />
-            Ghi một trao đổi
-          </Button>
-        )}
-      </div>
-
-      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">{TAB_HINT[tab]}</p>
+      <SegmentedControl
+        label="Dòng lịch sử"
+        hideLabel
+        tone="quiet"
+        value={tab}
+        onChange={(value) => setTab(value as HistoryTab)}
+        options={[
+          { value: 'activity', label: 'Hoạt động', count: touches?.length },
+          { value: 'mail', label: 'Email', count: mail.data?.rows.length },
+          { value: 'comms', label: 'Tiến trình liên lạc', count: commCount },
+        ]}
+      />
 
       {tab === 'activity' && <ActivityTimeline history={touches ?? NO_TOUCHES} focus={focus} />}
       {tab === 'mail' && <LetterLines door="lead" code={code} />}
-      {tab === 'comms' && (
-        <CommsPanel
-          code={code}
-          seedAddress={seedAddress ?? undefined}
-          capturing={capturing}
-          onCapture={setCapturing}
-        />
-      )}
+      {tab === 'comms' && <CommTimeline subjectCode={code} />}
     </section>
   )
 }
 
-/** What the conversation tab needs to draw its own head: how many threads, and
- *  whether this reader may add one. Kept here rather than exported from
- *  `comms-card` so that file keeps exporting components only.
- *
- *  Same query key as `CommsPanel`, so the count costs no second request and the
- *  panel keeps owning its own read. */
-function useCommsTabHead(code: string) {
+/** The tab's count from the summary-less list: its own request, but one that
+ *  reads no content and so writes no audit line. */
+function useCommRecordCount(code: string) {
   const canView = useCan('comm.view')
-  const canCapture = useCan('comm.capture-manage')
-  const { data } = useQuery({ ...objectThreadsQuery(code), enabled: canView })
-
-  return { count: data?.rows.length, canCapture: canView && canCapture }
+  const { data } = useQuery({ ...subjectCommIndexQuery(code), enabled: canView })
+  return data?.rows.length
 }
 
 // ---------------------------------------------------------------------------

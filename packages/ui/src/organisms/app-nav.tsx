@@ -45,7 +45,13 @@ function AppButton({
     <button
       type="button"
       title={app.description ?? app.label}
-      aria-label={app.description ? `${app.label}. ${app.description}` : undefined}
+      aria-label={
+        app.count
+          ? `${app.label} · ${app.count} đang chờ`
+          : app.description
+            ? `${app.label}. ${app.description}`
+            : undefined
+      }
       disabled={app.locked}
       aria-expanded={hasItems ? open : undefined}
       aria-haspopup={hasItems ? 'menu' : undefined}
@@ -55,13 +61,26 @@ function AppButton({
       /* Locked: only the icons dim, the label keeps `--muted-foreground`.
          Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
       className={cn(
-        'motion-std pointer-coarse:h-12 flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[12.5px] 2xl:px-3',
+        'motion-std pointer-coarse:h-12 group flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[12.5px] 2xl:px-3',
         app.active ? 'bg-primary/15 text-on-tint-primary font-semibold' : 'text-muted-foreground',
         app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
       )}
     >
       <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
       {app.label}
+      {app.count ? (
+        /* No fill on an active or hovered entry: warning/20 over primary/15
+           measured 4.06:1 in stone, over the hover tint 4.16:1; the bare ink
+           reads 5.40:1 and above (law 13). */
+        <span
+          className={cn(
+            'text-on-tint-warning-strong tnum min-w-[18px] rounded-sm px-1 text-center text-[11px] font-semibold leading-[18px]',
+            !app.active && 'bg-warning/20 group-hover:bg-transparent',
+          )}
+        >
+          {app.count > 99 ? '99+' : app.count}
+        </span>
+      ) : null}
       {/* No chevron on a menu entry: the one-row header has no width for it, and
           `aria-haspopup` already tells assistive tech the entry opens a menu. */}
       {app.locked ? <LockMark /> : null}

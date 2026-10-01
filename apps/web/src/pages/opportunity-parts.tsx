@@ -1,15 +1,6 @@
 import { type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Check,
-  Handshake,
-  Mail,
-  PenLine,
-  Phone,
-  TriangleAlert,
-  Users,
-  type IconGlyph,
-} from '@pv/ui'
+import { Check, Handshake, Mail, PenLine, TriangleAlert, Users, type IconGlyph } from '@pv/ui'
 import {
   Avatar,
   Button,
@@ -41,6 +32,8 @@ import { opportunityStageHistoryQuery } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
+import { CommActions, type CommMail } from '@/components/comm-actions'
+import { CommTimeline } from '@/components/comms-card'
 import { ActivityTimeline } from '@/components/lead-history-card'
 import { LetterLines } from '@/components/mail-letter/letter-lines'
 import { DealMoves } from './opportunity-moves'
@@ -67,6 +60,7 @@ export function DealHeader({
   op,
   lead,
   rail,
+  mail,
   onBack,
   onOpenLead,
 }: {
@@ -74,6 +68,8 @@ export function DealHeader({
   lead: LeadProfile | null
   /** The object chain, already dressed by `railOf`. Law 10. */
   rail: RailObject[]
+  /** The page's letter composer, behind the contact's mail button. */
+  mail: CommMail
   onBack: () => void
   onOpenLead: () => void
 }) {
@@ -109,22 +105,14 @@ export function DealHeader({
             </span>
           )}
 
-          {/* ICON ONLY, so it needs a name of its own — and `tel:` rather than
-              a button that only lights up: a button that does nothing on press
-              reads as a broken screen, not as a missing feature. */}
-          <Button
-            size="md"
-            variant="secondary"
-            aria-label={contact ? `Gọi ${contact.name}` : 'Gọi khách'}
-            title={phoneText(contact?.phone) || 'Chưa moi được kênh gọi lại được'}
-            disabled={!contact?.phone}
-            className="pointer-coarse:size-12 size-10 shrink-0 px-0"
-            onClick={() => {
-              if (contact?.phone) window.location.href = `tel:${contact.phone}`
-            }}
-          >
-            <Icon icon={Phone} size={16} />
-          </Button>
+          {/* The lead's own contact person, so no `contactCode` (ADR 0075). */}
+          {contact && (
+            <CommActions
+              subject={{ code: op.code, kind: 'opportunity' }}
+              contact={contact}
+              mail={mail}
+            />
+          )}
 
           {/* 40px on a mouse, 48px on a finger (law 13). NOT `size="lg"`: that
               is 48px everywhere and would swell the header on the desktop. */}
@@ -195,6 +183,11 @@ export function DealHistoryTab({
         Email
       </SectionTitle>
       <LetterLines door="opportunity" code={op.code} />
+
+      <Separator />
+
+      <SectionTitle size="sm">Tiến trình liên lạc</SectionTitle>
+      <CommTimeline subjectCode={op.code} />
 
       <Separator />
 

@@ -212,13 +212,20 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
         sideFirst
         main={
           <>
-            <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
+            <LeadForm
+              draft={draft}
+              code={lead.code}
+              canEdit={canWrite}
+              mail={{
+                onCompose: composeMail,
+                blocked: canSendEmail ? masBlocker : 'Cần quyền gửi email cho lead.',
+              }}
+            />
             <LeadActivityCard
               code={lead.code}
               canEdit={canWrite}
               touches={touches}
               focus={null}
-              seedAddress={lead.email}
               onCompose={composeMail}
               composeBlocked={masBlocker}
               openSchedule={scheduleSeq}

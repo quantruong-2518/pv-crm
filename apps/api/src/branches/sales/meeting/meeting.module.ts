@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common'
+import { CommRecordModule } from '@api/platform/comms/comm-record.module'
+import { MeetingEndQueueModule } from '@api/platform/queue/meeting-enqueue'
+import { MEETING_END_HANDLER } from '@api/platform/queue/meeting-jobs'
+import { SessionModule } from '@api/platform/session/session.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
+import { MeetingEndJobs } from './meeting-end.handler'
 import { MeetingRepository } from './meeting.repository'
 import { MeetingService } from './meeting.service'
 
@@ -16,8 +21,15 @@ import { MeetingService } from './meeting.service'
  *  và `exports` chỉ có service: `LeadModule` được hỏi "ghi giúp tôi một buổi
  *  họp", không được với thẳng vào hai bảng. */
 @Module({
-  imports: [TouchModule, LeadStateModule],
-  providers: [MeetingService, MeetingRepository],
-  exports: [MeetingService],
+  /* The `meeting.end` job: scheduled on write, run by `worker.ts` through
+     `MEETING_END_HANDLER` — `platform/` cannot name this branch. */
+  imports: [TouchModule, LeadStateModule, MeetingEndQueueModule, CommRecordModule, SessionModule],
+  providers: [
+    MeetingService,
+    MeetingRepository,
+    MeetingEndJobs,
+    { provide: MEETING_END_HANDLER, useExisting: MeetingEndJobs },
+  ],
+  exports: [MeetingService, MEETING_END_HANDLER],
 })
 export class MeetingModule {}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GlassCard, SectionTitle, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
 import { useLeadDesk } from '@/app/desk'
+import type { CommMail } from '@/components/comm-actions'
 import { ContactsCard } from '@/components/contacts-card'
 import { leadContactsQuery } from '@/data/contacts'
 import type { LeadDraft } from '@/data/lead-draft'
@@ -45,10 +46,13 @@ export function LeadForm({
    *  other three, which print as text without it. DEFAULTS TO DENY — a reader
    *  handed typing earns a 403 on every blur. The create door omits it. */
   canEdit = false,
+  /** The page's mail composer, for the contact rows' mail button. */
+  mail,
 }: {
   draft: LeadDraft
   code: string | null
   canEdit?: boolean
+  mail?: CommMail
 }) {
   /* The contacts tab counts PEOPLE, not slots: there is no denominator for how
      many people a company has. Idle on the create door — no lead, no list. */
@@ -97,7 +101,7 @@ export function LeadForm({
         onChange={(next) => setTab(next as TabKey)}
       />
 
-      <TabPanel tab={tab} draft={draft} code={code} canEdit={canEdit} />
+      <TabPanel tab={tab} draft={draft} code={code} canEdit={canEdit} mail={mail} />
 
       {/* Which boxes refuse to stay empty is the contract's answer, given
           against the boxes themselves — this line only says so out loud. */}
@@ -124,11 +128,13 @@ function TabPanel({
   draft,
   code,
   canEdit,
+  mail,
 }: {
   tab: TabKey
   draft: LeadDraft
   code: string | null
   canEdit: boolean
+  mail?: CommMail
 }) {
   if (tab === 'note') return <NoteBox code={code} />
   /* The edit door hands the tab to the contacts card: a lead has many people
@@ -137,7 +143,7 @@ function TabPanel({
   if (tab === 'person' && code !== null) {
     return (
       <div className="flex min-w-0 flex-col gap-5">
-        <ContactsCard code={code} canEdit={canEdit} embedded />
+        <ContactsCard code={code} canEdit={canEdit} embedded mail={mail} />
         <ChannelUrlBox draft={draft} canEdit={canEdit} />
       </div>
     )

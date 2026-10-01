@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Handshake, Link, Target, Trash2 } from '@pv/ui'
-import { Badge, Button, Drawer, Icon, MetaPill, Skeleton } from '@pv/ui'
+import { Link as RouteLink } from 'react-router-dom'
+import { FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
+import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
 import type { MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
+import { COMM_CARD_SURFACE } from '@/data/comm-record-detail'
+import { commRecordPath, subjectCommIndexQuery } from '@/data/comm-records'
+import { objectThreadsQuery } from '@/data/comms'
 import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { MEETING_MODE_LABEL, meetingRowLabel } from '@/data/meeting-labels'
 import { meetingsQuery, useDropMeeting } from '@/data/meetings'
@@ -13,8 +18,8 @@ import { meetingsQuery, useDropMeeting } from '@/data/meetings'
  *  customer.
  *
  *  NO GLASS OF ITS OWN: it is drawn inside the activity card next to the
- *  timeline, and a glass surface inside a glass surface is the fifth background
- *  layer (law 12).
+ *  timeline, and a panel inside a panel stacks a surface the flat system has
+ *  no place for.
  *
  *  ONE meeting, not the list: the question here is "who am I meeting next, and
  *  when", and a full list pushes the timeline off the screen. The rest opens in
@@ -40,6 +45,7 @@ export function MeetingsPanel({
   const [recording, setRecording] = useState(false)
   const [reading, setReading] = useState<MeetingRow | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const records = useMeetingRecords(code)
 
   const rows = data?.rows ?? []
   const next = upcomingOf(rows)
@@ -87,6 +93,7 @@ export function MeetingsPanel({
               code={code}
               row={row}
               canEdit={canEdit}
+              recordId={records.get(row.id)}
               onRead={() => setReading(row)}
             />
           ))}
@@ -141,17 +148,20 @@ function MeetingLine({
   code,
   row,
   canEdit,
+  recordId,
   onRead,
 }: {
   code: string
   row: MeetingRow
   canEdit: boolean
+  /** The comm record the meeting's end created, once it exists. */
+  recordId?: string
   onRead: () => void
 }) {
   const drop = useDropMeeting()
 
   return (
-    <li className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-3">
+    <li className={cn('flex flex-col gap-3 rounded-md p-3', COMM_CARD_SURFACE)}>
       <div className="flex flex-wrap items-center gap-2">
         {/* The range, not just the start — and only when the row carries a
             length. Rows written before migration 0050 have none, and printing
@@ -203,6 +213,15 @@ function MeetingLine({
             Mở link họp
           </a>
         )}
+        {recordId && (
+          <RouteLink
+            to={commRecordPath(recordId)}
+            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+          >
+            <Icon icon={MessageSquare} size={14} />
+            Mở comm
+          </RouteLink>
+        )}
         {row.transcript && (
           <button
             type="button"
@@ -247,3 +266,22 @@ function MeetingLine({
 
 const names = (people: readonly { name: string; role?: string }[]): string =>
   people.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join(', ')
+
+/** Meeting id → its comm record id. A meeting's thread carries the meeting id
+ *  as `externalId` (ADR 0075 §3) and the record names its thread, so two
+ *  existing doors answer it, the list read without summaries (no audit). */
+function useMeetingRecords(code: string): ReadonlyMap<string, string> {
+  const canView = useCan('comm.view')
+  const threads = useQuery({ ...objectThreadsQuery(code), enabled: canView })
+  const records = useQuery({ ...subjectCommIndexQuery(code), enabled: canView })
+
+  return useMemo(() => {
+    const byThread = new Map((records.data?.rows ?? []).map((r) => [r.threadId, r.id]))
+    const out = new Map<string, string>()
+    for (const t of threads.data?.rows ?? []) {
+      const id = byThread.get(t.id)
+      if (t.channel === 'meeting' && t.externalId && id) out.set(t.externalId, id)
+    }
+    return out
+  }, [threads.data, records.data])
+}

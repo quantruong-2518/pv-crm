@@ -142,6 +142,10 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         op={op}
         lead={lead}
         rail={railOf(op.chain, op.code, navigate)}
+        mail={{
+          onCompose: () => setComposing(true),
+          blocked: canSendEmail ? undefined : 'Cần quyền gửi email cho lead.',
+        }}
         onBack={() => navigate('/sales/opportunities')}
         onOpenLead={() => navigate(`/sales/leads/${op.leadCode}`)}
       />

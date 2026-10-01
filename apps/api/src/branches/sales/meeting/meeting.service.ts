@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   MeetingListResponse,
@@ -8,8 +8,10 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { MEETING_END_ENQUEUE, type MeetingEndEnqueue } from '@api/platform/queue/meeting-jobs'
 import { LeadStateWriter } from '../lead/lead-state'
 import { TouchService, byOf } from '../touch/touch.service'
+import { meetingEndOf } from './meeting-end.handler'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, toContract } from './meeting.mapper'
 import type { MeetingAttendeeValues, MeetingRowDb } from './meeting.schema'
@@ -30,11 +32,14 @@ import type { MeetingAttendeeValues, MeetingRowDb } from './meeting.schema'
  *  xác nhận buổi họp đúng là của lead đó. */
 @Injectable()
 export class MeetingService {
+  private readonly log = new Logger('meeting')
+
   constructor(
     private readonly repo: MeetingRepository,
     private readonly touch: TouchService,
     /* A meeting by the lead's holder moves the state — see `moveLead` below. */
     private readonly states: LeadStateWriter,
+    @Inject(MEETING_END_ENQUEUE) private readonly ends: MeetingEndEnqueue,
   ) {}
 
   /** Mọi buổi họp của một lead, mới trước, kèm cờ lần gặp đầu. */
@@ -109,6 +114,7 @@ export class MeetingService {
       return meetingId
     })
 
+    await this.scheduleEnd(id, new Date(body.at), body.durationMinutes)
     return this.one(code, id)
   }
 
@@ -173,7 +179,26 @@ export class MeetingService {
       if (body.at !== undefined) await this.moveLead(tx, code, who.id, at)
     })
 
+    if (body.at !== undefined || body.durationMinutes !== undefined) {
+      await this.scheduleEnd(id, at, body.durationMinutes ?? current.durationMinutes)
+    }
     return this.one(code, id)
+  }
+
+  /** Called after the write commits: pg-boss on PGlite rides the app's one
+   *  connection, so a send inside the transaction would wait on itself. A
+   *  failure is logged, never thrown — the meeting is saved, and only its
+   *  automatic comm record is missed until the next edit of `at`/duration
+   *  schedules again (the old job, if any, is dropped as stale). */
+  private async scheduleEnd(id: string, at: Date, durationMinutes: number | null): Promise<void> {
+    const end = meetingEndOf({ at, durationMinutes })
+    if (!end) return
+    try {
+      await this.ends.schedule({ meetingId: id, endsAt: end.toISOString() })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      this.log.error(`Meeting ${id}: meeting.end not scheduled: ${reason}`)
+    }
   }
 
   /** THE meeting rule, one copy for both doors (ADR 0063 §2): a meeting still

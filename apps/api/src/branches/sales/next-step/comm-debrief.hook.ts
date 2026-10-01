@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
-import type { DebriefAnswerInput, DebriefStepTarget } from '@pv/contracts'
-import type {
-  CommDebriefHook,
-  CommDebriefInput,
-  PreparedDebrief,
+import type { DebriefAnswerInput, DebriefStepTarget, DebriefTargetResponse } from '@pv/contracts'
+import {
+  unconfirmable,
+  type CommDebriefHook,
+  type CommDebriefInput,
+  type PreparedDebrief,
 } from '@api/platform/comms/comm-debrief.hook'
+import type { CommContact } from '@api/platform/comms/comm-record.service'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
@@ -16,9 +18,10 @@ import { NextStepRepository } from './next-step.repository'
 import { assertNextDiffers, liveKind } from './next-step.rules'
 import { NextStepService } from './next-step.service'
 
-/** Sales' side of a comm close-out (ADR 0074 §7): which linked objects take
- *  the next step, the evaluation and step judged against config, and the step
- *  written through the same `write` both next-step doors use.
+/** Sales' side of a comm record (ADR 0074 §7, 0075 §1): whether its one
+ *  subject takes the next step, which run and lead a subject belongs to, the
+ *  evaluation and step judged against config, and the step written through
+ *  the same `write` both next-step doors use.
  *
  *  `prepare` asks everything that reads on the pool — doer reach, holder,
  *  config — because PGlite has one connection and `apply` runs inside comms'
@@ -35,12 +38,27 @@ export class NextStepDebriefHook implements CommDebriefHook {
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
-  async targets(who: Actor, linkedCodes: readonly string[]): Promise<DebriefStepTarget[]> {
-    return (await this.reachable(who, linkedCodes)).map(({ code, kind, currentStep }) => ({
-      code,
-      kind,
-      currentStep,
-    }))
+  async target(who: Actor, subjectCode: string): Promise<DebriefStepTarget | null> {
+    return (await this.targets(who, [subjectCode])).get(subjectCode) ?? null
+  }
+
+  async slot(who: Actor, subjectCode: string): Promise<DebriefTargetResponse> {
+    const stepTarget = await this.target(who, subjectCode)
+    const confirmable = stepTarget !== null || !(await this.steps.isOpenSubject(subjectCode))
+    return { stepTarget, confirmable }
+  }
+
+  async targets(who: Actor, codes: readonly string[]): Promise<Map<string, DebriefStepTarget>> {
+    const found = await this.reachable(who, codes)
+    return new Map(found.map(({ code, kind, currentStep }) => [code, { kind, currentStep }]))
+  }
+
+  subjectsOfRun(workstreamCode: string): Promise<string[]> {
+    return this.steps.runSubjects(workstreamCode)
+  }
+
+  contactOf(subjectCode: string, contactCode: string | undefined): Promise<CommContact | null> {
+    return this.steps.contactOf(subjectCode, contactCode)
   }
 
   async prepare(who: Actor, input: CommDebriefInput): Promise<PreparedDebrief> {
@@ -92,57 +110,47 @@ export class NextStepDebriefHook implements CommDebriefHook {
     })
   }
 
-  /** Required exactly when some target exists; the doer resolves as the step
-   *  doors resolve it (absent = holder). Reach is asked of the RESOLVED doer:
-   *  if the holder changes before `apply`, the old one is judged like anyone. */
+  /** Required exactly when the subject takes a step; the doer resolves as the
+   *  step doors resolve it (absent = holder). Reach is asked of the RESOLVED
+   *  doer: if the holder changes before `apply`, the old one is judged like anyone. */
   private async judgeStep(who: Actor, input: CommDebriefInput): Promise<PreparedStep | null> {
-    const targets = await this.reachable(who, input.linkedCodes)
+    const [target] = await this.reachable(who, [input.subjectCode])
     const step = input.step
-    if (targets.length === 0) {
+    if (!target) {
+      /* An open lead or deal always owes its step; the predicate `slot` reads. */
+      if (await this.steps.isOpenSubject(input.subjectCode)) throw unconfirmable(input.subjectCode)
       if (!step) return null
       throw invalid({
-        step: [
-          'Trao đổi này không gắn lead hay cơ hội đang mở nào bạn sửa được — bỏ việc tiếp theo.',
-        ],
+        step: ['Comm này thuộc hợp đồng hoặc lead/cơ hội đã đóng — bỏ việc tiếp theo.'],
       })
     }
     if (!step) {
-      throw invalid(
-        { step: ['Chọn việc tiếp theo cho lead hoặc cơ hội của trao đổi này.'] },
-        'Thiếu việc tiếp theo.',
-      )
-    }
-    const target = targets.find((t) => t.code === step.subjectCode)
-    if (!target) {
-      throw invalid({
-        'step.subjectCode': [
-          'Chỉ đặt việc tiếp theo cho lead hoặc cơ hội đang mở mà trao đổi này gắn tới và bạn sửa được.',
-        ],
-      })
+      throw invalid({ step: [`Chọn việc tiếp theo cho ${target.code}.`] }, 'Thiếu việc tiếp theo.')
     }
     const kind = await liveKind(this.steps, step.kindId, undefined, 'step.kindId')
     if (step.previousDone) assertNextDiffers(step.previousDone, step, 'step')
+    const subjectCode = target.code
 
     if (target.kind === 'opportunity') {
-      const doerId = step.doerId ?? (await this.deals.holderOf(target.code)) ?? who.id
+      const doerId = step.doerId ?? (await this.deals.holderOf(subjectCode)) ?? who.id
       const reach = await this.dealSteps.reaches(doerId)
-      return { ...step, kind, doerId, subject: 'opportunity', reach }
+      return { ...step, kind, doerId, subjectCode, subject: 'opportunity', reach }
     }
     const doerId = step.doerId ?? target.holderId
     if (doerId === null) {
       throw invalid(
         {
-          'step.doerId': [`Lead ${target.code} chưa có người giữ — chọn người làm việc tiếp theo.`],
+          'step.doerId': [`Lead ${subjectCode} chưa có người giữ — chọn người làm việc tiếp theo.`],
         },
         'Chưa có người làm việc tiếp theo.',
       )
     }
     const reach = await this.leadSteps.reaches(doerId)
-    return { ...step, kind, doerId, subject: 'lead', reach }
+    return { ...step, kind, doerId, subjectCode, subject: 'lead', reach }
   }
 
   /** Open leads and open deals among the codes, in the caller's scope, on
-   *  which they hold the edit permission. Everything else links but takes no step. */
+   *  which they hold the edit permission. Everything else takes no step. */
   private async reachable(who: Actor, codes: readonly string[]): Promise<Target[]> {
     const [leads, deals] = await Promise.all([
       this.can(who, 'lead.edit') ? this.steps.openLeads(who, codes) : [],
@@ -171,8 +179,9 @@ export class NextStepDebriefHook implements CommDebriefHook {
   }
 }
 
-type Target = DebriefStepTarget & { holderId: string | null }
+type Target = DebriefStepTarget & { code: string; holderId: string | null }
 
 /** What `prepare` learned on the pool that `apply` cannot re-ask inside the tx. */
-type PreparedStep = NonNullable<PreparedDebrief['step']> &
-  ({ subject: 'lead'; reach: boolean } | { subject: 'opportunity'; reach: DoerReach | null })
+type PreparedStep = NonNullable<PreparedDebrief['step']> & { subjectCode: string } & (
+    { subject: 'lead'; reach: boolean } | { subject: 'opportunity'; reach: DoerReach | null }
+  )

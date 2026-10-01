@@ -14,7 +14,14 @@ import type { Db } from '@api/platform/db/db.module'
 import type { ObjectRow } from '@api/platform/db/platform.schema'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
-import { anyInReach, toLink, toMessage, toObjectRef, toThread } from './comms.mapper'
+import {
+  anyInReach,
+  refuseNonSubject,
+  toLink,
+  toMessage,
+  toObjectRef,
+  toThread,
+} from './comms.mapper'
 import { DebriefRepository } from './debrief.repository'
 import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.hook'
 import { ThreadRepository } from './thread.repository'
@@ -167,7 +174,7 @@ export class ThreadService {
   async create(who: Actor, body: MessageCreate): Promise<MessageCreateResponse> {
     const at = new Date(body.at)
 
-    const anchor = await this.refuseUnreachableObject(who, body.objectCode, 'view')
+    const anchor = await this.refuseUnreachableObject(who, body.objectCode, 'view', true)
     await this.refuseUnreachableParties(who, [
       body.fromIdentityId,
       ...body.parties.map((p) => p.identityId),
@@ -228,6 +235,7 @@ export class ThreadService {
         threadId,
         ownerId: who.id,
         messageId: row.id,
+        subjectCode: body.objectCode,
       })
 
       /* Direct lead anchors only: a contact's lead is a `sales` hop comms cannot make. */
@@ -246,6 +254,7 @@ export class ThreadService {
       const tally = await this.repo.threadById(threadId, tx)
       if (!tally) throw new Error('comms.thread: header vanished inside its own transaction')
       const parties = await this.repo.partiesOf([row.id], tx)
+      const pointer = (await this.debriefs.anchoredOn([row.id], tx)).get(row.id) ?? null
 
       await this.audit.write(
         {
@@ -257,7 +266,7 @@ export class ThreadService {
         tx,
       )
 
-      return { tally, row, parties, debriefId }
+      return { tally, row, parties, debriefId, pointer }
     })
 
     /* The writer sees their own body through the same gate as everybody else:
@@ -268,10 +277,7 @@ export class ThreadService {
        somebody else's message through a door labelled "mine". */
     return MessageCreateResponse.parse({
       thread: toThread(written.tally.row, written.tally.messageCount),
-      message: toMessage(this.access, who, written.row, written.parties, {
-        id: written.debriefId,
-        state: 'open',
-      }),
+      message: toMessage(this.access, who, written.row, written.parties, written.pointer),
       debriefId: written.debriefId,
     })
   }
@@ -340,9 +346,12 @@ export class ThreadService {
     who: Actor,
     code: string,
     action: Action,
+    asSubject = false,
   ): Promise<ObjectRow> {
     const row = await this.repo.objectByCode(code)
     if (!row) throw notFound('object', code)
+    /* Before reach, so a wrong kind reads the same to everyone. */
+    if (asSubject) refuseNonSubject(row, 'objectCode')
 
     const verdict = this.access.check(who, { ref: toObjectRef(row), action })
     if (!verdict.ok) throw denied(verdict.reason, verdict.note)

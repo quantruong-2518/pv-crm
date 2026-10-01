@@ -30,6 +30,7 @@ import {
   useSetPrimaryContact,
   type ContactDraft,
 } from '@/data/contacts'
+import { CommActions, type CommMail } from './comm-actions'
 import { Field } from './ops-fields'
 
 /** The "Contacts" card on the lead profile — who we know at this company.
@@ -76,10 +77,13 @@ export function ContactsCard({
    *  own, because the tab already named it and a card inside a card is the
    *  fifth background layer (law 12). */
   embedded,
+  mail,
 }: {
   code: string
   canEdit: boolean
   embedded?: boolean
+  /** The page's mail composer; absent = no mail button on the rows. */
+  mail?: CommMail
 }) {
   const { data, isPending } = useQuery(leadContactsQuery(code))
   const [adding, setAdding] = useState(false)
@@ -91,10 +95,7 @@ export function ContactsCard({
   return (
     <Shell>
       {embedded ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Người ĐẦU danh sách là người chính.
-          </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {canEdit && (
             <Button
               size="md"
@@ -112,10 +113,14 @@ export function ContactsCard({
            brackets only once there is something to count. */
         <SectionTitle
           size="detail"
-          hint="Người ĐẦU danh sách là người chính."
           actions={
             canEdit ? (
-              <Button size="sm" variant="ghost" onClick={() => setAdding(true)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="pointer-coarse:h-12"
+                onClick={() => setAdding(true)}
+              >
                 <Icon icon={Plus} size={16} />
                 Thêm
               </Button>
@@ -140,6 +145,7 @@ export function ContactsCard({
               row={c}
               leadCode={code}
               canEdit={canEdit}
+              mail={mail}
               onEdit={() => setEditing(c)}
             />
           ))}
@@ -182,11 +188,13 @@ function ContactLine({
   row,
   leadCode,
   canEdit,
+  mail,
   onEdit,
 }: {
   row: ContactRow
   leadCode: string
   canEdit: boolean
+  mail?: CommMail
   onEdit: () => void
 }) {
   const promote = useSetPrimaryContact(row.code, leadCode)
@@ -199,7 +207,7 @@ function ContactLine({
           type="button"
           onClick={onEdit}
           disabled={!canEdit}
-          className="motion-std flex min-w-0 items-center gap-2 text-left text-[12px] enabled:hover:underline"
+          className="motion-std pointer-coarse:min-h-12 flex min-w-0 items-center gap-2 text-left text-[12px] enabled:hover:underline"
         >
           <span className="truncate font-semibold">{row.name}</span>
           {row.isPrimary && <Badge tone="success">Chính</Badge>}
@@ -251,6 +259,15 @@ function ContactLine({
         {[row.title, row.email, row.phone].filter((x) => x !== undefined).join(' · ') ||
           'Chưa có kênh liên lạc nào'}
       </span>
+
+      {/* Not gated on `canEdit`: a reader who only reaches the lead through a
+          deal still calls and mails it; the server checks reach on the POST. */}
+      <CommActions
+        subject={{ code: leadCode, kind: 'lead' }}
+        contact={row}
+        mail={mail}
+        className="pt-1"
+      />
     </li>
   )
 }

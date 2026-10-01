@@ -1,28 +1,55 @@
-import { and, asc, eq, gte, inArray, isNull, min, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, min, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import { COMM_CONFIRM_WITHIN_HOURS, type CommRecordState } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { attachment } from '@api/platform/storage/attachment.schema'
 import {
   debrief,
   debriefAnswer,
-  link,
   message,
+  thread,
   type DebriefAnswerRowDb,
   type DebriefAnswerValues,
   type DebriefRowDb,
   type DebriefValues,
+  type ThreadRowDb,
 } from './comms.schema'
 
-/** A debrief with the two facts it does not store: who the owner is by name,
- *  and when its anchor turn happened. */
-export type DebriefRead = { row: DebriefRowDb; ownerName: string; anchorAt: Date }
+/** A debrief with what it does not store: owner name, anchor time, its thread
+ *  and turn count, the subject's label, and the two derived flags. */
+export type DebriefRead = {
+  row: DebriefRowDb
+  thread: ThreadRowDb
+  messageCount: number
+  ownerName: string
+  anchorAt: Date
+  subjectLabel: string
+  state: CommRecordState
+  late: boolean
+}
 
-export type DebriefPointer = { id: string; state: 'open' | 'closed' }
+export type DebriefPointer = { id: string; state: CommRecordState }
 
 export type DebriefCount = { ownerId: string; name: string; pending: number; oldestAt: Date }
 
-/** SQL of the close-out book (ADR 0074). Decides nothing, checks no permission;
- *  `tx` defaults to the pool the way `ThreadRepository` does. */
+/** ADR 0075 §2, derived in SQL and never stored, so a turn or a file landing
+ *  moves it with no second write. A covered turn is one written since the
+ *  debrief opened — the same window `turnsCovered` counts. */
+const STATE = sql<CommRecordState>`CASE
+  WHEN ${debrief.closedAt} IS NOT NULL THEN 'done'
+  WHEN EXISTS (SELECT 1 FROM ${message} m WHERE m.thread_id = ${debrief.threadId}
+         AND m.created_at >= ${debrief.createdAt} AND m.body_text IS NOT NULL)
+    OR EXISTS (SELECT 1 FROM ${attachment} a
+         WHERE a.owner_kind = 'comm' AND a.owner_code = ${debrief.id}::text)
+  THEN 'unconfirmed' ELSE 'empty' END`
+
+/** Late runs from creation, not the anchor: a reply must not reset the clock. */
+const LATE = sql<boolean>`(${debrief.closedAt} IS NULL
+  AND ${debrief.createdAt} < now() - make_interval(hours => ${COMM_CONFIRM_WITHIN_HOURS}::int))`
+
+/** SQL of the comm record book (ADR 0074, 0075). Decides nothing, checks no
+ *  permission; `tx` defaults to the pool the way `ThreadRepository` does. */
 @Injectable()
 export class DebriefRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -32,10 +59,11 @@ export class DebriefRepository {
   }
 
   /** Open or join in ONE statement, so two turns logged at once by one owner
-   *  meet at `debrief_open_unique` instead of both reading "none open" first. */
+   *  meet at `debrief_open_unique` instead of both reading "none open" first.
+   *  Joining moves the anchor only: the subject stays the one set at opening. */
   async openOrJoin(
     tx: Db,
-    values: { threadId: string; ownerId: string; messageId: string },
+    values: { threadId: string; ownerId: string; messageId: string; subjectCode: string },
   ): Promise<string> {
     const [row] = await tx
       .insert(debrief)
@@ -50,6 +78,17 @@ export class DebriefRepository {
     return row.id
   }
 
+  /** The owner's newest debrief on a thread, open or closed. */
+  async latestOn(tx: Db, threadId: string, ownerId: string): Promise<string | null> {
+    const [row] = await tx
+      .select({ id: debrief.id })
+      .from(debrief)
+      .where(and(eq(debrief.threadId, threadId), eq(debrief.ownerId, ownerId)))
+      .orderBy(desc(debrief.createdAt))
+      .limit(1)
+    return row?.id ?? null
+  }
+
   /** Which debrief anchors each of these turns — one statement for a whole
    *  timeline. A turn anchors at most one: only its logger's debrief can. */
   async anchoredOn(
@@ -58,17 +97,22 @@ export class DebriefRepository {
   ): Promise<Map<string, DebriefPointer>> {
     if (messageIds.length === 0) return new Map()
     const rows = await tx
-      .select({ id: debrief.id, messageId: debrief.messageId, closedAt: debrief.closedAt })
+      .select({ id: debrief.id, messageId: debrief.messageId, state: STATE })
       .from(debrief)
       .where(inArray(debrief.messageId, [...messageIds]))
-    return new Map(
-      rows.map((r) => [r.messageId, { id: r.id, state: r.closedAt ? 'closed' : 'open' }]),
-    )
+    return new Map(rows.map((r) => [r.messageId, { id: r.id, state: r.state }]))
   }
 
   async byId(id: string, tx: Db = this.db): Promise<DebriefRead | null> {
     const [row] = await this.reads(tx).where(eq(debrief.id, id)).limit(1)
     return row ?? null
+  }
+
+  /** One subject's records, newest first — the contact-history timeline. */
+  async bySubject(code: string): Promise<DebriefRead[]> {
+    return this.reads(this.db)
+      .where(eq(debrief.subjectCode, code))
+      .orderBy(desc(debrief.createdAt), desc(debrief.id))
   }
 
   /** The row lock `close` takes before judging "still open" — a double-sent
@@ -83,12 +127,28 @@ export class DebriefRepository {
     return row !== undefined && row.closedAt === null
   }
 
-  /** One owner's whole open queue, longest-owed first. Unpaged because the
-   *  service pages it; bounded by one person's own backlog. */
-  async openOf(ownerId: string): Promise<DebriefRead[]> {
-    return this.reads(this.db)
-      .where(and(eq(debrief.ownerId, ownerId), isNull(debrief.closedAt)))
+  /** One page of an owner's open records, longest-owed first; `subjectCodes`
+   *  narrows to one sales run. */
+  async pending(
+    ownerId: string,
+    subjectCodes: readonly string[] | undefined,
+    page: { page: number; size: number },
+  ): Promise<{ rows: DebriefRead[]; total: number }> {
+    const where = and(
+      eq(debrief.ownerId, ownerId),
+      isNull(debrief.closedAt),
+      subjectCodes ? inArray(debrief.subjectCode, [...subjectCodes]) : undefined,
+    )
+    const [count] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(debrief)
+      .where(where)
+    const rows = await this.reads(this.db)
+      .where(where)
       .orderBy(asc(debrief.createdAt), asc(debrief.id))
+      .limit(page.size)
+      .offset((page.page - 1) * page.size)
+    return { rows, total: count?.n ?? 0 }
   }
 
   /** Turns covered = turns WRITTEN into the thread since the debrief opened
@@ -106,19 +166,6 @@ export class DebriefRepository {
       .where(inArray(debrief.id, [...debriefIds]))
       .groupBy(debrief.id)
     return new Map(rows.map((r) => [r.id, r.turns]))
-  }
-
-  /** Link codes of many threads in one statement. */
-  async linkCodesOf(threadIds: readonly string[]): Promise<Map<string, string[]>> {
-    const byThread = new Map<string, string[]>()
-    if (threadIds.length === 0) return byThread
-    const rows = await this.db
-      .select({ threadId: link.threadId, code: link.objectCode })
-      .from(link)
-      .where(inArray(link.threadId, [...threadIds]))
-      .orderBy(asc(link.objectCode))
-    for (const r of rows) byThread.set(r.threadId, [...(byThread.get(r.threadId) ?? []), r.code])
-    return byThread
   }
 
   /** Pending per owner; `ownerId` narrows to one row for an `ownOnly` caller.
@@ -142,10 +189,7 @@ export class DebriefRepository {
   async close(
     tx: Db,
     id: string,
-    values: Pick<
-      DebriefValues,
-      'summary' | 'nextSubjectCode' | 'nextKindId' | 'nextKindName' | 'nextText' | 'nextDue'
-    >,
+    values: Pick<DebriefValues, 'summary' | 'nextKindId' | 'nextKindName' | 'nextText' | 'nextDue'>,
   ): Promise<void> {
     await tx
       .update(debrief)
@@ -158,20 +202,41 @@ export class DebriefRepository {
     await tx.insert(debriefAnswer).values([...rows])
   }
 
-  async answersOf(debriefId: string, tx: Db = this.db): Promise<DebriefAnswerRowDb[]> {
-    return tx
+  /** Answers of many debriefs in one statement; a debrief with none is absent. */
+  async answersOf(
+    debriefIds: readonly string[],
+    tx: Db = this.db,
+  ): Promise<Map<string, DebriefAnswerRowDb[]>> {
+    const byDebrief = new Map<string, DebriefAnswerRowDb[]>()
+    if (debriefIds.length === 0) return byDebrief
+    const rows = await tx
       .select()
       .from(debriefAnswer)
-      .where(eq(debriefAnswer.debriefId, debriefId))
+      .where(inArray(debriefAnswer.debriefId, [...debriefIds]))
       .orderBy(asc(debriefAnswer.criterionId))
+    for (const r of rows) byDebrief.set(r.debriefId, [...(byDebrief.get(r.debriefId) ?? []), r])
+    return byDebrief
   }
 
   private reads(tx: Db) {
+    const messageCount: SQL<number> = sql<number>`(SELECT count(*) FROM ${message} mc
+      WHERE mc.thread_id = ${debrief.threadId})::int`
     return tx
-      .select({ row: debrief, ownerName: actor.name, anchorAt: message.at })
+      .select({
+        row: debrief,
+        thread,
+        messageCount,
+        ownerName: actor.name,
+        anchorAt: message.at,
+        subjectLabel: objectRef.label,
+        state: STATE,
+        late: LATE,
+      })
       .from(debrief)
+      .innerJoin(thread, eq(thread.id, debrief.threadId))
       .innerJoin(actor, eq(actor.id, debrief.ownerId))
       .innerJoin(message, eq(message.id, debrief.messageId))
+      .innerJoin(objectRef, eq(objectRef.code, debrief.subjectCode))
       .$dynamic()
   }
 }

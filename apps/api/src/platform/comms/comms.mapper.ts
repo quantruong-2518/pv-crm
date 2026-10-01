@@ -1,7 +1,9 @@
-import type { AccessControl, Actor, Channel, ObjectRef } from '@pv/engines'
+import type { AccessControl, Actor, Channel, ObjectKind, ObjectRef } from '@pv/engines'
 import {
   email,
+  type CommAttachment,
   type CommsChannel,
+  type DebriefStepTarget,
   type DebriefSummary,
   type DebriefView,
   type IdentityRow,
@@ -11,6 +13,7 @@ import {
 } from '@pv/contracts'
 import { invalid } from '@api/platform/http/problem'
 import type { ObjectRow } from '@api/platform/db/platform.schema'
+import type { CommAttachmentRead } from './comm-attachment.repository'
 import type { DebriefPointer, DebriefRead } from './debrief.repository'
 import type {
   DebriefAnswerRowDb,
@@ -217,20 +220,20 @@ export function toMessage(
   }
 }
 
-/** A closed debrief as the wire reads it. The summary is content and goes
- *  through the same cut as a message body (ADR 0074 §11); answers and the
- *  step copy are metadata. */
+/** A comm record as the wire reads it. The summary is content and goes
+ *  through the same cut as a message body (ADR 0074 §11); answers, state and
+ *  the step copy are metadata. `stepTarget` is the branch's answer, passed in. */
 export function toDebriefView(
   access: AccessControl,
   who: Actor,
   read: DebriefRead,
   answers: readonly DebriefAnswerRowDb[],
+  stepTarget: DebriefStepTarget | null,
 ): DebriefView {
   const { row } = read
   const step =
-    row.nextSubjectCode && row.nextKindId && row.nextKindName && row.nextText && row.nextDue
+    row.nextKindId && row.nextKindName && row.nextText && row.nextDue
       ? {
-          subjectCode: row.nextSubjectCode,
           kind: { id: row.nextKindId, name: row.nextKindName },
           text: row.nextText,
           due: row.nextDue,
@@ -239,8 +242,12 @@ export function toDebriefView(
   return {
     id: row.id,
     threadId: row.threadId,
+    channel: read.thread.channel,
     messageId: row.messageId,
-    state: row.closedAt ? 'closed' : 'open',
+    state: read.state,
+    late: read.late,
+    subject: { code: row.subjectCode, label: read.subjectLabel },
+    stepTarget,
     owner: { id: row.ownerId, name: read.ownerName },
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt ? row.closedAt.toISOString() : null,
@@ -267,6 +274,35 @@ function cutContent(text: string | null, mayReadContent: boolean): DebriefSummar
  *  thread reads and the close-out queue cannot answer it two ways. */
 export function anyInReach(access: AccessControl, who: Actor, objects: readonly ObjectRow[]) {
   return objects.some((row) => access.can(who, 'view', toObjectRef(row)))
+}
+
+/** ADR 0075 §1: a comm belongs to one lead, deal or contract — never to a
+ *  contact or an account, whose comms reach a record through its lead. */
+const SUBJECT_KINDS: readonly ObjectKind[] = ['LD', 'OP', 'HĐ']
+
+export function refuseNonSubject(row: ObjectRow, field: string): void {
+  if (SUBJECT_KINDS.includes(row.kind)) return
+  throw invalid(
+    {
+      [field]: ['Comm chỉ thuộc một lead, cơ hội hoặc hợp đồng — chọn mã của một trong ba.'],
+    },
+    'Mã này không nhận comm.',
+  )
+}
+
+/** A comm file as the wire reads it; `url` is a short-lived presigned GET, or
+ *  null where the caller has decided the reader may not open it. */
+export function toCommAttachment(read: CommAttachmentRead, url: string | null): CommAttachment {
+  const { row } = read
+  return {
+    id: row.id,
+    name: row.name,
+    mime: row.mime,
+    bytes: row.bytes,
+    url,
+    createdAt: row.createdAt.toISOString(),
+    createdBy: { id: row.createdBy, name: read.createdByName },
+  }
 }
 
 export function toLink(row: LinkRowDb): LinkRow {

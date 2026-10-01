@@ -5,8 +5,12 @@ import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { contact } from '../contact/contact.schema'
+import { contract } from '../contract/contract.schema'
 import { leadScope } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
+import { opportunity } from '../opportunity/opportunity.schema'
+import { dealOpen } from '../open-deal'
 import { nextStep, type NextStepValues } from './next-step.schema'
 
 /** The step as read: doer and kind names joined at read time, so a rename
@@ -104,6 +108,83 @@ export class NextStepRepository {
           leadScope(who, true),
         ),
       )
+  }
+
+  /** An open lead or deal by the book alone — whoever asks, whatever their grants. */
+  async isOpenSubject(code: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ code: lead.code })
+      .from(lead)
+      .where(and(eq(lead.code, code), inArray(lead.state, [...LEAD_OPEN_STATES])))
+      .unionAll(
+        this.db
+          .select({ code: opportunity.code })
+          .from(opportunity)
+          .where(and(eq(opportunity.code, code), dealOpen(opportunity.code, opportunity.state))),
+      )
+    return row !== undefined
+  }
+
+  /** The lead, deals and contracts of one sales run — the subjects a comm
+   *  record of that run can hang on (ADR 0075 §5, the per-run comm tree). */
+  async runSubjects(workstreamCode: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ code: lead.code })
+      .from(lead)
+      .where(eq(lead.workstreamCode, workstreamCode))
+      .unionAll(
+        this.db
+          .select({ code: opportunity.code })
+          .from(opportunity)
+          .where(eq(opportunity.workstreamCode, workstreamCode)),
+      )
+      .unionAll(
+        this.db
+          .select({ code: contract.code })
+          .from(contract)
+          .where(eq(contract.workstreamCode, workstreamCode)),
+      )
+    return rows.map((r) => r.code)
+  }
+
+  /** A comm record's counterpart (`CommDebriefHook.contactOf`): a contact
+   *  only when it hangs on the subject's lead, else the lead's own person. */
+  async contactOf(subjectCode: string, contactCode: string | undefined) {
+    const leadCode = await this.leadOf(subjectCode)
+    if (!leadCode) return null
+    const [row] = contactCode
+      ? await this.db
+          .select({ code: contact.code, phone: contact.phone, email: contact.email })
+          .from(contact)
+          .where(and(eq(contact.code, contactCode), eq(contact.leadCode, leadCode)))
+      : await this.db
+          .select({ code: lead.code, phone: lead.phone, email: lead.email })
+          .from(lead)
+          .where(eq(lead.code, leadCode))
+    if (!row) return null
+    const kin = await this.db
+      .select({ code: contact.code })
+      .from(contact)
+      .where(eq(contact.leadCode, leadCode))
+    return { ...row, sameLead: [leadCode, ...kin.map((k) => k.code)] }
+  }
+
+  /** The lead a lead, deal or contract grew from; null for any other code. */
+  private async leadOf(code: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ code: lead.code })
+      .from(lead)
+      .where(eq(lead.code, code))
+      .unionAll(
+        this.db
+          .select({ code: opportunity.leadCode })
+          .from(opportunity)
+          .where(eq(opportunity.code, code)),
+      )
+      .unionAll(
+        this.db.select({ code: contract.leadCode }).from(contract).where(eq(contract.code, code)),
+      )
+    return row?.code ?? null
   }
 
   /** A `STEP_KIND` row, off ones included — the caller judges `active`. */

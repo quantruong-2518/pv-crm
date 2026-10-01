@@ -13,6 +13,7 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
+  MessageSquare,
   Route,
   ShieldCheck,
   SlidersHorizontal,
@@ -27,6 +28,7 @@ import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
+import { commCountsQuery } from '@/data/comm-record-detail'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -218,6 +220,17 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'primary',
   },
   {
+    /* Every customer contact across the journey waits here for its logger to
+       confirm it (ADR 0075); the count rides on the entry, like approvals. */
+    no: 8,
+    icon: MessageSquare,
+    label: 'Comm',
+    path: '/comms',
+    permission: 'comm.view',
+    question: 'Comm của tôi đang chờ điền nội dung hoặc xác nhận',
+    group: 'primary',
+  },
+  {
     no: 2,
     icon: Users,
     label: 'Lead',
@@ -347,6 +360,12 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
+  /* My own row of the counts, not the 200-row queue: the badge needs one number. */
+  const { data: pendingComms } = useQuery({
+    ...commCountsQuery,
+    enabled: access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok,
+    select: (counts) => counts.rows.find((row) => row.ownerId === actor?.id)?.pending ?? 0,
+  })
 
   /** Two axes, two different answers.
    *
@@ -381,6 +400,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     label: module.label,
     description: module.question,
     active: inModule(module.path),
+    count: module.path === '/comms' ? pendingComms : undefined,
     onClick: () => navigate(module.path),
   })
 

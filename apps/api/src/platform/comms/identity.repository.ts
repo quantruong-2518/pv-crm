@@ -14,9 +14,10 @@ import type { NormalisedAddress } from './comms.mapper'
  *  delete will see. A read run on the pool from inside a transaction is a read
  *  OUTSIDE it wearing the right clothes, so `byId` takes the handle too.
  *
- *  There is no `byAddress`, and turn 0 wants none: the anti-duplicate check is
- *  the UNIQUE fence itself, not a lookup in front of it. A lookup answers
- *  between two concurrent inserts and lets the second one through. */
+ *  The anti-duplicate check is the UNIQUE fence itself, not a lookup in front
+ *  of it: a lookup answers between two concurrent inserts and lets the second
+ *  through. `ThreadRepository.identityByAddress` only picks reuse over minting;
+ *  a race past it still ends on the fence as a 409. */
 @Injectable()
 export class IdentityRepository {
   constructor(@Inject(DB) private readonly db: Db) {}

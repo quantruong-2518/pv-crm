@@ -43,6 +43,8 @@ export type HeaderApp = {
   onClick?: () => void
   /** Module con. Có thì mục này xổ dropdown thay vì đi thẳng. */
   items?: HeaderAction[]
+  /** Work waiting on the viewer inside this module, drawn like the approvals count. */
+  count?: number
 }
 
 export type AppHeaderProps = {
@@ -129,7 +131,7 @@ function ApprovalsButton({ action }: { action: HeaderAction }) {
       disabled={action.locked}
       onClick={action.onClick}
       className={cn(
-        'motion-std pointer-coarse:h-12 flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-[12.5px]',
+        'motion-std pointer-coarse:h-12 group flex h-10 shrink-0 items-center gap-2 rounded-md px-3 text-[12.5px]',
         action.active
           ? 'bg-primary/15 text-on-tint-primary font-semibold'
           : 'text-foreground hover:bg-surface-ink/10',
@@ -139,7 +141,15 @@ function ApprovalsButton({ action }: { action: HeaderAction }) {
       <Icon icon={action.icon} size={16} className="text-muted-foreground" />
       <span className="hidden 2xl:inline">{action.label}</span>
       {action.count ? (
-        <span className="bg-warning/20 text-on-tint-warning-strong tnum min-w-[18px] rounded-sm px-1 text-center text-[11px] font-semibold leading-[18px]">
+        /* No fill on an active or hovered entry: warning/20 over primary/15
+           measured 4.06:1 in stone, over the hover tint 4.16:1; the bare ink
+           reads 5.40:1 and above (law 13). */
+        <span
+          className={cn(
+            'text-on-tint-warning-strong tnum min-w-[18px] rounded-sm px-1 text-center text-[11px] font-semibold leading-[18px]',
+            !action.active && 'bg-warning/20 group-hover:bg-transparent',
+          )}
+        >
           {action.count > 99 ? '99+' : action.count}
         </span>
       ) : null}

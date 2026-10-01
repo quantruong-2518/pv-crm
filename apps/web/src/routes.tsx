@@ -401,6 +401,29 @@ export const SCREENS: ScreenDef[] = [
     permission: 'config.view',
     load: () => import('@/pages/sales-config'),
   },
+  /** Comm records (ADR 0075). `branch: 'Sales'` because the confirm form reads
+   *  the Sales-gated vocabulary; the static `log` segment outranks `:id`. */
+  {
+    path: '/comms',
+    name: 'Comm · Comm của tôi',
+    branch: 'Sales',
+    permission: 'comm.view',
+    load: () => import('@/pages/comms'),
+  },
+  {
+    path: '/comms/log',
+    name: 'Comm · Ghi liên hệ',
+    branch: 'Sales',
+    permission: 'comm.view',
+    load: () => import('@/pages/comm-log'),
+  },
+  {
+    path: '/comms/:id',
+    name: 'Comm · Chi tiết comm',
+    branch: 'Sales',
+    permission: 'comm.view',
+    load: () => import('@/pages/comm-record'),
+  },
   /** Ba màn của luồng auth. Đều `public` — bắt đăng nhập để vào được màn quên
    *  mật khẩu thì không còn ai vào được nó. Là BA đường dẫn chứ không phải ba
    *  trạng thái của một màn, vì link đặt lại trong mail phải có URL riêng và nút
@@ -518,8 +541,8 @@ const syncHeadMetadata = (pathname: string) => {
   const screen = SCREENS.find((s) => matchPath({ path: s.path, end: true }, pathname))
   const title = screen ? `${screen.name} · PV One` : 'PV One · Pebble Vina'
   const description = screen
-    ? `${screen.name} — Hệ thống CRM của Pebble Vina.`
-    : 'PV One — Hệ thống CRM của Pebble Vina.'
+    ? `${screen.name} — PV One của Pebble Vina.`
+    : 'PV One của Pebble Vina.'
 
   document.title = title
   setMetaContent('meta[name="description"]', description)

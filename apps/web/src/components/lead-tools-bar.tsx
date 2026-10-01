@@ -3,8 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
   CalendarClock,
-  Mail,
-  Phone,
   Pin,
   RotateCcw,
   Timer,
@@ -16,7 +14,7 @@ import { LEAD_STATE_LABEL, type LeadProfile, type OpportunityLiveDeal } from '@p
 import type { Lead } from '@pv/engines/fixtures/das-vina'
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { useContactLead, useReopenLead } from '@/data/lead-exit'
+import { useReopenLead } from '@/data/lead-exit'
 import { readField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { leadStopReasonsQuery } from '@/data/leads'
@@ -24,6 +22,8 @@ import { stopReasonLabel } from '@/data/sales-config'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { useLeadDealReach } from '@/data/deal-sale'
 import { AssignMenu } from './assign-menu'
+import { CommActions } from './comm-actions'
+import { leadContactOf } from '@/data/comm-records'
 import { LeadStepButton } from './lead-state-actions'
 
 /** The sticky bottom bar — WHO the customer is on the left, WHAT TO DO on the right.
@@ -124,21 +124,15 @@ function EditBar({
       <ContactFace name={lead.contactName} title={lead.contactTitle} phone={lead.phone} />
 
       <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-        <CallButton lead={lead} canEdit={canEdit} />
-        {/* Locked buttons say WHY on the title, the same way the activity card
-            does: a drawer filled in and then refused with a 403 is the one
-            outcome a disabled button is here to prevent. */}
-        <Button
-          size="md"
-          variant="secondary"
-          className="pointer-coarse:h-12"
-          disabled={!canSendEmail || Boolean(composeBlocked)}
-          title={canSendEmail ? composeBlocked : 'Cần quyền gửi email cho lead.'}
-          onClick={onCompose}
-        >
-          <Icon icon={Mail} size={16} />
-          Email
-        </Button>
+        {/* Call and mail go through one confirm: the comm first, the call or the
+            composer after 201 (ADR 0075 §3). No Zalo here: the contacts card has it. */}
+        <CommActions
+          subject={{ code: lead.code, kind: 'lead' }}
+          contact={leadContactOf(lead)}
+          channels={['phone', 'email']}
+          mail={{ onCompose, blocked: canSendEmail ? composeBlocked : undefined }}
+          className="w-auto sm:w-auto"
+        />
         <Button
           size="md"
           variant="secondary"
@@ -227,54 +221,6 @@ function EditBar({
         <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
       </div>
     </>
-  )
-}
-
-/** Dial first, confirm second. The browser cannot know whether leaving through
- *  `tel:` produced a real call, so only the short confirmation press writes the
- *  touch — and that touch is a real exchange, which moves the lead to `working`
- *  (ADR 0063). */
-function CallButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
-  const contact = useContactLead(lead.code)
-  const [dialed, setDialed] = useState(false)
-
-  useEffect(() => {
-    setDialed(false)
-    contact.reset()
-    // `reset` is stable for one mutation observer; the lead code starts a new one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.code])
-
-  const canConfirm = canEdit && lead.state !== 'disqualified'
-
-  const press = () => {
-    if (!lead.phone) return
-    if (!dialed) {
-      if (canConfirm) setDialed(true)
-      window.location.href = `tel:${lead.phone}`
-      return
-    }
-    contact.mutate(undefined, {
-      onSuccess: () => {
-        toastDone('Đã ghi cuộc gọi.')
-        setDialed(false)
-      },
-      onError: (error) => toastFail('Chưa ghi được.', userMessage(error)),
-    })
-  }
-
-  return (
-    <Button
-      size="md"
-      variant={dialed ? 'default' : 'secondary'}
-      className="pointer-coarse:h-12"
-      disabled={!lead.phone || contact.isPending}
-      title={dialed ? 'Xác nhận cuộc gọi đã diễn ra' : (lead.phone ?? 'Chưa có số điện thoại')}
-      onClick={press}
-    >
-      <Icon icon={Phone} size={16} />
-      {contact.isPending ? 'Đang ghi…' : dialed ? 'Đã gọi' : 'Gọi'}
-    </Button>
   )
 }
 

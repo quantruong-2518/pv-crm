@@ -23,6 +23,7 @@ import { useAppChrome } from '@/app/chrome'
 import { toastDone } from '@/app/toast'
 import { ConfigBooks } from '@/components/config-books'
 import { MotionSection } from './sales-config-parts'
+import { CommCriteriaConfig, StepKindConfig } from './sales-config-comm'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import { BADGE_INK } from '@/data/opportunities'
 import { ROLE_LABEL } from '@/data/users'
@@ -638,6 +639,22 @@ export function SalesConfigPage() {
               hint="Bốn thứ mỗi luồng phải khai thì nó mới là luồng chứ không phải cái nhãn: chạm đầu trong bao lâu · ai nhận · được vào chiến dịch mail lạnh không · form khách tự điền có tính là đủ ô. Mọi ô đang TRỐNG vì chưa ai chốt số — và số bịa ra thì một tháng sau đọc như số đã thống nhất."
             >
               <MotionSection />
+            </Section>
+
+            <Section
+              no="5.10"
+              title="Câu hỏi đánh giá comm"
+              hint="Người xác nhận comm trả lời mọi câu đang bật, mỗi câu chọn một câu trả lời bằng chữ — không chấm điểm. Câu hỏi hoặc câu trả lời đã có người chọn chỉ tắt được, và comm đã hoàn thiện giữ đúng chữ lúc chọn."
+            >
+              <CommCriteriaConfig />
+            </Section>
+
+            <Section
+              no="5.11"
+              title="Loại bước tiếp theo"
+              hint="Phiếu xác nhận comm bắt buộc chọn một loại việc cho bước tiếp theo, lấy từ danh sách này."
+            >
+              <StepKindConfig />
             </Section>
 
             {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt, và

@@ -132,21 +132,27 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   },
 }
 
-/** `comms.debrief` / `comms.debrief_answer` fences (ADR 0074) → the sentence a
+/** `comms.debrief` / `comms.debrief_answer` fences (ADR 0074, 0075) → the sentence a
  *  person reads. Most are kept true by the contract and the service first;
  *  these lines are what a writer that skipped them would be told. */
 export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
   debrief_closed_has_summary: {
     kind: 'invalid',
     fields: ['summary'],
-    message: 'Chốt comm cần một bản tóm tắt, tối đa 4000 ký tự.',
+    message: 'Xác nhận comm cần một bản tóm tắt, tối đa 2000 ký tự.',
   },
 
   debrief_next_all_or_none: {
     kind: 'invalid',
     fields: ['step'],
     message:
-      'Việc tiếp theo phải đủ hồ sơ, loại việc, nội dung (tối đa 200 ký tự) và hạn — hoặc bỏ trống cả.',
+      'Việc tiếp theo phải đủ loại việc, nội dung (tối đa 200 ký tự) và hạn — hoặc bỏ trống cả.',
+  },
+
+  debrief_subject_code_object_code_fk: {
+    kind: 'invalid',
+    fields: ['subjectCode'],
+    message: 'Mã object này không có trong sổ.',
   },
 
   debrief_answer_pk: {
@@ -159,5 +165,23 @@ export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['answers'],
     message: 'Câu hỏi và câu trả lời đánh giá không được để trống.',
+  },
+}
+
+/** A comm file's fences (`platform.attachment`, migration 0075). The contract
+ *  refuses both first; these reach a writer that skipped it. A lead's three
+ *  types are fenced by its own contract, so the sentence names the comm list. */
+export const COMM_ATTACHMENT_CONSTRAINTS: ConstraintBook = {
+  attachment_mime_known: {
+    kind: 'invalid',
+    fields: ['mime'],
+    message:
+      'Loại tệp không nhận: ghi âm, ảnh (PNG, JPEG, WebP), PDF, Word (.docx) hoặc văn bản thuần.',
+  },
+
+  attachment_comm_bytes_capped: {
+    kind: 'invalid',
+    fields: ['bytes'],
+    message: 'Tệp vượt dung lượng cho phép: ghi âm tối đa 50 MB, tệp khác tối đa 15 MB.',
   },
 }

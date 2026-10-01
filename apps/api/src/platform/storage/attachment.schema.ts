@@ -1,11 +1,11 @@
 import { check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { ScanUploadMime } from '@pv/contracts'
+import type { CommAttachmentMime, ScanUploadMime } from '@pv/contracts'
 import { actor, platform } from '@api/platform/db/platform.schema'
 
 /** One stored file — the metadata only; the bytes live in object storage.
  *
- *  A PLATFORM table although only a lead owns files today: the next owner
+ *  A PLATFORM table so a lead and a comm (0075) share it: the next owner
  *  (an opportunity's quotation, a contract scan) must not need a second
  *  table with the same eleven columns. `owner_kind` + `owner_code` is the
  *  polymorphic pair `touch.subject_code` argues for, and it has NO foreign key
@@ -27,7 +27,8 @@ export const attachment = platform.table(
 
     /** The name as picked on the user's disk — a label, not a key. */
     name: text('name').notNull(),
-    mime: text('mime').$type<ScanUploadMime>().notNull(),
+    /** Per owner kind, as `attachment_mime_known` below; readers narrow by kind. */
+    mime: text('mime').$type<ScanUploadMime | CommAttachmentMime>().notNull(),
     /** `integer`: `SCAN_MAX_PDF_BYTES` is 25 MB, far under `int4`. */
     bytes: integer('bytes').notNull(),
     /** Lower-case hex of the ORIGINAL picked file, as the browser computed it. */
@@ -36,7 +37,8 @@ export const attachment = platform.table(
     height: integer('height'),
     pages: integer('pages'),
 
-    ownerKind: text('owner_kind').$type<'lead'>().notNull(),
+    ownerKind: text('owner_kind').$type<'lead' | 'comm'>().notNull(),
+    /** Lead code for 'lead', debrief id for 'comm'. */
     ownerCode: text('owner_code'),
 
     /** A real key: only a signed-in actor can open an upload, so the row exists. */
@@ -46,14 +48,27 @@ export const attachment = platform.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    /** "Which files hang on lead X" — `GET /sales/leads/:code/attachments`. */
+    /** "Which files hang on lead X / comm Y" — each owner's attachment list. */
     index('attachment_owner_idx').on(t.ownerKind, t.ownerCode),
 
-    /** `SCAN_UPLOAD_MIME`, copied by hand: images are re-encoded to WebP, or
-     *  JPEG where WebKit cannot, so a presigned PUT is signed for these three. */
-    check('attachment_mime_known', sql`"mime" IN ('image/webp', 'image/jpeg', 'application/pdf')`),
-    /** One owner kind today; the next is a migration somebody reads. */
-    check('attachment_owner_kind_known', sql`"owner_kind" IN ('lead')`),
+    /** Per owner kind, copied by hand. A lead keeps `SCAN_UPLOAD_MIME` (images
+     *  re-encoded to WebP/JPEG, or a PDF); a comm also takes audio and transcripts. */
+    check(
+      'attachment_mime_known',
+      sql`("owner_kind" = 'lead' AND "mime" IN ('image/webp', 'image/jpeg', 'application/pdf'))
+          OR ("owner_kind" = 'comm' AND "mime" IN ('audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg',
+           'image/png', 'image/jpeg', 'image/webp', 'application/pdf',
+           'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'))`,
+    ),
+    /** Comm caps (audio 50 MB, rest 15 MB) held here too, so no writer skips
+     *  them; a lead's bound lives in the contract only, as it did before 0075. */
+    check(
+      'attachment_comm_bytes_capped',
+      sql`"owner_kind" <> 'comm'
+          OR "bytes" <= CASE WHEN "mime" LIKE 'audio/%' THEN 52428800 ELSE 15728640 END`,
+    ),
+    /** 'comm' since 0075; the next kind is a migration somebody reads. */
+    check('attachment_owner_kind_known', sql`"owner_kind" IN ('lead', 'comm')`),
     check('attachment_sha256_hex', sql`"sha256" ~ '^[0-9a-f]{64}$'`),
     check('attachment_bytes_positive', sql`"bytes" > 0`),
     check(

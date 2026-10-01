@@ -453,12 +453,18 @@ export const debrief = comms.table(
      *  `verified_at` convention, because the queue asks "since when". */
     closedAt: timestamp('closed_at', { withTimezone: true }),
 
+    /** The one lead or opportunity this comm belongs to, set when it opens and
+     *  never moved; the next step lands here. A real key: since 0042 neither
+     *  can exist without its `platform.object` row. */
+    subjectCode: text('subject_code')
+      .notNull()
+      .references(() => objectRef.code),
+
     /** Content, gated by `comm.view-content` at read like `message.body_text`. */
     summary: text('summary'),
 
-    /** The step as it was set — the only history once `sales.next_step` is
-     *  replaced. All five NULL when the comm had no step target (a contract). */
-    nextSubjectCode: text('next_subject_code').references(() => objectRef.code),
+    /** The step as it was set, on `subject_code` — the only history once
+     *  `sales.next_step` is replaced. All four NULL when there is no step (a contract). */
     nextKindId: text('next_kind_id'),
     nextKindName: text('next_kind_name'),
     nextText: text('next_text'),
@@ -479,21 +485,26 @@ export const debrief = comms.table(
     /** "Which debrief anchors this turn" — asked by every thread open to draw
      *  the close-out chip; also serves the NO ACTION check on a message delete. */
     index('debrief_message_idx').on(t.messageId),
+    /** "Which comms on this lead or opportunity still wait for a close-out" —
+     *  the pending list on one object and on one sale turn. */
+    index('debrief_pending_subject_idx')
+      .on(t.subjectCode)
+      .where(sql`"closed_at" IS NULL`),
     /** `IS NOT NULL` spelled out: `btrim(NULL) <> ''` is NULL, and a CHECK
      *  passes on NULL, so without it a closed debrief could carry no summary.
-     *  4000 is `DEBRIEF_SUMMARY_MAX`, repeated so no writer bypasses the door. */
+     *  2000 is `DEBRIEF_SUMMARY_MAX`, repeated so no writer bypasses the door. */
     check(
       'debrief_closed_has_summary',
       sql`"closed_at" IS NULL
-          OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 4000)`,
+          OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 2000)`,
     ),
     /** The step copy is one fact: half a step is a row no timeline can read.
      *  Text bounds mirror `next_step_text_bounded`. */
     check(
       'debrief_next_all_or_none',
-      sql`("next_subject_code" IS NULL AND "next_kind_id" IS NULL AND "next_kind_name" IS NULL
+      sql`("next_kind_id" IS NULL AND "next_kind_name" IS NULL
            AND "next_text" IS NULL AND "next_due" IS NULL)
-          OR ("next_subject_code" IS NOT NULL AND "next_kind_id" IS NOT NULL
+          OR ("next_kind_id" IS NOT NULL
            AND "next_kind_name" IS NOT NULL AND "next_text" IS NOT NULL AND "next_due" IS NOT NULL
            AND btrim("next_kind_name") <> ''
            AND btrim("next_text") <> '' AND char_length("next_text") <= 200)`,

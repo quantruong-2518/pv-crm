@@ -48,6 +48,8 @@ export const SEMANTIC_TOKENS: Array<{ token: string; css: string; note: string }
   { token: '--success', css: 'var(--success)', note: '#5AD49A · phái sinh, ngoài brand' },
   { token: '--warning', css: 'var(--warning)', note: '#F4B860 · việc cần làm ngay' },
   { token: '--destructive', css: 'var(--destructive)', note: 'Flag Red · chữ #FF8A8F' },
+  { token: '--channel-phone', css: 'var(--channel-phone)', note: '#6F9BFF · pill cuộc gọi' },
+  { token: '--channel-meeting', css: 'var(--channel-meeting)', note: '#4FD1C5 · pill cuộc họp' },
   { token: '--border', css: 'transparent', note: 'transparent · hệ borderless' },
 ]
 

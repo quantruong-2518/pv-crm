@@ -2,17 +2,25 @@ import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nes
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
+import { StorageModule } from '../storage/storage.module'
+import { CommAttachmentController } from './comm-attachment.controller'
+import { CommAttachmentRepository } from './comm-attachment.repository'
+import { CommAttachmentService } from './comm-attachment.service'
 import { COMM_DEBRIEF_HOOK, type CommDebriefHook } from './comm-debrief.hook'
-import { DEBRIEF_CONSTRAINTS, IDENTITY_CONSTRAINTS, THREAD_CONSTRAINTS } from './comms.constraints'
+import { CommRecordModule } from './comm-record.module'
+import {
+  COMM_ATTACHMENT_CONSTRAINTS,
+  DEBRIEF_CONSTRAINTS,
+  IDENTITY_CONSTRAINTS,
+  THREAD_CONSTRAINTS,
+} from './comms.constraints'
 import { DebriefController } from './debrief.controller'
-import { DebriefRepository } from './debrief.repository'
 import { DebriefService } from './debrief.service'
 import { IdentityController } from './identity.controller'
 import { IdentityRepository } from './identity.repository'
 import { IdentityService } from './identity.service'
 import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.hook'
 import { ThreadController } from './thread.controller'
-import { ThreadRepository } from './thread.repository'
 import { ThreadService } from './thread.service'
 
 /** Plugs this module's fences into the database-error translator — the same one
@@ -22,6 +30,7 @@ import { ThreadService } from './thread.service'
 registerConstraints(IDENTITY_CONSTRAINTS)
 registerConstraints(THREAD_CONSTRAINTS)
 registerConstraints(DEBRIEF_CONSTRAINTS)
+registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
 
 /** `comms` — the conversation book. Turn 0 is `comms.identity`, turn 1 the
  *  thread/message/party/link four.
@@ -44,17 +53,17 @@ registerConstraints(DEBRIEF_CONSTRAINTS)
  *  ask E2 about it is a `SELECT` on a table this schema already references,
  *  not a reason to import the write half of the object graph.
  *
- *  No `exports`: nothing else in the server reads a conversation yet. */
+ *  No `exports`: a branch that opens a record imports `CommRecordModule`. */
 @Module({
-  imports: [AuditModule, EnginesModule],
-  controllers: [IdentityController, ThreadController, DebriefController],
+  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule],
+  controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
   providers: [
     IdentityService,
     IdentityRepository,
     ThreadService,
-    ThreadRepository,
     DebriefService,
-    DebriefRepository,
+    CommAttachmentService,
+    CommAttachmentRepository,
   ],
 })
 export class CommsModule {

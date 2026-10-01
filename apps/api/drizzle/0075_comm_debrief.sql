@@ -1,5 +1,8 @@
 -- 0075 - comm close-out (ADR 0074): every comm closes with a summary, a
 -- plain-language evaluation and a next step whose type comes from config.
+-- A comm belongs to ONE lead, opportunity or contract (`subject_code`), fixed when the
+-- debrief opens; its next step always lands there, so the step copy carries no
+-- code of its own. Files dropped on a comm are `platform.attachment` rows.
 --
 -- `comms.debrief` is the owner's close-out, `comms.debrief_answer` one answer
 -- per criterion. Neither has a foreign key into `sales`: config ids are plain
@@ -16,8 +19,9 @@ ALTER TABLE "comms"."thread" DROP CONSTRAINT "thread_channel_known";--> statemen
 ALTER TABLE "comms"."thread" ADD CONSTRAINT "thread_channel_known" CHECK ("channel" IN ('email', 'zalo-oa', 'telegram', 'phone', 'in-app', 'meeting'));--> statement-breakpoint
 
 -- `btrim(NULL) <> ''` is NULL and a CHECK passes on NULL, so the closed-summary
--- fence names `IS NOT NULL` itself. 4000 = DEBRIEF_SUMMARY_MAX, 200 = the
--- next-step text bound (`next_step_text_bounded`).
+-- fence names `IS NOT NULL` itself. 2000 = DEBRIEF_SUMMARY_MAX, 200 = the
+-- next-step text bound (`next_step_text_bounded`). `subject_code` has a real
+-- key: since 0042 a lead or opportunity cannot exist without its object row.
 CREATE TABLE "comms"."debrief" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"thread_id" uuid NOT NULL,
@@ -25,17 +29,17 @@ CREATE TABLE "comms"."debrief" (
 	"owner_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"closed_at" timestamp with time zone,
+	"subject_code" text NOT NULL,
 	"summary" text,
-	"next_subject_code" text,
 	"next_kind_id" text,
 	"next_kind_name" text,
 	"next_text" text,
 	"next_due" date,
 	CONSTRAINT "debrief_closed_has_summary" CHECK ("closed_at" IS NULL
-          OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 4000)),
-	CONSTRAINT "debrief_next_all_or_none" CHECK (("next_subject_code" IS NULL AND "next_kind_id" IS NULL AND "next_kind_name" IS NULL
+          OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 2000)),
+	CONSTRAINT "debrief_next_all_or_none" CHECK (("next_kind_id" IS NULL AND "next_kind_name" IS NULL
            AND "next_text" IS NULL AND "next_due" IS NULL)
-          OR ("next_subject_code" IS NOT NULL AND "next_kind_id" IS NOT NULL
+          OR ("next_kind_id" IS NOT NULL
            AND "next_kind_name" IS NOT NULL AND "next_text" IS NOT NULL AND "next_due" IS NOT NULL
            AND btrim("next_kind_name") <> ''
            AND btrim("next_text") <> '' AND char_length("next_text") <= 200))
@@ -52,11 +56,28 @@ CREATE TABLE "comms"."debrief_answer" (
 ALTER TABLE "comms"."debrief" ADD CONSTRAINT "debrief_thread_id_thread_id_fk" FOREIGN KEY ("thread_id") REFERENCES "comms"."thread"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comms"."debrief" ADD CONSTRAINT "debrief_message_id_message_id_fk" FOREIGN KEY ("message_id") REFERENCES "comms"."message"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comms"."debrief" ADD CONSTRAINT "debrief_owner_id_actor_id_fk" FOREIGN KEY ("owner_id") REFERENCES "platform"."actor"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "comms"."debrief" ADD CONSTRAINT "debrief_next_subject_code_object_code_fk" FOREIGN KEY ("next_subject_code") REFERENCES "platform"."object"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "comms"."debrief" ADD CONSTRAINT "debrief_subject_code_object_code_fk" FOREIGN KEY ("subject_code") REFERENCES "platform"."object"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "comms"."debrief_answer" ADD CONSTRAINT "debrief_answer_debrief_id_debrief_id_fk" FOREIGN KEY ("debrief_id") REFERENCES "comms"."debrief"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "debrief_open_unique" ON "comms"."debrief" USING btree ("thread_id","owner_id") WHERE "closed_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "debrief_pending_owner_idx" ON "comms"."debrief" USING btree ("owner_id") WHERE "closed_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "debrief_message_idx" ON "comms"."debrief" USING btree ("message_id");--> statement-breakpoint
+CREATE INDEX "debrief_pending_subject_idx" ON "comms"."debrief" USING btree ("subject_code") WHERE "closed_at" IS NULL;--> statement-breakpoint
+
+-- A comm's files: recording, transcript, minutes, chat screenshots. For 'comm',
+-- `owner_code` is the debrief id. Still no key - one column, two tables (0063).
+ALTER TABLE "platform"."attachment" DROP CONSTRAINT "attachment_owner_kind_known";--> statement-breakpoint
+ALTER TABLE "platform"."attachment" ADD CONSTRAINT "attachment_owner_kind_known" CHECK ("owner_kind" IN ('lead', 'comm'));--> statement-breakpoint
+
+-- The mime list is per owner kind: a lead keeps 0063's three exactly, a comm
+-- also takes recordings, transcripts and screenshots. Comm sizes are capped
+-- here (audio 50 MB, rest 15 MB); a lead's bound stays in the contract, as today.
+ALTER TABLE "platform"."attachment" DROP CONSTRAINT "attachment_mime_known";--> statement-breakpoint
+ALTER TABLE "platform"."attachment" ADD CONSTRAINT "attachment_mime_known" CHECK (("owner_kind" = 'lead' AND "mime" IN ('image/webp', 'image/jpeg', 'application/pdf'))
+          OR ("owner_kind" = 'comm' AND "mime" IN ('audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg',
+           'image/png', 'image/jpeg', 'image/webp', 'application/pdf',
+           'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain')));--> statement-breakpoint
+ALTER TABLE "platform"."attachment" ADD CONSTRAINT "attachment_comm_bytes_capped" CHECK ("owner_kind" <> 'comm'
+          OR "bytes" <= CASE WHEN "mime" LIKE 'audio/%' THEN 52428800 ELSE 15728640 END);--> statement-breakpoint
 
 -- A next step's type. NULL on every existing step - no backfill, the step card
 -- does not ask for one. `kind_list` folds the list into the key (0024's trick)

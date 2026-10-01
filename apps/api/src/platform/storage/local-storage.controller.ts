@@ -1,6 +1,7 @@
 import { Controller, Get, Header, HttpCode, Param, Put, Req, Res } from '@nestjs/common'
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { Public } from '../access/need.decorator'
+import { MachineDoor } from '../http/cross-site.guard'
 import { conflict, invalid, notFound } from '../http/problem'
 import { DiskStorage } from './disk.storage'
 import { StorageService } from './storage.service'
@@ -16,9 +17,12 @@ import { StorageService } from './storage.service'
 export class LocalStorageController {
   constructor(private readonly storage: StorageService) {}
 
+  /* The signed token is the credential, as on one-click unsubscribe; without
+     this, a comm transcript's `text/plain` body is refused as a CSRF shape. */
   @Put(':token')
   @HttpCode(200)
   @Public()
+  @MachineDoor()
   async put(@Param('token') token: string, @Req() req: FastifyRequest): Promise<void> {
     const disk = this.disk()
     const grant = disk.verify(token)
@@ -57,11 +61,25 @@ export class LocalStorageController {
   }
 }
 
-/** A GET grant carries no type, and the two upload types sign themselves in
- *  their first bytes — more honest than trusting a key's extension. */
+/** A GET grant carries no type, and every upload type signs itself in its
+ *  first bytes — more honest than trusting a key's extension. A file with no
+ *  signature and no NUL byte is the one text type a comm takes. */
 function mimeOf(bytes: Buffer): string {
-  if (bytes.subarray(0, 4).toString('latin1') === '%PDF') return 'application/pdf'
-  if (bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp'
+  const at = (from: number, to: number) => bytes.subarray(from, to).toString('latin1')
+  if (at(0, 4) === '%PDF') return 'application/pdf'
+  if (at(8, 12) === 'WEBP') return 'image/webp'
+  if (at(8, 12) === 'WAVE') return 'audio/wav'
   if (bytes.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg'
+  if (at(1, 4) === 'PNG') return 'image/png'
+  if (at(0, 3) === 'ID3' || (bytes[0] === 0xff && ((bytes[1] ?? 0) & 0xe0) === 0xe0)) {
+    return 'audio/mpeg'
+  }
+  if (at(4, 8) === 'ftyp') return 'audio/mp4'
+  if (bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'audio/webm'
+  if (at(0, 4) === 'OggS') return 'audio/ogg'
+  if (at(0, 4) === 'PK\x03\x04') {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  }
+  if (!bytes.subarray(0, 512).includes(0)) return 'text/plain; charset=utf-8'
   return 'application/octet-stream'
 }

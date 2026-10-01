@@ -25,6 +25,7 @@ import {
   type ConfigBundle,
   type ConfigEntry,
   type ConfigList,
+  type ConfigEntryPatch,
   type ConfigProposalReceipt,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
@@ -581,4 +582,53 @@ export function stageLimits(catalog: ConfigBundle | undefined): Map<string, numb
 export function useStageLimits(): Map<string, number | null> {
   const { data } = useQuery(salesCatalogQuery)
   return stageLimits(data)
+}
+
+/** The three comm close-out lists (ADR 0074) — the only lists here whose
+ *  rows are also renamed and switched off from the config screen. */
+export type CommConfigList = 'COMM_CRITERION' | 'COMM_ANSWER' | 'STEP_KIND'
+
+/** The catalog changed only once approved; until then the inbox did. */
+function proposalSent(client: ReturnType<typeof useQueryClient>) {
+  void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+  void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+}
+
+/** Add one row to a comm close-out list. `criterionId` rides only with an
+ *  answer — the service judges that relation, like `stage` on `LOSS_REASON`. */
+export function useProposeCommEntry() {
+  const client = useQueryClient()
+
+  return useMutation<
+    ConfigProposalReceipt,
+    ApiError,
+    { list: CommConfigList; name: string; criterionId?: string }
+  >({
+    mutationFn: ({ list, ...body }) =>
+      api.write<ConfigProposalReceipt>(`/sales/config/${list}`, {
+        method: 'POST',
+        body,
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => proposalSent(client),
+  })
+}
+
+/** Rename one entry or switch it on/off — the only "delete" a config row has. */
+export function useProposeConfigPatch() {
+  const client = useQueryClient()
+
+  return useMutation<
+    ConfigProposalReceipt,
+    ApiError,
+    { list: ConfigList; id: string; patch: ConfigEntryPatch }
+  >({
+    mutationFn: ({ list, id, patch }) =>
+      api.write<ConfigProposalReceipt>(`/sales/config/${list}/${id}`, {
+        method: 'PATCH',
+        body: patch,
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => proposalSent(client),
+  })
 }

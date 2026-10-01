@@ -1,7 +1,11 @@
 import { useState } from 'react'
-import { CalendarClock, Mail } from '@pv/ui'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarClock } from '@pv/ui'
 import { Button, GlassCard, Icon, SectionTitle, Separator } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
+import { leadProfileQuery } from '@/data/lead-profile'
+import { leadContactOf } from '@/data/comm-records'
+import { CommActions, type CommMail } from './comm-actions'
 import { LeadHistoryPanel } from './lead-history-card'
 import { MeetingsPanel } from './meetings-card'
 
@@ -31,10 +35,9 @@ export type LeadActivityCardProps =
       canEdit: boolean
       touches: readonly TouchEvent[] | undefined
       focus: TouchFocus | null
-      seedAddress: string | null | undefined
       /** The page owns the mail modal; this is its button. */
       onCompose: () => void
-      /** Non-empty = the Email button is disabled and this is its title. */
+      /** Non-empty = the mail button is disabled and this is its printed reason. */
       composeBlocked?: string
       /** Bumped by the toolbar's meeting button to open the add-meeting door
        *  from outside this card. Same shape as `TouchFocus`, same reason. */
@@ -56,23 +59,20 @@ export function LeadActivityCard(props: LeadActivityCardProps) {
                 variant="secondary"
                 className="pointer-coarse:h-12"
                 disabled={!props.canEdit}
-                title={props.canEdit ? undefined : 'Cần quyền sửa lead để đặt lịch.'}
                 onClick={() => setAsked((n) => n + 1)}
               >
                 <Icon icon={CalendarClock} size={16} />
                 Đặt lịch
               </Button>
-              <Button
-                size="md"
-                variant="secondary"
-                className="pointer-coarse:h-12"
-                disabled={Boolean(props.composeBlocked)}
-                title={props.composeBlocked}
-                onClick={props.onCompose}
-              >
-                <Icon icon={Mail} size={16} />
-                Email
-              </Button>
+              {!props.canEdit && (
+                <span className="text-muted-foreground text-[11.5px]">
+                  Cần quyền sửa lead để đặt lịch.
+                </span>
+              )}
+              <MailButton
+                code={props.code}
+                mail={{ onCompose: props.onCompose, blocked: props.composeBlocked }}
+              />
             </div>
           )
         }
@@ -94,14 +94,25 @@ export function LeadActivityCard(props: LeadActivityCardProps) {
             openSchedule={(props.openSchedule ?? 0) + asked}
           />
           <Separator />
-          <LeadHistoryPanel
-            code={props.code}
-            touches={props.touches}
-            focus={props.focus}
-            seedAddress={props.seedAddress}
-          />
+          <LeadHistoryPanel code={props.code} touches={props.touches} focus={props.focus} />
         </>
       )}
     </GlassCard>
+  )
+}
+
+/** The same mail button as the toolbar: the comm first, the composer after
+ *  201. The profile is the page's own cached read, so this asks nothing new. */
+function MailButton({ code, mail }: { code: string; mail: CommMail }) {
+  const { data: lead } = useQuery(leadProfileQuery(code))
+  if (!lead) return null
+  return (
+    <CommActions
+      subject={{ code: lead.code, kind: 'lead' }}
+      contact={leadContactOf(lead)}
+      channels={['email']}
+      mail={mail}
+      className="w-auto sm:w-auto"
+    />
   )
 }

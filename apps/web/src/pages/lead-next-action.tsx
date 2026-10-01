@@ -8,6 +8,7 @@ import {
   GlassCard,
   Icon,
   Input,
+  MetaPill,
   Pencil,
   Plus,
   SectionTitle,
@@ -16,7 +17,12 @@ import {
   Textarea,
   Trash2,
 } from '@pv/ui'
-import type { LeadProfile, NextStep, NextStepSetBody } from '@pv/contracts'
+import {
+  NEXT_STEP_TEXT_MAX,
+  type LeadProfile,
+  type NextStep,
+  type NextStepSetBody,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { dmy } from '@/lib/date'
@@ -46,8 +52,6 @@ import { Field } from '@/components/field-bits'
  *  the box and saves nothing, and stands down once the box holds anything —
  *  overwriting somebody's typing on one mis-tap is how a screen loses work. */
 const LEAD_SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo sát']
-
-const TEXT_MAX = 200
 
 type Props = { lead?: null; locked: true } | { lead: LeadProfile; canEdit: boolean; locked?: false }
 
@@ -182,6 +186,8 @@ function StepView({
     <>
       <p className="text-foreground break-words text-[13px] leading-[1.6]">{step.text}</p>
       <div className="flex flex-wrap items-center gap-3 text-[12.5px]">
+        {/* Kind first: it names the work, the date and doer say when and who. */}
+        {step.kind && <MetaPill>{step.kind.name}</MetaPill>}
         <span className="text-muted-foreground inline-flex items-center gap-2 tabular-nums">
           <Icon icon={CalendarDays} size={16} />
           {dmy(step.due)}
@@ -279,13 +285,13 @@ export function NextStepForm({
         </div>
       )}
 
-      <Field label="Việc cần làm" note={`${text.length}/${TEXT_MAX}`}>
+      <Field label="Việc cần làm" note={`${text.length}/${NEXT_STEP_TEXT_MAX}`}>
         <Textarea
           ref={box}
           value={text}
           rows={2}
           autoGrow
-          maxLength={TEXT_MAX}
+          maxLength={NEXT_STEP_TEXT_MAX}
           placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát."
           aria-label="Việc cần làm"
           onChange={(e) => setText(e.target.value)}

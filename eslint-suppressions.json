@@ -1220,14 +1220,6 @@
       "count": 5
     }
   },
-  "apps/web/src/components/comms-card.tsx": {
-    "aurora/comment-budget": {
-      "count": 12
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "apps/web/src/components/contacts-card.tsx": {
     "aurora/comment-budget": {
       "count": 2

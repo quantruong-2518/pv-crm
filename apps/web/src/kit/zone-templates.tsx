@@ -33,7 +33,7 @@ const SHELL_HEADER = {
   ],
   apps: [
     [
-      { icon: Users, label: 'Kinh doanh', active: true },
+      { icon: Users, label: 'Kinh doanh', active: true, count: 3 },
       { icon: Package, label: 'Cung ứng', locked: true },
     ],
   ],

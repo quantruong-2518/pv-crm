@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type {
-  LeadContactedResponse,
   LeadExitBody,
   LeadExitResponse,
   LeadNurtureBody,
@@ -47,21 +46,8 @@ export function invalidateLeadState(client: QueryClient) {
   for (const key of LEAD_STATE_KEYS) void client.invalidateQueries({ queryKey: key })
 }
 
-const leadPath = (code: string, door: 'contacted' | 'exit' | 'reopen' | 'nurture' | 'resume') =>
+const leadPath = (code: string, door: 'exit' | 'reopen' | 'nurture' | 'resume') =>
   `/sales/leads/${encodeURIComponent(code)}/${door}`
-
-export function useContactLead(code: string) {
-  const client = useQueryClient()
-
-  return useMutation<LeadContactedResponse, ApiError, void>({
-    mutationFn: () =>
-      api.write<LeadContactedResponse>(leadPath(code, 'contacted'), {
-        method: 'POST',
-        need: STEP_NEED,
-      }),
-    onSuccess: () => invalidateLeadState(client),
-  })
-}
 
 export function useExitLead(code: string) {
   const client = useQueryClient()

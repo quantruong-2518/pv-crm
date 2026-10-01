@@ -57,6 +57,7 @@ Seed values are in the migration and `seed-config.ts`, not here.
   one (open lead, open opportunity). With several linked objects there is one
   evaluation per debrief and the next step goes to exactly ONE target the user
   picks; the object the comm was logged from is preselected.
+  (Narrowed by 0075: a comm belongs to exactly one object, so there is no pick.)
 
 ### 6 · One debrief per (thread, owner)
 

@@ -17,13 +17,15 @@ import { WorkstreamHolder } from './workstream'
  *  ladder for both (`stepLevelOf`, 0067 D11) — the screen never derives it.
  *  `JourneyNextAction` IS `NextStep`; the journey carries this fact, not a copy. */
 
+export const NEXT_STEP_TEXT_MAX = 200
+
 export const NextStepParams = z.object({ code: ObjectCode })
 
 /** `doerId` absent means the object's holder, resolved by the server at write time.
  *  `kindId` is a `STEP_KIND` entry; optional here because the step card predates
  *  it — the comm close-out door is where a kind is required. */
 export const NextStepSetBody = z.object({
-  text: textInput(200),
+  text: textInput(NEXT_STEP_TEXT_MAX),
   due: Day,
   doerId: z.string().min(1).max(64).optional(),
   kindId: ConfigCode.optional(),
@@ -37,12 +39,12 @@ export const NextStepKind = z.object({ id: ConfigCode, name: z.string().min(1) }
  *  second touch for work nobody did. `next` rides in the same request so "done"
  *  never leaves a gap another tab could read as "no next step". */
 export const NextStepDoneBody = z.object({
-  closing: z.object({ text: textInput(200), due: Day }),
+  closing: z.object({ text: textInput(NEXT_STEP_TEXT_MAX), due: Day }),
   next: NextStepSetBody.optional(),
 })
 
 export const NextStep = z.object({
-  text: textInput(200),
+  text: textInput(NEXT_STEP_TEXT_MAX),
   due: Day,
   doer: WorkstreamHolder,
   dueLevel: DueLevel,

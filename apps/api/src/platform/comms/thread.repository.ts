@@ -1,7 +1,8 @@
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { CommsChannel } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { objectRef, type ObjectRow } from '@api/platform/db/platform.schema'
+import { actor, objectRef, type ObjectRow } from '@api/platform/db/platform.schema'
 import {
   identity,
   link,
@@ -17,6 +18,7 @@ import {
   type ThreadRowDb,
   type ThreadValues,
 } from './comms.schema'
+import type { NormalisedAddress } from './comms.mapper'
 
 /** A thread header plus the number `comms.thread` refuses to store.
  *
@@ -127,6 +129,95 @@ export class ThreadRepository {
       .select()
       .from(identity)
       .where(inArray(identity.id, [...ids]))
+  }
+
+  /** A customer's address on one channel (any channel when `null`) — the
+   *  sender a record opened from a button or a meeting is filed under.
+   *  Confirmed rows first, then the oldest, so the pick is stable. */
+  async guestIdentity(
+    objectCode: string,
+    channel: CommsChannel | null,
+    tx: Db = this.db,
+  ): Promise<IdentityRowDb | null> {
+    const [row] = await tx
+      .select()
+      .from(identity)
+      .where(
+        and(
+          eq(identity.side, 'guest'),
+          eq(identity.objectCode, objectCode),
+          channel ? eq(identity.channel, channel) : undefined,
+        ),
+      )
+      .orderBy(sql`${identity.verifiedAt} DESC NULLS LAST`, asc(identity.createdAt))
+      .limit(1)
+    return row ?? null
+  }
+
+  /** Who an address belongs to, if anyone — asked before minting one. */
+  async identityByAddress(channel: CommsChannel, address: string): Promise<IdentityRowDb | null> {
+    const [row] = await this.db
+      .select()
+      .from(identity)
+      .where(and(eq(identity.channel, channel), eq(identity.address, address)))
+      .limit(1)
+    return row ?? null
+  }
+
+  /** An identity minted for a comm record; a racing duplicate surfaces as
+   *  `identity_channel_address_unique`, a 409 with its own sentence. */
+  async insertIdentity(
+    tx: Db,
+    values: { channel: CommsChannel; address: NormalisedAddress } & (
+      { side: 'guest'; objectCode: string } | { side: 'member'; actorId: string }
+    ),
+  ): Promise<string> {
+    const [row] = await tx.insert(identity).values(values).returning({ id: identity.id })
+    if (!row) throw new Error('comms.identity: INSERT returned no row')
+    return row.id
+  }
+
+  /** A colleague's own address — on `channel` first, else any of theirs. */
+  async memberIdentity(
+    actorId: string,
+    channel: CommsChannel | null,
+  ): Promise<IdentityRowDb | null> {
+    const [row] = await this.db
+      .select()
+      .from(identity)
+      .where(and(eq(identity.side, 'member'), eq(identity.actorId, actorId)))
+      .orderBy(
+        channel ? sql`(${identity.channel} = ${channel}) DESC` : asc(identity.createdAt),
+        asc(identity.createdAt),
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  async actorEmail(actorId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ email: actor.email })
+      .from(actor)
+      .where(eq(actor.id, actorId))
+      .limit(1)
+    return row?.email ?? null
+  }
+
+  /** The one thread of a meeting (`thread_channel_external_unique`), made if
+   *  absent, then locked so a re-delivered job waits instead of writing twice. */
+  async meetingThread(tx: Db, meetingId: string, at: Date): Promise<string> {
+    await tx
+      .insert(thread)
+      .values({ channel: 'meeting', externalId: meetingId, startedAt: at, lastAt: at })
+      .onConflictDoNothing()
+    const [row] = await tx
+      .select({ id: thread.id })
+      .from(thread)
+      .where(and(eq(thread.channel, 'meeting'), eq(thread.externalId, meetingId)))
+      .limit(1)
+      .for('update')
+    if (!row) throw new Error(`comms.thread: meeting ${meetingId} thread vanished`)
+    return row.id
   }
 
   async objectByCode(code: string, tx: Db = this.db): Promise<ObjectRow | null> {

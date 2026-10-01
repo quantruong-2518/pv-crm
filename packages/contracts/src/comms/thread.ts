@@ -70,8 +70,21 @@ export type ThreadChannel = z.infer<typeof ThreadChannel>
 /** Declared here, not in `./debrief`, because `MessageRow` points at a debrief
  *  and `./debrief` reads `ThreadRow` — one of the two files has to hold the id. */
 export const DebriefId = z.uuid('Mã phiên chốt phải là UUID')
-export const DebriefState = z.enum(['open', 'closed'])
-export type DebriefState = z.infer<typeof DebriefState>
+
+/** A comm record's state (ADR 0075 §2), always server-derived: `empty` is an
+ *  open debrief whose turn has neither text nor a file, `done` a closed one. */
+export const CommRecordState = z.enum(['empty', 'unconfirmed', 'done'])
+export type CommRecordState = z.infer<typeof CommRecordState>
+
+export const COMM_RECORD_STATE_LABEL: Record<CommRecordState, string> = {
+  empty: 'Chưa điền nội dung',
+  unconfirmed: 'Chưa xác nhận',
+  done: 'Đã hoàn thiện',
+}
+
+/** Past this many hours from creation an unconfirmed record is `late`; the
+ *  server computes the flag so every screen agrees on one clock. */
+export const COMM_CONFIRM_WITHIN_HOURS = 24
 
 // ---------------------------------------------------------------------------
 // THREAD
@@ -193,7 +206,7 @@ export const MessageRow = z.object({
   parties: z.array(MessagePartyRow),
   /** The debrief anchored on this turn, so the drawer can draw its close-out chip
    *  without a second read. `null` on every turn a later one has superseded. */
-  debrief: z.object({ id: DebriefId, state: DebriefState }).nullable(),
+  debrief: z.object({ id: DebriefId, state: CommRecordState }).nullable(),
 })
 
 export type MessageRow = z.infer<typeof MessageRow>
@@ -231,7 +244,8 @@ const MessageCreateFields = z.object({
    *  It rides on the shared fields rather than on the `'new'` branch alone
    *  because the `'existing'` branch needs it too: the server checks the caller
    *  can reach this object before it writes anything, and "which object" is the
-   *  only thing that check can be made against. */
+   *  only thing that check can be made against. A turn that opens a debrief
+   *  makes this its fixed subject (ADR 0075 §1); joining one never moves it. */
   objectCode: LinkableCode,
   at: Moment,
   direction: MessageDirection,

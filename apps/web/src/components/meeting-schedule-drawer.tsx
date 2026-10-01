@@ -17,7 +17,6 @@ import {
   MEETING_MAX_GUESTS,
   MEETING_MAX_HOSTS,
   MEETING_TITLE_MAX,
-  TRANSCRIPT_MAX,
   type MeetingCreate,
   type MeetingDurationMinutes,
   type MeetingMode,
@@ -53,8 +52,9 @@ import { useAddMeeting } from '@/data/meetings'
  *  must name an `actorId` from `platform.actor`, a guest may carry a
  *  `contactCode` or simply be typed in — see the `MeetingAttendee` docblock.
  *
- *  A transcript can still be written here, and only when the chosen slot is
- *  already behind us — see `PastMeetingNote`. */
+ *  No minutes box: a meeting that ends gets a comm record of its own, and its
+ *  minutes and files go there (ADR 0075 §3) — the server no longer stores a
+ *  transcript, so a box here would drop what was typed into it. */
 export function MeetingScheduleDrawer({
   code,
   open,
@@ -87,7 +87,7 @@ export function MeetingScheduleDrawer({
     setFailure('')
 
     add.mutate(
-      { code, body: toMeetingBody(form, people, moment, past) },
+      { code, body: toMeetingBody(form, people, moment) },
       {
         onSuccess: (row) => {
           /* A slot in the past is a write-up of a meeting already held, which
@@ -135,7 +135,7 @@ export function MeetingScheduleDrawer({
       <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
         <BasicsGroup form={form} readback={readback} linkBroken={linkBroken} />
         <AttendeesGroup form={form} people={people} company={company} contacts={book?.rows ?? []} />
-        <PrepareGroup form={form} past={past} />
+        <PrepareGroup form={form} />
       </form>
     </Drawer>
   )
@@ -173,7 +173,6 @@ function toMeetingBody(
   form: MeetingDraft,
   people: readonly Actor[],
   moment: string,
-  past: boolean,
 ): MeetingCreate {
   return {
     at: moment,
@@ -182,10 +181,6 @@ function toMeetingBody(
     mode: form.mode,
     ...(form.link.trim() ? { link: form.link.trim() } : {}),
     ...(form.goal.trim() ? { goal: form.goal.trim() } : {}),
-    /* A transcript only travels when the slot really is in the past. Anything
-       left in the box after the date is moved forward belongs to a meeting that
-       has not happened. */
-    ...(past && form.transcript.trim() ? { transcript: form.transcript.trim() } : {}),
     hosts: form.hostIds.map((id) => ({
       actorId: id,
       name: people.find((person) => person.id === id)?.name ?? id,
@@ -462,7 +457,7 @@ function AttendeesGroup({
   )
 }
 
-function PrepareGroup({ form, past }: { form: MeetingDraft; past: boolean }) {
+function PrepareGroup({ form }: { form: MeetingDraft }) {
   return (
     <section className="flex min-w-0 flex-col gap-4">
       <SectionTitle size="md">Chuẩn bị</SectionTitle>
@@ -475,33 +470,10 @@ function PrepareGroup({ form, past }: { form: MeetingDraft; past: boolean }) {
           onChange={(event) => form.setGoal(event.target.value)}
         />
       </Field>
-      {past && <PastMeetingNote value={form.transcript} onChange={form.setTranscript} />}
+      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
+        Biên bản và tệp của buổi họp ghi vào comm, tạo khi buổi họp kết thúc.
+      </p>
     </section>
-  )
-}
-
-/** The transcript box, and it shows up only once the chosen slot is behind us.
- *
- *  This door books what is ahead, so a transcript field standing open on it
- *  asks for the minutes of a meeting nobody has held. But backdating the date
- *  IS how this repo records a call somebody wrote up afterwards, and that path
- *  must stay open: creation is the only moment a transcript can be written at
- *  all, `PATCH /meetings/:id` having no screen. So the field follows the date
- *  instead of a door of its own. */
-function PastMeetingNote({ value, onChange }: { value: string; onChange: (next: string) => void }) {
-  return (
-    <Field
-      label="Biên bản buổi họp (không bắt buộc)"
-      hint="Thời điểm đã chọn nằm trong quá khứ, nên đây là ghi bù. Dán nguyên bản ghi vào đây."
-    >
-      <Textarea
-        rows={6}
-        value={value}
-        maxLength={TRANSCRIPT_MAX}
-        placeholder="Dán transcript hoặc ghi chép của buổi đã diễn ra…"
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </Field>
   )
 }
 
@@ -529,7 +501,6 @@ function useMeetingDraft(open: boolean) {
   const [hostIds, setHostIds] = useState<string[]>([])
   const [guests, setGuests] = useState<GuestPick[]>([])
   const [goal, setGoal] = useState('')
-  const [transcript, setTranscript] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -542,7 +513,6 @@ function useMeetingDraft(open: boolean) {
     setHostIds([])
     setGuests([])
     setGoal('')
-    setTranscript('')
   }, [open])
 
   return {
@@ -560,8 +530,6 @@ function useMeetingDraft(open: boolean) {
     setLink,
     goal,
     setGoal,
-    transcript,
-    setTranscript,
     hostIds,
     guests,
     addHost: (id: string) => setHostIds((current) => [...current, id]),

@@ -6,6 +6,7 @@ import type {
   ScanExtraction,
   ScanFileKind,
   ScanResult,
+  ScanUploadMime,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -38,7 +39,7 @@ export type ScanFileJoined = {
   readAt: Date | null
   attachmentId: string
   name: string
-  mime: (typeof attachment.$inferSelect)['mime']
+  mime: ScanUploadMime
   bytes: number
   storageKey: string
   thumbKey: string | null
@@ -70,7 +71,8 @@ const JOINED = {
   readAt: scanFile.readAt,
   attachmentId: attachment.id,
   name: attachment.name,
-  mime: attachment.mime,
+  /* Joined through `scan_file`, so always a lead file: the lead mime list. */
+  mime: sql<ScanUploadMime>`${attachment.mime}`,
   bytes: attachment.bytes,
   storageKey: attachment.storageKey,
   thumbKey: attachment.thumbKey,

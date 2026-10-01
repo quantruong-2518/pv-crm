@@ -5,6 +5,7 @@ import type { Env } from '../config/env'
 import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
+import { MEETING_END_CONCURRENCY, MEETING_END_QUEUE, MEETING_END_RETRY_LIMIT } from './meeting-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -106,7 +107,11 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
        listener. The sender only ever inserts, so it needs almost nothing —
        and on Neon every idle connection is a compute that will not sleep. */
     options.max = worker
-      ? env.PV_EMAIL_WORKER_CONCURRENCY + SCAN_READ_CONCURRENCY + SCAN_COMMIT_CONCURRENCY + 3
+      ? env.PV_EMAIL_WORKER_CONCURRENCY +
+        SCAN_READ_CONCURRENCY +
+        SCAN_COMMIT_CONCURRENCY +
+        MEETING_END_CONCURRENCY +
+        3
       : 2
   }
 
@@ -237,4 +242,17 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
     await boss.createQueue(name, { policy: 'exclusive', ...scan })
     await boss.updateQueue(name, scan)
   }
+
+  /* `exclusive` like scan: one queued-or-active job per meeting-and-end, so a
+     repeated schedule is a no-op. Short expiry — the handler is one insert. */
+  const meetingEnd: QueueSettings = {
+    retryLimit: MEETING_END_RETRY_LIMIT,
+    retryDelay: 10,
+    retryBackoff: true,
+    expireInSeconds: 60,
+    retentionSeconds: 7 * DAY_SECONDS,
+    notify,
+  }
+  await boss.createQueue(MEETING_END_QUEUE, { policy: 'exclusive', ...meetingEnd })
+  await boss.updateQueue(MEETING_END_QUEUE, meetingEnd)
 }

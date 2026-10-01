@@ -77,6 +77,11 @@
   --on-tint-warning-strong: #f4b860;
   --on-tint-destructive: #ff8a8f;
 
+  /* channel pills: one hue per contact channel, used as text AND as its own
+     14% tint (`bg-channel-phone/14 text-channel-phone`), so no -on-tint twin */
+  --channel-phone: #6f9bff;
+  --channel-meeting: #4fd1c5;
+
   /* sheen: the single 4% top line a flat panel keeps as its edge light */
   --sheen-a: rgba(255, 255, 255, 0.04);
   --sheen-b: rgba(255, 255, 255, 0.04);
@@ -153,6 +158,8 @@
   --color-on-tint-warning: var(--on-tint-warning);
   --color-on-tint-warning-strong: var(--on-tint-warning-strong);
   --color-on-tint-destructive: var(--on-tint-destructive);
+  --color-channel-phone: var(--channel-phone);
+  --color-channel-meeting: var(--channel-meeting);
 
   /* bổ sung */
   --color-glass-foreground: var(--glass-foreground);
@@ -495,6 +502,8 @@
   --on-tint-warning: #8a4b00;
   --on-tint-warning-strong: #8a4b00;
   --on-tint-destructive: #b42330;
+  --channel-phone: #2451d6; /* 5.26:1 on its own 14% tint over white */
+  --channel-meeting: #0a6f68; /* 4.91:1 — #0b7a72 only reached 4.28 */
   --sheen-a: transparent;
   --sheen-b: transparent;
   --sheen-ai: transparent;

@@ -9,7 +9,14 @@ import { NestFactory } from '@nestjs/core'
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify'
 import { fastifyCookie } from '@fastify/cookie'
 import type { FastifyInstance } from 'fastify'
-import { SCAN_MAX_PDF_BYTES, SCAN_PUT_HEADERS, SCAN_UPLOAD_MIME } from '@pv/contracts'
+import {
+  COMM_ATTACHMENT_MIME,
+  COMM_MAX_AUDIO_BYTES,
+  SCAN_MAX_PDF_BYTES,
+  SCAN_PUT_HEADERS,
+  SCAN_UPLOAD_MIME,
+} from '@pv/contracts'
+import { invalid } from './platform/http/problem'
 import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
 import { isAllowedOrigin } from './platform/http/origin'
@@ -121,17 +128,24 @@ async function bootstrap(): Promise<void> {
      is a lockfile change and does not belong in this commit. */
   await adapter.getInstance<FastifyInstance>().register(fastifyCookie)
 
-  /* The disk storage driver's upload door takes raw file bytes. Registered
-     per content type, so the global 1 MiB limit stays for everything else,
-     and only on `disk`: with `s3` the bytes never touch this process. */
+  /* Disk driver only: raw upload bytes on `/storage/local` alone — the limit is set
+     per route and the parsers refuse any other path. Not a prefixed plugin: Nest
+     mounts its routes on the root instance, where a child's parser never applies. */
   if (env.STORAGE_DRIVER === 'disk') {
-    adapter
-      .getInstance<FastifyInstance>()
-      .addContentTypeParser(
-        [...SCAN_UPLOAD_MIME],
-        { parseAs: 'buffer', bodyLimit: SCAN_MAX_PDF_BYTES },
-        (_req, body, done) => done(null, body),
-      )
+    const fastify = adapter.getInstance<FastifyInstance>()
+    const upload = (url: string) => url.startsWith('/storage/local/')
+    fastify.addHook('onRoute', (route) => {
+      if (upload(route.url)) route.bodyLimit = Math.max(SCAN_MAX_PDF_BYTES, COMM_MAX_AUDIO_BYTES)
+    })
+    fastify.removeContentTypeParser('text/plain')
+    fastify.addContentTypeParser(
+      [...new Set([...SCAN_UPLOAD_MIME, ...COMM_ATTACHMENT_MIME])],
+      { parseAs: 'buffer' },
+      (req, body, done) =>
+        upload(req.url)
+          ? done(null, body)
+          : done(invalid({ body: ['Cửa này chỉ nhận application/json.'] })),
+    )
   }
 
   /* ------------------------------------------------------------------
