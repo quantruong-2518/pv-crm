@@ -243,6 +243,7 @@ function ConvertFields({
         <PersonPickField
           label="Sale đứng đơn"
           hint="Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi đề nghị ký."
+          sellersOnly
           picked={draft.saleOwners}
           errors={errors.saleOwners}
           onToggle={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}

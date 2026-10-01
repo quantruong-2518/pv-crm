@@ -4,7 +4,6 @@ import {
   asc,
   count,
   eq,
-  exists,
   getTableColumns,
   ilike,
   inArray,
@@ -33,7 +32,8 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
-import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
+import { dealStoodBy, leadDealHeldBy } from '../open-deal'
+import { opportunity } from '../opportunity/opportunity.schema'
 import {
   mailSequence,
   mailSequenceRun,
@@ -320,16 +320,10 @@ export class MasRepository {
   }
 
   /** The lead a preview merges from, reachable through the lead OR through a
-   *  deal on it the caller holds — the three-step mould at the deal book posts
-   *  the deal's lead, and a deal owner must see their own customer's name. */
+   *  live deal on it the caller stands on (`leadDealHeldBy`, the lead profile's
+   *  read rule) — the deal book's mould posts the deal's lead. */
   async previewSubject(who: Actor, leadCode: string): Promise<MasSubjectRow | undefined> {
-    const viaDeal = exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(opportunity)
-        .innerJoin(opportunityOwner, eq(opportunityOwner.opportunityCode, opportunity.code))
-        .where(and(eq(opportunity.leadCode, lead.code), eq(opportunityOwner.actorId, who.id))),
-    )
+    const viaDeal = leadDealHeldBy(lead.code, who.id)
     const [row] = await this.db
       .select({ code: lead.code, ...LEAD_FACTS })
       .from(lead)
@@ -994,18 +988,7 @@ export class MasRepository {
    *  `opportunity_owner`, so the predicate is the `EXISTS` copied from
    *  `OpportunityRepository.scopeOf` — one axis per book, never the lead's. */
   private dealScopeOf(who: Actor, scoped: boolean): SQL | undefined {
-    if (!scoped || !who.ownOnly) return undefined
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(opportunityOwner)
-        .where(
-          and(
-            eq(opportunityOwner.opportunityCode, opportunity.code),
-            eq(opportunityOwner.actorId, who.id),
-          ),
-        ),
-    )
+    return scoped && who.ownOnly ? dealStoodBy(opportunity.code, who.id) : undefined
   }
 
   private listFilters(

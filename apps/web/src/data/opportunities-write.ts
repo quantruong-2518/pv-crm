@@ -12,6 +12,8 @@ import {
   type OpportunityMilestoneResponse,
   type OpportunityProfileResponse,
   type OpportunityRow,
+  type OpportunitySaleOwnersBody,
+  type OpportunitySaleOwnersResponse,
   type OpportunityStageHistory,
   type OpportunityStopBody,
   type OpportunityStopResponse,
@@ -71,7 +73,7 @@ export const OPPORTUNITY_WRITE_NEED: ApiNeed = {
 
 /** The EDIT door — `@Need` of `PATCH :code`. Scoped like the create door, but
  *  the scope answers a different question: create is scoped
- *  by the LEAD it converts, edit by standing in the deal's PIC (ADR 0064 §5). */
+ *  by the LEAD it converts, edit by standing on either lane of the deal (ADR 0071). */
 export const OPPORTUNITY_UPDATE_NEED: ApiNeed = {
   branch: 'Sales',
   permission: 'opportunity.edit',
@@ -365,9 +367,8 @@ export function useSignContract(code: ObjectCode) {
  *  final — there is no reopen door (ADR 0069 §1).
  *
  *  `scoped: true` on both, the same flag `OPPORTUNITY_UPDATE_NEED` above
- *  carries: standing in the PIC is what
- *  grants the right (ADR 0064 §5), so every declaration here has to read the same
- *  as its controller `@Need`. */
+ *  carries: standing on either lane of the deal (ADR 0071) is what grants the
+ *  right, so every declaration here has to read the same as its controller `@Need`. */
 export const OPPORTUNITY_MOVE_NEED: ApiNeed = {
   branch: 'Sales',
   permission: 'opportunity.edit',
@@ -403,6 +404,27 @@ export function acceptDeal(
     method: 'POST',
     body,
     need: OPPORTUNITY_ACCEPT_NEED,
+    signal,
+  })
+}
+
+/** The assign door — `@Need({ …, permission: 'opportunity.assign', scoped: true })`.
+ *  REPLACES the SALE lane (sellers only) of a deal past `new` (ADR 0071). */
+export const OPPORTUNITY_ASSIGN_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'opportunity.assign',
+  scoped: true,
+}
+
+export function assignSale(
+  code: ObjectCode,
+  body: OpportunitySaleOwnersBody,
+  signal?: AbortSignal,
+): Promise<OpportunitySaleOwnersResponse> {
+  return api.write<OpportunitySaleOwnersResponse>(`${BOOK_PATH}/${code}/sale-owners`, {
+    method: 'POST',
+    body,
+    need: OPPORTUNITY_ASSIGN_NEED,
     signal,
   })
 }
@@ -472,6 +494,22 @@ export function useAcceptDeal(code: ObjectCode) {
     onSuccess: (row) => {
       settled(row)
       void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+    },
+  })
+}
+
+/** Give or change the seller. Refreshes what accept refreshes, plus the next
+ *  step: its default doer is the holder, and a new seller is the new holder. */
+export function useAssignSale(code: ObjectCode) {
+  const client = useQueryClient()
+  const settled = useMoveSettled(code)
+
+  return useMutation<OpportunitySaleOwnersResponse, ApiError, OpportunitySaleOwnersBody>({
+    mutationFn: (body) => assignSale(code, body),
+    onSuccess: (row) => {
+      settled(row)
+      void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+      void client.invalidateQueries({ queryKey: nextStepKey(code) })
     },
   })
 }

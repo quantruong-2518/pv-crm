@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { GlassCard, Input, SegmentedControl, Textarea } from '@pv/ui'
 import { OPPORTUNITY_DESCRIPTION_MAX, OPPORTUNITY_NAME_MAX } from '@pv/contracts'
+import { ACCEPTOR_LABEL } from '@/data/deal-sale'
 import { toggled } from '@/data/opportunities'
 import type { DealDraft } from '@/data/deal-draft'
 import { Field } from '@/components/ops-fields'
@@ -30,8 +31,11 @@ import {
 export function DealFormCard({
   draft,
   history,
+  acceptor = null,
 }: {
   draft: DealDraft
+  /** Who took the deal off the queue, as `acceptorText` prints it. */
+  acceptor?: string | null
   /** The history tab. Absent on the create door — a deal that does not exist
    *  yet has no timeline, and a tab promising one it cannot fill is worse than
    *  no tab at all. */
@@ -60,12 +64,12 @@ export function DealFormCard({
         />
       )}
 
-      {open === 'history' && history ? history.node : <InfoTab draft={draft} />}
+      {open === 'history' && history ? history.node : <InfoTab draft={draft} acceptor={acceptor} />}
     </GlassCard>
   )
 }
 
-function InfoTab({ draft }: { draft: DealDraft }) {
+function InfoTab({ draft, acceptor }: { draft: DealDraft; acceptor: string | null }) {
   const { work, set, errors } = draft
 
   /* A reader without `opportunity.edit` gets every box shut BEFORE typing,
@@ -108,15 +112,16 @@ function InfoTab({ draft }: { draft: DealDraft }) {
 
         <section className="grid gap-4 sm:grid-cols-2">
           {/* A native disabled fieldset shuts every control inside it — the sale
-            owners of a signed deal move the contract, so the server asks for
-            `opportunity.close` there and the box locks before anyone types. */}
-          <fieldset disabled={draft.moneyLocked} className="contents">
+            owners of a signed deal move the contract (`opportunity.close`), and
+            after accept the lane is the assign act's (ADR 0071). */}
+          <fieldset disabled={draft.saleLocked} className="contents">
             <PersonPickField
               label="Sale đứng đơn"
               hint={
-                draft.moneyHint ??
-                'Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi đề nghị ký.'
+                draft.saleHint ??
+                'Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi Chốt thắng.'
               }
+              sellersOnly
               picked={work.saleOwners}
               errors={errors.saleOwners}
               onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}
@@ -131,6 +136,13 @@ function InfoTab({ draft }: { draft: DealDraft }) {
             onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
           />
         </section>
+
+        {/* Read-only: a recorded fact, not a box (ADR 0071 §3). */}
+        {acceptor && (
+          <Field label={ACCEPTOR_LABEL} plain>
+            <p className="text-foreground m-0 text-[12.5px] leading-[1.5]">{acceptor}</p>
+          </Field>
+        )}
 
         <ProductTagsField
           picked={work.products}

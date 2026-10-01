@@ -88,6 +88,8 @@ export const Permission = z.enum([
   'opportunity.edit',
   /** The accept door: head-of-sales takes a `new` deal into `assigned`. */
   'opportunity.accept',
+  /** Give or change the deal's seller after accept — the head's call (ADR 0071). */
+  'opportunity.assign',
   'opportunity.close',
   'contract.view',
   'contract.edit',

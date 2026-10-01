@@ -22,6 +22,7 @@ import type { LeadDraft } from '@/data/lead-draft'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { stopReasonLabel } from '@/data/sales-config'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
+import { useLeadDealReach } from '@/data/deal-sale'
 import { AssignMenu } from './assign-menu'
 import { LeadStepButton } from './lead-state-actions'
 
@@ -116,6 +117,7 @@ function EditBar({
      not signed — the same two refusals the exit door answers 409 with. */
   const noDeal = liveDeal.codes.length === 0 && liveDeal.hidden === 0 && !lead.signed
   const droppable = isOpenState(lead.state) || (lead.state === 'converted' && noDeal)
+  const dealReach = useLeadDealReach(lead)
 
   return (
     <>
@@ -169,6 +171,7 @@ function EditBar({
               <AssignMenu
                 lead={legacy}
                 profile={lead}
+                readOnly={dealReach}
                 buttonVariant="ghost"
                 className="w-full [&>button]:min-h-12 [&>button]:w-full [&>button]:justify-start [&>button]:bg-transparent [&>button]:shadow-none"
               />

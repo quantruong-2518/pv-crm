@@ -44,7 +44,14 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
-import { actorRoles, assertHeld, assertSellers } from './opportunity-owners'
+import {
+  actorRoles,
+  assertHeld,
+  assertSaleLaneKept,
+  assertSellers,
+  recordSaleLane,
+  saleLaneChange,
+} from './opportunity-owners'
 import {
   fromCreate,
   fromUpdate,
@@ -145,7 +152,7 @@ export class OpportunityService {
        người ngoài đọc, đúng như `refOf` khai. */
     const items = page.rows.map((r) => ({
       ...r,
-      ref: scopeRefOf(r.row, r.owners, who.id),
+      ref: scopeRefOf(r.row, r.owners, who),
     }))
     const { visible, hidden } = this.access.visible(who, items)
 
@@ -212,7 +219,7 @@ export class OpportunityService {
     const deals = await this.repo.liveDealsWithOwners(leadCode)
     const items = deals.map((d) => ({
       code: d.row.code,
-      ref: scopeRefOf(d.row, d.owners, who.id),
+      ref: scopeRefOf(d.row, d.owners, who),
     }))
     const { visible, hidden } = this.access.visible(who, items)
     return OpportunityLiveDeal.parse({ codes: visible.map((v) => v.code), hidden })
@@ -427,8 +434,9 @@ export class OpportunityService {
    *  ------------------------------------------------------------------
    *  `state`, `stage`, the column clock, `closed_at` and the fail log are not in
    *  `OpportunityEdit` (ADR 0064), and since ADR 0071 neither is `assigned`: it
-   *  is a head's accept, not a side effect of who is typed into the owners. So
-   *  either lane may be emptied here; the sign door is what asks for a Sale. */
+   *  is a head's accept, not a side effect of who is typed into the owners. At
+   *  `new` either lane may be emptied here; past it the SALE lane has one door,
+   *  `sale-owners` (`assertSaleLaneKept`). The sign door is what asks for a Sale. */
   async update(
     who: Actor,
     code: ObjectCode,
@@ -440,7 +448,7 @@ export class OpportunityService {
     /* Money or SALE owners on a signed deal rewrite the contract, so they need
        the sign door's permission and scope. */
     if (found.signed && touchesSignTerms(found, body)) {
-      const ref = scopeRefOf(found.row, found.owners, who.id)
+      const ref = scopeRefOf(found.row, found.owners, who)
       const verdict = this.access.check(who, { permission: 'opportunity.close', ref })
       if (!verdict.ok) throw denied(verdict.reason, verdict.note)
     }
@@ -455,18 +463,12 @@ export class OpportunityService {
     if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
 
     const write = fromUpdate(body)
-    const owner = holderOfIds(body, names, roles, found.acceptedBy)
-    const onSale = new Set(found.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
-    await assertSellers(
-      this.repo.readonlyHandle,
-      body.saleOwners.filter((id) => !onSale.has(id)),
-    )
-    assertHeld(owner)
-
-    const row = await this.repo.run(async (tx) => {
+    const { row, owner, acceptedBy } = await this.repo.run(async (tx) => {
       await this.assertLockedAsRead(tx, code, found, pendingSign)
+      const { now, owner } = await this.ownersUnderLock(tx, code, body, names, roles)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
+      await recordSaleLane(tx, this.touch, saleLaneChange(now, body.saleOwners, names, owner, who))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
       for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
 
@@ -474,7 +476,7 @@ export class OpportunityService {
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
       await this.mirror.put(tx, toRef(written, owner))
-      return written
+      return { row: written, owner, acceptedBy: now.acceptedBy }
     })
 
     const productNames =
@@ -497,7 +499,7 @@ export class OpportunityService {
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
         contractCodes: found.contractCodes,
         holder: owner,
-        acceptedBy: found.acceptedBy,
+        acceptedBy,
         daysInStage: daysInStageOf(row, new Date()),
         products: productNames,
       }),
@@ -757,6 +759,28 @@ export class OpportunityService {
    *  `roleId`, so it follows the same grant as the accept door itself. */
   private acceptorAtCreate(who: Actor): RefOwner | null {
     return this.access.allows(who, 'opportunity.accept') ? { id: who.id, name: who.name } : null
+  }
+
+  /** The owner rules on the deal as it stands UNDER the row lock — an accept
+   *  or an assign landing after the pre-read is judged, not overwritten. */
+  private async ownersUnderLock(
+    tx: Db,
+    code: string,
+    body: OpportunityUpdate,
+    names: ReadonlyMap<string, string>,
+    roles: ReadonlyMap<string, RoleId>,
+  ): Promise<{ now: OpportunityRead; owner: RefOwner | null }> {
+    const now = await this.repo.byCode(null, code, tx)
+    if (!now) throw notFound('cơ hội', code)
+    assertSaleLaneKept(now, body.saleOwners)
+    const onSale = new Set(now.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
+    await assertSellers(
+      tx,
+      body.saleOwners.filter((id) => !onSale.has(id)),
+    )
+    const owner = holderOfIds(body, names, roles, now.acceptedBy)
+    assertHeld(owner)
+    return { now, owner }
   }
 
   private async pendingSign(code: string): Promise<boolean> {

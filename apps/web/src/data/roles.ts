@@ -130,6 +130,7 @@ export const PERMISSION_LABEL = {
   'opportunity.create': 'Mở cơ hội mới từ một lead',
   'opportunity.edit': 'Sửa cơ hội và bảng giá',
   'opportunity.accept': 'Nhận PIC cơ hội mới',
+  'opportunity.assign': 'Giao hoặc đổi Sale của cơ hội',
   'opportunity.close': 'Chốt hoặc buông một cơ hội',
   'contract.view': 'Xem hợp đồng',
   'contract.edit': 'Sửa hợp đồng và đợt thanh toán',

@@ -206,7 +206,7 @@ export class LeadExitService {
   private async inScope(who: Actor, code: ObjectCode) {
     const found = await this.leads.byCode(who, code)
     if (!found) throw notFound('lead', code)
-    if (!found.inScope) {
+    if (!found.holds) {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
     return found

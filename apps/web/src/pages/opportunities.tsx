@@ -4,7 +4,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Badge,
   Button,
   Checkbox,
   Chip,
@@ -14,7 +13,6 @@ import {
   SegmentedControl,
   Select,
   ScreenLayout,
-  StageTrack,
   StatCard,
   billions,
   cn,
@@ -29,7 +27,6 @@ import {
   OWNER_NONE,
   type OpportunityBookQuery,
   type OpportunityOwner,
-  type OpportunityBookRow,
   type OpportunityRow,
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
@@ -40,12 +37,10 @@ import { isApiError, userMessage } from '@/app/api'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import { dm } from '@/lib/date'
 import {
-  BADGE_INK,
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   amountVndOf,
   isLateClose,
-  isRottingOp,
   namesOf,
   opportunityBookQuery,
   opportunityBookQueryToParams,
@@ -53,10 +48,8 @@ import {
   opportunityScorecardQuery,
   parseOpportunityBookQuery,
   saleOwnersOf,
-  stageTrackOf,
-  standingLabel,
-  STATE_TONE,
 } from '@/data/opportunities'
+import { ACCEPT_QUEUE, inQueue, UNASSIGNED_QUEUE } from '@/data/deal-sale'
 import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { leadFacetQuery } from '@/data/leads'
@@ -66,6 +59,8 @@ import { useBookSelection } from '@/components/book-selection'
 import { BookCount, BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { AcceptQueueLink } from '@/components/opportunity-accept'
+import { UnassignedSaleLink } from '@/components/opportunity-assign'
+import { StateCell } from './opportunities-cells'
 import {
   BookSelectionBar,
   FilterMenu,
@@ -211,7 +206,7 @@ const STATE_TABS: { value: string; label: string }[] = [
 const SEARCH_DELAY_MS = 300
 
 const NO_BD_TITLE = 'Chưa ghi BD mở cửa — công trạng mở cửa chưa ai nhận'
-const NO_SALE_TITLE = 'Chưa có Sale đứng đơn'
+const NO_HOLDER_TITLE = 'Chưa ai giữ — chưa có Sale, người nhận PIC hay BD'
 
 /** Panel nạp tệp KHÔNG chống trùng trong trình duyệt — tập rỗng là một quyết
  *  định, không phải một chỗ chưa nối.
@@ -376,6 +371,7 @@ export function OpportunitiesPage() {
     text.trim() !== '' ||
     query.state !== undefined ||
     query.stage !== undefined ||
+    query.accepted !== undefined ||
     query.sale !== undefined ||
     query.bd !== undefined ||
     query.account !== undefined
@@ -385,10 +381,18 @@ export function OpportunitiesPage() {
       q: undefined,
       state: undefined,
       stage: undefined,
+      accepted: undefined,
       sale: undefined,
       bd: undefined,
       account: undefined,
     })
+
+  /* A head's queue is a toggle: on, the book shows exactly its filter; off,
+     only the queue's own axes are lifted. */
+  const toggleQueue = (queue: Partial<OpportunityBookQuery>) =>
+    inQueue(query, queue)
+      ? patch(Object.fromEntries(Object.keys(queue).map((key) => [key, undefined])))
+      : setParams(opportunityBookQueryToParams({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, ...queue }))
 
   /* One `size=1` read per tab, the move the lead book already makes: `total` is
      the count under the OTHER filters in force, and no other endpoint answers
@@ -424,6 +428,7 @@ export function OpportunitiesPage() {
      (ADR 0071 §1) — so a Sale sees neither, rather than a 403 after a file. */
   const canCreate = useCan('opportunity.create')
   const canAccept = useCan('opportunity.accept')
+  const canAssign = useCan('opportunity.assign')
 
   const loadFile = useOpportunityImport()
 
@@ -488,7 +493,18 @@ export function OpportunitiesPage() {
           title="Sổ cơ hội"
           actions={
             <>
-              {canAccept && <AcceptQueueLink />}
+              {canAccept && (
+                <AcceptQueueLink
+                  active={inQueue(query, ACCEPT_QUEUE)}
+                  onPress={() => toggleQueue(ACCEPT_QUEUE)}
+                />
+              )}
+              {canAssign && (
+                <UnassignedSaleLink
+                  active={inQueue(query, UNASSIGNED_QUEUE)}
+                  onPress={() => toggleQueue(UNASSIGNED_QUEUE)}
+                />
+              )}
               {canCreate && (
                 <>
                   <ImportZone
@@ -553,7 +569,12 @@ export function OpportunitiesPage() {
                   /* A native select grows to its longest option, and account
                      names run long — clamp it to the panel. */
                   className="w-full max-w-none"
-                  options={[{ value: ANY, label: 'Mọi Sale' }, ...saleOptions]}
+                  options={[
+                    { value: ANY, label: 'Mọi Sale' },
+                    /* The target of the unassigned quick filter, so it reads back. */
+                    { value: OWNER_NONE, label: 'Chưa có Sale' },
+                    ...saleOptions,
+                  ]}
                 />
                 <Select
                   label="BD mở cửa"
@@ -655,7 +676,8 @@ export function OpportunitiesPage() {
                  flow bar. Five segments in a narrow cell shrink into five ticks
                  that no longer read as a position. */
               { header: 'Trạng thái', width: '1.5fr' },
-              { header: 'Sale', width: '1fr' },
+              /* The accountable person (ADR 0071 §5): seller, else acceptor, else BD. */
+              { header: 'Người giữ', width: '1fr' },
               { header: 'BD', width: '1fr' },
             ],
             rows: rows.map((o) => ({
@@ -680,8 +702,8 @@ export function OpportunitiesPage() {
                 </span>,
                 <AmountCell key="m" op={o} />,
                 <CloseCell key="d" op={o} />,
-                <StateCell key="s" op={o} />,
-                <PersonCell key="so" value={firstName(saleOwnersOf(o))} missing={NO_SALE_TITLE} />,
+                <StateCell key="s" op={o} canAccept={canAccept} canAssign={canAssign} />,
+                <PersonCell key="ho" value={o.holder?.name} missing={NO_HOLDER_TITLE} />,
                 <PersonCell key="bo" value={firstName(bdOwnersOf(o))} missing={NO_BD_TITLE} />,
               ],
             })),
@@ -913,60 +935,6 @@ function CloseCell({ op }: { op: OpportunityRow }) {
     >
       <span className="tnum font-num">{dm(op.expectedClose)}</span>
     </span>
-  )
-}
-
-/** The state cell — a PILL, and under it the flow the deal is walking.
- *
- *  The pill's colour says whether the deal is still ON THE BOARD (green signed ·
- *  azure running · grey stopped), its text says WHERE: the column
- *  while the deal is open, the read state once it has left. One helper decides
- *  that word for both this cell and the deal's own sticky bar — `standingLabel`.
- *
- *  ------------------------------------------------------------------
- *  THE PIPELINE COLUMN COMES OUT OF THE TOOLTIP — REVERSED 03/09
- *  ------------------------------------------------------------------
- *  It used to live in `title`, and the argument then was "three sentences in
- *  one table cell and none of them get read". That holds for three LINES OF
- *  TEXT and fails for what stands here now: `StageTrack` is not a sentence to
- *  read, it is a shape to glance at — five segments, three colours, no words.
- *  Someone scanning the whole page sees at once which deals are near a contract
- *  and which are still sitting in the first column, which a tooltip can never
- *  do: it shows for ONE row, and only after the reader already knows which row
- *  is worth hovering.
- *
- *  `title` stays and still carries its full sentence: it is the only place that
- *  names the DAY COUNT and the fact that the deal is past its column limit —
- *  the bar deliberately carries neither (see `stageTrackOf`). A closed deal has
- *  no bar, and the pill alone is the right answer for a deal standing in no
- *  column. */
-function StateCell({ op }: { op: OpportunityBookRow }) {
-  const rotting = isRottingOp(op)
-  const stage = op.stage === null ? null : OPPORTUNITY_STAGE_LABEL[op.stage]
-  const track = stageTrackOf(op)
-
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <Badge
-        tone={rotting ? 'warning' : STATE_TONE[op.state]}
-        /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
-        className={cn('max-w-full', !rotting && op.state === 'lost' && BADGE_INK)}
-        title={
-          stage
-            ? rotting
-              ? `Cột "${stage}" · ${op.daysInStage} ngày, đã quá hạn cột`
-              : `Cột "${stage}" · ${op.daysInStage} ngày`
-            : 'Đã đóng sổ — đơn ra khỏi năm cột'
-        }
-      >
-        <span className="min-w-0 truncate">
-          {standingLabel(op)}
-          {rotting && ' · quá hạn'}
-        </span>
-      </Badge>
-
-      {track && <StageTrack steps={track.steps} current={track.current} />}
-    </div>
   )
 }
 

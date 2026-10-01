@@ -181,6 +181,11 @@ export const JourneyDeal = z.object({
   code: ObjectCode,
   name: textInput(200),
   holder: WorkstreamHolder.nullable(),
+  /** The head who took the deal off the queue (ADR 0071), drawn on the
+   *  `assigned` rung — the rung's own `by` is whoever moved it, which differs
+   *  on migrated deals. */
+  acceptedBy: WorkstreamHolder.nullable(),
+  acceptedAt: Moment.nullable(),
   amount: MoneyVnd.nullable(),
   expectedClose: Day.nullable(),
   outcome: JourneyDealOutcome,

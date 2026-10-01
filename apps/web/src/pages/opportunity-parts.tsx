@@ -1,11 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Check,
   Handshake,
-  ListChecks,
   Mail,
-  Octagon,
   PenLine,
   Phone,
   TriangleAlert,
@@ -14,13 +12,11 @@ import {
 } from '@pv/ui'
 import {
   Avatar,
-  Badge,
   Button,
   ContextRail,
   FlowVector,
   GlassCard,
   Icon,
-  Input,
   MetaPill,
   ScreenHeader,
   SectionTitle,
@@ -30,36 +26,24 @@ import {
 } from '@pv/ui'
 import {
   campaignLabel,
-  isSellerRole,
   OPPORTUNITY_STAGE_LABEL,
-  OPPORTUNITY_STAGE_NOTE_MAX,
   type LeadProfile,
-  type OpportunityMilestoneKind,
   type OpportunityProfileResponse,
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { toastDone } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
 import { realContact } from '@/data/lead-profile'
-import { useDirectory } from '@/data/directory'
-import {
-  BADGE_INK,
-  milestonesOf,
-  saleOwnersOf,
-  standingLabel,
-  STATE_TONE,
-} from '@/data/opportunities'
-import { opportunityStageHistoryQuery, useLogMilestone } from '@/data/opportunities-write'
+import { noSellerSentence, useHasSeller } from '@/data/deal-sale'
+import { opportunityStageHistoryQuery } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
-import { StopDrawer } from '@/components/opportunity-stop'
-import { AcceptDealButton } from '@/components/opportunity-accept'
 import { ActivityTimeline } from '@/components/lead-history-card'
 import { LetterLines } from '@/components/mail-letter/letter-lines'
+import { DealMoves } from './opportunity-moves'
 
 /** Module 3 · the blocks of the deal screen, around the form card itself.
  *
@@ -295,6 +279,10 @@ export function DealToolsBar({
   const won = op?.state === 'won'
   const pending = op?.pendingSign
   const sign = useSignWhy(op, quotationLogged, draft.canClose && !pending)
+  /* The bar prints the sign reason only when nothing outranks it; when that
+     reason is the missing seller, the moves row drops its own copy of it. */
+  const quiet = !draft.error && draft.missing.length === 0 && !creating && draft.dirty.length === 0
+  const sellerOnBar = quiet && sign.shown !== undefined && sign.shown === sign.noSeller
 
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
@@ -306,7 +294,7 @@ export function DealToolsBar({
         {/* WHERE THE DEAL STANDS, on its own line above the actions: the row
             below is already full of buttons. Absent on the create door — a deal
             that does not exist yet stands nowhere. */}
-        {op && <DealMoves op={op} canEdit={draft.canEdit} />}
+        {op && <DealMoves op={op} canEdit={draft.canEdit} sellerOnBar={sellerOnBar} />}
 
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
@@ -435,12 +423,13 @@ export function DealToolsBar({
 
 /** Why each sign button is shut — mirrors the sign door's 409s off the SAVED
  *  row (ADR 0071 §4): a seller (`isSellerRole`) must stand on the SALE lane,
- *  and a first sign needs a quotation. `shown` is the one the bar prints. */
+ *  and a first sign needs a quotation. `shown` is the one the bar prints. No
+ *  seller reason while the roles are still loading — never a guess. */
 function useSignWhy(op: OpportunityRow | null, quotationLogged: boolean, offered: boolean) {
-  const staff = useDirectory()
-  const roleOf = (id: string) => staff.find((a) => a.id === id)?.roleId
-  const seller = op === null || saleOwnersOf(op).some((o) => isSellerRole(roleOf(o.id)))
-  const again = seller ? undefined : NO_SELLER
+  const seller = useHasSeller(op)
+  const canAssign = useCan('opportunity.assign')
+  const noSeller = noSellerSentence(op?.state === 'won', canAssign)
+  const again = seller === false ? noSeller : undefined
   const first = again ?? (quotationLogged ? undefined : NO_QUOTATION)
   const shown = !offered
     ? undefined
@@ -449,144 +438,10 @@ function useSignWhy(op: OpportunityRow | null, quotationLogged: boolean, offered
       : op?.state === 'won'
         ? again
         : undefined
-  return { first, again, shown }
+  return { first, again, shown, noSeller }
 }
 
-const NO_SELLER =
-  'Chưa có Sale đứng đơn — thêm một người vai Sale hoặc AE vào phiếu và lưu trước khi đề nghị ký.'
 const NO_QUOTATION = 'Chưa ghi mốc Quotation — gửi báo giá và ghi mốc trước khi chốt.'
-
-/** Where the deal STANDS, and the doors that move it (ADR 0064 §3, 0069 §1).
- *
- *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
- *  picks neither state nor column. Every button here carries a FACT instead — a
- *  milestone that really happened, or a stop with a reason — and the server's
- *  single stage writer draws the conclusion from it. A stop is final, so a
- *  lost deal keeps only its badge; the fail log is its own card.
- *
- *  WHICH milestone buttons appear is `milestonesOf`'s answer rather than this
- *  block's: it applies the same rank rule the door refuses by, so no button on
- *  screen can earn a 409 for naming the wrong column. */
-function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
-  const [note, setNote] = useState('')
-  const [stopping, setStopping] = useState(false)
-  const milestone = useLogMilestone(op.code)
-  const canAccept = useCan('opportunity.accept')
-
-  const offers = milestonesOf(op)
-  const open = op.state === 'open'
-
-  /* The note box is shared by every milestone button rather than repeated per
-     button: one deal moves one column at a time, and four note boxes on a
-     sticky bar is four boxes nobody fills in. */
-  const record = (kind: OpportunityMilestoneKind, label: string) => {
-    const typed = note.trim()
-    milestone.mutate(
-      { kind, ...(typed === '' ? {} : { note: typed }) },
-      {
-        onSuccess: () => {
-          setNote('')
-          toastDone(`Đã ghi mốc ${label}.`)
-        },
-      },
-    )
-  }
-
-  return (
-    <div className="flex basis-full flex-wrap items-center gap-2">
-      {/* `BADGE_INK` only on the lost tone — law 13; see its own note. */}
-      <Badge tone={STATE_TONE[op.state]} className={cn(op.state === 'lost' && BADGE_INK)}>
-        {standingLabel(op)}
-      </Badge>
-
-      {op.daysInStage !== null && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          {op.daysInStage} ngày ở cột này
-        </span>
-      )}
-
-      {op.acceptedBy && op.acceptedAt && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Nhận PIC bởi {op.acceptedBy.name} · {dm(op.acceptedAt)}
-        </span>
-      )}
-
-      {/* A deal no head has accepted records nothing, and the door says so in
-          a 409 — the accept button for a head, the reason for anyone else. */}
-      {open && canAccept && (
-        <AcceptDealButton
-          code={op.code}
-          show={op.stage === 'new'}
-          className="pointer-coarse:h-12"
-        />
-      )}
-      {canEdit && open && op.stage === 'new' && !canAccept && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Chờ trưởng phòng Kinh doanh nhận PIC — chưa ghi mốc được.
-        </span>
-      )}
-
-      {canEdit && open && (
-        <>
-          {offers.length > 0 && (
-            <Input
-              value={note}
-              aria-label="Ghi chú mốc"
-              placeholder="Ghi chú mốc (tuỳ chọn)"
-              maxLength={OPPORTUNITY_STAGE_NOTE_MAX}
-              className="pointer-coarse:h-12 w-full sm:w-[220px]"
-              onChange={(e) => setNote(e.target.value)}
-            />
-          )}
-
-          {offers.map((offer) => (
-            <Button
-              key={offer.kind}
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              disabled={milestone.isPending}
-              /* The repeat wording is the whole point of `repeat`: pressing
-                 Quotation again is another Nego round, not a mistake. */
-              title={
-                offer.repeat
-                  ? 'Ghi thêm một lần nữa ở đúng cột này — cột và đồng hồ giữ nguyên.'
-                  : undefined
-              }
-              onClick={() => record(offer.kind, OPPORTUNITY_STAGE_LABEL[offer.stage])}
-            >
-              <Icon icon={ListChecks} size={16} />
-              {offer.repeat ? 'Ghi lại ' : 'Ghi mốc '}
-              {OPPORTUNITY_STAGE_LABEL[offer.stage]}
-            </Button>
-          ))}
-
-          <Button
-            size="md"
-            variant="ghost"
-            className="pointer-coarse:h-12"
-            disabled={milestone.isPending}
-            onClick={() => setStopping(true)}
-          >
-            <Icon icon={Octagon} size={16} />
-            Dừng cơ hội
-          </Button>
-        </>
-      )}
-
-      {milestone.error && (
-        <span
-          role="alert"
-          className="text-destructive-foreground min-w-0 text-[11px] leading-[1.5]"
-        >
-          {userMessage(milestone.error)}
-        </span>
-      )}
-
-      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
-    </div>
-  )
-}
 
 /** The screen that would not open — ONE block, four sentences, glyph follows
  *  the sentence. Four near-identical empty blocks would drift apart on the

@@ -29,6 +29,9 @@ type MenuProps = {
    *  write sends comes from here, not from `lead`. `LeadProfile` extends
    *  `LeadRow`, so the detail page's full profile still fits here. */
   profile: LeadRow
+  /** The reader holds `lead.edit` but reaches this lead only through a live
+   *  deal (ADR 0071): shut, with that reason rather than the role one. */
+  readOnly?: boolean
   /** Nút to cho màn chi tiết, nút nhỏ cho hàng bảng. */
   size?: 'sm' | 'md'
   /** Màu của nút mở, để thanh hành động phân vai rõ mà không đổi panel. */
@@ -81,6 +84,7 @@ function PersonRow({
 export function AssignMenu({
   lead,
   profile,
+  readOnly = false,
   size = 'md',
   buttonVariant,
   iconOnly,
@@ -159,10 +163,12 @@ export function AssignMenu({
   /* Không giao được VÀ không nhận được thì nút không có việc gì để mở. Tắt kèm
      lý do, chứ không giấu: một nút biến mất đọc ra là "màn hỏng", còn một nút
      tắt có tooltip đọc ra là "việc này không phải của bạn". */
-  const blocked = !mayAssign && !mayClaim
-  const blockedWhy = heldByMe
-    ? 'Lead đang đứng tên bạn. Chuyển tay là việc của trưởng phòng.'
-    : 'Lead đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.'
+  const blocked = readOnly || (!mayAssign && !mayClaim)
+  const blockedWhy = readOnly
+    ? 'Bạn tham gia một cơ hội của lead này nhưng không giữ lead — không giao được lead.'
+    : heldByMe
+      ? 'Lead đang đứng tên bạn. Chuyển tay là việc của trưởng phòng.'
+      : 'Lead đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.'
   const triggerLabel = held ? 'Đổi PIC' : 'Giao lead'
   /* `ArrowLeftRight` reads as "change hands"; `UserRoundPlus` only fits the
      first-assign case — an unheld lead has no hands to change yet. */

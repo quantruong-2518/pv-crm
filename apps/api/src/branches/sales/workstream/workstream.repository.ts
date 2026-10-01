@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  exists,
   ilike,
   inArray,
   isNotNull,
@@ -31,6 +30,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
+import { dealStoodBy } from '../open-deal'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
 import {
@@ -391,17 +391,7 @@ export class WorkstreamRepository {
    *  signature came out of (`rowsOf`), never on the contract row itself — no
    *  table names an owner of a contract. */
   private opensStand(who: Actor): SQL {
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(opportunityOwner)
-        .where(
-          and(
-            eq(opportunityOwner.opportunityCode, STAND_DEAL),
-            eq(opportunityOwner.actorId, who.id),
-          ),
-        ),
-    )
+    return dealStoodBy(STAND_DEAL, who.id)
   }
 
   /** THE USER's filters. The scope axis stands outside them — see `book()`. */

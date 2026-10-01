@@ -1,4 +1,4 @@
-import { and, eq, exists, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -6,7 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { holderOf } from '../opportunity/opportunity.mapper'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
-import { dealOpen } from '../open-deal'
+import { dealOpen, dealStoodBy } from '../open-deal'
 import { nextStep } from './next-step.schema'
 import type { NextStepRead } from './next-step.repository'
 
@@ -34,20 +34,10 @@ const VIETNAM_TODAY = sql<string>`((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
 export class OpportunityStepRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  /** Axis 3 as `OpportunityRepository.scopeOf` reads it: any owner role counts. */
+  /** Axis 3: `dealStoodBy`, the rule `OpportunityRepository.scopeOf` cuts on. */
   private inScope(who: Actor): SQL<boolean> {
     if (!who.ownOnly) return sql<boolean>`true`
-    return sql<boolean>`COALESCE(${exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(opportunityOwner)
-        .where(
-          and(
-            eq(opportunityOwner.opportunityCode, opportunity.code),
-            eq(opportunityOwner.actorId, who.id),
-          ),
-        ),
-    )}, false)`
+    return sql<boolean>`COALESCE(${dealStoodBy(opportunity.code, who.id)}, false)`
   }
 
   /** Null = no such deal. Left joins: a deal with no step still answers. */
@@ -115,12 +105,11 @@ export class OpportunityStepRepository {
     return holderOf(owners, deal ?? null)?.id ?? null
   }
 
+  /** The doer stands on or accepted the deal (`dealStoodBy`). */
   async isOwner(tx: Db, code: string, actorId: string): Promise<boolean> {
     const [row] = await tx
-      .select({ one: sql`1` })
-      .from(opportunityOwner)
-      .where(and(eq(opportunityOwner.opportunityCode, code), eq(opportunityOwner.actorId, actorId)))
-      .limit(1)
-    return row !== undefined
+      .select({ yes: sql<boolean>`${dealStoodBy(sql`${code}`, actorId)}` })
+      .from(sql`(SELECT 1) AS one`)
+    return row?.yes === true
   }
 }

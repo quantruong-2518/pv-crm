@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Modal } from '@pv/ui'
-import type { MailGroupPreflightResponse, MailSubjectKind } from '@pv/contracts'
+import {
+  OPPORTUNITY_STAGE_LABEL,
+  type MailGroupPreflightResponse,
+  type MailSubjectKind,
+  type MailTemplateRow,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
 import { MailFloatingAids } from '@/components/mail-compose-bits'
@@ -44,8 +49,13 @@ export function LetterComposer({
   door,
   code,
   leadCode,
+  unaccepted = false,
   onClose,
-}: LetterSubject & { onClose: () => void }) {
+}: LetterSubject & {
+  /** A deal still at `new`: the send records no milestone (ADR 0071 §3). */
+  unaccepted?: boolean
+  onClose: () => void
+}) {
   const [letterId] = useState(() => crypto.randomUUID())
   const [form, setForm] = useState<LetterForm>(EMPTY_FORM)
   const [seededTemplate, setSeededTemplate] = useState(false)
@@ -158,6 +168,7 @@ export function LetterComposer({
             onAddCc={people.addCc}
             onDropCc={people.dropCc}
           />
+          {unaccepted && <UnrecordedMilestone templates={templates} code={form.templateCode} />}
           {/* Two equal columns from `wide:` (1440px): below it half the panel
               crops a ~600px letter, so the letter stacks under the form. */}
           <div className="wide:grid-cols-2 grid min-w-0 items-start gap-6">
@@ -191,6 +202,25 @@ export function LetterComposer({
         parts={CONTENT_ONLY}
       />
     </>
+  )
+}
+
+/** A template that records a milestone, sent from a deal no head accepted:
+ *  the send goes out but the milestone is not written (ADR 0071 §3). */
+function UnrecordedMilestone({
+  templates,
+  code,
+}: {
+  templates: readonly MailTemplateRow[]
+  code: string
+}) {
+  const milestone = templates.find((t) => t.code === code)?.milestone
+  if (!milestone) return null
+  return (
+    <p className="text-warning m-0 text-[12px] leading-5">
+      Thư vẫn gửi, nhưng cơ hội chưa được nhận PIC nên mốc {OPPORTUNITY_STAGE_LABEL[milestone]} của
+      mẫu này sẽ không được ghi.
+    </p>
   )
 }
 

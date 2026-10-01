@@ -23,6 +23,7 @@ import {
   type OriginChoice,
   type PartnerChoice,
 } from './lead-origin-pickers'
+import { useLeadDealReach } from '@/data/deal-sale'
 
 /** The holder-and-origin card — who holds this lead and how it got here.
  *
@@ -71,6 +72,7 @@ const REFERRER_BOX = boxOf('refCode')
 function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
   const motionLabel = useMotionLabel()
   const partner = sourcePartnerLabel(profile.source)
+  const dealReach = useLeadDealReach(profile)
   return (
     <>
       <Block label="Lead PIC" hint={PIC_HINT}>
@@ -88,7 +90,12 @@ function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
           {/* NOT wrapped in a permission of this card's own: `AssignMenu` asks
               `lead.assign` for itself, and the toolbar draws the same menu
               unwrapped — two gates on one action are two answers. */}
-          <AssignMenu lead={legacy} profile={profile} buttonVariant="secondary" />
+          <AssignMenu
+            lead={legacy}
+            profile={profile}
+            readOnly={dealReach}
+            buttonVariant="secondary"
+          />
         </div>
       </Block>
 

@@ -50,7 +50,7 @@ export class OpportunityMailSentHook implements MailSentHook {
         const lock = await this.deals.lockDeal(sp, code)
         const read = lock ? await this.deals.byCode(null, code, sp) : null
         if (!lock || !read) throw notFound('cơ hội', code)
-        const ref = scopeRefOf(read.row, read.owners, who.id)
+        const ref = scopeRefOf(read.row, read.owners, who)
         const verdict = found.creator.disabledAt
           ? { ok: false, reason: 'disabled' }
           : this.access.check(who, { branch: 'Sales', permission: 'opportunity.edit', ref })

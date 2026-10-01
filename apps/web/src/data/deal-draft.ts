@@ -90,6 +90,10 @@ export type DealDraft = {
   /** Amount and the sale owners, locked while a signature is in play. */
   moneyLocked: boolean
   moneyHint: string | null
+  /** The SALE lane: editable only at `new`; after accept the assign door is
+   *  the only way in, for everyone (ADR 0071). */
+  saleLocked: boolean
+  saleHint: string | null
   errors: FieldErrors
   dirty: string[]
   missing: string[]
@@ -108,6 +112,9 @@ export const WAITING_SIGN = 'Đơn đang chờ duyệt ký — tiền, đồng t
 
 export const SIGNED_MONEY_NEEDS_CLOSE =
   'Đổi tiền/người ăn hoa hồng của đơn đã ký cần quyền chốt đơn.'
+
+export const SALE_BY_ASSIGN =
+  'Đã nhận PIC — chỉ trưởng phòng Kinh doanh đổi được Sale, qua nút Giao Sale.'
 
 export type UseDealDraftArgs = {
   /** The server's copy of the form. On the create door, the seeded blank. */
@@ -159,6 +166,10 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
   const signed = op?.state === 'won'
   const waiting = Boolean(op?.pendingSign)
   const moneyLocked = waiting || (signed && !canClose)
+  /* Past `new` the PATCH refuses any SALE change, for everyone (ADR 0071), so
+     the box shuts before anyone types into it. */
+  const accepted = op !== null && (Boolean(op.acceptedBy) || op.stage !== 'new')
+  const moneyHint = waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null
 
   const dirty = useMemo(() => changedFields(saved, work), [saved, work])
   const missing = missingOf(work)
@@ -187,7 +198,9 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     work,
     set,
     moneyLocked,
-    moneyHint: waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null,
+    moneyHint,
+    saleLocked: moneyLocked || accepted,
+    saleHint: waiting ? WAITING_SIGN : accepted ? SALE_BY_ASSIGN : moneyHint,
     errors,
     dirty,
     missing,

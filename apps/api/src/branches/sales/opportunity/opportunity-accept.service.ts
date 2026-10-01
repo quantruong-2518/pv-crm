@@ -7,8 +7,9 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
+import { TouchService } from '../touch/touch.service'
 import { dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
-import { actorRoles, assertSellers } from './opportunity-owners'
+import { actorRoles, assertSellers, recordSaleLane } from './opportunity-owners'
 import { holderOf, toContract, type RefOwner } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -22,12 +23,15 @@ import { OpportunityRepository, type OpportunityRead } from './opportunity.repos
  *
  *  One transaction, under the deal's row lock: owners union, then the move
  *  through `OpportunityLifecycle.assigned`, which writes the acceptor in the
- *  same UPDATE as the stage, plus the stage event, touch and mirror row. */
+ *  same UPDATE as the stage, plus the stage event, touch and mirror row; added
+ *  sellers leave the assign door's touch, and the old holder's step follows
+ *  the new holder (the acceptor, when no seller is added). */
 @Injectable()
 export class OpportunityAccept {
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
+    private readonly touch: TouchService,
   ) {}
 
   async accept(
@@ -48,10 +52,8 @@ export class OpportunityAccept {
       /* Union, never replace: accepting must not drop someone already on the
          deal. Only ids new to the SALE lane are judged as sellers. */
       const onSale = new Set(found.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
-      await assertSellers(
-        tx,
-        (body.saleOwners ?? []).filter((id) => !onSale.has(id)),
-      )
+      const addedIds = (body.saleOwners ?? []).filter((id) => !onSale.has(id))
+      await assertSellers(tx, addedIds)
       await this.deals.addOwners(
         tx,
         (body.saleOwners ?? []).map((actorId) => ({
@@ -69,6 +71,15 @@ export class OpportunityAccept {
         at,
       )
       if (!moved) throw alreadyAccepted(found)
+      await recordSaleLane(tx, this.touch, {
+        code,
+        added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
+        removed: [],
+        from: found.holder,
+        to: owner,
+        by,
+        at,
+      })
     })
 
     const read = await this.deals.byCode(null, code)

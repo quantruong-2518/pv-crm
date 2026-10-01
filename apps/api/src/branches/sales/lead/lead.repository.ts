@@ -33,7 +33,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
-import { leadSigned } from '../open-deal'
+import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
 import { lead } from './lead.schema'
@@ -90,8 +90,9 @@ export const CAMPAIGN_ON = and(eq(configEntry.id, lead.campaignId), eq(configEnt
  *
  *  `inScope` travels beside the data rather than deciding whether the data
  *  comes back at all, and that is the whole difference between a book and a
- *  profile — see the docblock on `byCode()`. */
-export type LeadProfileFound = LeadProfileRead & { inScope: boolean }
+ *  profile — see the docblock on `byCode()`. `inScope` is the READ verdict
+ *  (`readScopeOf`); `holds` is the edit one — only the holder edits the lead. */
+export type LeadProfileFound = LeadProfileRead & { inScope: boolean; holds: boolean }
 
 /** Whole days in the current `state` — computed in the query, not stored,
  *  because it changes with the clock while nobody touches the row. No stop at
@@ -288,6 +289,7 @@ export class LeadRepository {
    *  rows and not ten plus the common pool. */
   async byCode(who: Actor, code: string): Promise<LeadProfileFound | null> {
     const scope = this.scopeOf(who, true)
+    const reads = this.readScopeOf(who)
 
     const [row] = await this.db
       .select({
@@ -304,7 +306,8 @@ export class LeadRepository {
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
         duplicateOf: this.duplicatesOf(who, true),
-        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+        inScope: reads ? sql<boolean>`COALESCE(${reads}, false)` : sql<boolean>`true`,
+        holds: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
@@ -367,6 +370,14 @@ export class LeadRepository {
    *  reads as "no condition" inside `and(...)`. */
   private scopeOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean): SQL | undefined {
     return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+  }
+
+  /** The one-lead READ axis: the holder, or someone standing on a live deal of
+   *  this lead — they read and mail the customer they are selling to. The book
+   *  and every edit stay on `scopeOf`: a deal does not hand over the lead. */
+  private readScopeOf(who: Pick<Actor, 'id' | 'ownOnly'>): SQL | undefined {
+    const holds = this.scopeOf(who, true)
+    return holds ? or(holds, leadDealHeldBy(lead.code, who.id)) : undefined
   }
 
   /** Codes of the OTHER live leads on this row's mailbox — flagged, not refused,

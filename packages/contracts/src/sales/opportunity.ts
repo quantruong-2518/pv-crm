@@ -7,6 +7,7 @@ import {
   ObjectCode,
   Moment,
   Day,
+  Bool,
   textInput,
   textInputOptional,
 } from '../primitives'
@@ -18,7 +19,7 @@ import { WorkstreamHolder } from './workstream'
  *
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
  *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
- *      POST   …/:code/accept · …/:code/milestones · …/:code/stop
+ *      POST   …/:code/accept · …/sale-owners · …/milestones · …/stop
  *
  *  ------------------------------------------------------------------
  *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
@@ -370,6 +371,9 @@ export const OpportunityBookQuery = PageQuery.extend({
   /** The column a deal stands in — `new` is the head of sales' accept queue
    *  (ADR 0071), counted by the histogram's same bucket. */
   stage: StageKey.optional(),
+  /** Open deals past `new` — the head's "no seller yet" queue pairs this with
+   *  `sale=OWNER_NONE`, which means no seller-role owner (ADR 0071 §4). */
+  accepted: Bool.optional(),
 
   /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
    *  yet". Two fields rather than one `owner`, unlike the lead book: the two
@@ -620,10 +624,20 @@ export const OpportunityAcceptBody = z.object({
   saleOwners: ownerIds.optional(),
 })
 
+/** `POST /sales/opportunities/:code/sale-owners` — assign a seller: sets the SALE
+ *  lane of an accepted deal. Permission `opportunity.assign` (head, director,
+ *  AE). Once a deal is past `new` this is the ONLY door to that lane — the
+ *  profile PATCH refuses it for everyone (ADR 0071). REPLACES the lane, unlike
+ *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op. */
+export const OpportunitySaleOwnersBody = z.object({
+  saleOwners: ownerIds,
+})
+
 /** The three doors answer with the whole book row, like the write doors above:
  *  stage, state, the stop fields and the clock are all recomputed, and a screen
  *  patching its own cached row would disagree with the next `GET`. */
 export const OpportunityAcceptResponse = OpportunityRow
+export const OpportunitySaleOwnersResponse = OpportunityRow
 export const OpportunityMilestoneResponse = OpportunityRow
 export const OpportunityStopResponse = OpportunityRow
 
@@ -669,6 +683,8 @@ export const OpportunityStageHistory = z.object({
 export type OpportunityProduct = z.infer<typeof OpportunityProduct>
 export type OpportunityAcceptBody = z.infer<typeof OpportunityAcceptBody>
 export type OpportunityAcceptResponse = z.infer<typeof OpportunityAcceptResponse>
+export type OpportunitySaleOwnersBody = z.infer<typeof OpportunitySaleOwnersBody>
+export type OpportunitySaleOwnersResponse = z.infer<typeof OpportunitySaleOwnersResponse>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>

@@ -251,6 +251,15 @@ export const NOTE = {
   handOverSkipped: (to: string, why: string) => `Không chuyển theo lead sang ${to}: ${why}`,
 
   signed: (contractCode: string) => `Ký hợp đồng ${contractCode}`,
+
+  /** A SALE-lane change by the accept or assign door: who was given, who was taken off. */
+  saleLane: (added: readonly string[], removed: readonly string[]) =>
+    [
+      added.length > 0 ? `Giao Sale: ${added.join(', ')}` : null,
+      removed.length > 0 ? `Bỏ Sale: ${removed.join(', ')}` : null,
+    ]
+      .filter((part) => part !== null)
+      .join(' · '),
 } as const
 
 /** One sentence per milestone. NOT the column label: a milestone is a thing
@@ -459,15 +468,16 @@ const byNameThenId = (a: RefOwner, b: RefOwner): number =>
 const ownerOf = (owner: RefOwner | null): Pick<ObjectRef, 'owner' | 'ownerId'> =>
   owner ? { owner: owner.name, ownerId: owner.id } : {}
 
-/** The ref E2 checks SCOPE on: the reader when they stand on the deal, else the
- *  first owner — so E2 asks the question `scopeOf` asks in SQL. Every read that
- *  cuts deals per reader builds its ref here; `book()` argues it. */
+/** The ref E2 checks SCOPE on: the reader when they stand on or accepted the
+ *  deal, else the first owner — so E2 asks the question `scopeOf` asks in SQL.
+ *  Every read that cuts deals per reader builds its ref here; `book()` argues it. */
 export function scopeRefOf(
   row: OpportunityRowDb,
   owners: readonly OpportunityOwner[],
-  readerId: string,
+  reader: RefOwner,
 ): ObjectRef {
-  const pick = owners.find((o) => o.id === readerId) ?? owners[0]
+  const pick =
+    owners.find((o) => o.id === reader.id) ?? (row.acceptedById === reader.id ? reader : owners[0])
   return toRef(row, pick ? { id: pick.id, name: pick.name } : null)
 }
 

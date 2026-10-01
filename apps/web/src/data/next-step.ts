@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { NextStepResponse, type NextStepDoneBody, type NextStepSetBody } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
 
 /** The ONE next step of a lead or an opportunity — four doors under
  *  `/sales/{leads|opportunities}/:code/next-step` (ADR 0069 §10).
@@ -15,6 +16,22 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  The cache key holds the code alone: `LD-` and `OP-` never collide. */
 
 export type NextStepSubject = 'lead' | 'opportunity'
+
+/** What the next-step card needs to know about the record a step hangs on.
+ *  Each caller builds its own, so the card never learns a lead's or a deal's shape. */
+export type StepSubject = {
+  kind: NextStepSubject
+  code: string
+  /** The default doer. Sent as "absent" so the server resolves it at write time. */
+  holder: { id: string; name: string } | null
+  /** May the form name somebody other than the holder? */
+  canAssign: boolean
+  /** Caption under a fixed doer, and the sentence when there is nobody. */
+  holderHint: string
+  noHolder: string
+  /** Chips that fill an empty box; none is fine. */
+  suggestions: readonly string[]
+}
 
 const DOOR: Record<
   NextStepSubject,
@@ -32,6 +49,14 @@ const DOOR: Record<
     write: { branch: 'Sales', permission: 'opportunity.edit', scoped: true },
     touches: ['sales', 'ops-touches'],
   },
+}
+
+/** A deal's step is also drawn by the journey tree (`JourneyDeal.nextAction`). */
+function stepSaved(client: QueryClient, subject: NextStepSubject, code: string) {
+  return (answer: NextStepResponse) => {
+    client.setQueryData(nextStepKey(code), answer)
+    if (subject === 'opportunity') void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+  }
 }
 
 const path = (subject: NextStepSubject, code: string) =>
@@ -73,7 +98,7 @@ export function useSetNextStep(subject: NextStepSubject, code: string) {
         schema: NextStepResponse,
       }),
     onError: rereadOnConflict(client, code),
-    onSuccess: (answer) => client.setQueryData(nextStepKey(code), answer),
+    onSuccess: stepSaved(client, subject, code),
   })
 }
 
@@ -91,7 +116,7 @@ export function useFinishNextStep(subject: NextStepSubject, code: string) {
       }),
     onError: rereadOnConflict(client, code),
     onSuccess: (answer) => {
-      client.setQueryData(nextStepKey(code), answer)
+      stepSaved(client, subject, code)(answer)
       void client.invalidateQueries({ queryKey: [...DOOR[subject].touches, code] })
     },
   })
@@ -108,6 +133,6 @@ export function useClearNextStep(subject: NextStepSubject, code: string) {
         schema: NextStepResponse,
       }),
     onError: rereadOnConflict(client, code),
-    onSuccess: (answer) => client.setQueryData(nextStepKey(code), answer),
+    onSuccess: stepSaved(client, subject, code),
   })
 }

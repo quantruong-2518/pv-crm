@@ -26,7 +26,7 @@ import {
   useClearNextStep,
   useFinishNextStep,
   useSetNextStep,
-  type NextStepSubject,
+  type StepSubject,
 } from '@/data/next-step'
 import { DueBadge } from '@/components/contract-bits'
 import { Field } from '@/components/field-bits'
@@ -45,23 +45,9 @@ import { Field } from '@/components/field-bits'
 /** Openings that cover most of what follows a first conversation. A chip FILLS
  *  the box and saves nothing, and stands down once the box holds anything —
  *  overwriting somebody's typing on one mis-tap is how a screen loses work. */
-const SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo sát']
+const LEAD_SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo sát']
 
 const TEXT_MAX = 200
-
-/** What the card needs to know about the record a step hangs on. Each profile
- *  builds its own, so the card never learns a lead's or a deal's shape. */
-export type StepSubject = {
-  kind: NextStepSubject
-  code: string
-  /** The default doer. Sent as "absent" so the server resolves it at write time. */
-  holder: { id: string; name: string } | null
-  /** May the form name somebody other than the holder? */
-  canAssign: boolean
-  /** Caption under a fixed doer, and the sentence when there is nobody. */
-  holderHint: string
-  noHolder: string
-}
 
 type Props = { lead?: null; locked: true } | { lead: LeadProfile; canEdit: boolean; locked?: false }
 
@@ -85,6 +71,7 @@ function LeadStep({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
     canAssign,
     holderHint: 'Người giữ lead.',
     noHolder: 'Chưa ai giữ lead, cần giao lead trước.',
+    suggestions: LEAD_SUGGESTIONS,
   }
   return <NextStepCard subject={subject} canEdit={canEdit} />
 }
@@ -142,7 +129,7 @@ function StepBody({ subject, canEdit }: { subject: StepSubject; canEdit: boolean
   const step = data.step
   if (canEdit && mode !== 'view') {
     return (
-      <StepForm
+      <NextStepForm
         subject={subject}
         step={step}
         finishing={mode === 'finish'}
@@ -223,8 +210,9 @@ function StepView({
 }
 
 /** Set, edit, or — when `finishing` — name what comes after the step just done.
- *  Mounted fresh on every open, so its boxes seed from props without a reseed. */
-function StepForm({
+ *  Mounted fresh on every open, so its boxes seed from props without a reseed.
+ *  Exported for the journey drawer, which edits a deal's step in place. */
+export function NextStepForm({
   subject,
   step,
   finishing,
@@ -272,9 +260,9 @@ function StepForm({
         </p>
       )}
 
-      {text === '' && (
+      {text === '' && subject.suggestions.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {SUGGESTIONS.map((suggestion) => (
+          {subject.suggestions.map((suggestion) => (
             <Button
               key={suggestion}
               size="sm"

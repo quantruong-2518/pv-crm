@@ -9,6 +9,7 @@ import {
   OpportunityImportBody,
   OpportunityLiveDealQuery,
   OpportunityMilestoneBody,
+  OpportunitySaleOwnersBody,
   OpportunityStopBody,
   OpportunityUpdate,
 } from '@pv/contracts'
@@ -16,6 +17,7 @@ import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityAccept } from './opportunity-accept.service'
+import { OpportunityAssign } from './opportunity-assign.service'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
@@ -53,6 +55,7 @@ export class OpportunityController {
     private readonly moves: OpportunityMoves,
     private readonly signs: OpportunitySign,
     private readonly accepts: OpportunityAccept,
+    private readonly assigns: OpportunityAssign,
   ) {}
 
   @Get()
@@ -183,9 +186,9 @@ export class OpportunityController {
    *  ký là thứ đi ra khỏi phòng kinh doanh. Đây là đường ranh giới đó được vẽ
    *  cho.
    *
-   *  Hệ quả cụ thể: `presales` mở và sửa được đơn nhưng KHÔNG bấm được nút này,
-   *  còn `sale` thì được. Đó đúng là hàng của hai vai trong `e2-access.ts`, và
-   *  nếu nó sai thì chỗ sửa là ma trận vai, không phải dòng dưới đây.
+   *  In practice `sale` presses this while `bd` and `presales`, who edit deals,
+   *  do not; opening one is a grant of its own (`opportunity.create`, ADR 0071).
+   *  That is the role matrix in `e2-access.ts` — if it is wrong, fix it there.
    *
    *  `scoped: true` — sign your own deals. An `ownOnly` caller pressing this on
    *  somebody else's deal gets 404, the same answer as a deal that does not
@@ -269,6 +272,21 @@ export class OpportunityController {
     @Body(zod(OpportunityAcceptBody)) body: OpportunityAcceptBody,
   ) {
     return this.accepts.accept(who, code, body)
+  }
+
+  /** Give an accepted deal its seller, or change them (ADR 0071) — replaces the
+   *  SALE lane; past `new` the only door to it. Scoped like every deal door;
+   *  head, director and the account-executive seat are not `ownOnly`, so they
+   *  reassign on every deal, by design. */
+  @Post(':code/sale-owners')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.assign', scoped: true })
+  saleOwners(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunitySaleOwnersBody)) body: OpportunitySaleOwnersBody,
+  ) {
+    return this.assigns.assign(who, code, body)
   }
 
   /** Stop the deal, with a reason — final (ADR 0069 §1): there is no reopen

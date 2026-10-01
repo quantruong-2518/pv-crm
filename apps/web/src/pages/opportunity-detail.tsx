@@ -16,7 +16,9 @@ import { useDealDraft } from '@/data/deal-draft'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { SignDrawer } from '@/components/sign-drawer'
 import { FailLogCard } from '@/components/opportunity-stop'
-import { NextStepCard, type StepSubject } from './lead-next-action'
+import { dealStepSubject } from '@/data/deal-next-step'
+import { acceptorText } from '@/data/deal-sale'
+import { NextStepCard } from './lead-next-action'
 import { DealFormCard } from './opportunity-form-card'
 import { DealHeader, DealHistoryTab, DealToolsBar, EmptyOp } from './opportunity-parts'
 
@@ -152,6 +154,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
 
       <DealFormCard
         draft={draft}
+        acceptor={acceptorText(op)}
         history={{
           count: touches.length,
           node: (
@@ -182,6 +185,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           door="opportunity"
           code={op.code}
           leadCode={op.leadCode}
+          unaccepted={op.state === 'open' && op.stage === 'new'}
           onClose={() => setComposing(false)}
         />
       )}
@@ -191,16 +195,9 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
 
 /** The deal's next step (ADR 0069 §10). The default doer is the row's
  *  server-computed `holder`; the form sends it as "absent", so the server's
- *  own holder wins. */
+ *  own holder wins. Chips follow the column (`dealStepSubject`). */
 function DealNextStep({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
-  const subject: StepSubject = {
-    kind: 'opportunity',
-    code: op.code,
-    holder: op.holder,
-    canAssign: true,
-    holderHint: 'Người giữ cơ hội.',
-    noHolder: 'Cơ hội chưa có ai đứng đơn hay nhận PIC.',
-  }
+  const subject = dealStepSubject(op.code, op.holder, op.stage)
   const closedNote =
     op.state === 'won'
       ? `Cơ hội đã ${OPPORTUNITY_STATE_LABEL.won.toLowerCase()} — không còn việc tiếp theo ở đây.`

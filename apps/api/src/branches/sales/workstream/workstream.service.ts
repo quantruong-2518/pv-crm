@@ -172,6 +172,7 @@ export class WorkstreamService {
        branch in SQL, and the two must fence the same rows or a card lands in a
        column that does not describe it. */
     const readerId = who.ownOnly ? who.id : null
+    const stands = standsFor(who.id, [...deals.values()].flat(), owners)
 
     const walked = reads.map((read) => {
       const runContracts = contracts.get(read.row.code) ?? []
@@ -181,7 +182,7 @@ export class WorkstreamService {
         read,
         own,
         live: liveOf(own, signed?.code ?? null),
-        kept: opensStand(read, runContracts, owners, readerId),
+        kept: opensStand(read, runContracts, stands, readerId),
       }
     })
 
@@ -230,14 +231,13 @@ export class WorkstreamService {
   ): { deals: OpportunityRowDb[]; hidden: number } {
     const items = all.map((row) => ({
       row,
-      ref: scopeRefOf(row, owners.get(row.code) ?? [], who.id),
+      ref: scopeRefOf(row, owners.get(row.code) ?? [], who),
     }))
     const { visible } = this.access.visible(who, items)
     /* E2 reads a ref with no owner as shared; a deal with no owner row must
        still stay out of an own-only reader's journey, so the id is asked here too. */
-    const deals = visible
-      .map((v) => v.row)
-      .filter((d) => !who.ownOnly || owners.get(d.code)?.some((o) => o.id === who.id))
+    const stands = standsFor(who.id, all, owners)
+    const deals = visible.map((v) => v.row).filter((d) => !who.ownOnly || stands(d.code))
     return { deals, hidden: all.length - deals.length }
   }
 }
@@ -309,4 +309,15 @@ function inputOf(
     reached: [rung],
     since: read.lead.stateSince.toISOString(),
   }
+}
+
+/** `dealStoodBy` (`../open-deal.ts`) over rows already loaded: the reader
+ *  stands on the deal in either lane, or accepted it. */
+function standsFor(
+  readerId: string,
+  deals: readonly OpportunityRowDb[],
+  owners: ReadonlyMap<string, readonly { id: string }[]>,
+): (dealCode: string) => boolean {
+  const accepted = new Set(deals.filter((d) => d.acceptedById === readerId).map((d) => d.code))
+  return (code) => accepted.has(code) || (owners.get(code) ?? []).some((o) => o.id === readerId)
 }

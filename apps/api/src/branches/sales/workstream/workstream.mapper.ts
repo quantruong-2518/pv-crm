@@ -4,7 +4,6 @@ import {
   LEAD_STATE_LABEL,
   StageKey,
   type LeadState,
-  type OpportunityOwner,
   type PipelinePositionView,
   type WorkstreamBoardColumn,
   type WorkstreamCloseReason,
@@ -101,16 +100,16 @@ export function standOf(
  *  Not "is the object E2 kept the one `stand_code` names": E2 lets a deal with
  *  NO owner row through (its scope axis has nobody to compare), while the SQL
  *  `EXISTS` finds nobody and pushes the card to the lead column — so that card
- *  landed in the lead column printing a deal. Both ends now read
- *  `opportunity_owner`, and a signature is judged by its own deal's owners,
- *  the axis `rowsOf` already cuts contracts on.
+ *  landed in the lead column printing a deal. Both ends now ask `dealStoodBy`
+ *  (either lane or the acceptor; `stands` is its in-memory twin), and a
+ *  signature is judged by its own deal, the axis `rowsOf` already cuts on.
  *
  *  `readerId` is null for a reader who sees the whole book: no fence, the same
  *  branch `standPair` takes. */
 export function opensStand(
   read: WorkstreamRead,
   contracts: readonly { code: string; deal: string }[],
-  ownersOf: Map<string, OpportunityOwner[]>,
+  stands: (dealCode: string) => boolean,
   readerId: string | null,
 ): boolean {
   const { standKind, standCode } = read.row
@@ -118,7 +117,7 @@ export function opensStand(
 
   const deal =
     standKind === 'OP' ? standCode : (contracts.find((c) => c.code === standCode)?.deal ?? null)
-  return deal !== null && (ownersOf.get(deal) ?? []).some((o) => o.id === readerId)
+  return deal !== null && stands(deal)
 }
 
 /** Which object of the run this reader OPENS — what E3's inbox is asked

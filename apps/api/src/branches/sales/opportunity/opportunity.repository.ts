@@ -9,6 +9,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  ne,
   not,
   or,
   sql,
@@ -19,6 +20,7 @@ import type { Actor } from '@pv/engines'
 import {
   CURRENCIES,
   OWNER_NONE,
+  SELLER_ROLES,
   StageKey,
   type OpportunityBookQuery,
   type OpportunityOwner,
@@ -34,7 +36,7 @@ import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
-import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
+import { dealOpen, dealSignWaiting, dealStoodBy, leadDealsAllLost } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import {
   opportunity,
@@ -887,18 +889,7 @@ export class OpportunityRepository {
    *  `EXISTS` chứ không `JOIN`: một đơn có ba người thì join nhân dòng đó lên
    *  ba, và `COUNT` sau đó đếm ba. */
   private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
-    if (!scoped || !who.ownOnly) return undefined
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(opportunityOwner)
-        .where(
-          and(
-            eq(opportunityOwner.opportunityCode, opportunity.code),
-            eq(opportunityOwner.actorId, who.id),
-          ),
-        ),
-    )
+    return scoped && who.ownOnly ? dealStoodBy(opportunity.code, who.id) : undefined
   }
 
   /** Cùng vị từ, nhưng ĐƯỢC CHỌN RA thay vì đem đi lọc — xem `byCode`. */
@@ -975,6 +966,12 @@ export class OpportunityRepository {
       this.stateFilter(q.state),
       /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
       q.stage ? eq(opportunity.stage, q.stage) : undefined,
+      /* Accepted = past `new` on the board (ADR 0071); `false` = the `new` queue. */
+      q.accepted === undefined
+        ? undefined
+        : q.accepted
+          ? and(isNotNull(opportunity.stage), ne(opportunity.stage, 'new'))
+          : eq(opportunity.stage, 'new'),
       this.ownerFilter('SALE', q.sale),
       this.ownerFilter('BD', q.bd),
       q.account ? eq(lead.company, q.account) : undefined,
@@ -1027,6 +1024,7 @@ export class OpportunityRepository {
         this.db
           .select({ one: sql`1` })
           .from(opportunityOwner)
+          .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
           .where(
             and(
               eq(opportunityOwner.opportunityCode, opportunity.code),
@@ -1036,7 +1034,9 @@ export class OpportunityRepository {
           ),
       )
 
-    return id === OWNER_NONE ? not(held()) : held(eq(opportunityOwner.actorId, id))
+    if (id !== OWNER_NONE) return held(eq(opportunityOwner.actorId, id))
+    /* No SALE owner means no SELLER there (ADR 0071 §4): a head left on the lane is not one. */
+    return not(held(role === 'SALE' ? inArray(actor.roleId, [...SELLER_ROLES]) : undefined))
   }
 
   /** Sáu con số của thẻ điểm, MỘT lượt đi tới database.

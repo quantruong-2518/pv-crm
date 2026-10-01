@@ -232,6 +232,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'workstream.view',
     'opportunity.create',
     'opportunity.edit',
+    'opportunity.assign',
     'opportunity.close',
     /* The record-payment permission is withheld from `sale` because a seller
        must not confirm their own money landing. This seat closes deals too, so

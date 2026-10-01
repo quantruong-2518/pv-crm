@@ -24,6 +24,7 @@ import {
   type WorkstreamHolder,
 } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
+import { ACCEPTOR_LABEL, acceptorText } from '@/data/deal-sale'
 import { BADGE_INK, chainPath } from '@/data/opportunities'
 import { DueBadge } from '@/components/contract-bits'
 import {
@@ -173,9 +174,16 @@ function Rail({
   kind,
   code,
   rungs,
+  notes,
   picked,
   onPick,
-}: Track & { kind: PickKind; code: string; rungs: RailRung[] }) {
+}: Track & {
+  kind: PickKind
+  code: string
+  rungs: RailRung[]
+  /** A line a rung's tooltip carries after its label, keyed by rung. */
+  notes?: Partial<Record<string, string>>
+}) {
   return (
     <ol className="m-0 grid list-none grid-cols-5 p-0">
       {rungs.map((r, i) => {
@@ -185,14 +193,15 @@ function Rail({
           'rung' in picked &&
           picked.rung === r.key
         const word = rungStatus(r.state, r.late).label
+        const note = notes?.[r.key]
         return (
           <li key={r.key} className="min-w-0">
             <button
               type="button"
               aria-pressed={on}
               aria-current={r.state === 'current' ? 'step' : undefined}
-              aria-label={`${r.label} · ${word}`}
-              title={r.label}
+              aria-label={[r.label, word, note].filter(Boolean).join(' · ')}
+              title={note ? `${r.label} · ${note}` : r.label}
               onClick={() => onPick({ kind, code, rung: r.key })}
               className={cn(
                 'motion-std flex min-h-12 w-full flex-col items-center rounded-md pt-1',
@@ -331,6 +340,11 @@ function StopLine({ deal }: { deal: JourneyDeal }) {
   )
 }
 
+function acceptorNote(deal: JourneyDeal): string | undefined {
+  const who = acceptorText(deal)
+  return who ? `${ACCEPTOR_LABEL}: ${who}` : undefined
+}
+
 export function DealCard({
   deal,
   box,
@@ -393,6 +407,7 @@ export function DealCard({
         kind="deal"
         code={deal.code}
         rungs={railOf('deal', deal.rungs, dealLate(deal))}
+        notes={{ assigned: acceptorNote(deal) }}
         {...track}
       />
       <div className="flex">

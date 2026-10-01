@@ -372,6 +372,48 @@ export function isRottingOp(op: Pick<OpportunityBookRow, 'position'>): boolean {
   return overdueBy !== null && overdueBy > 0
 }
 
+/** The word a column clock wears once it ran over. */
+export const OVERDUE_WORD = 'quá hạn'
+
+/** A column's clock: days here against the column's limit, and whether it ran
+ *  over. ONE formatter for the book, the bar's hint, the profile and the
+ *  journey drawer. `limit` is null when nobody timed the column; `short` drops
+ *  that sentence for a narrow cell, `label` adds the overdue word. */
+export type StageClock = {
+  days: number
+  limit: number | null
+  overdue: boolean
+  tone: 'warning' | 'muted'
+  text: string
+  short: string
+  label: string
+}
+
+export function formatStageClock(days: number, limit: number | null): StageClock {
+  const overdue = limit !== null && days > limit
+  const short = limit === null ? `${days} ngày` : `${days}/${limit} ngày`
+  const text = limit === null ? `${days} ngày · chưa đặt hạn` : short
+  return {
+    days,
+    limit,
+    overdue,
+    tone: overdue ? 'warning' : 'muted',
+    text,
+    short,
+    label: overdue ? `${text} · ${OVERDUE_WORD}` : text,
+  }
+}
+
+/** `null` when the deal stands in no column. */
+export function stageClockOf(
+  op: Pick<OpportunityBookRow, 'stage' | 'daysInStage' | 'position'>,
+): StageClock | null {
+  if (op.stage === null || op.daysInStage === null) return null
+  /* Derived, not looked up: `overdueBy` is `daysHere - limitDays` by definition. */
+  const overdueBy = op.position?.overdueBy ?? null
+  return formatStageClock(op.daysInStage, overdueBy === null ? null : op.daysInStage - overdueBy)
+}
+
 /** The five columns plus where this deal stands, shaped for `StageTrack`.
  *  `null` means the deal stands in no column (signed or parked) and there is no
  *  bar to draw at all.
@@ -410,23 +452,14 @@ export function stageTrackOf(
      "this deal has not moved anywhere", which is a false sentence. */
   if (current === -1) return null
 
-  const overdueBy = op.position?.overdueBy ?? null
-  const limitDays =
-    op.daysInStage === null || overdueBy === null ? null : op.daysInStage - overdueBy
+  const clock = stageClockOf(op)
 
   return {
     current,
     steps: StageKey.options.map((key, i) => ({
       key,
       label: OPPORTUNITY_STAGE_LABEL[key],
-      ...(i === current && op.daysInStage !== null
-        ? {
-            hint:
-              limitDays === null
-                ? `${op.daysInStage} ngày · chưa đặt hạn`
-                : `${op.daysInStage} ngày · hạn ${limitDays}`,
-          }
-        : {}),
+      ...(i === current && clock ? { hint: clock.text } : {}),
     })),
   }
 }

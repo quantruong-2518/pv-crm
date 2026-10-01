@@ -26,6 +26,7 @@ import {
 } from '@api/platform/mail/mail.contract'
 import { renderMasLetter } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
 import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
@@ -67,6 +68,7 @@ export class MailLetterService {
     @Inject(ENV) private readonly env: Env,
     private readonly states: LeadStateWriter,
     private readonly deals: OpportunityRepository,
+    private readonly contracts: ContractRepository,
   ) {}
 
   async preflight(
@@ -203,10 +205,11 @@ export class MailLetterService {
     return reply(queued.mailRunId, queued.toCount, body.to.length, state)
   }
 
-  /** 404 for a subject that does not exist, 403 when its lead is not the
-   *  caller's — the two refusals `LeadService.guard` keeps apart — and 409 when
-   *  a person stopped caring for that lead: it is never mailed (ADR 0068 §5).
-   *  409 too for a lost deal: its care goes on from the lead (ADR 0069 §1). */
+  /** 404 for a subject that does not exist; 403 when the caller is outside the
+   *  subject's OWN scope — the lead's read scope for the lead door (a live deal
+   *  on it counts), the deal's for a deal (a sibling deal does not), the
+   *  contract's for a contract; 409 when the lead left care (ADR 0068 §5) or
+   *  the deal is lost — its care goes on from the lead (ADR 0069 §1). */
   private async subjectFor(
     who: Actor,
     door: MailSubjectKind,
@@ -215,21 +218,26 @@ export class MailLetterService {
     const subject = await this.repo.subjectOf(door, code)
     if (!subject) throw notFound(subjectLabel(door), code)
     const found = await this.leads.byCode(who, subject.leadCode)
-    const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
-    if (!found?.inScope) {
+    const deal = door === 'opportunity' ? await this.deals.byCode(who, code) : null
+    const inScope =
+      door === 'lead'
+        ? found?.inScope
+        : door === 'opportunity'
+          ? deal?.inScope
+          : (await this.contracts.byCode(who, code))?.inScope
+    if (!inScope) {
       throw denied(
         'out-of-scope',
-        `Lead ${subject.leadCode}${via} không đứng tên bạn — hỏi người đang giữ nó.`,
+        `${MAIL_DOOR_LABEL[door]} ${code} không đứng tên bạn — hỏi người đang giữ nó.`,
       )
     }
-    if ((LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {
+    const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
+    if (found && (LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {
       throw conflict(
         `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS} — không gửi thư được.`,
       )
     }
-    if (door === 'opportunity' && (await this.deals.byCode(null, code))?.row.state === 'lost') {
-      throw conflict('Cơ hội đã dừng — gửi thư từ lead.')
-    }
+    if (deal?.row.state === 'lost') throw conflict('Cơ hội đã dừng — gửi thư từ lead.')
     return subject
   }
 

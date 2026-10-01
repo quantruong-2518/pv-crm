@@ -29,6 +29,7 @@ import { useLeadDraft } from '@/data/lead-draft'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { chainPath, opportunitiesOfLeadQuery } from '@/data/opportunities'
 import { leadTouchesQuery } from '@/data/touches'
+import { useLeadDealReach } from '@/data/deal-sale'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
@@ -114,13 +115,16 @@ export default LeadDetailPage
 function LeadBody({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
-  const canWrite = useCan('lead.edit')
-  const canDisqualify = useCan('lead.disqualify')
+  /* `lead.canEdit` is false for a reader who reaches the lead only through one
+     of its live deals (ADR 0071): they read and mail, every write stays shut. */
+  const canWrite = useCan('lead.edit') && lead.canEdit
+  const dealReach = useLeadDealReach(lead)
+  const canDisqualify = useCan('lead.disqualify') && lead.canEdit
   /* Asked HERE, next to `lead.edit`, and handed to the toolbar: the bar is the
      only block whose three buttons write through three different doors, and a
      button opening a drawer that ends in a 403 is worse than a locked one. */
   const canSendEmail = useCan('lead.send-email')
-  const canConvert = useCan('opportunity.create')
+  const canConvert = useCan('opportunity.create') && lead.canEdit
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
   /* Has this lead been turned into a deal yet — asked of the SERVER. */
@@ -191,6 +195,12 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
             </>
           }
         />
+        {dealReach && (
+          <p className="text-muted-foreground m-0 pt-3 text-[12.5px] leading-[1.6]">
+            Bạn tham gia một cơ hội của lead này nhưng không giữ lead — chỉ xem
+            {canSendEmail && ' và gửi mail'}.
+          </p>
+        )}
       </GlassCard>
 
       <ScreenDetailGrid

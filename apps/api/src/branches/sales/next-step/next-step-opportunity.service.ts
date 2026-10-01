@@ -92,10 +92,10 @@ export class OpportunityStepService {
     return { step: null }
   }
 
-  /** `doerId` absent = the holder now, else the caller (a deal with no SALE
-   *  owner has none). Another person must be a live Sales
-   *  actor who can open the deal: an owner, or anyone when neither side is
-   *  `ownOnly`. */
+  /** `doerId` absent = the deal's holder (`holderOf`: a seller, else the
+   *  acceptor, else a BD), or the caller when nobody holds it. Another person
+   *  must be a live Sales actor who can open the deal: an owner, or anyone when
+   *  neither side is `ownOnly`. */
   private async put(
     tx: Db,
     who: Actor,

@@ -397,6 +397,11 @@ export const LeadFacets = z.object({
  *  file importing both gets a compile error instead of a silent pick, and that
  *  error is the right moment to delete the other one. */
 export const LeadProfile = LeadRow.extend({
+  /** Whether the reader may write to this lead. False for a person who reaches
+   *  it only by standing on one of its live deals (ADR 0071): they read and
+   *  mail, the lead's holder edits. */
+  canEdit: z.boolean(),
+
   // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
   //
   // `province` and `category` are NOT repeated here: the book already carries

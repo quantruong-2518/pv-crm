@@ -168,6 +168,8 @@ export class LeadService {
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
     return LeadProfile.parse({
       ...toProfile(found),
+      /* A deal owner reads the lead but does not edit it: only `holds` does. */
+      canEdit: found.holds && this.access.allows(who, 'lead.edit'),
       position: positionOf(found, tierRows, tierSince, approvals),
       chain: story.chain.map(toChainLink),
     })
@@ -280,7 +282,7 @@ export class LeadService {
   }
 
   async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {
-    await this.guard(who, code)
+    await this.guardEdit(who, code)
     return this.meetings.record(who, code, body)
   }
 
@@ -290,12 +292,12 @@ export class LeadService {
     id: string,
     body: MeetingPatch,
   ): Promise<MeetingRow> {
-    await this.guard(who, code)
+    await this.guardEdit(who, code)
     return this.meetings.amend(who, code, id, body)
   }
 
   async meetingDrop(who: Actor, code: ObjectCode, id: string): Promise<void> {
-    await this.guard(who, code)
+    await this.guardEdit(who, code)
     await this.meetings.drop(code, id)
   }
 
@@ -317,7 +319,7 @@ export class LeadService {
   }
 
   async contactAdd(who: Actor, code: ObjectCode, body: ContactCreate): Promise<ContactRow> {
-    await this.guard(who, code)
+    await this.guardEdit(who, code)
     return this.contacts.add(who, code, body)
   }
 
@@ -345,7 +347,7 @@ export class LeadService {
    *  demanding the company-book permission here would send a Sale to ask for a
    *  department-wide grant in order to fix one cell on their own profile. */
   async attachAccount(who: Actor, code: ObjectCode, body: LeadAccountAttach): Promise<void> {
-    await this.guard(who, code)
+    await this.guardEdit(who, code)
     await this.accounts.attachLead(code, body.accountCode)
   }
 
@@ -369,13 +371,18 @@ export class LeadService {
    *  `mailTimeline` và `touches` giữ nguyên bản của chúng: đổi cả ba trong
    *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
    *  người review sẽ phải đọc cả hai cùng lúc. */
-  async guard(who: Actor, code: ObjectCode): Promise<void> {
+  async guard(who: Actor, code: ObjectCode, edit = false): Promise<void> {
     const found = await this.repo.byCode(who, code)
     if (!found) throw notFound('lead', code)
 
-    if (!found.inScope) {
+    if (!(edit ? found.holds : found.inScope)) {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
+  }
+
+  /** The write fence: only the lead's holder, not a deal owner who may read it. */
+  private guardEdit(who: Actor, code: ObjectCode): Promise<void> {
+    return this.guard(who, code, true)
   }
 
   /** The same fence, entered from a CONTACT code.
@@ -400,7 +407,7 @@ export class LeadService {
     if (leadCode === null) throw notFound('người liên hệ', code)
 
     const found = await this.repo.byCode(who, leadCode)
-    if (!found || !found.inScope) throw notFound('người liên hệ', code)
+    if (!found || !found.holds) throw notFound('người liên hệ', code)
 
     return leadCode
   }

@@ -486,13 +486,12 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  THE SAME TWO REFUSALS AS `GET :code`, IN THE SAME ORDER AND WORDS
    *  ------------------------------------------------------------------
-   *  You may correct exactly the leads you may read. `LeadService.profile`
-   *  already draws that line — 404 for a code that is in no book, 403
-   *  `out-of-scope` for a lead standing in somebody else's name — and this door
-   *  asks `byCode` the same question and repeats the same sentence rather than
-   *  inventing a second rule. That includes the common pool: `scopeOf` counts
-   *  an unclaimed lead as OUT of scope for an `ownOnly` actor, so a Sale cannot
-   *  edit a lead they cannot open. Same rule, one place, no surprise.
+   *  Editing is HOLDING, and reading is wider (ADR 0071 §8): someone standing
+   *  on a live deal of the lead reads it (`inScope`) but only the holder edits
+   *  (`holds`). Both come from the one `byCode` read, with the profile's two
+   *  refusals and words — 404 for a code in no book, 403 `out-of-scope` for a
+   *  lead held by somebody else. The common pool counts as not held, so an
+   *  `ownOnly` Sale cannot edit an unclaimed lead.
    *
    *  `setOwner` deliberately ignores `inScope` at the END of its work, and that
    *  is not a contradiction: a Sale who just handed a lead away is out of scope
@@ -524,7 +523,7 @@ export class LeadWriteService {
     const before = await this.leads.byCode(who, code)
     if (!before) throw notFound('lead', code)
 
-    if (!before.inScope) {
+    if (!before.holds) {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
 

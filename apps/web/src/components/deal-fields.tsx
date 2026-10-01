@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Paperclip, Plus, Trash2, Upload, X } from '@pv/ui'
 import { Button, Icon, Input, billions, cn } from '@pv/ui'
-import { OPPORTUNITY_FILES_MAX } from '@pv/contracts'
+import { isSellerRole, OPPORTUNITY_FILES_MAX } from '@pv/contracts'
 import { CURRENCIES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { SetDraft } from '@/data/deal-draft'
 import { useSalesPeople } from '@/data/directory'
@@ -98,11 +98,15 @@ export function AmountField({
  *  Still multi-select, and that is not a detail to trade away for a tidier
  *  box: `saleOwners` is an array because commission splits between everyone on
  *  it, so a single-select control would silently drop the second name off any
- *  deal two people carried. With one person it reads exactly like a select. */
+ *  deal two people carried. With one person it reads exactly like a select.
+ *
+ *  `sellersOnly` is the SALE lane: only `isSellerRole` people are SUGGESTED,
+ *  while a token already there stays drawn whoever it is (ADR 0071 §4). */
 export function PersonPickField({
   label,
   hint,
   required,
+  sellersOnly = false,
   picked,
   errors,
   onToggle,
@@ -110,6 +114,7 @@ export function PersonPickField({
   label: string
   hint: string
   required?: boolean
+  sellersOnly?: boolean
   picked: string[]
   errors?: string[]
   onToggle: (id: string) => void
@@ -129,11 +134,13 @@ export function PersonPickField({
           return { id, name: person?.name ?? id, ...(person && { note: person.role }) }
         })}
         suggestions={people
-          .filter((a) => !picked.includes(a.id))
+          .filter((a) => !picked.includes(a.id) && (!sellersOnly || isSellerRole(a.roleId)))
           .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
         onPick={onToggle}
         onRemove={onToggle}
-        emptyNote="Cả phòng đã có trong danh sách này."
+        emptyNote={
+          sellersOnly ? 'Không còn Sale nào để thêm.' : 'Cả phòng đã có trong danh sách này.'
+        }
       />
     </Field>
   )

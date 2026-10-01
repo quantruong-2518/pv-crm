@@ -221,8 +221,11 @@ export type LeadProfileRead = LeadRead & {
  *  neither is a column of this row. One is what `pipelinePosition` computes
  *  from the ladder and the open approvals; the other is what `E1.story()` walks
  *  out of the object graph — and a mapper has neither, nor should it fetch
- *  them. The service adds both (`lead.service.ts`). */
-export function toProfile(read: LeadProfileRead): Omit<LeadProfile, 'position' | 'chain'> {
+ *  them. The service adds both (`lead.service.ts`), and `canEdit`, which is a
+ *  verdict about the reader rather than a fact of the row. */
+export function toProfile(
+  read: LeadProfileRead,
+): Omit<LeadProfile, 'position' | 'chain' | 'canEdit'> {
   const { row } = read
   return {
     ...toContract(read),

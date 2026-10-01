@@ -150,6 +150,8 @@ export const PERMISSIONS = [
   'opportunity.edit',
   /** The accept door: the head of sales takes a `new` deal off the queue. */
   'opportunity.accept',
+  /** Give or change the deal's seller after accept — the head's call (ADR 0071). */
+  'opportunity.assign',
   'opportunity.close',
   'contract.view',
   'contract.edit',

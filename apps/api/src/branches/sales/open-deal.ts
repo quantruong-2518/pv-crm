@@ -27,6 +27,18 @@ export const dealSignWaiting = (code: SQLWrapper): SQL =>
 export const leadHasOpenDeal = (leadCode: SQLWrapper): SQL =>
   sql`EXISTS (SELECT 1 FROM sales.opportunity od_o WHERE od_o.lead_code = ${leadCode} AND ${dealOpen(sql`od_o.code`, sql`od_o.state`)})`
 
+/** THE deal-scope rule (ADR 0071): `actorId` stands on the deal in either lane
+ *  or accepted it. Every `ownOnly` cut over deals asks through here. `code` is
+ *  the OUTER deal code. */
+export const dealStoodBy = (code: SQLWrapper, actorId: string): SQL =>
+  sql`(EXISTS (SELECT 1 FROM sales.opportunity_owner od_s WHERE od_s.opportunity_code = ${code} AND od_s.actor_id = ${actorId})
+       OR EXISTS (SELECT 1 FROM sales.opportunity od_a WHERE od_a.code = ${code} AND od_a.accepted_by_id = ${actorId}))`
+
+/** `actorId` stands on (`dealStoodBy`) an open deal of the lead — the reach a
+ *  deal's people get over the lead it hangs off. `leadCode` is the OUTER column. */
+export const leadDealHeldBy = (leadCode: SQLWrapper, actorId: string): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.opportunity od_h WHERE od_h.lead_code = ${leadCode} AND ${dealOpen(sql`od_h.code`, sql`od_h.state`)} AND ${dealStoodBy(sql`od_h.code`, actorId)})`
+
 export const leadHasContract = (leadCode: SQLWrapper): SQL =>
   sql`EXISTS (SELECT 1 FROM sales.contract od_c WHERE od_c.lead_code = ${leadCode})`
 

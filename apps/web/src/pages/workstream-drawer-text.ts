@@ -1,0 +1,77 @@
+import { LEAD_STATE_LABEL, LOSS_REASON_DO_NOT_CONTACT_LABEL } from '@pv/contracts'
+
+/** Every fixed sentence of the journey drawers, declared once — split out of
+ *  `workstream-drawers.tsx` so the pieces and the deal body read the same words. */
+
+export const TEXT = {
+  ladder: 'Các bậc',
+  inside: 'Bên trong',
+  milestones: 'Các mốc triển khai',
+  acceptance: 'Biên bản nghiệm thu',
+  installments: 'Các đợt thanh toán',
+  licence: 'Hiệu lực bản quyền',
+  nextAction: 'Bước tiếp theo',
+  aboutLead: 'Về lead',
+  aboutDeal: 'Về cơ hội',
+  aboutContract: 'Về hợp đồng',
+  whyWaiting: 'Vì sao vào nhóm chờ chăm sóc',
+  newNeed: 'Nhu cầu mới',
+  enteredAt: 'Vào bậc',
+  stayedLimit: 'Đã ở / hạn',
+  stayed: 'Ở bậc này',
+  expectedClose: 'Dự kiến chốt',
+  days: 'ngày',
+  due: 'hạn',
+  holder: 'Người giữ',
+  bornBy: 'Nguồn',
+  fromJourney: 'từ hành trình',
+  freshIntake: 'Nhập mới',
+  outcome: 'Kết quả',
+  value: 'Giá trị',
+  contracts: 'Hợp đồng',
+  kind: 'Loại',
+  signedAt: 'Ký',
+  fromDeal: 'Từ cơ hội',
+  implementer: 'Người triển khai',
+  invoice: 'hoá đơn',
+  paid: 'đã thu',
+  invoiceNote:
+    'Hoá đơn chỉ ghi nhận: số và ngày hoá đơn, ngày và số tiền đã thu. Hệ thống không phát hành hoá đơn.',
+  movedAt: 'Ngày chuyển',
+  from: 'Từ',
+  reason: 'Lý do',
+  note: 'Ghi chú',
+  concludedBy: 'Người kết luận',
+  system: 'Hệ thống',
+  doNotContact: LOSS_REASON_DO_NOT_CONTACT_LABEL,
+  campaign: 'Chiến dịch',
+  lastTouch: 'Tương tác gần nhất',
+  /* ADR 0068: a parked lead loops back on itself, same journey and holder;
+     flow C4: a do-not-contact lead is never mailed, so only the manual door is
+     left. Any mail sent counts as the first real touch. */
+  wakeAny:
+    'Đưa lead vào chiến dịch hoặc bấm tay "Chăm lại" là chính lead này quay lại chăm sóc, vẫn trong hành trình này và vẫn do người giữ cũ phụ trách.',
+  wakeManual:
+    'Chỉ bấm tay "Chăm lại": chính lead này quay lại chăm sóc trong hành trình này. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
+  wakeUnknown: 'Chưa ghi nhận khách có đồng ý được liên hệ lại hay không.',
+  onReply: `Thư gửi đi hoặc một lần liên hệ thật là lead chuyển ngay sang ${LEAD_STATE_LABEL.working}.`,
+  need: 'Nhu cầu',
+  arose: 'Phát sinh từ',
+  decidedBy: 'Người quyết định và giữ lead',
+  newLead: 'Lead mới',
+  openedAt: 'Ngày mở',
+  whyNewTitle: 'Vì sao là hành trình mới',
+  whyNew:
+    'Nhu cầu nảy ra khi khách đang triển khai hoặc đang dùng thì mở hành trình mới, kể cả thay đổi nhỏ.',
+  openLead: 'Mở lead',
+  openDeal: 'Mở cơ hội',
+  openJourney: 'Mở hành trình',
+  prev: 'Bậc trước',
+  nextRung: 'Bậc sau',
+  close: 'Đóng chi tiết',
+  saleLane: 'Sale đứng đơn',
+  noNextAction: 'Chưa đặt việc tiếp theo',
+  setNextAction: 'Đặt việc tiếp theo',
+  editNextAction: 'Sửa',
+  finishNextAction: 'Xong',
+} as const
