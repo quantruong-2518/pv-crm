@@ -16,7 +16,11 @@ import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadDealsAllLost } from '../open-deal'
-import { opportunityOwner, opportunityStageEvent } from '../opportunity/opportunity.schema'
+import {
+  opportunity,
+  opportunityOwner,
+  opportunityStageEvent,
+} from '../opportunity/opportunity.schema'
 import { touch } from '../touch/touch.schema'
 
 /** The extra SQL of ONE journey's detail. Every read takes the whole run's
@@ -148,6 +152,7 @@ export class WorkstreamLanesRepository {
           .from(lead)
           .where(eq(lead.code, leadCode)),
       ])
+    const acceptors = await this.acceptorsOf(deals)
 
     return {
       leadTouches,
@@ -160,8 +165,19 @@ export class WorkstreamLanesRepository {
       quoteSends,
       signApprovals: signs,
       dealOwners: owners,
+      dealAcceptors: new Map(acceptors.map((a) => [a.deal, { id: a.id, name: a.name }])),
       allLost: lost[0]?.allLost ?? false,
     }
+  }
+
+  /** Who accepted each deal (ADR 0071) — the holder's fallback after a Sale. */
+  private acceptorsOf(deals: string[]): Promise<{ deal: string; id: string; name: string }[]> {
+    if (deals.length === 0) return Promise.resolve([])
+    return this.db
+      .select({ deal: opportunity.code, id: actor.id, name: actor.name })
+      .from(opportunity)
+      .innerJoin(actor, eq(actor.id, opportunity.acceptedById))
+      .where(inArray(opportunity.code, deals))
   }
 
   /** Read off `platform.approval` by the same payload key as
@@ -288,6 +304,8 @@ export type LaneRows = {
   signApprovals: SignApprovalRow[]
   /** Owners of the visible deals by actor name then id — `holderOf`'s "first". */
   dealOwners: DealOwnerRow[]
+  /** Deal code → who accepted it (ADR 0071), the holder's second fallback. */
+  dealAcceptors: Map<string, { id: string; name: string }>
   /** `leadDealsAllLost` over EVERY deal of the lead, hidden ones included. */
   allLost: boolean
 }

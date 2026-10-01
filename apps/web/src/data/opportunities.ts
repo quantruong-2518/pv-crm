@@ -463,7 +463,6 @@ export function missingOf(draft: OpportunityDraft): string[] {
   if (draft.name.trim() === '') missing.push('tên cơ hội')
   if (draft.closedDate === '') missing.push('ngày chốt dự kiến')
   if (draft.amount === null || draft.amount === 0) missing.push('giá trị đơn')
-  if (draft.saleOwners.length === 0) missing.push('ít nhất một Sale đứng đơn')
   return missing
 }
 
@@ -535,8 +534,8 @@ export type MilestoneOffer = {
 
 /** Which milestones the deal may record right now, in the order it passes them.
  *
- *  Empty once the deal has left the board, and empty at `new`: a deal that has
- *  not taken its PIC is refused before anything else. A milestone BELOW the
+ *  Empty once the deal has left the board, and empty at `new`: a deal no head
+ *  has accepted yet (ADR 0071 §3) is refused before anything else. A milestone BELOW the
  *  current column is dropped (the door answers 409), the current column's own
  *  milestone stays — a second quotation is another Nego round, not a second
  *  entry into the column — and every one ahead is offered, because skipping

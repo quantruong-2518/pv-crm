@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CircleX, FileCheck, Plus, Target, Wallet } from '@pv/ui'
+import { CircleX, FileCheck, Plus, Target, Wallet, X } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -32,6 +32,7 @@ import {
   type OpportunityBookRow,
   type OpportunityRow,
 } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
@@ -64,6 +65,7 @@ import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
 import { BookCount, BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
+import { AcceptQueueLink } from '@/components/opportunity-accept'
 import {
   BookSelectionBar,
   FilterMenu,
@@ -373,12 +375,20 @@ export function OpportunitiesPage() {
   const dirty =
     text.trim() !== '' ||
     query.state !== undefined ||
+    query.stage !== undefined ||
     query.sale !== undefined ||
     query.bd !== undefined ||
     query.account !== undefined
 
   const clearFilters = () =>
-    patch({ q: undefined, state: undefined, sale: undefined, bd: undefined, account: undefined })
+    patch({
+      q: undefined,
+      state: undefined,
+      stage: undefined,
+      sale: undefined,
+      bd: undefined,
+      account: undefined,
+    })
 
   /* One `size=1` read per tab, the move the lead book already makes: `total` is
      the count under the OTHER filters in force, and no other endpoint answers
@@ -410,6 +420,10 @@ export function OpportunitiesPage() {
       : { key: query.sort, dir: query.dir }
 
   const [creating, setCreating] = useState(false)
+  /* Both write doors of the book open a deal, and only BD seats and heads may
+     (ADR 0071 §1) — so a Sale sees neither, rather than a 403 after a file. */
+  const canCreate = useCan('opportunity.create')
+  const canAccept = useCan('opportunity.accept')
 
   const loadFile = useOpportunityImport()
 
@@ -474,20 +488,25 @@ export function OpportunitiesPage() {
           title="Sổ cơ hội"
           actions={
             <>
-              <ImportZone
-                spec={OP_SPEC}
-                existingKeys={NO_LOCAL_KEYS}
-                buttonLabel="Nạp cơ hội từ tệp"
-                onCommit={commitOps}
-                onSeeResult={clearFilters}
-              />
-              {/* Không mở một phiếu trắng: nó mở một ô chọn lead trước, rồi giao
+              {canAccept && <AcceptQueueLink />}
+              {canCreate && (
+                <>
+                  <ImportZone
+                    spec={OP_SPEC}
+                    existingKeys={NO_LOCAL_KEYS}
+                    buttonLabel="Nạp cơ hội từ tệp"
+                    onCommit={commitOps}
+                    onSeeResult={clearFilters}
+                  />
+                  {/* Không mở một phiếu trắng: nó mở một ô chọn lead trước, rồi giao
                   cho ĐÚNG `ConvertDialog` mà hồ sơ lead vẫn dùng — đơn vẫn sinh
                   ra từ một lead, chỉ khác chỗ đứng để bắt đầu. */}
-              <Button size="md" onClick={() => setCreating(true)} className="max-sm:flex-1">
-                <Icon icon={Plus} size={16} />
-                Tạo cơ hội
-              </Button>
+                  <Button size="md" onClick={() => setCreating(true)} className="max-sm:flex-1">
+                    <Icon icon={Plus} size={16} />
+                    Tạo cơ hội
+                  </Button>
+                </>
+              )}
             </>
           }
           score={<ScoreCards />}
@@ -512,6 +531,20 @@ export function OpportunitiesPage() {
                 onChange={setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
+              {/* The column has no select of its own — it arrives from the
+                  accept queue's link — so it shows as a pill that clears itself. */}
+              {query.stage !== undefined && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="pointer-coarse:h-12"
+                  aria-label={`Bỏ lọc cột ${OPPORTUNITY_STAGE_LABEL[query.stage]}`}
+                  onClick={() => patch({ stage: undefined })}
+                >
+                  Cột: {OPPORTUNITY_STAGE_LABEL[query.stage]}
+                  <Icon icon={X} size={16} />
+                </Button>
+              )}
               <FilterMenu label="Bộ lọc sổ cơ hội" active={activeFilters}>
                 <Select
                   label="Sale đứng đơn"

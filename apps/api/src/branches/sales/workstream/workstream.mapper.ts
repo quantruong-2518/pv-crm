@@ -15,6 +15,7 @@ import {
   type WorkstreamStandKind,
   type WorkstreamStatus,
 } from '@pv/contracts'
+import { holderOf, type OwnerRow, type RefOwner } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type { StandTotal, WorkstreamBoardTotals, WorkstreamRead } from './workstream.repository'
@@ -147,17 +148,26 @@ function labelOf(
  *  deal yet — most of the book — falls back to the lead's own two owner
  *  columns, which is the same person wearing the same role one step earlier.
  *
- *  Id AND name travel together because E2's scope axis still compares display
- *  NAMES (a known, unpaid debt): nothing downstream may assume a name is
- *  unique, and the id is the only safe key. */
+ *  The SALE slot is the deal's holder (`holderOf`, ADR 0071 §5) — a seller,
+ *  else the acceptor, else a BD — so the book names who the deal profile and
+ *  the mirror row name. Id AND name travel together: E2 compares ids (ADR 0070)
+ *  and a name is never assumed unique. */
 export function holdersOf(
   read: WorkstreamRead,
   deals: readonly OpportunityRowDb[],
-  ownersOf: Map<string, OpportunityOwner[]>,
+  ownersOf: Map<string, OwnerRow[]>,
+  acceptors: ReadonlyMap<string, RefOwner>,
 ): { sale: WorkstreamHolder | null; bd: WorkstreamHolder | null } {
-  const fromDeals = (role: 'SALE' | 'BD'): WorkstreamHolder | null => {
+  const holder = (): WorkstreamHolder | null => {
     for (const deal of deals) {
-      const found = (ownersOf.get(deal.code) ?? []).find((o) => o.role === role)
+      const found = holderOf(ownersOf.get(deal.code) ?? [], acceptors.get(deal.code) ?? null)
+      if (found) return found
+    }
+    return null
+  }
+  const firstBd = (): WorkstreamHolder | null => {
+    for (const deal of deals) {
+      const found = (ownersOf.get(deal.code) ?? []).find((o) => o.role === 'BD')
       if (found) return { id: found.id, name: found.name }
     }
     return null
@@ -167,8 +177,8 @@ export function holdersOf(
     id !== null && name !== null ? { id, name } : null
 
   return {
-    sale: fromDeals('SALE') ?? fromLead(read.lead.ownerId, read.saleName),
-    bd: fromDeals('BD') ?? fromLead(read.lead.bdOwnerId, read.bdName),
+    sale: holder() ?? fromLead(read.lead.ownerId, read.saleName),
+    bd: firstBd() ?? fromLead(read.lead.bdOwnerId, read.bdName),
   }
 }
 

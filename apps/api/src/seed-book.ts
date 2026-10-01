@@ -300,7 +300,8 @@ export const JOURNEYS: JourneySeed[] = [
     source: 'event',
     bornDaysAgo: 70,
     tier: 'sql',
-    ownerId: 'u-grace',
+    /* A seller, not the head: the SALE lane is sellers only (ADR 0071). */
+    ownerId: 'u-am',
     pain: 'Dữ liệu dừng máy của khu test phải gom tay để tính OEE hằng tuần.',
     currentStack: 'Hệ thống nội bộ toàn cầu; khu test phụ trợ dùng Excel.',
     decisionMaker: 'Giám đốc Kỹ thuật Sản xuất',

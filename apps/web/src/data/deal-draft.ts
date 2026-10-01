@@ -120,7 +120,11 @@ export type UseDealDraftArgs = {
 }
 
 export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArgs): DealDraft {
-  const canEdit = useCan('opportunity.edit') && op?.state !== 'lost'
+  /* The create door asks its own permission (ADR 0071 §1); both hooks run on
+     every render because a hook cannot sit behind a branch. */
+  const mayCreate = useCan('opportunity.create')
+  const mayEdit = useCan('opportunity.edit')
+  const canEdit = (op === null ? mayCreate : mayEdit) && op?.state !== 'lost'
   const canClose = useCan('opportunity.close')
   /* Both doors opened up front — a hook cannot sit behind a branch, and a
      mutation nobody fires costs nothing. */

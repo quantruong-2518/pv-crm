@@ -199,7 +199,7 @@ function DealNextStep({ op, canEdit }: { op: OpportunityProfileResponse; canEdit
     holder: op.holder,
     canAssign: true,
     holderHint: 'Người giữ cơ hội.',
-    noHolder: 'Cơ hội chưa có Sale đứng đơn.',
+    noHolder: 'Cơ hội chưa có ai đứng đơn hay nhận PIC.',
   }
   const closedNote =
     op.state === 'won'

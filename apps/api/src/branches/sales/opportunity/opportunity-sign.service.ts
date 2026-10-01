@@ -3,6 +3,7 @@ import { seatedIn, type Actor, type RoleId } from '@pv/engines'
 import {
   CONTRACT_KIND_LABEL,
   ConfigProposalReceipt,
+  isSellerRole,
   ContractSignProposal,
   type ContractSign,
   type ObjectCode,
@@ -17,6 +18,7 @@ import { fromSign } from '../contract/contract.mapper'
 import { dropStep } from '../next-step/next-step.handover'
 import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { actorRoles } from './opportunity-owners'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -92,8 +94,8 @@ export class OpportunitySign implements ApprovalApplier {
   }
 
   /** Every refusal the door makes about the deal and the body, in the order
-   *  they have always been made: 409 lost / no quotation, 422 owner, 409 a sign
-   *  already waiting. */
+   *  they have always been made: 409 lost / no quotation / no Sale, 422 owner,
+   *  409 a sign already waiting. */
   private async assertProposable(
     handle: Db,
     found: OpportunityRead,
@@ -101,6 +103,7 @@ export class OpportunitySign implements ApprovalApplier {
     pendingSign: boolean,
   ): Promise<void> {
     await this.assertSignable(handle, found)
+    await this.assertSaleStands(handle, found)
     /* Commission follows a Sale standing on the deal, never a stranger. Owners
        are frozen while the request waits (`touchesSignTerms`). */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
@@ -110,6 +113,16 @@ export class OpportunitySign implements ApprovalApplier {
       )
     }
     if (pendingSign) throw conflict(`Cơ hội ${found.row.code} đã có một yêu cầu ký đang chờ duyệt.`)
+  }
+
+  /** The SALE lane may stay empty until signing, and no longer (ADR 0071 §4):
+   *  a head of sales is the acceptor, not the one who closes, so only a seller
+   *  (`isSellerRole`, the contracts' one definition) counts. */
+  private async assertSaleStands(handle: Db, found: OpportunityRead): Promise<void> {
+    const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
+    const roles = await actorRoles(handle, sale)
+    if (sale.some((id) => isSellerRole(roles.get(id)))) return
+    throw conflict('Cơ hội chưa có Sale đứng đơn — thêm một Sale trước khi đề nghị ký.')
   }
 
   /** `ApprovalApplier` for `contract-sign`. Everything is checked again against

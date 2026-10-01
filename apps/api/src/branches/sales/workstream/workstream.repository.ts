@@ -20,7 +20,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import { WORKSTREAM_PRIORITY_LADDER, type Actor, type WorkstreamPriorityRung } from '@pv/engines'
 import {
   WorkstreamChannel,
-  type OpportunityOwner,
   type WorkstreamBookQuery,
   type WorkstreamCloseReason,
   type WorkstreamFootprint,
@@ -39,6 +38,7 @@ import {
   opportunityOwner,
   type OpportunityRowDb,
 } from '../opportunity/opportunity.schema'
+import type { OwnerRow, RefOwner } from '../opportunity/opportunity.mapper'
 import { workstream, type WorkstreamRowDb } from './workstream.schema'
 import { syncClosed } from './workstream-sync'
 
@@ -195,8 +195,9 @@ export class WorkstreamRepository {
   }
 
   /** Who stands on a batch of deals. Same shape, same table and same stable
-   *  ordering as `OpportunityRepository.ownersOf` — one question, one answer. */
-  async dealOwnersOf(codes: readonly string[]): Promise<Map<string, OpportunityOwner[]>> {
+   *  ordering as `OpportunityRepository.ownersOf` — one question, one answer.
+   *  The role rides along: `holderOf` picks the holder by it. */
+  async dealOwnersOf(codes: readonly string[]): Promise<Map<string, OwnerRow[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await this.db
@@ -205,20 +206,32 @@ export class WorkstreamRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
+        roleId: actor.roleId,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(inArray(opportunityOwner.opportunityCode, [...codes]))
       .orderBy(opportunityOwner.role, actor.name)
 
-    const byDeal = new Map<string, OpportunityOwner[]>()
+    const byDeal = new Map<string, OwnerRow[]>()
     for (const r of rows) {
-      const owner = { id: r.id, name: r.name, role: r.role }
+      const owner = { id: r.id, name: r.name, role: r.role, roleId: r.roleId }
       const list = byDeal.get(r.code)
       if (list) list.push(owner)
       else byDeal.set(r.code, [owner])
     }
     return byDeal
+  }
+
+  /** Who accepted each deal (ADR 0071) — the holder's fallback after a seller. */
+  async dealAcceptorsOf(codes: readonly string[]): Promise<Map<string, RefOwner>> {
+    if (codes.length === 0) return new Map()
+    const rows = await this.db
+      .select({ code: opportunity.code, id: actor.id, name: actor.name })
+      .from(opportunity)
+      .innerJoin(actor, eq(actor.id, opportunity.acceptedById))
+      .where(inArray(opportunity.code, [...codes]))
+    return new Map(rows.map((r) => [r.code, { id: r.id, name: r.name }]))
   }
 
   /** Every signature of a page of runs, NEWEST first per run, each with the

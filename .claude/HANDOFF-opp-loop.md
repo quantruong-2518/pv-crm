@@ -21,14 +21,14 @@ chốt"). Chỉ còn S3 (nhãn) và số mức của thang hạn trước khi vi
 - Chỉ `OpportunityMoves` ghi bậc. Mỗi lần đổi bậc, cùng giao dịch đó ghi:
   `opportunity_stage_event`, một touch, dòng mirror, và `syncClosed` khi cần.
 
-| Chuyển                           | Kích hoạt                                                            | Chặn                                                                              |
-| -------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| tạo → `new` / `assigned`         | `POST /sales/opportunities`, convert, import                         | lead trong phạm vi, không `disqualified`; ≥1 SALE                                 |
-| `new` → `assigned`               | PATCH chủ làm bộ PIC đủ điều kiện (1 `head-of-sales` + 1 người khác) | không rút PIC dưới ngưỡng                                                         |
-| → `sample` / `poc` / `quotation` | bấm "Ghi mốc X" → `POST /:code/milestones`                           | từ `assigned` trở lên, không lùi, được nhảy; ghi lại mốc đang đứng chỉ thêm touch |
-| → `care`                         | "Đẩy sang danh sách chăm sóc" → `POST /:code/care {reasonKey}`       | lý do trong `LOSS_REASON` đúng bậc; `other` bắt buộc ghi chú                      |
-| `care` → `open`                  | "Mở lại" → `POST /:code/reactivate`                                  | về lại đúng bậc đã dừng (`care_from_stage`)                                       |
-| → won                            | "Chốt thắng" → `POST /:code/contract` → E3 giám đốc duyệt → `apply`  | phải có touch `quotation-sent`; một đề nghị đang chờ                              |
+| Chuyển                           | Kích hoạt                                                           | Chặn                                                                              |
+| -------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| tạo → `new` / `assigned`         | `POST /sales/opportunities`, convert, import                        | lead trong phạm vi, không `disqualified`; có người đứng đơn (ADR 0071)            |
+| `new` → `assigned`               | bấm "Nhận PIC" → `POST /:code/accept` (ADR 0071)                    | head-of-sales hoặc giám đốc; ghi `accepted_by_id`/`accepted_at`                   |
+| → `sample` / `poc` / `quotation` | bấm "Ghi mốc X" → `POST /:code/milestones`                          | từ `assigned` trở lên, không lùi, được nhảy; ghi lại mốc đang đứng chỉ thêm touch |
+| → `care`                         | "Đẩy sang danh sách chăm sóc" → `POST /:code/care {reasonKey}`      | lý do trong `LOSS_REASON` đúng bậc; `other` bắt buộc ghi chú                      |
+| `care` → `open`                  | "Mở lại" → `POST /:code/reactivate`                                 | về lại đúng bậc đã dừng (`care_from_stage`)                                       |
+| → won                            | "Chốt thắng" → `POST /:code/contract` → E3 giám đốc duyệt → `apply` | phải có touch `quotation-sent`; một đề nghị đang chờ                              |
 
 Khi ký xong, `apply` tạo **đúng một** hợp đồng, rồi gọi `syncClosed`. Hàm này
 đóng hành trình **WON** khi lead đã có hợp đồng và không còn cơ hội nào sống.

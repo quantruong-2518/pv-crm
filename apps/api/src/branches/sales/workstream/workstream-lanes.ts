@@ -368,7 +368,10 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
     }
   })
 
-  const holder = holderOf(rows.dealOwners.filter((o) => o.deal === deal.code))
+  const holder = holderOf(
+    rows.dealOwners.filter((o) => o.deal === deal.code),
+    rows.dealAcceptors.get(deal.code) ?? null,
+  )
   const step = input.steps.get(deal.code)
 
   return {

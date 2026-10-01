@@ -25,7 +25,7 @@ import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
 import { NextStepRepository } from '../next-step/next-step.repository'
-import { scopeRefOf, toRef as dealRef } from '../opportunity/opportunity.mapper'
+import { scopeRefOf, toRef as dealRef, type OwnerRow } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import {
   blankFootprint,
@@ -185,9 +185,10 @@ export class WorkstreamService {
       }
     })
 
-    const waiting = await this.approvals.pendingOnMany(
-      walked.map((w) => liveCodeOf(w.read, w.live)),
-    )
+    const [waiting, acceptors] = await Promise.all([
+      this.approvals.pendingOnMany(walked.map((w) => liveCodeOf(w.read, w.live))),
+      this.repo.dealAcceptorsOf(walked.flatMap((w) => w.own.map((d) => d.code))),
+    ])
 
     const stage = stageConfigOf(ladders.stage)
     const tier = tierConfigOf(ladders.tier)
@@ -204,7 +205,7 @@ export class WorkstreamService {
           { stage, tier },
           waiting.get(liveCodeOf(w.read, w.live)) ?? [],
         ),
-        holders: holdersOf(w.read, w.own, owners),
+        holders: holdersOf(w.read, w.own, owners, acceptors),
         /* A run whose three ledgers are all silent still prints seven zeroes:
            `footprintOf` only emits the buckets it counted something in. */
         footprint: footprints.get(w.read.row.code) ?? blankFootprint(),
@@ -214,7 +215,7 @@ export class WorkstreamService {
 
   private async dealsWithOwners(
     codes: readonly string[],
-  ): Promise<[Map<string, OpportunityRowDb[]>, Map<string, OpportunityOwner[]>]> {
+  ): Promise<[Map<string, OpportunityRowDb[]>, Map<string, OwnerRow[]>]> {
     const deals = await this.repo.dealsOf(codes)
     const owners = await this.repo.dealOwnersOf([...deals.values()].flat().map((d) => d.code))
     return [deals, owners]

@@ -83,7 +83,11 @@ export const Permission = z.enum([
   'account.view',
   'account.edit',
   'opportunity.view',
+  /** Opening a deal — only BD-side seats and heads, not every Sale (ADR 0071). */
+  'opportunity.create',
   'opportunity.edit',
+  /** The accept door: head-of-sales takes a `new` deal into `assigned`. */
+  'opportunity.accept',
   'opportunity.close',
   'contract.view',
   'contract.edit',
@@ -114,6 +118,13 @@ export const Permission = z.enum([
 
 export type Permission = z.infer<typeof Permission>
 export type RoleId = z.infer<typeof RoleId>
+
+/** Who counts as the deal's seller on the SALE lane — the person a sign
+ *  request needs and the holder rule prefers (ADR 0071). One predicate for both
+ *  ends: four hand-written variants of it had already drifted. */
+export const SELLER_ROLES: readonly RoleId[] = ['sale', 'account-executive']
+export const isSellerRole = (role: RoleId | null | undefined): boolean =>
+  role !== null && role !== undefined && SELLER_ROLES.includes(role)
 export type Branch = z.infer<typeof Branch>
 
 // ---------------------------------------------------------------------------

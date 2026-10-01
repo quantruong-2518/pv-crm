@@ -1,4 +1,5 @@
 import {
+  isSellerRole,
   OPPORTUNITY_STATE_LABEL,
   type OpportunityCreate,
   type OpportunityMilestoneKind,
@@ -91,27 +92,26 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
   return Math.max(0, Math.floor((now.getTime() - row.stageSince.getTime()) / 86_400_000))
 }
 
-/** `POST /sales/opportunities` body → cột.
+/** `POST /sales/opportunities` body → columns. No re-normalising: the
+ *  contract already did it, and a second convention here would drift.
  *
- *  Không chuẩn hoá lại gì: `OpportunityCreate` đã gộp khoảng trắng và đã đổi
- *  mọi `''` thành `undefined`. Làm lại lần thứ hai ở đây là dựng quy ước thứ
- *  hai, và hai quy ước thì có ngày lệch.
- *
- *  `stage` là THAM SỐ chứ không phải thứ hàm này tính: đơn mở ra ở `new`, hoặc
- *  thẳng `assigned` khi tập PIC đã đủ, và câu đó cần biết vai của từng người —
- *  dữ liệu chỉ service mới nạp được (`picQualifies`, ADR 0064). `state` luôn là
- *  `open`: cửa tạo không mở được một đơn đã dừng. */
+ *  A deal opens at `new`, unless `acceptedById` names a creator who may accept
+ *  (ADR 0071 §3) — then it is born `assigned`, accepted by them at `now`. The
+ *  service decides who that is; this only writes the pair the CHECK demands
+ *  together. `state` is always `open`: the create door cannot open a stopped deal. */
 export function fromCreate(
   body: OpportunityCreate,
   now: Date,
   workstreamCode: string | null,
-  stage: StageKey,
+  acceptedById: string | null,
 ): OpportunityWrite {
   return {
     values: {
       leadCode: body.leadCode,
       state: 'open',
-      stage,
+      stage: acceptedById === null ? 'new' : 'assigned',
+      acceptedById,
+      acceptedAt: acceptedById === null ? null : now,
       /* The deal entered its column just now — `opportunity_stage_clock` demands
          the column and the clock together, and a new deal always has a column. */
       stageSince: now,
@@ -350,17 +350,16 @@ export function toStageEvent(row: OpportunityStageEventRowDb): OpportunityStageE
   }
 }
 
-/** Dòng gương trong `platform.object` cho một đơn mới.
+/** The `platform.object` mirror row for a new deal.
  *
- *  Cùng hình với `lead-write.mapper.ts#refOf` và vì cùng lý do: E1 `story()`
- *  chỉ thấy được thứ có dòng ở `platform.object`, và ContextRail (luật 10) đọc
- *  chính chuỗi đó. Khác một điểm đáng nói: `opportunity.code` CHƯA có khoá
- *  ngoại về `platform.object`, nên ở đây Postgres không ép — bỏ quên dòng
- *  gương thì không có gì đỏ, chỉ có một cơ hội mà rail mở ra trống trơn.
+ *  Same shape as `lead-write.mapper.ts#refOf`, for the same reason: E1
+ *  `story()` only sees what has a mirror row, and the ContextRail (law 10)
+ *  reads that chain. `opportunity.code` has no foreign key into
+ *  `platform.object` yet, so a forgotten mirror row turns nothing red.
  *
- *  `owner` là Sale đứng đơn đầu tiên: tên làm nhãn, id cho trục phạm vi của E2
- *  (so bằng id, ADR 0070). Đơn nhiều người thì rail in người đầu — nó là một
- *  dòng tóm tắt, không phải bảng phân chia hoa hồng. */
+ *  `owner` is the deal's holder (`holderOf`, ADR 0071 §5): the name is the
+ *  label, the id is E2's scope axis (compared by id, ADR 0070). One person —
+ *  the rail prints a summary line, not a commission split. */
 export function refOf(
   code: string,
   write: { values: Pick<OpportunityValues, 'stage'> },
@@ -406,12 +405,12 @@ export function toRef(row: OpportunityRowDb, owner: RefOwner | null): ObjectRef 
 /** The person a ref names: the label E1 prints and the id E2 compares. */
 export type RefOwner = { id: string; name: string }
 
-/** THE holder of a deal (ADR 0069 §10): the first SALE owner who is not head of
- *  sales, else the first SALE (a deal whose only Sale is a head of sales).
- *  "First" is ONE order whatever the caller's: actor name, then id — the order
- *  the owner read uses — compared by code point, so no body order and no
- *  database collation can pick a different person. Every holder is picked here:
- *  mirror row, book row, sign fallback, contract owner, next step's doer. */
+/** THE holder of a deal (ADR 0071 §5, refining 0069 §10): the first SALE owner
+ *  who is a seller (`isSellerRole`); else the acceptor; else the first BD owner.
+ *  "First" is ONE order whatever the caller's: actor name, then id, compared by
+ *  code point — `opportunity_owner` has no order column, so no body order and
+ *  no database collation can pick a different person. Every holder is picked
+ *  here: mirror row, book row, sign fallback, contract owner, next step's doer. */
 export function holderOf(
   owners: readonly {
     id: string
@@ -419,10 +418,37 @@ export function holderOf(
     role: OpportunityOwnerRole
     roleId: RoleId | null
   }[],
+  acceptor: RefOwner | null,
 ): RefOwner | null {
-  const sale = owners.filter((o) => o.role === 'SALE').sort(byNameThenId)
-  const pick = sale.find((o) => o.roleId !== 'head-of-sales') ?? sale[0]
+  const sorted = [...owners].sort(byNameThenId)
+  const pick =
+    sorted.find((o) => o.role === 'SALE' && isSellerRole(o.roleId)) ??
+    acceptor ??
+    sorted.find((o) => o.role === 'BD')
   return pick ? { id: pick.id, name: pick.name } : null
+}
+
+/** An owner row as `holderOf` reads it: the wire shape plus the actor's role. */
+export type OwnerRow = OpportunityOwner & { roleId: RoleId }
+
+/** The acceptor as a person, or `null` while nobody has accepted. */
+export const acceptorOf = (
+  row: Pick<OpportunityRowDb, 'acceptedById'>,
+  name: string | null,
+): RefOwner | null => (row.acceptedById && name ? { id: row.acceptedById, name } : null)
+
+/** Who stands on a deal, who accepted it, and which of them holds it. */
+export function peopleOf(
+  row: Pick<OpportunityRowDb, 'acceptedById'>,
+  acceptorName: string | null,
+  list: readonly OwnerRow[] = [],
+): { owners: OpportunityOwner[]; holder: RefOwner | null; acceptedBy: RefOwner | null } {
+  const acceptedBy = acceptorOf(row, acceptorName)
+  return {
+    owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role })),
+    holder: holderOf(list, acceptedBy),
+    acceptedBy,
+  }
 }
 
 const byNameThenId = (a: RefOwner, b: RefOwner): number =>
@@ -458,6 +484,8 @@ export function toContract(input: {
   daysInStage: number | null
   /** `holderOf` over the stored owners, or over the ones a write just set. */
   holder: RefOwner | null
+  /** Who accepted the deal (ADR 0071), `accepted_by_id` with its name. */
+  acceptedBy: RefOwner | null
   /** What the deal is asking about, with labels. Defaults to empty so the two
    *  WRITE doors do not have to build an array just to say "nothing picked" —
    *  they re-read the row after writing, and the read path is the one that
@@ -499,6 +527,9 @@ export function toContract(input: {
     ...(row.stoppedAtStage ? { stoppedAtStage: row.stoppedAtStage } : {}),
     ...(row.stopReason ? { stopReason: row.stopReason } : {}),
     ...(row.stopNote ? { stopNote: row.stopNote } : {}),
+
+    acceptedBy: input.acceptedBy,
+    acceptedAt: row.acceptedAt?.toISOString() ?? null,
 
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt?.toISOString() ?? null,

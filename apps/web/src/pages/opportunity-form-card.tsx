@@ -113,8 +113,10 @@ function InfoTab({ draft }: { draft: DealDraft }) {
           <fieldset disabled={draft.moneyLocked} className="contents">
             <PersonPickField
               label="Sale đứng đơn"
-              required
-              hint={draft.moneyHint ?? 'Người chốt — nhận phần trăm hoa hồng chốt.'}
+              hint={
+                draft.moneyHint ??
+                'Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi đề nghị ký.'
+              }
               picked={work.saleOwners}
               errors={errors.saleOwners}
               onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}

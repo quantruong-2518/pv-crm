@@ -410,7 +410,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 21
+      "count": 19
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity-mail.composer.ts": {
@@ -431,7 +431,7 @@
       "count": 2
     },
     "aurora/comments-in-english": {
-      "count": 9
+      "count": 8
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.labels.ts": {
@@ -444,7 +444,7 @@
       "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 18
+      "count": 16
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.module.ts": {
@@ -476,7 +476,7 @@
       "count": 17
     },
     "aurora/comments-in-english": {
-      "count": 22
+      "count": 21
     }
   },
   "apps/api/src/branches/sales/sales.module.ts": {

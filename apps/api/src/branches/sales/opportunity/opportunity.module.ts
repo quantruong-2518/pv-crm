@@ -10,6 +10,7 @@ import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
+import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityController } from './opportunity.controller'
 import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
@@ -88,6 +89,7 @@ import { OpportunityService } from './opportunity.service'
        here live in this module. */
     OpportunityLifecycle,
     OpportunityMoves,
+    OpportunityAccept,
     OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không

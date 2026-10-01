@@ -1,5 +1,7 @@
+import type { RoleId } from '@pv/engines'
 import {
   CurrencyCode,
+  isSellerRole,
   OpportunityCreate,
   type OpportunityImportDup,
   type OpportunityImportError,
@@ -9,6 +11,7 @@ import {
   type OpportunityImportRowOut,
 } from '@pv/contracts'
 import { LEAD_GONE_WORDS } from '../lead/lead-state'
+import { NO_OWNER, NOT_SELLER } from './opportunity-owners'
 
 /** Bộ kiểm của lô nạp cơ hội — THUẦN. Không DB, không promise, không clock.
  *
@@ -38,7 +41,7 @@ import { LEAD_GONE_WORDS } from '../lead/lead-state'
  *  chấp nhận đúng một tập giá trị, và cách rẻ nhất để không lệch là để cả hai
  *  đi qua cùng một schema. */
 
-export type ActorLite = { id: string; name: string }
+export type ActorLite = { id: string; name: string; roleId: RoleId }
 
 export type ImportCheckInput = {
   rows: readonly OpportunityImportRow[]
@@ -57,6 +60,9 @@ export type ImportCheckInput = {
   /** Lead codes the caller may not convert (an `ownOnly` caller's foreign or
    *  pool leads) — a row error here, so preview and commit agree. */
   outOfScope: ReadonlySet<string>
+  /** The importer holds `opportunity.accept`, so every deal is born accepted
+   *  and has a holder even with both lanes empty (ADR 0071). */
+  importerAccepts: boolean
 }
 
 export type ImportCheck = {
@@ -179,7 +185,7 @@ function checkRow(
   }
 
   // ── ô bắt buộc ───────────────────────────────────────────────────────────
-  for (const f of ['name', 'company', 'amount', 'closedDate', 'saleOwner'] as const) {
+  for (const f of ['name', 'company', 'amount', 'closedDate'] as const) {
     if (cell(f) === '') return { field: f, reason: `Thiếu ${LABEL[f]}` }
   }
 
@@ -247,23 +253,34 @@ function checkRow(
   }
 
   // ── người ────────────────────────────────────────────────────────────────
+  /* An empty SALE cell is a legal row: the lane may stay empty until signing
+     (ADR 0071 §4). A name that is there must still resolve to one person. */
   const rawSale = cell('saleOwner')
   keep('saleOwner', rawSale)
-  const sale = personOf(rawSale, staffByName)
-  if (typeof sale !== 'string') return { field: 'saleOwner', reason: sale.reason }
+  let saleOwners: string[] = []
+  if (rawSale !== '') {
+    const sale = personOf(rawSale, staffByName)
+    if ('reason' in sale) return { field: 'saleOwner', reason: sale.reason }
+    if (!isSellerRole(sale.roleId)) return { field: 'saleOwner', reason: NOT_SELLER }
+    saleOwners = [sale.id]
+  }
 
   const rawBd = cell('bdOwner')
   keep('bdOwner', rawBd)
   let bdOwners: string[] = []
   if (rawBd !== '') {
     const bd = personOf(rawBd, staffByName)
-    if (typeof bd !== 'string') return { field: 'bdOwner', reason: bd.reason }
-    bdOwners = [bd]
+    if ('reason' in bd) return { field: 'bdOwner', reason: bd.reason }
+    bdOwners = [bd.id]
+  }
+  /* The typed door's holder rule (`assertHeld`), per row: a seller, the
+     importer as acceptor, or a BD — else nobody answers for the deal. */
+  if (saleOwners.length === 0 && bdOwners.length === 0 && !input.importerAccepts) {
+    return { field: 'bdOwner', reason: NO_OWNER }
   }
 
-  /* KHÔNG có ô trạng thái nữa (ADR 0064): một đơn nạp vào đứng ở `new`, hoặc ở
-     `assigned` khi tập PIC của dòng đó đã đủ — và cột đó do writer của máy chủ
-     đặt, không do một ô Excel. */
+  /* No state cell (ADR 0064): the server sets the column — `new`, or `assigned`
+     when the importer may accept (ADR 0071) — never a spreadsheet cell. */
   const description = cell('description')
   keep('description', description)
 
@@ -274,7 +291,7 @@ function checkRow(
     expectedClose,
     amount,
     currency,
-    saleOwners: [sale],
+    saleOwners,
     bdOwners,
     ...(description === '' ? {} : { description }),
   })
@@ -338,18 +355,18 @@ function dateOf(raw: string): string | null {
   return `${y}-${m}-${d}`
 }
 
-/** Một TÊN trong tệp → một id trong cột.
+/** A NAME in the file → one person of the staff book, role included.
  *
- *  Không tìm thấy là hỏng, và tìm thấy HAI cũng hỏng — không bao giờ đoán.
- *  Một dòng không ai xếp được là một dòng rẻ; một dòng xếp nhầm người thì
- *  không, vì nó đi thẳng vào bảng chia hoa hồng. */
+ *  None found fails, and TWO found fails too — never a guess. A row nobody
+ *  can place is cheap; a row placed on the wrong person is not, because it
+ *  goes straight into the commission split. */
 function personOf(
   raw: string,
   staffByName: ReadonlyMap<string, ActorLite[]>,
-): string | { reason: string } {
+): ActorLite | { reason: string } {
   const found = staffByName.get(fold(raw)) ?? []
   const first = found[0]
   if (!first) return { reason: `Không có ai tên "${raw}" trong sổ nhân sự` }
   if (found.length > 1) return { reason: `Có nhiều người tên "${raw}" — sửa tệp cho rõ` }
-  return first.id
+  return first
 }

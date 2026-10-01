@@ -14,10 +14,16 @@ import {
   type OpportunityCreateResponse,
 } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { useSession } from '@/app/auth'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
 import { missingOf, toggled } from '@/data/opportunities'
-import { createBodyOf, draftErrorsOf, usePromoteLead } from '@/data/opportunities-write'
+import {
+  createBodyOf,
+  draftErrorsOf,
+  usePromoteLead,
+  withCreatorOwners,
+} from '@/data/opportunities-write'
 import { AmountField, AttachmentsDropField, PersonPickField, ProductTagsField } from './deal-fields'
 import { Field } from './ops-fields'
 
@@ -50,11 +56,15 @@ type Props = {
 
 export function ConvertDialog({ profile, open, onClose, onCreated }: Props) {
   const staff = useDirectory()
+  const me = useSession((s) => s.actor)
   const form = useMemo(() => profileForm(profile), [profile])
   /* Seeded WITHOUT a list of codes already handed out: the sequence lives in
      `sales.opportunity_code_seq`, only the server reads it, so there is
      nothing here to avoid colliding with. */
-  const seed = useMemo(() => draftOpportunity(form, staff), [form, staff])
+  const seed = useMemo(
+    () => withCreatorOwners(draftOpportunity(form, staff), me, profile),
+    [form, staff, me, profile],
+  )
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
   const [errors, setErrors] = useState<FieldErrors>({})
 
@@ -232,8 +242,7 @@ function ConvertFields({
       <section className="grid gap-4 sm:grid-cols-2">
         <PersonPickField
           label="Sale đứng đơn"
-          required
-          hint="Người chốt — nhận phần trăm hoa hồng chốt."
+          hint="Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi đề nghị ký."
           picked={draft.saleOwners}
           errors={errors.saleOwners}
           onToggle={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}

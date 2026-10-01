@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   ContractSign,
   ObjectCode,
+  OpportunityAcceptBody,
   OpportunityBookQuery,
   OpportunityCreate,
   OpportunityImportBody,
@@ -14,6 +15,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
@@ -30,7 +32,7 @@ import { OpportunityService } from './opportunity.service'
  *  thấy đơn của mình thì thấy đúng đơn của mình, và khác biệt giữa hai endpoint
  *  nằm ở chỗ service LÀM GÌ với phán quyết đó, không nằm ở dòng khai.
  *
- *  Cửa ghi đòi `opportunity.edit`, KHÔNG phải `opportunity.close`. Ba quyền của sổ này chia
+ *  Cửa ghi đòi `opportunity.edit` (mở đơn: `opportunity.create`, ADR 0071), KHÔNG phải `opportunity.close`. Ba quyền của sổ này chia
  *  theo mức độ không lùi được: xem là đọc, sửa là mở một đơn và động vào nó,
  *  chốt là ký — và ký là thứ đi ra khỏi phòng kinh doanh. Đổi một lead thành cơ
  *  hội thì rút lại được bằng cách đóng đơn; nó thuộc nhóm giữa. Gộp nó vào
@@ -50,6 +52,7 @@ export class OpportunityController {
     private readonly ops: OpportunityService,
     private readonly moves: OpportunityMoves,
     private readonly signs: OpportunitySign,
+    private readonly accepts: OpportunityAccept,
   ) {}
 
   @Get()
@@ -136,7 +139,7 @@ export class OpportunityController {
    *  đơn phải ghi được ai mở nó. Docblock của `OpportunityService.create` nói
    *  đầy đủ vì sao tham số này từng KHÔNG có mặt và điều gì đã đổi. */
   @Post()
-  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.create', scoped: true })
   create(@CurrentActor() who: Actor, @Body(zod(OpportunityCreate)) body: OpportunityCreate) {
     return this.ops.create(who, body)
   }
@@ -145,13 +148,13 @@ export class OpportunityController {
    *
    *  `@HttpCode(200)` vì 201 sẽ nói dối rằng có thứ gì đó vừa được tạo.
    *
-   *  Đòi `opportunity.edit` y như cửa nạp thật, và bản chạy thử KHÔNG được rẻ hơn:
+   *  Đòi `opportunity.create` y như cửa nạp thật, và bản chạy thử KHÔNG được rẻ hơn:
    *  nó đọc cả sổ lead để trả lời "công ty này có trong sổ không" và "khách này
    *  đã có đơn đang mở chưa", mà hai câu trả lời đó đáng giá với người đang dò
    *  đúng bằng chính những dòng dữ liệu. Cùng lý lẽ mà lô nạp lead đã ghi. */
   @Post('import/preview')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.create', scoped: true })
   importPreview(
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
@@ -161,7 +164,7 @@ export class OpportunityController {
 
   /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào. */
   @Post('import')
-  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  @Need({ branch: 'Sales', permission: 'opportunity.create', scoped: true })
   import(
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
@@ -208,15 +211,15 @@ export class OpportunityController {
     return this.signs.propose(who, code, body)
   }
 
-  /** Lưu phiếu ở hồ sơ cơ hội.
+  /** Save the opportunity profile form.
    *
-   *  `PATCH` chứ không `PUT`, và thân request vẫn chở CẢ bộ ô sửa được: động
-   *  từ nói về TÀI NGUYÊN — cửa này sửa một phần của cơ hội, `lead_code` và mã
-   *  thì không đụng tới — còn thân request nói về cái FORM. `PUT` ở đây sẽ hứa
-   *  rằng gửi thiếu ô nào là xoá ô đó, mà cửa này không làm thế.
+   *  `PATCH`, not `PUT`, though the body carries the WHOLE editable set: the
+   *  verb speaks of the RESOURCE — this door edits part of a deal, never its
+   *  `lead_code` or code — while the body speaks of the FORM. `PUT` would
+   *  promise that a missing field is deleted, which this door does not do.
    *
-   *  Cùng quyền với cửa tạo. Người mở được đơn thì sửa được đơn — tách hai
-   *  quyền ra chỉ tạo ra một vai mở được đơn rồi không sửa nổi chính nó. */
+   *  `opportunity.edit`, NOT `opportunity.create` (ADR 0071 §1): a Sale is
+   *  handed deals and edits them without being allowed to open one. */
   @Patch(':code')
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   update(
@@ -237,8 +240,8 @@ export class OpportunityController {
    *  so it is a `POST` to a sub-resource — every press records another
    *  milestone, including a second press of the same one (quotation rounds).
    *
-   *  `opportunity.edit` + `scoped: true` on both doors below: standing in
-   *  the PIC is what grants the right, and no new role is added (ADR 0064 §5).
+   *  `opportunity.edit` + `scoped: true` on both doors below: standing on the
+   *  deal grants it; only opening and accepting have their own (ADR 0071).
    *  Signing stays `opportunity.close`. One route, one permission
    *  (`docs/decisions/0004-one-route-one-permission.md`) is why these are two
    *  doors rather than one "change the lifecycle" door taking a `kind`. */
@@ -251,6 +254,21 @@ export class OpportunityController {
     @Body(zod(OpportunityMilestoneBody)) body: OpportunityMilestoneBody,
   ) {
     return this.moves.milestone(who, code, body)
+  }
+
+  /** A head of sales or director accepts a `new` deal (ADR 0071 §3). Its own
+   *  permission, and NOT scoped: a head accepts from the queue of every deal,
+   *  and an `ownOnly` scope would hide exactly the deals they have not joined.
+   *  200 — nothing is created, an existing row moves. */
+  @Post(':code/accept')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.accept' })
+  accept(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunityAcceptBody)) body: OpportunityAcceptBody,
+  ) {
+    return this.accepts.accept(who, code, body)
   }
 
   /** Stop the deal, with a reason — final (ADR 0069 §1): there is no reopen

@@ -58,7 +58,7 @@ export function LeadToolsBar(
         canEdit: boolean
         /** `lead.send-email`, scoped (`data/mas.ts`). */
         canSendEmail: boolean
-        /** `opportunity.edit` (`data/opportunities-write.ts`) — the need the
+        /** `opportunity.create` (`data/opportunities-write.ts`) — the need the
          *  convert dialog writes under. NOT `lead.convert`: no door asks it. */
         canConvert: boolean
         onPin: () => void
@@ -210,7 +210,7 @@ function EditBar({
           <Button
             size="lg"
             disabled={!canConvert}
-            title={canConvert ? undefined : 'Cần quyền sửa cơ hội để chuyển lead.'}
+            title={canConvert ? undefined : 'Vai của bạn chưa có quyền mở cơ hội mới.'}
             onClick={onConvert}
           >
             <Icon icon={ArrowRight} size={16} />

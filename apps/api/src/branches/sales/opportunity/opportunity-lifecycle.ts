@@ -1,6 +1,5 @@
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import type { RoleId } from '@pv/engines'
 import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STOP_REASON_OTHER,
@@ -21,9 +20,9 @@ import { opportunity, type OpportunityRowDb } from './opportunity.schema'
 
 /** EVERY MOVE A DEAL MAKES BEFORE A CONTRACT EXISTS (ADR 0064, 0069).
  *
- *  Three facts move a deal here and nothing else does: the PIC set filled up
- *  (`new` → `assigned`), a milestone was recorded (`sample`/`poc`/`quotation`),
- *  or it was stopped — final, there is no way back. Saving the form moves
+ *  Three facts move a deal here and nothing else does: a head accepted it
+ *  (`new` → `assigned`, ADR 0071), a milestone was recorded (`sample`/`poc`/
+ *  `quotation`), or it was stopped — final, there is no way back. Saving the form moves
  *  nothing — that is what `OpportunityEdit` leaves out of its columns.
  *
  *  The ONE other writer is the sign flow (`closeForSign` in
@@ -34,10 +33,6 @@ import { opportunity, type OpportunityRowDb } from './opportunity.schema'
  *  Every move is ONE conditional UPDATE naming the column it may leave, so it
  *  is forward-only without a second lock, and carries `stage_since`, a timeline
  *  row, a funnel row and the mirror row at once. Callers pass their own `tx`. */
-
-/** "Head of sales" is a ROLE, not a column on `opportunity_owner` — ADR 0064 §4
- *  refuses to add one, so the rank comes from `platform.actor.role_id`. */
-const HEAD_OF_SALES: RoleId = 'head-of-sales'
 
 /** The five columns as an ORDER. Every rule below is a comparison ("below the
  *  current column", "at `assigned` or past it"), so a rank reads better than a
@@ -60,47 +55,6 @@ const MILESTONE_TOUCH: Record<OpportunityMilestoneKind, TouchKind> = {
   quotation: 'quotation-sent',
 }
 
-/** The PIC set of a deal — `saleOwners ∪ bdOwners`, counted BY PERSON. One
- *  person carrying both labels is one PIC, which is why this is a set of ids
- *  and not a row count of the join table. */
-export type PicSet = { people: number; heads: number }
-
-export function picOf(ids: readonly string[], roles: ReadonlyMap<string, RoleId>): PicSet {
-  const people = new Set(ids)
-  let heads = 0
-  for (const id of people) if (roles.get(id) === HEAD_OF_SALES) heads += 1
-  return { people: people.size, heads }
-}
-
-/** A PIC set reaches `assigned` when a head of sales stands on the deal beside
- *  at least one other person (ADR 0064 §3). */
-export const picQualifies = (pic: PicSet): boolean => pic.heads > 0 && pic.people > 1
-
-/** Why an owners write is refused, or `null` when it may go through.
- *
- *  Only a write that makes things WORSE is refused. A deal already standing
- *  under two PIC predates the rule and stays editable (ADR 0064 §4) — refusing
- *  it would freeze every row the migration left behind, including its name and
- *  its money.
- *
- *  The rank comes from `stage ?? stopped_at_stage`, not from `stage` alone: a
- *  lost deal has no column, and its fail log must keep reading as the PIC set
- *  that stood on it. */
-export function picRefusal(
-  before: PicSet,
-  after: PicSet,
-  at: Pick<OpportunityRowDb, 'stage' | 'stoppedAtStage'>,
-): string | null {
-  if (after.people < 2 && after.people < before.people) {
-    return 'Cơ hội phải có ít nhất 2 người phụ trách — thêm người mới trước khi bớt người cũ.'
-  }
-  const reached = at.stage ?? at.stoppedAtStage
-  if (reached !== null && RANK[reached] >= RANK.assigned && after.heads === 0 && before.heads > 0) {
-    return 'Cơ hội đã nhận PIC thì phải còn một trưởng phòng đứng đơn — không gỡ người cuối cùng được.'
-  }
-  return null
-}
-
 /** A stored deal plus the two facts every move needs beside its columns: the
  *  owner the mirror row names, and whether a contract already exists. Both are
  *  already in the door's hand (`OpportunityRead`), so no move re-reads them. */
@@ -115,7 +69,7 @@ export type DealAt = {
 }
 
 /** A read deal → what a move needs. The mirror row names the deal's holder
- *  (`holderOf`, ADR 0069 §10), as every door that writes it does. */
+ *  (`holderOf`, ADR 0071 §5), as every door that writes it does. */
 export const dealAtOf = (
   found: { row: OpportunityRowDb; holder: RefOwner | null; signed: boolean },
   pendingSign: boolean,
@@ -131,13 +85,15 @@ export class OpportunityLifecycle {
     private readonly touch: TouchService,
   ) {}
 
-  /** `new` → `assigned`, the moment the PIC set qualifies. Idempotent by its
-   *  WHERE: a deal already past `new` matches nothing, and `null` comes back so
-   *  the caller keeps the row it already had. */
+  /** `new` → `assigned`: `by` accepted the deal (ADR 0071 §3). The acceptor is
+   *  written in the SAME UPDATE as the stage — `opportunity_accepted_pair` wants
+   *  name and moment together, and a stage without its acceptor would be a move
+   *  nobody did. Forward-only by its WHERE: a deal already past `new` matches
+   *  nothing and `null` comes back, so the caller decides what to answer. */
   async assigned(tx: Db, deal: DealAt, by: By, at: Date): Promise<OpportunityRowDb | null> {
     const [written] = await tx
       .update(opportunity)
-      .set({ stage: 'assigned', stageSince: at })
+      .set({ stage: 'assigned', stageSince: at, acceptedById: by.id, acceptedAt: at })
       .where(
         and(
           eq(opportunity.code, deal.row.code),
@@ -178,7 +134,7 @@ export class OpportunityLifecycle {
     const from = this.onBoard(deal, 'ghi mốc')
     if (RANK[from] < RANK.assigned) {
       throw conflict(
-        `Cơ hội ${code} chưa đủ PIC nên chưa ghi mốc được — thêm trưởng phòng và một người nữa trước.`,
+        `Cơ hội ${code} chưa được nhận PIC nên chưa ghi mốc được — chờ trưởng phòng bấm Nhận PIC trước.`,
       )
     }
     if (RANK[from] > RANK[to]) {
@@ -289,8 +245,9 @@ export class OpportunityLifecycle {
 
   /** The column a deal is standing in, or the refusal for one that has left the
    *  board. Won and lost deals both read `stage IS NULL`, and they get two
-   *  different sentences because they lead to two different next actions. */
-  private onBoard(deal: DealAt, action: string): StageKey {
+   *  different sentences because they lead to two different next actions.
+   *  Public for the accept door, which refuses in these same words. */
+  onBoard(deal: DealAt, action: string): StageKey {
     const code = deal.row.code
     if (deal.signed) throw conflict(`Cơ hội ${code} đã ký hợp đồng — không ${action} được nữa.`)
     if (deal.pendingSign) {

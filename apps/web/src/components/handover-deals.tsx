@@ -37,8 +37,7 @@ export function HandoverDeals({ choice }: { choice: HandoverChoice }) {
         </p>
       )}
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Cơ hội đang chờ duyệt ký, hoặc đổi người làm sai luật PIC, sẽ ở lại với người cũ và có ghi
-        chú trên dòng thời gian của cơ hội.
+        Cơ hội đang chờ duyệt ký sẽ ở lại với người cũ và có ghi chú trên dòng thời gian của cơ hội.
       </p>
     </section>
   )

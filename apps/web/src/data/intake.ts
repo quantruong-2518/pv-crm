@@ -671,7 +671,6 @@ export const OP_SPEC: ImportSpec = {
     {
       key: 'saleOwner',
       label: 'Sale đứng đơn',
-      required: true,
       aliases: ['sale', 'sale owner', 'nguoi ban', 'owner'],
       people: 'id',
       sample: 'Đỗ Quang Huy',

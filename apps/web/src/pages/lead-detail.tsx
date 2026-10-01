@@ -120,7 +120,7 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
      only block whose three buttons write through three different doors, and a
      button opening a drawer that ends in a 403 is worse than a locked one. */
   const canSendEmail = useCan('lead.send-email')
-  const canConvert = useCan('opportunity.edit')
+  const canConvert = useCan('opportunity.create')
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
   /* Has this lead been turned into a deal yet — asked of the SERVER. */

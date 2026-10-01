@@ -134,6 +134,7 @@ export class OpportunityMoves {
       owners: found.owners,
       contractCodes: found.contractCodes,
       holder: found.holder,
+      acceptedBy: found.acceptedBy,
       daysInStage: daysInStageOf(row, at),
       products: found.products,
     })

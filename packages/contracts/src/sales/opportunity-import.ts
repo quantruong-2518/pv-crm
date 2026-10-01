@@ -69,8 +69,8 @@ export const MAX_IMPORT_OPS = 2_000
  *  has them should not have to throw them away.
  *
  *  No `state` column: an imported deal enters at stage `new`, or at `assigned`
- *  if its PIC set already qualifies — the same single writer every other door
- *  goes through (ADR 0064). A spreadsheet cell naming a state would be the one
+ *  when the importer may accept deals — the same rule as the create door
+ *  (ADR 0071). A spreadsheet cell naming a state would be the one
  *  way to put a deal in a column no event put it in. */
 export const OPPORTUNITY_IMPORT_FIELDS = [
   'name',

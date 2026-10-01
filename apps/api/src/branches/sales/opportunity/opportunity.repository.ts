@@ -15,7 +15,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor, RoleId } from '@pv/engines'
+import type { Actor } from '@pv/engines'
 import {
   CURRENCIES,
   OWNER_NONE,
@@ -46,21 +46,30 @@ import {
 } from './opportunity.schema'
 import { stageConfigOf, type StageConfig } from '../ladder'
 import type { ActorLite } from './opportunity-import.check'
-import { holderOf, type OpportunityValues, type RefOwner } from './opportunity.mapper'
+import {
+  peopleOf,
+  type OpportunityValues,
+  type OwnerRow,
+  type RefOwner,
+} from './opportunity.mapper'
 
 const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
-/** Who stands on a deal, and which of them holds it. */
-type DealPeople = { owners: OpportunityOwner[]; holder: RefOwner | null }
-const NOBODY: DealPeople = { owners: [], holder: null }
+/** The acceptor's name, beside `accepted_by_id` (ADR 0071). A scalar subquery
+ *  rather than a join so it rides a `FOR UPDATE` read too (the hand-over's). */
+export const ACCEPTOR_NAME = sql<
+  string | null
+>`(SELECT acc.name FROM platform.actor acc WHERE acc.id = ${opportunity.acceptedById})`
 
 /** Một dòng sổ đã nạp đủ thứ nó cần để ra mặt. */
 export type OpportunityRead = {
   row: OpportunityRowDb
   account: string
   owners: OpportunityOwner[]
-  /** The deal's holder (`holderOf`, ADR 0069 §10), read with the owners. */
+  /** The deal's holder (`holderOf`, ADR 0071 §5), read with the owners. */
   holder: RefOwner | null
+  /** Who accepted the deal (ADR 0071 §3); `null` while it waits at `new`. */
+  acceptedBy: RefOwner | null
   /** Mọi hợp đồng đã ký của đơn, cũ nhất trước — một đơn thắng ký thêm được
    *  (ADR 0069 §5). `signed` là "danh sách không rỗng": hai trường, MỘT nguồn. */
   contractCodes: string[]
@@ -244,6 +253,7 @@ export class OpportunityRepository {
         account: lead.company,
         contractCodes: CONTRACT_CODES,
         daysInStage: DAYS_IN_STAGE,
+        acceptorName: ACCEPTOR_NAME,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -262,10 +272,10 @@ export class OpportunityRepository {
     ])
 
     return {
-      rows: rows.map((r) => ({
+      rows: rows.map(({ acceptorName, ...r }) => ({
         ...r,
         signed: r.contractCodes.length > 0,
-        ...(owners.get(r.row.code) ?? NOBODY),
+        ...peopleOf(r.row, acceptorName, owners.get(r.row.code)),
         products: products.get(r.row.code) ?? [],
       })),
       total: scopedTotal,
@@ -293,6 +303,7 @@ export class OpportunityRepository {
         account: lead.company,
         contractCodes: CONTRACT_CODES,
         daysInStage: DAYS_IN_STAGE,
+        acceptorName: ACCEPTOR_NAME,
         inScope: who ? this.inScopeValue(who) : sql<boolean>`true`,
       })
       .from(opportunity)
@@ -306,10 +317,11 @@ export class OpportunityRepository {
       this.ownersOf(handle, [code]),
       this.productsOf(handle, [code]),
     ])
+    const { acceptorName, ...rest } = found
     return {
-      ...found,
+      ...rest,
       signed: found.contractCodes.length > 0,
-      ...(owners.get(code) ?? NOBODY),
+      ...peopleOf(found.row, acceptorName, owners.get(code)),
       products: products.get(code) ?? [],
     }
   }
@@ -323,7 +335,7 @@ export class OpportunityRepository {
    *  Thứ tự trong mỗi đơn là thứ tự cố định (`role` rồi `name`) vì màn in ra
    *  một hàng avatar — hai lần mở cùng một đơn mà hàng đó đảo chỗ thì đọc như
    *  dữ liệu vừa đổi. */
-  private async ownersOf(tx: Db, codes: string[]): Promise<Map<string, DealPeople>> {
+  private async ownersOf(tx: Db, codes: string[]): Promise<Map<string, OwnerRow[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await tx
@@ -339,17 +351,9 @@ export class OpportunityRepository {
       .where(inArray(opportunityOwner.opportunityCode, codes))
       .orderBy(opportunityOwner.role, actor.name, actor.id)
 
-    const byCode = new Map<string, (typeof rows)[number][]>()
+    const byCode = new Map<string, OwnerRow[]>()
     for (const r of rows) byCode.set(r.code, [...(byCode.get(r.code) ?? []), r])
-    return new Map(
-      [...byCode].map(([code, list]) => [
-        code,
-        {
-          owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role })),
-          holder: holderOf(list),
-        },
-      ]),
-    )
+    return byCode
   }
 
   /** Tên khách của một lead. Sổ in tên chứ không in mã.
@@ -388,7 +392,7 @@ export class OpportunityRepository {
    *  như có chặn.
    *
    *  Hàng rào thật nằm ở chỗ khác và đã đứng rồi: dòng sổ gửi chỉ tồn tại nếu
-   *  `POST /sales/opportunities` đi qua `@Need({ permission: 'opportunity.edit' })`,
+   *  `POST /sales/opportunities` đi qua `@Need({ permission: 'opportunity.create' })`,
    *  và địa chỉ nhận là hộp thư của chính công ty, khai trong env — không phải
    *  thứ ai gọi được cũng đặt được. */
   async forMail(code: string): Promise<(OpportunityRead & { daysOpen: number }) | null> {
@@ -404,6 +408,7 @@ export class OpportunityRepository {
           EXTRACT(epoch FROM COALESCE(${opportunity.closedAt}, now()) - ${opportunity.createdAt}) / 86400
         ))::int`,
         daysInStage: DAYS_IN_STAGE,
+        acceptorName: ACCEPTOR_NAME,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -416,10 +421,11 @@ export class OpportunityRepository {
       this.ownersOf(this.db, [code]),
       this.productsOf(this.db, [code]),
     ])
+    const { acceptorName, ...rest } = found
     return {
-      ...found,
+      ...rest,
       signed: found.contractCodes.length > 0,
-      ...(owners.get(code) ?? NOBODY),
+      ...peopleOf(found.row, acceptorName, owners.get(code)),
       products: products.get(code) ?? [],
     }
   }
@@ -438,21 +444,6 @@ export class OpportunityRepository {
       .from(actor)
       .where(inArray(actor.id, [...ids]))
     return new Map(rows.map((r) => [r.id, r.name]))
-  }
-
-  /** The ROLE of a set of actors — what the PIC rule is decided on (ADR 0064 §4).
-   *
-   *  A second statement beside `actorNames` rather than a widening of it: a name
-   *  is a LABEL a screen prints, a role is a KEY a decision turns on, and the
-   *  doors that only need the label should not start carrying the key. Both run
-   *  inside one `Promise.all`, so the pair costs no extra wait. */
-  async actorRoles(tx: Db, ids: readonly string[]): Promise<Map<string, RoleId>> {
-    if (ids.length === 0) return new Map()
-    const rows = await tx
-      .select({ id: actor.id, roleId: actor.roleId })
-      .from(actor)
-      .where(inArray(actor.id, [...ids]))
-    return new Map(rows.map((r) => [r.id, r.roleId]))
   }
 
   /** The label of a `LOSS_REASON` row, retired rows included — a deal stopped
@@ -485,7 +476,10 @@ export class OpportunityRepository {
    *  hai nghìn dòng — hỏi từng dòng là hai nghìn vòng tới Neon cho một bảng
    *  bảy người. Cùng phép mà `LeadWriteRepository.staff` dùng. */
   async staff(tx: Db): Promise<ActorLite[]> {
-    return tx.select({ id: actor.id, name: actor.name }).from(actor).where(isNull(actor.disabledAt))
+    return tx
+      .select({ id: actor.id, name: actor.name, roleId: actor.roleId })
+      .from(actor)
+      .where(isNull(actor.disabledAt))
   }
 
   /** Tên công ty → mã lead, cho cột "Account" của tệp.
@@ -666,6 +660,19 @@ export class OpportunityRepository {
   ): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(opportunityOwner).values([...rows])
+  }
+
+  /** Adds owners and never removes one — the accept door's union (ADR 0071).
+   *  Someone already standing in that lane is a row already there, so skipped. */
+  async addOwners(
+    tx: Db,
+    rows: readonly { opportunityCode: string; actorId: string; role: 'SALE' | 'BD' }[],
+  ): Promise<void> {
+    if (rows.length === 0) return
+    await tx
+      .insert(opportunityOwner)
+      .values([...rows])
+      .onConflictDoNothing()
   }
 
   /** Lock one deal `FOR UPDATE`, then re-read what the doors decided on before
@@ -966,6 +973,8 @@ export class OpportunityRepository {
     return [
       q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
       this.stateFilter(q.state),
+      /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
+      q.stage ? eq(opportunity.stage, q.stage) : undefined,
       this.ownerFilter('SALE', q.sale),
       this.ownerFilter('BD', q.bd),
       q.account ? eq(lead.company, q.account) : undefined,

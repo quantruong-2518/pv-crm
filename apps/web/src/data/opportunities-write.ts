@@ -2,7 +2,10 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import {
   type ConfigProposalReceipt,
   type ContractSign,
+  type LeadProfile,
   type ObjectCode,
+  type OpportunityAcceptBody,
+  type OpportunityAcceptResponse,
   type OpportunityCreate,
   type OpportunityCreateResponse,
   type OpportunityMilestoneBody,
@@ -15,12 +18,14 @@ import {
   type OpportunityUpdate,
   type OpportunityUpdateResponse,
 } from '@pv/contracts'
+import type { Actor } from '@pv/engines'
 import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { invalidateLeadState } from '@/data/lead-exit'
 import { nextStepKey } from '@/data/next-step'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
+import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
 
 /** Module 3 · các cửa GHI của sổ cơ hội, và một hàm dịch dùng chung.
  *
@@ -49,22 +54,23 @@ import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/op
 
 const BOOK_PATH = '/sales/opportunities'
 
-/** The CREATE door and both BATCH doors — `@Need({ …, permission: 'opportunity.edit',
+/** The CREATE door and both BATCH doors — `@Need({ …, permission: 'opportunity.create',
  *  scoped: true })`, mirroring the controller.
  *
- *  `opportunity.edit`, not `opportunity.close`: see the controller docblock.
- *  Declared here so the button turns off BEFORE the form is filled, not after.
+ *  Its own permission, not `opportunity.edit`: a Sale is handed deals and edits
+ *  them, but only BD-side seats and heads open one (ADR 0071 §1). Declared here
+ *  so the button turns off BEFORE the form is filled, not after.
  *
  *  `scoped` because the deal is opened ON a lead: an ownOnly caller may only
  *  convert a lead they hold, and the server checks it under the lead lock. */
 export const OPPORTUNITY_WRITE_NEED: ApiNeed = {
   branch: 'Sales',
-  permission: 'opportunity.edit',
+  permission: 'opportunity.create',
   scoped: true,
 }
 
-/** The EDIT door — `@Need` of `PATCH :code`. Same flags as the create door today,
- *  kept apart because the scope answers a different question: create is scoped
+/** The EDIT door — `@Need` of `PATCH :code`. Scoped like the create door, but
+ *  the scope answers a different question: create is scoped
  *  by the LEAD it converts, edit by standing in the deal's PIC (ADR 0064 §5). */
 export const OPPORTUNITY_UPDATE_NEED: ApiNeed = {
   branch: 'Sales',
@@ -124,6 +130,22 @@ export function createBodyOf(leadCode: ObjectCode, draft: OpportunityDraft): Opp
     ...(draft.accountCode === '' ? {} : { accountCode: draft.accountCode }),
     ...dealBody(draft),
   }
+}
+
+/** The creator's prefill (ADR 0071 §2), by actor id and still editable.
+ *  Decided by permission, not role, so the matrix screen stays the source: an
+ *  acceptor is recorded as such by the server, so only the lead's BD carries
+ *  over; any other creator opens on their own BD lane. SALE starts empty. */
+export function withCreatorOwners(
+  seed: OpportunityDraft,
+  me: Actor | null,
+  lead: LeadProfile,
+): OpportunityDraft {
+  if (me?.permissions.includes('opportunity.accept'))
+    return { ...seed, saleOwners: [], bdOwners: lead.bdOwnerId ? [lead.bdOwnerId] : [] }
+  if (me?.permissions.includes('opportunity.create'))
+    return { ...seed, saleOwners: [], bdOwners: [me.id] }
+  return seed
 }
 
 /** Phiếu → thân `PATCH`. */
@@ -308,6 +330,8 @@ export function useSaveOpportunity(code: ObjectCode) {
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
       /* A signed deal's amount, currency and owner are carried onto its contract. */
       void client.invalidateQueries({ queryKey: CONTRACT_BOOK_KEY })
+      /* Owners move the journey's holder. */
+      void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
     },
   })
 }
@@ -331,7 +355,7 @@ export function useSignContract(code: ObjectCode) {
 }
 
 // ---------------------------------------------------------------------------
-// THE TWO DOORS THAT MOVE A DEAL — MILESTONE · STOP
+// THE THREE DOORS THAT MOVE A DEAL — ACCEPT · MILESTONE · STOP
 // ---------------------------------------------------------------------------
 
 /** `PATCH :code/stage` IS GONE (ADR 0064 §1) and so is the mutation that drove
@@ -359,6 +383,26 @@ export function logMilestone(
     method: 'POST',
     body,
     need: OPPORTUNITY_MOVE_NEED,
+    signal,
+  })
+}
+
+/** The accept door — `@Need({ …, permission: 'opportunity.accept' })` with NO
+ *  scope: a head takes deals off the department's queue, not only their own. */
+export const OPPORTUNITY_ACCEPT_NEED: ApiNeed = {
+  branch: 'Sales',
+  permission: 'opportunity.accept',
+}
+
+export function acceptDeal(
+  code: ObjectCode,
+  body: OpportunityAcceptBody,
+  signal?: AbortSignal,
+): Promise<OpportunityAcceptResponse> {
+  return api.write<OpportunityAcceptResponse>(`${BOOK_PATH}/${code}/accept`, {
+    method: 'POST',
+    body,
+    need: OPPORTUNITY_ACCEPT_NEED,
     signal,
   })
 }
@@ -405,11 +449,30 @@ function useMoveSettled(code: ObjectCode) {
 /** Record `sample-sent` · `poc-run` · `quotation-sent`. Pressing the CURRENT
  *  column's milestone again is legal and expected — another quotation round. */
 export function useLogMilestone(code: ObjectCode) {
+  const client = useQueryClient()
   const settled = useMoveSettled(code)
 
   return useMutation<OpportunityMilestoneResponse, ApiError, OpportunityMilestoneBody>({
     mutationFn: (body) => logMilestone(code, body),
-    onSuccess: settled,
+    onSuccess: (row) => {
+      settled(row)
+      void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+    },
+  })
+}
+
+/** The accept act — `new` → `assigned` (ADR 0071 §3). Also re-reads the journeys:
+ *  the drawer that offers this button draws the deal's rungs from there. */
+export function useAcceptDeal(code: ObjectCode) {
+  const client = useQueryClient()
+  const settled = useMoveSettled(code)
+
+  return useMutation<OpportunityAcceptResponse, ApiError, OpportunityAcceptBody>({
+    mutationFn: (body) => acceptDeal(code, body),
+    onSuccess: (row) => {
+      settled(row)
+      void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+    },
   })
 }
 

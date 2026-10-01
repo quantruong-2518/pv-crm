@@ -64,7 +64,7 @@ import { workstream } from '../workstream/workstream.schema'
  *     ký" mà trạng thái nói đang thua, hai câu trả lời cho cùng một đơn.
  *
  *     Một trục: `stage` là VỊ TRÍ trong vòng đời, do MỘT chỗ trên máy chủ ghi
- *     theo sự kiện thật (nhận đủ PIC, ghi mốc sample/poc/quotation) — không
+ *     theo sự kiện thật (a head's accept, ADR 0071; a milestone) — không
  *     phiếu nào hỏi, không ai kéo tay. `state` only answers "still on the
  *     board, or stopped for good" (ADR 0069) — exactly TWO stored values.
  *
@@ -213,6 +213,14 @@ export const opportunity = sales.table(
      *  sentence", not one of the two. */
     stopNote: text('stop_note'),
 
+    /** Who accepted the deal's PIC — `new` → `assigned` is an explicit accept
+     *  by a head of sales or director (ADR 0071), recorded on the deal rather
+     *  than read off the trail: a deal may have no `assigned` stage event.
+     *  NULL = not accepted yet, or accepted before the rule and no head stands
+     *  on it. No CHECK ties it to `stage` — pre-rule rows cannot satisfy one. */
+    acceptedById: text('accepted_by_id').references(() => actor.id),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -256,6 +264,9 @@ export const opportunity = sales.table(
      *  sẽ vẽ nó là không mục, tức im lặng nói dối. Chiều ngược lại là một đồng
      *  hồ chạy cho một cột không tồn tại. */
     check('opportunity_stage_clock', sql`("stage" IS NULL) = ("stage_since" IS NULL)`),
+    /** An accept names a person and a moment, or neither: a name with no date
+     *  cannot be ordered, a date with no name cannot be credited. */
+    check('opportunity_accepted_pair', sql`("accepted_by_id" IS NULL) = ("accepted_at" IS NULL)`),
     check('opportunity_state_known', sql`"state" IN ('open', 'lost')`),
     /** A percentage is a percentage. Written `BETWEEN` rather than left to zod
      *  because the forecast on the plan screen multiplies by this number, and a

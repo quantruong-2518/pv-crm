@@ -321,14 +321,14 @@ export const SCREENS: ScreenDef[] = [
     /** Typing a deal by hand — the same door `/sales/leads/new` opens, and it
      *  reaches the same form card `:code` draws.
      *
-     *  Write permission, not read: this route exists only to write, so refuse
-     *  at the door rather than after fourteen fields. The lead the deal grows
+     *  Create permission, not read: this route exists only to open a deal, so
+     *  refuse at the door rather than after fourteen fields (ADR 0071). The lead the deal grows
      *  out of arrives as `?lead=`; without one the screen asks for it first,
      *  because `POST /sales/opportunities` carries a foreign key. */
     path: '/sales/opportunities/new',
     name: 'Kinh doanh · Module 3 · Cơ hội mới',
     branch: 'Sales',
-    permission: 'opportunity.edit',
+    permission: 'opportunity.create',
     load: () => import('@/pages/opportunity-new'),
   },
   {

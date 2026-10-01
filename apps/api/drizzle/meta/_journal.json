@@ -498,6 +498,13 @@
       "when": 1788504200000,
       "tag": "0071_object_owner_id",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1788504300000,
+      "tag": "0072_opportunity_accepted",
+      "breakpoints": true
     }
   ]
 }

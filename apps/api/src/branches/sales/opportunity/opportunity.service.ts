@@ -44,7 +44,7 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
-import { OpportunityLifecycle, picOf, picQualifies, picRefusal } from './opportunity-lifecycle'
+import { actorRoles, assertHeld, assertSellers } from './opportunity-owners'
 import {
   fromCreate,
   fromUpdate,
@@ -110,9 +110,6 @@ export class OpportunityService {
     @Inject(ENV) private readonly env: Env,
     /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
     private readonly leadStates: LeadStateWriter,
-    /* The only writer of `stage`/`state` (ADR 0064). This service asks it for
-       ONE move — `new` → `assigned`, when an owners edit fills the PIC set. */
-    private readonly lifecycle: OpportunityLifecycle,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -295,10 +292,11 @@ export class OpportunityService {
     const handle = this.repo.readonlyHandle
 
     const pic = [...body.saleOwners, ...body.bdOwners]
+    const acceptor = this.acceptorAtCreate(who)
     const [lead, names, roles] = await Promise.all([
       this.repo.leadCompany(handle, body.leadCode),
       this.repo.actorNames(handle, pic),
-      this.repo.actorRoles(handle, pic),
+      actorRoles(handle, pic),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
     if (!holds(who, lead.ownerId)) throw foreignLead(body.leadCode)
@@ -311,13 +309,11 @@ export class OpportunityService {
        milliseconds apart are two answers to "when did this deal enter the
        column". */
     const now = new Date()
-    /* A deal opens at `new`, or straight at `assigned` when the PIC set is
-       already complete (ADR 0064 §3). No refusal here: one PIC is a legal way to
-       open a deal, it just does not reach the second column. */
-    const stage = picQualifies(picOf(pic, roles)) ? 'assigned' : 'new'
-    const write = fromCreate(body, now, lead.workstreamCode, stage)
+    const write = fromCreate(body, now, lead.workstreamCode, acceptor?.id ?? null)
+    const owner = holderOfIds(body, names, roles, acceptor)
+    await assertSellers(handle, body.saleOwners)
+    assertHeld(owner)
     const code = await this.repo.nextCode()
-    const owner = holderOfIds(body.saleOwners, names, roles)
 
     const row = await this.repo.run(async (tx) => {
       await this.assertLeadsLive(tx, who, [body.leadCode])
@@ -338,7 +334,7 @@ export class OpportunityService {
          move, because a funnel missing its ENTRY step counts nothing: every
          conversion rate has "deals that entered the first column" as its
          denominator. Unconditional since ADR 0064: a new deal always stands in
-         a column, either `new` or `assigned`. */
+         a column — `new`, or `assigned` when its creator accepted it at birth. */
       await this.repo.insertStageEvent(
         tx,
         stageEventOf({
@@ -372,6 +368,7 @@ export class OpportunityService {
           ...byOf(who),
           note: NOTE.promoted(code, write.values.name),
         },
+        ...acceptTouches(code, acceptor, now),
       ])
 
       /* Never the lost letter from this door: a deal is opened onto the board,
@@ -405,6 +402,7 @@ export class OpportunityService {
         ],
         contractCodes: [],
         holder: owner,
+        acceptedBy: acceptor,
         daysInStage: daysInStageOf(row, row.createdAt),
         /* Labels read from the catalog after the write rather than rebuilt from
            the ids in the body: the body only carries ids, and the answer has to
@@ -425,19 +423,12 @@ export class OpportunityService {
    *  Missing and out-of-scope stay ONE 404 on purpose — see `profile`.
    *
    *  ------------------------------------------------------------------
-   *  CỬA NÀY KHÔNG CHẠM VÒNG ĐỜI, VÀ NÓ CHỈ CÓ MỘT LUẬT RIÊNG: PIC KHÔNG TỤT
+   *  THIS DOOR DOES NOT MOVE THE DEAL
    *  ------------------------------------------------------------------
-   *  `state`, `stage`, đồng hồ cột, `closed_at` và ba cột fail log không nằm
-   *  trong `OpportunityEdit` (ADR 0064), nên lưu phiếu không kéo được đơn đi
-   *  đâu. Thứ duy nhất lượt lưu này quyết định về vòng đời là hệ quả của việc
-   *  đổi người: một tập PIC vừa đủ (một trưởng phòng + một người nữa) đưa đơn
-   *  từ `new` sang `assigned`, và writer là chỗ ghi điều đó.
-   *
-   *  Chiều ngược lại bị CHẶN: một lượt sửa không được làm giảm số PIC xuống
-   *  dưới hai, cũng không được gỡ trưởng phòng cuối cùng của một đơn đã nhận
-   *  PIC. Hàng rào đứng TRƯỚC `replaceOwners` vì sau đó thì tập cũ đã mất, và
-   *  nó chỉ chặn lượt ghi làm TỆ ĐI — đơn cũ dưới hai PIC vẫn sửa được tên và
-   *  tiền, nếu không thì mọi dòng migration để lại thành bất động. */
+   *  `state`, `stage`, the column clock, `closed_at` and the fail log are not in
+   *  `OpportunityEdit` (ADR 0064), and since ADR 0071 neither is `assigned`: it
+   *  is a head's accept, not a side effect of who is typed into the owners. So
+   *  either lane may be emptied here; the sign door is what asks for a Sale. */
   async update(
     who: Actor,
     code: ObjectCode,
@@ -457,23 +448,20 @@ export class OpportunityService {
     const pic = [...body.saleOwners, ...body.bdOwners]
     const [names, roles, signedContracts, pendingSign] = await Promise.all([
       this.repo.actorNames(this.repo.readonlyHandle, pic),
-      this.repo.actorRoles(this.repo.readonlyHandle, [...pic, ...found.owners.map((o) => o.id)]),
+      actorRoles(this.repo.readonlyHandle, pic),
       found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
       this.pendingSign(code),
     ])
     if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
 
-    const before = picOf(
-      found.owners.map((o) => o.id),
-      roles,
-    )
-    const after = picOf(pic, roles)
-    const refusal = picRefusal(before, after, found.row)
-    if (refusal) throw conflict(refusal, { saleOwners: [refusal] })
-
-    const now = new Date()
     const write = fromUpdate(body)
-    const owner = holderOfIds(body.saleOwners, names, roles)
+    const owner = holderOfIds(body, names, roles, found.acceptedBy)
+    const onSale = new Set(found.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
+    await assertSellers(
+      this.repo.readonlyHandle,
+      body.saleOwners.filter((id) => !onSale.has(id)),
+    )
+    assertHeld(owner)
 
     const row = await this.repo.run(async (tx) => {
       await this.assertLockedAsRead(tx, code, found, pendingSign)
@@ -486,18 +474,7 @@ export class OpportunityService {
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
       await this.mirror.put(tx, toRef(written, owner))
-
-      /* A PIC set that now qualifies moves the deal to `assigned`, and the
-         writer records the timeline and funnel rows of that move itself. It
-         skips a deal that has left `new` on its own. */
-      if (!picQualifies(after)) return written
-      const moved = await this.lifecycle.assigned(
-        tx,
-        { row: written, owner, signed: found.signed, pendingSign },
-        { id: who.id, name: who.name },
-        now,
-      )
-      return moved ?? written
+      return written
     })
 
     const productNames =
@@ -520,6 +497,7 @@ export class OpportunityService {
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
         contractCodes: found.contractCodes,
         holder: owner,
+        acceptedBy: found.acceptedBy,
         daysInStage: daysInStageOf(row, new Date()),
         products: productNames,
       }),
@@ -584,30 +562,33 @@ export class OpportunityService {
        của mã, không cần sắp lại như lô nạp lead phải làm. */
     const codes = await this.repo.nextCodes(writes.length)
     const now = new Date()
+    const acceptor = this.acceptorAtCreate(who)
 
     const everyone = writes.flatMap((w) => [...w.saleOwners, ...w.bdOwners])
     const [names, roles] = await Promise.all([
       this.repo.actorNames(handle, everyone),
-      this.repo.actorRoles(handle, everyone),
+      actorRoles(handle, everyone),
     ])
 
     /* Dòng, dòng gương, bảng nối và lần chạm dựng CÙNG một lượt, từ cùng một
        bản nháp và cùng một mã — bốn thứ không lệch nhau bằng một chỉ số được. */
     const ready = writes.map((write, i) => {
       const code = codes[i] ?? ''
-      /* Cùng luật cột với cửa gõ tay, qua cùng một hàm: một dòng tệp mang đủ
-         PIC vào thẳng `assigned`, không thì `new`. Tệp KHÔNG có cột trạng thái
-         nữa, nên đây là đường duy nhất một đơn nạp vào nhận cột (ADR 0064). */
-      const stage = picQualifies(picOf([...write.saleOwners, ...write.bdOwners], roles))
-        ? 'assigned'
-        : 'new'
-      const draft = fromCreate(write, now, workstreamByLead.get(write.leadCode) ?? null, stage)
+      /* The typed door's column rule, through the same function: `new`, or
+         `assigned` when the importer may accept (ADR 0071). The file carries
+         no stage column, so this is the only way an imported deal gets one. */
+      const draft = fromCreate(
+        write,
+        now,
+        workstreamByLead.get(write.leadCode) ?? null,
+        acceptor?.id ?? null,
+      )
       return {
         code,
         row: { ...draft.values, code },
         ref: refOf(code, draft, {
           label: draft.values.name,
-          owner: holderOfIds(write.saleOwners, names, roles),
+          owner: holderOfIds(write, names, roles, acceptor),
         }),
         owners: ownerRowsOf(code, draft),
         /* THE "ENTERED THE BOARD" ROW — the same row the single-deal create
@@ -626,7 +607,7 @@ export class OpportunityService {
         stageEvent: stageEventOf({
           code,
           from: null,
-          to: stage,
+          to: draft.values.stage ?? null,
           stageSince: null,
           at: now,
           by: { id: who.id, name: who.name },
@@ -647,6 +628,7 @@ export class OpportunityService {
             ...byOf(who),
             note: NOTE.promoted(code, write.name),
           },
+          ...acceptTouches(code, acceptor, now),
         ] satisfies TouchEntry[],
       }
     })
@@ -764,9 +746,17 @@ export class OpportunityService {
         outOfScope: new Set(
           [...leads.ownerByLead].filter(([, owner]) => !holds(who, owner)).map(([code]) => code),
         ),
+        importerAccepts: this.acceptorAtCreate(who) !== null,
       }),
       workstreamByLead: leads.workstreamByLead,
     }
+  }
+
+  /** A creator who may accept (ADR 0071 §3, head of sales or director by the
+   *  default matrix) accepts the deal at birth. Asked of E2 rather than of
+   *  `roleId`, so it follows the same grant as the accept door itself. */
+  private acceptorAtCreate(who: Actor): RefOwner | null {
+    return this.access.allows(who, 'opportunity.accept') ? { id: who.id, name: who.name } : null
   }
 
   private async pendingSign(code: string): Promise<boolean> {
@@ -937,22 +927,38 @@ function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): bool
   )
 }
 
-/** `holderOf` over a body's SALE ids, with names and roles resolved first so
+/** `holderOf` over a body's owner ids, with names and roles resolved first so
  *  it applies its own order, not the body's; ids the actor book does not know
  *  are skipped (their insert dies on the owner foreign key). */
 function holderOfIds(
-  ids: readonly string[],
+  body: { saleOwners: readonly string[]; bdOwners: readonly string[] },
   names: ReadonlyMap<string, string>,
   roles: ReadonlyMap<string, RoleId>,
+  acceptor: RefOwner | null,
 ): RefOwner | null {
-  return holderOf(
+  const lane = (ids: readonly string[], role: 'SALE' | 'BD') =>
     ids.flatMap((id) => {
       const name = names.get(id)
-      return name === undefined
-        ? []
-        : [{ id, name, role: 'SALE' as const, roleId: roles.get(id) ?? null }]
-    }),
-  )
+      return name === undefined ? [] : [{ id, name, role, roleId: roles.get(id) ?? null }]
+    })
+  return holderOf([...lane(body.saleOwners, 'SALE'), ...lane(body.bdOwners, 'BD')], acceptor)
+}
+
+/** A deal born accepted tells its timeline the same fact the accept door
+ *  writes through `OpportunityLifecycle.assigned`: same kind, same note. */
+function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): TouchEntry[] {
+  if (acceptor === null) return []
+  const note = NOTE.moved('new', 'assigned')
+  return [
+    {
+      subjectCode: code,
+      subjectKind: 'opportunity',
+      kind: 'stage-changed',
+      ...byOf(acceptor),
+      note,
+      at,
+    },
+  ]
 }
 
 /** Lead scope by id, the lead doors' rule (`LeadExitService.lockRow`): an

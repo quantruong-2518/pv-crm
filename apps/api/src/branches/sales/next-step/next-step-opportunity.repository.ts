@@ -1,4 +1,4 @@
-import { and, asc, eq, exists, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, eq, exists, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -94,10 +94,10 @@ export class OpportunityStepRepository {
     return row ?? null
   }
 
-  /** The holder (ADR 0069 §10), by the deal module's one rule (`holderOf`).
-   *  Ordered by name like the owner list on the deal, so both read one person. */
+  /** The holder (ADR 0071 §5), by the deal module's one rule (`holderOf`):
+   *  every owner and the acceptor are read, the rule picks among them. */
   async holderOf(tx: Db, code: string): Promise<string | null> {
-    const sale = await tx
+    const owners = await tx
       .select({
         id: actor.id,
         name: actor.name,
@@ -106,9 +106,13 @@ export class OpportunityStepRepository {
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
-      .where(and(eq(opportunityOwner.opportunityCode, code), eq(opportunityOwner.role, 'SALE')))
-      .orderBy(asc(actor.name), asc(actor.id))
-    return holderOf(sale)?.id ?? null
+      .where(eq(opportunityOwner.opportunityCode, code))
+    const [deal] = await tx
+      .select({ id: actor.id, name: actor.name })
+      .from(opportunity)
+      .innerJoin(actor, eq(actor.id, opportunity.acceptedById))
+      .where(eq(opportunity.code, code))
+    return holderOf(owners, deal ?? null)?.id ?? null
   }
 
   async isOwner(tx: Db, code: string, actorId: string): Promise<boolean> {

@@ -37,7 +37,7 @@ export const LeadTier = z.enum(['prospect', 'mql', 'sql'], 'Bậc không có tro
 
 /** Where a deal stands in its OWN lifecycle — five columns, no sixth (ADR 0064).
  *  STORED, nullable on the row, and written only by the server's single stage
- *  writer: `assigned` follows the PIC set, the last three follow a recorded
+ *  writer: `assigned` follows a head's accept (ADR 0071), the last three follow a recorded
  *  milestone (`sample-sent`, `poc-run`, `quotation-sent`). A seller never picks
  *  one, so no write body carries this enum. */
 export const StageKey = z.enum(['new', 'assigned', 'sample', 'poc', 'quotation'])

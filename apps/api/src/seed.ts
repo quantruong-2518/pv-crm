@@ -462,8 +462,9 @@ function plantDeal(
       { toTier: 'sql' },
     )
   }
-  pushTouch(ld, 'lead', 'entered-pipeline', entered, owner, NOTE.promoted(op, name))
-  pushTouch(op, 'opportunity', 'entered-pipeline', entered, owner, NOTE.opened(ld))
+  /* BD opens the deal (ADR 0071 §1); the Sale is handed it at the accept. */
+  pushTouch(ld, 'lead', 'entered-pipeline', entered, BD, NOTE.promoted(op, name))
+  pushTouch(op, 'opportunity', 'entered-pipeline', entered, BD, NOTE.opened(ld))
 
   /* Columns spread evenly from the day it opened to the day it reached the last one. */
   const when = path.map((_, k) =>
@@ -481,17 +482,19 @@ function plantDeal(
   }
   path.forEach((stage, k) => {
     const from = k === 0 ? null : path[k - 1]!
+    /* BD opened it; `assigned` is the head's accept (ADR 0071). */
+    const mover = k === 0 ? BD : stage === 'assigned' ? HEAD : owner
     out.moves.push({
       opportunityCode: op,
       at: when[k]!,
       fromStage: from,
       toStage: stage,
       daysInFrom: from ? Math.round((when[k]!.getTime() - when[k - 1]!.getTime()) / DAY) : null,
-      byId: owner.id,
-      by: owner.name,
+      byId: mover.id,
+      by: mover.name,
     })
     if (from)
-      pushTouch(op, 'opportunity', 'stage-changed', when[k]!, owner, NOTE.moved(from, stage))
+      pushTouch(op, 'opportunity', 'stage-changed', when[k]!, mover, NOTE.moved(from, stage))
     const milestone = MILESTONE_KIND[stage]
     if (milestone)
       pushTouch(
@@ -581,6 +584,9 @@ function plantDeal(
     stoppedAtStage: lostAt ? last : null,
     stopReason: d.lost?.reason ?? null,
     stopNote: d.lost?.note ?? null,
+    /* Past `new` means a head accepted it, on the day it entered `assigned`. */
+    acceptedById: path.length > 1 ? HEAD.id : null,
+    acceptedAt: path.length > 1 ? when[1]! : null,
     createdAt: entered,
   })
   out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })

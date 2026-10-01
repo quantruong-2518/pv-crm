@@ -18,17 +18,17 @@ import { WorkstreamHolder } from './workstream'
  *
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
  *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
- *      POST   …/:code/milestones · …/:code/stop
+ *      POST   …/:code/accept · …/:code/milestones · …/:code/stop
  *
  *  ------------------------------------------------------------------
  *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
  *  ------------------------------------------------------------------
- *  One axis, one writer. `stage` follows facts the server can see — the PIC set
- *  for `assigned`, a recorded milestone for the last three — and `state` follows
- *  the stop door. `won` is not stored anywhere: it is the existence of a row in
- *  `sales.contract`, folded in on read. So a seller picks neither, which is why
- *  the milestone/stop doors below exist and `PATCH /:code/stage` no longer does:
- *  a drag gesture cannot be what advances a deal. A stop is final (29/09).
+ *  One axis, one writer. `stage` follows facts the server can see — a head's
+ *  accept for `assigned` (ADR 0071), a milestone for the last three — and
+ *  `state` follows the stop door. `won` is not stored anywhere: it is the
+ *  existence of a `sales.contract` row, folded in on read. So a seller picks
+ *  neither, which is why the accept/milestone/stop doors exist and `PATCH
+ *  /:code/stage` does not: a drag cannot advance a deal. A stop is final.
  *
  *  ------------------------------------------------------------------
  *  OWNERS ARE A LIST, AND THE LIST HAS TWO ROLES
@@ -36,7 +36,7 @@ import { WorkstreamHolder } from './workstream'
  *  `saleOwners` closes the deal, `bdOwners` opened the door, and commission
  *  splits along that seam — which is why they are two fields rather than one
  *  array with a flag. Both carry actor IDS, never display names: a name gets
- *  renamed, an id does not.
+ *  renamed, an id does not. Either may be empty — SALE fills in by signing.
  *
  *  ------------------------------------------------------------------
  *  ATTACHMENTS TRAVEL AS METADATA, NOT AS BYTES
@@ -135,7 +135,9 @@ const dealFields = {
   amount: MoneyVnd,
   currency: CurrencyCode,
 
-  saleOwners: ownerIds,
+  /** May be empty until signing — `assigned` is a head's accept, not a PIC
+   *  count (ADR 0071). */
+  saleOwners: ownerIds.optional().default([]),
   bdOwners: ownerIds.optional().default([]),
 
   /** How likely the seller thinks this is to close, 0–100.
@@ -173,32 +175,22 @@ const dealFields = {
   attachments: z.array(OpportunityFile).max(OPPORTUNITY_FILES_MAX).optional().default([]),
 }
 
-/* The "must have a sale owner" rule repeats on both doors, on purpose: zod 4
-   won't let a `.refine` attach to an object literal and still spread it.
-   Sharing the FIELDS and copying the one-line RULE is the right trade. */
-
 /** `POST /sales/opportunities` — promote a lead into an opportunity.
  *
  *  `code` is absent: the only legal source is the server's sequence. A body
  *  that could name its own code could land on somebody else's deal, and two
  *  people with the promote form open would mint the same number.
  *
- *  `state` and `stage` are absent for a different one: a new deal opens at
- *  `new`, or at `assigned` when the PIC set already qualifies — the server reads
- *  that off `saleOwners`/`bdOwners`, so a body naming a stage could only
- *  contradict it. */
-export const OpportunityCreate = z
-  .object({
-    /** The lead this deal came out of. One lead may produce many. */
-    leadCode: ObjectCode,
-    /** The account object in E1's graph, when the lead already has one. */
-    accountCode: ObjectCode.optional(),
-    ...dealFields,
-  })
-  .refine((v) => v.saleOwners.length > 0, {
-    error: 'Phải có ít nhất một Sale đứng đơn',
-    path: ['saleOwners'],
-  })
+ *  `state` and `stage` are absent for a different one: a deal opens at `new`,
+ *  or at `assigned` when its creator may accept deals (ADR 0071), so a body
+ *  naming a stage could only contradict it. */
+export const OpportunityCreate = z.object({
+  /** The lead this deal came out of. One lead may produce many. */
+  leadCode: ObjectCode,
+  /** The account object in E1's graph, when the lead already has one. */
+  accountCode: ObjectCode.optional(),
+  ...dealFields,
+})
 
 /** `PATCH /sales/opportunities/:code` — the opportunity profile's save button.
  *
@@ -215,12 +207,7 @@ export const OpportunityCreate = z
  *  that could move it is a request that can rewrite somebody's pipeline by
  *  typo. `code` is not editable for the same reason it is not creatable, and
  *  `state`/`stage` are not editable at all — see the top of this file. */
-export const OpportunityUpdate = z
-  .object({ ...dealFields })
-  .refine((v) => v.saleOwners.length > 0, {
-    error: 'Phải có ít nhất một Sale đứng đơn',
-    path: ['saleOwners'],
-  })
+export const OpportunityUpdate = z.object({ ...dealFields })
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -267,8 +254,9 @@ export const OpportunityRow = z.object({
    *  sign again (licence beside deployment). Empty exactly when not `won`.
    *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`; see `primitives.ts`. */
   contractCodes: z.array(ContractCode),
-  /** First SALE owner who is not `head-of-sales`, else the first SALE (ADR
-   *  0069 §10) — computed by the server so no screen re-derives it. */
+  /** The accountable person: first seller (`isSellerRole`) on the SALE lane,
+   *  else the acceptor, else the first BD (ADR 0071) — computed by the server so
+   *  no screen re-derives it. */
   holder: WorkstreamHolder.nullable(),
   /** Which of the five columns the deal stands in. `null` = it has left the
    *  board — won, or `lost`, where `stoppedAtStage` records where it stopped. */
@@ -313,6 +301,11 @@ export const OpportunityRow = z.object({
   stoppedAtStage: StageKey.optional(),
   stopReason: z.string().optional(),
   stopNote: z.string().optional(),
+
+  /** Who accepted the deal, and when (ADR 0071); set once, never cleared. Null
+   *  on a `new` deal, and on an older deal no head or director stood on. */
+  acceptedBy: WorkstreamHolder.nullable(),
+  acceptedAt: Moment.nullable(),
 
   createdAt: Moment,
   closedAt: Moment.nullable(),
@@ -374,6 +367,9 @@ export const OpportunityBookQuery = PageQuery.extend({
    *  every read path does, by the existence of a `sales.contract` row, because
    *  no column spells it. */
   state: OpportunityStatus.optional(),
+  /** The column a deal stands in — `new` is the head of sales' accept queue
+   *  (ADR 0071), counted by the histogram's same bucket. */
+  stage: StageKey.optional(),
 
   /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
    *  yet". Two fields rather than one `owner`, unlike the lead book: the two
@@ -569,7 +565,7 @@ export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileRespon
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 
 // ---------------------------------------------------------------------------
-// THE TWO DOORS THAT MOVE A DEAL — MILESTONE · STOP
+// THE THREE DOORS THAT MOVE A DEAL — ACCEPT · MILESTONE · STOP
 // ---------------------------------------------------------------------------
 
 /** The three recordable milestones, in the order a deal passes them.
@@ -616,9 +612,18 @@ export const OpportunityStopBody = z
     path: ['note'],
   })
 
-/** Both doors answer with the whole book row, like the write doors above:
+/** `POST /sales/opportunities/:code/accept` — a head-of-sales or director
+ *  takes a `new` deal to `assigned`. Permission `opportunity.accept`.
+ *  `saleOwners` is ADDED to the SALE lane in the same act, never replaces it:
+ *  accepting must not silently drop someone already on the deal (ADR 0071). */
+export const OpportunityAcceptBody = z.object({
+  saleOwners: ownerIds.optional(),
+})
+
+/** The three doors answer with the whole book row, like the write doors above:
  *  stage, state, the stop fields and the clock are all recomputed, and a screen
  *  patching its own cached row would disagree with the next `GET`. */
+export const OpportunityAcceptResponse = OpportunityRow
 export const OpportunityMilestoneResponse = OpportunityRow
 export const OpportunityStopResponse = OpportunityRow
 
@@ -662,6 +667,8 @@ export const OpportunityStageHistory = z.object({
 })
 
 export type OpportunityProduct = z.infer<typeof OpportunityProduct>
+export type OpportunityAcceptBody = z.infer<typeof OpportunityAcceptBody>
+export type OpportunityAcceptResponse = z.infer<typeof OpportunityAcceptResponse>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>

@@ -93,6 +93,9 @@ moves a rung.
 
 ### 10 · Holder, handover, next step
 
+> Refined by 0071: the holder is the first seller on the SALE lane, else the
+> acceptor, else the first BD owner.
+
 - The holder of an opportunity is the first SALE owner who is not
   `head-of-sales`. At convert it defaults to the lead's holder.
 - A lead handover pre-ticks the open opportunities where the old holder

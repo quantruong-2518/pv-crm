@@ -145,6 +145,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'account.edit',
     'opportunity.view',
     'workstream.view',
+    'opportunity.create',
     'opportunity.edit',
     'contract.view',
     'performance.view',
@@ -229,6 +230,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'account.edit',
     'opportunity.view',
     'workstream.view',
+    'opportunity.create',
     'opportunity.edit',
     'opportunity.close',
     /* The record-payment permission is withheld from `sale` because a seller

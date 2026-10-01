@@ -18,9 +18,11 @@ import {
   type JourneySubStep,
   type JourneyWaitingDoor,
 } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { dm, dmy } from '@/lib/date'
 import { chainPath } from '@/data/opportunities'
 import { DueBadge } from '@/components/contract-bits'
+import { AcceptDealButton } from '@/components/opportunity-accept'
 import {
   anchorKind,
   contractLate,
@@ -277,10 +279,13 @@ function Stats({ items }: { items: [string, string][] }) {
 function Footer({
   prev,
   next,
+  extra,
   cta,
 }: {
   prev?: () => void
   next?: () => void
+  /** A primary act of its own; when it shows, the CTA steps down to secondary. */
+  extra?: { node: ReactNode; leads: boolean }
   cta?: { label: string; onClick: () => void }
 }) {
   /* `aria-disabled`, not `disabled`: a disabled button drops focus to <body>
@@ -295,7 +300,7 @@ function Footer({
       ),
     }) as const
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {(prev || next) && (
         <>
           <Button variant="ghost" size="lg" aria-label={TEXT.prev} {...nav(prev)}>
@@ -307,8 +312,9 @@ function Footer({
         </>
       )}
       <span className="grow" />
+      {extra?.node}
       {cta && (
-        <Button size="lg" onClick={cta.onClick}>
+        <Button size="lg" variant={extra?.leads ? 'secondary' : 'default'} onClick={cta.onClick}>
           {cta.label}
         </Button>
       )}
@@ -336,7 +342,7 @@ type View = {
   footer: ReactNode
   body: ReactNode
 }
-type Ctx = { journey: Journey; go: Go; onPick: Pick }
+type Ctx = { journey: Journey; go: Go; onPick: Pick; canAccept: boolean }
 
 function walk(kind: PickKind, code: string, rungs: RailRung[], key: JourneyRungKey, onPick: Pick) {
   const keys = rungs.map((r) => r.key)
@@ -395,7 +401,8 @@ function leadView({ journey, go, onPick }: Ctx, key: JourneyRungKey): View | nul
   }
 }
 
-function dealView({ go, onPick }: Ctx, deal: JourneyDeal, key: JourneyRungKey): View | null {
+function dealView(ctx: Ctx, deal: JourneyDeal, key: JourneyRungKey): View | null {
+  const { go, onPick } = ctx
   const rungs = railOf('deal', deal.rungs, dealLate(deal))
   const r = rungs.find((x) => x.key === key)
   const raw = deal.rungs.find((x) => x.key === key)
@@ -421,6 +428,7 @@ function dealView({ go, onPick }: Ctx, deal: JourneyDeal, key: JourneyRungKey): 
           ],
         ]
   const action = current ? deal.nextAction : null
+  const awaiting = deal.rungs.some((x) => x.key === 'new' && x.state === 'current')
   return {
     title: r.label,
     subtitle: (
@@ -433,6 +441,14 @@ function dealView({ go, onPick }: Ctx, deal: JourneyDeal, key: JourneyRungKey): 
     footer: (
       <Footer
         {...walk('deal', deal.code, rungs, key, onPick)}
+        extra={
+          ctx.canAccept
+            ? {
+                node: <AcceptDealButton code={deal.code} show={awaiting} size="lg" />,
+                leads: awaiting,
+              }
+            : undefined
+        }
         cta={path ? { label: TEXT.openDeal, onClick: () => go(path) } : undefined}
       />
     ),
@@ -711,7 +727,8 @@ export function JourneyDrawer({
   onClose: () => void
   go: Go
 }) {
-  const view = picked ? viewOf({ journey, go, onPick }, picked) : null
+  const canAccept = useCan('opportunity.accept')
+  const view = picked ? viewOf({ journey, go, onPick, canAccept }, picked) : null
   return (
     <Drawer
       open={view !== null}

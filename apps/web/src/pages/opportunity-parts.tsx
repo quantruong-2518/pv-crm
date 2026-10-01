@@ -30,6 +30,7 @@ import {
 } from '@pv/ui'
 import {
   campaignLabel,
+  isSellerRole,
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STAGE_NOTE_MAX,
   type LeadProfile,
@@ -38,16 +39,25 @@ import {
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
 import { realContact } from '@/data/lead-profile'
-import { BADGE_INK, milestonesOf, standingLabel, STATE_TONE } from '@/data/opportunities'
+import { useDirectory } from '@/data/directory'
+import {
+  BADGE_INK,
+  milestonesOf,
+  saleOwnersOf,
+  standingLabel,
+  STATE_TONE,
+} from '@/data/opportunities'
 import { opportunityStageHistoryQuery, useLogMilestone } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
 import type { TouchEvent, TouchFocus } from '@/data/touches'
 import { StopDrawer } from '@/components/opportunity-stop'
+import { AcceptDealButton } from '@/components/opportunity-accept'
 import { ActivityTimeline } from '@/components/lead-history-card'
 import { LetterLines } from '@/components/mail-letter/letter-lines'
 
@@ -284,6 +294,7 @@ export function DealToolsBar({
      the door refuses it and there is no way back from a stop. */
   const won = op?.state === 'won'
   const pending = op?.pendingSign
+  const sign = useSignWhy(op, quotationLogged, draft.canClose && !pending)
 
   return (
     <div className="z-10 lg:sticky lg:bottom-4">
@@ -317,7 +328,7 @@ export function DealToolsBar({
                   ? 'Phiếu đã đủ — bấm Tạo cơ hội để ghi vào sổ.'
                   : draft.dirty.length > 0
                     ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-                    : 'Phiếu đã khớp với bản trên máy chủ.'}
+                    : (sign.shown ?? 'Phiếu đã khớp với bản trên máy chủ.')}
           </span>
         </div>
 
@@ -377,12 +388,8 @@ export function DealToolsBar({
               size="md"
               variant="success"
               className="pointer-coarse:h-12"
-              disabled={Boolean(pending) || !quotationLogged}
-              title={
-                quotationLogged
-                  ? undefined
-                  : 'Chưa ghi mốc Quotation — gửi báo giá và ghi mốc trước khi chốt.'
-              }
+              disabled={Boolean(pending) || Boolean(sign.first)}
+              title={sign.first}
               onClick={onSign}
             >
               <Icon icon={Check} size={16} />
@@ -394,7 +401,8 @@ export function DealToolsBar({
               size="md"
               variant="success"
               className="pointer-coarse:h-12"
-              disabled={Boolean(pending)}
+              disabled={Boolean(pending) || Boolean(sign.again)}
+              title={sign.again}
               onClick={onSign}
             >
               <Icon icon={PenLine} size={16} />
@@ -425,7 +433,30 @@ export function DealToolsBar({
   )
 }
 
-/** Where the deal STANDS, and the two doors that move it (ADR 0064 §3, 0069 §1).
+/** Why each sign button is shut — mirrors the sign door's 409s off the SAVED
+ *  row (ADR 0071 §4): a seller (`isSellerRole`) must stand on the SALE lane,
+ *  and a first sign needs a quotation. `shown` is the one the bar prints. */
+function useSignWhy(op: OpportunityRow | null, quotationLogged: boolean, offered: boolean) {
+  const staff = useDirectory()
+  const roleOf = (id: string) => staff.find((a) => a.id === id)?.roleId
+  const seller = op === null || saleOwnersOf(op).some((o) => isSellerRole(roleOf(o.id)))
+  const again = seller ? undefined : NO_SELLER
+  const first = again ?? (quotationLogged ? undefined : NO_QUOTATION)
+  const shown = !offered
+    ? undefined
+    : op?.state === 'open'
+      ? first
+      : op?.state === 'won'
+        ? again
+        : undefined
+  return { first, again, shown }
+}
+
+const NO_SELLER =
+  'Chưa có Sale đứng đơn — thêm một người vai Sale hoặc AE vào phiếu và lưu trước khi đề nghị ký.'
+const NO_QUOTATION = 'Chưa ghi mốc Quotation — gửi báo giá và ghi mốc trước khi chốt.'
+
+/** Where the deal STANDS, and the doors that move it (ADR 0064 §3, 0069 §1).
  *
  *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
  *  picks neither state nor column. Every button here carries a FACT instead — a
@@ -440,6 +471,7 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
   const [note, setNote] = useState('')
   const [stopping, setStopping] = useState(false)
   const milestone = useLogMilestone(op.code)
+  const canAccept = useCan('opportunity.accept')
 
   const offers = milestonesOf(op)
   const open = op.state === 'open'
@@ -473,12 +505,24 @@ function DealMoves({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: b
         </span>
       )}
 
-      {/* A deal that has not taken its PIC records nothing, and the door says so
-          in a 409 — print the reason instead of three refusable buttons. */}
-      {canEdit && open && offers.length === 0 && op.stage !== null && (
+      {op.acceptedBy && op.acceptedAt && (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Chưa đủ PIC nên chưa ghi mốc được — cần một trưởng phòng và ít nhất một người nữa đứng
-          đơn.
+          Nhận PIC bởi {op.acceptedBy.name} · {dm(op.acceptedAt)}
+        </span>
+      )}
+
+      {/* A deal no head has accepted records nothing, and the door says so in
+          a 409 — the accept button for a head, the reason for anyone else. */}
+      {open && canAccept && (
+        <AcceptDealButton
+          code={op.code}
+          show={op.stage === 'new'}
+          className="pointer-coarse:h-12"
+        />
+      )}
+      {canEdit && open && op.stage === 'new' && !canAccept && (
+        <span className="text-muted-foreground text-[11px] leading-[1.5]">
+          Chờ trưởng phòng Kinh doanh nhận PIC — chưa ghi mốc được.
         </span>
       )}
 

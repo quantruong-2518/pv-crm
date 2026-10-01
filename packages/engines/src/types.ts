@@ -144,7 +144,12 @@ export const PERMISSIONS = [
   'account.view',
   'account.edit',
   'opportunity.view',
+  /** Opening a deal is a BD-side and head-of-sales job (ADR 0071): a Sale is
+   *  handed deals, so it holds `edit` without this. */
+  'opportunity.create',
   'opportunity.edit',
+  /** The accept door: the head of sales takes a `new` deal off the queue. */
+  'opportunity.accept',
   'opportunity.close',
   'contract.view',
   'contract.edit',

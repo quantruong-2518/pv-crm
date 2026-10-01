@@ -15,11 +15,13 @@ import {
 import { campaignLabel, type LeadProfile } from '@pv/contracts'
 import { draftOpportunity } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { useDirectory } from '@/data/directory'
 import { leadProfileQuery, profileForm } from '@/data/lead-profile'
 import { railOf } from '@/data/opportunities'
 import { useDealDraft } from '@/data/deal-draft'
+import { withCreatorOwners } from '@/data/opportunities-write'
 import { LeadPickList } from '@/components/lead-picker'
 import { DealFormCard } from './opportunity-form-card'
 import { DealToolsBar, EmptyOp } from './opportunity-parts'
@@ -44,6 +46,23 @@ export function OpportunityNewPage() {
   const leadCode = params.get('lead') ?? ''
 
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
+  const canCreate = useCan('opportunity.create')
+
+  /* Only BD seats and heads open a deal (ADR 0071 §1). Asked here as well as at
+     the route, so a Sale who types the address meets a reason, not a form. */
+  if (!canCreate) {
+    return shell(
+      <ScreenLayout>
+        <GlassCard className="p-5 lg:p-6">
+          <EmptyOp
+            icon={Lock}
+            note="Vai của bạn chưa có quyền mở cơ hội mới."
+            onBack={() => navigate('/sales/opportunities')}
+          />
+        </GlassCard>
+      </ScreenLayout>,
+    )
+  }
 
   /* No rail on this step, by the pipeline itself: a deal is born from a lead,
      so before one is picked there is no object to chain. It appears the moment
@@ -130,12 +149,16 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
 function NewDealScreen({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
   const staff = useDirectory()
+  const me = useSession((s) => s.actor)
 
   /* Through `useMemo` so the seed keeps its reference: react-query hands back
      the same profile between renders, so the draft must not re-seed over a box
      already being typed into. */
   const form = useMemo(() => profileForm(lead), [lead])
-  const seed = useMemo(() => draftOpportunity(form, staff), [form, staff])
+  const seed = useMemo(
+    () => withCreatorOwners(draftOpportunity(form, staff), me, lead),
+    [form, staff, me, lead],
+  )
 
   const draft = useDealDraft({
     saved: seed,

@@ -5,7 +5,8 @@ values and the `state`/`stage` two-column split), 0032 (the board's column set),
 0057 §5 (loss reason becomes care reason)); §3 reactivate row and §6
 reactivation and per-stage catalogue superseded by 0067; the `care` state and
 its labels (§1/§2), §3's `care` → `open` row and converted-lead rule, and §6's
-return of the same opportunity partially superseded by 0069
+return of the same opportunity partially superseded by 0069; §3's
+`new` → `assigned` row, §4 and §5 (new doors) partially superseded by 0071
 Source: project owner's decision in session, 21/09/2026
 
 ## Context
@@ -63,6 +64,9 @@ Declared ONCE in `packages/contracts`, like `LEAD_STATE_LABEL`.
 
 > Partially superseded by 0069: no `care` → `open` row; the last stop moves a
 > `converted` lead to `nurturing`.
+>
+> Partially superseded by 0071: the `new` → `assigned` row is an explicit
+> accept by a head of sales, not derived from the PIC set.
 
 One class writes `opportunity.stage`/`state` (as `LeadStateWriter` does for
 leads): conditional UPDATE, forward-only, idempotent, writes a touch, updates
@@ -90,6 +94,9 @@ enters care.
 
 ### 4 · PIC
 
+> Superseded by 0071: PIC is no longer a rule here; a head of sales is a
+> recorded acceptor, not a PIC lane.
+
 - "Head of sales" = an actor with `roleId === 'head-of-sales'`; "member" = any
   other Sales-licensed actor. Derived from the user's role — no role column is
   added to `opportunity_owner`; the SALE/BD label on the deal stays as it is
@@ -102,6 +109,9 @@ enters care.
   import passes through it too.
 
 ### 5 · Who has rights
+
+> Partially superseded by 0071: creating needs `opportunity.create`,
+> accepting needs `opportunity.accept`.
 
 Every new door (record a milestone, push to care, reactivate, change PIC)
 needs `opportunity.edit`, `scoped: true` — `ownOnly` means the actor must be in

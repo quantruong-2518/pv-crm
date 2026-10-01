@@ -8,8 +8,8 @@ import { invalid } from '@api/platform/http/problem'
 import { handStepOver } from '../next-step/next-step.handover'
 import { dealOpen, dealSignWaiting } from '../open-deal'
 import type { TouchService } from '../touch/touch.service'
-import { picOf, picRefusal } from './opportunity-lifecycle'
-import { holderOf, NOTE, toRef } from './opportunity.mapper'
+import { acceptorOf, holderOf, NOTE, toRef } from './opportunity.mapper'
+import { ACCEPTOR_NAME } from './opportunity.repository'
 import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
 
 /** What a lead hand-over does to that lead's deals (ADR 0069 §10), inside the
@@ -21,8 +21,7 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *  `dealCodes` only those follow (`[]` = none); a code that is not such a deal
  *  is a 400 on `dealCodes`. A chosen deal is left behind — with a timeline row
  *  saying why — when a sign request waits on it (the approver read those
- *  owners) or the swap breaks its PIC rule. A target who cannot hold a deal
- *  refuses the whole hand-over.
+ *  owners). A target who cannot hold a deal refuses the whole hand-over.
  *
  *  A plain function over `tx`: the lead module calls it, and an
  *  `OpportunityModule` provider there would be a module cycle. The deals are
@@ -47,7 +46,11 @@ export async function handDealsOver(
   },
 ): Promise<void> {
   const rows = await tx
-    .select({ row: opportunity, signWaiting: sql<boolean>`${dealSignWaiting(opportunity.code)}` })
+    .select({
+      row: opportunity,
+      signWaiting: sql<boolean>`${dealSignWaiting(opportunity.code)}`,
+      acceptorName: ACCEPTOR_NAME,
+    })
     .from(opportunity)
     .where(
       and(
@@ -93,30 +96,37 @@ export async function handDealsOver(
     )
   }
 
-  const before = await peopleOf(
-    tx,
-    chosen.map((r) => r.row.code),
-  )
   const skipped = new Map<string, string>()
   for (const { row, signWaiting } of chosen) {
-    const why = signWaiting ? 'cơ hội đang chờ duyệt ký' : picBreaks(row, before, move)
-    if (why) skipped.set(row.code, why)
+    if (signWaiting) skipped.set(row.code, 'cơ hội đang chờ duyệt ký')
   }
-  const moving = chosen.map((r) => r.row).filter((r) => !skipped.has(r.code))
-  await swapSale(tx, moving, move)
+  const moving = chosen.filter((r) => !skipped.has(r.row.code))
+  await swapSale(
+    tx,
+    moving.map((r) => r.row),
+    move,
+  )
 
   const after = await peopleOf(
     tx,
-    moving.map((r) => r.code),
+    moving.map((r) => r.row.code),
   )
   /* The mirror row names the holder AFTER the swap — `holderOf`, not the new
      holder blindly: a deal may keep another Sale ahead of them. */
   await deps.mirror.putMany(
     tx,
-    moving.map((row) => toRef(row, holderOf(after.filter((p) => p.code === row.code)))),
+    moving.map(({ row, acceptorName }) =>
+      toRef(
+        row,
+        holderOf(
+          after.filter((p) => p.code === row.code),
+          acceptorOf(row, acceptorName),
+        ),
+      ),
+    ),
   )
   await deps.touch.record(tx, [
-    ...moving.map((row) => ({
+    ...moving.map(({ row }) => ({
       subjectCode: row.code,
       subjectKind: 'opportunity' as const,
       kind: 'handed-over' as const,
@@ -135,27 +145,6 @@ export async function handDealsOver(
       note: NOTE.handOverSkipped(move.to.name, why),
     })),
   ])
-}
-
-/** The PIC rule (`picRefusal`) judged on the set the swap would leave: the old
- *  holder's SALE row out, the new holder in as SALE. */
-function picBreaks(
-  row: OpportunityRowDb,
-  people: readonly Person[],
-  move: { from: TouchHolder; to: TouchHolder },
-): string | null {
-  const mine = people.filter((p) => p.code === row.code)
-  const roles = new Map<string, RoleId>(mine.map((p) => [p.id, p.roleId]))
-  if (move.to.role) roles.set(move.to.actorId, move.to.role)
-  const kept = mine.filter((p) => !(p.id === move.from.actorId && p.role === 'SALE'))
-  return picRefusal(
-    picOf(
-      mine.map((p) => p.id),
-      roles,
-    ),
-    picOf([...kept.map((p) => p.id), move.to.actorId], roles),
-    row,
-  )
 }
 
 async function swapSale(
