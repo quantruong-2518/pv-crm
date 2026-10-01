@@ -59,6 +59,11 @@ Campaign and group-mail audiences still dedupe per mailbox, so one mailbox
 with two live leads is never mailed twice even though both leads are allowed
 to exist.
 
+A reader who sees only their own leads still learns that a twin exists
+("một lead khác", no code). Owner's call (01/10/2026): two Sales calling one
+customer costs more than revealing, inside the company, that the mailbox is
+already being worked. No test guards C (owner's call, same day).
+
 ### C · E2 compares the holder by id, not by display name
 
 E2's scope axis (`ownOnly`) now compares `ObjectRef.ownerId` against the
