@@ -288,8 +288,7 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
       'OP-0074': [
         'new done 2025-06-20T10:00 1',
         'assigned done 2025-06-21T09:00 11',
-        'sample skipped - -',
-        'poc done 2025-07-02T09:00 19',
+        'engaged done 2025-07-02T09:00 19',
         'quotation done 2025-07-21T09:00 30',
       ],
       'HĐ-2531': [
@@ -309,22 +308,19 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
       'OP-0289': [
         'new done 2026-07-13T10:00 0',
         'assigned done 2026-07-13T14:00 1',
-        'sample skipped - -',
-        'poc stopped 2026-07-14T09:00 20',
+        'engaged stopped 2026-07-14T09:00 20',
         'quotation upcoming - -',
       ],
       'OP-0290': [
         'new done 2026-07-13T11:00 1',
         'assigned done 2026-07-14T09:00 1',
-        'sample skipped - -',
-        'poc skipped - -',
+        'engaged skipped - -',
         'quotation done 2026-07-15T09:00 9',
       ],
       'OP-0291': [
         'new done 2026-07-13T14:00 0',
         'assigned done 2026-07-13T16:00 1',
-        'sample skipped - -',
-        'poc done 2026-07-14T09:00 3',
+        'engaged done 2026-07-14T09:00 3',
         'quotation done 2026-07-17T10:00 4',
       ],
       'HĐ-2609': [
@@ -358,15 +354,13 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
       'OP-0292': [
         'new done 2026-07-24T10:00 0',
         'assigned done 2026-07-24T14:00 11',
-        'sample skipped - -',
-        'poc skipped - -',
+        'engaged skipped - -',
         'quotation current 2026-08-04T10:00 6',
       ],
       'OP-0293': [
         'new done 2026-07-14T10:00 0',
         'assigned done 2026-07-14T14:00 2',
-        'sample skipped - -',
-        'poc current 2026-07-16T09:00 25',
+        'engaged current 2026-07-16T09:00 25',
         'quotation upcoming - -',
       ],
       'LD-0352': [
@@ -392,7 +386,7 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
     )
     expect(graded).toEqual([
       ['OP-0292', 'quotation', 'upcoming'],
-      ['OP-0293', 'poc', 'overdue'],
+      ['OP-0293', 'engaged', 'overdue'],
     ])
   })
 
@@ -401,9 +395,9 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
     for (const r of deals.flatMap((d) => d.rungs)) expect(r.limitDays).toBe(limits[r.key])
   })
 
-  it('OP-0293 trễ POC (25 > 21); OP-0292 đúng hạn Quotation — BG-0512 "im 6 ngày"', () => {
-    const poc = deal('OP-0293')?.rungs.find((r) => r.key === 'poc')
-    expect((poc?.days ?? 0) > (poc?.limitDays ?? Infinity)).toBe(true)
+  it('OP-0293 trễ Chăm sóc (25 > 21); OP-0292 đúng hạn Quotation — BG-0512 "im 6 ngày"', () => {
+    const engaged = deal('OP-0293')?.rungs.find((r) => r.key === 'engaged')
+    expect((engaged?.days ?? 0) > (engaged?.limitDays ?? Infinity)).toBe(true)
     const quote = deal('OP-0292')?.rungs.find((r) => r.key === 'quotation')
     expect((quote?.days ?? Infinity) <= (quote?.limitDays ?? 0)).toBe(true)
     const bg = saoDo.objects.find((o) => o.code === 'BG-0512')
@@ -412,25 +406,33 @@ describe('Bậc thang — ngày vào bậc, số ngày tính ra, trạng thái',
 })
 
 describe('Bước con, việc kế tiếp, mốc triển khai', () => {
-  it('Bước con hạng Quotation chỉ còn "Gửi lần n"; POC và duyệt chờ nguồn thật', () => {
+  it('Bước con: POC là hoạt động dưới Chăm sóc, Quotation chỉ còn "Gửi lần n"; duyệt chờ nguồn thật', () => {
     const sent = (code: string) =>
       deal(code)?.rungs.flatMap((r) =>
         r.subSteps.map((s) => [
           r.key,
           s.kind,
-          s.kind === 'quote-sent' ? s.round : null,
+          s.kind === 'quote-sent' ? s.round : s.kind === 'activity' ? s.activity : null,
           s.label,
           s.at,
         ]),
       )
-    expect(sent('OP-0289')).toEqual([])
+    expect(sent('OP-0289')).toEqual([
+      ['engaged', 'activity', 'poc', 'POC', '2026-07-14T09:00:00+07:00'],
+    ])
+    expect(sent('OP-0074')).toEqual([
+      ['engaged', 'activity', 'poc', 'POC', '2025-07-02T09:00:00+07:00'],
+    ])
     expect(sent('OP-0290')).toEqual([
       ['quotation', 'quote-sent', 1, 'Gửi báo giá', '2026-07-15T10:00:00+07:00'],
     ])
     expect(sent('OP-0291')).toEqual([
+      ['engaged', 'activity', 'poc', 'POC', '2026-07-14T09:00:00+07:00'],
       ['quotation', 'quote-sent', 1, 'Gửi báo giá', '2026-07-17T10:00:00+07:00'],
     ])
-    expect(sent('OP-0293')).toEqual([])
+    expect(sent('OP-0293')).toEqual([
+      ['engaged', 'activity', 'poc', 'POC', '2026-07-16T09:00:00+07:00'],
+    ])
   })
 
   it('OP-0293 · việc kế tiếp 12/08 sắp tới hạn', () => {
@@ -465,7 +467,7 @@ describe('Bước con, việc kế tiếp, mốc triển khai', () => {
         r.subSteps.map((s) => [
           r.key,
           s.kind,
-          s.kind === 'quote-sent' ? s.round : null,
+          s.kind === 'quote-sent' ? s.round : s.kind === 'activity' ? s.activity : null,
           s.label,
           s.at,
         ]),

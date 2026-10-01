@@ -195,7 +195,8 @@ export const MailCta = z.object({
 export const MailBookingUrl = webUrl('Link đặt lịch')
 
 /** The deal milestone a template's send records (S4, 29/09). Only the two a
- *  letter can BE — a POC is run, not mailed. Absent = the send records none. */
+ *  letter can BE: `sample` records a care activity (not a column, ADR 0072),
+ *  `quotation` moves the deal to that stage. Absent = the send records none. */
 export const MailTemplateMilestone = OpportunityMilestoneKind.extract(['sample', 'quotation'])
 
 export const MailTemplateRow = z.object({

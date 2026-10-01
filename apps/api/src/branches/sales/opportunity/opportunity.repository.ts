@@ -1053,7 +1053,7 @@ export class OpportunityRepository {
    *  ------------------------------------------------------------------
    *  "ĐANG MỞ" ĐỌC TỪ `stage`, KHÔNG ĐỌC TỪ `state`
    *  ------------------------------------------------------------------
-   *  `stage IS NOT NULL` là định nghĩa của "còn đứng trong năm cột", và nó đúng
+   *  `stage IS NOT NULL` là định nghĩa của "còn đứng trong bốn cột", và nó đúng
    *  cho cả hai đầu cuối: cửa dừng và cửa ký lần đầu đều đặt `stage` về
    *  NULL. Đọc `state` thay vào đó sẽ đếm nhầm một đơn đã ký, vì đơn thắng vẫn
    *  lưu `state = 'open'`.

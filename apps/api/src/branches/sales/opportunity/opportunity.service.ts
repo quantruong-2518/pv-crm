@@ -11,6 +11,7 @@ import {
   type ObjectRef,
 } from '@pv/engines'
 import {
+  CARE_ACTIVITY_KINDS,
   OpportunityBookResponse,
   OpportunityCreateResponse,
   OpportunityProfileResponse,
@@ -57,6 +58,7 @@ import {
   fromUpdate,
   holderOf,
   daysInStageOf,
+  MILESTONE_TOUCH,
   NOTE,
   ownerRowsOf,
   productRowsOf,
@@ -243,19 +245,17 @@ export class OpportunityService {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
-    /* The ladder, the open approvals and the object chain, side by side: none
-       depends on the others and the screen waits on all three. Read only on
-       this door — see `OpportunityProfileResponse` for why the book does not
-       pay for them.
-
-       `storyFor` rather than `story`, and the reasoning is the lead profile's:
-       the chain crosses records this reader may not be allowed to open, so E2
-       cuts it inside the service. `hidden` is dropped for the same reason
-       there — a count of what was cut is itself a leak on a rail this short. */
-    const [stageRows, approvals, story] = await Promise.all([
+    /* Four independent reads, profile-only (see `OpportunityProfileResponse`).
+       `storyFor`, not `story`: E2 cuts the chain to what this reader may open,
+       and `hidden` is dropped because a count of what was cut is itself a leak. */
+    const [stageRows, approvals, story, done] = await Promise.all([
       this.repo.stageRows(),
       this.approvals.pendingOn(code),
       this.graph.storyFor(who, code),
+      this.touch.countKinds(
+        code,
+        CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]),
+      ),
     ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
@@ -265,6 +265,9 @@ export class OpportunityService {
       pendingSign: sign
         ? { approvalId: sign.id, raisedBy: sign.raisedBy, raisedAt: sign.raisedAt.toISOString() }
         : null,
+      activityCounts: Object.fromEntries(
+        CARE_ACTIVITY_KINDS.map((k) => [k, done.get(MILESTONE_TOUCH[k]) ?? 0]),
+      ),
       chain: story.chain.map(toChainLink),
     })
   }

@@ -182,7 +182,7 @@ const ANY = 'all'
 /** The book's tab row — the `state` axis, the one people flip back and forth all
  *  day, so it lies open (A-19) instead of hiding inside a select.
  *
- *  THREE tabs since ADR 0064, not the five old states: `open` covers all five
+ *  THREE tabs since ADR 0064, not the five old states: `open` covers all four
  *  columns, `lost` is a final stop, `won` is derived from a contract row.
  *  Built from `OpportunityStatus.options` and `OPPORTUNITY_STATE_LABEL` — the
  *  same list the server filters by and the same words it prints.
@@ -673,7 +673,7 @@ export function OpportunitiesPage() {
               { header: 'Giá trị', width: '0.8fr', align: 'right', sortKey: 'amount' },
               { header: 'Ngày chốt', width: '0.8fr', sortKey: 'expectedClose' },
               /* 1.5fr, not the 1.2fr it was: this cell stacks a badge over a
-                 flow bar. Five segments in a narrow cell shrink into five ticks
+                 flow bar. Four segments in a narrow cell shrink into four ticks
                  that no longer read as a position. */
               { header: 'Trạng thái', width: '1.5fr' },
               /* The accountable person (ADR 0071 §5): seller, else acceptor, else BD. */
@@ -832,8 +832,8 @@ function ScoreCards() {
          trên màn nói vì sao. */
       hint:
         openBlank === 0
-          ? `${openCount} đơn còn trong năm cột`
-          : `${openCount} đơn còn trong năm cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
+          ? `${openCount} đơn còn trong bốn cột`
+          : `${openCount} đơn còn trong bốn cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
     },
     {
       icon: FileCheck,

@@ -35,22 +35,22 @@ export const LeadCategory = z.enum(
 
 export const LeadTier = z.enum(['prospect', 'mql', 'sql'], 'Bậc không có trong danh sách')
 
-/** Where a deal stands in its OWN lifecycle — five columns, no sixth (ADR 0064).
+/** Where a deal stands in its OWN lifecycle — four columns, no fifth (ADR 0072).
  *  STORED, nullable on the row, and written only by the server's single stage
- *  writer: `assigned` follows a head's accept (ADR 0071), the last three follow a recorded
- *  milestone (`sample-sent`, `poc-run`, `quotation-sent`). A seller never picks
- *  one, so no write body carries this enum. */
-export const StageKey = z.enum(['new', 'assigned', 'sample', 'poc', 'quotation'])
+ *  writer: `assigned` follows a head's accept (ADR 0071), `quotation` follows a
+ *  recorded `quotation-sent`. Sample, POC, demo and site visit are repeatable
+ *  care activities inside `engaged`, not columns (`CARE_ACTIVITY_KINDS`). A
+ *  seller never picks a stage, so no write body carries this enum. */
+export const StageKey = z.enum(['new', 'assigned', 'engaged', 'quotation'])
 
 /** Vietnamese label per column, declared ONCE for the reason `LEAD_STATE_LABEL`
  *  is: the board door prints these server-side while the book prints them in the
  *  browser, and two copies of one word drift. */
 export const OPPORTUNITY_STAGE_LABEL: Record<StageKey, string> = {
-  new: 'Khởi tạo opp',
-  assigned: 'Nhận PIC',
-  sample: 'Sample',
-  poc: 'POC',
-  quotation: 'Quotation',
+  new: 'Khởi tạo',
+  assigned: 'Đang phân công',
+  engaged: 'Chăm sóc',
+  quotation: 'Báo giá',
 }
 
 /** How a deal READS: the two stored values plus `won`, which is not stored at

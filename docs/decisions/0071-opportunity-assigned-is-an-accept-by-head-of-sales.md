@@ -1,7 +1,7 @@
 # 0071 · `assigned` is an explicit accept by a head of sales; creating an opportunity is a permission of its own
 
 Status: accepted (partially supersedes 0064 §3 `new` → `assigned` row, §4 and
-§5 for the new doors; refines 0069 §10's holder)
+§5 for the new doors; refines 0069 §10's holder; the `assigned` label "Nhận PIC" relabelled by 0072)
 Source: project owner's decisions in chat, 01/10/2026
 
 ## Context

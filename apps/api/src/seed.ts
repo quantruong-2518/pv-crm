@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { normalisePhone, StageKey, type LeadState, type TouchKind } from '@pv/contracts'
+import { normalisePhone, type LeadState, type TouchKind } from '@pv/contracts'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
@@ -30,6 +30,7 @@ import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './
 import { mailHistory } from './seed-mail'
 import { ACCOUNTS, type ContactSeed } from './seed-companies'
 import { configSeed, exitIdOf, person, productRows, sourceIdOf } from './seed-config'
+import { walkDeal } from './seed-deal-walk'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
@@ -447,8 +448,12 @@ function plantDeal(
 ) {
   const op = code('OP', ++dealNo)
   const name = `${company} · ${PRODUCTS[d.products[0]!].split(' — ')[0]}`
-  const path = StageKey.options.slice(0, StageKey.options.indexOf(d.stage) + 1)
   const entered = ago(d.enteredDaysAgo, 8)
+  const signedAt = d.won ? ago(d.won.signedDaysAgo, 6) : null
+  const lostAt = d.lost ? ago(d.lost.daysAgo, 6) : null
+  const closedAt = signedAt ?? lostAt
+  const walk = walkDeal(d, ago, closedAt ?? new Date(NOW))
+  const hand = { bd: BD, head: HEAD, owner }
 
   if (first) {
     /* Qualified to SQL and opened as a deal in one sitting — one act, two ledgers. */
@@ -466,62 +471,27 @@ function plantDeal(
   pushTouch(ld, 'lead', 'entered-pipeline', entered, BD, NOTE.promoted(op, name))
   pushTouch(op, 'opportunity', 'entered-pipeline', entered, BD, NOTE.opened(ld))
 
-  /* Columns spread evenly from the day it opened to the day it reached the last one. */
-  const when = path.map((_, k) =>
-    k === 0
-      ? entered
-      : ago(d.enteredDaysAgo - ((d.enteredDaysAgo - d.stageDaysAgo) * k) / (path.length - 1), 4),
-  )
-  /* The three recordable milestones (spec §2, §6) — reaching one of these
-     columns writes both the generic `stage-changed` line and its own kind, so
-     the profile's milestone trail is populated the same way the writer would. */
-  const MILESTONE_KIND: Partial<Record<StageKey, TouchKind>> = {
-    sample: 'sample-sent',
-    poc: 'poc-run',
-    quotation: 'quotation-sent',
-  }
-  path.forEach((stage, k) => {
-    const from = k === 0 ? null : path[k - 1]!
-    /* BD opened it; `assigned` is the head's accept (ADR 0071). */
-    const mover = k === 0 ? BD : stage === 'assigned' ? HEAD : owner
+  walk.moves.forEach((m, k) => {
+    const prev = walk.moves[k - 1]
     out.moves.push({
       opportunityCode: op,
-      at: when[k]!,
-      fromStage: from,
-      toStage: stage,
-      daysInFrom: from ? Math.round((when[k]!.getTime() - when[k - 1]!.getTime()) / DAY) : null,
-      byId: mover.id,
-      by: mover.name,
+      at: m.at,
+      fromStage: m.from,
+      toStage: m.to,
+      daysInFrom: prev ? Math.round((m.at.getTime() - prev.at.getTime()) / DAY) : null,
+      byId: hand[m.by].id,
+      by: hand[m.by].name,
     })
-    if (from)
-      pushTouch(op, 'opportunity', 'stage-changed', when[k]!, mover, NOTE.moved(from, stage))
-    const milestone = MILESTONE_KIND[stage]
-    if (milestone)
-      pushTouch(
-        op,
-        'opportunity',
-        milestone,
-        when[k]!,
-        owner,
-        NOTE.milestone(stage as 'sample' | 'poc' | 'quotation'),
-      )
-    if (stage === 'poc') {
-      plantMeeting(
-        ld,
-        when[k]!,
-        'Chạy POC trên dữ liệu xưởng',
-        'online',
-        60,
-        [PRESALES, owner],
-        people,
-      )
+  })
+  walk.touches.forEach((t) => {
+    pushTouch(op, 'opportunity', t.kind, t.at, hand[t.by], t.note)
+    if (t.activity === 'poc') {
+      plantMeeting(ld, t.at, 'Chạy POC trên dữ liệu xưởng', 'online', 60, [PRESALES, owner], people)
     }
   })
 
-  const last = path[path.length - 1]!
-  const signedAt = d.won ? ago(d.won.signedDaysAgo, 6) : null
-  const lostAt = d.lost ? ago(d.lost.daysAgo, 6) : null
-  const closedAt = signedAt ?? lostAt
+  const lastMove = walk.moves[walk.moves.length - 1]!
+  const last = lastMove.to
 
   if (closedAt) {
     out.moves.push({
@@ -529,7 +499,7 @@ function plantDeal(
       at: closedAt,
       fromStage: last,
       toStage: null,
-      daysInFrom: Math.round((closedAt.getTime() - when[when.length - 1]!.getTime()) / DAY),
+      daysInFrom: Math.round((closedAt.getTime() - lastMove.at.getTime()) / DAY),
       byId: owner.id,
       by: owner.name,
     })
@@ -571,7 +541,7 @@ function plantDeal(
     leadCode: ld,
     state: lostAt ? 'lost' : 'open',
     stage: closedAt ? null : last,
-    stageSince: closedAt ? null : when[when.length - 1]!,
+    stageSince: closedAt ? null : lastMove.at,
     name,
     accountCode: ac,
     workstreamCode: ws,
@@ -585,8 +555,8 @@ function plantDeal(
     stopReason: d.lost?.reason ?? null,
     stopNote: d.lost?.note ?? null,
     /* Past `new` means a head accepted it, on the day it entered `assigned`. */
-    acceptedById: path.length > 1 ? HEAD.id : null,
-    acceptedAt: path.length > 1 ? when[1]! : null,
+    acceptedById: walk.moves.length > 1 ? HEAD.id : null,
+    acceptedAt: walk.moves[1]?.at ?? null,
     createdAt: entered,
   })
   out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })

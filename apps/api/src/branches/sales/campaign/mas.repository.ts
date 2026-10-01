@@ -397,21 +397,28 @@ export class MasRepository {
     return row
   }
 
-  /** The milestone a run's letter records on leaving (ADR 0069 §7), read off
-   *  the template as it stands NOW — only one that still serves the
+  /** The milestone a run's letter records on leaving (ADR 0069 §7, 0072 §5),
+   *  read off the template as it stands NOW — only one that still serves the
    *  opportunity door — with the run's creator, whose right to record it the
-   *  caller checks. `undefined` = no such template, or one without a milestone. */
+   *  caller checks, and the run's subject, which names the letter on the
+   *  timeline. `undefined` = no such template, or one without a milestone. */
   async sentMilestone(
     tx: Db,
     mailRunId: string,
-  ): Promise<{ milestone: MailTemplateMilestone; creator: ActorRow } | undefined> {
+  ): Promise<{ milestone: MailTemplateMilestone; creator: ActorRow; subject: string } | undefined> {
     const [row] = await tx
-      .select({ milestone: mailTemplate.milestone, creator: getTableColumns(actor) })
+      .select({
+        milestone: mailTemplate.milestone,
+        subject: mailRun.subject,
+        creator: getTableColumns(actor),
+      })
       .from(mailRun)
       .innerJoin(mailTemplate, eq(mailTemplate.code, mailRun.templateCode))
       .innerJoin(actor, eq(actor.id, mailRun.createdBy))
       .where(and(eq(mailRun.id, mailRunId), arrayContains(mailTemplate.doors, ['opportunity'])))
-    return row?.milestone ? { milestone: row.milestone, creator: row.creator } : undefined
+    return row?.milestone
+      ? { milestone: row.milestone, creator: row.creator, subject: row.subject }
+      : undefined
   }
 
   async defaultsOf(tx: Db, code: string): Promise<MailDoor[]> {

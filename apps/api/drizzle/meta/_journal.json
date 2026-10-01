@@ -505,6 +505,13 @@
       "when": 1788504300000,
       "tag": "0072_opportunity_accepted",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1788504400000,
+      "tag": "0073_opportunity_four_stages",
+      "breakpoints": true
     }
   ]
 }

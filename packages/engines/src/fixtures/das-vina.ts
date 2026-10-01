@@ -157,16 +157,15 @@ export const HEAD_OF_SALES = 'Trần Thu Hà'
 // Tổng 18,5 tỷ/năm · Huy 4 đơn · Bình 3 · Linh 3.
 // ---------------------------------------------------------------------------
 
-/** Năm cột của sổ. Số kèm theo là HẠN của cột, tính bằng ngày —
+/** Bốn cột của sổ. Số kèm theo là HẠN của cột, tính bằng ngày —
  *  quá hạn thì đơn tô cảnh báo. Không có cột thứ sáu.
  *
  *  Sửa được ở module Cấu hình (mục 5.2), không sửa ở tầng màn. */
 export const PIPELINE_STAGES = [
-  { key: 'new', label: 'Khởi tạo opp', limitDays: 2 },
-  { key: 'assigned', label: 'Nhận PIC', limitDays: 14 },
-  { key: 'sample', label: 'Sample', limitDays: 21 },
-  { key: 'poc', label: 'POC', limitDays: 21 },
-  { key: 'quotation', label: 'Quotation', limitDays: 30 },
+  { key: 'new', label: 'Khởi tạo', limitDays: 2 },
+  { key: 'assigned', label: 'Đang phân công', limitDays: 14 },
+  { key: 'engaged', label: 'Chăm sóc', limitDays: 21 },
+  { key: 'quotation', label: 'Báo giá', limitDays: 30 },
 ] as const
 
 export type StageKey = (typeof PIPELINE_STAGES)[number]['key']
@@ -225,7 +224,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Hải Dương',
     amount: 900_000_000,
     owner: 'Đặng Thanh Bình',
-    stage: 'poc',
+    stage: 'engaged',
     daysInStage: 24,
   },
   {
@@ -234,7 +233,7 @@ export const OPEN_DEALS: OpenDeal[] = [
     province: 'Hà Nam',
     amount: 2_600_000_000,
     owner: 'Nguyễn Khánh Linh',
-    stage: 'poc',
+    stage: 'engaged',
     daysInStage: 19,
   },
   {
@@ -1849,8 +1848,8 @@ const ROWS: Row[] = [
   ['Nhựa Tân Á', 'Hưng Yên', 'mechanical', 'sql', 6, 1, 'Đặng Thanh Bình', 'new', 2, -1],
   ['DAS Vina', 'Bắc Ninh', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'assigned', 11, -1],
   ['Bao bì Minh Long', 'Bình Dương', 'pharma', 'sql', 6, 2, 'Nguyễn Khánh Linh', 'assigned', 6, -1],
-  ['Cơ khí Phú Thái', 'Hải Dương', 'mechanical', 'sql', 6, 3, 'Đặng Thanh Bình', 'poc', 24, -1],
-  ['Dược Vĩnh Hà', 'Hà Nam', 'pharma', 'sql', 6, 3, 'Nguyễn Khánh Linh', 'poc', 19, -1],
+  ['Cơ khí Phú Thái', 'Hải Dương', 'mechanical', 'sql', 6, 3, 'Đặng Thanh Bình', 'engaged', 24, -1],
+  ['Dược Vĩnh Hà', 'Hà Nam', 'pharma', 'sql', 6, 3, 'Nguyễn Khánh Linh', 'engaged', 19, -1],
   ['Thực phẩm Hải Vân', 'Đà Nẵng', 'pharma', 'sql', 6, 4, 'Nguyễn Khánh Linh', 'quotation', 31, -1],
   ['Thép Đông Đô', 'Thái Nguyên', 'mechanical', 'sql', 6, 4, 'Đặng Thanh Bình', 'quotation', 9, -1],
   ['Nhựa An Phát Tây', 'Hưng Yên', 'chip', 'sql', 6, 4, 'Đỗ Quang Huy', 'quotation', 5, -1],

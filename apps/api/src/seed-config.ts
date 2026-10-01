@@ -22,11 +22,10 @@ export function person(id: string) {
 /* Labels keyed by the enum, so a new enum value is a compile error here and
    the ord of each row matches the enum's order — the join `ladder.ts` relies on. */
 const STAGE_CONFIG: Record<StageKey, [string, number]> = {
-  new: ['Khởi tạo opp', 2],
-  assigned: ['Nhận PIC', 14],
-  sample: ['Sample', 21],
-  poc: ['POC', 21],
-  quotation: ['Quotation', 30],
+  new: ['Khởi tạo', 2],
+  assigned: ['Đang phân công', 14],
+  engaged: ['Chăm sóc', 21],
+  quotation: ['Báo giá', 30],
 }
 const TIER_NAME: Record<LeadTier, string> = { prospect: 'Đầu mối', mql: 'MQL', sql: 'SQL' }
 const CATEGORY_CONFIG: Record<LeadCategory, [string, string]> = {
@@ -66,8 +65,8 @@ const CHANNEL_NAME: Record<ContactChannel, string> = {
 /** Provisional (ADR 0064 §5 — Open #2): why an opp leaves the board into the
  *  care list, one bucket per stage it can fail at. The owner will replace this
  *  catalogue. No catch-all row: `OPPORTUNITY_CARE_REASON_OTHER` is a virtual
- *  API value, not a `config_entry` row, so five scoped catch-alls never collide
- *  on `config_name_live`. */
+ *  API value, not a `config_entry` row, so scoped catch-alls never collide on
+ *  `config_name_live`. The sample and POC rows sit under `engaged` (ADR 0072). */
 const CARE_REASONS: ConfigSeed[] = [
   { name: 'Không tìm được PIC phù hợp', stage: 'new' },
   { name: 'Lead không đủ điều kiện', stage: 'new' },
@@ -75,12 +74,12 @@ const CARE_REASONS: ConfigSeed[] = [
   { name: 'Không liên lạc được khách', stage: 'assigned' },
   { name: 'Khách chưa có nhu cầu thật', stage: 'assigned' },
   { name: 'Khách hẹn lại sau', stage: 'assigned' },
-  { name: 'Khách từ chối nhận sample', stage: 'sample' },
-  { name: 'Sample không đạt yêu cầu', stage: 'sample' },
-  { name: 'Khách không phản hồi', stage: 'sample' },
-  { name: 'POC không đạt', stage: 'poc' },
-  { name: 'Khách đổi yêu cầu kỹ thuật', stage: 'poc' },
-  { name: 'Chọn giải pháp khác', stage: 'poc' },
+  { name: 'Khách từ chối nhận sample', stage: 'engaged' },
+  { name: 'Sample không đạt yêu cầu', stage: 'engaged' },
+  { name: 'Khách không phản hồi', stage: 'engaged' },
+  { name: 'POC không đạt', stage: 'engaged' },
+  { name: 'Khách đổi yêu cầu kỹ thuật', stage: 'engaged' },
+  { name: 'Chọn giải pháp khác', stage: 'engaged' },
   { name: 'Giá cao hơn đối thủ', stage: 'quotation' },
   { name: 'Khách không chấp nhận điều khoản', stage: 'quotation' },
   { name: 'Ngân sách bị cắt', stage: 'quotation' },

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Modal } from '@pv/ui'
+import { Badge, Modal, cn } from '@pv/ui'
 import {
+  OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type MailGroupPreflightResponse,
   type MailSubjectKind,
@@ -14,6 +15,7 @@ import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
 import { useLetterPreview, useLetterSend } from '@/data/mail-letters'
 import { doorDefault, doorTemplatesQuery } from '@/data/mas'
+import type { EventOffer } from '@/data/opportunities'
 import { LetterContentCard, LetterPreviewColumn } from './letter-content'
 import { LetterFooter } from './letter-footer'
 import {
@@ -29,6 +31,9 @@ import {
 } from './letter-model'
 import { RecipientPicker, RecipientsCard } from './letter-recipients'
 import { useLetterRecipients } from './letter-recipients-state'
+
+/** An activity or the next quotation round, or the reason nothing is recorded. */
+type DealRecord = { offer: EventOffer | null; block: string | null }
 
 /** THE ONE-SCREEN COMPOSER (G1) — a detail door (lead · opportunity · contract)
  *  writes ONE letter every recipient reads in To/CC, with `sales@` locked in CC.
@@ -49,11 +54,11 @@ export function LetterComposer({
   door,
   code,
   leadCode,
-  unaccepted = false,
+  deal,
   onClose,
 }: LetterSubject & {
-  /** A deal still at `new`: the send records no milestone (ADR 0071 §3). */
-  unaccepted?: boolean
+  /** What a template's milestone does on THIS deal (ADR 0072 §5). */
+  deal?: DealRecord
   onClose: () => void
 }) {
   const [letterId] = useState(() => crypto.randomUUID())
@@ -168,7 +173,7 @@ export function LetterComposer({
             onAddCc={people.addCc}
             onDropCc={people.dropCc}
           />
-          {unaccepted && <UnrecordedMilestone templates={templates} code={form.templateCode} />}
+          {deal && <MilestoneNote templates={templates} code={form.templateCode} deal={deal} />}
           {/* Two equal columns from `wide:` (1440px): below it half the panel
               crops a ~600px letter, so the letter stacks under the form. */}
           <div className="wide:grid-cols-2 grid min-w-0 items-start gap-6">
@@ -205,21 +210,40 @@ export function LetterComposer({
   )
 }
 
-/** A template that records a milestone, sent from a deal no head accepted:
- *  the send goes out but the milestone is not written (ADR 0071 §3). */
-function UnrecordedMilestone({
+/** What the chosen template's milestone will record, said before the send —
+ *  or why it will record nothing (`eventBlockOf`). Silent without a milestone. */
+function MilestoneNote({
   templates,
   code,
+  deal,
 }: {
   templates: readonly MailTemplateRow[]
   code: string
+  deal: DealRecord
 }) {
   const milestone = templates.find((t) => t.code === code)?.milestone
   if (!milestone) return null
+  const quoting = milestone === 'quotation'
+  const what = quoting
+    ? OPPORTUNITY_MILESTONE_LABEL.quotation
+    : `hoạt động ${OPPORTUNITY_MILESTONE_LABEL.sample}`
+  const offer = deal.offer
+  const moves = offer?.atAssigned
+    ? ` và chuyển cơ hội sang cột ${OPPORTUNITY_STAGE_LABEL[quoting ? 'quotation' : 'engaged']}`
+    : ''
   return (
-    <p className="text-warning m-0 text-[12px] leading-5">
-      Thư vẫn gửi, nhưng cơ hội chưa được nhận PIC nên mốc {OPPORTUNITY_STAGE_LABEL[milestone]} của
-      mẫu này sẽ không được ghi.
+    <p
+      className={cn(
+        'm-0 text-[12px] leading-5',
+        !offer || (quoting && offer.atAssigned) ? 'text-warning' : 'text-muted-foreground',
+      )}
+    >
+      {!offer
+        ? `Thư vẫn gửi, nhưng ${deal.block ?? 'cơ hội này'} nên ${what} sẽ không được ghi.`
+        : quoting
+          ? `Gửi thành công sẽ ghi ${what} (lần ${offer.nextRound})${moves}` +
+            (offer.atAssigned ? ' — bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.')
+          : `Gửi thành công sẽ ghi một ${what}${moves}.`}
     </p>
   )
 }

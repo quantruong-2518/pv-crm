@@ -70,7 +70,7 @@ không đạt 4.5:1 trên nền sáng trần).
 4. **State dùng đúng nhãn product** (`packages/contracts/src/sales/enums.ts`,
    `apps/web/src/data/intake.ts`), không đặt từ mới:
    - Lead: Khởi tạo lead · Nhận PIC · Tạo chiến lược chăm sóc · Tình trạng chăm sóc · Đổi thành Opp.
-   - Cơ hội: Khởi tạo opp · Nhận PIC · Sample (tuỳ) · POC (tuỳ) · Quotation → Thành hợp đồng.
+   - Cơ hội: Khởi tạo opp · Nhận PIC · Sample (tuỳ) · POC (tuỳ) · Quotation → Thành hợp đồng. [ADR 0072 thay: bốn bậc Khởi tạo · Đang phân công · Chăm sóc · Báo giá; sample/POC là hoạt động chăm sóc.]
      Không có state Đàm phán hay Chờ ký riêng (`docs/decisions/0064-opportunity-state-follows-milestones-and-care-list.md`).
    - Báo giá (BG, đã chốt, chưa code): nháp → đã gửi → khách chốt · từ chối · thay bản mới
      (`docs/decisions/0020-quote-is-a-separate-versioned-object.md`).

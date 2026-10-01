@@ -44,9 +44,21 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     message: 'Đơn đang chạy không mang lý do dừng.',
   },
 
+  /** Fences 0073 added (ADR 0072): only a writer still on the old five
+   *  columns trips them, so the answer says to reload, not to fix a field. */
+  opportunity_stage_known: {
+    kind: 'conflict',
+    message: 'Cột của cơ hội không nằm trong bốn cột của bảng — tải lại trang rồi thử lại.',
+  },
+
+  opportunity_stage_event_stage_known: {
+    kind: 'conflict',
+    message: 'Lượt đổi cột nhắc tới một cột không còn trên bảng — tải lại trang rồi thử lại.',
+  },
+
   opportunity_stopped_at_stage_known: {
     kind: 'invalid',
-    message: 'Cột đơn dừng lại không nằm trong năm cột của bảng.',
+    message: 'Cột đơn dừng lại không nằm trong bốn cột của bảng.',
   },
 
   opportunity_state_known: {

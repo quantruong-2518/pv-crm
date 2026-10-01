@@ -1,9 +1,16 @@
 import type { ReactNode } from 'react'
 import { Button, ChevronLeft, ChevronRight, Icon, cn } from '@pv/ui'
-import type { DueLevel, JourneyDealSubStep, JourneyRungKey, JourneySubStep } from '@pv/contracts'
+import {
+  OPPORTUNITY_MILESTONE_LABEL,
+  type DueLevel,
+  type JourneyDealSubStep,
+  type JourneyRungKey,
+  type JourneySubStep,
+} from '@pv/contracts'
 import { dm } from '@/lib/date'
 import { DueBadge } from '@/components/contract-bits'
 import {
+  gridCols,
   lateLevel,
   rungStatus,
   STATE_WORD,
@@ -60,9 +67,13 @@ export function DuePill({ level, money = false }: { level: DueLevel | null; mone
 
 type AnyStep = JourneySubStep | JourneyDealSubStep
 
-/** The server sends each step's final wording, so the label prints as-is. */
+/** The server sends each step's final wording, so the label prints as-is —
+ *  but a care activity names its kind from the contract's table and says who
+ *  recorded it, since many share one rung (ADR 0072 §6). */
 function SubStepRow({ step }: { step: AnyStep }) {
   const when = step.at ? dm(step.at) : step.due ? `${TEXT.due} ${dm(step.due)}` : null
+  const activity = 'kind' in step && step.kind === 'activity' ? step : null
+  const aside = [activity?.by?.name, step.note].filter(Boolean).join(' · ')
   return (
     <li className="flex items-start gap-3 py-2">
       <span className="flex pt-1">
@@ -70,9 +81,9 @@ function SubStepRow({ step }: { step: AnyStep }) {
       </span>
       <span className="flex min-w-0 grow flex-col gap-1">
         <span className={cn('text-[14px]', step.state === 'current' && 'font-semibold')}>
-          {step.label}
+          {activity ? OPPORTUNITY_MILESTONE_LABEL[activity.activity] : step.label}
         </span>
-        {step.note && <span className="text-muted-foreground text-[12px]">{step.note}</span>}
+        {aside && <span className="text-muted-foreground text-[12px]">{aside}</span>}
       </span>
       {when && <span className="text-muted-foreground tnum shrink-0 text-[12px]">{when}</span>}
       <DuePill level={step.dueLevel} />
@@ -109,7 +120,7 @@ export function Ladder({
 }) {
   return (
     <Section title={TEXT.ladder}>
-      <ol className="m-0 grid list-none grid-cols-5 gap-1 p-0">
+      <ol className={cn('m-0 grid list-none gap-1 p-0', gridCols(rungs.length))}>
         {rungs.map((r) => {
           const picked = r.key === on
           return (

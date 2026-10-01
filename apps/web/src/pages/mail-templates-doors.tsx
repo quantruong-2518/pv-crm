@@ -2,6 +2,7 @@ import { Checkbox, GlassCard, MetaPill, SegmentedControl } from '@pv/ui'
 import {
   MAIL_DOOR_LABEL,
   MailDoor,
+  OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type MailTemplateMilestone,
 } from '@pv/contracts'
@@ -114,10 +115,11 @@ const NO_MILESTONE = 'none'
 
 /** Small pill for a template that records a milestone when its letter leaves. */
 export function MilestonePill({ milestone }: { milestone: MailTemplateMilestone }) {
-  return <MetaPill tone="accent">{`Mốc ${OPPORTUNITY_STAGE_LABEL[milestone]}`}</MetaPill>
+  return <MetaPill tone="accent">{`Ghi ${OPPORTUNITY_MILESTONE_LABEL[milestone]}`}</MetaPill>
 }
 
-/** ADR 0069 §7. The caller renders it only while `opportunity` is a ticked
+/** ADR 0069 §7, narrowed by 0072 §5: `sample` logs a care activity,
+ *  `quotation` moves the stage. The caller renders it only while `opportunity` is a ticked
  *  door; the server refuses the pair otherwise (`errors.milestone`). */
 export function MilestoneField({
   milestone,
@@ -130,23 +132,23 @@ export function MilestoneField({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span className="text-muted-foreground text-[11px]">Gắn mốc cơ hội</span>
+      <span className="text-muted-foreground text-[11px]">Ghi vào cơ hội khi gửi</span>
       <SegmentedControl
-        label="Gắn mốc cơ hội"
+        label="Ghi vào cơ hội khi gửi"
         hideLabel
         value={milestone ?? NO_MILESTONE}
         onChange={(value) => onChange(value === 'sample' || value === 'quotation' ? value : null)}
         options={[
           { value: NO_MILESTONE, label: 'Không gắn' },
-          { value: 'sample', label: OPPORTUNITY_STAGE_LABEL.sample },
-          { value: 'quotation', label: OPPORTUNITY_STAGE_LABEL.quotation },
+          { value: 'sample', label: OPPORTUNITY_MILESTONE_LABEL.sample },
+          { value: 'quotation', label: OPPORTUNITY_MILESTONE_LABEL.quotation },
         ]}
       />
       {errors?.length ? (
         <Problem lines={errors} />
       ) : (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Thư dùng mẫu này rời hệ thống từ một cơ hội thì máy ghi mốc này cho cơ hội.
+          {`Gửi từ cơ hội đã nhận PIC: ${OPPORTUNITY_MILESTONE_LABEL.sample} ghi một hoạt động chăm sóc; ${OPPORTUNITY_MILESTONE_LABEL.quotation} ghi một lần báo giá (lần đầu chuyển sang cột ${OPPORTUNITY_STAGE_LABEL.quotation}).`}
         </span>
       )}
     </div>

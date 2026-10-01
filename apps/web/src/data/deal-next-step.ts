@@ -9,9 +9,8 @@ import type { StepSubject } from '@/data/next-step'
  *  A column without a list (`new`) offers none — nothing is recorded before a
  *  head accepts the deal. */
 export const DEAL_STEP_SUGGESTIONS: Partial<Record<StageKey, readonly string[]>> = {
-  assigned: ['Gọi khách chốt nhu cầu', 'Hẹn gửi sample', 'Hẹn POC', 'Gửi báo giá'],
-  sample: ['Theo dõi phản hồi sample', 'Hẹn POC', 'Gửi báo giá'],
-  poc: ['Tổng kết POC với khách', 'Gửi báo giá'],
+  assigned: ['Gọi khách chốt nhu cầu', 'Hẹn gửi sample', 'Hẹn demo', 'Hẹn khảo sát nhà máy'],
+  engaged: ['Theo dõi phản hồi sample', 'Hẹn POC', 'Hẹn demo', 'Gửi báo giá'],
   quotation: ['Theo dõi báo giá', 'Đàm phán điều khoản', 'Đề nghị ký'],
 }
 

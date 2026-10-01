@@ -6,7 +6,9 @@ values and the `state`/`stage` two-column split), 0032 (the board's column set),
 reactivation and per-stage catalogue superseded by 0067; the `care` state and
 its labels (§1/§2), §3's `care` → `open` row and converted-lead rule, and §6's
 return of the same opportunity partially superseded by 0069; §3's
-`new` → `assigned` row, §4 and §5 (new doors) partially superseded by 0071
+`new` → `assigned` row, §4 and §5 (new doors) partially superseded by 0071;
+§1 stage set, §3 `sample`/`poc` rows, §7 five columns and §8 `sample-sent`/`poc-run`
+as stage triggers partially superseded by 0072
 Source: project owner's decision in session, 21/09/2026
 
 ## Context
@@ -28,6 +30,9 @@ ruling 0063 made for the lead.
 ## Decision
 
 ### 1 · One axis
+
+> Partially superseded by 0072: the stage set is four — `new` · `assigned` ·
+> `engaged` · `quotation`; `sample` and `poc` are care activities.
 
 > Partially superseded by 0069: `care` becomes `lost`, a final stop; nothing
 > is reactivated.
@@ -62,6 +67,9 @@ Declared ONCE in `packages/contracts`, like `LEAD_STATE_LABEL`.
 
 ### 3 · Triggers — state and stage derive from facts
 
+> Partially superseded by 0072: the `sample` and `poc` rows and their fixed
+> order are gone; a care activity moves `assigned` → `engaged` once.
+>
 > Partially superseded by 0069: no `care` → `open` row; the last stop moves a
 > `converted` lead to `nurturing`.
 >
@@ -148,12 +156,17 @@ Provisional seed (marked as provisional in the code; the owner will replace it):
 
 ### 7 · Two doors removed
 
+> Partially superseded by 0072: the board has four columns.
+
 The manual "Trạng thái" select on the create/edit form and the
 `PATCH /:code/stage` door (the board's drag between columns) are removed.
 Stage is written only by the single writer in §3. The board is fixed at five
 columns, one per stage `new` · `assigned` · `sample` · `poc` · `quotation`.
 
 ### 8 · Five new touch kinds
+
+> Partially superseded by 0072: `sample-sent` and `poc-run` are activity
+> history, not stage triggers.
 
 `sample-sent`, `poc-run`, `quotation-sent`, `care-entered`, `care-left` widen
 `touch_kind_known` (hand-written in the migration). The legacy kinds

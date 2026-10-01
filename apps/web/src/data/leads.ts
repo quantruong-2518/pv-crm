@@ -548,7 +548,7 @@ export function myWork(input: {
 
   if (actor.roleId === 'presales') {
     for (const lead of running) {
-      if (lead.stage === 'assigned' || lead.stage === 'poc') {
+      if (lead.stage === 'assigned' || lead.stage === 'engaged') {
         push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
       }
     }

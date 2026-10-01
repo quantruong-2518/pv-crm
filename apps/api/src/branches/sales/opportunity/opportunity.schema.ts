@@ -100,7 +100,7 @@ export const opportunity = sales.table(
      *  pair, not a narrower copy. */
     state: text('state').$type<OpportunityState>().notNull(),
 
-    /** Cột đơn đang đứng. NULL = off the five-column board (won, or lost —
+    /** Cột đơn đang đứng. NULL = off the four-column board (won, or lost —
      *  then `stopped_at_stage` records the column it stopped in).
      *
      *  KHÔNG cửa nào cho người dùng chọn giá trị này: một chỗ duy nhất trên
@@ -127,7 +127,7 @@ export const opportunity = sales.table(
      *  yên, không đo thời gian từ lần sửa cuối. `opportunity.mapper.ts#stageMove`
      *  là chỗ duy nhất quyết định điều đó.
      *
-     *  NULL = đơn đã ra khỏi năm cột (won or lost),
+     *  NULL = đơn đã ra khỏi bốn cột (won or lost),
      *  không còn cột nào để đếm. Cùng lúc với `stage`, luôn luôn — CHECK dưới
      *  đây ép cặp đó. */
     stageSince: timestamp('stage_since', { withTimezone: true }),
@@ -252,12 +252,18 @@ export const opportunity = sales.table(
       sql`"state" <> 'open'
           OR ("stopped_at_stage" IS NULL AND "stop_reason" IS NULL AND "stop_note" IS NULL)`,
     ),
-    /** The five `StageKey` values, copied out rather than generated, for
-     *  `touch_kind_known`'s reason: the stop report groups by this column. */
+    /** The four `StageKey` values (ADR 0072), copied out rather than generated,
+     *  for `touch_kind_known`'s reason. Fenced since 0073: a writer still on an
+     *  older enum is refused rather than leave a key no reader can parse. */
+    check(
+      'opportunity_stage_known',
+      sql`"stage" IS NULL OR "stage" IN ('new', 'assigned', 'engaged', 'quotation')`,
+    ),
+    /** Same four — the stop report groups by this column. */
     check(
       'opportunity_stopped_at_stage_known',
       sql`"stopped_at_stage" IS NULL
-          OR "stopped_at_stage" IN ('new', 'assigned', 'sample', 'poc', 'quotation')`,
+          OR "stopped_at_stage" IN ('new', 'assigned', 'engaged', 'quotation')`,
     ),
     /** Cột và đồng hồ của cột đi cùng nhau hoặc cùng vắng. Một `stage` không có
      *  `stage_since` là một đơn đứng trong cột từ "không biết bao giờ" — và màn
@@ -373,7 +379,7 @@ export const opportunityStageEvent = sales.table(
     at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
 
     /** NULL on the way in (the deal had no column before it was opened) and on
-     *  the way out (it left the five columns by being signed or stopped).
+     *  the way out (it left the four columns by being signed or stopped).
      *  Both ends of a deal's life are legitimate NULLs here, which is
      *  why there is no `NOT NULL` on either side. */
     fromStage: text('from_stage').$type<StageKey>(),
@@ -404,6 +410,13 @@ export const opportunityStageEvent = sales.table(
      *  no column into the first one is exactly the row the funnel starts from. */
     check('opportunity_stage_event_moved', sql`"from_stage" IS DISTINCT FROM "to_stage"`),
     check('opportunity_stage_event_clock', sql`("from_stage" IS NULL) = ("days_in_from" IS NULL)`),
+    /** The four `StageKey` values on both ends, copied out by hand: the funnel
+     *  report groups by them, and 0073 folded `sample`/`poc` into `engaged`. */
+    check(
+      'opportunity_stage_event_stage_known',
+      sql`("from_stage" IS NULL OR "from_stage" IN ('new', 'assigned', 'engaged', 'quotation'))
+          AND ("to_stage" IS NULL OR "to_stage" IN ('new', 'assigned', 'engaged', 'quotation'))`,
+    ),
   ],
 )
 

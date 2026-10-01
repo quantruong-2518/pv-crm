@@ -377,7 +377,9 @@ export type LadderRow = {
  *  A screen that must tell loading apart reads the query's own `isPending`. */
 export function ladderRows(catalog: ConfigBundle | undefined, list: 'STAGE' | 'TIER'): LadderRow[] {
   const keys: readonly string[] = list === 'STAGE' ? StageKey.options : LeadTier.options
-  const rows: ConfigEntry[] = catalog?.[list] ?? []
+  /* Retired rungs stay in the bundle (disable, never delete) but hold no
+     position — the server's ladder filters them the same way (ADR 0072 §7). */
+  const rows: ConfigEntry[] = (catalog?.[list] ?? []).filter((r) => r.active)
   if (rows.length === 0) return []
 
   const aligned = rows.length === keys.length

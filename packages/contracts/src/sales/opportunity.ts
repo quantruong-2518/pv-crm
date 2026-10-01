@@ -25,7 +25,7 @@ import { WorkstreamHolder } from './workstream'
  *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
  *  ------------------------------------------------------------------
  *  One axis, one writer. `stage` follows facts the server can see — a head's
- *  accept for `assigned` (ADR 0071), a milestone for the last three — and
+ *  accept for `assigned` (ADR 0071), recorded facts after it (ADR 0072) — and
  *  `state` follows the stop door. `won` is not stored anywhere: it is the
  *  existence of a `sales.contract` row, folded in on read. So a seller picks
  *  neither, which is why the accept/milestone/stop doors exist and `PATCH
@@ -59,6 +59,11 @@ export const OpportunityState = OpportunityStatus.exclude(['won'])
 /** Which half of the deal a person is on. UPPER_SNAKE — the naming law for
  *  enum VALUES here, same as `LeadSourceKind`. */
 export const OpportunityOwnerRole = z.enum(['SALE', 'BD'])
+
+/** The repeatable care activities of an `engaged` deal (ADR 0072) — events,
+ *  not columns. One tuple read by both ends, so no screen keeps its own list. */
+export const CARE_ACTIVITY_KINDS = ['sample', 'poc', 'demo', 'site-visit'] as const
+export const CareActivityKind = z.enum(CARE_ACTIVITY_KINDS, 'Hoạt động không có trong danh sách')
 
 // ---------------------------------------------------------------------------
 // PARTS
@@ -259,7 +264,7 @@ export const OpportunityRow = z.object({
    *  else the acceptor, else the first BD (ADR 0071) — computed by the server so
    *  no screen re-derives it. */
   holder: WorkstreamHolder.nullable(),
-  /** Which of the five columns the deal stands in. `null` = it has left the
+  /** Which of the four columns the deal stands in. `null` = it has left the
    *  board — won, or `lost`, where `stoppedAtStage` records where it stopped. */
   stage: StageKey.nullable(),
   /** Days the deal has stood in its CURRENT column, counted server-side.
@@ -326,7 +331,7 @@ export const OpportunityRow = z.object({
  *  same table the screen converts with. Two sums of one pipeline have to come
  *  from one rate table or the page disagrees with itself.
  *
- *  `stage` is deliberately not a key: the five columns are an ORDER the screen
+ *  `stage` is deliberately not a key: the four columns are an ORDER the screen
  *  already knows how to draw, and "sort by stage" is the board, not the book. */
 export const OpportunitySortKey = z.enum([
   'name',
@@ -457,6 +462,9 @@ export const PendingSign = z.object({
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
   pendingSign: PendingSign.nullable(),
+  /** Recorded care activities per kind, every kind present (zero included) so
+   *  the screen prints the non-zero ones without defaulting any itself. */
+  activityCounts: z.record(CareActivityKind, z.number().int().nonnegative()),
 
   /** The object chain this deal sits in — see `ObjectChainLink`.
    *
@@ -514,7 +522,7 @@ export const OpportunityUpdateResponse = OpportunityRow
 export const OpportunityScorecard = z.object({
   /** Every deal in the book, whatever its state — the denominator. */
   total: z.number().int().nonnegative(),
-  /** Deals still standing in one of the five columns (`stage IS NOT NULL`).
+  /** Deals still standing in one of the four columns (`stage IS NOT NULL`).
    *  Won deals and lost deals have left the board, so neither counts. */
   open: z.number().int().nonnegative(),
   /** Sum of the open deals that HAVE an amount, converted to dong. */
@@ -572,25 +580,29 @@ export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 // THE THREE DOORS THAT MOVE A DEAL — ACCEPT · MILESTONE · STOP
 // ---------------------------------------------------------------------------
 
-/** The three recordable milestones, in the order a deal passes them.
- *
- *  Exported as an ordered tuple as well as an enum because the order IS the
- *  rule: a milestone below the deal's current column is refused, a repeat of
- *  the current one is allowed, and skipping forward is allowed. A second copy
- *  of that order in the server would be the copy that goes stale. */
-export const OPPORTUNITY_MILESTONES = ['sample', 'poc', 'quotation'] as const
+/** What the milestone door records: a care activity, or the quotation that
+ *  moves the deal to its last column. */
+export const OPPORTUNITY_MILESTONES = [...CARE_ACTIVITY_KINDS, 'quotation'] as const
 export const OpportunityMilestoneKind = z.enum(
   OPPORTUNITY_MILESTONES,
   'Mốc không có trong danh sách',
 )
 
-/** `POST /sales/opportunities/:code/milestones` — record a real event, and let
- *  the stage follow it. Permission `opportunity.edit`, `scoped: true`.
+export const OPPORTUNITY_MILESTONE_LABEL: Record<OpportunityMilestoneKind, string> = {
+  sample: 'Sample',
+  poc: 'POC',
+  demo: 'Demo',
+  'site-visit': 'Khảo sát / gặp tại nhà máy',
+  quotation: 'Báo giá',
+}
+
+/** `POST /sales/opportunities/:code/milestones` — record a real event.
+ *  Permission `opportunity.edit`, `scoped: true`. No "move the card" door
+ *  exists: a deal reads `quotation` because one was sent, not dragged.
  *
- *  This is the only way past `assigned`: there is no "move the card" door, so a
- *  deal reads `quotation` because a quotation was sent, not because somebody
- *  dragged it. `at` is optional and defaults to now server-side — backdating is
- *  for paperwork entered late, not the common case. */
+ *  `at` defaults to now; backdating is for paperwork entered late. Bounds the
+ *  server enforces (a body alone cannot know them): an activity's `at` lies in
+ *  [`acceptedAt`, now], a quotation's in [entry into the current stage, now]. */
 export const OpportunityMilestoneBody = z.object({
   kind: OpportunityMilestoneKind,
   at: Moment.optional(),
@@ -685,6 +697,7 @@ export type OpportunityAcceptBody = z.infer<typeof OpportunityAcceptBody>
 export type OpportunityAcceptResponse = z.infer<typeof OpportunityAcceptResponse>
 export type OpportunitySaleOwnersBody = z.infer<typeof OpportunitySaleOwnersBody>
 export type OpportunitySaleOwnersResponse = z.infer<typeof OpportunitySaleOwnersResponse>
+export type CareActivityKind = z.infer<typeof CareActivityKind>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>

@@ -2,7 +2,7 @@
 
 Status: accepted (partially supersedes 0064 §1/§2/§3/§6, 0067 D2, 0018
 default 5 and 0023's one-contract-per-opportunity rule; defers 0022 — exact
-paragraphs under "Superseded")
+paragraphs under "Superseded"; §7 and §8 partially superseded by 0072)
 Source: project owner's decisions in chat, 29/09/2026
 (`.claude/HANDOFF-opp-loop.md`, "Đã chốt 29/09/2026" and "Chốt thêm 29/09");
 canvas https://claude.ai/artifact/GWVAqJSDxm87NwbgT6eGB5 (E-Model, E-Main,
@@ -73,12 +73,18 @@ rule belongs to the Postsale turn.
 
 ### 7 · A mail template may record a milestone
 
+> Partially superseded by 0072: `sample` is a care activity, not a stage
+> milestone; `quotation` stays.
+
 A template may carry one milestone, `sample` or `quotation`. A letter sent
 from the opportunity door with such a template records that milestone when it
 successfully leaves, under the same forward-only rules as the manual button
 (0064 §3). POC is never recorded by mail.
 
 ### 8 · Sub-rungs shown this turn
+
+> Partially superseded by 0072: sample/poc are no longer rungs; the
+> `engaged` rung lists the care activities.
 
 - "Gửi lần n" — each `quotation-sent` touch.
 - "Chờ duyệt ký" — the pending E3 `contract-sign` approval.

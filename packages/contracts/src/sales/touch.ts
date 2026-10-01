@@ -90,12 +90,13 @@ export const TouchKind = z.enum([
   /** A deal changed column. Written by the stage writer as a by-product of the
    *  milestone, stop and sign kinds below — no door reports a column move alone. */
   'stage-changed',
-  /** The three deal MILESTONES, each recorded through
-   *  `POST /sales/opportunities/:code/milestones`; the stage follows the
-   *  milestone, never the other way round (ADR 0064). `quotation-sent` may
-   *  repeat — a renegotiated quotation is another round, not another column. */
+  /** Deal MILESTONES, recorded through `POST /sales/opportunities/:code/milestones`.
+   *  The first four are repeatable care activities (ADR 0072), not columns;
+   *  `quotation-sent` moves the deal to `quotation`, and a repeat is another round. */
   'sample-sent',
   'poc-run',
+  'demo-held',
+  'site-visited',
   'quotation-sent',
   /** LEGACY, rows persist, no writer: a parked deal came back (retired 29/09 —
    *  a stop is final). Migrated `care-entered` rows read `exited`. */

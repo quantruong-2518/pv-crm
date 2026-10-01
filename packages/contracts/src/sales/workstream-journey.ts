@@ -12,7 +12,7 @@ import {
   WorkstreamCloseReason,
 } from './enums'
 import { NextStep } from './next-step'
-import { OPPORTUNITY_STOP_NOTE_MAX } from './opportunity'
+import { CareActivityKind, OPPORTUNITY_STOP_NOTE_MAX } from './opportunity'
 import { LEAD_LANE_BACKBONE, WorkstreamHolder } from './workstream'
 
 /** Journey detail — the rebuilt read of `/sales/workstreams/:code` (canvas row E).
@@ -64,7 +64,7 @@ export const JOURNEY_DEAL_OUTCOME_LABEL: Record<JourneyDealOutcome, string> = {
 }
 
 /** One state set for all three ladders. `skipped` is a rung this object never
- *  used (a deal that jumped past `sample`, a licence with no deployment) —
+ *  used (a deal that jumped past `engaged`, a licence with no deployment) —
  *  drawn as skipped, never as a dateless `done`; `stopped` is where it stopped. */
 export const JourneyRungState = z.enum(
   ['done', 'current', 'skipped', 'upcoming', 'stopped'],
@@ -118,12 +118,19 @@ export const JourneySubStep = z.object({
   dueLevel: DueLevel.nullable(),
 })
 
-/** A deal-rung sub-step — exactly two kinds this turn, both under `quotation`:
- *  one per `quotation-sent` touch (`round` = n, the n-th send) and one per
- *  `contract-sign` approval (`decision` is E3's state; a won deal signing again
- *  adds another). Discount approval waits for a quote
- *  object; POC steps ride on next steps. */
+/** A deal-rung sub-step. Under `engaged`: one `activity` per recorded care
+ *  activity (ADR 0072), carrying its own `by`/`note` since many share one rung.
+ *  Under `quotation`: one per `quotation-sent` touch (`round` = n, the n-th
+ *  send) and one per `contract-sign` approval (`decision` is E3's state; a won
+ *  deal signing again adds another). Discount approval waits for a quote object. */
 export const JourneyDealSubStep = z.discriminatedUnion('kind', [
+  JourneySubStep.extend({
+    kind: z.literal('activity'),
+    activity: CareActivityKind,
+    state: z.literal('done'),
+    at: Moment,
+    by: WorkstreamHolder.nullable(),
+  }),
   JourneySubStep.extend({
     kind: z.literal('quote-sent'),
     round: z.number().int().positive(),

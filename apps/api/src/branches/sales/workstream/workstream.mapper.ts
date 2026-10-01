@@ -42,7 +42,7 @@ const DROPPED_REASONS = ['LOST', 'CHURNED'] as const satisfies readonly Workstre
  *
  *  An open deal outranks a contract because a run with work still moving
  *  stands on that work — one deal signed does not finish a second one. A deal
- *  with no `stage` has left the five-column board (won or lost), so it never
+ *  with no `stage` has left the four-column board (won or lost), so it never
  *  counts; a lost deal never ends the run either, the lead can raise another.
  *  The caller passes only deals and a contract the reader may open. */
 export type WorkstreamLive =

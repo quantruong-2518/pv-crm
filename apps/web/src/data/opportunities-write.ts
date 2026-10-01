@@ -468,8 +468,9 @@ function useMoveSettled(code: ObjectCode) {
   }
 }
 
-/** Record `sample-sent` · `poc-run` · `quotation-sent`. Pressing the CURRENT
- *  column's milestone again is legal and expected — another quotation round. */
+/** Record a care activity or a quotation (ADR 0072). Both repeat: another
+ *  activity, another quotation round. The next step is re-read too, since the
+ *  screen asks about it straight after and the stage its chips follow moved. */
 export function useLogMilestone(code: ObjectCode) {
   const client = useQueryClient()
   const settled = useMoveSettled(code)
@@ -479,6 +480,7 @@ export function useLogMilestone(code: ObjectCode) {
     onSuccess: (row) => {
       settled(row)
       void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
+      void client.invalidateQueries({ queryKey: nextStepKey(code) })
     },
   })
 }

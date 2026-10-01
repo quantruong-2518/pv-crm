@@ -74,6 +74,10 @@ export class TouchService {
     const rows = await this.repo.bySubject(subjectCode)
     return TouchTimelineResponse.parse({ rows: rows.map(toContract) })
   }
+
+  countKinds(subjectCode: string, kinds: readonly TouchKind[]): Promise<Map<TouchKind, number>> {
+    return this.repo.countKinds(subjectCode, kinds)
+  }
 }
 
 /** Một lần chạm sắp được ghi.

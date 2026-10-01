@@ -1,6 +1,7 @@
 import {
   ContractRungKey,
   LEAD_LANE_BACKBONE,
+  OPPORTUNITY_MILESTONE_LABEL,
   StageKey,
   type JourneyContract,
   type JourneyDeal,
@@ -124,6 +125,20 @@ function quoteSent(round: number, label: string, s: StepInput): JourneyDealSubSt
   return { ...step(label, 'done', s), kind: 'quote-sent', round }
 }
 
+/** A care activity done under the `engaged` rung (ADR 0072). */
+function activity(
+  kind: 'sample' | 'poc' | 'demo' | 'site-visit',
+  day: string,
+  by: WorkstreamHolder,
+): JourneyDealSubStep {
+  return {
+    ...step(OPPORTUNITY_MILESTONE_LABEL[kind], 'done', { at: at(day) }),
+    kind: 'activity',
+    activity: kind,
+    by,
+  } as JourneyDealSubStep
+}
+
 type InstallmentInput = Pick<
   Contract['installments'][number],
   'no' | 'label' | 'share' | 'amount' | 'due' | 'paidAt'
@@ -245,11 +260,11 @@ function ws0041(): Body {
           {
             new: { at: at('2025-06-20', '10:00'), by: huy },
             assigned: { at: at('2025-06-21'), by: huy },
-            sample: 'skip',
-            poc: { at: at('2025-07-02'), by: huy },
+            engaged: { at: at('2025-07-02'), by: huy },
             quotation: { at: at('2025-07-21'), by: huy },
           },
           { state: 'done', endAt: signedAt },
+          { engaged: [activity('poc', '2025-07-02', huy)] },
         ),
         nextAction: null,
         contractCodes: ['HĐ-2531'],
@@ -484,11 +499,10 @@ function ws0088(): Body {
           {
             new: { at: at('2026-07-13', '10:00'), by: huy },
             assigned: { at: at('2026-07-13', '14:00'), by: huy },
-            sample: 'skip',
-            poc: { at: at('2026-07-14'), by: huy },
+            engaged: { at: at('2026-07-14'), by: huy },
           },
           { state: 'stopped', endAt: stoppedAt },
-          {},
+          { engaged: [activity('poc', '2026-07-14', huy)] },
         ),
         nextAction: null,
         contractCodes: [],
@@ -513,8 +527,7 @@ function ws0088(): Body {
           {
             new: { at: at('2026-07-13', '11:00'), by: huy },
             assigned: { at: at('2026-07-14'), by: huy },
-            sample: 'skip',
-            poc: 'skip',
+            engaged: 'skip',
             quotation: { at: at('2026-07-15'), by: huy },
           },
           { state: 'done', endAt: training.signedAt },
@@ -540,12 +553,12 @@ function ws0088(): Body {
           {
             new: { at: at('2026-07-13', '14:00'), by: huy },
             assigned: { at: at('2026-07-13', '16:00'), by: huy },
-            sample: 'skip',
-            poc: { at: at('2026-07-14'), by: huy },
+            engaged: { at: at('2026-07-14'), by: huy },
             quotation: { at: at('2026-07-17', '10:00'), by: huy },
           },
           { state: 'done', endAt: SAO_DO_SIGNED_AT },
           {
+            engaged: [activity('poc', '2026-07-14', huy)],
             quotation: [quoteSent(1, 'Gửi báo giá', { at: at('2026-07-17', '10:00') })],
           },
         ),
@@ -622,8 +635,7 @@ function ws0089(): Body {
           {
             new: { at: at('2026-07-24', '10:00'), by: huy },
             assigned: { at: at('2026-07-24', '14:00'), by: huy },
-            sample: 'skip',
-            poc: 'skip',
+            engaged: 'skip',
             quotation: { at: sentAt, by: huy },
           },
           { state: 'current', endAt: null },
@@ -649,11 +661,10 @@ function ws0089(): Body {
           {
             new: { at: at('2026-07-14', '10:00'), by: huy },
             assigned: { at: at('2026-07-14', '14:00'), by: huy },
-            sample: 'skip',
-            poc: { at: at('2026-07-16'), by: huy },
+            engaged: { at: at('2026-07-16'), by: huy },
           },
           { state: 'current', endAt: null },
-          {},
+          { engaged: [activity('poc', '2026-07-16', huy)] },
         ),
         nextAction: {
           text: 'Hẹn anh Đạt chốt kết quả POC',

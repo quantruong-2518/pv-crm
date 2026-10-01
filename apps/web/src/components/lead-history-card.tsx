@@ -151,6 +151,8 @@ const EVENT_DOT: Record<TouchKind, 'ok' | 'current' | 'next' | 'bad' | 'warning'
   'next-step-done': 'ok',
   'sample-sent': 'ok',
   'poc-run': 'ok',
+  'demo-held': 'ok',
+  'site-visited': 'ok',
   'quotation-sent': 'ok',
   'care-left': 'current',
   'mail-failed': 'bad',

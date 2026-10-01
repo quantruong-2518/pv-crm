@@ -16,6 +16,7 @@ import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadDealsAllLost } from '../open-deal'
+import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import {
   opportunity,
   opportunityOwner,
@@ -42,116 +43,132 @@ export class WorkstreamLanesRepository {
     const deals = [...dealCodes]
     const none = Promise.resolve([])
 
-    const [leadTouches, events, contracts, installments, reasons, quoteSends, signs, owners, lost] =
-      await Promise.all([
-        this.db
-          .select({
-            at: touch.at,
-            by: touch.by,
-            actorId: touch.actorId,
-            kind: touch.kind,
-            to: touch.toActorId,
-            note: touch.note,
-            reasonId: touch.reasonId,
-            reasonName: configEntry.name,
-          })
-          .from(touch)
-          .leftJoin(
-            configEntry,
-            and(eq(configEntry.id, touch.reasonId), eq(configEntry.list, 'EXIT_REASON')),
-          )
-          .where(and(eq(touch.subjectCode, leadCode), inArray(touch.kind, [...LEAD_LANE_KINDS])))
-          .orderBy(asc(touch.at)),
-        deals.length === 0
-          ? none
-          : this.db
-              .select({
-                deal: opportunityStageEvent.opportunityCode,
-                at: opportunityStageEvent.at,
-                byId: opportunityStageEvent.byId,
-                by: opportunityStageEvent.by,
-                from: opportunityStageEvent.fromStage,
-                to: opportunityStageEvent.toStage,
-                daysInFrom: opportunityStageEvent.daysInFrom,
-              })
-              .from(opportunityStageEvent)
-              .where(inArray(opportunityStageEvent.opportunityCode, deals))
-              .orderBy(asc(opportunityStageEvent.at)),
-        deals.length === 0
-          ? none
-          : this.db
-              .select({
-                code: contract.code,
-                deal: contract.opportunityCode,
-                kind: contract.kind,
-                amount: contract.amount,
-                currency: contract.currency,
-                signedAt: contract.signedAt,
-                ownerId: contract.ownerId,
-                ownerName: actor.name,
-              })
-              .from(contract)
-              .leftJoin(actor, eq(actor.id, contract.ownerId))
-              .where(inArray(contract.opportunityCode, deals))
-              .orderBy(asc(contract.signedAt), asc(contract.code)),
-        deals.length === 0
-          ? none
-          : this.db
-              .select({
-                contractCode: contractInstallment.contractCode,
-                no: contractInstallment.no,
-                label: contractInstallment.label,
-                share: contractInstallment.share,
-                amount: contractInstallment.amount,
-                due: contractInstallment.due,
-                paidAt: contractInstallment.paidAt,
-              })
-              .from(contractInstallment)
-              .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
-              .where(inArray(contract.opportunityCode, deals))
-              .orderBy(asc(contractInstallment.contractCode), asc(contractInstallment.no)),
-        stopReasonKeys.length === 0
-          ? none
-          : this.db
-              .select({
-                id: configEntry.id,
-                name: configEntry.name,
-                doNotContact: configEntry.doNotContact,
-              })
-              .from(configEntry)
-              .where(
-                and(
-                  eq(configEntry.list, 'LOSS_REASON'),
-                  inArray(configEntry.id, [...stopReasonKeys]),
-                ),
+    const [
+      leadTouches,
+      events,
+      contracts,
+      installments,
+      reasons,
+      dealTouches,
+      signs,
+      owners,
+      lost,
+    ] = await Promise.all([
+      this.db
+        .select({
+          at: touch.at,
+          by: touch.by,
+          actorId: touch.actorId,
+          kind: touch.kind,
+          to: touch.toActorId,
+          note: touch.note,
+          reasonId: touch.reasonId,
+          reasonName: configEntry.name,
+        })
+        .from(touch)
+        .leftJoin(
+          configEntry,
+          and(eq(configEntry.id, touch.reasonId), eq(configEntry.list, 'EXIT_REASON')),
+        )
+        .where(and(eq(touch.subjectCode, leadCode), inArray(touch.kind, [...LEAD_LANE_KINDS])))
+        .orderBy(asc(touch.at)),
+      deals.length === 0
+        ? none
+        : this.db
+            .select({
+              deal: opportunityStageEvent.opportunityCode,
+              at: opportunityStageEvent.at,
+              byId: opportunityStageEvent.byId,
+              by: opportunityStageEvent.by,
+              from: opportunityStageEvent.fromStage,
+              to: opportunityStageEvent.toStage,
+              daysInFrom: opportunityStageEvent.daysInFrom,
+            })
+            .from(opportunityStageEvent)
+            .where(inArray(opportunityStageEvent.opportunityCode, deals))
+            .orderBy(asc(opportunityStageEvent.at)),
+      deals.length === 0
+        ? none
+        : this.db
+            .select({
+              code: contract.code,
+              deal: contract.opportunityCode,
+              kind: contract.kind,
+              amount: contract.amount,
+              currency: contract.currency,
+              signedAt: contract.signedAt,
+              ownerId: contract.ownerId,
+              ownerName: actor.name,
+            })
+            .from(contract)
+            .leftJoin(actor, eq(actor.id, contract.ownerId))
+            .where(inArray(contract.opportunityCode, deals))
+            .orderBy(asc(contract.signedAt), asc(contract.code)),
+      deals.length === 0
+        ? none
+        : this.db
+            .select({
+              contractCode: contractInstallment.contractCode,
+              no: contractInstallment.no,
+              label: contractInstallment.label,
+              share: contractInstallment.share,
+              amount: contractInstallment.amount,
+              due: contractInstallment.due,
+              paidAt: contractInstallment.paidAt,
+            })
+            .from(contractInstallment)
+            .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
+            .where(inArray(contract.opportunityCode, deals))
+            .orderBy(asc(contractInstallment.contractCode), asc(contractInstallment.no)),
+      stopReasonKeys.length === 0
+        ? none
+        : this.db
+            .select({
+              id: configEntry.id,
+              name: configEntry.name,
+              doNotContact: configEntry.doNotContact,
+            })
+            .from(configEntry)
+            .where(
+              and(
+                eq(configEntry.list, 'LOSS_REASON'),
+                inArray(configEntry.id, [...stopReasonKeys]),
               ),
-        deals.length === 0
-          ? none
-          : this.db
-              .select({ deal: touch.subjectCode, at: touch.at })
-              .from(touch)
-              .where(and(inArray(touch.subjectCode, deals), eq(touch.kind, 'quotation-sent')))
-              .orderBy(asc(touch.at)),
-        deals.length === 0 ? none : this.signApprovalsOf(deals),
-        deals.length === 0
-          ? none
-          : this.db
-              .select({
-                deal: opportunityOwner.opportunityCode,
-                id: opportunityOwner.actorId,
-                name: actor.name,
-                role: opportunityOwner.role,
-                roleId: actor.roleId,
-              })
-              .from(opportunityOwner)
-              .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
-              .where(inArray(opportunityOwner.opportunityCode, deals))
-              .orderBy(asc(actor.name), asc(actor.id)),
-        this.db
-          .select({ allLost: sql<boolean>`${leadDealsAllLost(lead.code)}` })
-          .from(lead)
-          .where(eq(lead.code, leadCode)),
-      ])
+            ),
+      deals.length === 0
+        ? none
+        : this.db
+            .select({
+              deal: touch.subjectCode,
+              at: touch.at,
+              kind: touch.kind,
+              by: touch.by,
+              actorId: touch.actorId,
+              note: touch.note,
+            })
+            .from(touch)
+            .where(and(inArray(touch.subjectCode, deals), inArray(touch.kind, DEAL_STEP_KINDS)))
+            .orderBy(asc(touch.at)),
+      deals.length === 0 ? none : this.signApprovalsOf(deals),
+      deals.length === 0
+        ? none
+        : this.db
+            .select({
+              deal: opportunityOwner.opportunityCode,
+              id: opportunityOwner.actorId,
+              name: actor.name,
+              role: opportunityOwner.role,
+              roleId: actor.roleId,
+            })
+            .from(opportunityOwner)
+            .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
+            .where(inArray(opportunityOwner.opportunityCode, deals))
+            .orderBy(asc(actor.name), asc(actor.id)),
+      this.db
+        .select({ allLost: sql<boolean>`${leadDealsAllLost(lead.code)}` })
+        .from(lead)
+        .where(eq(lead.code, leadCode)),
+    ])
     const acceptors = await this.acceptorsOf(deals)
 
     return {
@@ -162,7 +179,7 @@ export class WorkstreamLanesRepository {
       stopReasons: new Map(
         reasons.map((r) => [r.id, { name: r.name, doNotContact: r.doNotContact }]),
       ),
-      quoteSends,
+      dealTouches,
       signApprovals: signs,
       dealOwners: owners,
       dealAcceptors: new Map(acceptors.map((a) => [a.deal, { id: a.id, name: a.name }])),
@@ -218,6 +235,10 @@ const LEAD_LANE_KINDS = [
   'exited',
 ] as const satisfies readonly TouchKind[]
 
+/** The deal touches a rung's drawer lists: quotation rounds and care
+ *  activities (ADR 0072) — the `MILESTONE_TOUCH` values. */
+const DEAL_STEP_KINDS = Object.values(MILESTONE_TOUCH)
+
 /** One state-moving touch of the anchor lead. `to` is the RECEIVING end of a
  *  hand-over — also set on `created` for a lead born with a holder. `actorId`
  *  is null when the machine wrote the row. */
@@ -266,7 +287,15 @@ export type InstallmentLaneRow = {
   paidAt: Date | null
 }
 
-export type QuoteSendRow = { deal: string; at: Date }
+/** A quotation round or a care activity; `note` is the stored sentence. */
+export type DealTouchRow = {
+  deal: string
+  at: Date
+  kind: TouchKind
+  by: string
+  actorId: string | null
+  note: string
+}
 
 export type SignApprovalRow = {
   id: string
@@ -298,8 +327,8 @@ export type LaneRows = {
   installments: InstallmentLaneRow[]
   /** `config_entry` LOSS_REASON id → its name and do-not-contact flag. */
   stopReasons: Map<string, StopReasonRow>
-  /** Every `quotation-sent` touch of the visible deals, oldest first. */
-  quoteSends: QuoteSendRow[]
+  /** Every quotation and care-activity touch of the visible deals, oldest first. */
+  dealTouches: DealTouchRow[]
   /** Every `contract-sign` request of the visible deals, oldest first. */
   signApprovals: SignApprovalRow[]
   /** Owners of the visible deals by actor name then id — `holderOf`'s "first". */

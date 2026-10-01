@@ -10,7 +10,7 @@ import { OPPORTUNITY_STAGE_LABEL, type StageKey } from '@pv/contracts'
  *  Thứ ở lại là thứ hợp đồng không nói được: một đơn KHÔNG đứng ở cột nào đọc ra
  *  sao trong một câu văn. */
 
-/** Tên cột để đọc trong một câu. `null` = đơn đã ra khỏi bảng năm cột, và câu đó
+/** Tên cột để đọc trong một câu. `null` = đơn đã ra khỏi bảng bốn cột, và câu đó
  *  phải đọc được chứ không được in ra chữ "null". */
 export const stageLabel = (stage: StageKey | null): string =>
   stage === null ? 'ngoài bảng' : OPPORTUNITY_STAGE_LABEL[stage]

@@ -1,5 +1,6 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { TouchKind } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { touch, type TouchRowDb, type TouchValues } from './touch.schema'
 
@@ -52,5 +53,16 @@ export class TouchRepository {
       .from(touch)
       .where(eq(touch.subjectCode, code))
       .orderBy(desc(touch.at), desc(touch.id))
+  }
+
+  /** How many touches of each of `kinds` one subject has. A kind with none is
+   *  absent from the answer; the caller fills its own zeros. */
+  async countKinds(code: string, kinds: readonly TouchKind[]): Promise<Map<TouchKind, number>> {
+    const rows = await this.db
+      .select({ kind: touch.kind, n: count() })
+      .from(touch)
+      .where(and(eq(touch.subjectCode, code), inArray(touch.kind, [...kinds])))
+      .groupBy(touch.kind)
+    return new Map(rows.map((r) => [r.kind, r.n]))
   }
 }

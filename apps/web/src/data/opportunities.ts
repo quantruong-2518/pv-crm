@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
-  OPPORTUNITY_MILESTONES,
+  CARE_ACTIVITY_KINDS,
+  OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STATE_LABEL,
   OpportunityBookQuery,
@@ -9,7 +10,6 @@ import {
   OpportunityScorecard,
   StageKey,
   type OpportunityLiveDeal,
-  type OpportunityMilestoneKind,
   type OpportunityOwner,
   type ObjectChainLink,
   type OpportunityBookRow,
@@ -414,7 +414,7 @@ export function stageClockOf(
   return formatStageClock(op.daysInStage, overdueBy === null ? null : op.daysInStage - overdueBy)
 }
 
-/** The five columns plus where this deal stands, shaped for `StageTrack`.
+/** The four columns plus where this deal stands, shaped for `StageTrack`.
  *  `null` means the deal stands in no column (signed or parked) and there is no
  *  bar to draw at all.
  *
@@ -448,7 +448,7 @@ export function stageTrackOf(
   const current = StageKey.options.indexOf(stage)
   /* A column the server returned that the enum does not know: the deal stands
      somewhere this screen cannot draw. Return `null` so the caller falls back
-     to its badge, rather than painting five grey segments — that bar reads as
+     to its badge, rather than painting four grey segments — that bar reads as
      "this deal has not moved anywhere", which is a false sentence. */
   if (current === -1) return null
 
@@ -512,7 +512,7 @@ export const toggled = (list: string[], id: string) =>
  *
  *  The table lives in the app, not the contract: "what colour is won" is how
  *  the sales desk presents, not the shape of the data (same split as
- *  `ORIGIN_FACE` in `data/leads.ts`). The five COLUMNS of an open deal wear one
+ *  `ORIGIN_FACE` in `data/leads.ts`). The four COLUMNS of an open deal wear one
  *  tone: colour answers "is it still on the board", the text answers "which
  *  column". `lost` stays grey rather than `danger`: a stop is a recorded
  *  outcome, and the lead it came from may be nurtured again (ADR 0069 §3). */
@@ -541,50 +541,41 @@ export const standingLabel = (op: Pick<OpportunityRow, 'state' | 'stage'>): stri
     ? OPPORTUNITY_STAGE_LABEL[op.stage]
     : OPPORTUNITY_STATE_LABEL[op.state]
 
-/** The five columns as an ORDER, read off the contract's own enum rather than
- *  the frozen fixture's array: `StageKey.options` is the list the server ranks
- *  by (`RANK` in `opportunity-lifecycle.ts`). */
-export const stageRank = (stage: StageKey): number => StageKey.options.indexOf(stage)
-
-/** Which column a milestone lands the deal in — a COPY of the server's
- *  `MILESTONE_STAGE`, deliberately written out rather than derived by a cast.
- *  The server's own note says why: column keys and milestone keys are two
- *  vocabularies that happen to line up today. This copy decides which BUTTON
- *  appears and nothing else; a wrong guess is refused by the door's 409, which
- *  names both labels — it cannot put a wrong row in a table. */
-const MILESTONE_STAGE: Record<OpportunityMilestoneKind, StageKey> = {
-  sample: 'sample',
-  poc: 'poc',
-  quotation: 'quotation',
+/** Why the deal records no care activity or quotation right now, as a clause
+ *  the screen finishes into a sentence, or `null` when it may.
+ *  Mirrors the door's refusals: off the board, not accepted yet (ADR 0071 §3),
+ *  or a sign request waiting (the request names the deal as it stands). */
+export function eventBlockOf(
+  op: Pick<OpportunityProfileResponse, 'state' | 'stage' | 'pendingSign'>,
+): string | null {
+  if (op.state === 'won') return `cơ hội đã ${OPPORTUNITY_STATE_LABEL.won.toLowerCase()}`
+  if (op.state === 'lost') return `cơ hội ${OPPORTUNITY_STATE_LABEL.lost.toLowerCase()}`
+  if (op.stage === null || op.stage === 'new') return 'cơ hội chưa được nhận PIC'
+  if (op.pendingSign) return 'cơ hội đang chờ duyệt ký'
+  return null
 }
 
-/** One milestone the deal may record NOW. `repeat` is the column it stands in. */
-export type MilestoneOffer = {
-  kind: OpportunityMilestoneKind
-  stage: StageKey
-  repeat: boolean
+/** What the deal may record now (ADR 0072) — `null` whenever `eventBlockOf`
+ *  names a reason. `atAssigned`: a quotation now skips `engaged` (the screen
+ *  confirms first) and a first activity enters it. `nextRound` is the
+ *  quotation's n-th send. */
+export type EventOffer = { nextRound: number; atAssigned: boolean }
+
+export function eventOfferOf(
+  op: Pick<OpportunityProfileResponse, 'state' | 'stage' | 'pendingSign'>,
+  quotationsSent: number,
+): EventOffer | null {
+  if (eventBlockOf(op) !== null) return null
+  return { nextRound: quotationsSent + 1, atAssigned: op.stage === 'assigned' }
 }
 
-/** Which milestones the deal may record right now, in the order it passes them.
- *
- *  Empty once the deal has left the board, and empty at `new`: a deal no head
- *  has accepted yet (ADR 0071 §3) is refused before anything else. A milestone BELOW the
- *  current column is dropped (the door answers 409), the current column's own
- *  milestone stays — a second quotation is another Nego round, not a second
- *  entry into the column — and every one ahead is offered, because skipping
- *  Sample and POC is allowed. */
-export function milestonesOf(op: Pick<OpportunityRow, 'state' | 'stage'>): MilestoneOffer[] {
-  const stage = op.stage
-  if (op.state !== 'open' || stage === null) return []
-  if (stageRank(stage) < stageRank('assigned')) return []
-
-  return OPPORTUNITY_MILESTONES.filter(
-    (kind) => stageRank(MILESTONE_STAGE[kind]) >= stageRank(stage),
-  ).map((kind) => ({
-    kind,
-    stage: MILESTONE_STAGE[kind],
-    repeat: MILESTONE_STAGE[kind] === stage,
-  }))
+/** The non-zero care activity counts in the contract's kind order, or `null`
+ *  when none was recorded — the server sends every kind, zero included. */
+export function activityTally(counts: OpportunityProfileResponse['activityCounts']): string | null {
+  const parts = CARE_ACTIVITY_KINDS.filter((kind) => counts[kind] > 0).map(
+    (kind) => `${OPPORTUNITY_MILESTONE_LABEL[kind]} ×${counts[kind]}`,
+  )
+  return parts.length === 0 ? null : parts.join(' · ')
 }
 
 /** The object chain as ContextRail wants it — chips, with a way to open each.

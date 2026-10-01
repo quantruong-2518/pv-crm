@@ -12,15 +12,16 @@ import { scopeRefOf } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** A letter that really left from the opportunity door, on a template that
- *  serves that door and carries a milestone, records that milestone (ADR 0069
- *  §7) through `OpportunityLifecycle.milestone`, in the run creator's name —
+ *  serves that door and carries a milestone, records it (ADR 0069 §7, 0072 §5:
+ *  `sample` is a care activity, `quotation` the stage) through
+ *  `OpportunityLifecycle.milestone`, in the run creator's name —
  *  and only if E2 lets that person press the manual button on THIS deal
  *  (`opportunity.edit`, scoped): sending needs `lead.send-email` and a
  *  template's milestone is set under `campaign.edit`, neither of which is it.
  *
  *  Runs inside the accept's transaction (`MAIL_SENT_HOOK`), each attempt its
  *  own savepoint, so a retried event records once. A refusal (no right,
- *  disabled creator, lost, signed, pending sign, below `assigned`, backwards)
+ *  disabled creator, lost, signed, pending sign, still at `new`)
  *  is logged and writes nothing; the mail stays sent. Anything else rethrows
  *  so the worker retries. Only a run's recipient letter counts. */
 @Injectable()
@@ -61,7 +62,9 @@ export class OpportunityMailSentHook implements MailSentHook {
           return
         }
         const deal = dealAtOf(read, lock.pendingSign)
-        await this.lifecycle.milestone(sp, deal, found.milestone, who, { at: new Date() })
+        await this.lifecycle.milestone(sp, deal, found.milestone, who, {
+          note: `Thư: ${found.subject}`,
+        })
       })
     } catch (error) {
       if (!(error instanceof PvError) || error.getStatus() >= 500) throw error

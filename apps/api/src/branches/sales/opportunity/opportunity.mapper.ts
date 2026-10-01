@@ -1,4 +1,5 @@
 import {
+  CARE_ACTIVITY_KINDS,
   isSellerRole,
   OPPORTUNITY_STATE_LABEL,
   type OpportunityCreate,
@@ -10,6 +11,7 @@ import {
   type OpportunityStageEvent,
   type OpportunityUpdate,
   type StageKey,
+  type TouchKind,
 } from '@pv/contracts'
 import type { ObjectRef, RoleId } from '@pv/engines'
 import { stageLabel } from './opportunity.labels'
@@ -186,7 +188,7 @@ export function fromUpdate(body: OpportunityUpdate): OpportunityEdit {
  *  `toContract` lắp vào từ câu hỏi "có dòng hợp đồng không". Đơn đã ký giữ
  *  nguyên `state = 'open'`: nó thắng chứ không dừng.
  *
- *   · `stage` + `stage_since` — cùng về NULL. Đơn đã ký ra khỏi bảng năm cột,
+ *   · `stage` + `stage_since` — cùng về NULL. Đơn đã ký ra khỏi bảng bốn cột,
  *     và `opportunity_stage_clock` đòi hai cột đó cùng vắng. Bỏ sót một cái là
  *     một CHECK ném 500 chứ không phải một dòng sai lặng lẽ, nên đây là chỗ
  *     Postgres đỡ hộ.
@@ -268,7 +270,33 @@ export const NOTE = {
 const MILESTONE_WORD: Record<OpportunityMilestoneKind, string> = {
   sample: 'Đã gửi sample',
   poc: 'Đã chạy POC',
+  demo: 'Đã demo',
+  'site-visit': 'Đã khảo sát / gặp tại nhà máy',
   quotation: 'Đã gửi quotation',
+}
+
+/** The timeline kind each milestone writes. Its own map, not derived from the
+ *  milestone key: touch kinds and milestone kinds are two vocabularies, and a
+ *  rename on one side must not follow silently on the other. */
+export const MILESTONE_TOUCH = {
+  sample: 'sample-sent',
+  poc: 'poc-run',
+  demo: 'demo-held',
+  'site-visit': 'site-visited',
+  quotation: 'quotation-sent',
+} as const satisfies Record<OpportunityMilestoneKind, TouchKind>
+
+/** The care activity a touch records, for the readers that fold the trail back. */
+export const ACTIVITY_OF_TOUCH = new Map(
+  CARE_ACTIVITY_KINDS.map((kind) => [MILESTONE_TOUCH[kind] as TouchKind, kind]),
+)
+
+/** The person's own note out of a milestone touch — `NOTE.milestone` run
+ *  backwards, so the journey drawer prints what was typed, not the sentence. */
+export function milestoneNoteOf(kind: OpportunityMilestoneKind, note: string): string | null {
+  const word = MILESTONE_WORD[kind]
+  if (note === word) return null
+  return note.startsWith(`${word} · `) ? note.slice(word.length + 3) : note
 }
 
 /** Dòng của bảng nối, cho một đơn vừa được cấp mã. */

@@ -239,7 +239,7 @@ export function DealHistoryTab({
 }
 
 /** A column's label, from the ONE table the server prints from as well — no
- *  fallback, because `StageKey` and this record are the same five keys. */
+ *  fallback, because `StageKey` and this record are the same four keys. */
 const stageName = (key: NonNullable<OpportunityRow['stage']>) => OPPORTUNITY_STAGE_LABEL[key]
 
 /** The sticky bar — what BLOCKS on the left, where to go on the right.
@@ -285,10 +285,12 @@ export function DealToolsBar({
   const sellerOnBar = quiet && sign.shown !== undefined && sign.shown === sign.noSeller
 
   return (
-    <div className="z-10 lg:sticky lg:bottom-4">
+    /* Sticky on a finger too (tablet portrait), capped at half the screen so a
+       wrapped bar never covers the form it saves. */
+    <div className="pointer-coarse:sticky pointer-coarse:bottom-4 z-10 lg:sticky lg:bottom-4">
       <GlassCard
         variant="b"
-        className="bg-hc-surface shadow-panel flex flex-wrap items-center gap-3 p-3"
+        className="bg-hc-surface shadow-panel pointer-coarse:max-h-[50dvh] pointer-coarse:overflow-y-auto flex flex-wrap items-center gap-3 p-3"
         aria-label="Thanh công cụ"
       >
         {/* WHERE THE DEAL STANDS, on its own line above the actions: the row
@@ -414,7 +416,10 @@ export function DealToolsBar({
 
           {/* Room for the floating AI button (60px, `bottom-8 right-8` of
               AppShell) — without it, it covers the last action on the bar. */}
-          <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />
+          <span
+            aria-hidden
+            className="pointer-coarse:block pointer-coarse:size-[60px] hidden shrink-0 lg:block lg:size-[60px]"
+          />
         </div>
       </GlassCard>
     </div>
@@ -441,7 +446,7 @@ function useSignWhy(op: OpportunityRow | null, quotationLogged: boolean, offered
   return { first, again, shown, noSeller }
 }
 
-const NO_QUOTATION = 'Chưa ghi mốc Quotation — gửi báo giá và ghi mốc trước khi chốt.'
+const NO_QUOTATION = `Chưa ghi ${OPPORTUNITY_STAGE_LABEL.quotation} — gửi báo giá trước khi chốt.`
 
 /** The screen that would not open — ONE block, four sentences, glyph follows
  *  the sentence. Four near-identical empty blocks would drift apart on the

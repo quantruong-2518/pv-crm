@@ -224,7 +224,15 @@ function dealView(ctx: Ctx, deal: JourneyDeal, key: JourneyRungKey): View | null
     body: (
       <>
         <Ladder kind="deal" code={deal.code} rungs={rungs} on={key} onPick={onPick} />
-        <SubSteps title={`${TEXT.inside} ${r.label}`} steps={raw.subSteps} />
+        <SubSteps
+          title={key === 'engaged' ? TEXT.activities : `${TEXT.inside} ${r.label}`}
+          steps={raw.subSteps}
+        />
+        {key === 'engaged' && raw.subSteps.length === 0 && (
+          <Section title={TEXT.activities}>
+            <p className="text-muted-foreground m-0 text-[14px]">{TEXT.noActivities}</p>
+          </Section>
+        )}
         <Stats
           items={[
             [TEXT.enteredAt, raw.at ? dmy(raw.at) : '—'],
@@ -232,6 +240,7 @@ function dealView(ctx: Ctx, deal: JourneyDeal, key: JourneyRungKey): View | null
             [TEXT.expectedClose, deal.expectedClose ? dmy(deal.expectedClose) : '—'],
           ]}
         />
+        {raw.by && <Facts rows={[[TEXT.recordedBy, raw.by.name]]} />}
         {live && ctx.canAssign && raw.key !== 'new' && (
           <DealAssignSection key={`assign:${deal.code}`} code={deal.code} />
         )}
@@ -373,7 +382,7 @@ function contractView({ go, onPick }: Ctx, c: JourneyContract, key: JourneyRungK
   }
 }
 
-/** "OP-0289 · POC": the anchor's ladder is read off the data, never guessed. */
+/** The code, a dot, then the rung label (OP-0289 · the `engaged` label): the anchor's ladder is read off the data, never guessed. */
 function fromText(j: Journey, from: { code: string; rung: string }) {
   const kind = anchorKind(j, from.code)
   const label = kind ? rungLabel(kind, from.rung) : undefined

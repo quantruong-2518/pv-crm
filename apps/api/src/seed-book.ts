@@ -1,4 +1,11 @@
-import type { CostKind, LeadMotion, LeadSourceKind, LeadTier, StageKey } from '@pv/contracts'
+import type {
+  CareActivityKind,
+  CostKind,
+  LeadMotion,
+  LeadSourceKind,
+  LeadTier,
+  StageKey,
+} from '@pv/contracts'
 import type { SeedExitKey } from './seed-config'
 
 /** The demo book `seed.ts` plants: twenty chip-industry companies, each walked
@@ -127,6 +134,11 @@ export type DealSeed = {
    *  before signing, where a lost one was when it died. */
   stage: StageKey
   stageDaysAgo: number
+  /** Care activities recorded in `engaged`, oldest first; the first is the move
+   *  into it (ADR 0072). Default: a sample, then a POC. */
+  activities?: [CareActivityKind, ...CareActivityKind[]]
+  /** A quotation recorded straight from `assigned` — `engaged` never entered. */
+  skipEngaged?: true
   amount: number | null
   probability: number | null
   expectedCloseInDays: number | null
@@ -337,6 +349,7 @@ export const JOURNEYS: JourneySeed[] = [
         enteredDaysAgo: 70,
         stage: 'quotation',
         stageDaysAgo: 34,
+        skipEngaged: true,
         amount: 2_900_000_000,
         probability: 40,
         expectedCloseInDays: 20,
@@ -358,8 +371,9 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 50,
-        stage: 'poc',
+        stage: 'engaged',
         stageDaysAgo: 9,
+        activities: ['demo', 'poc'],
         amount: 3_600_000_000,
         probability: 35,
         expectedCloseInDays: 60,
@@ -501,7 +515,7 @@ export const JOURNEYS: JourneySeed[] = [
     deals: [
       {
         enteredDaysAgo: 45,
-        stage: 'poc',
+        stage: 'engaged',
         stageDaysAgo: 20,
         amount: 2_600_000_000,
         probability: 25,

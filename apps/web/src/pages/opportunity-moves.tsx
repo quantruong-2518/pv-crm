@@ -1,41 +1,37 @@
 import { useState } from 'react'
-import { ListChecks, Octagon, TriangleAlert } from '@pv/ui'
-import { Badge, Button, Icon, Input, MetaPill, cn } from '@pv/ui'
-import {
-  OPPORTUNITY_STAGE_LABEL,
-  OPPORTUNITY_STAGE_NOTE_MAX,
-  type OpportunityMilestoneKind,
-  type OpportunityProfileResponse,
-} from '@pv/contracts'
-import { userMessage } from '@/app/api'
+import { useQuery } from '@tanstack/react-query'
+import { Octagon, TriangleAlert } from '@pv/ui'
+import { Badge, Button, Icon, MetaPill, cn } from '@pv/ui'
+import { type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { toastDone } from '@/app/toast'
 import { noSellerSentence, useHasSeller } from '@/data/deal-sale'
+import { NO_TOUCHES } from '@/data/lead-profile'
+import { opportunityTouchesQuery } from '@/data/touches'
 import {
+  activityTally,
   BADGE_INK,
-  milestonesOf,
+  eventOfferOf,
   stageClockOf,
   standingLabel,
   STATE_TONE,
 } from '@/data/opportunities'
-import { useLogMilestone } from '@/data/opportunities-write'
 import { StopDrawer } from '@/components/opportunity-stop'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
+import { DealEventButtons } from './opportunity-events'
 
 /** Module 3 · where the deal STANDS on the profile's sticky bar, and the doors
  *  that move it (ADR 0064 §3, 0069 §1, 0071). Split out of `opportunity-parts.tsx`.
  *
  *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
  *  picks neither state nor column. Every button here carries a FACT instead — a
- *  milestone that really happened, or a stop with a reason — and the server's
- *  single stage writer draws the conclusion from it. A stop is final, so a
- *  lost deal keeps only its badge; the fail log is its own card.
+ *  care activity, a quotation, or a stop with a reason — and the server's
+ *  single stage writer draws the conclusion from it (ADR 0072). A stop is
+ *  final, so a lost deal keeps only its badge; the fail log is its own card.
  *
- *  WHICH milestone buttons appear is `milestonesOf`'s answer rather than this
- *  block's: it applies the same rank rule the door refuses by, so no button on
- *  screen can earn a 409 for naming the wrong column. The accept and assign
- *  acts own their modals; this block only decides who sees them. */
+ *  WHETHER the activity and quotation doors show is `eventOfferOf`'s answer, the
+ *  same rule the door refuses by. The accept, assign and event acts own their
+ *  modals; this block only decides who sees them. */
 /** Where the accept hands focus: the assign button it reveals. */
 const ASSIGN_ID = 'deal-assign-sale'
 
@@ -49,34 +45,19 @@ export function DealMoves({
   /** The bar already prints the missing-seller sentence — do not say it twice. */
   sellerOnBar: boolean
 }) {
-  const [note, setNote] = useState('')
   const [stopping, setStopping] = useState(false)
-  const milestone = useLogMilestone(op.code)
   const canAccept = useCan('opportunity.accept')
   const canAssign = useCan('opportunity.assign')
   const hasSeller = useHasSeller(op)
 
-  const offers = milestonesOf(op)
+  /* The profile's own timeline read, cached: rounds are `quotation-sent` rows. */
+  const { data: touches = NO_TOUCHES } = useQuery(opportunityTouchesQuery(op.code))
+  const offer = eventOfferOf(op, touches.filter((t) => t.kind === 'quotation-sent').length)
   const open = op.state === 'open'
   const clock = stageClockOf(op)
   const accepted = open && op.stage !== null && op.stage !== 'new'
   const unassigned = accepted && hasSeller === false && !sellerOnBar
-
-  /* The note box is shared by every milestone button rather than repeated per
-     button: one deal moves one column at a time, and four note boxes on a
-     sticky bar is four boxes nobody fills in. */
-  const record = (kind: OpportunityMilestoneKind, label: string) => {
-    const typed = note.trim()
-    milestone.mutate(
-      { kind, ...(typed === '' ? {} : { note: typed }) },
-      {
-        onSuccess: () => {
-          setNote('')
-          toastDone(`Đã ghi mốc ${label}.`)
-        },
-      },
-    )
-  }
+  const tally = activityTally(op.activityCounts)
 
   return (
     <div className="flex basis-full flex-wrap items-center gap-2">
@@ -104,7 +85,7 @@ export function DealMoves({
       )}
       {canEdit && open && op.stage === 'new' && !canAccept && (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Chờ trưởng phòng Kinh doanh nhận PIC — chưa ghi mốc được.
+          Chờ trưởng phòng Kinh doanh nhận PIC — chưa ghi hoạt động hay báo giá được.
         </span>
       )}
 
@@ -126,61 +107,33 @@ export function DealMoves({
         />
       )}
 
+      {/* Counts read where the doors stand — and stay on a closed deal, as its record. */}
+      {!(open && op.stage === 'new') && (
+        <span className="text-muted-foreground tnum text-[11.5px] leading-[1.5]">
+          {tally ?? 'Chưa có hoạt động'}
+        </span>
+      )}
+
       {canEdit && open && (
         <>
-          {offers.length > 0 && (
-            <Input
-              value={note}
-              aria-label="Ghi chú mốc"
-              placeholder="Ghi chú mốc (tuỳ chọn)"
-              maxLength={OPPORTUNITY_STAGE_NOTE_MAX}
-              className="pointer-coarse:h-12 w-full sm:w-[220px]"
-              onChange={(e) => setNote(e.target.value)}
-            />
+          {offer && <DealEventButtons op={op} offer={offer} />}
+          {/* The one reason the doors are absent on an accepted deal. */}
+          {accepted && op.pendingSign && (
+            <span className="text-muted-foreground text-[11px] leading-[1.5]">
+              Cơ hội đang chờ duyệt ký — chưa ghi hoạt động hay báo giá được.
+            </span>
           )}
-
-          {offers.map((offer) => (
-            <Button
-              key={offer.kind}
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              disabled={milestone.isPending}
-              /* The repeat wording is the whole point of `repeat`: pressing
-                 Quotation again is another Nego round, not a mistake. */
-              title={
-                offer.repeat
-                  ? 'Ghi thêm một lần nữa ở đúng cột này — cột và đồng hồ giữ nguyên.'
-                  : undefined
-              }
-              onClick={() => record(offer.kind, OPPORTUNITY_STAGE_LABEL[offer.stage])}
-            >
-              <Icon icon={ListChecks} size={16} />
-              {offer.repeat ? 'Ghi lại ' : 'Ghi mốc '}
-              {OPPORTUNITY_STAGE_LABEL[offer.stage]}
-            </Button>
-          ))}
 
           <Button
             size="md"
             variant="ghost"
             className="pointer-coarse:h-12"
-            disabled={milestone.isPending}
             onClick={() => setStopping(true)}
           >
             <Icon icon={Octagon} size={16} />
             Dừng cơ hội
           </Button>
         </>
-      )}
-
-      {milestone.error && (
-        <span
-          role="alert"
-          className="text-destructive-foreground min-w-0 text-[11px] leading-[1.5]"
-        >
-          {userMessage(milestone.error)}
-        </span>
       )}
 
       <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />

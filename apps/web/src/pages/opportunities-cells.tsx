@@ -56,7 +56,7 @@ export function StateCell({
           /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
           className={cn('min-w-0 max-w-full', !rotting && op.state === 'lost' && BADGE_INK)}
           title={
-            stage && clock ? `Cột "${stage}" · ${clock.label}` : 'Đã đóng sổ — đơn ra khỏi năm cột'
+            stage && clock ? `Cột "${stage}" · ${clock.label}` : 'Đã đóng sổ — đơn ra khỏi bốn cột'
           }
         >
           <span className="min-w-0 truncate">

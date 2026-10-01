@@ -124,7 +124,7 @@ export const configEntry = sales.table(
      *  that has to be a migration a person reads. */
     check(
       'config_stage_known',
-      sql`"stage" IS NULL OR "stage" IN ('new', 'assigned', 'sample', 'poc', 'quotation')`,
+      sql`"stage" IS NULL OR "stage" IN ('new', 'assigned', 'engaged', 'quotation')`,
     ),
 
     /** ĐÍCH của khoá ngoại GHÉP mà `sales.lead` sẽ trỏ vào.

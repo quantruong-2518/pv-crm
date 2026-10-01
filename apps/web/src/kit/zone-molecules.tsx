@@ -263,13 +263,13 @@ function RichTextDemo() {
   )
 }
 
-/** The five pipeline columns — keys and labels from `OPPORTUNITY_STAGE_LABEL`
- *  (ADR 0064), because the kit page draws COMPONENTS and must not fork the
+/** The four pipeline columns — keys and labels from `OPPORTUNITY_STAGE_LABEL`
+ *  (ADR 0072), because the kit page draws COMPONENTS and must not fork the
  *  real vocabulary. The hint here is sample text, not a real deal's numbers. */
 const KIT_STAGES = StageKey.options.map((key) => ({
   key,
   label: OPPORTUNITY_STAGE_LABEL[key],
-  ...(key === 'sample' ? { hint: '9 ngày · hạn 21' } : {}),
+  ...(key === 'engaged' ? { hint: '9 ngày · hạn 21' } : {}),
 }))
 
 /** Bấm một chip đã qua để lùi lại — chứng minh `onGo` đổi state của MÀN,

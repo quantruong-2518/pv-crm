@@ -34,6 +34,7 @@ import {
   dealLate,
   dealStatus,
   doorId,
+  gridCols,
   isPicked,
   leadStatus,
   moneyShort,
@@ -185,7 +186,7 @@ function Rail({
   notes?: Partial<Record<string, string>>
 }) {
   return (
-    <ol className="m-0 grid list-none grid-cols-5 p-0">
+    <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
       {rungs.map((r, i) => {
         const on =
           isPicked(picked, kind, code) &&
@@ -345,6 +346,13 @@ function acceptorNote(deal: JourneyDeal): string | undefined {
   return who ? `${ACCEPTOR_LABEL}: ${who}` : undefined
 }
 
+/** The engaged rung's tooltip: how many care activities it holds (ADR 0072). */
+function activityNote(deal: JourneyDeal): string | undefined {
+  const rung = deal.rungs.find((r) => r.key === 'engaged')
+  const n = rung?.subSteps.filter((s) => s.kind === 'activity').length ?? 0
+  return n === 0 ? undefined : `${n} hoạt động chăm sóc`
+}
+
 export function DealCard({
   deal,
   box,
@@ -407,7 +415,7 @@ export function DealCard({
         kind="deal"
         code={deal.code}
         rungs={railOf('deal', deal.rungs, dealLate(deal))}
-        notes={{ assigned: acceptorNote(deal) }}
+        notes={{ assigned: acceptorNote(deal), engaged: activityNote(deal) }}
         {...track}
       />
       <div className="flex">

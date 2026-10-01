@@ -1,5 +1,6 @@
 import {
   APPROVAL_STATE_LABEL,
+  OPPORTUNITY_MILESTONE_LABEL,
   ContractRungKey,
   JourneyDealStop,
   JourneySubStep,
@@ -23,7 +24,7 @@ import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
 import type { NextStepBatchRead } from '../next-step/next-step.repository'
-import { holderOf } from '../opportunity/opportunity.mapper'
+import { ACTIVITY_OF_TOUCH, holderOf, milestoneNoteOf } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type {
@@ -360,11 +361,23 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
       r.state === 'current' && limitDays !== null && deal.stageSince !== null
         ? new Date(deal.stageSince.getTime() + limitDays * DAY_MS).toISOString()
         : null
+    const subSteps =
+      r.key === 'quotation'
+        ? quotationStepsOf(deal.code, rows)
+        : r.key === 'engaged'
+          ? activityStepsOf(deal.code, rows)
+          : []
+    /* Never entered but worked in (activities after a quotation skipped it):
+       the care happened, so the rung reads done from its first activity. */
+    const first = r.state === 'skipped' ? subSteps[0] : undefined
+    const worked =
+      first?.kind === 'activity' ? { state: 'done' as const, at: first.at, by: first.by } : {}
     return {
       ...r,
+      ...worked,
       limitDays,
       dueLevel: clockEnd ? stepLevelOf(clockEnd, input.today) : null,
-      subSteps: r.key === 'quotation' ? quotationStepsOf(deal.code, rows) : [],
+      subSteps,
     }
   })
 
@@ -398,13 +411,36 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
  *  merged in time order (ADR 0069 §8). A decided request is `done` either way;
  *  `decision` says which way, and a refusal's reason rides as the note. */
 function quotationStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[] {
-  const sends = rows.quoteSends
-    .filter((q) => q.deal === dealCode)
+  const sends = rows.dealTouches
+    .filter((q) => q.deal === dealCode && q.kind === 'quotation-sent')
     .map((q, i) => ({ at: q.at, step: quoteSentStep(i + 1, q.at) }))
   const signs = rows.signApprovals
     .filter((a) => a.deal === dealCode)
     .map((a) => ({ at: a.decidedAt ?? a.raisedAt, step: signStep(a) }))
   return [...sends, ...signs].sort((a, b) => a.at.getTime() - b.at.getTime()).map((x) => x.step)
+}
+
+/** The `engaged` rung's drawer: every care activity, oldest first (ADR 0072 §6),
+ *  whichever rung the deal stood on when it was recorded. */
+function activityStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[] {
+  return rows.dealTouches.flatMap((t) => {
+    const activity = t.deal === dealCode ? ACTIVITY_OF_TOUCH.get(t.kind) : undefined
+    if (!activity) return []
+    const note = milestoneNoteOf(activity, t.note)
+    return [
+      {
+        kind: 'activity' as const,
+        activity,
+        label: OPPORTUNITY_MILESTONE_LABEL[activity],
+        state: 'done' as const,
+        at: t.at.toISOString(),
+        by: personOf(t.actorId, t.by),
+        due: null,
+        note: note ? clip(note, NOTE_MAX) : null,
+        dueLevel: null,
+      },
+    ]
+  })
 }
 
 const quoteSentStep = (round: number, at: Date): JourneyDealSubStep => ({

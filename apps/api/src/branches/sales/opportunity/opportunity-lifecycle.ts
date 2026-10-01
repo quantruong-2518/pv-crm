@@ -1,29 +1,30 @@
-import { and, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
 import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STOP_REASON_OTHER,
   StageKey,
+  type CareActivityKind,
   type OpportunityMilestoneKind,
   type OpportunityStopBody,
   type TouchKind,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict } from '@api/platform/http/problem'
+import { conflict, invalid } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { configEntry } from '../config/config.schema'
 import { dropStep } from '../next-step/next-step.handover'
 import { TouchService } from '../touch/touch.service'
-import { NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
+import { MILESTONE_TOUCH, NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
-import { opportunity, type OpportunityRowDb } from './opportunity.schema'
+import { opportunity, opportunityStageEvent, type OpportunityRowDb } from './opportunity.schema'
 
 /** EVERY MOVE A DEAL MAKES BEFORE A CONTRACT EXISTS (ADR 0064, 0069).
  *
- *  Three facts move a deal here and nothing else does: a head accepted it
- *  (`new` → `assigned`, ADR 0071), a milestone was recorded (`sample`/`poc`/
- *  `quotation`), or it was stopped — final, there is no way back. Saving the form moves
- *  nothing — that is what `OpportunityEdit` leaves out of its columns.
+ *  Four facts move a deal here and nothing else does: a head accepted it
+ *  (`new` → `assigned`, ADR 0071), its first care activity was recorded
+ *  (`assigned` → `engaged`, ADR 0072), a quotation was recorded, or it was
+ *  stopped — final, there is no way back. Saving the form moves nothing.
  *
  *  The ONE other writer is the sign flow (`closeForSign` in
  *  `opportunity.mapper.ts`), which owns the one-way trip off the board. They
@@ -34,26 +35,15 @@ import { opportunity, type OpportunityRowDb } from './opportunity.schema'
  *  is forward-only without a second lock, and carries `stage_since`, a timeline
  *  row, a funnel row and the mirror row at once. Callers pass their own `tx`. */
 
-/** The five columns as an ORDER. Every rule below is a comparison ("below the
- *  current column", "at `assigned` or past it"), so a rank reads better than a
- *  scan of `StageKey.options` at each call. */
-const RANK: Record<StageKey, number> = { new: 0, assigned: 1, sample: 2, poc: 3, quotation: 4 }
+/** The four columns as an ORDER. Every rule below is a comparison ("at
+ *  `assigned` or past it"), so a rank reads better than a scan of
+ *  `StageKey.options` at each call. */
+const RANK: Record<StageKey, number> = { new: 0, assigned: 1, engaged: 2, quotation: 3 }
 
-/** Which column a milestone puts the deal in, and which timeline kind records
- *  it. Two maps rather than one clever mapping: stage keys and touch kinds are
- *  two vocabularies that happen to line up today, and the day one is renamed
- *  the other must not follow silently. */
-const MILESTONE_STAGE: Record<OpportunityMilestoneKind, StageKey> = {
-  sample: 'sample',
-  poc: 'poc',
-  quotation: 'quotation',
-}
-
-const MILESTONE_TOUCH: Record<OpportunityMilestoneKind, TouchKind> = {
-  sample: 'sample-sent',
-  poc: 'poc-run',
-  quotation: 'quotation-sent',
-}
+/** Vietnam calendar day, `YYYY-MM-DD` — the unit a back-dated pick is judged in. */
+const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+/** The same day as the refusal prints it. */
+const VN_DAY_SHOWN = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' })
 
 /** A stored deal plus the two facts every move needs beside its columns: the
  *  owner the mirror row names, and whether a contract already exists. Both are
@@ -114,61 +104,126 @@ export class OpportunityLifecycle {
     return written
   }
 
-  /** A milestone was recorded — `POST /:code/milestones`.
-   *
-   *  Guards in the order a person hits them: a signed deal, a lost deal, a deal
-   *  that has not taken its PIC yet, then a milestone BELOW where
-   *  the deal already stands. Re-recording the column it is standing in is
-   *  allowed and writes only the timeline row: a second quotation is another
-   *  round of the same column, not a second entry into it, so the rot clock
-   *  must not be pushed back by it. */
+  /** A milestone was recorded — `POST /:code/milestones` (ADR 0072). Guards in
+   *  the order a person hits them: signed, pending sign, lost, not accepted
+   *  yet, then the date. `at` defaults to now and is the moment every row
+   *  written here carries. */
   async milestone(
     tx: Db,
     deal: DealAt,
     kind: OpportunityMilestoneKind,
     by: By,
-    opts: { at: Date; note?: string | undefined },
+    opts: { at?: Date | undefined; note?: string | undefined },
+  ): Promise<OpportunityRowDb> {
+    const from = this.onBoard(deal, 'ghi hoạt động hay báo giá')
+    const now = new Date()
+    const step = { asked: opts.at, now, note: NOTE.milestone(kind, opts.note) }
+    return kind === 'quotation'
+      ? this.quotation(tx, deal, from, by, step)
+      : this.activity(tx, deal, from, kind, by, step)
+  }
+
+  /** A care activity: repeatable, in any order, never at `new`. Only the first
+   *  one on a deal standing at `assigned` moves it — to `engaged`, with the
+   *  activity's own moment as the column's clock. Anywhere else it is a
+   *  timeline row and nothing more. */
+  private async activity(
+    tx: Db,
+    deal: DealAt,
+    from: StageKey,
+    kind: CareActivityKind,
+    by: By,
+    step: Step,
   ): Promise<OpportunityRowDb> {
     const code = deal.row.code
-    const to = MILESTONE_STAGE[kind]
-    const from = this.onBoard(deal, 'ghi mốc')
-    if (RANK[from] < RANK.assigned) {
-      throw conflict(
-        `Cơ hội ${code} chưa được nhận PIC nên chưa ghi mốc được — chờ trưởng phòng bấm Nhận PIC trước.`,
-      )
-    }
-    if (RANK[from] > RANK[to]) {
-      throw conflict(
-        `Cơ hội ${code} đã ở "${OPPORTUNITY_STAGE_LABEL[from]}" — không ghi lùi về "${OPPORTUNITY_STAGE_LABEL[to]}".`,
-      )
-    }
+    if (from === 'new') throw conflict('Cơ hội chưa được nhận PIC — chưa ghi hoạt động được.')
+    const at = effectiveAt(step, await this.acceptedAt(tx, deal.row), 'ngày nhận PIC')
 
-    const note = NOTE.milestone(kind, opts.note)
-    if (from === to) {
-      await this.record(tx, code, MILESTONE_TOUCH[kind], by, note, opts.at)
+    const touchKind = MILESTONE_TOUCH[kind]
+    if (from !== 'assigned') {
+      await this.record(tx, code, touchKind, by, step.note, at)
       return deal.row
     }
 
     const [written] = await tx
       .update(opportunity)
-      .set({ stage: to, stageSince: opts.at })
+      .set({ stage: 'engaged', stageSince: at })
       .where(
         and(
           eq(opportunity.code, code),
           eq(opportunity.state, 'open'),
-          inArray(opportunity.stage, StageKey.options.filter(between(RANK.assigned, RANK[to]))),
+          eq(opportunity.stage, 'assigned'),
         ),
       )
       .returning()
     if (!written) throw raced(code)
 
-    await this.after(tx, deal, written, by, {
-      at: opts.at,
-      from,
-      kind: MILESTONE_TOUCH[kind],
-      note,
-    })
+    await this.after(tx, deal, written, by, { at, from, kind: touchKind, note: step.note })
     return written
+  }
+
+  /** A quotation: forward-only into `quotation`, skipping `engaged` when none
+   *  was recorded. Re-recording it while standing there is another round —
+   *  the timeline row only, so the rot clock is not pushed back. Its moment
+   *  may not precede the entry into the column it leaves. */
+  private async quotation(
+    tx: Db,
+    deal: DealAt,
+    from: StageKey,
+    by: By,
+    step: Step,
+  ): Promise<OpportunityRowDb> {
+    const code = deal.row.code
+    if (RANK[from] < RANK.assigned) {
+      throw conflict(
+        `Cơ hội ${code} chưa được nhận PIC nên chưa ghi hoạt động hay báo giá được — chờ trưởng phòng bấm Nhận PIC trước.`,
+      )
+    }
+    const at = effectiveAt(step, deal.row.stageSince ?? deal.row.createdAt, 'ngày vào cột hiện tại')
+
+    if (from === 'quotation') {
+      await this.record(tx, code, MILESTONE_TOUCH.quotation, by, step.note, at)
+      return deal.row
+    }
+
+    const [written] = await tx
+      .update(opportunity)
+      .set({ stage: 'quotation', stageSince: at })
+      .where(
+        and(
+          eq(opportunity.code, code),
+          eq(opportunity.state, 'open'),
+          inArray(
+            opportunity.stage,
+            StageKey.options.filter(between(RANK.assigned, RANK.quotation)),
+          ),
+        ),
+      )
+      .returning()
+    if (!written) throw raced(code)
+
+    const kind = MILESTONE_TOUCH.quotation
+    await this.after(tx, deal, written, by, { at, from, kind, note: step.note })
+    return written
+  }
+
+  /** The floor of an activity's date: the accept. A deal accepted before ADR
+   *  0071 has no acceptor on the row, so its first entry into `assigned`
+   *  stands in, and a deal with neither falls back to its creation. */
+  private async acceptedAt(tx: Db, row: OpportunityRowDb): Promise<Date> {
+    if (row.acceptedAt) return row.acceptedAt
+    const [entered] = await tx
+      .select({ at: opportunityStageEvent.at })
+      .from(opportunityStageEvent)
+      .where(
+        and(
+          eq(opportunityStageEvent.opportunityCode, row.code),
+          eq(opportunityStageEvent.toStage, 'assigned'),
+        ),
+      )
+      .orderBy(asc(opportunityStageEvent.at))
+      .limit(1)
+    return entered?.at ?? row.createdAt
   }
 
   /** Stopped for good — `POST /:code/stop` (ADR 0069 §1). The deal leaves the
@@ -217,7 +272,7 @@ export class OpportunityLifecycle {
    *  quotation. Keyed by `config_entry.id`, the same real key `PRODUCT` uses.
    *
    *  `other` is the one key with no row: it is a VIRTUAL value the seed
-   *  deliberately leaves out, so five per-stage catch-alls never collide on
+   *  deliberately leaves out, so per-stage catch-alls never collide on
    *  `config_name_live`. Read on the move's own `tx`, so the catalogue judged is
    *  the one the UPDATE two statements later writes against. */
   private async assertReason(tx: Db, reasonKey: string, from: StageKey): Promise<void> {
@@ -311,6 +366,27 @@ export class OpportunityLifecycle {
       },
     ])
   }
+}
+
+/** What a milestone door hands its two paths: the moment asked for, if any. */
+type Step = { asked: Date | undefined; now: Date; note: string }
+
+/** The moment a milestone is stored at. The screen picks a DAY, so the bounds
+ *  are Vietnam days: [the floor's day, today] or a 400 on `at`. Inside them the
+ *  instant is clamped to [floor, now], and a pick of today reads as now — so a
+ *  same-day pick never sorts before the fact that allowed it. */
+function effectiveAt(step: Step, floor: Date, floorName: string): Date {
+  const { asked, now } = step
+  if (asked === undefined) return now
+  const day = VN_DAY.format(asked)
+  if (day > VN_DAY.format(now)) throw invalid({ at: ['Ngày ghi không được ở tương lai.'] })
+  if (day < VN_DAY.format(floor)) {
+    throw invalid({
+      at: [`Ngày ghi không được trước ${floorName} (${VN_DAY_SHOWN.format(floor)}).`],
+    })
+  }
+  if (day === VN_DAY.format(now)) return now
+  return asked < floor ? floor : asked
 }
 
 /** The stages a forward-only move may LEAVE: at `assigned` or past it, and

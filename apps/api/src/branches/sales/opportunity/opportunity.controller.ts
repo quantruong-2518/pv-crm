@@ -81,7 +81,7 @@ export class OpportunityController {
     return this.ops.scorecard()
   }
 
-  /** The same open pipeline the scorecard totals, split across the five
+  /** The same open pipeline the scorecard totals, split across the four
    *  columns — what the overview draws its bar chart from.
    *
    *  Before `@Get(':code')` and NOT `scoped`, both for the reasons already
@@ -233,7 +233,7 @@ export class OpportunityController {
     return this.ops.update(who, code, body)
   }
 
-  /** Record a milestone — `sample-sent`, `poc-run`, `quotation-sent`.
+  /** Record a milestone — a care activity or a quotation (ADR 0072).
    *
    *  ------------------------------------------------------------------
    *  TWO DOORS INSTEAD OF ONE DRAG, AND BOTH ON ONE PERMISSION

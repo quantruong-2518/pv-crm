@@ -132,7 +132,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
           <span className="font-mono">{op.code}</span> · {op.account} —{' '}
           {again
             ? 'một hợp đồng mới bên cạnh hợp đồng đã ký; giá trị cơ hội giữ nguyên.'
-            : 'được duyệt thì đơn rời năm cột và thành hợp đồng.'}
+            : 'được duyệt thì đơn rời bốn cột và thành hợp đồng.'}
         </>
       }
       meta={<Chip>{op.code}</Chip>}

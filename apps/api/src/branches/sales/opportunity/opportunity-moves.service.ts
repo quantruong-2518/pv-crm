@@ -41,25 +41,24 @@ export class OpportunityMoves {
     private readonly mailRuns: MailRunRepository,
   ) {}
 
-  /** `POST /sales/opportunities/:code/milestones` — a real event was recorded,
-   *  and the column follows it. */
+  /** `POST /sales/opportunities/:code/milestones` — a care activity or a
+   *  quotation was recorded, and the column follows where ADR 0072 says so. */
   async milestone(
     who: Actor,
     code: ObjectCode,
     body: OpportunityMilestoneBody,
   ): Promise<OpportunityMilestoneResponse> {
     const found = await this.inScope(who, code)
-    const at = body.at === undefined ? new Date() : new Date(body.at)
 
     const row = await this.deals.run(async (tx) => {
       const fresh = await this.locked(tx, who, code)
       return this.lifecycle.milestone(tx, fresh, body.kind, mover(who), {
-        at,
-        ...(body.note === undefined ? {} : { note: body.note }),
+        at: body.at === undefined ? undefined : new Date(body.at),
+        note: body.note,
       })
     })
 
-    return OpportunityMilestoneResponse.parse(this.answer(found, row, at))
+    return OpportunityMilestoneResponse.parse(this.answer(found, row, new Date()))
   }
 
   /** `POST /sales/opportunities/:code/stop` — the deal is lost, with a reason.

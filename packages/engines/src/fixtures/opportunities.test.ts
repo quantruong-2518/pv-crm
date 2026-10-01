@@ -42,19 +42,18 @@ describe('Sổ cơ hội — 30 dòng suy ra từ sổ lead', () => {
     expect(OPPORTUNITIES.filter((o) => o.stage !== null)).toHaveLength(10)
   })
 
-  it('năm cột mới, hạn dùng lại của cột cũ tương ứng', () => {
+  it('bốn cột; Chăm sóc gộp sample và POC nên giữ hạn 21 ngày của chúng', () => {
     expect(PIPELINE_STAGES.map((s) => [s.key, s.label, s.limitDays])).toEqual([
-      ['new', 'Khởi tạo opp', 2],
-      ['assigned', 'Nhận PIC', 14],
-      ['sample', 'Sample', 21],
-      ['poc', 'POC', 21],
-      ['quotation', 'Quotation', 30],
+      ['new', 'Khởi tạo', 2],
+      ['assigned', 'Đang phân công', 14],
+      ['engaged', 'Chăm sóc', 21],
+      ['quotation', 'Báo giá', 30],
     ])
   })
 
-  it('10 đơn đang mở rải 2 · 2 · 0 · 2 · 4 qua năm cột, và chỉ đơn đang mở mới có cột', () => {
+  it('10 đơn đang mở rải 2 · 2 · 2 · 4 qua bốn cột, và chỉ đơn đang mở mới có cột', () => {
     const at = (k: string) => OPEN_DEALS.filter((d) => d.stage === k).length
-    expect(PIPELINE_STAGES.map((s) => at(s.key))).toEqual([2, 2, 0, 2, 4])
+    expect(PIPELINE_STAGES.map((s) => at(s.key))).toEqual([2, 2, 2, 4])
     for (const op of OPPORTUNITIES) expect(op.stage !== null, op.code).toBe(op.state === 'open')
   })
 
