@@ -258,8 +258,7 @@ export function DealToolsBar({
   onCompose,
 }: {
   draft: DealDraft
-  /** `null` on the create door — nothing is signed and nothing is dirty yet. */
-  op: OpportunityProfileResponse | null
+  op: OpportunityProfileResponse
   onSign: () => void
   /** Has a `quotation-sent` touch been recorded? The first sign 409s without
    *  one (ADR 0064 §3), so the button says so BEFORE the press rather than after. */
@@ -268,20 +267,18 @@ export function DealToolsBar({
   canSendEmail?: boolean
   /** Why this deal cannot be written to, when it cannot. */
   composeBlocked?: string
-  /** Absent on the create door: there is no deal to write about yet. */
   onCompose?: () => void
 }) {
-  const creating = draft.mode === 'create'
   const blocking = Boolean(draft.error) || draft.missing.length > 0
 
   /* Open signs for the first time, won signs again (ADR 0069 §5), lost never:
      the door refuses it and there is no way back from a stop. */
-  const won = op?.state === 'won'
-  const pending = op?.pendingSign
+  const won = op.state === 'won'
+  const pending = op.pendingSign
   const sign = useSignWhy(op, quotationLogged, draft.canClose && !pending)
   /* The bar prints the sign reason only when nothing outranks it; when that
      reason is the missing seller, the moves row drops its own copy of it. */
-  const quiet = !draft.error && draft.missing.length === 0 && !creating && draft.dirty.length === 0
+  const quiet = !draft.error && draft.missing.length === 0 && draft.dirty.length === 0
   const sellerOnBar = quiet && sign.shown !== undefined && sign.shown === sign.noSeller
 
   return (
@@ -294,9 +291,8 @@ export function DealToolsBar({
         aria-label="Thanh công cụ"
       >
         {/* WHERE THE DEAL STANDS, on its own line above the actions: the row
-            below is already full of buttons. Absent on the create door — a deal
-            that does not exist yet stands nowhere. */}
-        {op && <DealMoves op={op} canEdit={draft.canEdit} sellerOnBar={sellerOnBar} />}
+            below is already full of buttons. */}
+        <DealMoves op={op} canEdit={draft.canEdit} sellerOnBar={sellerOnBar} />
 
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
@@ -314,17 +310,15 @@ export function DealToolsBar({
               ? userMessage(draft.error)
               : draft.missing.length > 0
                 ? `Còn thiếu ${draft.missing.join(' · ')}`
-                : creating
-                  ? 'Phiếu đã đủ — bấm Tạo cơ hội để ghi vào sổ.'
-                  : draft.dirty.length > 0
-                    ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-                    : (sign.shown ?? 'Phiếu đã khớp với bản trên máy chủ.')}
+                : draft.dirty.length > 0
+                  ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
+                  : (sign.shown ?? 'Phiếu đã khớp với bản trên máy chủ.')}
           </span>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           {/* Plain pills, not links: the contract routes are parked. */}
-          {op?.contractCodes.map((contract) => (
+          {op.contractCodes.map((contract) => (
             <MetaPill key={contract} icon={Handshake} tone="success" mono>
               {contract}
             </MetaPill>
@@ -373,7 +367,7 @@ export function DealToolsBar({
           {/* Shut until a quotation has been sent, reason on the title: the door
               answers 409 otherwise, and a seller who filled in the whole panel
               first deserves to have been told before pressing. */}
-          {!creating && op?.state === 'open' && draft.canClose && (
+          {op.state === 'open' && draft.canClose && (
             <Button
               size="md"
               variant="success"
@@ -410,7 +404,7 @@ export function DealToolsBar({
               onClick={draft.submit}
             >
               <Icon icon={Check} size={16} />
-              {draft.busy ? 'Đang lưu…' : creating ? 'Tạo cơ hội' : 'Lưu phiếu'}
+              {draft.busy ? 'Đang lưu…' : 'Lưu phiếu'}
             </Button>
           )}
 
@@ -430,17 +424,17 @@ export function DealToolsBar({
  *  row (ADR 0071 §4): a seller (`isSellerRole`) must stand on the SALE lane,
  *  and a first sign needs a quotation. `shown` is the one the bar prints. No
  *  seller reason while the roles are still loading — never a guess. */
-function useSignWhy(op: OpportunityRow | null, quotationLogged: boolean, offered: boolean) {
+function useSignWhy(op: OpportunityRow, quotationLogged: boolean, offered: boolean) {
   const seller = useHasSeller(op)
   const canAssign = useCan('opportunity.assign')
-  const noSeller = noSellerSentence(op?.state === 'won', canAssign)
+  const noSeller = noSellerSentence(op.state === 'won', canAssign)
   const again = seller === false ? noSeller : undefined
   const first = again ?? (quotationLogged ? undefined : NO_QUOTATION)
   const shown = !offered
     ? undefined
-    : op?.state === 'open'
+    : op.state === 'open'
       ? first
-      : op?.state === 'won'
+      : op.state === 'won'
         ? again
         : undefined
   return { first, again, shown, noSeller }

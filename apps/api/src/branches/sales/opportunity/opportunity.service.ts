@@ -45,6 +45,7 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
+import { foreignLead, holds, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorRoles,
   assertHeld,
@@ -119,6 +120,7 @@ export class OpportunityService {
     @Inject(ENV) private readonly env: Env,
     /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
     private readonly leadStates: LeadStateWriter,
+    private readonly opening: OpportunityOpening,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -326,7 +328,7 @@ export class OpportunityService {
     const code = await this.repo.nextCode()
 
     const row = await this.repo.run(async (tx) => {
-      await this.assertLeadsLive(tx, who, [body.leadCode])
+      const accounts = await this.assertLeadsLive(tx, who, [body.leadCode])
       const ref = refOf(code, write, { label: write.values.name, owner })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
@@ -335,9 +337,14 @@ export class OpportunityService {
          made themselves. Both mirror rows are in place: the lead's is
          guaranteed by `lead.code`'s foreign key, the deal's by the line above. */
       await this.mirror.link(tx, { from: body.leadCode, to: code, kind: 'spawned' })
-      const written = await this.repo.insertOpportunity(tx, { ...write.values, code })
+      const written = await this.repo.insertOpportunity(tx, {
+        ...write.values,
+        code,
+        accountCode: accounts.get(body.leadCode) ?? null,
+      })
       await this.repo.insertOwners(tx, ownerRowsOf(code, write))
       await this.repo.insertProducts(tx, productRowsOf(code, write))
+      await this.opening.writeContacts(tx, who, code, body.leadCode, body.contacts)
 
       /* THE FIRST HISTORY ROW — `from: null`, i.e. the deal entering the board.
          Written at the create door rather than waiting for the first column
@@ -639,7 +646,9 @@ export class OpportunityService {
     })
 
     const batch = await this.repo.run(async (tx) => {
-      await this.assertLeadsLive(tx, who, [...new Set(ready.map((p) => p.row.leadCode))])
+      const accounts = await this.assertLeadsLive(tx, who, [
+        ...new Set(ready.map((p) => p.row.leadCode)),
+      ])
       /* Cắt khúc, và vẫn nguyên tử — mọi câu dưới đây chạy trong đúng
          transaction này. Cắt khúc là chuyện trần 65.535 tham số ràng buộc của
          Postgres, không phải chuyện bền vững.
@@ -666,7 +675,7 @@ export class OpportunityService {
         )
         await this.repo.insertMany(
           tx,
-          slice.map((p) => p.row),
+          slice.map((p) => ({ ...p.row, accountCode: accounts.get(p.row.leadCode) ?? null })),
         )
         await this.repo.insertOwners(
           tx,
@@ -812,13 +821,19 @@ export class OpportunityService {
 
   /** Lock the leads a deal write lands on (`lockLeads`), so an exit or a
    *  hand-over racing it waits, then re-check scope and liveness on the locked
-   *  rows — the pre-reads ran outside the tx. */
-  private async assertLeadsLive(tx: Db, who: Actor, leadCodes: readonly string[]): Promise<void> {
+   *  rows — the pre-reads ran outside the tx. Returns each lead's company, read
+   *  under that lock: the deal copies it, a body never names one. */
+  private async assertLeadsLive(
+    tx: Db,
+    who: Actor,
+    leadCodes: readonly string[],
+  ): Promise<ReadonlyMap<string, string | null>> {
     const rows = await this.repo.lockLeads(tx, leadCodes)
     const foreign = rows.find((r) => !holds(who, r.ownerId))
     if (foreign) throw foreignLead(foreign.code)
     if (rows.some((r) => r.exited))
       throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
+    return new Map(rows.map((r) => [r.code, r.accountCode]))
   }
 
   /** A signed deal's edit carries its commission holder onto each contract, in
@@ -987,13 +1002,6 @@ function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): Touch
     },
   ]
 }
-
-/** Lead scope by id, the lead doors' rule (`LeadExitService.lockRow`): an
- *  `ownOnly` caller converts only a lead they hold — never a pool lead. */
-const holds = (who: Actor, ownerId: string | null): boolean => !who.ownOnly || ownerId === who.id
-
-const foreignLead = (code: string) =>
-  denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
 
 const frozenLost = (code: string) =>
   conflict(`Cơ hội ${code} đã dừng — không sửa được nữa. Muốn chăm lại thì đi từ lead.`)

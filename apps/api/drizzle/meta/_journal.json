@@ -512,6 +512,13 @@
       "when": 1788504400000,
       "tag": "0073_opportunity_four_stages",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1788504500000,
+      "tag": "0074_opportunity_contact",
+      "breakpoints": true
     }
   ]
 }

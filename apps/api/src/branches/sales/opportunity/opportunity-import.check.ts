@@ -12,6 +12,11 @@ import {
 } from '@pv/contracts'
 import { LEAD_GONE_WORDS } from '../lead/lead-state'
 import { NO_OWNER, NOT_SELLER } from './opportunity-owners'
+import type { OpportunityDraft } from './opportunity.mapper'
+
+/** The typed door's schema without its contacts: a spreadsheet row has no such
+ *  column, so the import writes a deal and no contact rows. Derived, not forked. */
+const ImportDraft = OpportunityCreate.omit({ contacts: true })
 
 /** Bộ kiểm của lô nạp cơ hội — THUẦN. Không DB, không promise, không clock.
  *
@@ -35,7 +40,7 @@ import { NO_OWNER, NOT_SELLER } from './opportunity-owners'
  *  ZOD LÀ HÀNG RÀO CUỐI, KHÔNG PHẢI HÀNG RÀO ĐẦU
  *  ------------------------------------------------------------------
  *  Mỗi ô được soi bằng tay trước để câu lỗi gọi được tên cột tiếng Việt, rồi
- *  bản nháp hoàn chỉnh mới đi qua `OpportunityCreate.safeParse`. Vòng thứ hai
+ *  bản nháp hoàn chỉnh mới đi qua `ImportDraft.safeParse`. Vòng thứ hai
  *  không thừa: nó là thứ ĐẢM BẢO một dòng nạp từ tệp không tạo ra được thứ gì
  *  mà cửa `POST /sales/opportunities` sẽ từ chối. Hai đường vào một bảng phải
  *  chấp nhận đúng một tập giá trị, và cách rẻ nhất để không lệch là để cả hai
@@ -68,7 +73,7 @@ export type ImportCheckInput = {
 export type ImportCheck = {
   report: OpportunityImportReport
   /** Thân request đã dựng xong, thứ tự khớp `report.rows`. */
-  writes: OpportunityCreate[]
+  writes: OpportunityDraft[]
 }
 
 /** Nhãn tiếng Việt của từng cột, cho câu lỗi.
@@ -114,7 +119,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   }
 
   const rows: OpportunityImportRowOut[] = []
-  const writes: OpportunityCreate[] = []
+  const writes: OpportunityDraft[] = []
   const errors: OpportunityImportError[] = []
   const dupWithBook: OpportunityImportDup[] = []
   const dupWithinFile: OpportunityImportDup[] = []
@@ -164,7 +169,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
 
 type RowFail = { field?: OpportunityImportField; reason: string }
 type RowPass = {
-  write: OpportunityCreate
+  write: OpportunityDraft
   values: Partial<Record<OpportunityImportField, string>>
 }
 
@@ -285,7 +290,7 @@ function checkRow(
   keep('description', description)
 
   // ── hàng rào cuối: chính schema của cửa gõ tay ───────────────────────────
-  const parsed = OpportunityCreate.safeParse({
+  const parsed = ImportDraft.safeParse({
     leadCode,
     name,
     expectedClose,

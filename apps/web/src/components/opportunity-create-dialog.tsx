@@ -81,7 +81,7 @@ function LeadPicker({
          other with no animation in between, so a narrower step one would read
          as the panel jerking wider rather than as one form moving on. */
       width="lg"
-      title="Tạo cơ hội"
+      title="Mở cơ hội"
       subtitle="Một cơ hội mọc ra từ một lead. Chọn lead trước — phiếu điền mở ngay sau, đã mồi sẵn tên, tiền và người bán của khách đó."
       footer={
         <div className="flex justify-end">
@@ -123,7 +123,7 @@ function ConvertStep({
       open={open}
       onClose={onClose}
       width="lg"
-      title="Đổi lead thành cơ hội"
+      title="Mở cơ hội"
       subtitle={
         <>
           <span className="font-mono">{lead.code}</span> · {lead.company}

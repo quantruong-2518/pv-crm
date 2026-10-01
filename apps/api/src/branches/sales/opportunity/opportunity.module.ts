@@ -17,6 +17,8 @@ import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunityMailSentHook } from './opportunity-mail-sent.hook'
 import { OpportunityMoves } from './opportunity-moves.service'
+import { OpportunityOpenRepository } from './opportunity-open.repository'
+import { OpportunityOpening } from './opportunity-opening.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityRepository } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
@@ -92,6 +94,8 @@ import { OpportunityService } from './opportunity.service'
     OpportunityMoves,
     OpportunityAccept,
     OpportunityAssign,
+    OpportunityOpening,
+    OpportunityOpenRepository,
     OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không

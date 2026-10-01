@@ -16,10 +16,9 @@ import { directoryQuery } from '@/data/directory'
 
 /** Does a seller (`isSellerRole`) stand on the SALE lane? `null` while the
  *  directory that knows the roles is still loading — no warning, no label and
- *  no sign reason may be drawn off a guess. The create door (`op === null`) passes. */
-export function useHasSeller(op: Pick<OpportunityRow, 'owners'> | null): boolean | null {
+ *  no sign reason may be drawn off a guess. */
+export function useHasSeller(op: Pick<OpportunityRow, 'owners'>): boolean | null {
   const { data: staff } = useQuery(directoryQuery)
-  if (op === null) return true
   const lane = op.owners.filter((o) => o.role === 'SALE')
   if (lane.length === 0) return false
   if (!staff) return null

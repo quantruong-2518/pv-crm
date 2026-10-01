@@ -94,6 +94,10 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
   return Math.max(0, Math.floor((now.getTime() - row.stageSince.getTime()) / 86_400_000))
 }
 
+/** The create body minus the people it names: what the deal ROW is built from.
+ *  The import door has no contacts column, so it produces exactly this. */
+export type OpportunityDraft = Omit<OpportunityCreate, 'contacts'>
+
 /** `POST /sales/opportunities` body → columns. No re-normalising: the
  *  contract already did it, and a second convention here would drift.
  *
@@ -102,7 +106,7 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
  *  service decides who that is; this only writes the pair the CHECK demands
  *  together. `state` is always `open`: the create door cannot open a stopped deal. */
 export function fromCreate(
-  body: OpportunityCreate,
+  body: OpportunityDraft,
   now: Date,
   workstreamCode: string | null,
   acceptedById: string | null,
@@ -120,7 +124,6 @@ export function fromCreate(
       name: body.name,
       /* The lead's run, read by the caller; a lead predating runs stays null. */
       workstreamCode,
-      ...(body.accountCode === undefined ? {} : { accountCode: body.accountCode }),
       amount: body.amount,
       currency: body.currency,
       expectedClose: body.expectedClose,

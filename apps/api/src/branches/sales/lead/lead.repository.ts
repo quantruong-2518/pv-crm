@@ -37,6 +37,7 @@ import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
 import { lead } from './lead.schema'
+import { leadScope } from './lead-scope'
 import type {
   LeadMailEventRead,
   LeadMailTimelineRead,
@@ -369,7 +370,7 @@ export class LeadRepository {
    *  `undefined` means the axis is not cutting anything, which is what Drizzle
    *  reads as "no condition" inside `and(...)`. */
   private scopeOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean): SQL | undefined {
-    return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+    return leadScope(who, scoped)
   }
 
   /** The one-lead READ axis: the holder, or someone standing on a live deal of

@@ -519,7 +519,7 @@ export function OpportunitiesPage() {
                   ra từ một lead, chỉ khác chỗ đứng để bắt đầu. */}
                   <Button size="md" onClick={() => setCreating(true)} className="max-sm:flex-1">
                     <Icon icon={Plus} size={16} />
-                    Tạo cơ hội
+                    Mở cơ hội
                   </Button>
                 </>
               )}

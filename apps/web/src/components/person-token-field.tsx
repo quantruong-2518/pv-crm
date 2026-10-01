@@ -30,6 +30,9 @@ export type TokenPerson = {
   note?: string
   /** A word riding inside the token itself — which one chairs. */
   tag?: string
+  /** Draws no remove button: the person cannot leave this list right now, and
+   *  a button that only ever refuses is worse than none. */
+  locked?: boolean
 }
 
 export type PersonTokenFieldProps = {
@@ -168,7 +171,7 @@ export function PersonTokenField({
       {variant === 'inline' ? (
         <div
           ref={shell}
-          className="bg-input flex min-h-10 w-full min-w-0 flex-wrap items-center gap-2 rounded-md px-2 py-1"
+          className="bg-input pointer-coarse:min-h-12 flex min-h-10 w-full min-w-0 flex-wrap items-center gap-2 rounded-md px-2 py-1"
         >
           {tokens.length > 0 && (
             <ul className="m-0 flex list-none flex-wrap items-center gap-2 p-0">{chosen}</ul>
@@ -226,21 +229,24 @@ function Token({ person, onRemove }: { person: TokenPerson; onRemove: () => void
       <Avatar size="sm" name={person.name} />
       <span className="truncate text-[12px] font-medium">{person.name}</span>
       {person.tag && (
-        /* `--on-tint-primary`, not `--accent-foreground`: the ground is already
-           tinted, and azure text on it measures 4.49:1 in stone mode — under
-           the 4.5 floor of law 13. */
-        <span className="text-on-tint-primary bg-primary/24 shrink-0 rounded-sm px-2 py-1 text-[10.5px] font-medium">
+        /* Plain muted text, no tint: azure on the chip's `ink/9` ground
+           measured 4.17:1 in stone mode, under the 4.5 floor of law 13. */
+        <span className="text-muted-foreground shrink-0 text-[10.5px] font-medium">
           {person.tag}
         </span>
       )}
-      <button
-        type="button"
-        aria-label={`Bỏ ${person.name}`}
-        onClick={onRemove}
-        className="motion-std hover:bg-surface-ink/16 pointer-coarse:size-12 flex size-8 shrink-0 items-center justify-center rounded-md"
-      >
-        <Icon icon={X} size={14} />
-      </button>
+      {person.locked ? (
+        <span aria-hidden className="size-2 shrink-0" />
+      ) : (
+        <button
+          type="button"
+          aria-label={`Bỏ ${person.name}`}
+          onClick={onRemove}
+          className="motion-std hover:bg-surface-ink/16 pointer-coarse:size-12 flex size-8 shrink-0 items-center justify-center rounded-md"
+        >
+          <Icon icon={X} size={14} />
+        </button>
+      )}
     </li>
   )
 }

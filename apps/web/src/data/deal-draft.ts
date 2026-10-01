@@ -1,20 +1,10 @@
 import { useMemo, useState } from 'react'
-import type {
-  ObjectCode,
-  OpportunityCreateResponse,
-  OpportunityProfileResponse,
-} from '@pv/contracts'
+import type { OpportunityProfileResponse } from '@pv/contracts'
 import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { ApiError, FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { missingOf } from '@/data/opportunities'
-import {
-  createBodyOf,
-  draftErrorsOf,
-  updateBodyOf,
-  usePromoteLead,
-  useSaveOpportunity,
-} from '@/data/opportunities-write'
+import { draftErrorsOf, updateBodyOf, useSaveOpportunity } from '@/data/opportunities-write'
 
 /** Module 3 · the deal form's draft — ONE hook behind both write doors.
  *
@@ -83,8 +73,6 @@ function rebase(
 }
 
 export type DealDraft = {
-  /** `edit` once the deal exists — which is also what decides the write door. */
-  mode: 'create' | 'edit'
   work: OpportunityDraft
   set: SetDraft
   /** Amount and the sale owners, locked while a signature is in play. */
@@ -117,26 +105,18 @@ export const SALE_BY_ASSIGN =
   'Đã nhận PIC — chỉ trưởng phòng Kinh doanh đổi được Sale, qua nút Giao Sale.'
 
 export type UseDealDraftArgs = {
-  /** The server's copy of the form. On the create door, the seeded blank. */
+  /** The server's copy of the form. */
   saved: OpportunityDraft
-  /** The stored row, or `null` while the deal is still being typed. */
-  op: OpportunityProfileResponse | null
-  /** Which lead the new deal comes out of. Unread once `op` is set. */
-  leadCode: ObjectCode | null
-  onCreated?: (row: OpportunityCreateResponse) => void
+  /** The stored row. A deal is opened in the drawer of
+   *  `components/convert-dialog.tsx`, which also carries its contacts. */
+  op: OpportunityProfileResponse
 }
 
-export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArgs): DealDraft {
-  /* The create door asks its own permission (ADR 0071 §1); both hooks run on
-     every render because a hook cannot sit behind a branch. */
-  const mayCreate = useCan('opportunity.create')
+export function useDealDraft({ saved, op }: UseDealDraftArgs): DealDraft {
   const mayEdit = useCan('opportunity.edit')
-  const canEdit = (op === null ? mayCreate : mayEdit) && op?.state !== 'lost'
+  const canEdit = mayEdit && op.state !== 'lost'
   const canClose = useCan('opportunity.close')
-  /* Both doors opened up front — a hook cannot sit behind a branch, and a
-     mutation nobody fires costs nothing. */
-  const save = useSaveOpportunity(op?.code ?? '')
-  const promote = usePromoteLead()
+  const save = useSaveOpportunity(op.code)
 
   const [work, setWork] = useState<OpportunityDraft>(saved)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -163,38 +143,29 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     })
   }
 
-  const signed = op?.state === 'won'
-  const waiting = Boolean(op?.pendingSign)
+  const signed = op.state === 'won'
+  const waiting = Boolean(op.pendingSign)
   const moneyLocked = waiting || (signed && !canClose)
   /* Past `new` the PATCH refuses any SALE change, for everyone (ADR 0071), so
      the box shuts before anyone types into it. */
-  const accepted = op !== null && (Boolean(op.acceptedBy) || op.stage !== 'new')
+  const accepted = Boolean(op.acceptedBy) || op.stage !== 'new'
   const moneyHint = waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null
 
   const dirty = useMemo(() => changedFields(saved, work), [saved, work])
   const missing = missingOf(work)
-  const busy = save.isPending || promote.isPending
-  const error = save.error ?? promote.error
+  const busy = save.isPending
+  const error = save.error
 
   const submit = () => {
     /* The server names the box it refused and `draftErrorsOf` turns its
        spelling into the form's. An EMPTY map is a complaint about no one box,
        not the absence of a complaint — the sticky bar carries those. */
-    const onError = (failure: ApiError) => setErrors(draftErrorsOf(failure.errors))
-
-    if (op !== null) {
-      save.mutate(updateBodyOf(work), { onError })
-      return
-    }
-    if (leadCode === null) return
-    promote.mutate(createBodyOf(leadCode, work), {
-      onSuccess: (row) => onCreated?.(row),
-      onError,
+    save.mutate(updateBodyOf(work), {
+      onError: (failure: ApiError) => setErrors(draftErrorsOf(failure.errors)),
     })
   }
 
   return {
-    mode: op === null ? 'create' : 'edit',
     work,
     set,
     moneyLocked,
@@ -206,7 +177,7 @@ export function useDealDraft({ saved, op, leadCode, onCreated }: UseDealDraftArg
     missing,
     canEdit,
     canClose,
-    canSubmit: canEdit && missing.length === 0 && !busy && (op === null || dirty.length > 0),
+    canSubmit: canEdit && missing.length === 0 && !busy && dirty.length > 0,
     busy,
     error,
     reset: () => {

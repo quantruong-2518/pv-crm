@@ -127,7 +127,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
      its reference between renders — react-query hands back the same `op`, so
      the draft must not re-seed over a box being typed into. */
   const saved = useMemo(() => draftOf(op), [op])
-  const draft = useDealDraft({ saved, op, leadCode: op.leadCode })
+  const draft = useDealDraft({ saved, op })
 
   /* Read as the FACT the sign door checks (`quotation-sent`), not off `stage`:
      the door refuses on the touch, not on the column. Also the round count. */

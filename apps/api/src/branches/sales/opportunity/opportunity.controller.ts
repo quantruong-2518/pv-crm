@@ -9,6 +9,7 @@ import {
   OpportunityImportBody,
   OpportunityLiveDealQuery,
   OpportunityMilestoneBody,
+  OpportunityOpenContextQuery,
   OpportunitySaleOwnersBody,
   OpportunityStopBody,
   OpportunityUpdate,
@@ -19,6 +20,7 @@ import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityAssign } from './opportunity-assign.service'
 import { OpportunityMoves } from './opportunity-moves.service'
+import { OpportunityOpening } from './opportunity-opening.service'
 import { OpportunitySign } from './opportunity-sign.service'
 import { OpportunityService } from './opportunity.service'
 
@@ -56,6 +58,7 @@ export class OpportunityController {
     private readonly signs: OpportunitySign,
     private readonly accepts: OpportunityAccept,
     private readonly assigns: OpportunityAssign,
+    private readonly opening: OpportunityOpening,
   ) {}
 
   @Get()
@@ -103,6 +106,18 @@ export class OpportunityController {
     @Query(zod(OpportunityLiveDealQuery)) q: OpportunityLiveDealQuery,
   ) {
     return this.ops.liveDeal(who, q.leadCode)
+  }
+
+  /** What the open-a-deal drawer shows before the first keystroke. Its own
+   *  permission, the one of the door it serves (`opportunity.create`, ADR 0004).
+   *  Before `@Get(':code')` for the reason `scorecard` states above. */
+  @Get('open-context')
+  @Need({ branch: 'Sales', permission: 'opportunity.create', scoped: true })
+  openContext(
+    @CurrentActor() who: Actor,
+    @Query(zod(OpportunityOpenContextQuery)) q: OpportunityOpenContextQuery,
+  ) {
+    return this.opening.context(who, q.leadCode)
   }
 
   /** Hồ sơ một đơn.

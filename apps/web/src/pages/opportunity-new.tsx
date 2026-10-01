@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Inbox, Lock, TriangleAlert } from '@pv/ui'
@@ -13,24 +13,20 @@ import {
   Skeleton,
 } from '@pv/ui'
 import { campaignLabel, type LeadProfile } from '@pv/contracts'
-import { draftOpportunity } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
-import { useCan, useSession } from '@/app/auth'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { useDirectory } from '@/data/directory'
-import { leadProfileQuery, profileForm } from '@/data/lead-profile'
+import { leadProfileQuery } from '@/data/lead-profile'
 import { railOf } from '@/data/opportunities'
-import { useDealDraft } from '@/data/deal-draft'
-import { withCreatorOwners } from '@/data/opportunities-write'
+import { ConvertDialog } from '@/components/convert-dialog'
 import { LeadPickList } from '@/components/lead-picker'
-import { DealFormCard } from './opportunity-form-card'
-import { DealToolsBar, EmptyOp } from './opportunity-parts'
+import { EmptyOp } from './opportunity-parts'
 
 /** Module 3 · one deal typed by hand — `/sales/opportunities/new`.
  *
- *  A PAGE with the SAME form card the profile uses, exactly as `lead-new.tsx`
- *  shares `LeadForm`: somebody who types a deal and then opens it finds every
- *  box where they left it.
+ *  A PAGE whose form is the opening drawer (`components/convert-dialog.tsx`):
+ *  a deal now carries its contacts from birth, and one door asking for them is
+ *  better than two that drift.
  *
  *  WHICH LEAD COMES FIRST, always. `POST /sales/opportunities` requires a
  *  `leadCode`, and the lead profile is what seeds the form — reached without
@@ -73,7 +69,7 @@ export function OpportunityNewPage() {
         <ScreenHeader
           back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
           kicker="Cơ hội"
-          title="Cơ hội mới"
+          title="Mở cơ hội"
         />
         <GlassCard variant="b" className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6">
           <SectionTitle
@@ -146,34 +142,19 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
   return <NewDealScreen lead={lead} />
 }
 
+/** The header stays as the page's own face (law 10 keeps its rail); the form
+ *  is the drawer every other door uses, open from the first paint. Closing it
+ *  leaves the page, since a page with no form has nothing left to show. */
 function NewDealScreen({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
-  const staff = useDirectory()
-  const me = useSession((s) => s.actor)
-
-  /* Through `useMemo` so the seed keeps its reference: react-query hands back
-     the same profile between renders, so the draft must not re-seed over a box
-     already being typed into. */
-  const form = useMemo(() => profileForm(lead), [lead])
-  const seed = useMemo(
-    () => withCreatorOwners(draftOpportunity(form, staff), me, lead),
-    [form, staff, me, lead],
-  )
-
-  const draft = useDealDraft({
-    saved: seed,
-    op: null,
-    leadCode: lead.code,
-    onCreated: (row) => navigate(`/sales/opportunities/${row.code}`),
-  })
 
   return (
     <ScreenLayout>
       <ScreenHeader
         back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
         kicker="Cơ hội"
-        title="Cơ hội mới"
-        description="Phiếu này tạo một dòng mới trong sổ cơ hội và nối nó vào đúng lead đang chọn. Mã do máy chủ cấp lúc lưu."
+        title="Mở cơ hội"
+        description="Cơ hội mới mọc ra từ lead đang chọn. Mã do máy chủ cấp lúc tạo."
         meta={
           <>
             {/* Law 10 — the chain of the LEAD this deal will join, in the SAME
@@ -186,9 +167,12 @@ function NewDealScreen({ lead }: { lead: LeadProfile }) {
         }
       />
 
-      <DealFormCard draft={draft} />
-
-      <DealToolsBar draft={draft} op={null} onSign={() => undefined} />
+      <ConvertDialog
+        profile={lead}
+        open
+        onClose={() => navigate('/sales/opportunities')}
+        onCreated={(row) => navigate(`/sales/opportunities/${row.code}`)}
+      />
     </ScreenLayout>
   )
 }

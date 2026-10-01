@@ -1,8 +1,13 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Paperclip, Plus, Trash2, Upload, X } from '@pv/ui'
-import { Button, Icon, Input, billions, cn } from '@pv/ui'
+import { Button, Icon, Input, Select, billions, cn } from '@pv/ui'
 import { isSellerRole, OPPORTUNITY_FILES_MAX } from '@pv/contracts'
-import { CURRENCIES, toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
+import {
+  CURRENCIES,
+  toMoneyVnd,
+  type CurrencyCode,
+  type OpportunityDraft,
+} from '@pv/engines/fixtures/das-vina'
 import type { SetDraft } from '@/data/deal-draft'
 import { useSalesPeople } from '@/data/directory'
 import { useProductCatalog } from '@/data/sales-config'
@@ -27,20 +32,26 @@ const AMOUNT_MAX = Number.MAX_SAFE_INTEGER
 
 /** The deal's amount — ONE box, with a suffix naming its own currency.
  *
- *  Only the convert panel stands a currency picker beside it, because that is
- *  the one door where a currency is chosen. So the suffix carries the answer
- *  everywhere else, and it reads `CURRENCIES` rather than printing "VND": a
- *  box that says VND over a dollar figure is the most expensive lie this
- *  screen could tell. */
+ *  Only the opening drawer passes `onCurrency`, because that is the one door
+ *  where a currency is chosen: the picker is then JOINED to the box instead of
+ *  standing as a field of its own. Everywhere else the suffix carries the
+ *  answer, and it reads `CURRENCIES` rather than printing "VND": a box that
+ *  says VND over a dollar figure is the most expensive lie this screen could
+ *  tell. */
 export function AmountField({
   draft,
   onSet,
   errors,
   lockNote,
+  tag,
+  onCurrency,
 }: {
   draft: OpportunityDraft
   onSet: SetDraft
   errors?: string[]
+  /** A small mark beside the label — where the seeded figure came from. */
+  tag?: ReactNode
+  onCurrency?: (code: CurrencyCode) => void
   /** Why the box is shut, when it is. A locked box with no reason beside it is
    *  a dead end — money moves the contract once a deal is signed. */
   lockNote?: string | null
@@ -51,8 +62,14 @@ export function AmountField({
 
   return (
     <Field
-      label="Giá trị đơn"
+      label={
+        <>
+          Giá trị đơn
+          {tag}
+        </>
+      }
       required
+      plain={Boolean(onCurrency)}
       errors={errors}
       hint={
         lockNote ??
@@ -66,29 +83,46 @@ export function AmountField({
       {/* `suffix` of `Input` (A-04) rather than a shell built here: the focus
           and invalid rings then come from the same place as every other box on
           this form, instead of a copy that drifts on the next edit. */}
-      <Input
-        inputMode="numeric"
-        aria-label="Giá trị đơn"
-        aria-required
-        disabled={Boolean(lockNote)}
-        invalid={Boolean(errors?.length)}
-        suffix={`${symbol} ${currency}`}
-        className="tnum text-right font-mono"
-        value={amount === null ? '' : amount.toLocaleString('vi-VN')}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, '')
-          if (digits === '') {
-            onSet('amount', null)
-            return
-          }
-          /* REFUSE the keystroke rather than cut the number down to size: a
-             box that silently drops the tail turns one amount into another,
-             plausible-looking one. */
-          const next = Number(digits)
-          if (next > AMOUNT_MAX) return
-          onSet('amount', next)
-        }}
-      />
+      <div className="flex min-w-0 items-stretch">
+        <Input
+          inputMode="numeric"
+          aria-label="Giá trị đơn"
+          aria-required
+          disabled={Boolean(lockNote)}
+          invalid={Boolean(errors?.length)}
+          suffix={onCurrency ? undefined : `${symbol} ${currency}`}
+          className={cn(
+            'tnum text-right font-mono',
+            onCurrency && 'pointer-coarse:h-12 rounded-r-none',
+          )}
+          value={amount === null ? '' : amount.toLocaleString('vi-VN')}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, '')
+            if (digits === '') {
+              onSet('amount', null)
+              return
+            }
+            /* REFUSE the keystroke rather than cut the number down to size: a
+               box that silently drops the tail turns one amount into another,
+               plausible-looking one. */
+            const next = Number(digits)
+            if (next > AMOUNT_MAX) return
+            onSet('amount', next)
+          }}
+        />
+        {onCurrency && (
+          <Select
+            label="Đồng tiền"
+            hideLabel
+            value={currency}
+            neutralValue={currency}
+            valueContent={`${symbol} ${currency}`}
+            onChange={(v) => onCurrency(v as CurrencyCode)}
+            options={CURRENCIES.map((c) => ({ value: c.code, label: c.label }))}
+            className="pointer-coarse:[&>button]:h-12 w-32 shrink-0 [&>button]:rounded-l-none"
+          />
+        )}
+      </div>
     </Field>
   )
 }
@@ -231,7 +265,7 @@ export function ProductTagsField({
                   title={p.active ? undefined : 'Mục này đã tắt — giữ lại vì đơn đang chọn nó'}
                   onClick={() => onToggle(p.id)}
                   className={cn(
-                    'motion-std bg-surface-ink/9 hover:bg-surface-ink/16 flex h-10 items-center rounded-md px-3 text-[12px]',
+                    'motion-std bg-surface-ink/9 hover:bg-surface-ink/16 pointer-coarse:h-12 flex h-10 items-center rounded-md px-3 text-[12px]',
                     p.active ? '' : 'opacity-60',
                   )}
                 >
@@ -258,10 +292,14 @@ export function AttachmentsDropField({
   draft,
   onSet,
   errors,
+  compact = false,
 }: {
   draft: OpportunityDraft
   onSet: SetDraft
   errors?: string[]
+  /** One line, no stretching: for a form that does not set it beside a
+   *  textarea whose bottom edge it has to meet. */
+  compact?: boolean
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
@@ -278,8 +316,8 @@ export function AttachmentsDropField({
   }
 
   return (
-    <Field label="Tệp đính kèm" plain grow errors={errors}>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+    <Field label="Tệp đính kèm" plain grow={!compact} errors={errors}>
+      <div className={cn('flex min-h-0 min-w-0 flex-col gap-2', !compact && 'flex-1')}>
         <div
           onDragOver={(e) => {
             e.preventDefault()
@@ -294,16 +332,22 @@ export function AttachmentsDropField({
           className={cn(
             /* `flex-1` so the zone takes the height the row hands it and its
                bottom edge lines up with the description box beside it. */
-            'motion-std flex min-h-0 w-full min-w-0 flex-1 items-center gap-3 rounded-md p-4',
+            'motion-std flex min-h-0 w-full min-w-0 items-center gap-3 rounded-md',
+            compact ? 'px-3 py-2' : 'flex-1 p-4',
             /* Not a tinted ground on drag: the two lines on it are muted text,
                and azure under them drops below the 4.5:1 floor of law 13. */
             over ? 'bg-surface-ink/16' : 'bg-surface-ink/5',
           )}
         >
           <Icon icon={Upload} size={20} className="text-muted-foreground shrink-0" />
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-[12.5px] font-semibold">Kéo tệp vào đây</span>
-            <span className="text-muted-foreground text-[11px] leading-[1.5]">
+          <span
+            className={cn(
+              'flex min-w-0 flex-1',
+              compact ? 'items-baseline gap-2' : 'flex-col gap-1',
+            )}
+          >
+            <span className="shrink-0 text-[12.5px] font-semibold">Kéo tệp vào đây</span>
+            <span className="text-muted-foreground truncate text-[11px] leading-[1.5]">
               {draft.attachments.length === 0
                 ? `Chưa có tệp nào · tối đa ${OPPORTUNITY_FILES_MAX} tệp`
                 : `${draft.attachments.length} tệp · tối đa ${OPPORTUNITY_FILES_MAX} tệp`}

@@ -720,18 +720,20 @@ export class OpportunityRepository {
    *  UPDATEs the lead to `converted`, and two share-holders upgrading at once
    *  deadlock. The deal's FK takes KEY SHARE, which this mode allows;
    *  `ORDER BY code` keeps batch locks ordered. */
-  async lockLeads(
-    tx: Db,
-    leadCodes: readonly string[],
-  ): Promise<{ code: string; exited: boolean; ownerId: string | null }[]> {
+  async lockLeads(tx: Db, leadCodes: readonly string[]) {
     if (leadCodes.length === 0) return []
     const rows = await tx
-      .select({ code: lead.code, state: lead.state, ownerId: lead.ownerId })
+      .select({
+        code: lead.code,
+        state: lead.state,
+        ownerId: lead.ownerId,
+        accountCode: lead.accountCode,
+      })
       .from(lead)
       .where(inArray(lead.code, [...leadCodes]))
       .orderBy(asc(lead.code))
       .for('no key update')
-    return rows.map((r) => ({ code: r.code, exited: GONE.has(r.state), ownerId: r.ownerId }))
+    return rows.map(({ state, ...r }) => ({ ...r, exited: GONE.has(state) }))
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

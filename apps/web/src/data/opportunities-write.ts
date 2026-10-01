@@ -6,6 +6,7 @@ import {
   type ObjectCode,
   type OpportunityAcceptBody,
   type OpportunityAcceptResponse,
+  type OpportunityContactPick,
   type OpportunityCreate,
   type OpportunityCreateResponse,
   type OpportunityMilestoneBody,
@@ -125,11 +126,17 @@ function dealBody(draft: OpportunityDraft) {
   }
 }
 
-/** Phiếu → thân `POST`. */
-export function createBodyOf(leadCode: ObjectCode, draft: OpportunityDraft): OpportunityCreate {
+/** Draft → `POST` body. `contacts` travel beside the draft, not in it: the
+ *  server wants at least one and exactly one primary, and the 14-cell draft
+ *  has no room for them. */
+export function createBodyOf(
+  leadCode: ObjectCode,
+  draft: OpportunityDraft,
+  contacts: OpportunityContactPick[],
+): OpportunityCreate {
   return {
     leadCode,
-    ...(draft.accountCode === '' ? {} : { accountCode: draft.accountCode }),
+    contacts,
     ...dealBody(draft),
   }
 }
@@ -217,7 +224,7 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
  *  duplicate arrives under — are dropped rather than renamed. They are not
  *  lost: they never had a cell to sit in, so the footer sentence carries them,
  *  and for a 409 that sentence is the server's own. */
-const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
+const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft | 'contacts'> = {
   name: 'name',
   expectedClose: 'closedDate',
   amount: 'amount',
@@ -228,6 +235,7 @@ const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft> = {
   products: 'products',
   description: 'description',
   attachments: 'attachments',
+  contacts: 'contacts',
 }
 
 export function draftErrorsOf(errors: FieldErrors | undefined): FieldErrors {

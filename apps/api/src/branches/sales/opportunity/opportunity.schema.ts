@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   check,
   date,
   foreignKey,
@@ -10,12 +11,14 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type {
   ConfigList,
   CurrencyCode,
+  OpportunityContactRole,
   OpportunityFile,
   OpportunityOwnerRole,
   OpportunityState,
@@ -24,6 +27,7 @@ import type {
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
+import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { sales } from '../sales.schema'
 import { workstream } from '../workstream/workstream.schema'
@@ -491,7 +495,54 @@ export const opportunityOwner = sales.table(
   ],
 )
 
+/** The customer-side people attached to a deal at create.
+ *
+ *  A table, not a `contact_codes text[]` on the deal, for `opportunity_owner`'s
+ *  reasons: the key fences a mistyped code, and "which deals involve this
+ *  person" is an index instead of a scan. No `created_at`: its two sibling
+ *  join tables carry none, and the deal's own `created_at` dates the row.
+ *
+ *  NOT every deal has a row here. Deals opened before this table existed have
+ *  none and stay valid; "at least one contact" is the create door's rule, and a
+ *  CHECK cannot express it across two tables anyway. */
+export const opportunityContact = sales.table(
+  'opportunity_contact',
+  {
+    opportunityCode: text('opportunity_code')
+      .notNull()
+      .references(() => opportunity.code, { onDelete: 'cascade' }),
+    /** Safe to fence: `contact.code` is its own primary key, so every contact
+     *  has the row this points at (unlike a bare `platform.object` mirror). */
+    contactCode: text('contact_code')
+      .notNull()
+      .references(() => contact.code),
+    /** `'decision-maker' | 'user' | 'influencer'`; NULL = nobody has said yet. */
+    role: text('role').$type<OpportunityContactRole>(),
+    /** The person the deal's mail and calls go to first; at most one per deal. */
+    isPrimary: boolean('is_primary').notNull().default(false),
+  },
+  (t) => [
+    primaryKey({
+      name: 'opportunity_contact_pk',
+      columns: [t.opportunityCode, t.contactCode],
+    }),
+    /** "Which deals involve this person" — the profile of a contact asks it,
+     *  and the primary key leads with the deal so it cannot answer. */
+    index('opportunity_contact_contact_idx').on(t.contactCode),
+    /** "Who is this deal's primary contact" — and the fence that makes the
+     *  answer one row: a second `is_primary` on the same deal is refused. */
+    uniqueIndex('opportunity_contact_one_primary_idx')
+      .on(t.opportunityCode)
+      .where(sql`"is_primary"`),
+    check(
+      'opportunity_contact_role_known',
+      sql`"role" IS NULL OR "role" IN ('decision-maker', 'user', 'influencer')`,
+    ),
+  ],
+)
+
 export type OpportunityRowDb = typeof opportunity.$inferSelect
 export type OpportunityOwnerRowDb = typeof opportunityOwner.$inferSelect
+export type OpportunityContactRowDb = typeof opportunityContact.$inferSelect
 export type OpportunityProductRowDb = typeof opportunityProduct.$inferSelect
 export type OpportunityStageEventRowDb = typeof opportunityStageEvent.$inferSelect

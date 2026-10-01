@@ -123,6 +123,16 @@ export const LEAD_OPEN_STATES = [
   'nurturing',
 ] as const satisfies readonly LeadState[]
 
+/** The part a contact plays in one deal; `null` on a pick means nobody has said. */
+export const OpportunityContactRole = z.enum(['decision-maker', 'user', 'influencer'])
+export type OpportunityContactRole = z.infer<typeof OpportunityContactRole>
+
+export const OPPORTUNITY_CONTACT_ROLE_LABEL: Record<OpportunityContactRole, string> = {
+  'decision-maker': 'Người quyết định',
+  user: 'Người dùng',
+  influencer: 'Người ảnh hưởng',
+}
+
 export type LeadCategory = z.infer<typeof LeadCategory>
 export type LeadTier = z.infer<typeof LeadTier>
 export type StageKey = z.infer<typeof StageKey>

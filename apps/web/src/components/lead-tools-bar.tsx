@@ -213,11 +213,11 @@ function EditBar({
           <Button
             size="lg"
             disabled={!canConvert}
-            title={canConvert ? undefined : 'Vai của bạn chưa có quyền mở cơ hội mới.'}
+            title={canConvert ? undefined : 'Cần quyền mở cơ hội và phải là người giữ lead này.'}
             onClick={onConvert}
           >
             <Icon icon={ArrowRight} size={16} />
-            Chuyển thành cơ hội
+            Mở cơ hội
           </Button>
         )}
 

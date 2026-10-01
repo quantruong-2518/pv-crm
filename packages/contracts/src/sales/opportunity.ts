@@ -12,7 +12,7 @@ import {
   textInputOptional,
 } from '../primitives'
 import { ConfigCode } from './config'
-import { CurrencyCode, OpportunityStatus, StageKey } from './enums'
+import { CurrencyCode, OpportunityContactRole, OpportunityStatus, StageKey } from './enums'
 import { WorkstreamHolder } from './workstream'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
@@ -20,6 +20,7 @@ import { WorkstreamHolder } from './workstream'
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
  *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
  *      POST   …/:code/accept · …/sale-owners · …/milestones · …/stop
+ *      GET    …/open-context?leadCode=… (permission `opportunity.create`)
  *
  *  ------------------------------------------------------------------
  *  NO WRITE BODY CARRIES `state` OR `stage` (ADR 0064)
@@ -110,6 +111,8 @@ export const OPPORTUNITY_STOP_REASON_OTHER = 'other'
  *  legitimate form is worse than storing one that is too broad — it exists to
  *  stop a script, not to argue with a seller. */
 export const OPPORTUNITY_PRODUCTS_MAX = 12
+/** Same typo fence as the owner lists, not a sales rule. */
+export const OPPORTUNITY_CONTACTS_MAX = 20
 export const OPPORTUNITY_STAGE_NOTE_MAX = 500
 
 /** Actor ids on one side of a deal. Deduped, so the join table is never handed
@@ -118,6 +121,35 @@ const ownerIds = z
   .array(textInput(64))
   .max(20, 'Tối đa 20 người')
   .transform((ids) => [...new Set(ids)])
+
+/** One contact attached to a deal at create. `role: null` = nobody has said yet. */
+export const OpportunityContactPick = z.object({
+  contactCode: ObjectCode,
+  role: OpportunityContactRole.nullable(),
+  primary: z.boolean(),
+})
+
+/** Deduped by `contactCode` like `ownerIds`, but merged rather than first-wins:
+ *  a doubled click must not drop the `primary` flag the second copy carried. */
+const contactPicks = z
+  .array(OpportunityContactPick)
+  .min(1, 'Chọn ít nhất một người liên hệ')
+  .max(OPPORTUNITY_CONTACTS_MAX, `Tối đa ${OPPORTUNITY_CONTACTS_MAX} người liên hệ`)
+  .transform((picks) => {
+    const byCode = new Map<string, z.infer<typeof OpportunityContactPick>>()
+    for (const p of picks) {
+      const seen = byCode.get(p.contactCode)
+      if (!seen) byCode.set(p.contactCode, { ...p })
+      else {
+        seen.primary ||= p.primary
+        seen.role ??= p.role
+      }
+    }
+    return [...byCode.values()]
+  })
+  .refine((picks) => picks.filter((p) => p.primary).length === 1, {
+    error: 'Chọn đúng một người liên hệ chính',
+  })
 
 // ---------------------------------------------------------------------------
 // THE TWO WRITE DOORS
@@ -193,8 +225,9 @@ const dealFields = {
 export const OpportunityCreate = z.object({
   /** The lead this deal came out of. One lead may produce many. */
   leadCode: ObjectCode,
-  /** The account object in E1's graph, when the lead already has one. */
-  accountCode: ObjectCode.optional(),
+  // No `accountCode`: the server copies the lead's own, never a client's.
+  /** Create-only: the update door does not move contacts yet. */
+  contacts: contactPicks,
   ...dealFields,
 })
 
@@ -554,6 +587,58 @@ export const OpportunityLiveDeal = z.object({
   codes: z.array(ObjectCode),
   hidden: z.number().int().nonnegative(),
 })
+
+// ---------------------------------------------------------------------------
+// THE OPEN DRAWER — `GET /sales/opportunities/open-context?leadCode=…`
+// ---------------------------------------------------------------------------
+
+/** Everything the "open an opportunity" drawer shows before the first keystroke.
+ *  Permission `opportunity.create`. One read so the drawer never assembles the
+ *  answer from several screens' caches. `null` fields mean "cannot be known",
+ *  not "none": `customer: null` = the lead has no account to check history on. */
+export const OpportunityOpenContext = z.object({
+  leadCode: ObjectCode,
+  workstream: z
+    .object({
+      code: ObjectCode,
+      customer: z.enum(['new', 'returning']).nullable(),
+      /** Latest WON run at the same account; null also when the reader may not open it. */
+      previousWonCode: ObjectCode.nullable(),
+    })
+    .nullable(),
+  account: z
+    .object({
+      code: ObjectCode,
+      name: textInput(200),
+      owner: z.object({ id: textInput(64), name: textInput(120) }).nullable(),
+    })
+    .nullable(),
+  /** The open deal the run currently stands on. */
+  standingDeal: z
+    .object({
+      /** Null when the reader may not open that deal: only its stage is told. */
+      code: ObjectCode.nullable(),
+      name: textInput(200).nullable(),
+      stage: StageKey,
+    })
+    .nullable(),
+  contacts: z.array(
+    z.object({
+      code: ObjectCode,
+      name: textInput(120),
+      title: textInput(120).nullable(),
+      source: z.enum(['lead', 'account']),
+    }),
+  ),
+  /** Configured due limit of stage `new` (the ladder); null when not set. */
+  newStageLimitDays: z.number().int().nullable(),
+})
+
+export const OpportunityOpenContextQuery = z.object({ leadCode: ObjectCode })
+
+export type OpportunityOpenContext = z.infer<typeof OpportunityOpenContext>
+export type OpportunityOpenContextQuery = z.infer<typeof OpportunityOpenContextQuery>
+export type OpportunityContactPick = z.infer<typeof OpportunityContactPick>
 
 export type OpportunityLiveDealQuery = z.infer<typeof OpportunityLiveDealQuery>
 export type OpportunityLiveDeal = z.infer<typeof OpportunityLiveDeal>
