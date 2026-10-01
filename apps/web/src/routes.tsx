@@ -405,21 +405,21 @@ export const SCREENS: ScreenDef[] = [
    *  the Sales-gated vocabulary; the static `log` segment outranks `:id`. */
   {
     path: '/comms',
-    name: 'Comm · Comm của tôi',
+    name: 'Liên hệ · Liên hệ của tôi',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comms'),
   },
   {
     path: '/comms/log',
-    name: 'Comm · Ghi liên hệ',
+    name: 'Liên hệ · Ghi liên hệ',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-log'),
   },
   {
     path: '/comms/:id',
-    name: 'Comm · Chi tiết comm',
+    name: 'Liên hệ · Chi tiết liên hệ',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-record'),

@@ -139,7 +139,7 @@ export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
   debrief_closed_has_summary: {
     kind: 'invalid',
     fields: ['summary'],
-    message: 'Xác nhận comm cần một bản tóm tắt, tối đa 2000 ký tự.',
+    message: 'Xác nhận liên hệ cần một bản tóm tắt, tối đa 2000 ký tự.',
   },
 
   debrief_next_all_or_none: {

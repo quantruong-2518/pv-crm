@@ -38,7 +38,7 @@ export function QueueTimeline({
   const items = [...rows].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
   return (
     /* Law 8 · a long list sits on glass-b. */
-    <GlassCard variant="b" className="p-4 sm:p-5" aria-label="Dòng thời gian comm">
+    <GlassCard variant="b" className="p-4 sm:p-5" aria-label="Dòng thời gian liên hệ">
       <CommTimelineTrack items={items.map(itemOf)} selectedId={selected} onSelect={onSelect} />
     </GlassCard>
   )
@@ -72,7 +72,7 @@ export function SelectedComm({ row }: { row: PendingDebriefRow }) {
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
         {target
           ? `Bước tiếp theo sẽ đặt cho ${subjectKindLabel(row.subject.code).toLowerCase()} ${row.subject.code}.`
-          : `${subjectKindLabel(row.subject.code)} ${row.subject.code} không nhận bước tiếp theo từ comm này.`}
+          : `${subjectKindLabel(row.subject.code)} ${row.subject.code} không nhận bước tiếp theo từ lượt liên hệ này.`}
       </p>
 
       {/* Navigates only; the real confirm is the submit on the comm page. */}
@@ -96,13 +96,13 @@ export function TeamCounts() {
     <GlassCard
       variant="b"
       className="flex flex-col gap-3 p-4 sm:p-5"
-      aria-label="Comm chưa hoàn thiện theo người"
+      aria-label="Liên hệ chưa hoàn thiện theo người"
     >
-      <SectionTitle size="detail">Comm chưa hoàn thiện theo người</SectionTitle>
+      <SectionTitle size="detail">Liên hệ chưa hoàn thiện theo người</SectionTitle>
       <DataTable
         columns={[
           { header: 'Người', width: '1.4fr' },
-          { header: 'Số comm', width: '0.8fr', align: 'right' },
+          { header: 'Số lượt liên hệ', width: '0.8fr', align: 'right' },
           { header: 'Cũ nhất', width: '1fr', align: 'right' },
         ]}
         rows={rows.map((r) => ({

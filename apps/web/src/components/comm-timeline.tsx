@@ -61,7 +61,7 @@ export function CommTimelineTrack({
         <Button
           size="sm"
           variant="ghost"
-          aria-label="Comm cũ hơn"
+          aria-label="Liên hệ cũ hơn"
           className="pointer-coarse:size-12 size-10 px-0"
           onClick={() => pan.page(-1)}
         >
@@ -70,7 +70,7 @@ export function CommTimelineTrack({
         <Button
           size="sm"
           variant="ghost"
-          aria-label="Comm mới hơn"
+          aria-label="Liên hệ mới hơn"
           className="pointer-coarse:size-12 size-10 px-0"
           onClick={() => pan.page(1)}
         >

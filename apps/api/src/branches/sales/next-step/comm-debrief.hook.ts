@@ -121,7 +121,7 @@ export class NextStepDebriefHook implements CommDebriefHook {
       if (await this.steps.isOpenSubject(input.subjectCode)) throw unconfirmable(input.subjectCode)
       if (!step) return null
       throw invalid({
-        step: ['Comm này thuộc hợp đồng hoặc lead/cơ hội đã đóng — bỏ việc tiếp theo.'],
+        step: ['Liên hệ này thuộc hợp đồng hoặc lead/cơ hội đã đóng — bỏ việc tiếp theo.'],
       })
     }
     if (!step) {

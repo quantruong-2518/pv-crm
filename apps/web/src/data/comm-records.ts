@@ -85,7 +85,7 @@ export const COMM_SUBJECT_NOUN: Record<TouchSubject, string> = {
 /** One wording for "this caller could not confirm a comm here", shared by the
  *  buttons and the dialog so the two never say it differently. */
 export const notConfirmableReason = (kind: TouchSubject) =>
-  `Bạn không xác nhận được comm trên ${COMM_SUBJECT_NOUN[kind]} này, nên không tạo comm ở đây.`
+  `Bạn không xác nhận được lượt liên hệ trên ${COMM_SUBJECT_NOUN[kind]} này, nên không ghi lại ở đây được.`
 
 /** A lead's own contact person, as the comm buttons take it — no `code`, since
  *  that person has no `sales.contact` row. */

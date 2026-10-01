@@ -70,7 +70,7 @@ export function CommLogPage() {
   const contentBlocker = contentBlockerOf(text)
   const channelLabel =
     mode?.kind === 'join'
-      ? `Bổ sung comm ${COMMS_CHANNEL_LABEL[mode.row.thread.channel]} · ${dmhm(mode.row.createdAt)}`
+      ? `Bổ sung lượt liên hệ ${COMMS_CHANNEL_LABEL[mode.row.thread.channel]} · ${dmhm(mode.row.createdAt)}`
       : mode
         ? COMMS_CHANNEL_LABEL[mode.channel]
         : ''
@@ -82,7 +82,7 @@ export function CommLogPage() {
       <ScreenLayout className="mx-auto w-full max-w-[480px]">
         <ScreenHeader
           title="Ghi liên hệ"
-          back={{ label: 'Comm của tôi', onClick: () => navigate('/comms') }}
+          back={{ label: 'Liên hệ của tôi', onClick: () => navigate('/comms') }}
         />
         <ContextRail
           max={3}
@@ -166,7 +166,7 @@ export function CommLogPage() {
             failure={save.failure}
             onSave={(close) =>
               save.run(mode, subjectCode, files, { ...close, summary: text.trim() }, (id) => {
-                toastDone('Đã lưu comm')
+                toastDone('Đã lưu liên hệ')
                 navigate(commRecordPath(id))
               })
             }
@@ -182,7 +182,7 @@ export default CommLogPage
 /** The content is the comm's summary, so it carries the summary's cap. */
 function contentBlockerOf(text: string): string | null {
   const length = text.trim().length
-  if (length === 0) return 'Chưa ghi nội dung trao đổi — đây là tóm tắt của comm.'
+  if (length === 0) return 'Chưa ghi nội dung trao đổi — đây là tóm tắt của lượt liên hệ.'
   return length > DEBRIEF_SUMMARY_MAX
     ? `Nội dung dài ${length.toLocaleString('vi-VN')} ký tự, tóm tắt tối đa ${DEBRIEF_SUMMARY_MAX.toLocaleString('vi-VN')} ký tự — rút gọn lại.`
     : null
@@ -211,10 +211,10 @@ function SaveStep({
 
   const blocker = !target.data
     ? target.error
-      ? 'Không đọc được comm này cần gì để xác nhận.'
-      : 'Đang đọc comm này cần gì để xác nhận.'
+      ? 'Không đọc được điều kiện xác nhận của lượt liên hệ này.'
+      : 'Đang đọc điều kiện xác nhận.'
     : !target.data.confirmable
-      ? `Bạn không xác nhận được comm trên ${kind.toLowerCase()} ${subjectCode}, nên không lưu được comm ở đây.`
+      ? `Bạn không xác nhận được lượt liên hệ trên ${kind.toLowerCase()} ${subjectCode}, nên không lưu được ở đây.`
       : (evaluationBlockerOf(vocab, picked) ?? (step ? stepBlockerOf(draft) : null))
 
   const save = () =>
@@ -243,7 +243,7 @@ function SaveStep({
             </>
           ) : (
             <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-              {kind} {subjectCode} không nhận bước tiếp theo từ comm.
+              {kind} {subjectCode} không nhận bước tiếp theo từ lượt liên hệ này.
             </p>
           )}
         </>
@@ -255,7 +255,7 @@ function SaveStep({
         </p>
       )}
       <Button size="lg" className="w-full" disabled={blocker !== null || busy} onClick={save}>
-        Lưu comm
+        Lưu liên hệ
       </Button>
     </StepCard>
   )

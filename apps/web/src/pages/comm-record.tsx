@@ -75,8 +75,8 @@ export function CommRecordPage() {
           />
           <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
             {missing
-              ? 'Không tìm thấy comm này. Có thể đường dẫn đã cũ.'
-              : (failure && userMessage(failure)) || 'Không đọc được comm này.'}
+              ? 'Không tìm thấy lượt liên hệ này. Có thể đường dẫn đã cũ.'
+              : (failure && userMessage(failure)) || 'Không đọc được lượt liên hệ này.'}
           </p>
           <Button
             size="sm"
@@ -84,7 +84,7 @@ export function CommRecordPage() {
             className="pointer-coarse:h-12"
             onClick={() => navigate('/comms')}
           >
-            Về Comm của tôi
+            Về Liên hệ của tôi
           </Button>
         </GlassCard>
       </ScreenLayout>,
@@ -107,7 +107,7 @@ function RecordBody({ record }: { record: DebriefView }) {
     <ScreenLayout>
       <GlassCard variant="b" className="p-4">
         <ScreenHeader
-          back={{ label: 'Comm của tôi', onClick: () => navigate('/comms') }}
+          back={{ label: 'Liên hệ của tôi', onClick: () => navigate('/comms') }}
           title={record.subject.label}
           meta={
             <>
@@ -142,7 +142,7 @@ function RecordBody({ record }: { record: DebriefView }) {
           <Turns threadId={record.threadId} />
           {/* Law 8 · a list sits on glass-b. */}
           <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Tệp">
-            <SectionTitle size="detail">Tệp của comm</SectionTitle>
+            <SectionTitle size="detail">Tệp đính kèm</SectionTitle>
             <div className={cn('grid gap-4', mine && open && 'lg:grid-cols-2')}>
               {mine && open && <CommFileDrop id={record.id} />}
               <CommFileList id={record.id} canDelete={mine && open} />
@@ -150,7 +150,7 @@ function RecordBody({ record }: { record: DebriefView }) {
           </GlassCard>
         </div>
 
-        <aside className="flex min-w-0 flex-col gap-6" aria-label="Xác nhận comm">
+        <aside className="flex min-w-0 flex-col gap-6" aria-label="Xác nhận liên hệ">
           {!open ? (
             <CommRecordRead row={record} as="page" />
           ) : mine ? (
@@ -158,7 +158,7 @@ function RecordBody({ record }: { record: DebriefView }) {
           ) : (
             <GlassCard className="p-5 lg:p-6">
               <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-                Chỉ {record.owner.name} — người tạo comm — xác nhận được comm này.
+                Chỉ {record.owner.name}, người ghi lại lượt liên hệ này, xác nhận được nó.
               </p>
             </GlassCard>
           )}

@@ -173,7 +173,7 @@ export class CommRecordService {
     const address = normaliseAddress('email', mailbox)
     if (await this.threads.identityByAddress('email', address)) {
       throw conflict(
-        `Hòm thư ${address} của người tạo comm đang thuộc người khác trong sổ định danh — báo người giữ sổ định danh sửa lại.`,
+        `Hòm thư ${address} của người ghi liên hệ đang thuộc người khác trong sổ định danh — báo người giữ sổ định danh sửa lại.`,
       )
     }
     return { channel: 'email', address, side: 'member', actorId: ownerId }
@@ -192,7 +192,7 @@ function mintFor(channel: ThreadChannel, contact: CommContact): Mint {
   throw invalid(
     {
       contactCode: [
-        `${contact.code} chưa có ${missing} — thêm vào hồ sơ người liên hệ trước khi tạo comm.`,
+        `${contact.code} chưa có ${missing} — thêm vào hồ sơ của ${contact.code} trước khi ghi liên hệ.`,
       ],
     },
     'Người liên hệ chưa có địa chỉ cho kênh này.',

@@ -190,7 +190,7 @@ export class DebriefService {
   /** The owner, or anyone who reaches the subject. 404 before 403. */
   async readable(who: Actor, id: string): Promise<DebriefRead> {
     const found = await this.repo.byId(id)
-    if (!found) throw notFound('comm', id)
+    if (!found) throw notFound('liên hệ', id)
     if (found.row.ownerId !== who.id) await this.inReach(who, found.row.subjectCode)
     return found
   }
@@ -198,9 +198,9 @@ export class DebriefService {
   /** The owner only; `open` also refuses a confirmed record. */
   async owned(who: Actor, id: string, open: boolean): Promise<DebriefRead> {
     const found = await this.repo.byId(id)
-    if (!found) throw notFound('comm', id)
+    if (!found) throw notFound('liên hệ', id)
     if (found.row.ownerId !== who.id) {
-      throw denied('permission-denied', 'Chỉ người tạo comm này mới sửa hoặc xác nhận được.')
+      throw denied('permission-denied', 'Chỉ người tạo liên hệ này mới sửa hoặc xác nhận được.')
     }
     if (open && found.row.closedAt) throw conflict(DONE)
     return found
@@ -257,4 +257,4 @@ export class DebriefService {
   }
 }
 
-const DONE = 'Comm này đã hoàn thiện.'
+const DONE = 'Liên hệ này đã hoàn thiện.'

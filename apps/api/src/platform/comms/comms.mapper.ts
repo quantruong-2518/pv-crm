@@ -284,9 +284,9 @@ export function refuseNonSubject(row: ObjectRow, field: string): void {
   if (SUBJECT_KINDS.includes(row.kind)) return
   throw invalid(
     {
-      [field]: ['Comm chỉ thuộc một lead, cơ hội hoặc hợp đồng — chọn mã của một trong ba.'],
+      [field]: ['Mỗi liên hệ chỉ thuộc một lead, cơ hội hoặc hợp đồng — chọn mã của một trong ba.'],
     },
-    'Mã này không nhận comm.',
+    'Không ghi được liên hệ trên mã này.',
   )
 }
 

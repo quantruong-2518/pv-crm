@@ -471,7 +471,7 @@ function PrepareGroup({ form }: { form: MeetingDraft }) {
         />
       </Field>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Biên bản và tệp của buổi họp ghi vào comm, tạo khi buổi họp kết thúc.
+        Biên bản và tệp của buổi họp ghi vào lượt liên hệ tạo khi buổi họp kết thúc.
       </p>
     </section>
   )

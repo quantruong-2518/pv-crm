@@ -219,7 +219,7 @@ function MeetingLine({
             className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
           >
             <Icon icon={MessageSquare} size={14} />
-            Mở comm
+            Mở lượt liên hệ
           </RouteLink>
         )}
         {row.transcript && (

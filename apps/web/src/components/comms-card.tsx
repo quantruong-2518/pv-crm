@@ -43,7 +43,7 @@ export function CommTimeline({ subjectCode }: { subjectCode: string }) {
   if (!canView) {
     return (
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Vai của bạn không có quyền xem comm.
+        Vai của bạn không có quyền xem các lượt liên hệ.
       </p>
     )
   }
@@ -51,13 +51,16 @@ export function CommTimeline({ subjectCode }: { subjectCode: string }) {
   if (error) {
     return (
       <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
-        Không đọc được comm. {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        Không đọc được các lượt liên hệ.{' '}
+        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
       </p>
     )
   }
   if (rows.length === 0) {
     return (
-      <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">Chưa có comm nào.</p>
+      <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        Chưa có lượt liên hệ nào.
+      </p>
     )
   }
 
@@ -70,7 +73,7 @@ export function CommTimeline({ subjectCode }: { subjectCode: string }) {
         items={rows.map(itemOf)}
         selectedId={selected?.id ?? null}
         onSelect={setPicked}
-        caption={`${rows.length} comm · ${waiting} chưa xác nhận · ${empty} chưa điền nội dung`}
+        caption={`${rows.length} lượt liên hệ · ${waiting} chưa xác nhận · ${empty} chưa điền nội dung`}
       />
       {selected && <CommRecordRead row={selected} as="panel" />}
     </div>

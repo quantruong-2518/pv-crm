@@ -643,8 +643,8 @@ export function SalesConfigPage() {
 
             <Section
               no="5.10"
-              title="Câu hỏi đánh giá comm"
-              hint="Người xác nhận comm trả lời mọi câu đang bật, mỗi câu chọn một câu trả lời bằng chữ — không chấm điểm. Câu hỏi hoặc câu trả lời đã có người chọn chỉ tắt được, và comm đã hoàn thiện giữ đúng chữ lúc chọn."
+              title="Câu hỏi đánh giá liên hệ"
+              hint="Người xác nhận lượt liên hệ trả lời mọi câu đang bật, mỗi câu chọn một câu trả lời bằng chữ — không chấm điểm. Câu hỏi hoặc câu trả lời đã có người chọn chỉ tắt được, và lượt liên hệ đã hoàn thiện giữ đúng chữ lúc chọn."
             >
               <CommCriteriaConfig />
             </Section>
@@ -652,7 +652,7 @@ export function SalesConfigPage() {
             <Section
               no="5.11"
               title="Loại bước tiếp theo"
-              hint="Phiếu xác nhận comm bắt buộc chọn một loại việc cho bước tiếp theo, lấy từ danh sách này."
+              hint="Phiếu xác nhận liên hệ bắt buộc chọn một loại việc cho bước tiếp theo, lấy từ danh sách này."
             >
               <StepKindConfig />
             </Section>

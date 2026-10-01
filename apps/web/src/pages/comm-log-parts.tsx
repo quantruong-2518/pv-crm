@@ -226,7 +226,9 @@ export function PickChannel({
 
       {pending.length > 0 && (
         <div className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11.5px]">Comm đang chờ của lượt này</span>
+          <span className="text-muted-foreground text-[11.5px]">
+            Liên hệ đang chờ của lượt bán này
+          </span>
           {pending.map((row) => (
             <button
               key={row.id}

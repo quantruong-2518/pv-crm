@@ -45,7 +45,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
       ) : (
         row.state === 'done' && (
           <p className="text-muted-foreground m-0 text-[12px]">
-            Comm này không đặt bước tiếp theo.
+            Lượt liên hệ này không đặt bước tiếp theo.
           </p>
         )
       )}
@@ -63,7 +63,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
 
   return (
     <section
-      aria-label="Chi tiết comm"
+      aria-label="Chi tiết liên hệ"
       className={cn('flex min-w-0 flex-col gap-4 rounded-lg p-4', COMM_CARD_SURFACE)}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -79,7 +79,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
         className="pointer-coarse:h-12 self-start"
         onClick={() => navigate(commRecordPath(row.id))}
       >
-        Mở comm
+        Mở lượt liên hệ
         <Icon icon={ArrowRight} size={16} />
       </Button>
     </section>

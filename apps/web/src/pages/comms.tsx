@@ -58,8 +58,8 @@ export function CommsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Comm của tôi"
-          description="Comm tạo từ lịch gặp đã kết thúc, từ nút Gọi · Zalo · Gửi mail và từ Ghi liên hệ. Thêm nội dung, đính kèm tệp rồi xác nhận."
+          title="Liên hệ của tôi"
+          description="Các lượt liên hệ ghi lại từ lịch gặp đã kết thúc, từ nút Gọi · Zalo · Gửi mail và từ Ghi liên hệ. Thêm nội dung, đính kèm tệp rồi xác nhận."
           actions={
             <Button
               size="md"
@@ -73,7 +73,7 @@ export function CommsPage() {
         />
 
         <SegmentedControl
-          label="Trạng thái comm"
+          label="Trạng thái liên hệ"
           hideLabel
           tone="quiet"
           value={tab}
@@ -104,7 +104,7 @@ export function CommsPage() {
         />
 
         <ScreenDetailGrid
-          sideLabel="Comm đang chọn"
+          sideLabel="Liên hệ đang chọn"
           main={
             isPending ? (
               <Skeleton className="h-64 w-full" />
@@ -118,7 +118,7 @@ export function CommsPage() {
               <GlassCard variant="b" className="p-6">
                 <EmptyState
                   icon={Inbox}
-                  message={`Không có comm nào ở trạng thái “${COMM_RECORD_STATE_LABEL[tab]}”.`}
+                  message={`Không có lượt liên hệ nào ở trạng thái “${COMM_RECORD_STATE_LABEL[tab]}”.`}
                   action={{ label: 'Ghi liên hệ', onClick: () => navigate('/comms/log') }}
                 />
               </GlassCard>
@@ -127,7 +127,7 @@ export function CommsPage() {
                 <QueueTimeline rows={shown} selected={selected?.id ?? null} onSelect={setPicked} />
                 {data && data.total > rows.length && (
                   <p className="text-muted-foreground tnum m-0 text-[11.5px]">
-                    Đang hiện {rows.length}/{data.total} comm chưa hoàn thiện.
+                    Đang hiện {rows.length}/{data.total} lượt liên hệ chưa hoàn thiện.
                   </p>
                 )}
               </>

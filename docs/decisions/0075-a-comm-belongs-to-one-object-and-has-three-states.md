@@ -79,7 +79,7 @@ A comm takes a recording, a transcript, minutes (MM) and chat screenshots.
 - Gọi / Zalo / Gửi mail on a LEAD moves the lead to `working` at once. The lead
   toolbar's Gọi goes through the same confirm dialog; the old second press
   "Đã gọi" is dropped.
-- Mobile "Ghi liên hệ": step 4 also asks the evaluation. "Lưu comm" confirms the
+- Mobile "Ghi liên hệ": step 4 also asks the evaluation. "Lưu liên hệ" confirms the
   record in one go (state "Đã hoàn thiện"); the step-3 content becomes the summary.
 - Meeting end: a pg-boss job at the meeting's end creates the record. Owner = the
   person who scheduled the meeting; subject = the meeting's lead (meetings only
@@ -90,12 +90,13 @@ A comm takes a recording, a transcript, minutes (MM) and chat screenshots.
 - A comm may only be created by someone who can confirm it: on an open lead or
   opportunity the creator must be able to set its next step, else creation is
   refused. A read-only check tells the screen beforehand.
-- The mobile flow creates the comm only when "Lưu comm" is pressed.
+- The mobile flow creates the comm only when "Lưu liên hệ" is pressed.
 - An address already in the identity book under another lead or a colleague is
   refused; under the same lead it is reused.
 - A button comm's turn is outgoing, from the staff member to the customer. A
   staff member without an address in the book gets one from their work email.
-- "Comm" is the UI name everywhere.
+- The UI uses the Vietnamese "liên hệ" everywhere (menu "Liên hệ", "Liên hệ của
+  tôi", "Lưu liên hệ"), plain and explicit; code identifiers stay `comm`.
 
 ## Consequences
 

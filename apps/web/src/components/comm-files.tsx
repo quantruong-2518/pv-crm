@@ -94,7 +94,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
   if (error) {
     return (
       <p className="text-warning text-[12.5px] leading-[1.6]">
-        Không đọc được tệp của comm này. {isApiError(error) ? userMessage(error) : ''}
+        Không đọc được tệp của lượt liên hệ này. {isApiError(error) ? userMessage(error) : ''}
       </p>
     )
   }
@@ -171,7 +171,7 @@ function DeleteConfirm({
       }
     >
       <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-        Tệp bị xoá khỏi comm và không khôi phục được.
+        Tệp bị xoá khỏi lượt liên hệ và không khôi phục được.
       </p>
     </Modal>
   )

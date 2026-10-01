@@ -224,10 +224,10 @@ export const SALES_MODULES: SalesModule[] = [
        confirm it (ADR 0075); the count rides on the entry, like approvals. */
     no: 8,
     icon: MessageSquare,
-    label: 'Comm',
+    label: 'Liên hệ',
     path: '/comms',
     permission: 'comm.view',
-    question: 'Comm của tôi đang chờ điền nội dung hoặc xác nhận',
+    question: 'Các lượt liên hệ của tôi đang chờ điền nội dung hoặc xác nhận',
     group: 'primary',
   },
   {

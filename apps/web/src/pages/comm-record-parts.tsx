@@ -56,7 +56,7 @@ export function ConfirmForm({ record }: { record: DebriefView }) {
       })),
       ...(target && { step: stepInputOf(draft, current) }),
     }
-    confirm.mutate({ id: record.id, body }, { onSuccess: () => toastDone('Đã xác nhận comm') })
+    confirm.mutate({ id: record.id, body }, { onSuccess: () => toastDone('Đã xác nhận liên hệ') })
   }
 
   return (
@@ -92,8 +92,8 @@ export function ConfirmForm({ record }: { record: DebriefView }) {
       ) : (
         <p className="text-muted-foreground text-[12px] leading-[1.6]">
           {subjectKindLabel(record.subject.code)}{' '}
-          <span className="font-mono">{record.subject.code}</span> không nhận bước tiếp theo từ comm
-          này.
+          <span className="font-mono">{record.subject.code}</span> không nhận bước tiếp theo từ lượt
+          liên hệ này.
         </p>
       )}
 

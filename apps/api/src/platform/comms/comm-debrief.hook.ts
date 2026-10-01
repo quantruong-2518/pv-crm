@@ -66,5 +66,5 @@ export const COMM_DEBRIEF_HOOK = Symbol('pv.comms.comm-debrief')
 export const unconfirmable = (subjectCode: string) =>
   denied(
     'permission-denied',
-    `Bạn không đặt được việc tiếp theo cho ${subjectCode} nên không xác nhận được comm trên đó — nhờ người giữ ${subjectCode}.`,
+    `Bạn không đặt được việc tiếp theo cho ${subjectCode} nên không xác nhận được liên hệ trên đó — nhờ người giữ ${subjectCode}.`,
   )
