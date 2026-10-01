@@ -4,6 +4,7 @@ import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import {
   LeadMotionController,
   LeadStopReasonController,
+  CommVocabularyController,
   SalesConfigController,
 } from './config.controller'
 import { SalesConfigGate, SalesConfigGateE3 } from './config.approval'
@@ -43,7 +44,12 @@ import { SalesConfigService } from './config.service'
  *  đổi mã sang nhãn. */
 @Module({
   imports: [ApprovalModule],
-  controllers: [SalesConfigController, LeadMotionController, LeadStopReasonController],
+  controllers: [
+    SalesConfigController,
+    LeadMotionController,
+    LeadStopReasonController,
+    CommVocabularyController,
+  ],
   providers: [
     SalesConfigService,
     SalesConfigRepository,

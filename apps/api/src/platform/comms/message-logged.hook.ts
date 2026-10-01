@@ -18,7 +18,14 @@ export interface MessageLoggedHook {
 
 /** The whole `Actor`, not an id: whether the turn may move the subject is the
  *  branch's permission question, and only the caller's grants can answer it. */
-export type MessageLogged = { subjectKind: ObjectKind; subjectCode: string; actor: Actor }
+export type MessageLogged = {
+  subjectKind: ObjectKind
+  subjectCode: string
+  actor: Actor
+  /** Set on meeting minutes (ADR 0074 §9). The branch MUST refuse when the
+   *  meeting does not belong to `subjectCode` — comms cannot read `sales`. */
+  meetingId?: string | undefined
+}
 
 /** Optional: with no branch bound, comms still logs turns and nothing moves. */
 export const MESSAGE_LOGGED_HOOK = Symbol('pv.comms.message-logged')

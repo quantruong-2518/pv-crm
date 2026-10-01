@@ -82,7 +82,6 @@ export class MeetingService {
         at,
         title: body.title,
         link: body.link ?? null,
-        transcript: body.transcript ?? null,
         durationMinutes: body.durationMinutes,
         mode: body.mode,
         goal: body.goal ?? null,
@@ -137,12 +136,10 @@ export class MeetingService {
       await this.repo.update(tx, id, {
         ...(body.at === undefined ? {} : { at }),
         ...(body.title === undefined ? {} : { title: body.title }),
-        /* `link` và `transcript` phân biệt "không gửi" với "gửi rỗng": vắng mặt
-           là không đụng tới, còn chuỗi rỗng đã bị zod biến thành vắng mặt ở
-           cửa. Nên không có đường nào xoá được link bằng PATCH hôm nay — nói ra
-           chứ không giả vờ là đã xử lý. */
+        /* Absent = untouched, and zod turns "" into absent, so no PATCH clears a
+           link today. `transcript` has no write door since ADR 0074 §9: minutes
+           are a comm on the meeting's own thread. */
         ...(body.link === undefined ? {} : { link: body.link }),
-        ...(body.transcript === undefined ? {} : { transcript: body.transcript }),
         /* The booking fields follow the idiom right above: absent means leave
            it alone. Rows written before `0050` have none of the three, so a
            PATCH that never mentions them must leave the NULLs standing. */
@@ -251,6 +248,22 @@ export class MeetingService {
     const row = await this.repo.byId(id)
     if (!row || row.leadCode !== code) throw notFound('cuộc họp', id)
     return row
+  }
+
+  /** Minutes logged through comms must name a meeting of THIS lead (ADR 0074
+   *  §9). Read on the turn's `tx`: a pool read there waits on PGlite's one
+   *  connection. 400 for "unknown" and "another lead's" alike, `mine()`'s reason. */
+  async assertOnLead(tx: Db, code: string, id: string): Promise<void> {
+    const row = await this.repo.byId(id, tx)
+    if (row?.leadCode === code) return
+    throw invalid(
+      {
+        meetingId: [
+          `Cuộc họp này không thuộc lead ${code} — chọn một cuộc họp của chính lead này.`,
+        ],
+      },
+      'Cuộc họp không thuộc lead này.',
+    )
   }
 
   private async one(code: string, id: string): Promise<MeetingRow> {

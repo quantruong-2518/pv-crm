@@ -14,7 +14,8 @@ import type { Db } from '@api/platform/db/db.module'
 import type { ObjectRow } from '@api/platform/db/platform.schema'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
-import { toLink, toMessage, toObjectRef, toThread } from './comms.mapper'
+import { anyInReach, toLink, toMessage, toObjectRef, toThread } from './comms.mapper'
+import { DebriefRepository } from './debrief.repository'
 import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.hook'
 import { ThreadRepository } from './thread.repository'
 import type { MessagePartyRowDb } from './comms.schema'
@@ -65,6 +66,7 @@ export class ThreadService {
   constructor(
     private readonly repo: ThreadRepository,
     private readonly audit: AuditRepository,
+    private readonly debriefs: DebriefRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Optional() @Inject(MESSAGE_LOGGED_HOOK) private readonly logged?: MessageLoggedHook,
   ) {}
@@ -96,8 +98,11 @@ export class ThreadService {
     const rows = await this.repo.messagesOf(id)
     const parties = await this.repo.partiesOf(rows.map((r) => r.id))
     const byMessage = groupByMessage(parties)
+    const anchors = await this.debriefs.anchoredOn(rows.map((r) => r.id))
 
-    const wire = rows.map((r) => toMessage(this.access, who, r, byMessage.get(r.id) ?? []))
+    const wire = rows.map((r) =>
+      toMessage(this.access, who, r, byMessage.get(r.id) ?? [], anchors.get(r.id) ?? null),
+    )
 
     const shown = wire.filter((m) => m.content.state === 'visible').length
     if (shown > 0) await this.trailContentRead(who, id, shown)
@@ -167,6 +172,14 @@ export class ThreadService {
       body.fromIdentityId,
       ...body.parties.map((p) => p.identityId),
     ])
+    const meetingId = body.thread === 'new' ? body.meetingId : undefined
+    if (meetingId && anchor.kind !== 'LD') {
+      throw invalid({ meetingId: ['Biên bản họp chỉ ghi được trên hồ sơ lead.'] })
+    }
+    /* Only the branch can say the meeting belongs to this lead; with no hook
+       bound, minutes would land on a meeting nobody checked. */
+    if (meetingId && !this.logged)
+      throw new Error('comms: meeting minutes need MESSAGE_LOGGED_HOOK')
 
     const written = await this.repo.run(async (tx) => {
       const threadId =
@@ -175,6 +188,8 @@ export class ThreadService {
               await this.repo.insertThread(tx, {
                 channel: body.channel,
                 subject: body.subject ?? null,
+                /* One thread per meeting: `thread_channel_external_unique`. */
+                externalId: meetingId ?? null,
                 /* Both ends are this turn: a thread that starts now has had
                    exactly one turn, so first and last are the same moment.
                    `thread_span_forward` reads `>=` for precisely this row. */
@@ -207,12 +222,21 @@ export class ThreadService {
 
       if (body.thread === 'existing') await this.repo.widenSpan(tx, threadId, at)
 
+      /* ADR 0074 §6: the turn's logger owns its close-out; same tx, so a turn
+         never exists without the pending debrief that asks what it meant. */
+      const debriefId = await this.debriefs.openOrJoin(tx, {
+        threadId,
+        ownerId: who.id,
+        messageId: row.id,
+      })
+
       /* Direct lead anchors only: a contact's lead is a `sales` hop comms cannot make. */
       if (anchor.kind === 'LD') {
         await this.logged?.afterLogged(tx, {
           subjectKind: anchor.kind,
           subjectCode: anchor.code,
           actor: who,
+          meetingId,
         })
       }
 
@@ -233,7 +257,7 @@ export class ThreadService {
         tx,
       )
 
-      return { tally, row, parties }
+      return { tally, row, parties, debriefId }
     })
 
     /* The writer sees their own body through the same gate as everybody else:
@@ -244,7 +268,11 @@ export class ThreadService {
        somebody else's message through a door labelled "mine". */
     return MessageCreateResponse.parse({
       thread: toThread(written.tally.row, written.tally.messageCount),
-      message: toMessage(this.access, who, written.row, written.parties),
+      message: toMessage(this.access, who, written.row, written.parties, {
+        id: written.debriefId,
+        state: 'open',
+      }),
+      debriefId: written.debriefId,
     })
   }
 
@@ -356,11 +384,7 @@ export class ThreadService {
     }
 
     const rows = await this.repo.objectsByCodes(codes, tx)
-    const { visible } = this.access.visible(
-      who,
-      rows.map((row) => ({ ref: toObjectRef(row) })),
-    )
-    if (visible.length > 0) return
+    if (anyInReach(this.access, who, rows)) return
 
     throw denied(
       'out-of-scope',

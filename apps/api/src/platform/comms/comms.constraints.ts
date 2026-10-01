@@ -63,11 +63,8 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
  *  with it.
  *
  *  Only the fences a CALLER can actually hit are listed. `thread_span_forward`
- *  and `thread_channel_external_unique` are absent on purpose — the first is
- *  kept true by `widenSpan`, the second by nothing writing an `external_id`
- *  this turn, so a line here would be a sentence for a screen that cannot
- *  produce it, and the generic SQLSTATE default is the correct answer if one
- *  of those ever fires: it means the SERVER is wrong, not the caller. */
+ *  is absent on purpose — `widenSpan` keeps it true, so if it ever fires the
+ *  SERVER is wrong and the generic SQLSTATE default is the right answer. */
 export const THREAD_CONSTRAINTS: ConstraintBook = {
   link_pk: {
     kind: 'conflict',
@@ -123,6 +120,44 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   thread_channel_known: {
     kind: 'invalid',
     fields: ['channel'],
-    message: 'Kênh không nằm trong danh sách hệ nhận.',
+    message:
+      'Kênh không nằm trong danh sách hệ nhận (email, Zalo OA, Telegram, điện thoại, trong app, họp).',
+  },
+
+  /** Reachable since meeting minutes write `external_id` = the meeting id. */
+  thread_channel_external_unique: {
+    kind: 'conflict',
+    fields: ['meetingId'],
+    message: 'Cuộc họp này đã có luồng biên bản — ghi tiếp vào luồng đó.',
+  },
+}
+
+/** `comms.debrief` / `comms.debrief_answer` fences (ADR 0074) → the sentence a
+ *  person reads. Most are kept true by the contract and the service first;
+ *  these lines are what a writer that skipped them would be told. */
+export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
+  debrief_closed_has_summary: {
+    kind: 'invalid',
+    fields: ['summary'],
+    message: 'Chốt comm cần một bản tóm tắt, tối đa 4000 ký tự.',
+  },
+
+  debrief_next_all_or_none: {
+    kind: 'invalid',
+    fields: ['step'],
+    message:
+      'Việc tiếp theo phải đủ hồ sơ, loại việc, nội dung (tối đa 200 ký tự) và hạn — hoặc bỏ trống cả.',
+  },
+
+  debrief_answer_pk: {
+    kind: 'invalid',
+    fields: ['answers'],
+    message: 'Mỗi câu hỏi chỉ chọn một câu trả lời.',
+  },
+
+  debrief_answer_no_blank: {
+    kind: 'invalid',
+    fields: ['answers'],
+    message: 'Câu hỏi và câu trả lời đánh giá không được để trống.',
   },
 }

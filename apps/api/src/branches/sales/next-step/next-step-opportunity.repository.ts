@@ -1,14 +1,15 @@
-import { eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, eq, inArray, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { holderOf } from '../opportunity/opportunity.mapper'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 import { dealOpen, dealStoodBy } from '../open-deal'
 import { nextStep } from './next-step.schema'
-import type { NextStepRead } from './next-step.repository'
+import { STEP_COLUMNS, stepOf, type NextStepRead } from './next-step.repository'
 
 /** One deal with what grading its step needs. `open` is `dealOpen`'s reading
  *  (not stopped, not signed); `signed` only picks the sentence of a refusal. */
@@ -48,24 +49,29 @@ export class OpportunityStepRepository {
         signed: signedOf(opportunity.code),
         inScope: this.inScope(who),
         today: VIETNAM_TODAY,
-        text: nextStep.text,
-        due: nextStep.due,
-        doerId: nextStep.doerId,
-        doerName: actor.name,
+        ...STEP_COLUMNS,
       })
       .from(opportunity)
       .leftJoin(nextStep, eq(nextStep.subjectCode, opportunity.code))
       .leftJoin(actor, eq(actor.id, nextStep.doerId))
+      .leftJoin(configEntry, eq(configEntry.id, nextStep.kindId))
       .where(eq(opportunity.code, code))
       .limit(1)
     if (!row) return null
 
-    const { text, due, doerId, doerName, ...deal } = row
-    const step =
-      text === null || due === null || doerId === null || doerName === null
-        ? null
-        : { text, due, doerId, doerName }
-    return { ...deal, step }
+    const { open, signed, inScope, today, ...step } = row
+    return { open, signed, inScope, today, step: stepOf(step) }
+  }
+
+  /** Deals among `codes` still open and in the caller's scope, with their step
+   *  — what a comm close-out may target. */
+  async openDeals(who: Actor, codes: readonly string[]) {
+    if (codes.length === 0) return []
+    return this.db
+      .select({ code: opportunity.code, text: nextStep.text, due: nextStep.due })
+      .from(opportunity)
+      .leftJoin(nextStep, eq(nextStep.subjectCode, opportunity.code))
+      .where(and(inArray(opportunity.code, [...codes]), openOf(), this.inScope(who)))
   }
 
   /** The deal row under lock: it is the row the sign and stop doors lock too, so
@@ -86,8 +92,8 @@ export class OpportunityStepRepository {
 
   /** The holder (ADR 0071 §5), by the deal module's one rule (`holderOf`):
    *  every owner and the acceptor are read, the rule picks among them. */
-  async holderOf(tx: Db, code: string): Promise<string | null> {
-    const owners = await tx
+  async holderOf(code: string, handle: Db = this.db): Promise<string | null> {
+    const owners = await handle
       .select({
         id: actor.id,
         name: actor.name,
@@ -97,7 +103,7 @@ export class OpportunityStepRepository {
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(eq(opportunityOwner.opportunityCode, code))
-    const [deal] = await tx
+    const [deal] = await handle
       .select({ id: actor.id, name: actor.name })
       .from(opportunity)
       .innerJoin(actor, eq(actor.id, opportunity.acceptedById))

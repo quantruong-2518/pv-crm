@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { LeadCommsHook } from './branches/sales/lead/lead-comms.hook'
 import { LeadModule } from './branches/sales/lead/lead.module'
+import { NextStepDebriefHook } from './branches/sales/next-step/comm-debrief.hook'
+import { NextStepModule } from './branches/sales/next-step/next-step.module'
 import { SalesModule } from './branches/sales/sales.module'
 import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
@@ -92,8 +94,13 @@ import { RolesModule } from './platform/roles/roles.module'
        on a branch's import, and it carries `/comms/identities`, the four doors
        of the identity book, so reading this list has to show the server has
        them. `withHook` is the one place comms learns that logging a call on a
-       lead moves its state — see `message-logged.hook.ts`. */
-    CommsModule.withHook({ imports: [LeadModule], hook: LeadCommsHook }),
+       lead moves its state — see `message-logged.hook.ts` — and that closing a comm
+       writes the object's next step (`comm-debrief.hook.ts`). */
+    CommsModule.withHook({
+      imports: [LeadModule, NextStepModule],
+      hook: LeadCommsHook,
+      debriefHook: NextStepDebriefHook,
+    }),
     MailModule,
     /* Explicit for `MailModule`'s reason: it carries `/storage/local/:token`,
        the disk driver's upload door, even though Sales imports it too. */

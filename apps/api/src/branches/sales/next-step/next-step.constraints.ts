@@ -3,8 +3,8 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
 /** Constraints of `sales.next_step` → the sentence a user reads.
  *
  *  A label book, not a rule book: the rules live in `next-step.schema.ts`. Only
- *  `text` and `doerId` come from a field on screen, so only those two carry
- *  `fields`; the rest fire when the writer is wrong, and speak to the log. */
+ *  `text`, `doerId` and `kindId` come from a field on screen, so only those
+ *  carry `fields`; the rest fire when the writer is wrong, and speak to the log. */
 export const NEXT_STEP_CONSTRAINTS: ConstraintBook = {
   /** Two first writes on one object in the same instant. A PUT that upserts
    *  never hits this; a writer that inserts blindly does. */
@@ -36,6 +36,13 @@ export const NEXT_STEP_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['doerId'],
     message: 'Người làm không còn trong sổ nhân sự — chọn lại người làm.',
+  },
+
+  /** Unknown id, or a row of another list (`kind_list` folds the list in). */
+  next_step_kind_fk: {
+    kind: 'invalid',
+    fields: ['kindId'],
+    message: 'Loại việc không có trong danh mục — chọn lại loại việc.',
   },
 
   next_step_created_by_actor_id_fk: {

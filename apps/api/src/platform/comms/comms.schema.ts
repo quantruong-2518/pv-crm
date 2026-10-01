@@ -1,5 +1,6 @@
 import {
   check,
+  date,
   index,
   integer,
   pgSchema,
@@ -7,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
@@ -17,6 +19,7 @@ import type {
   LinkedBy,
   MessageDirection,
   MessagePartyRole,
+  ThreadChannel,
   ThreadState,
 } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
@@ -184,7 +187,9 @@ export const thread = comms.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    channel: text('channel').$type<CommsChannel>().notNull(),
+    /** `ThreadChannel`, not `CommsChannel`: a meeting's minutes are a thread,
+     *  but nobody has an address on a meeting, so identities stay narrower. */
+    channel: text('channel').$type<ThreadChannel>().notNull(),
 
     /** The wire's own id for this conversation — an email `Message-ID`, a chat
      *  platform's conversation id. NULL on every row turn 1 writes: manual
@@ -221,12 +226,12 @@ export const thread = comms.table(
      *  sit side by side without colliding. The constraint only bites once a
      *  door actually reads an id off the wire. */
     unique('thread_channel_external_unique').on(t.channel, t.externalId),
-    /** The five members of `CommsChannel`, copied out by hand rather than
-     *  generated — the same reason `identity_channel_known` is: the day a sixth
-     *  channel exists that has to be a migration a person reads. */
+    /** The six members of `ThreadChannel`, copied out by hand rather than
+     *  generated — the same reason `identity_channel_known` is: the day a
+     *  channel is added that has to be a migration a person reads (0075 did). */
     check(
       'thread_channel_known',
-      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'phone', 'in-app')`,
+      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'phone', 'in-app', 'meeting')`,
     ),
     check('thread_state_known', sql`"state" IN ('open', 'archived')`),
     /** An empty string is not a missing subject and not an empty external id —
@@ -402,6 +407,129 @@ export const link = comms.table(
     check('link_linked_by_known', sql`"linked_by" IN ('auto', 'human')`),
   ],
 )
+
+// ---------------------------------------------------------------------------
+// CLOSE-OUT — ADR 0074
+// ---------------------------------------------------------------------------
+
+/** One owner's close-out of a comm: summary, evaluation, next step.
+ *
+ *  A table of its own, not a flag on `message`: a message is the immutable raw
+ *  record, and one debrief covers every turn the owner logged on the thread
+ *  since the last close — the anchor moves, the raw rows never do.
+ *
+ *  NO FOREIGN KEY INTO `sales`. The step kind and the config ids in
+ *  `debrief_answer` are plain text with name copies; `sales` validates them
+ *  through `COMM_DEBRIEF_HOOK` before the write (ADR 0074 §7). The copies are
+ *  the history: renaming a config row or replacing `sales.next_step` must not
+ *  rewrite what a closed debrief said. */
+export const debrief = comms.table(
+  'debrief',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    /** CASCADE for `message.thread_id`'s reason: a close-out of a conversation
+     *  that no longer exists points at nothing. */
+    threadId: uuid('thread_id')
+      .notNull()
+      .references(() => thread.id, { onDelete: 'cascade' }),
+
+    /** The newest turn this debrief covers; moves forward while it is open. No
+     *  CASCADE — a thread delete still clears both, because NO ACTION is only
+     *  judged at the end of the statement, after the thread cascade ran. */
+    messageId: uuid('message_id')
+      .notNull()
+      .references(() => message.id),
+
+    /** Who logged the comm and alone may close it — stays theirs after a
+     *  hand-over. A real fence: only a signed-in actor reaches the write door. */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => actor.id),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+
+    /** NULL = pending close-out. A mark rather than a state column, the
+     *  `verified_at` convention, because the queue asks "since when". */
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+
+    /** Content, gated by `comm.view-content` at read like `message.body_text`. */
+    summary: text('summary'),
+
+    /** The step as it was set — the only history once `sales.next_step` is
+     *  replaced. All five NULL when the comm had no step target (a contract). */
+    nextSubjectCode: text('next_subject_code').references(() => objectRef.code),
+    nextKindId: text('next_kind_id'),
+    nextKindName: text('next_kind_name'),
+    nextText: text('next_text'),
+    nextDue: date('next_due'),
+  },
+  (t) => [
+    /** The fence "at most one OPEN debrief per (thread, owner)", and the lookup
+     *  `POST /comms/messages` makes: "does this owner already have one open here
+     *  to join". Closed rows are history and may repeat. */
+    uniqueIndex('debrief_open_unique')
+      .on(t.threadId, t.ownerId)
+      .where(sql`"closed_at" IS NULL`),
+    /** "My pending queue" and "pending per owner" — the badge, the queue page
+     *  and the managers' counts. Partial, because closed rows never queue. */
+    index('debrief_pending_owner_idx')
+      .on(t.ownerId)
+      .where(sql`"closed_at" IS NULL`),
+    /** "Which debrief anchors this turn" — asked by every thread open to draw
+     *  the close-out chip; also serves the NO ACTION check on a message delete. */
+    index('debrief_message_idx').on(t.messageId),
+    /** `IS NOT NULL` spelled out: `btrim(NULL) <> ''` is NULL, and a CHECK
+     *  passes on NULL, so without it a closed debrief could carry no summary.
+     *  4000 is `DEBRIEF_SUMMARY_MAX`, repeated so no writer bypasses the door. */
+    check(
+      'debrief_closed_has_summary',
+      sql`"closed_at" IS NULL
+          OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 4000)`,
+    ),
+    /** The step copy is one fact: half a step is a row no timeline can read.
+     *  Text bounds mirror `next_step_text_bounded`. */
+    check(
+      'debrief_next_all_or_none',
+      sql`("next_subject_code" IS NULL AND "next_kind_id" IS NULL AND "next_kind_name" IS NULL
+           AND "next_text" IS NULL AND "next_due" IS NULL)
+          OR ("next_subject_code" IS NOT NULL AND "next_kind_id" IS NOT NULL
+           AND "next_kind_name" IS NOT NULL AND "next_text" IS NOT NULL AND "next_due" IS NOT NULL
+           AND btrim("next_kind_name") <> ''
+           AND btrim("next_text") <> '' AND char_length("next_text") <= 200)`,
+    ),
+  ],
+)
+
+/** One answer to one criterion. The PK is the pair: one answer per question per
+ *  debrief is the rule (ADR 0074 §3), not a service's memory. Ids are plain
+ *  text — see `debrief` on why there is no key into `sales.config_entry`. */
+export const debriefAnswer = comms.table(
+  'debrief_answer',
+  {
+    debriefId: uuid('debrief_id')
+      .notNull()
+      .references(() => debrief.id, { onDelete: 'cascade' }),
+    criterionId: text('criterion_id').notNull(),
+    criterionName: text('criterion_name').notNull(),
+    answerId: text('answer_id').notNull(),
+    answerName: text('answer_name').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'debrief_answer_pk', columns: [t.debriefId, t.criterionId] }),
+    /* No index on `answer_id`: the config screen's usage tally groups the whole
+       table, and a filter by one answer has no screen yet. */
+    check(
+      'debrief_answer_no_blank',
+      sql`btrim("criterion_name") <> '' AND btrim("answer_name") <> ''`,
+    ),
+  ],
+)
+
+export type DebriefRowDb = typeof debrief.$inferSelect
+export type DebriefValues = typeof debrief.$inferInsert
+export type DebriefAnswerRowDb = typeof debriefAnswer.$inferSelect
+export type DebriefAnswerValues = typeof debriefAnswer.$inferInsert
 
 export type ThreadRowDb = typeof thread.$inferSelect
 export type ThreadValues = typeof thread.$inferInsert

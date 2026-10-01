@@ -671,6 +671,7 @@ function ws0089(): Body {
           due: nextDue,
           doer: huy,
           dueLevel: stepLevelOf(nextDue, SAO_DO_FROZEN_AT),
+          kind: null,
         },
         contractCodes: [],
         stop: null,

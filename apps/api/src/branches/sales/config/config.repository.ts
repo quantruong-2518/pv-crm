@@ -32,6 +32,7 @@ export type ConfigDraft = {
   kind?: string
   stage?: StageKey
   doNotContact?: boolean
+  criterionId?: string
 }
 
 /** Phần sửa. Vắng mặt = không đụng tới; `ownerId: null` = XOÁ người phụ trách.
@@ -45,6 +46,7 @@ export type ConfigPatchDb = {
   kind?: string
   stage?: StageKey | null
   doNotContact?: boolean
+  criterionId?: string
 }
 
 /** One row of the merged tally query — see `usage()`. Three flat columns rather
@@ -150,6 +152,18 @@ export class SalesConfigRepository {
         FROM sales.opportunity
        WHERE stop_reason IS NOT NULL AND stop_reason <> ${OPPORTUNITY_STOP_REASON_OTHER}
        GROUP BY stop_reason
+      UNION ALL
+      /* Close-out answers count rows in comms.debrief_answer, keyed by plain
+         text ids (no FK, ADR 0074 §7). STEP_KIND counts standing steps only:
+         a replaced step leaves its kind in the debrief copy, not here. */
+      SELECT 'COMM_CRITERION', criterion_id, count(*)::int
+        FROM comms.debrief_answer GROUP BY criterion_id
+      UNION ALL
+      SELECT 'COMM_ANSWER', answer_id, count(*)::int
+        FROM comms.debrief_answer GROUP BY answer_id
+      UNION ALL
+      SELECT 'STEP_KIND', kind_id, count(*)::int
+        FROM sales.next_step WHERE kind_id IS NOT NULL GROUP BY kind_id
       UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
@@ -302,6 +316,7 @@ export class SalesConfigRepository {
         kind: draft.kind ?? null,
         stage: draft.stage ?? null,
         doNotContact: draft.doNotContact ?? false,
+        criterionId: draft.criterionId ?? null,
       })
       .returning()
 
@@ -326,6 +341,7 @@ export class SalesConfigRepository {
     if (patch.kind !== undefined) set.kind = patch.kind
     if (patch.stage !== undefined) set.stage = patch.stage
     if (patch.doNotContact !== undefined) set.doNotContact = patch.doNotContact
+    if (patch.criterionId !== undefined) set.criterionId = patch.criterionId
 
     const [row] = await tx
       .update(configEntry)

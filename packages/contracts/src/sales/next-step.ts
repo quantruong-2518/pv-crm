@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Day, ObjectCode, textInput } from '../primitives'
+import { ConfigCode } from './config'
 import { DueLevel } from './enums'
 import { WorkstreamHolder } from './workstream'
 
@@ -18,12 +19,18 @@ import { WorkstreamHolder } from './workstream'
 
 export const NextStepParams = z.object({ code: ObjectCode })
 
-/** `doerId` absent means the object's holder, resolved by the server at write time. */
+/** `doerId` absent means the object's holder, resolved by the server at write time.
+ *  `kindId` is a `STEP_KIND` entry; optional here because the step card predates
+ *  it — the comm close-out door is where a kind is required. */
 export const NextStepSetBody = z.object({
   text: textInput(200),
   due: Day,
   doerId: z.string().min(1).max(64).optional(),
+  kindId: ConfigCode.optional(),
 })
+
+/** On `NextStep` the name is read live from the config row; a debrief keeps a copy. */
+export const NextStepKind = z.object({ id: ConfigCode, name: z.string().min(1) })
 
 /** `closing` names the step the person saw, so a retried or double-sent "done"
  *  finds a different step under the lock and is refused instead of logging a
@@ -39,6 +46,7 @@ export const NextStep = z.object({
   due: Day,
   doer: WorkstreamHolder,
   dueLevel: DueLevel,
+  kind: NextStepKind.nullable(),
 })
 
 /** Every door answers with the step as it now stands, so no write needs a re-read. */
@@ -49,5 +57,6 @@ export const NextStepResponse = z.object({
 export type NextStepParams = z.infer<typeof NextStepParams>
 export type NextStepSetBody = z.infer<typeof NextStepSetBody>
 export type NextStepDoneBody = z.infer<typeof NextStepDoneBody>
+export type NextStepKind = z.infer<typeof NextStepKind>
 export type NextStep = z.infer<typeof NextStep>
 export type NextStepResponse = z.infer<typeof NextStepResponse>

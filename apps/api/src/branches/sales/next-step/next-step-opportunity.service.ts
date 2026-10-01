@@ -14,6 +14,8 @@ import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository } from './next-step.repository'
+import { assertNextDiffers, liveKind } from './next-step.rules'
+import type { StepWrite } from './next-step.service'
 import { OpportunityStepRepository, type DealSlot } from './next-step-opportunity.repository'
 
 /** The next step of an OPPORTUNITY (ADR 0069 §10): the lead door's four verbs on
@@ -42,27 +44,36 @@ export class OpportunityStepService {
   async set(who: Actor, code: ObjectCode, body: NextStepSetBody): Promise<NextStepResponse> {
     const reach = await this.reaches(body.doerId)
     const slot = await this.steps.run(async (tx) => {
-      await this.lockOpen(tx, who, code)
-      await this.put(tx, who, code, body, reach)
+      await this.write(tx, who, code, { next: body }, reach)
       return this.deals.slot(who, code, tx)
     })
     return answer(slot)
   }
 
-  /** Same contract as the lead's "done": `closing` must be the step under the
-   *  lock, so a doubled press logs one touch, written while the text is known. */
   async done(who: Actor, code: ObjectCode, body: NextStepDoneBody): Promise<NextStepResponse> {
-    if (body.next?.text === body.closing.text && body.next.due === body.closing.due) {
-      throw invalid(
-        { next: ['Việc tiếp theo mới trùng với việc vừa xong — đổi nội dung hoặc hạn.'] },
-        'Việc tiếp theo mới trùng với việc vừa xong.',
-      )
-    }
+    assertNextDiffers(body.closing, body.next)
     const reach = await this.reaches(body.next?.doerId)
     const slot = await this.steps.run(async (tx) => {
-      await this.lockOpen(tx, who, code)
+      await this.write(tx, who, code, body, reach)
+      return this.deals.slot(who, code, tx)
+    })
+    return answer(slot)
+  }
+
+  /** `NextStepService.write` on a deal, same contract: `closing` must be the
+   *  step under the lock, so a doubled press logs one touch. Runs in the
+   *  caller's `tx` — a door's own, or the comm close-out's (ADR 0074 §7). */
+  async write(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+    op: StepWrite,
+    reach: DoerReach | null,
+  ): Promise<void> {
+    await this.lockOpen(tx, who, code)
+    if (op.closing) {
       const current = (await this.deals.slot(who, code, tx))?.step
-      if (!current || current.text !== body.closing.text || current.due !== body.closing.due) {
+      if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
         throw conflict(
           `Việc tiếp theo của cơ hội ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
         )
@@ -76,11 +87,9 @@ export class OpportunityStepService {
           note: doneNote(current.text),
         },
       ])
-      if (body.next) await this.put(tx, who, code, body.next, reach)
-      else await dropStep(tx, code)
-      return this.deals.slot(who, code, tx)
-    })
-    return answer(slot)
+    }
+    if (op.next) await this.put(tx, who, code, op.next, reach)
+    else await dropStep(tx, code)
   }
 
   /** Idempotent: clearing a deal that has no step is not an error. */
@@ -103,7 +112,7 @@ export class OpportunityStepService {
     body: NextStepSetBody,
     reach: DoerReach | null,
   ): Promise<void> {
-    const holderId = (await this.deals.holderOf(tx, code)) ?? who.id
+    const holderId = (await this.deals.holderOf(code, tx)) ?? who.id
     const doerId = body.doerId ?? holderId
     if (!(await this.steps.isLiveSalesActor(tx, doerId))) {
       throw invalid(
@@ -125,19 +134,21 @@ export class OpportunityStepService {
         )
       }
     }
+    if (body.kindId !== undefined) await liveKind(this.steps, body.kindId, tx)
     await this.steps.put(tx, {
       subjectCode: code,
       text: body.text,
       due: body.due,
       doerId,
       createdBy: who.id,
+      kindId: body.kindId ?? null,
     })
   }
 
   /** What the doer's role allows, asked BEFORE the transaction: `ActorRepository`
    *  reads on the pool, and inside the tx that waits on PGlite's one connection.
    *  Whether they stand on the deal is asked inside, under the lock. */
-  private async reaches(doerId: string | undefined): Promise<DoerReach | null> {
+  async reaches(doerId: string | undefined): Promise<DoerReach | null> {
     if (doerId === undefined) return null
     const doer = (await this.actors.byId(doerId))?.actor
     if (!doer) return null
@@ -159,7 +170,7 @@ export class OpportunityStepService {
   }
 }
 
-type DoerReach = { ownOnly: boolean; canView: boolean }
+export type DoerReach = { ownOnly: boolean; canView: boolean }
 
 /** A step left on a deal that has stopped or signed is not shown. */
 function answer(slot: DealSlot | null): NextStepResponse {

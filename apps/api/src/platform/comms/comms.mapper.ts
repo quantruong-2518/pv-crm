@@ -2,15 +2,18 @@ import type { AccessControl, Actor, Channel, ObjectRef } from '@pv/engines'
 import {
   email,
   type CommsChannel,
+  type DebriefSummary,
+  type DebriefView,
   type IdentityRow,
   type LinkRow,
-  type MessageContent,
   type MessageRow,
   type ThreadRow,
 } from '@pv/contracts'
 import { invalid } from '@api/platform/http/problem'
 import type { ObjectRow } from '@api/platform/db/platform.schema'
+import type { DebriefPointer, DebriefRead } from './debrief.repository'
 import type {
+  DebriefAnswerRowDb,
   IdentityRowDb,
   LinkRowDb,
   MessagePartyRowDb,
@@ -197,7 +200,9 @@ export function toMessage(
   who: Actor,
   row: MessageRowDb,
   parties: readonly MessagePartyRowDb[],
+  debrief: DebriefPointer | null,
 ): MessageRow {
+  const content = cutContent(row.bodyText, access.allows(who, 'comm.view-content'))
   return {
     id: row.id,
     threadId: row.threadId,
@@ -206,16 +211,62 @@ export function toMessage(
     fromIdentityId: row.fromIdentityId,
     durationSec: row.durationSec,
     captureSource: row.captureSource,
-    content: contentOf(row.bodyText, access.allows(who, 'comm.view-content')),
+    content: content.state === 'visible' ? { state: 'visible', bodyText: content.text } : content,
     parties: parties.map((p) => ({ identityId: p.identityId, role: p.role })),
+    debrief,
   }
 }
 
-/* Not exported: the only way to build a `MessageContent` is through
-   `toMessage`, so no second call site can grow its own opinion of the rule. */
-function contentOf(bodyText: string | null, mayReadContent: boolean): MessageContent {
-  if (bodyText === null) return { state: 'none' }
-  return mayReadContent ? { state: 'visible', bodyText } : { state: 'hidden' }
+/** A closed debrief as the wire reads it. The summary is content and goes
+ *  through the same cut as a message body (ADR 0074 §11); answers and the
+ *  step copy are metadata. */
+export function toDebriefView(
+  access: AccessControl,
+  who: Actor,
+  read: DebriefRead,
+  answers: readonly DebriefAnswerRowDb[],
+): DebriefView {
+  const { row } = read
+  const step =
+    row.nextSubjectCode && row.nextKindId && row.nextKindName && row.nextText && row.nextDue
+      ? {
+          subjectCode: row.nextSubjectCode,
+          kind: { id: row.nextKindId, name: row.nextKindName },
+          text: row.nextText,
+          due: row.nextDue,
+        }
+      : null
+  return {
+    id: row.id,
+    threadId: row.threadId,
+    messageId: row.messageId,
+    state: row.closedAt ? 'closed' : 'open',
+    owner: { id: row.ownerId, name: read.ownerName },
+    createdAt: row.createdAt.toISOString(),
+    closedAt: row.closedAt ? row.closedAt.toISOString() : null,
+    summary: cutContent(row.summary, access.allows(who, 'comm.view-content')),
+    answers: answers.map((a) => ({
+      criterionId: a.criterionId,
+      criterionName: a.criterionName,
+      answerId: a.answerId,
+      answerName: a.answerName,
+    })),
+    step,
+  }
+}
+
+/* Not exported: `toMessage` and `toDebriefView` are the only two ways to cut
+   content, so no third call site can grow its own opinion of the rule. */
+function cutContent(text: string | null, mayReadContent: boolean): DebriefSummary {
+  if (text === null) return { state: 'none' }
+  return mayReadContent ? { state: 'visible', text } : { state: 'hidden' }
+}
+
+/** "May this caller see this conversation" — ONE object in reach is enough;
+ *  none (or no link at all) is no. Shared by every door that asks, so the
+ *  thread reads and the close-out queue cannot answer it two ways. */
+export function anyInReach(access: AccessControl, who: Actor, objects: readonly ObjectRow[]) {
+  return objects.some((row) => access.can(who, 'view', toObjectRef(row)))
 }
 
 export function toLink(row: LinkRowDb): LinkRow {

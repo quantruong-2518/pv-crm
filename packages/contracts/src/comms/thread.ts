@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Moment, textInput, textInputOptional } from '../primitives'
+import { MeetingId } from '../sales/meeting'
 import { CommsChannel, IdentityId, LinkableCode } from './identity'
 
 /** Turn 1 of `comms` — the conversation log itself, on top of the `comms.identity`
@@ -60,6 +61,18 @@ export type CaptureSource = z.infer<typeof CaptureSource>
 export const LinkedBy = z.enum(['auto', 'human'])
 export type LinkedBy = z.infer<typeof LinkedBy>
 
+/** A thread's channel: every identity channel plus `'meeting'`. Identities keep
+ *  `CommsChannel` — nobody has an address on a meeting, but its minutes are a
+ *  conversation (one thread per meeting, `externalId` = the meeting id). */
+export const ThreadChannel = z.enum([...CommsChannel.options, 'meeting'])
+export type ThreadChannel = z.infer<typeof ThreadChannel>
+
+/** Declared here, not in `./debrief`, because `MessageRow` points at a debrief
+ *  and `./debrief` reads `ThreadRow` — one of the two files has to hold the id. */
+export const DebriefId = z.uuid('Mã phiên chốt phải là UUID')
+export const DebriefState = z.enum(['open', 'closed'])
+export type DebriefState = z.infer<typeof DebriefState>
+
 // ---------------------------------------------------------------------------
 // THREAD
 // ---------------------------------------------------------------------------
@@ -74,7 +87,7 @@ export const THREAD_EXTERNAL_ID_MAX = 255
 
 export const ThreadRow = z.object({
   id: ThreadId,
-  channel: CommsChannel,
+  channel: ThreadChannel,
   /** The wire's own id for this conversation — an email `Message-ID`, a chat
    *  platform's conversation id. `NULL` for every thread this turn produces:
    *  manual capture has no wire to read an id off of.
@@ -178,6 +191,9 @@ export const MessageRow = z.object({
   captureSource: CaptureSource,
   content: MessageContent,
   parties: z.array(MessagePartyRow),
+  /** The debrief anchored on this turn, so the drawer can draw its close-out chip
+   *  without a second read. `null` on every turn a later one has superseded. */
+  debrief: z.object({ id: DebriefId, state: DebriefState }).nullable(),
 })
 
 export type MessageRow = z.infer<typeof MessageRow>
@@ -250,8 +266,15 @@ const MessageCreateFields = z.object({
 export const MessageCreate = z.discriminatedUnion('thread', [
   MessageCreateFields.extend({
     thread: z.literal('new'),
-    channel: CommsChannel,
+    channel: ThreadChannel,
     subject: textInputOptional(THREAD_SUBJECT_MAX),
+    /** Minutes of a booked meeting. A refine and not a third branch because the
+     *  union already discriminates on `thread`; the meeting-belongs-to-lead check
+     *  needs the database, so `LeadCommsHook.afterLogged` makes it. */
+    meetingId: MeetingId.optional(),
+  }).refine((b) => (b.channel === 'meeting') === (b.meetingId !== undefined), {
+    message: 'Biên bản họp phải gắn đúng một cuộc họp, và chỉ kênh họp mới gắn cuộc họp.',
+    path: ['meetingId'],
   }),
   MessageCreateFields.extend({
     thread: z.literal('existing'),
@@ -268,6 +291,9 @@ export type MessageCreate = z.infer<typeof MessageCreate>
 export const MessageCreateResponse = z.object({
   thread: ThreadRow,
   message: MessageRow,
+  /** The debrief this turn opened or joined — the close-out drawer opens on it
+   *  straight after a manual capture, without waiting for the pending queue. */
+  debriefId: DebriefId,
 })
 
 export type MessageCreateResponse = z.infer<typeof MessageCreateResponse>

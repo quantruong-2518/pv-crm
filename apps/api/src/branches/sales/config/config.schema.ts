@@ -1,5 +1,14 @@
-import { boolean, check, integer, text, timestamp, unique, uniqueIndex } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import {
+  boolean,
+  check,
+  foreignKey,
+  integer,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
+import { sql, type SQL } from 'drizzle-orm'
 import type { ConfigList, StageKey } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
@@ -85,6 +94,16 @@ export const configEntry = sales.table(
      *  to be approached again. NOT NULL because every row has an answer, and before
      *  0068 that answer was always no. */
     doNotContact: boolean('do_not_contact').notNull().default(false),
+
+    /** Only `COMM_ANSWER`, and always there — the question this answer belongs
+     *  to (ADR 0074 §3). A self-reference: the question is a row of this table. */
+    criterionId: text('criterion_id'),
+    /** Key half only, `lead.campaign_list`'s trick: folded into the self-FK so
+     *  an answer cannot hang on a stage or another answer. NULL with its pair,
+     *  because MATCH SIMPLE skips the check when either column is NULL. */
+    criterionList: text('criterion_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "criterion_id" IS NULL THEN NULL ELSE 'COMM_CRITERION' END`,
+    ),
   },
   (t) => [
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
@@ -118,6 +137,21 @@ export const configEntry = sales.table(
       'config_do_not_contact_only_loss_reason',
       sql`NOT "do_not_contact" OR "list" = 'LOSS_REASON'`,
     ),
+
+    /** An equality, unlike the one-way checks above: `COMM_ANSWER` is new in
+     *  0075, so no old row or old deploy writes an answer without a question. */
+    check(
+      'config_criterion_only_answer',
+      sql`("list" = 'COMM_ANSWER') = ("criterion_id" IS NOT NULL)`,
+    ),
+
+    /** Real, not discipline: no config row is ever deleted, so the question an
+     *  answer names keeps its row even after it is turned off. */
+    foreignKey({
+      name: 'config_criterion_fk',
+      columns: [t.criterionId, t.criterionList],
+      foreignColumns: [t.id, t.list],
+    }),
 
     /** `StageKey.options`, copied out rather than generated, for
      *  `opportunity_stopped_at_stage_known`'s reason: the day the ladder grows,
@@ -161,9 +195,13 @@ export const configEntry = sales.table(
      *   · `lower(name)` — 'Đã demo' và 'ĐÃ DEMO' là một mục, không phải hai.
      *     Ép ở index thì không cửa vào nào quên được.
      *   · `WHERE active` — một mục đã tắt vẫn giữ tên cũ để dữ liệu cũ đọc
-     *     được, nhưng nó không được chặn người dùng dựng lại một mục cùng tên. */
+     *     được, nhưng nó không được chặn người dùng dựng lại một mục cùng tên.
+     *
+     *  Since 0075 a COMM_ANSWER name is unique per question, not per list, so
+     *  "Chưa" can answer two questions. `coalesce` folds every other list's
+     *  NULL `criterion_id` to one value, keeping their old per-list rule. */
     uniqueIndex('config_name_live')
-      .on(t.list, sql`lower("name")`)
+      .on(t.list, sql`coalesce("criterion_id", '')`, sql`lower("name")`)
       .where(sql`"active"`),
   ],
 )

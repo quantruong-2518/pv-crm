@@ -9,7 +9,7 @@ import {
 import { STAFF } from './staff'
 import { PRODUCTS, SOURCES } from './seed-book'
 
-/** The eight `config_entry` lists `seed.ts` plants.
+/** Every `config_entry` list `seed.ts` plants.
  *  Vocabulary rather than demo data, so the labels match the ones the old
  *  fixture seed wrote and the screens already print. */
 
@@ -98,12 +98,32 @@ const ANY_RUNG_REASONS = [
   { id: 'LR-94', name: 'Không phải khách của mình', doNotContact: true },
 ]
 
+/** Comm close-out vocabulary (ADR 0074), the same rows migration 0075 plants.
+ *  Words, not scores: each question carries its own answers. */
+const COMM_QUESTIONS: [string, string[]][] = [
+  ['Khách quan tâm thế nào?', ['Rất quan tâm', 'Có quan tâm', 'Chưa quan tâm']],
+  [
+    'Đã chạm được người quyết định chưa?',
+    ['Đã gặp người quyết định', 'Mới gặp người ảnh hưởng', 'Chưa'],
+  ],
+  ['Cuộc trao đổi đạt mục tiêu không?', ['Đạt', 'Đạt một phần', 'Chưa đạt']],
+]
+const STEP_KINDS = [
+  'Gọi lại',
+  'Hẹn gặp',
+  'Gửi tài liệu',
+  'Gửi mẫu',
+  'Gửi báo giá',
+  'Theo dõi phản hồi',
+]
+
 type ConfigSeed = {
   name: string
   limitDays?: number
   ownerId?: string
   kind?: string
   stage?: StageKey
+  criterionId?: string
 }
 
 function configRows(list: ConfigList, items: ConfigSeed[]) {
@@ -116,6 +136,7 @@ function configRows(list: ConfigList, items: ConfigSeed[]) {
     ownerId: it.ownerId ?? null,
     kind: it.kind ?? null,
     stage: it.stage ?? null,
+    criterionId: it.criterionId ?? null,
   }))
 }
 
@@ -133,6 +154,18 @@ const exitRows = configRows(
   EXIT_KEYS.map((k) => ({ name: EXIT_NAME[k] })),
 )
 export const exitIdOf = (key: SeedExitKey) => exitRows[EXIT_KEYS.indexOf(key)]!.id
+const criterionRows = configRows(
+  'COMM_CRITERION',
+  COMM_QUESTIONS.map(([name]) => ({ name })),
+)
+/* `ord` runs across the whole list (`config_ord_uniq` is per list), so within
+   one question the answers keep their relative order. */
+const answerRows = configRows(
+  'COMM_ANSWER',
+  COMM_QUESTIONS.flatMap(([, answers], q) =>
+    answers.map((name) => ({ name, criterionId: criterionRows[q]!.id })),
+  ),
+)
 
 export const configSeed = [
   ...configRows(
@@ -164,4 +197,10 @@ export const configSeed = [
     ord: CARE_REASONS.length + i + 1,
     stage: null,
   })),
+  ...criterionRows,
+  ...answerRows,
+  ...configRows(
+    'STEP_KIND',
+    STEP_KINDS.map((name) => ({ name })),
+  ),
 ]

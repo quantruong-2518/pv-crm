@@ -1,12 +1,13 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Phone, type IconGlyph } from '@pv/ui'
-import type {
+import { Phone, Users, type IconGlyph } from '@pv/ui'
+import {
   CommsChannel,
-  IdentityListResponse,
-  MessageCreate,
-  MessageCreateResponse,
-  ThreadListResponse,
-  ThreadMessagesResponse,
+  type IdentityListResponse,
+  type MessageCreate,
+  type MessageCreateResponse,
+  type ThreadChannel,
+  type ThreadListResponse,
+  type ThreadMessagesResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
@@ -148,20 +149,23 @@ export function useCaptureMessage(objectCode: string) {
  *  answer two different questions — which road the system sends down, and which
  *  road a conversation actually happened on — so they can be borrowed from but
  *  not merged. */
-export const COMMS_CHANNEL_ICON: Record<CommsChannel, IconGlyph> = {
+export const COMMS_CHANNEL_ICON: Record<ThreadChannel, IconGlyph> = {
   email: CHANNEL_ICON.email,
   'zalo-oa': CHANNEL_ICON['zalo-oa'],
   telegram: CHANNEL_ICON.telegram,
   'in-app': CHANNEL_ICON['in-app'],
   phone: Phone,
+  meeting: Users,
 }
 
-export const COMMS_CHANNEL_LABEL: Record<CommsChannel, string> = {
+export const COMMS_CHANNEL_LABEL: Record<ThreadChannel, string> = {
   email: CHANNEL_LABEL.email,
   'zalo-oa': CHANNEL_LABEL['zalo-oa'],
   telegram: CHANNEL_LABEL.telegram,
   'in-app': CHANNEL_LABEL['in-app'],
   phone: 'Điện thoại',
+  meeting: 'Gặp mặt',
 }
 
-export const COMMS_CHANNELS = Object.keys(COMMS_CHANNEL_LABEL) as CommsChannel[]
+/** Pickable when starting a thread; `meeting` is reached only through a meeting's minutes. */
+export const COMMS_CHANNELS = CommsChannel.options

@@ -151,6 +151,8 @@ export const MeetingRow = z.object({
   at: Moment,
   title: textInput(MEETING_TITLE_MAX),
   link: MeetingLink.optional(),
+  /** Read-only legacy: minutes are now a comm on the meeting's own thread, so no
+   *  door writes this any more; rows typed before that still show theirs. */
   transcript: z.string().max(TRANSCRIPT_MAX).optional(),
 
   /** How long the meeting was booked for, and how it was held. Both optional
@@ -209,7 +211,6 @@ export const MeetingCreate = z.object({
   at: Moment,
   title: textInput(MEETING_TITLE_MAX),
   link: MeetingLink.optional(),
-  transcript: z.string().max(TRANSCRIPT_MAX).optional(),
 
   /** Required on every NEW row — unlike `MeetingRow` above, which reads rows
    *  written before this pair existed. The booking drawer always shows both

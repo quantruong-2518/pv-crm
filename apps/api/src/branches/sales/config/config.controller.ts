@@ -139,3 +139,16 @@ export class LeadMotionController {
     return this.config.motionOptions()
   }
 }
+
+/** `GET /sales/comm-vocabulary` — on `comm.view`, not `config.view`: whoever
+ *  closes a comm must pick from these lists (ADR 0074), presales included. */
+@Controller('sales/comm-vocabulary')
+export class CommVocabularyController {
+  constructor(private readonly config: SalesConfigService) {}
+
+  @Get()
+  @Need({ branch: 'Sales', permission: 'comm.view' })
+  list() {
+    return this.config.commVocabulary()
+  }
+}

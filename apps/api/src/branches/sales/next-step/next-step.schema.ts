@@ -1,6 +1,7 @@
-import { check, date, text, timestamp } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import { check, date, foreignKey, text, timestamp } from 'drizzle-orm/pg-core'
+import { sql, type SQL } from 'drizzle-orm'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
 
 /** The ONE next step on an open lead or deal (`NextStep` in `@pv/contracts`).
@@ -37,8 +38,25 @@ export const nextStep = sales.table(
       .references(() => actor.id),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    /** A `STEP_KIND` entry (ADR 0074 §8). NULL on every step set before 0075
+     *  and from the step card, which does not ask for one yet. */
+    kindId: text('kind_id'),
+    /** Key half only, `lead.campaign_list`'s trick: folded into the FK so a
+     *  step cannot carry a loss reason as its kind. A `CASE`, not a constant,
+     *  because MATCH SIMPLE skips the check when either column is NULL. */
+    kindList: text('kind_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "kind_id" IS NULL THEN NULL ELSE 'STEP_KIND' END`,
+    ),
   },
-  () => [
+  (t) => [
+    /** Safe as a real key: config rows are never deleted, only turned off, so
+     *  a kind disabled after the step was set still has its row. */
+    foreignKey({
+      name: 'next_step_kind_fk',
+      columns: [t.kindId, t.kindList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
+
     /* No index beyond the primary key: the only read is "the step of object X".
        "My steps due this week" would want `(doer_id, due)`; no screen asks it yet. */
 

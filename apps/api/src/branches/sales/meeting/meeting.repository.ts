@@ -51,8 +51,8 @@ export class MeetingRepository {
 
   /** Một buổi, để biết nó có thật và treo vào lead nào — câu hỏi phạm vi hỏi
    *  trước khi cho sửa hay xoá. */
-  async byId(id: string): Promise<MeetingRowDb | null> {
-    const [row] = await this.db.select().from(meeting).where(eq(meeting.id, id)).limit(1)
+  async byId(id: string, handle: Db = this.db): Promise<MeetingRowDb | null> {
+    const [row] = await handle.select().from(meeting).where(eq(meeting.id, id)).limit(1)
     return row ?? null
   }
 

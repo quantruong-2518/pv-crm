@@ -2,7 +2,11 @@ import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nes
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
-import { IDENTITY_CONSTRAINTS, THREAD_CONSTRAINTS } from './comms.constraints'
+import { COMM_DEBRIEF_HOOK, type CommDebriefHook } from './comm-debrief.hook'
+import { DEBRIEF_CONSTRAINTS, IDENTITY_CONSTRAINTS, THREAD_CONSTRAINTS } from './comms.constraints'
+import { DebriefController } from './debrief.controller'
+import { DebriefRepository } from './debrief.repository'
+import { DebriefService } from './debrief.service'
 import { IdentityController } from './identity.controller'
 import { IdentityRepository } from './identity.repository'
 import { IdentityService } from './identity.service'
@@ -17,6 +21,7 @@ import { ThreadService } from './thread.service'
  *  an empty book. */
 registerConstraints(IDENTITY_CONSTRAINTS)
 registerConstraints(THREAD_CONSTRAINTS)
+registerConstraints(DEBRIEF_CONSTRAINTS)
 
 /** `comms` — the conversation book. Turn 0 is `comms.identity`, turn 1 the
  *  thread/message/party/link four.
@@ -42,21 +47,32 @@ registerConstraints(THREAD_CONSTRAINTS)
  *  No `exports`: nothing else in the server reads a conversation yet. */
 @Module({
   imports: [AuditModule, EnginesModule],
-  controllers: [IdentityController, ThreadController],
-  providers: [IdentityService, IdentityRepository, ThreadService, ThreadRepository],
+  controllers: [IdentityController, ThreadController, DebriefController],
+  providers: [
+    IdentityService,
+    IdentityRepository,
+    ThreadService,
+    ThreadRepository,
+    DebriefService,
+    DebriefRepository,
+  ],
 })
 export class CommsModule {
   /** The `QueueModule.forWorker` shape (ADR 0049): the composition root hands
-   *  over the branch's hook CLASS and the module that exports it, because this
-   *  module may not name a branch. */
+   *  over the branch's hook CLASSES and the modules that export them, because
+   *  this module may not name a branch. */
   static withHook(wiring: {
     imports: ModuleMetadata['imports']
     hook: Type<MessageLoggedHook>
+    debriefHook: Type<CommDebriefHook>
   }): DynamicModule {
     return {
       module: CommsModule,
       imports: wiring.imports ?? [],
-      providers: [{ provide: MESSAGE_LOGGED_HOOK, useExisting: wiring.hook }],
+      providers: [
+        { provide: MESSAGE_LOGGED_HOOK, useExisting: wiring.hook },
+        { provide: COMM_DEBRIEF_HOOK, useExisting: wiring.debriefHook },
+      ],
     }
   }
 }

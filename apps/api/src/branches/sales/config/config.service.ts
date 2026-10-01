@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  CommVocabularyResponse,
   ConfigBundle,
   ConfigListResponse,
   ConfigProposalReceipt,
@@ -22,7 +23,7 @@ import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import type { Db } from '@api/platform/db/db.module'
 import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
-import { SalesConfigRepository } from './config.repository'
+import { SalesConfigRepository, type ConfigPatchDb } from './config.repository'
 import type { ConfigRowDb } from './config.schema'
 
 /** Cấu hình danh mục Sales — nơi DUY NHẤT biết cả repository lẫn engine.
@@ -83,13 +84,18 @@ export class SalesConfigService implements ApprovalApplier {
         ...(body.kind === undefined ? {} : { kind: body.kind }),
         ...(body.stage === undefined ? {} : { stage: body.stage }),
         ...(body.doNotContact === undefined ? {} : { doNotContact: body.doNotContact }),
+        ...(body.criterionId === undefined ? {} : { criterionId: body.criterionId }),
       },
     }
     this.assertAttrs(list, body)
+    if (list === 'COMM_ANSWER' && body.criterionId === undefined) {
+      throw invalid({ criterionId: ['Câu trả lời phải thuộc một câu hỏi — chọn câu hỏi.'] })
+    }
     const rows = await this.repo.list(list)
     this.assertShapeKept(change, rows)
     await this.assertOwnerReal(body.ownerId)
-    this.assertNameFree(rows, body.name)
+    await this.assertCriterionReal(body.criterionId)
+    this.assertNameFree(rows, body.name, undefined, body.criterionId)
 
     return this.propose(who, change)
   }
@@ -109,7 +115,8 @@ export class SalesConfigService implements ApprovalApplier {
     const change: ConfigChange = { kind: 'update', list, id, patch: body }
     this.assertShapeKept(change, rows)
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
-    if (body.name !== undefined) this.assertNameFree(rows, body.name, id)
+    await this.assertCriterionReal(body.criterionId)
+    this.assertPatchNameFree(rows, id, body)
 
     return this.propose(who, change)
   }
@@ -153,6 +160,27 @@ export class SalesConfigService implements ApprovalApplier {
    *  Inactive rows included, so an old stop still prints its label. */
   async stopReasons() {
     return LeadStopReasonResponse.parse({ rows: await this.repo.list('EXIT_REASON') })
+  }
+
+  /** The close-out vocabulary (ADR 0074) — and the rule of which questions a
+   *  close-out must answer, so the form and `NextStepDebriefHook` cannot drift. */
+  async commVocabulary(): Promise<CommVocabularyResponse> {
+    const [criteria, answers, kinds] = await Promise.all([
+      this.repo.list('COMM_CRITERION'),
+      this.repo.list('COMM_ANSWER'),
+      this.repo.list('STEP_KIND'),
+    ])
+    const option = ({ id, name }: ConfigRowDb) => ({ id, name })
+    return CommVocabularyResponse.parse({
+      criteria: criteria
+        .filter((c) => c.active)
+        .map((c) => ({
+          ...option(c),
+          answers: answers.filter((a) => a.active && a.criterionId === c.id).map(option),
+        }))
+        .filter((c) => c.answers.length > 0),
+      stepKinds: kinds.filter((k) => k.active).map(option),
+    })
   }
 
   /** Change one motion's declaration. Like every other write on this module it
@@ -249,15 +277,13 @@ export class SalesConfigService implements ApprovalApplier {
     this.assertShapeKept(change, rows)
 
     if (change.kind === 'create') {
-      this.assertNameFree(rows, change.draft.name)
+      this.assertNameFree(rows, change.draft.name, undefined, change.draft.criterionId)
       await this.repo.create(tx, change.list, change.draft)
       return
     }
 
     if (change.kind === 'update') {
-      if (change.patch.name !== undefined) {
-        this.assertNameFree(rows, change.patch.name, change.id)
-      }
+      this.assertPatchNameFree(rows, change.id, change.patch)
       /* `patch` answers `null` when `(list, id)` no longer resolves — the row
          was removed while the request waited. Dropping that answer would record
          an approval for a write that touched nothing. */
@@ -293,6 +319,7 @@ export class SalesConfigService implements ApprovalApplier {
       kind?: string
       stage?: StageKey | null
       doNotContact?: boolean
+      criterionId?: string
     },
   ): void {
     const wrong: Record<string, string[]> = {}
@@ -310,6 +337,7 @@ export class SalesConfigService implements ApprovalApplier {
     only('kind', 'SOURCE', v.kind !== undefined)
     only('stage', 'LOSS_REASON', v.stage !== undefined)
     only('doNotContact', 'LOSS_REASON', v.doNotContact !== undefined)
+    only('criterionId', 'COMM_ANSWER', v.criterionId !== undefined)
 
     /* A new rung of a ladder used to be REQUIRED to arrive with a deadline.
        It no longer is, for the reason written where the CHECK lives: since
@@ -340,12 +368,6 @@ export class SalesConfigService implements ApprovalApplier {
     )
   }
 
-  /** Tên không trùng trong phần ĐANG SỐNG của danh mục.
-   *
-   *  `config_name_live` ở tầng bảng mới là hàng rào thật (nó không phân biệt
-   *  hoa thường và không cửa vào nào quên được). Câu hỏi ở đây chỉ để trả lời
-   *  sớm và trả lời tử tế — nói ra mã của dòng đang chiếm tên, thứ mà một lỗi
-   *  `23505` từ driver không nói được. */
   /** The new order must name every id of the list and nothing else.
    *
    *  Shared by the propose door and the apply step rather than written twice:
@@ -367,10 +389,42 @@ export class SalesConfigService implements ApprovalApplier {
     )
   }
 
-  private assertNameFree(rows: ConfigRowDb[], name: string, exceptId?: string): void {
+  /** `criterionId` mirrors `config_name_live`: an answer's name is unique
+   *  within its question; every other row has none, so its whole list counts. */
+  private assertNameFree(
+    rows: ConfigRowDb[],
+    name: string,
+    exceptId?: string,
+    criterionId: string | null = null,
+  ): void {
     const key = name.toLowerCase()
-    const clash = rows.find((r) => r.active && r.id !== exceptId && r.name.toLowerCase() === key)
+    const clash = rows.find(
+      (r) =>
+        r.active &&
+        r.id !== exceptId &&
+        r.criterionId === criterionId &&
+        r.name.toLowerCase() === key,
+    )
     if (clash) throw conflict(`Danh mục này đã có mục tên "${clash.name}" (${clash.id}).`)
+  }
+
+  /** Moving an answer to another question can clash as much as a rename can. */
+  private assertPatchNameFree(
+    rows: ConfigRowDb[],
+    id: string,
+    patch: Pick<ConfigPatchDb, 'name' | 'criterionId'>,
+  ): void {
+    if (patch.name === undefined && patch.criterionId === undefined) return
+    const row = rows.find((r) => r.id === id)
+    if (!row) return
+    this.assertNameFree(rows, patch.name ?? row.name, id, patch.criterionId ?? row.criterionId)
+  }
+
+  /** The self-FK refuses too, but only at approval; the typist hears it now.
+   *  Any `COMM_CRITERION` row, off ones included — config rows are never deleted. */
+  private async assertCriterionReal(id: string | undefined): Promise<void> {
+    if (id === undefined || (await this.repo.byId('COMM_CRITERION', id))) return
+    throw invalid({ criterionId: [`Không có câu hỏi nào mang mã "${id}".`] })
   }
 
   /** Người phụ trách phải có trong sổ nhân sự. */

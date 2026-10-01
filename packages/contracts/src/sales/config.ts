@@ -70,6 +70,13 @@ export const ConfigList = z.enum([
    *  An entry may be scoped to one stage with `stage`; without it the reason
    *  applies at every stage. */
   'LOSS_REASON',
+  /** Comm close-out questions in plain language, not a score: the closer picks
+   *  one `COMM_ANSWER` per active question. */
+  'COMM_CRITERION',
+  /** One answer to one `COMM_CRITERION` (`criterionId`), ordered within it by `ord`. */
+  'COMM_ANSWER',
+  /** The type of a next step (call back, send a quote) — required at close-out. */
+  'STEP_KIND',
 ])
 
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
@@ -90,6 +97,9 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   SOURCE: 'SR',
   PRODUCT: 'PD',
   LOSS_REASON: 'LR',
+  COMM_CRITERION: 'CQ',
+  COMM_ANSWER: 'CA',
+  STEP_KIND: 'SK',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -100,7 +110,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR)-\d{2,4}$/, 'Mã cấu hình sai dạng')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK)-\d{2,4}$/, 'Mã cấu hình sai dạng')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 
@@ -140,6 +150,8 @@ export const ConfigEntry = z.object({
   stage: StageKey.optional(),
   /** Only `LOSS_REASON` (do-not-contact). Absent on every other list. */
   doNotContact: z.boolean().optional(),
+  /** Only `COMM_ANSWER`, and always there — the question this answer belongs to. */
+  criterionId: ConfigCode.optional(),
 })
 
 export const LOSS_REASON_DO_NOT_CONTACT_LABEL = 'Không liên hệ'
@@ -204,6 +216,11 @@ export const ConfigUsage = z.object({
    *  rule for one column. The day §6 is paid, the key becomes 'LR-03' and this
    *  comment goes away with the rest. */
   LOSS_REASON: Tally,
+  /** The three close-out lists, keyed by config id: answered rows in
+   *  `comms.debrief_answer` for the first two, `sales.next_step.kind_id` for the last. */
+  COMM_CRITERION: Tally,
+  COMM_ANSWER: Tally,
+  STEP_KIND: Tally,
 
   /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
    *  the generated column `sales.lead.required_filled` sums over and the config
@@ -239,6 +256,9 @@ export const ConfigBundle = z.object({
   SOURCE: z.array(ConfigEntry),
   PRODUCT: z.array(ConfigEntry),
   LOSS_REASON: z.array(ConfigEntry),
+  COMM_CRITERION: z.array(ConfigEntry),
+  COMM_ANSWER: z.array(ConfigEntry),
+  STEP_KIND: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 
@@ -334,6 +354,8 @@ export const ConfigEntryCreate = z.object({
   /** Only `LOSS_REASON`, judged by the service like `ownerId`/`kind`. */
   stage: StageKey.optional(),
   doNotContact: z.boolean().optional(),
+  /** Only `COMM_ANSWER`, where it is required — judged by the service like `stage`. */
+  criterionId: ConfigCode.optional(),
 })
 
 /** Sửa MỘT dòng. Trường vắng mặt = không đụng tới.
@@ -352,6 +374,8 @@ export const ConfigEntryPatch = z
     /** `null` clears the scope (reason applies to every stage again). */
     stage: StageKey.nullable().optional(),
     doNotContact: z.boolean().optional(),
+    /** No `null`: an answer without a question breaks `CHECK` on the table. */
+    criterionId: ConfigCode.optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có trường nào để sửa',
@@ -372,6 +396,15 @@ export const ConfigOrderPatch = z
     path: ['ids'],
   })
 
+/** `GET /sales/comm-vocabulary` (`comm.view`) — the close-out form's lists for
+ *  closers without `config.view` (ADR 0074). Active rows only, in `ord`; a
+ *  question with no active answer is left out, because nobody could answer it. */
+export const CommVocabularyOption = z.object({ id: ConfigCode, name: z.string().min(1) })
+export const CommVocabularyResponse = z.object({
+  criteria: z.array(CommVocabularyOption.extend({ answers: z.array(CommVocabularyOption).min(1) })),
+  stepKinds: z.array(CommVocabularyOption),
+})
+
 export type ConfigEntry = z.infer<typeof ConfigEntry>
 export type ConfigUsage = z.infer<typeof ConfigUsage>
 export type ConfigBundle = z.infer<typeof ConfigBundle>
@@ -379,3 +412,5 @@ export type ConfigListResponse = z.infer<typeof ConfigListResponse>
 export type ConfigEntryCreate = z.infer<typeof ConfigEntryCreate>
 export type ConfigEntryPatch = z.infer<typeof ConfigEntryPatch>
 export type ConfigOrderPatch = z.infer<typeof ConfigOrderPatch>
+export type CommVocabularyOption = z.infer<typeof CommVocabularyOption>
+export type CommVocabularyResponse = z.infer<typeof CommVocabularyResponse>

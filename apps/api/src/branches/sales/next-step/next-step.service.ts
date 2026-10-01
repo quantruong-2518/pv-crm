@@ -18,6 +18,10 @@ import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository, type NextStepSlot } from './next-step.repository'
+import { assertNextDiffers, liveKind } from './next-step.rules'
+
+/** One write on a step: `closing` set = "done" (touch, then `next` or clear). */
+export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>>
 
 /** The next step of a LEAD (flow G1–G3): read, set, mark done, clear.
  *
@@ -47,34 +51,36 @@ export class NextStepService {
   async set(who: Actor, code: ObjectCode, body: NextStepSetBody): Promise<NextStepResponse> {
     const reach = await this.reaches(body.doerId)
     const slot = await this.repo.run(async (tx) => {
-      const held = await this.lockOpen(tx, who, code)
-      await this.put(tx, who, code, held.ownerId, body, reach)
+      await this.write(tx, who, code, { next: body }, reach)
       return this.repo.slot(code, tx)
     })
     return answer(slot)
   }
 
-  /** `closing` must be the step standing under the lock: a retried or doubled
-   *  press finds another step (or none) and is refused, so one piece of work
-   *  logs one touch. The touch is written here, while the text is still known. */
   async done(who: Actor, code: ObjectCode, body: NextStepDoneBody): Promise<NextStepResponse> {
-    /* A `next` equal to `closing` would pass the closing check on a replay. */
-    if (body.next?.text === body.closing.text && body.next.due === body.closing.due) {
-      throw invalid(
-        { next: ['Việc tiếp theo mới trùng với việc vừa xong — đổi nội dung hoặc hạn.'] },
-        'Việc tiếp theo mới trùng với việc vừa xong.',
-      )
-    }
+    assertNextDiffers(body.closing, body.next)
     const reach = await this.reaches(body.next?.doerId)
     const slot = await this.repo.run(async (tx) => {
-      const held = await this.lockOpen(tx, who, code)
+      await this.write(tx, who, code, body, reach)
+      return this.repo.slot(code, tx)
+    })
+    return answer(slot)
+  }
+
+  /** Both doors' write, and the comm close-out's inside ITS transaction (ADR
+   *  0074 §7). With `closing` it is "done": that step must be the one standing
+   *  under the lock, so a doubled press is refused and one piece of work logs
+   *  one touch, written here while the text is still known. `reach` is
+   *  `reaches(next.doerId)`, asked before the transaction. */
+  async write(tx: Db, who: Actor, code: ObjectCode, op: StepWrite, reach: boolean): Promise<void> {
+    const held = await this.lockOpen(tx, who, code)
+    if (op.closing) {
       const current = (await this.repo.slot(code, tx))?.step
-      if (!current || current.text !== body.closing.text || current.due !== body.closing.due) {
+      if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
         throw conflict(
           `Việc tiếp theo của lead ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
         )
       }
-
       await this.touch.record(tx, [
         {
           subjectCode: code,
@@ -84,12 +90,9 @@ export class NextStepService {
           note: doneNote(current.text),
         },
       ])
-
-      if (body.next) await this.put(tx, who, code, held.ownerId, body.next, reach)
-      else await dropStep(tx, code)
-      return this.repo.slot(code, tx)
-    })
-    return answer(slot)
+    }
+    if (op.next) await this.put(tx, who, code, held.ownerId, op.next, reach)
+    else await dropStep(tx, code)
   }
 
   /** Idempotent: clearing a lead that has no step is not an error. */
@@ -130,6 +133,7 @@ export class NextStepService {
         'Người làm không hợp lệ.',
       )
     }
+    if (body.kindId !== undefined) await liveKind(this.repo, body.kindId, tx)
     if (doerId !== holderId && !reach) {
       throw invalid(
         {
@@ -146,6 +150,7 @@ export class NextStepService {
       due: body.due,
       doerId,
       createdBy: who.id,
+      kindId: body.kindId ?? null,
     })
   }
 
@@ -155,7 +160,7 @@ export class NextStepService {
    *  BEFORE the transaction: `ActorRepository` reads on the pool, and inside the
    *  tx that waits on PGlite's single connection forever. No `doerId` = the
    *  holder, who needs no check. */
-  private async reaches(doerId: string | undefined): Promise<boolean> {
+  async reaches(doerId: string | undefined): Promise<boolean> {
     if (doerId === undefined) return true
     const doer = (await this.actors.byId(doerId))?.actor
     if (!doer || doer.ownOnly) return false

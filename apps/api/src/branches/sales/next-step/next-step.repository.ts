@@ -1,12 +1,34 @@
 import { and, arrayContains, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import { LEAD_OPEN_STATES } from '@pv/contracts'
+import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
+import { leadScope } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
 import { nextStep, type NextStepValues } from './next-step.schema'
 
-/** The step as read: the doer's name joined from `actor` at read time. */
-export type NextStepRead = { text: string; due: string; doerId: string; doerName: string }
+/** The step as read: doer and kind names joined at read time, so a rename
+ *  shows on every standing step. */
+export type NextStepRead = {
+  text: string
+  due: string
+  doerId: string
+  doerName: string
+  kindId: string | null
+  kindName: string | null
+}
+
+/** The columns of a step read, shared by every reader of the table. */
+export const STEP_COLUMNS = {
+  text: nextStep.text,
+  due: nextStep.due,
+  doerId: nextStep.doerId,
+  doerName: actor.name,
+  kindId: nextStep.kindId,
+  kindName: configEntry.name,
+}
 
 /** One object's step out of a batch. */
 export type NextStepBatchRead = NextStepRead & { subjectCode: string }
@@ -34,27 +56,17 @@ export class NextStepRepository {
   /** Null = no such lead. Left joins: a lead with no step still answers. */
   async slot(code: string, handle: Db = this.db): Promise<NextStepSlot | null> {
     const [row] = await handle
-      .select({
-        state: lead.state,
-        today: VIETNAM_TODAY,
-        text: nextStep.text,
-        due: nextStep.due,
-        doerId: nextStep.doerId,
-        doerName: actor.name,
-      })
+      .select({ state: lead.state, today: VIETNAM_TODAY, ...STEP_COLUMNS })
       .from(lead)
       .leftJoin(nextStep, eq(nextStep.subjectCode, lead.code))
       .leftJoin(actor, eq(actor.id, nextStep.doerId))
+      .leftJoin(configEntry, eq(configEntry.id, nextStep.kindId))
       .where(eq(lead.code, code))
       .limit(1)
     if (!row) return null
 
-    const { state, today, text, due, doerId, doerName } = row
-    const step =
-      text === null || due === null || doerId === null || doerName === null
-        ? null
-        : { text, due, doerId, doerName }
-    return { state, today, step }
+    const { state, today, ...step } = row
+    return { state, today, step: stepOf(step) }
   }
 
   /** The Vietnam calendar day, for a reader that grades several things at once.
@@ -69,17 +81,39 @@ export class NextStepRepository {
   async stepsOf(codes: readonly string[]): Promise<Map<string, NextStepBatchRead>> {
     if (codes.length === 0) return new Map()
     const rows = await this.db
-      .select({
-        subjectCode: nextStep.subjectCode,
-        text: nextStep.text,
-        due: nextStep.due,
-        doerId: nextStep.doerId,
-        doerName: actor.name,
-      })
+      .select({ subjectCode: nextStep.subjectCode, ...STEP_COLUMNS })
       .from(nextStep)
       .innerJoin(actor, eq(actor.id, nextStep.doerId))
+      .leftJoin(configEntry, eq(configEntry.id, nextStep.kindId))
       .where(inArray(nextStep.subjectCode, [...codes]))
     return new Map(rows.map((r) => [r.subjectCode, r]))
+  }
+
+  /** Leads among `codes` still in the funnel and in the caller's scope
+   *  (`leadScope`), with holder and step — what a comm close-out may target. */
+  async openLeads(who: Actor, codes: readonly string[]) {
+    if (codes.length === 0) return []
+    return this.db
+      .select({ code: lead.code, ownerId: lead.ownerId, text: nextStep.text, due: nextStep.due })
+      .from(lead)
+      .leftJoin(nextStep, eq(nextStep.subjectCode, lead.code))
+      .where(
+        and(
+          inArray(lead.code, [...codes]),
+          inArray(lead.state, [...LEAD_OPEN_STATES]),
+          leadScope(who, true),
+        ),
+      )
+  }
+
+  /** A `STEP_KIND` row, off ones included — the caller judges `active`. */
+  async stepKind(id: string, handle: Db = this.db) {
+    const [row] = await handle
+      .select({ id: configEntry.id, name: configEntry.name, active: configEntry.active })
+      .from(configEntry)
+      .where(and(eq(configEntry.id, id), eq(configEntry.list, 'STEP_KIND')))
+      .limit(1)
+    return row ?? null
   }
 
   /** The lead row under lock: every write on its step is serialised behind it,
@@ -113,7 +147,22 @@ export class NextStepRepository {
       .values(values)
       .onConflictDoUpdate({
         target: nextStep.subjectCode,
-        set: { text: values.text, due: values.due, doerId: values.doerId, updatedAt: sql`now()` },
+        set: {
+          text: values.text,
+          due: values.due,
+          doerId: values.doerId,
+          kindId: values.kindId ?? null,
+          updatedAt: sql`now()`,
+        },
       })
   }
+}
+
+/** Left joins answer NULLs for an object with no step; any NULL key = no step. */
+export function stepOf(
+  row: Partial<Record<keyof NextStepRead, string | null>>,
+): NextStepRead | null {
+  const { text, due, doerId, doerName } = row
+  if (!text || !due || !doerId || !doerName) return null
+  return { text, due, doerId, doerName, kindId: row.kindId ?? null, kindName: row.kindName ?? null }
 }

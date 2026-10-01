@@ -4,6 +4,7 @@ import { ACCOUNT_CONSTRAINTS } from './account/account.constraints'
 import { AccountModule } from './account/account.module'
 import { CampaignModule } from './campaign/campaign.module'
 import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
+import { CONFIG_CONSTRAINTS } from './config/config.constraints'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
@@ -37,6 +38,7 @@ registerConstraints(MEETING_CONSTRAINTS)
 registerConstraints(ACCOUNT_CONSTRAINTS)
 registerConstraints(CONTACT_CONSTRAINTS)
 registerConstraints(NEXT_STEP_CONSTRAINTS)
+registerConstraints(CONFIG_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
