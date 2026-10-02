@@ -32,13 +32,11 @@ export const ANY = 'all'
 
 const SEARCH_DELAY_MS = 300
 
-/** The ten columns after the select box. Only the server's sort keys
+/** The eight columns after the select box. Only the server's sort keys
  *  (`OpportunitySortKey`) get an arrow; a header that sorts nothing is a lie. */
 export const BOOK_COLUMNS: TableColumn[] = [
-  { header: 'Email', width: '176px' },
   { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name' },
   { header: 'Giai đoạn', width: '1.3fr' },
-  { header: 'Dự báo', width: '0.9fr' },
   { header: 'Giá trị', width: '0.8fr', align: 'right', sortKey: 'amount' },
   { header: 'Ngày chốt', width: '0.7fr', sortKey: 'expectedClose' },
   { header: 'BD Lead', width: '0.6fr' },
@@ -47,30 +45,28 @@ export const BOOK_COLUMNS: TableColumn[] = [
   { header: 'Việc tiếp theo', width: '1.8fr' },
 ]
 
-/** Narrower than this the ten tracks crush, so the card scrolls sideways. */
-export const TABLE_MIN_WIDTH = 'min-w-[1400px]'
+/** Narrower than this the eight tracks crush, so the card scrolls sideways. */
+export const TABLE_MIN_WIDTH = 'min-w-[1200px]'
 
-/** The Email and deal columns stay put while the book scrolls sideways to the row acts.
- *  Email's fixed track is what lets the deal column know its `left` (176 + the 12px gap);
- *  each cell reaches over the gap after it, and paints the panel's own `--card`
+/** The deal column stays put while the book scrolls sideways to the row acts.
+ *  Its cell reaches over the gap after it, and paints the panel's own `--card`
  *  plus the row's tint, since glass-b would let the passing cells show. `clip`
  *  replaces DataTable's `hidden`, which made the table its own scroller. */
 export const STICKY_LEAD = [
   'overflow-x-clip',
   '[&>[role=row]>:nth-child(2)]:sticky [&>[role=row]>:nth-child(2)]:left-0',
-  '[&>[role=row]>:nth-child(3)]:sticky [&>[role=row]>:nth-child(3)]:left-[188px]',
-  '[&>[role=row]>:nth-child(n+2):nth-child(-n+3)]:z-[1]',
-  '[&>[role=row]>:nth-child(n+2):nth-child(-n+3)]:-mr-3',
-  '[&>[role=row]>:nth-child(n+2):nth-child(-n+3)]:pr-3',
-  '[&>[role=row]>:nth-child(n+2):nth-child(-n+3)]:bg-card',
-  '[&>[role=row]>[role=cell]:nth-child(n+2):nth-child(-n+3)]:flex',
-  '[&>[role=row]>[role=cell]:nth-child(n+2):nth-child(-n+3)]:flex-col',
-  '[&>[role=row]>[role=cell]:nth-child(n+2):nth-child(-n+3)]:justify-center',
-  '[&>[role=row]>[role=cell]:nth-child(n+2):nth-child(-n+3)]:self-stretch',
-  '[&>[role=row]:first-child>:nth-child(n+2):nth-child(-n+3)]:bg-[color-mix(in_srgb,var(--surface-ink)_5%,var(--card))]',
-  '[&>[role=row][aria-current=true]>:nth-child(n+2):nth-child(-n+3)]:bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]',
-  '[&>[role=row][tabindex]:hover>:nth-child(n+2):nth-child(-n+3)]:bg-[color-mix(in_srgb,var(--surface-ink)_8%,var(--card))]',
-  '[&>[role=row][tabindex]:focus-visible>:nth-child(n+2):nth-child(-n+3)]:bg-[color-mix(in_srgb,var(--surface-ink)_8%,var(--card))]',
+  '[&>[role=row]>:nth-child(2)]:z-[1]',
+  '[&>[role=row]>:nth-child(2)]:-mr-3',
+  '[&>[role=row]>:nth-child(2)]:pr-3',
+  '[&>[role=row]>:nth-child(2)]:bg-card',
+  '[&>[role=row]>[role=cell]:nth-child(2)]:flex',
+  '[&>[role=row]>[role=cell]:nth-child(2)]:flex-col',
+  '[&>[role=row]>[role=cell]:nth-child(2)]:justify-center',
+  '[&>[role=row]>[role=cell]:nth-child(2)]:self-stretch',
+  '[&>[role=row]:first-child>:nth-child(2)]:bg-[color-mix(in_srgb,var(--surface-ink)_5%,var(--card))]',
+  '[&>[role=row][aria-current=true]>:nth-child(2)]:bg-[color-mix(in_srgb,var(--primary)_10%,var(--card))]',
+  '[&>[role=row][tabindex]:hover>:nth-child(2)]:bg-[color-mix(in_srgb,var(--surface-ink)_8%,var(--card))]',
+  '[&>[role=row][tabindex]:focus-visible>:nth-child(2)]:bg-[color-mix(in_srgb,var(--surface-ink)_8%,var(--card))]',
 ].join(' ')
 
 /** A deal's life in reading order — the enum puts `lost` before `won`. */

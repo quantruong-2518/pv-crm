@@ -10,7 +10,6 @@ import {
   X,
   FileCheck,
   Inbox,
-  Kicker,
   Select,
   StatCard,
   Target,
@@ -287,7 +286,6 @@ export function ScoreCards() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Kicker>Thẻ điểm cả sổ · không theo phạm vi của bạn</Kicker>
       <div
         role="group"
         aria-label="Thẻ điểm sổ cơ hội"

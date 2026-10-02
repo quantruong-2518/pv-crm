@@ -40,8 +40,6 @@ import {
   AmountCell,
   CloseCell,
   DealCell,
-  EmailCell,
-  ForecastCell,
   LastActivityCell,
   NextStepCell,
   PeopleCell,
@@ -51,9 +49,9 @@ import {
 /** Module 3 · the deal book — `GET /sales/opportunities`, filtered, sorted and
  *  paged by the server; the filter lives in the address (`opportunities-model`).
  *
- *  The screen hands CONTENT to `BookPage`, the shape every book shares. Ten
+ *  The screen hands CONTENT to `BookPage`, the shape every book shares. Eight
  *  columns in the order ADR 0077 set (`BOOK_COLUMNS`); every verdict a cell
- *  prints — overdue, forecast, activity freshness — is the server's.
+ *  prints — overdue, activity freshness — is the server's.
  *
  *  LAW 10 DEBT, on purpose: no ContextRail. A book has no OPEN object, and a
  *  rail seeded from a fixed row would show a chain the user never picked. Pay
@@ -183,7 +181,9 @@ export function OpportunitiesPage() {
                   onPress={(event) => selection.beginDrag(o.code, event)}
                   onChange={(on) => selection.changeSelection(o.code, on)}
                 />,
-                ...bookCells(o, canAccept),
+                ...bookCells(o, canAccept, () =>
+                  openMasMail({ recipients, initialCodes: [o.code], subjectType: 'opportunity' }),
+                ),
               ],
             })),
           }}
@@ -270,13 +270,11 @@ function useCommitOps() {
   }
 }
 
-/** One row's ten cells, in `BOOK_COLUMNS` order. */
-function bookCells(op: OpportunityBookRow, canAccept: boolean) {
+/** One row's eight cells, in `BOOK_COLUMNS` order. A lost deal is not mailed. */
+function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void) {
   return [
-    <EmailCell key="mail" op={op} />,
-    <DealCell key="deal" op={op} />,
+    <DealCell key="deal" op={op} onEmail={op.state === 'lost' ? undefined : mail} />,
     <StageCell key="stage" op={op} />,
-    <ForecastCell key="forecast" op={op} />,
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,
     <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa ghi BD mở cửa" />,

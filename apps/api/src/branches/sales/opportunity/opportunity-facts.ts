@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common'
 import { stepLevelOf } from '@pv/engines'
 import {
   CARE_ACTIVITY_KINDS,
-  forecastOf,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   type ActivityFreshness,
@@ -29,10 +28,7 @@ import { MILESTONE_TOUCH, toContract, type RowFactKey } from './opportunity.mapp
 type RowInput = Parameters<typeof toContract>[0]
 type RowFacts = Pick<OpportunityRow, RowFactKey>
 
-type BookFacts = Pick<
-  OpportunityBookRow,
-  'lastActivityAt' | 'activityFreshness' | 'forecast' | 'pendingSign'
->
+type BookFacts = Pick<OpportunityBookRow, 'lastActivityAt' | 'activityFreshness' | 'pendingSign'>
 
 const QUOTATION: TouchKind = MILESTONE_TOUCH.quotation
 const COUNTED: TouchKind[] = [...CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]), QUOTATION]
@@ -78,7 +74,6 @@ export class OpportunityFacts {
           row.state === 'open'
             ? levelOf(at ? vnDay(at) : vnDay(new Date(row.createdAt)), today, threshold)
             : null,
-        forecast: forecastOf(row.probability, row.state),
         pendingSign: waiting.some((a) => a.kind === 'contract-sign'),
       }
     }

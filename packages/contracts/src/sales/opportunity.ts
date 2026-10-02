@@ -74,31 +74,10 @@ export const OpportunityOwnerRole = z.enum(['SALE', 'BD'])
 export const CARE_ACTIVITY_KINDS = ['sample', 'poc', 'demo', 'site-visit'] as const
 export const CareActivityKind = z.enum(CARE_ACTIVITY_KINDS, 'Hoạt động không có trong danh sách')
 
-/** The seller's `probability` read as three buckets for the book. Thresholds are
- *  named so `forecastOf` is the one place the cut is made. */
-export const OpportunityForecast = z.enum(['certain', 'likely', 'far'])
-export const FORECAST_CERTAIN_MIN = 80
-export const FORECAST_LIKELY_MIN = 50
-export const OPPORTUNITY_FORECAST_LABEL: Record<OpportunityForecast, string> = {
-  certain: 'Chắc chắn',
-  likely: 'Khả năng cao',
-  far: 'Còn xa',
-}
-
 /** How stale a deal's last activity is: `warn` from `warnDays`, `alert` from
  *  `alertDays` (`ActivityFreshness` in `./config`). */
 export const ActivityFreshnessLevel = z.enum(['fresh', 'warn', 'alert'])
 export type ActivityFreshnessLevel = z.infer<typeof ActivityFreshnessLevel>
-
-/** `null` when nobody judged the deal, or it has left the board (won/lost). */
-export function forecastOf(
-  probability: number | null,
-  state: OpportunityStatus,
-): OpportunityForecast | null {
-  if (probability === null || state !== 'open') return null
-  if (probability >= FORECAST_CERTAIN_MIN) return 'certain'
-  return probability >= FORECAST_LIKELY_MIN ? 'likely' : 'far'
-}
 
 // ---------------------------------------------------------------------------
 // PARTS
@@ -570,8 +549,6 @@ export const OpportunityBookRow = OpportunityRow.extend({
    *  thresholds, so sellers without `config.view` never need the numbers.
    *  `null` once the deal left the board. */
   activityFreshness: ActivityFreshnessLevel.nullable(),
-  /** `forecastOf(probability, state)` — server-derived, never by a screen. */
-  forecast: OpportunityForecast.nullable(),
   /** A `contract-sign` request is waiting; the profile carries the request itself. */
   pendingSign: z.boolean(),
   /** The viewer may give this deal a seller now — the server's assign verdict,
@@ -761,7 +738,6 @@ export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 export type OpportunityContact = z.infer<typeof OpportunityContact>
 export type OpportunityWorkstream = z.infer<typeof OpportunityWorkstream>
 export type OpportunityNextStep = z.infer<typeof OpportunityNextStep>
-export type OpportunityForecast = z.infer<typeof OpportunityForecast>
 export type OpportunityFacetsQuery = z.infer<typeof OpportunityFacetsQuery>
 export type OpportunityFacetsResponse = z.infer<typeof OpportunityFacetsResponse>
 

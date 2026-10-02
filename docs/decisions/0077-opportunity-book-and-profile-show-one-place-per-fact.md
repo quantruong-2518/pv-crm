@@ -29,11 +29,16 @@ kind, date and person, amount, status. "Ký thêm hợp đồng" sits in the hea
 that card on a won deal and is hidden while a sign request is pending. The first
 contract still goes through "Chốt thắng".
 
-### 3 · Forecast column on the book
+### 3 · No forecast column
 
-Bucket of `probability`: 80 and above "Chắc chắn", 50 to 79 "Khả năng cao", below
-50 "Còn xa". Blank when probability is empty or the deal is won or lost.
-The seller enters `probability` (0–100) with the terms ("Sửa phiếu").
+A forecast column (buckets of `probability`) was drawn and then dropped by the
+owner the same day: the book shows no forecast. `probability` stays a field the
+seller enters with the terms ("Sửa phiếu").
+
+### 3b · The book's deal cell
+
+As the lead book's company cell: "account · title" over `contact · email`,
+the address opening the system's mail composer. No separate Email column.
 
 ### 4 · "Hoạt động cuối" on the book
 

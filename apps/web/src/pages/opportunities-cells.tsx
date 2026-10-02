@@ -2,7 +2,6 @@ import { useRef, type ReactNode, type SyntheticEvent } from 'react'
 import { Timer, TriangleAlert } from '@pv/ui'
 import { AvatarGroup, Badge, Icon, billions, cn, type IconGlyph } from '@pv/ui'
 import {
-  OPPORTUNITY_FORECAST_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type ActivityFreshnessLevel,
   type OpportunityBookRow,
@@ -28,7 +27,7 @@ import { lateLevel } from './workstream-tree-model'
 
 /** Module 3 · the deal book's cells, one per column (ADR 0077 §3–4), split out
  *  of `opportunities.tsx`. Every verdict here is the server's — overdue in
- *  column (`position`), forecast, activity freshness, the next step's due level;
+ *  column (`position`), activity freshness, the next step's due level;
  *  a cell only picks the words and the ink, and every inked warning also wears
  *  a glyph and words for whoever cannot see the colour. Rows are a fixed 56px,
  *  so every cell is at most two lines. */
@@ -67,41 +66,46 @@ function Dash({ title }: { title: string }) {
 
 const stop = (event: SyntheticEvent) => event.stopPropagation()
 
-/** The primary contact's mailbox as a link, the person under it. The link's
- *  hit area grows to 48px on a coarse pointer (law 13) without growing the row. */
-export function EmailCell({ op }: { op: OpportunityBookRow }) {
+/** Deal over `contact · email`, small and italic — the lead book's company cell.
+ *  With `onEmail` the address opens the system's mail composer for this deal and
+ *  stops the click, or the row would open as well; without it the address is
+ *  plain text. */
+export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: () => void }) {
   const contact = op.primaryContact
   return (
-    <div className="flex min-w-0 flex-col">
-      {contact?.email ? (
-        <a
-          href={`mailto:${contact.email}`}
-          title={contact.email}
-          onClick={stop}
-          onKeyDown={stop}
-          className="text-accent-foreground pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-4 pointer-coarse:after:content-[''] relative block min-w-0 hover:underline"
-        >
-          <span className="block truncate">{contact.email}</span>
-        </a>
-      ) : (
-        <span className="text-muted-foreground">Chưa có email</span>
-      )}
-      {contact && (
-        <span className="text-muted-foreground block truncate text-[11px]">{contact.name}</span>
-      )}
-    </div>
-  )
-}
-
-/** "OP-0042 · customer" over the deal's title — the three old columns in one. */
-export function DealCell({ op }: { op: OpportunityBookRow }) {
-  return (
-    <div className="flex min-w-0 flex-col" title={`${op.code} · ${op.account} — ${op.name}`}>
-      <span className="text-muted-foreground block truncate text-[11px]">
-        <span className="font-mono">{op.code}</span> · {op.account}
+    <span className="flex min-w-0 flex-col gap-1" title={`${op.code} · ${op.account} — ${op.name}`}>
+      <span className="truncate text-[13px] font-semibold">
+        {op.account} · {op.name}
       </span>
-      <span className="block truncate font-medium">{op.name}</span>
-    </div>
+      <span className="text-muted-foreground flex min-w-0 gap-1 text-[11.5px] italic">
+        {contact ? (
+          <>
+            <span className="max-w-[45%] shrink-0 truncate">{contact.name}</span>
+            <span aria-hidden>·</span>
+            {!contact.email ? (
+              <span className="truncate">Chưa có email</span>
+            ) : onEmail ? (
+              <button
+                type="button"
+                title={`Soạn email gửi ${contact.email}`}
+                onClick={(event) => {
+                  stop(event)
+                  onEmail()
+                }}
+                onKeyDown={stop}
+                className="hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-4 pointer-coarse:after:content-[''] relative truncate underline-offset-2 hover:underline"
+              >
+                {contact.email}
+              </button>
+            ) : (
+              <span className="truncate">{contact.email}</span>
+            )}
+          </>
+        ) : (
+          <span className="truncate">Chưa có người liên hệ</span>
+        )}
+      </span>
+    </span>
   )
 }
 
@@ -127,15 +131,6 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
         {suffix && ` · ${suffix}`}
       </span>
     </Badge>
-  )
-}
-
-export function ForecastCell({ op }: { op: OpportunityBookRow }) {
-  if (op.forecast === null) return <Dash title="Chưa ai đánh giá khả năng, hoặc đơn đã đóng" />
-  return (
-    <span className="block truncate" title={`Khả năng chốt ${op.probability ?? ''}%`}>
-      {OPPORTUNITY_FORECAST_LABEL[op.forecast]}
-    </span>
   )
 }
 
