@@ -21,7 +21,7 @@ const TONE: Record<DueLevel, 'draft' | 'warning' | 'success' | 'danger'> = {
  *  which is also what keeps the two overdue levels apart at a glance. */
 export function DueBadge({ level, className }: { level: DueLevel; className?: string }) {
   return (
-    <Badge tone={TONE[level]} className={cn('uppercase tracking-[.06em]', className)}>
+    <Badge tone={TONE[level]} className={className}>
       {DUE_LABEL[level]}
     </Badge>
   )
@@ -33,7 +33,7 @@ export function DueBadge({ level, className }: { level: DueLevel; className?: st
 export function SideTag({ side, long = false }: { side: ConditionSide; long?: boolean }) {
   const ours = side === 'ours'
   return (
-    <span className="text-glass-foreground bg-surface-ink/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 font-mono text-[10px] uppercase tracking-[.08em]">
+    <span className="text-muted-foreground bg-surface-ink/9 inline-flex items-center gap-1 rounded-sm px-2 py-1 text-[12px]">
       <Icon icon={ours ? ArrowRight : ArrowLeft} size={14} />
       {ours ? 'Ta' : 'Khách'}
       {long && ' phải làm'}

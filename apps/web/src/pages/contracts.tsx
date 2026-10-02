@@ -3,19 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  DataTable,
-  EmptyState,
   FileCheck,
-  GlassCard,
   Icon,
-  Inbox,
-  Kicker,
   Lock,
-  ScreenHeader,
   ScreenLayout,
-  Skeleton,
   StatCard,
-  TriangleAlert,
   billions,
   vnd,
   millions,
@@ -31,11 +23,13 @@ import {
   type ContractBookRow,
   type InstallmentView,
 } from '@/data/contracts'
+import { BookCount, BookPage } from '@/components/book-page'
 import { MoneySplit } from '@/components/contract-bits'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
  *  installment. This screen answers one question and refuses the others: which
- *  of my contracts wants something from me today. */
+ *  of my contracts wants something from me today. Drawn on `BookPage`, like
+ *  every other book. */
 
 const COLUMNS = [
   { header: 'Mã', width: '104px' },
@@ -101,7 +95,7 @@ function rowCells(row: ContractBookRow) {
 /** Numbers of the WHOLE book, counted in SQL.
  *
  *  The summary door drops the scope axis on purpose, so these three do not
- *  shrink to what the reader owns — which is exactly why the kicker says so.
+ *  shrink to what the reader owns — which is exactly why the line above says so.
  *  Someone who only sees their own contracts reads a signed count here larger
  *  than the table below, and they only know that if something tells them. */
 function ContractScore() {
@@ -119,7 +113,9 @@ function ContractScore() {
 
   return (
     <div className="flex flex-col gap-3">
-      <Kicker>Số của cả sổ · không theo phạm vi của bạn</Kicker>
+      <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
+        Số của cả sổ · không theo phạm vi của bạn
+      </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
@@ -198,43 +194,35 @@ export function ContractsPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <ScreenHeader
-          kicker="Sales · Module 4"
+        <BookPage
           title="Hợp đồng"
-          description="Hợp đồng đã ký · tiền còn phải thu · việc còn thiếu của cả hai bên."
+          score={<ContractScore />}
+          count={data && <BookCount total={data.total} noun="hợp đồng" />}
+          pending={isPending}
+          failure={
+            error
+              ? {
+                  message: `Không lấy được sổ hợp đồng. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
+          empty={
+            tableRows.length === 0
+              ? {
+                  message:
+                    'Chưa có hợp đồng nào đứng tên bạn — một cơ hội chốt thắng sẽ sinh ra hợp đồng và nó xuất hiện ở đây.',
+                  action: {
+                    label: 'Mở sổ cơ hội',
+                    onClick: () => navigate('/sales/opportunities'),
+                  },
+                }
+              : undefined
+          }
+          table={{ minWidth: 'min-w-[880px]', columns: COLUMNS, rows: tableRows }}
         />
-
-        <ContractScore />
-
-        {/* Rule 8 — a long table always sits on `.glass-b`, and `DataTable` draws no glass of its own. */}
-        <GlassCard variant="b" className="p-5">
-          {isPending ? (
-            /* `h-12` is the row height `DataTable` draws. Off by a step and every
-               row jumps 4px the moment data lands. */
-            <div className="flex flex-col gap-3">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : error ? (
-            <EmptyState
-              icon={TriangleAlert}
-              message={`Không lấy được sổ hợp đồng. ${
-                isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-              }`}
-              action={{ label: 'Thử lại', onClick: () => void refetch() }}
-              className="py-12"
-            />
-          ) : tableRows.length === 0 ? (
-            <EmptyState
-              icon={Inbox}
-              message="Chưa có hợp đồng nào đứng tên bạn — một cơ hội chốt thắng sẽ sinh ra hợp đồng và nó xuất hiện ở đây."
-              action={{ label: 'Mở sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
-            />
-          ) : (
-            <DataTable columns={COLUMNS} rows={tableRows} />
-          )}
-        </GlassCard>
 
         {/* `hidden` is the server's receipt for the scope cut, so the screen can
             name the axis that stopped them: a wider role will not open this row,
