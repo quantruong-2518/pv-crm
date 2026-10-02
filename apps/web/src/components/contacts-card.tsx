@@ -78,12 +78,15 @@ export function ContactsCard({
    *  fifth background layer (law 12). */
   embedded,
   mail,
+  hideCommActions = false,
 }: {
   code: string
   canEdit: boolean
   embedded?: boolean
   /** The page's mail composer; absent = no mail button on the rows. */
   mail?: CommMail
+  /** No call/Zalo/mail per row — the screen's floating bar already holds them. */
+  hideCommActions?: boolean
 }) {
   const { data, isPending } = useQuery(leadContactsQuery(code))
   const [adding, setAdding] = useState(false)
@@ -146,6 +149,7 @@ export function ContactsCard({
               leadCode={code}
               canEdit={canEdit}
               mail={mail}
+              commActions={!hideCommActions}
               onEdit={() => setEditing(c)}
             />
           ))}
@@ -189,12 +193,14 @@ function ContactLine({
   leadCode,
   canEdit,
   mail,
+  commActions,
   onEdit,
 }: {
   row: ContactRow
   leadCode: string
   canEdit: boolean
   mail?: CommMail
+  commActions: boolean
   onEdit: () => void
 }) {
   const promote = useSetPrimaryContact(row.code, leadCode)
@@ -262,12 +268,14 @@ function ContactLine({
 
       {/* Not gated on `canEdit`: a reader who only reaches the lead through a
           deal still calls and mails it; the server checks reach on the POST. */}
-      <CommActions
-        subject={{ code: leadCode, kind: 'lead' }}
-        contact={row}
-        mail={mail}
-        className="pt-1"
-      />
+      {commActions && (
+        <CommActions
+          subject={{ code: leadCode, kind: 'lead' }}
+          contact={row}
+          mail={mail}
+          className="pt-1"
+        />
+      )}
     </li>
   )
 }

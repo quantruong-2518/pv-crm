@@ -5,6 +5,7 @@ import type { LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
+import { assignDoorOf } from '@/components/assign-door'
 import { HandoverDeals } from '@/components/handover-deals'
 import { useDirectory } from '@/data/directory'
 import { useHandoverChoice, useSetLeadOwner } from '@/data/lead-owner'
@@ -41,6 +42,11 @@ type MenuProps = {
    *  instead of disappearing. */
   iconOnly?: boolean
   className?: string
+  /** Controlled: another door (the profile's more menu) opens the drawer. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** `false` = no trigger drawn; the caller's own door stands in for it. */
+  trigger?: boolean
 }
 
 function PersonRow({
@@ -89,13 +95,21 @@ export function AssignMenu({
   buttonVariant,
   iconOnly,
   className,
+  open: openProp,
+  onOpenChange,
+  trigger = true,
 }: MenuProps) {
   const me = useSession((s) => s.actor)
   const mayAssign = useCan('lead.assign')
   const staff = useDirectory()
   const setOwner = useSetLeadOwner()
 
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = openProp ?? ownOpen
+  const setOpen = (next: boolean) => {
+    setOwnOpen(next)
+    onOpenChange?.(next)
+  }
   const [query, setQuery] = useState('')
   /** Ô gõ đổi ngay để tay không thấy trễ; lọc chạy trên bản trễ 200ms để mỗi
    *  phím gõ không vẽ lại cả danh sách. */
@@ -163,36 +177,40 @@ export function AssignMenu({
   /* Không giao được VÀ không nhận được thì nút không có việc gì để mở. Tắt kèm
      lý do, chứ không giấu: một nút biến mất đọc ra là "màn hỏng", còn một nút
      tắt có tooltip đọc ra là "việc này không phải của bạn". */
-  const blocked = readOnly || (!mayAssign && !mayClaim)
+  const door = assignDoorOf(held, mayAssign, readOnly, me !== undefined)
+  const blocked = door.shut
   const blockedWhy = readOnly
     ? 'Bạn tham gia một cơ hội của lead này nhưng không giữ lead — không giao được lead.'
     : heldByMe
       ? 'Lead đang đứng tên bạn. Chuyển tay là việc của trưởng phòng.'
       : 'Lead đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.'
-  const triggerLabel = held ? 'Đổi PIC' : 'Giao lead'
+  const triggerLabel = door.label
   /* `ArrowLeftRight` reads as "change hands"; `UserRoundPlus` only fits the
      first-assign case — an unheld lead has no hands to change yet. */
   const triggerIcon = held ? ArrowLeftRight : UserRoundPlus
 
   return (
-    <div className={cn(className)}>
-      <Button
-        size={size}
-        variant={buttonVariant ?? (held ? 'ghost' : 'default')}
-        onClick={() => setOpen(true)}
-        disabled={blocked}
-        title={blocked ? blockedWhy : iconOnly ? triggerLabel : undefined}
-        aria-label={iconOnly ? triggerLabel : undefined}
-        aria-expanded={open}
-        className={
-          iconOnly
-            ? 'text-muted-foreground hover:bg-surface-ink/9 size-8 shrink-0 bg-transparent px-0 shadow-none'
-            : undefined
-        }
-      >
-        <Icon icon={triggerIcon} size={16} />
-        {!iconOnly && triggerLabel}
-      </Button>
+    /* `hidden`, not dropped: the drawer is portalled, so it still opens. */
+    <div className={cn(className)} hidden={!trigger}>
+      {trigger && (
+        <Button
+          size={size}
+          variant={buttonVariant ?? (held ? 'ghost' : 'default')}
+          onClick={() => setOpen(true)}
+          disabled={blocked}
+          title={blocked ? blockedWhy : iconOnly ? triggerLabel : undefined}
+          aria-label={iconOnly ? triggerLabel : undefined}
+          aria-expanded={open}
+          className={
+            iconOnly
+              ? 'text-muted-foreground hover:bg-surface-ink/9 size-8 shrink-0 bg-transparent px-0 shadow-none'
+              : undefined
+          }
+        >
+          <Icon icon={triggerIcon} size={16} />
+          {!iconOnly && triggerLabel}
+        </Button>
+      )}
 
       <Drawer
         open={open}

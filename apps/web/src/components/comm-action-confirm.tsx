@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Info } from '@pv/ui'
 import { Button, Icon, Modal } from '@pv/ui'
-import { COMM_RECORD_STATE_LABEL, type CommActionChannel, type TouchSubject } from '@pv/contracts'
+import {
+  COMM_RECORD_STATE_LABEL,
+  type CommActionChannel,
+  type MailSubjectKind,
+} from '@pv/contracts'
 import { toast } from '@/app/toast'
 import { phoneText } from '@/lib/phone'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
@@ -23,7 +27,7 @@ import { isApiError } from '@/app/api'
  *  `Modal`, reshaped by class, rather than a second dialog system. */
 
 /** The object the record belongs to, fixed at creation (ADR 0075 §1). */
-export type CommSubject = { code: string; kind: TouchSubject }
+export type CommSubject = { code: string; kind: MailSubjectKind }
 
 /** `code` absent = the lead's own contact person, who has no `sales.contact` row. */
 export type CommContact = {

@@ -16,8 +16,10 @@ import { SectionHead } from './open-deal-basics'
  *  contact is a different door and stays on the lead profile. */
 
 const NO_ROLE = ''
+/** Also the run rail's line for a deal contact with no role. */
+export const NO_ROLE_LABEL = 'Chưa nêu vai'
 const ROLE_OPTIONS = [
-  { value: NO_ROLE, label: 'Chưa nêu vai' },
+  { value: NO_ROLE, label: NO_ROLE_LABEL },
   ...Object.entries(OPPORTUNITY_CONTACT_ROLE_LABEL).map(([value, label]) => ({ value, label })),
 ]
 

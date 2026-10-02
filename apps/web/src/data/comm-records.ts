@@ -4,7 +4,7 @@ import {
   DebriefListResponse,
   type CommRecordCreateBody,
   type LeadProfile,
-  type TouchSubject,
+  type MailSubjectKind,
 } from '@pv/contracts'
 import { api, userMessage, type ApiError } from '@/app/api'
 import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
@@ -29,17 +29,6 @@ export const workstreamCommRecordsQuery = (workstreamCode: string) =>
         signal,
         schema: DebriefListResponse,
       }),
-  })
-
-/** The workstream list without summaries — the tab count, where nobody reads content. */
-export const workstreamCommIndexQuery = (workstreamCode: string) =>
-  queryOptions({
-    queryKey: [...COMM_RECORDS_KEY, 'workstream-index', workstreamCode] as const,
-    queryFn: ({ signal }) =>
-      api.read(
-        `/comms/debriefs?workstreamCode=${encodeURIComponent(workstreamCode)}&summary=none`,
-        { need: COMM_VIEW_NEED, signal, schema: DebriefListResponse },
-      ),
   })
 
 /** The same list without summaries (`summary=none`): rows, states and threads
@@ -88,14 +77,15 @@ export function useCreateCommRecord() {
 export const commRecordPath = (id: string) => `/comms/${encodeURIComponent(id)}`
 
 /** How a subject kind is named inside a sentence. */
-export const COMM_SUBJECT_NOUN: Record<TouchSubject, string> = {
+export const COMM_SUBJECT_NOUN: Record<MailSubjectKind, string> = {
   lead: 'lead',
   opportunity: 'cơ hội',
+  contract: 'hợp đồng',
 }
 
 /** One wording for "this caller could not confirm a comm here", shared by the
  *  buttons and the dialog so the two never say it differently. */
-export const notConfirmableReason = (kind: TouchSubject) =>
+export const notConfirmableReason = (kind: MailSubjectKind) =>
   `Bạn không xác nhận được lượt liên hệ trên ${COMM_SUBJECT_NOUN[kind]} này, nên không ghi lại ở đây được.`
 
 /** A lead's own contact person, as the comm buttons take it — no `code`, since

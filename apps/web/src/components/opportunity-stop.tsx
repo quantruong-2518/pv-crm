@@ -16,7 +16,6 @@ import {
 import {
   LEAD_STATE_LABEL,
   LOSS_REASON_DO_NOT_CONTACT_LABEL,
-  OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
@@ -24,7 +23,6 @@ import {
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
-import { dmhm } from '@/lib/date'
 import {
   opportunityStageHistoryQuery,
   opportunityStopReasonsQuery,
@@ -36,7 +34,7 @@ import { Field } from './ops-fields'
  *
  *  A stop is final: no reopen door, re-nurturing goes through the lead. So the
  *  drawer says that before the press, and a lost deal prints its fail log —
- *  rung, reason, note, who, when — in place of the moves it no longer has.
+ *  reason, note and who concluded — in place of the moves it no longer has.
  *  Reasons are the stage-scoped `LOSS_REASON` catalogue from the stop-reasons
  *  door; a key travels, never a label, and `other` needs a note (the contract's
  *  own refine, mirrored). */
@@ -203,11 +201,8 @@ export function FailLogCard({ op }: { op: OpportunityRow }) {
       null,
     )
 
+  /* No rung and no date: the todo card's stepper marks both on the stopped rung. */
   const rows: { term: string; value: ReactNode }[] = [
-    {
-      term: 'Dừng ở bậc',
-      value: op.stoppedAtStage ? OPPORTUNITY_STAGE_LABEL[op.stoppedAtStage] : 'Không ghi',
-    },
     {
       term: 'Lý do',
       value: (
@@ -218,7 +213,6 @@ export function FailLogCard({ op }: { op: OpportunityRow }) {
       ),
     },
     { term: 'Ghi chú', value: op.stopNote ?? 'Không có ghi chú' },
-    { term: 'Ngày dừng', value: op.closedAt ? dmhm(op.closedAt) : 'Không ghi' },
     {
       term: 'Người kết luận',
       value: history.isPending ? (

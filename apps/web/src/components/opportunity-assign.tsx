@@ -13,7 +13,8 @@ import { SellerModal } from './seller-modal'
  *  server's 400/409 lands in the modal's own footer line.
  *
  *  The caller decides who sees it (`opportunity.assign`, open, past `new`, no
- *  signature pending) and says whether a seller stands, which picks the word. */
+ *  signature pending) and says whether a seller stands, which picks the word.
+ *  Given `open`, the caller owns the door (a menu row) and no button is drawn. */
 
 type Lane = Pick<OpportunityRow, 'code' | 'owners'>
 
@@ -27,6 +28,8 @@ export function AssignSaleButton({
   size = 'md',
   variant = 'secondary',
   className,
+  open: openProp,
+  onClose,
 }: {
   op: Lane
   hasSeller: boolean
@@ -35,21 +38,25 @@ export function AssignSaleButton({
   /** `default` is Button's primary look, for when "Giao Sale" is the deal's one stage action. */
   variant?: 'default' | 'secondary'
   className?: string
+  /** Set = controlled: the modal follows it and no button is drawn. */
+  open?: boolean
+  onClose?: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [sellers, setSellers] = useState<string[]>([])
+  const [ownOpen, setOwnOpen] = useState(false)
+  /* `null` = untouched, so the modal opens on the lane as it stands. */
+  const [picked, setSellers] = useState<string[] | null>(null)
   const assign = useAssignSale(op.code)
   const lane = op.owners.filter((o) => o.role === 'SALE')
   const current = lane.map((o) => o.id)
+  const sellers = picked ?? current
   const unchanged = sameSet(sellers, current)
   const label = hasSeller ? 'Đổi Sale' : 'Giao Sale'
+  const open = openProp ?? ownOpen
 
-  const start = () => {
-    setSellers(current)
-    setOpen(true)
-  }
   const close = () => {
-    setOpen(false)
+    if (openProp === undefined) setOwnOpen(false)
+    else onClose?.()
+    setSellers(null)
     assign.reset()
   }
   const submit = () => {
@@ -67,10 +74,18 @@ export function AssignSaleButton({
 
   return (
     <>
-      <Button id={id} size={size} variant={variant} className={className} onClick={start}>
-        <Icon icon={UserRoundPlus} size={16} />
-        {label}
-      </Button>
+      {openProp === undefined && (
+        <Button
+          id={id}
+          size={size}
+          variant={variant}
+          className={className}
+          onClick={() => setOwnOpen(true)}
+        >
+          <Icon icon={UserRoundPlus} size={16} />
+          {label}
+        </Button>
+      )}
 
       <SellerModal
         open={open}
