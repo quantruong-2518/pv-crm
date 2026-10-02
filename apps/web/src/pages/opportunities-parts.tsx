@@ -188,8 +188,7 @@ function BookFilters({
 /** The whole book's score — four numbers on one denominator, read from
  *  `GET /sales/opportunities/scorecard`, which is deliberately UNSCOPED: the
  *  department's score, not the reader's. A scoped reader therefore sees a
- *  total that differs from the book's count below, and the kicker says so —
- *  do not shorten it. */
+ *  total that differs from the book's count below. */
 export function ScoreCards() {
   const { data } = useQuery(opportunityScorecardQuery)
 
@@ -256,10 +255,6 @@ export function ScoreCards() {
           />
         ))}
       </div>
-      <p className="text-muted-foreground text-[11px] leading-[1.5]">
-        Mỗi cơ hội mọc ra từ một lead đã lên bậc SQL — cùng một sự kiện, không phải hai sổ. Phần còn
-        lại của phễu nằm ở Sổ lead.
-      </p>
     </div>
   )
 }
