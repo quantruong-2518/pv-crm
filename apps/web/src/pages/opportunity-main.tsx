@@ -1,22 +1,18 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Pencil, PenLine } from '@pv/ui'
+import { FileText, Pencil } from '@pv/ui'
 import { Badge, Button, GlassCard, Icon, MetaPill, SectionTitle } from '@pv/ui'
 import { CONTRACT_KIND_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dm, dmhm, dmy } from '@/lib/date'
-import { commRecordPath } from '@/data/comm-records'
-import { WAITING_SIGN } from '@/data/deal-draft'
-import { refusalOf } from '@/data/opportunities'
-import { WorkstreamComms } from '@/components/comms-card'
 import { moneyText } from './opportunity-model'
 
-/** Module 3 · the profile's main column: the deal's value, its contracts, and
- *  the contact timeline — one place per fact (ADR 0077 §1, §2, §6).
+/** Module 3 · the deal's working cards — its value and its contracts (ADR
+ *  0077 §1, §2; ADR 0078 §1). One place per fact: how many contracts are
+ *  signed and what waits on a signature are said in the contracts card only.
  *
  *  The value strip is read-only; its edit button opens the terms drawer and
- *  shows only while `acts.editTerms` opens it. History is not here: it lives
- *  in the workstream drawer the action bar opens. */
+ *  shows only while `acts.editTerms` opens it. */
 
 type Profile = OpportunityProfileResponse
 
@@ -26,10 +22,7 @@ export function ValueStrip({ op, onEdit }: { op: Profile; onEdit: () => void }) 
   return (
     <GlassCard className="flex flex-col gap-3 p-4 sm:p-5" aria-label="Giá trị cơ hội">
       <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        <Fact
-          label={signed ? 'Giá trị đơn' : 'Giá trị dự kiến'}
-          caption={signed ? `tổng ${signed.count} hợp đồng đã ký` : undefined}
-        >
+        <Fact label={signed ? 'Giá trị đơn' : 'Giá trị dự kiến'}>
           <span className="tnum text-[20px] font-semibold leading-[1.3]">
             {signed
               ? moneyText(signed.amount, signed.currency)
@@ -66,45 +59,29 @@ export function ValueStrip({ op, onEdit }: { op: Profile; onEdit: () => void }) 
           </Button>
         )}
       </div>
-      {op.pendingSign && (
-        <p className="text-warning m-0 text-[12px] leading-[1.5]">{WAITING_SIGN}</p>
-      )}
     </GlassCard>
   )
 }
 
-function Fact({
-  label,
-  caption,
-  children,
-}: {
-  label: string
-  caption?: string
-  children: ReactNode
-}) {
+function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <span className="text-muted-foreground text-[12px] leading-[1.5]">{label}</span>
       {children}
-      {caption && (
-        <span className="text-muted-foreground tnum text-[11.5px] leading-[1.5]">{caption}</span>
-      )}
     </div>
   )
 }
 
-/** Signed papers and the request waiting on one (ADR 0077 §2). The first
- *  contract goes through the action bar's win button; signing again starts
- *  here, on a won deal, while no request waits. */
+/** Signed papers and the request waiting on one (ADR 0077 §2). No sign door
+ *  here: the first contract is the todo card's win, a second one is in the
+ *  floating bar's more menu. */
 export function ContractsCard({
   op,
-  onSign,
   onViewRequest,
 }: {
   op: Profile
-  onSign: () => void
   /** Absent = this reader has nowhere to read the request. */
-  onViewRequest?: () => void
+  onViewRequest?: (() => void) | undefined
 }) {
   const navigate = useNavigate()
   /* Parked contract screens answer no here, so the row offers no dead door. */
@@ -112,21 +89,9 @@ export function ContractsCard({
   const pending = op.pendingSign
   if (op.contracts.length === 0 && !pending) return null
 
-  const again = op.state === 'won' && !pending
-  const refusal = again ? refusalOf(op.acts.sign) : null
-
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4 sm:p-5" aria-label="Hợp đồng">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionTitle size="detail">Hợp đồng</SectionTitle>
-        {again && refusal === null && (
-          <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onSign}>
-            <Icon icon={PenLine} size={16} />
-            Ký thêm hợp đồng
-          </Button>
-        )}
-        {refusal && <span className="text-muted-foreground text-[12px]">{refusal}</span>}
-      </div>
+      <SectionTitle size="detail">Hợp đồng</SectionTitle>
 
       <ul className="m-0 flex list-none flex-col p-0">
         {op.contracts.map((c) => (
@@ -206,26 +171,5 @@ function ContractLine({
       <span className="flex">{status}</span>
       <span className="flex sm:justify-end">{action}</span>
     </li>
-  )
-}
-
-/** The contact timeline of the deal's whole run; a card opens the comm's own screen. */
-export function DealComms({ op }: { op: Profile }) {
-  const navigate = useNavigate()
-
-  return (
-    <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5" aria-label="Liên hệ">
-      <SectionTitle size="detail">Liên hệ</SectionTitle>
-      {op.workstream ? (
-        <WorkstreamComms
-          workstreamCode={op.workstream.code}
-          onOpen={(id) => navigate(commRecordPath(id))}
-        />
-      ) : (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Chưa có hành trình để gom các lượt liên hệ.
-        </p>
-      )}
-    </GlassCard>
   )
 }

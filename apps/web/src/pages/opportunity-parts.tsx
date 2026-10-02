@@ -1,110 +1,56 @@
-import { useState, type ReactNode } from 'react'
-import { ChevronDown, Users, type IconGlyph } from '@pv/ui'
-import { Badge, Button, ContextRail, Icon, MetaPill, ScreenHeader } from '@pv/ui'
+import type { ReactNode } from 'react'
+import { Button, Icon, type IconGlyph } from '@pv/ui'
 import { campaignLabel, type LeadProfile, type OpportunityProfileResponse } from '@pv/contracts'
-import type { RailObject } from '@pv/ui'
-import { StopDrawer } from '@/components/opportunity-stop'
-import { MenuButton, type MenuChoice } from './opportunity-menu'
+import { dmy } from '@/lib/date'
+import { acceptorText, noSellerSentence } from '@/data/deal-sale'
+import { bdOwnersOf, namesOf, saleOwnersOf } from '@/data/opportunities'
+import { RecordHeader } from '@/components/record/record-header'
 import { customerTagOf } from './opportunity-model'
 
-/** Module 3 · the header of the deal screen and the block drawn when it will
- *  not open. The page keeps the query and the assembly; the other blocks live
- *  in `opportunity-status` · `-main` · `-side` · `-moves`, the same split
- *  `lead-detail.tsx` / `lead-parts.tsx` runs on. */
-
-/** The header, with no glass around it.
+/** Module 3 · the header of the deal screen, and the block the new-deal page
+ *  draws when it will not open.
  *
- *  Identity on the left; the lead link and the menu holding the stop on the
- *  right. No call buttons and no stage tag: contacts are reached from the
- *  action bar, and where the deal stands is the status block (ADR 0077 §6).
- *
- *  THE RAIL RIDES IN THE META ROW (law 10), beside the customer tag of the
- *  run (ADR 0076 §3) and the lead's provenance. */
+ *  The header: the deal's name, then one meta line — the people on it, the
+ *  lead's source, the day it was opened, and the run's customer tag (ADR 0076
+ *  §3). No code: the run strip shows it. The owners live here and nowhere else
+ *  (ADR 0078 §1); the bar's more menu opens their drawer. A missing seller is
+ *  said with the button it blocks, in the warning tone while the deal is open. */
 export function DealHeader({
   op,
   lead,
-  rail,
-  onBack,
-  onOpenLead,
 }: {
   op: OpportunityProfileResponse
+  /** The origin lead; `null` while unread or out of the reader's scope. */
   lead: LeadProfile | null
-  /** The object chain, already dressed by `railOf`. Law 10. */
-  rail: RailObject[]
-  onBack: () => void
-  onOpenLead: () => void
 }) {
-  const [stopping, setStopping] = useState(false)
-  const customer = customerTagOf(op)
-  /* A stop is final, so a lost deal carries no menu at all. */
-  const menu: MenuChoice[] =
-    op.state !== 'lost' && op.acts.stop.ok
-      ? [{ key: 'stop', label: 'Dừng cơ hội', tone: 'danger', onSelect: () => setStopping(true) }]
-      : []
+  const bd = namesOf(bdOwnersOf(op))
+  const sellers = namesOf(saleOwnersOf(op))
+  const pic = acceptorText(op)
 
   return (
-    <>
-      <ScreenHeader
-        back={{ label: 'Sổ cơ hội', onClick: onBack }}
-        kicker={
-          <span className="flex items-center gap-2">
-            <span className="font-sans">Cơ hội</span>
-            {op.code}
+    <RecordHeader
+      title={op.name}
+      meta={[
+        bd.length > 0 && `BD ${bd.join(', ')}`,
+        pic && `PIC ${pic}`,
+        sellers.length > 0 ? (
+          `Sale ${sellers.join(', ')}`
+        ) : op.state === 'lost' ? (
+          'Chưa có Sale'
+        ) : (
+          <span className={op.state === 'open' ? 'text-warning' : undefined}>
+            {noSellerSentence(op.state === 'won', op.acts.assign.ok)}
           </span>
-        }
-        title={op.name}
-        actions={
-          <>
-            {/* 40px on a mouse, 48px on a finger (law 13). */}
-            <Button
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              onClick={onOpenLead}
-            >
-              <Icon icon={Users} size={16} />
-              Hồ sơ lead
-            </Button>
-            {menu.length > 0 && (
-              <MenuButton
-                label="Khác"
-                icon={ChevronDown}
-                ariaLabel="Thao tác khác"
-                size="md"
-                className="pointer-coarse:h-12"
-                align="right"
-                choices={menu}
-              />
-            )}
-          </>
-        }
-        meta={
-          <>
-            {customer && <Badge tone="running">{customer}</Badge>}
-            {/* ALWAYS drawn (law 10), even as one chip. */}
-            <ContextRail objects={rail} />
-            {lead ? (
-              <>
-                <MetaPill>{lead.province ?? '—'}</MetaPill>
-                <MetaPill>{campaignLabel(lead.source)}</MetaPill>
-              </>
-            ) : (
-              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chưa đọc được hồ sơ lead <span className="font-mono">{op.leadCode}</span> — có thể
-                nó nằm ngoài phạm vi quyền của bạn.
-              </span>
-            )}
-          </>
-        }
-      />
-      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
-    </>
+        ),
+        lead && campaignLabel(lead.source),
+        <span className="tnum">tạo {dmy(op.createdAt)}</span>,
+        customerTagOf(op),
+      ]}
+    />
   )
 }
 
-/** The screen that would not open — ONE block, four sentences, glyph follows
- *  the sentence. Four near-identical empty blocks would drift apart on the
- *  second edit; what differs is the SENTENCE, so the sentence is the prop. */
+/** The new-deal page that would not open — ONE block, the sentence is the prop. */
 export function EmptyOp({
   icon,
   note,

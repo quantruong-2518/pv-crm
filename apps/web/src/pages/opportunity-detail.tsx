@@ -1,41 +1,45 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Inbox, Lock, TriangleAlert } from '@pv/ui'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, GlassCard, ScreenLayout, Skeleton } from '@pv/ui'
-import type { OpportunityProfileResponse } from '@pv/contracts'
-import { isApiError, userMessage } from '@/app/api'
+import { AppShell } from '@pv/ui'
+import { OPPORTUNITY_CONTACT_ROLE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { toastFail } from '@/app/toast'
 import { useAppChrome } from '@/app/chrome'
 import type { DealEditPart } from '@/data/deal-draft'
+import {
+  eventOfferOf,
+  opportunityProfileQuery,
+  railOf,
+  refusalOf,
+  type EventKind,
+} from '@/data/opportunities'
 import { leadProfileQuery } from '@/data/lead-profile'
-import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
-import { workstreamJourneyQuery } from '@/data/workstream-journey'
+import { AssignSaleButton } from '@/components/opportunity-assign'
+import { FailLogCard, StopDrawer } from '@/components/opportunity-stop'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
+import { ActionBar } from '@/components/record/action-bar'
+import { RecordShell } from '@/components/record/record-shell'
+import { RunStrip } from '@/components/record/run-strip'
+import { CommJourney } from '@/components/run/comm-journey'
+import { RunContacts } from '@/components/run/run-contacts'
+import { RunFiles } from '@/components/run/run-files'
 import { SignDrawer } from '@/components/sign-drawer'
-import { ContactsEditDrawer } from './opportunity-contacts-edit'
+import { DealEventModal } from './opportunity-events'
+import { DealHistoryCard } from './opportunity-history'
+import { dealMoreChoices, primaryStateOf, quoteLabelOf, viewSignRequest } from './opportunity-model'
 import { DealEditDrawer } from './opportunity-form-card'
-import { ContractsCard, DealComms, ValueStrip } from './opportunity-main'
-import { journeyRungOf } from './opportunity-model'
-import { DealActionBar } from './opportunity-moves'
-import { DealHeader, EmptyOp } from './opportunity-parts'
-import { ContactsPanel, DescriptionPanel, OwnersPanel } from './opportunity-side'
-import { DealStatus } from './opportunity-status'
-import { JourneyDrawer } from './workstream-drawers'
-import type { TreePick } from './workstream-tree-model'
+import { ContractsCard, ValueStrip } from './opportunity-main'
+import { DealHeader } from './opportunity-parts'
+import { DescriptionPanel } from './opportunity-side'
+import { DealTodo } from './opportunity-status'
 
-/** Module 3 · one deal's profile — `/sales/opportunities/:code` (ADR 0077 §6).
+/** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
+ *  record shell (ADR 0078): run strip, header, then the body — todo card,
+ *  value, contracts, history, description — and the run rail — comms, people,
+ *  files. The floating bar only reaches contacts; its more menu holds the rest.
  *
- *  One place per fact, one place per action. The header names the deal; the
- *  status block says where it stands and what comes next; the main column
- *  holds its value, contracts and contact timeline; the right column (400px)
- *  holds who and what. Every action sits on the floating bar, and every edit
- *  opens a drawer — no always-open form.
- *
- *  Four ways the screen fails to draw say four different things — each is a
- *  different next step. `DealScreen` is split out so that every hook of the
- *  profile runs only once there IS a profile. */
+ *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
+ *  so that every hook of the profile runs only once there IS a profile. */
 
 export function OpportunityDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -43,49 +47,23 @@ export function OpportunityDetailPage() {
   const { code = '' } = useParams()
   const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
 
-  const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
-
-  if (isPending) {
-    return shell(
-      <ScreenLayout>
-        <Skeleton className="h-11 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-40 w-full" />
-      </ScreenLayout>,
-    )
-  }
-
-  if (!op) {
-    /* One `kind`, one sentence. The screen reads no numeric status and matches
-       no substring of `message`: `app/api/errors.ts` classified it once for
-       the whole app, and a second classifier here is a second wording. */
-    const failure = isApiError(error) ? error : null
-    const missing = failure?.kind === 'not-found'
-    const denied = failure?.kind === 'forbidden'
-
-    return shell(
-      <ScreenLayout>
-        <GlassCard className="p-5 lg:p-6">
-          <EmptyOp
-            icon={missing ? Inbox : denied ? Lock : TriangleAlert}
-            note={
-              missing ? (
-                <>
-                  Sổ của bạn không có đơn nào mang mã <span className="font-mono">{code}</span>. Có
-                  thể mã sai, hoặc đơn không đứng tên bạn — hỏi người giữ đơn, hoặc mở lại từ sổ.
-                </>
-              ) : (
-                (failure && userMessage(failure)) || 'Không đọc được hồ sơ cơ hội này.'
-              )
-            }
-            onBack={() => navigate('/sales/opportunities')}
-          />
-        </GlassCard>
-      </ScreenLayout>,
-    )
-  }
-
-  return shell(<DealScreen op={op} />)
+  return (
+    <AppShell {...chrome.shell}>
+      {op ? (
+        <DealScreen op={op} />
+      ) : (
+        <RecordShell
+          pending={isPending}
+          failure={{
+            error,
+            notFound: `Sổ của bạn không có đơn nào mang mã ${code}. Có thể mã sai, hoặc đơn không đứng tên bạn — hỏi người giữ đơn, hoặc mở lại từ sổ.`,
+            fallback: 'Không đọc được hồ sơ cơ hội này.',
+            back: { label: 'Về sổ cơ hội', onClick: () => navigate('/sales/opportunities') },
+          }}
+        />
+      )}
+    </AppShell>
+  )
 }
 
 export default OpportunityDetailPage
@@ -93,109 +71,116 @@ export default OpportunityDetailPage
 // ---------------------------------------------------------------------------
 
 /** `open: false` keeps the last part so the drawer can animate out. */
-type Editing = { part: DealEditPart | 'contacts'; open: boolean; session: number }
+type Editing = { part: DealEditPart; open: boolean; session: number }
+/** A fresh modal per opening (`session` is its key), so its form starts clean. */
+type Recording = { kind: EventKind | null; session: number }
 
 function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const navigate = useNavigate()
-  const canSeeJourney = useCan('workstream.view')
-
-  /* The origin lead, read for real. A failure here does NOT break the screen:
-     a deal stays readable when its lead is out of the reader's scope. */
-  const { data: lead = null } = useQuery({
-    ...leadProfileQuery(op.leadCode),
-    enabled: Boolean(op.leadCode),
-  })
-
   const [signing, setSigning] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const [assigning, setAssigning] = useState(false)
   /* Which contact the letter is addressed to; `null` = composer closed. */
   const [mailTo, setMailTo] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [journeyPick, setJourneyPick] = useState<TreePick | null>(null)
+  const [recording, setRecording] = useState<Recording>({ kind: null, session: 0 })
   /* A fresh drawer per opening (`key`), so it seeds from the server's copy. */
   const edit = (part: Editing['part']) =>
     setEditing((prev) => ({ part, open: true, session: (prev?.session ?? 0) + 1 }))
   const closeEdit = () => setEditing((prev) => prev && { ...prev, open: false })
+  const record = (kind: EventKind) => setRecording((prev) => ({ kind, session: prev.session + 1 }))
+  const sign = () => setSigning(true)
 
-  const run = op.workstream
-  const journey = useQuery({
-    ...workstreamJourneyQuery(run?.code ?? ''),
-    enabled: canSeeJourney && run !== null && journeyPick !== null,
+  const canAccept = useCan('opportunity.accept')
+  const canClose = useCan('opportunity.close')
+  /* The history card's own gate; the sign request's door points into it. */
+  const historyOpen = useCan('workstream.view') && op.workstream !== null
+  /* The origin lead, for its source. A failure does not break the screen: a
+     deal stays readable when its lead is out of the reader's scope. */
+  const { data: lead = null } = useQuery({
+    ...leadProfileQuery(op.leadCode),
+    enabled: Boolean(op.leadCode),
   })
-  /* A read that fails drops the pick: the drawer cannot open, and the next
-     press must read again instead of waiting on a dead query. */
-  useEffect(() => {
-    if (!journey.error) return
-    setJourneyPick(null)
-    toastFail(
-      'Không mở được workstream.',
-      isApiError(journey.error) ? userMessage(journey.error) : 'Vui lòng thử lại.',
-    )
-  }, [journey.error])
-  const openJourney =
-    canSeeJourney && run
-      ? () => setJourneyPick({ kind: 'deal', code: op.code, rung: journeyRungOf(op) })
-      : undefined
+  const primary = primaryStateOf(op, { accept: canAccept, close: canClose })
+  const more = dealMoreChoices(op, primary.move, canClose, {
+    onRecord: record,
+    onSign: sign,
+    onEditOwners: () => edit('owners'),
+    onStop: () => setStopping(true),
+    onAssign: () => setAssigning(true),
+  })
+  const subject = { kind: 'opportunity', code: op.code } as const
 
   return (
-    <ScreenLayout>
-      {/* THE OBJECT CHAIN rides in the header's meta row (law 10), built by
-          `E1.story()` ON THE SERVER and already cut by permission. */}
-      <DealHeader
-        op={op}
-        lead={lead}
-        rail={railOf(op.chain, op.code, navigate)}
-        onBack={() => navigate('/sales/opportunities')}
-        onOpenLead={() => navigate(`/sales/leads/${op.leadCode}`)}
-      />
-
-      <DealStatus op={op} />
-
-      {/* One bottom edge: the side column stretches and its last panel grows. */}
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="flex min-w-0 flex-col gap-4">
+    <RecordShell
+      strip={
+        <RunStrip
+          workstreamCode={op.workstream?.code ?? null}
+          current={{ kind: 'opportunity', code: op.code }}
+          fallback={railOf(op.chain, op.code, navigate)}
+        />
+      }
+      header={<DealHeader op={op} lead={lead} />}
+      main={
+        <>
+          <DealTodo op={op} primary={primary} onSign={sign} onRecord={record} />
+          {op.state === 'lost' && <FailLogCard op={op} />}
           <ValueStrip op={op} onEdit={() => edit('terms')} />
-          <ContractsCard op={op} onSign={() => setSigning(true)} onViewRequest={openJourney} />
-          <DealComms op={op} />
-        </div>
-        <div className="flex min-w-0 flex-col gap-4">
-          <ContactsPanel op={op} onEdit={() => edit('contacts')} />
-          <OwnersPanel op={op} onEdit={() => edit('owners')} />
+          <ContractsCard
+            op={op}
+            onViewRequest={historyOpen && op.pendingSign ? viewSignRequest : undefined}
+          />
+          <DealHistoryCard op={op} />
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
-        </div>
-      </div>
-
-      {/* Room under the last card for the floating bar: up to three rows and
-          its note on a phone, two from `sm`. */}
-      <div aria-hidden className="h-56 shrink-0 sm:h-40" />
-
-      <DealActionBar
-        op={op}
-        onSign={() => setSigning(true)}
-        onCompose={setMailTo}
-        onOpenJourney={openJourney}
-        journeyOpening={journeyPick !== null && !journey.data}
-      />
-
+        </>
+      }
+      railLabel="Liên hệ, người liên hệ và tệp của cơ hội"
+      rail={
+        <>
+          <CommJourney workstreamCode={op.workstream?.code ?? null} subject={subject} />
+          <RunContacts subject={subject} />
+          <RunFiles subject={subject} />
+        </>
+      }
+      /* A lost deal has no bar: nothing is recorded on it, nobody is contacted
+         from it, and its more menu is empty. */
+      actionBar={
+        op.state !== 'lost' && (
+          <ActionBar
+            label="Thao tác cơ hội"
+            subject={{ code: op.code, kind: 'opportunity' }}
+            contacts={op.contacts.map((c) => ({
+              ...c,
+              role: c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role],
+            }))}
+            onCompose={(contact) => setMailTo(contact.code ?? null)}
+            more={more}
+          />
+        )
+      }
+    >
       <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
-      {editing && editing.part !== 'contacts' && (
+      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
+      <AssignSaleButton
+        op={op}
+        hasSeller={op.hasSeller}
+        open={assigning}
+        onClose={() => setAssigning(false)}
+      />
+      <DealEventModal
+        key={recording.session}
+        op={op}
+        kind={recording.kind}
+        quoteLabel={quoteLabelOf(op)}
+        onClose={() => setRecording((prev) => ({ ...prev, kind: null }))}
+      />
+      {editing && (
         <DealEditDrawer
           key={editing.session}
           op={op}
           part={editing.part}
           open={editing.open}
           onClose={closeEdit}
-        />
-      )}
-      {editing?.part === 'contacts' && (
-        <ContactsEditDrawer key={editing.session} op={op} open={editing.open} onClose={closeEdit} />
-      )}
-      {journey.data && (
-        <JourneyDrawer
-          journey={journey.data}
-          picked={journeyPick}
-          onPick={setJourneyPick}
-          onClose={() => setJourneyPick(null)}
-          go={navigate}
         />
       )}
       {mailTo !== null && (
@@ -211,6 +196,6 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           onClose={() => setMailTo(null)}
         />
       )}
-    </ScreenLayout>
+    </RecordShell>
   )
 }

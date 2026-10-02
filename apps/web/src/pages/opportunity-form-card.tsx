@@ -9,6 +9,7 @@ import {
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { namesOf, refusalOf, saleOwnersOf, toggled } from '@/data/opportunities'
+import { noSellerSentence } from '@/data/deal-sale'
 import { draftOf } from '@/data/opportunities-write'
 import { useDealDraft, type DealDraft, type DealEditPart } from '@/data/deal-draft'
 import { Field } from '@/components/ops-fields'
@@ -23,9 +24,9 @@ import {
  *
  *  The value strip's edit button opens the terms — name, close date, value, win
  *  probability, products — under `acts.editTerms`; the description card's opens
- *  description and files, the owners card's the BD lane, both under
- *  `acts.editDetails`. The seller is read-only here: past `new` only the assign
- *  act changes it (ADR 0071). The always-open form and its save bar are gone.
+ *  description and files, and the floating bar's more menu the BD lane, both
+ *  under `acts.editDetails`. The seller is read-only here: past `new` only the
+ *  assign act changes it (ADR 0071).
  *
  *  The parent remounts this per opening (`key`), so each drawer starts from the
  *  server's copy and an abandoned edit never rides on the next save. */
@@ -73,7 +74,7 @@ export function DealEditDrawer({
       {part === 'terms' ? (
         <TermsFields draft={draft} />
       ) : part === 'owners' ? (
-        <OwnersFields draft={draft} sellers={namesOf(saleOwnersOf(op))} />
+        <OwnersFields draft={draft} op={op} />
       ) : (
         <DetailsFields draft={draft} />
       )}
@@ -219,8 +220,10 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
   )
 }
 
-function OwnersFields({ draft, sellers }: { draft: DealDraft; sellers: string[] }) {
+/** The swap hint only where the more menu offers the swap (`dealMoreChoices`). */
+function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileResponse }) {
   const { work, set, errors } = draft
+  const sellers = namesOf(saleOwnersOf(op))
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
@@ -231,7 +234,17 @@ function OwnersFields({ draft, sellers }: { draft: DealDraft; sellers: string[] 
         errors={errors.bdOwners}
         onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
       />
-      <Field plain label="Sale đứng đơn" hint="Đổi Sale qua nút Giao Sale trên thanh thao tác.">
+      <Field
+        plain
+        label="Sale đứng đơn"
+        hint={
+          sellers.length === 0
+            ? noSellerSentence(op.state === 'won', op.acts.assign.ok)
+            : op.state === 'open' && op.acts.assign.ok
+              ? 'Đổi Sale qua mục Đổi Sale trong menu Khác.'
+              : undefined
+        }
+      >
         <p className="text-foreground m-0 text-[13px] leading-[1.5]">
           {sellers.length > 0 ? sellers.join(', ') : 'Chưa có'}
         </p>

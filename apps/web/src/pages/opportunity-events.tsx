@@ -19,7 +19,8 @@ import { nextStepQuery } from '@/data/next-step'
 import { eventOfferOf, refusalOf, vnToday, type EventKind } from '@/data/opportunities'
 import { useLogMilestone } from '@/data/opportunities-write'
 import { Field } from '@/components/ops-fields'
-import { NextStepForm } from './lead-next-action'
+import { NextStepForm } from '@/components/run/next-step'
+import { QUOTE_HINT } from './opportunity-model'
 
 /** Module 3 · the two facts a seller records on an accepted deal (ADR 0072):
  *  a care activity (repeatable, any order) and a quotation (the stage, a repeat
@@ -52,58 +53,10 @@ const KIND_OPTIONS = [
 const isActivity = (v: string): v is (typeof CARE_ACTIVITY_KINDS)[number] =>
   (CARE_ACTIVITY_KINDS as readonly string[]).includes(v)
 
-/** Each button shows only while the server's `acts` open its door — on the
- *  profile's floating bar, so 48px everywhere (law 13). `quotePrimary`: the
- *  quotation is the deal's next stage move, so it wears the one primary. */
-export function DealEventButtons({
-  op,
-  quotePrimary = false,
-}: {
-  op: OpportunityProfileResponse
-  quotePrimary?: boolean
-}) {
-  const [open, setOpen] = useState<EventKind | null>(null)
-  /* A fresh modal per opening: its form and phase start clean, with no reset
-     running during the exit animation. */
-  const [session, setSession] = useState(0)
-  const start = (kind: EventKind) => {
-    setSession((n) => n + 1)
-    setOpen(kind)
-  }
-  const round = eventOfferOf(op, 'quotation')?.nextRound ?? 1
-  const quoteLabel = round > 1 ? `Ghi báo giá lần ${round}` : 'Ghi báo giá'
-
-  return (
-    <>
-      {op.acts.activity.ok && (
-        <Button size="lg" variant="secondary" onClick={() => start('activity')}>
-          <Icon icon={ListChecks} size={16} />
-          Ghi hoạt động
-        </Button>
-      )}
-      {op.acts.quotation.ok && (
-        <Button
-          size="lg"
-          variant={quotePrimary ? 'default' : 'secondary'}
-          title={QUOTE_HINT}
-          onClick={() => start('quotation')}
-        >
-          <Icon icon={FileText} size={16} />
-          {quoteLabel}
-        </Button>
-      )}
-      <DealEventModal
-        key={session}
-        op={op}
-        kind={open}
-        quoteLabel={quoteLabel}
-        onClose={() => setOpen(null)}
-      />
-    </>
-  )
-}
-
-function DealEventModal({
+/** Opened from the todo card (the quote, when it is the primary move) or from
+ *  the bar's more menu; whether each door shows is the server's `acts`. Mount
+ *  it with a fresh `key` per opening, so its form and phase start clean. */
+export function DealEventModal({
   op,
   kind,
   quoteLabel,
@@ -226,8 +179,6 @@ function DealEventModal({
   )
 }
 
-const QUOTE_HINT = `Đã gửi bằng email trong PV One với mẫu ${OPPORTUNITY_MILESTONE_LABEL.quotation} thì không cần ghi lại.`
-
 const range = (min: string | undefined) =>
   min === undefined ? 'Không sau hôm nay.' : `Từ ${dmy(min)} đến hôm nay.`
 
@@ -326,7 +277,7 @@ function StepFollowUp({
   if (isPending) return <Skeleton className="h-16 w-full" />
   if (!data) {
     return (
-      <p role="alert" className="text-warning m-0 text-[12.5px] leading-[1.6]">
+      <p role="alert" className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
         Không đọc được việc tiếp theo. {isApiError(error) ? userMessage(error) : ''}
       </p>
     )
