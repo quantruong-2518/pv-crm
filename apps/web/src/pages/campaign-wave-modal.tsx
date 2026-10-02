@@ -137,12 +137,12 @@ export function WaveModal({
   }
 
   const fireLabel = busy
-    ? 'Đang bắn…'
+    ? 'Đang gửi…'
     : waves.length > 1
-      ? `Bắn ${waves.length} đợt cho ${people} người`
+      ? `Gửi ${waves.length} đợt cho ${people} người`
       : scheduled && waves[0]?.scheduledAt
         ? `Hẹn ${dmhm(waves[0].scheduledAt)} cho ${people} người`
-        : `Bắn cho ${people} người`
+        : `Gửi cho ${people} người`
   const note = stepBlockers[step] ?? (step === 2 ? blocker : null)
   const last = step === STEPS.length - 1
   const summaries = [
@@ -157,7 +157,7 @@ export function WaveModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={`Bắn đợt ${campaign.waveCount + 1}`}
+        title={`Gửi đợt ${campaign.waveCount + 1}`}
         subtitle={`${campaign.code} · ${campaign.name}`}
         meta={<ReachBadge preflight={preflight} failed={preflightFailed} campaign={campaign} />}
         footer={

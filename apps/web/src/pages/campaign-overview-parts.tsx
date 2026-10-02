@@ -1,93 +1,123 @@
 import {
-  ArrowLeft,
-  Badge,
   Button,
-  CalendarDays,
   CircleAlert,
-  ContextRail,
   GlassCard,
   Icon,
   Link,
   MailOpen,
-  MetaPill,
-  Octagon,
   Progress,
-  Route,
-  ScreenHeader,
   Send,
   StatCard,
   UserMinus,
   Users,
 } from '@pv/ui'
 import type { CampaignProfile } from '@pv/contracts'
-import { CAMPAIGN_STATE_LABEL, CAMPAIGN_STATE_TONE } from '@/data/campaign-book'
+import { CAMPAIGN_STATE_LABEL } from '@/data/campaign-book'
 import { dm } from '@/lib/date'
+import { RecordHeader } from '@/components/record/record-header'
+import { TodoCard, type TodoRung } from '@/components/record/todo-card'
 import { shareOf } from './campaign-model'
 import { ThumbnailPreview } from './campaign-profile-parts'
 
 /** Module 1 · the blocks of `campaign-detail.tsx` that are not a tab: who the
- *  campaign is, what its waves add up to, the first-wave call, and the bar that
- *  carries the two acts.
+ *  campaign is, its todo card, what its waves add up to, the first-wave call.
  *
  *  The lifecycle band and the readiness band were removed on 28/09 at the
- *  owner's request: the state badge already names the lifecycle, and the
- *  reasons a wave cannot go are said inside the dialog that fires it. */
+ *  owner's request; the reasons a wave cannot go are said inside the dialog
+ *  that fires it. Since 02/10 the state is the todo card's ladder (ADR 0078). */
 
-/** WHO THE CAMPAIGN IS — thumbnail, name and state, slogan, one row of pills.
- *
- *  Not `ScreenHeader`'s own `back`: it would sit right of the thumbnail, and
- *  the way out belongs above everything. The code rides in the pill row as the
- *  ContextRail chip (law 10) rather than as a second, plain pill. */
-export function CampaignIdentity({
+/** WHO THE CAMPAIGN IS — thumbnail, name, then one meta line. The slogan,
+ *  owner and source are printed here only: the read-only profile tab leaves
+ *  them out. No back button and no state badge — the nav and the ladder say it. */
+export function CampaignHeader({ campaign }: { campaign: CampaignProfile }) {
+  const header = (
+    <RecordHeader
+      title={campaign.name}
+      meta={[
+        campaign.slogan,
+        campaign.ownerName ? `Chủ ${campaign.ownerName}` : 'Chưa có chủ',
+        campaign.sourceName && `Nguồn ${campaign.sourceName}`,
+        <span className="tnum">Mở {dm(campaign.createdAt)}</span>,
+      ]}
+    />
+  )
+  if (!campaign.thumbnailUrl) return header
+
+  return (
+    <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
+      <ThumbnailPreview
+        url={campaign.thumbnailUrl}
+        empty="Chưa có ảnh"
+        broken="Ảnh không tải được"
+        className="w-[184px] shrink-0"
+      />
+      <div className="min-w-0 flex-1">{header}</div>
+    </div>
+  )
+}
+
+/** DRAFT → RUNNING → DONE. A stop takes the last rung's place, and a campaign
+ *  stopped before any wave skipped RUNNING. Dates are the waves' own. */
+function campaignRungs(campaign: CampaignProfile): TodoRung[] {
+  const { state, waveCount } = campaign
+  const wave = (no: number) => campaign.waves.find((w) => w.waveNo === no)?.run
+  const started = wave(1)?.startedAt
+  const finished = state === 'DONE' ? wave(waveCount)?.finishedAt : undefined
+
+  return [
+    {
+      key: 'DRAFT',
+      label: CAMPAIGN_STATE_LABEL.DRAFT,
+      mark: state === 'DRAFT' ? 'current' : 'done',
+      caption: null,
+    },
+    {
+      key: 'RUNNING',
+      label: CAMPAIGN_STATE_LABEL.RUNNING,
+      mark:
+        state === 'DRAFT'
+          ? 'future'
+          : state === 'RUNNING'
+            ? 'current'
+            : waveCount === 0
+              ? 'skipped'
+              : 'done',
+      caption: started ? `Đợt 1 ${dm(started)}` : null,
+    },
+    state === 'STOPPED'
+      ? { key: 'STOPPED', label: CAMPAIGN_STATE_LABEL.STOPPED, mark: 'stopped', caption: null }
+      : {
+          key: 'DONE',
+          label: CAMPAIGN_STATE_LABEL.DONE,
+          mark: state === 'DONE' ? 'done' : 'future',
+          caption: finished ? dm(finished) : null,
+        },
+  ]
+}
+
+/** THE TODO CARD — the ladder and the fire act as the primary; the stop is in
+ *  the floating bar's more menu. An absent handler is an absent button: the
+ *  page owns the gate. */
+export function CampaignTodo({
   campaign,
-  onBack,
+  onFire,
 }: {
   campaign: CampaignProfile
-  onBack: () => void
+  onFire?: (() => void) | undefined
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <Button size="sm" variant="ghost" className="pointer-coarse:h-12 self-start" onClick={onBack}>
-        <Icon icon={ArrowLeft} size={16} />
-        Sổ chiến dịch
-      </Button>
-      <div className="flex min-w-0 flex-col gap-5 sm:flex-row sm:items-center">
-        <ThumbnailPreview
-          url={campaign.thumbnailUrl ?? ''}
-          empty="Chưa có ảnh"
-          broken="Ảnh không tải được"
-          className="w-[184px] shrink-0"
-        />
-        <ScreenHeader
-          className="min-w-0 flex-1"
-          title={
-            <span className="flex flex-wrap items-center gap-3">
-              {campaign.name}
-              {/* `font-sans`: the badge sits inside the `h2`, which carries
-                  `font-display` — a badge is body text (law 6). */}
-              <Badge tone={CAMPAIGN_STATE_TONE[campaign.state]} className="font-sans">
-                {CAMPAIGN_STATE_LABEL[campaign.state]}
-              </Badge>
-            </span>
-          }
-          description={campaign.slogan}
-          meta={
-            <>
-              <ContextRail objects={[{ code: campaign.code, source: true }]} />
-              {campaign.ownerName ? (
-                <MetaPill avatar={campaign.ownerName}>{campaign.ownerName}</MetaPill>
-              ) : (
-                <MetaPill icon={Users}>Chưa có chủ</MetaPill>
-              )}
-              {campaign.sourceName && <MetaPill icon={Route}>Nguồn {campaign.sourceName}</MetaPill>}
-              <MetaPill icon={CalendarDays} mono>
-                Mở {dm(campaign.createdAt)}
-              </MetaPill>
-            </>
-          }
-        />
-      </div>
-    </div>
+    <TodoCard
+      rungs={campaignRungs(campaign)}
+      rungsLabel="Trạng thái chiến dịch"
+      primary={
+        onFire && (
+          <Button size="lg" onClick={onFire} aria-haspopup="dialog">
+            <Icon icon={Send} size={16} />
+            Gửi đợt {campaign.waveCount + 1}
+          </Button>
+        )
+      }
+    />
   )
 }
 
@@ -111,13 +141,8 @@ export function WaveResults({ campaign }: { campaign: CampaignProfile }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <GlassCard className="relative isolate col-span-2 flex flex-col justify-between gap-5 overflow-hidden p-5 lg:row-span-2">
-        <Icon
-          icon={Send}
-          size={64}
-          className="text-muted-foreground pointer-events-none absolute -bottom-1 -right-2 rotate-[-22deg] scale-[1.4] opacity-20"
-        />
-        <div className="relative z-10 flex flex-col gap-2">
+      <GlassCard className="col-span-2 flex flex-col justify-between gap-5 p-5 lg:row-span-2">
+        <div className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[12px]">
             Thư đã gửi sau {campaign.waveCount} đợt
           </span>
@@ -126,7 +151,6 @@ export function WaveResults({ campaign }: { campaign: CampaignProfile }) {
           </span>
         </div>
         <Progress
-          className="relative z-10"
           value={t.sent > 0 ? t.delivered / t.sent : 0}
           label={`Tới nơi · ${n(t.delivered)} thư`}
         />
@@ -213,51 +237,5 @@ export function WavesEmpty({
         </Button>
       </div>
     </GlassCard>
-  )
-}
-
-/** THE TWO ACTS, PINNED — reachable from any tab and any scroll depth.
- *
- *  Fixed, not sticky: the tabs change the page height under it, and a sticky
- *  bar would jump with each one. The offsets are `BookSelectionBar`'s, so it
- *  clears the BottomNav below `lg`. No `shadow-*` utility: it would override
- *  `.glass-overlay`'s theme-aware `--shadow-pop`. An absent handler is an
- *  absent button. */
-export function CampaignActionBar({
-  nextWave,
-  onFire,
-  onStop,
-}: {
-  nextWave: number
-  onFire?: () => void
-  onStop?: () => void
-}) {
-  if (!onFire && !onStop) return null
-
-  return (
-    <div
-      role="region"
-      aria-label="Thao tác chiến dịch"
-      className="glass-overlay fixed bottom-[calc(84px+env(safe-area-inset-bottom)+8px)] left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-lg p-2 lg:bottom-6"
-    >
-      {onStop && (
-        <Button
-          size="md"
-          variant="ghost"
-          className="pointer-coarse:h-12"
-          onClick={onStop}
-          aria-haspopup="dialog"
-        >
-          <Icon icon={Octagon} size={16} />
-          Dừng chiến dịch
-        </Button>
-      )}
-      {onFire && (
-        <Button size="md" className="pointer-coarse:h-12" onClick={onFire} aria-haspopup="dialog">
-          <Icon icon={Send} size={16} />
-          Bắn đợt {nextWave}
-        </Button>
-      )}
-    </div>
   )
 }

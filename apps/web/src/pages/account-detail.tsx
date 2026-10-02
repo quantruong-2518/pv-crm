@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Inbox, RotateCcw, TriangleAlert, Users } from '@pv/ui'
+import { Check, Handshake, Inbox, RotateCcw, Route } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -9,21 +9,16 @@ import {
   Chip,
   GlassCard,
   Icon,
-  Kicker,
-  MetaPill,
-  ScreenDetailGrid,
-  ScreenHeader,
-  ScreenLayout,
   SectionTitle,
   Separator,
   Skeleton,
   billions,
 } from '@pv/ui'
 import type { AccountProfile } from '@pv/contracts'
-import { isApiError, userMessage, type FieldErrors } from '@/app/api'
+import { userMessage, type FieldErrors } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { dm } from '@/lib/date'
+import { dm, dmy } from '@/lib/date'
 import {
   accountBodyOf,
   accountDraftOf,
@@ -34,148 +29,187 @@ import {
   type AccountDraft,
 } from '@/data/accounts'
 import { LEAD_STATE_FACE, tierLabel } from '@/data/lead-state'
+import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQuery } from '@/data/workstreams'
 import { AccountFields } from '@/components/account-fields'
-import { DetailSidePanel } from '@/components/detail-side-panel'
+import { CloseBadge } from '@/components/workstream-bits'
+import { RecordCard } from '@/components/record/record-card'
+import { RecordShell } from '@/components/record/record-shell'
+import { RecordHeader } from '@/components/record/record-header'
+import { ContextStrip } from '@/components/record/run-strip'
+import { RunContacts } from '@/components/run/run-contacts'
 
-/** A company's profile — `/sales/accounts/:code`.
+/** A company's profile — `/sales/accounts/:code`, on the record shell without
+ *  the run parts (ADR 0078): a company is many runs, not one.
  *
- *  ------------------------------------------------------------------
- *  SAME TWO-COLUMN LAYOUT AS THE LEAD PROFILE AND THE DEAL PROFILE
- *  ------------------------------------------------------------------
- *  The main column is what the user EDITS (the company form), the side column
- *  is what they LOOK UP (three child books). `sideFirst` is not turned on,
- *  for the same reason the deal profile does not turn it on: whoever opens
- *  this screen is here to fix a field, not to work through a list.
+ *  The body is the four scores, then the company form, set lighter: whoever
+ *  opens this screen fixes a field, but what no other screen answers is the
+ *  rail — the company's runs, who we know there, every lead and every deal.
+ *  The lists come back with the SAME read as the form (`AccountProfile`), the
+ *  runs from the workstream book filtered by this company.
  *
- *  ------------------------------------------------------------------
- *  THE THREE CHILD BOOKS ARE WHY THIS SCREEN EXISTS
- *  ------------------------------------------------------------------
- *  The form on the left is just nine fields — if the screen had only that, it
- *  would be an address-editing page. What no other screen can answer sits in
- *  the right column: how many times this company has enquired, what deals are
- *  open, who we know there. Those three lists come back with the SAME read as
- *  the form (`AccountProfile`), not three extra calls — they are bounded above
- *  by how much work one customer has generated, which is barely one screen.
- *
- *  ------------------------------------------------------------------
- *  NO DELETE BUTTON, AND NO OFF SWITCH EITHER
- *  ------------------------------------------------------------------
- *  A company still pointed at by a lead has its delete refused by the foreign
- *  key; a company with nothing pointing at it costs nothing to keep around.
- *  "Turning off" a company is a question this screen cannot answer: where do
- *  the four deals underneath it go. Merging two companies that turn out to be
- *  one is a different operation, and it has not been built —
- *  `account_identity_uniq` is what keeps that need rare. */
+ *  NO DELETE AND NO OFF SWITCH. A company still pointed at by a lead has its
+ *  delete refused by the foreign key; one with nothing pointing at it costs
+ *  nothing to keep. Merging two companies that turn out to be one is not
+ *  built — `account_identity_uniq` is what keeps that need rare. */
 export default function AccountDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
+  const canSeeRuns = useCan('workstream.view')
 
   const { data: account, isPending, error } = useQuery(accountProfileQuery(code))
 
-  if (isPending) {
-    return (
-      <AppShell {...chrome.shell}>
-        <ScreenLayout>
-          <Skeleton className="h-28 w-full" />
-          <Skeleton className="h-96 w-full" />
-        </ScreenLayout>
-      </AppShell>
-    )
-  }
-
   if (!account) {
-    /* Three branches, one block — and the branch is picked by `error.kind`,
-       not by the HTTP number: `app/api` has already translated the Problem
-       into a readable union, and a screen comparing `status === 404` is a
-       screen that has to be fixed every time the server changes its code. */
-    const kind = isApiError(error) ? error.kind : undefined
     return (
       <AppShell {...chrome.shell}>
-        <ScreenLayout>
-          <ScreenHeader
-            kicker="Kinh doanh · Khách hàng"
-            title={
-              kind === 'not-found'
-                ? `Không có công ty ${code}`
-                : kind === 'forbidden'
-                  ? 'Bạn không được xem sổ công ty'
-                  : 'Không mở được hồ sơ công ty'
-            }
-            description={
-              kind === 'not-found'
-                ? 'Mã này không có trong sổ. Có thể nó đã được gộp vào một công ty khác.'
-                : isApiError(error)
-                  ? userMessage(error)
-                  : 'Vui lòng thử lại.'
-            }
-            actions={
-              <Button size="md" onClick={() => navigate('/sales/accounts')}>
-                Về sổ công ty
-              </Button>
-            }
-          />
-        </ScreenLayout>
+        <RecordShell
+          pending={isPending}
+          failure={{
+            error,
+            notFound: `Không có công ty ${code} trong sổ. Có thể nó đã được gộp vào một công ty khác.`,
+            fallback: 'Không mở được hồ sơ công ty.',
+            back: { label: 'Về sổ công ty', onClick: () => navigate('/sales/accounts') },
+          }}
+        />
       </AppShell>
     )
   }
 
   return (
     <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <ScreenHeader
-          kicker="Kinh doanh · Khách hàng"
-          title={account.name}
-          description={account.legalName ?? undefined}
-          back={{ label: 'Sổ công ty', onClick: () => navigate('/sales/accounts') }}
-          meta={
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip>{account.code}</Chip>
-              {/* A customer who HAS BOUGHT is a different thing from one who
-                  has not, and that split is what the whole product already
-                  thinks in. Say it with a badge instead of making the reader
-                  infer it from the number below. */}
-              <Badge tone={account.signedDeals > 0 ? 'success' : 'draft'}>
-                {account.signedDeals > 0 ? 'Đã mua' : 'Chưa mua'}
-              </Badge>
-              {account.province !== undefined && <MetaPill>{account.province}</MetaPill>}
-              {account.category !== null && <MetaPill>{CATEGORY_LABEL[account.category]}</MetaPill>}
-            </div>
-          }
-        />
-
-        <div className="grid gap-4 sm:grid-cols-4">
-          <Score label="Lead đã hỏi" value={String(account.leads)} />
-          <Score label="Đơn đang mở" value={String(account.openDeals)} />
-          <Score label="Hợp đồng đã ký" value={String(account.signedDeals)} />
-          <Score
-            label="Doanh số đã ký"
-            value={account.signedAmountVnd > 0 ? billions(account.signedAmountVnd) : '—'}
+      <RecordShell
+        strip={<ContextStrip objects={[{ code: account.code, source: true }]} />}
+        header={
+          <RecordHeader
+            title={account.name}
+            meta={[
+              account.legalName,
+              /* Bought or not is the split the whole product thinks in; said
+                 here so the reader need not infer it from the scores. */
+              account.signedDeals > 0 ? 'Đã mua' : 'Chưa mua',
+              account.province,
+              account.category !== null && CATEGORY_LABEL[account.category],
+            ]}
           />
-        </div>
-
-        <ScreenDetailGrid
-          className="w-full"
-          sideClassName="relative xl:self-stretch"
-          sideLabel="Sổ con của công ty"
-          main={<AccountCard account={account} />}
-          side={
-            <DetailSidePanel>
-              <ContactsCard account={account} onOpenLead={(c) => navigate(`/sales/leads/${c}`)} />
-              <LeadsCard account={account} onOpen={(c) => navigate(`/sales/leads/${c}`)} />
-              <DealsCard account={account} onOpen={(c) => navigate(`/sales/opportunities/${c}`)} />
-            </DetailSidePanel>
-          }
-        />
-      </ScreenLayout>
+        }
+        main={
+          <>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <Score label="Lead đã hỏi" value={String(account.leads)} />
+              <Score label="Đơn đang mở" value={String(account.openDeals)} />
+              <Score label="Hợp đồng đã ký" value={String(account.signedDeals)} />
+              <Score
+                label="Doanh số đã ký"
+                value={account.signedAmountVnd > 0 ? billions(account.signedAmountVnd) : '—'}
+              />
+            </div>
+            <AccountCard account={account} />
+          </>
+        }
+        railLabel="Lượt, người liên hệ, lead và cơ hội của công ty"
+        rail={
+          <>
+            {canSeeRuns && (
+              <RunsCard
+                accountCode={account.code}
+                onOpen={(c) => navigate(`/sales/workstreams/${encodeURIComponent(c)}`)}
+              />
+            )}
+            <RunContacts subject={{ kind: 'account', code: account.code }} />
+            <LeadsCard account={account} onOpen={(c) => navigate(`/sales/leads/${c}`)} />
+            <DealsCard account={account} onOpen={(c) => navigate(`/sales/opportunities/${c}`)} />
+          </>
+        }
+      />
     </AppShell>
+  )
+}
+
+/** The company's runs — the workstream book cut to this company, closed runs
+ *  included. Scoped like the book: rows the reader may not see are cut by the
+ *  server, and the cut is said, not counted (see `WorkstreamColumnCards`). */
+function RunsCard({
+  accountCode,
+  onOpen,
+}: {
+  accountCode: string
+  onOpen: (code: string) => void
+}) {
+  const { data, isPending, isError } = useQuery(
+    workstreamBookQuery({
+      ...DEFAULT_WORKSTREAM_BOOK_QUERY,
+      accountCode,
+      status: 'all',
+      sort: 'openedAt',
+    }),
+  )
+
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lượt của công ty">
+      <SectionTitle
+        size="sm"
+        hint="Mỗi lượt là một lần bán: một lead, các cơ hội và hợp đồng của nó."
+      >
+        <span className="flex items-center gap-2">
+          <Icon icon={Route} size={16} />
+          Lượt{data && <span className="tnum"> · {data.total}</span>}
+        </span>
+      </SectionTitle>
+
+      {isPending ? (
+        <Skeleton height={96} />
+      ) : isError ? (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          Không đọc được các lượt của công ty này.
+        </p>
+      ) : data.rows.length === 0 ? (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          {data.hidden > 0
+            ? 'Công ty này có lượt, nhưng vai của bạn không xem được lượt nào.'
+            : 'Chưa có lượt nào gắn với công ty này.'}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {data.rows.map((run) => (
+            <li key={run.code} className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => onOpen(run.code)}
+                className="motion-std pointer-coarse:min-h-12 flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Chip>{run.code}</Chip>
+                  <span className="truncate">{run.stand.phaseLabel}</span>
+                </span>
+                <span className="text-muted-foreground tnum text-[11px]">{dmy(run.openedAt)}</span>
+              </button>
+              {run.closeReason !== null && (
+                <span className="flex items-center gap-2">
+                  <CloseBadge reason={run.closeReason} />
+                  {run.closedAt !== null && (
+                    <span className="text-muted-foreground tnum text-[11px]">
+                      {dmy(run.closedAt)}
+                    </span>
+                  )}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {data && data.rows.length > 0 && data.hidden > 0 && (
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+          Còn lượt khác của công ty này mà vai của bạn không xem được.
+        </p>
+      )}
+    </GlassCard>
   )
 }
 
 function Score({ label, value }: { label: string; value: string }) {
   return (
     <GlassCard className="flex flex-col gap-1 p-4">
-      <Kicker tone="muted">{label}</Kicker>
+      <span className="text-muted-foreground text-[12px] leading-[1.5]">{label}</span>
       <span className="tnum font-num text-[20px] leading-[1.2]">{value}</span>
     </GlassCard>
   )
@@ -216,17 +250,15 @@ function AccountCard({ account }: { account: AccountProfile }) {
   const blocked = !canWrite || dirty.length === 0 || work.name.trim() === '' || save.isPending
 
   return (
-    <GlassCard className="flex flex-col gap-6 p-5 lg:p-6" aria-label="Phiếu công ty">
-      <SectionTitle
-        hint={
-          canWrite
-            ? 'Đây là bản ghi DUY NHẤT về công ty này. Sửa ở đây là sửa cho mọi lead, mọi đơn và mọi hợp đồng bên dưới.'
-            : 'Vai của bạn đọc được sổ công ty nhưng không sửa được.'
-        }
-      >
-        Hồ sơ công ty
-      </SectionTitle>
-
+    <RecordCard
+      title="Hồ sơ công ty"
+      tone="reference"
+      hint={
+        canWrite
+          ? 'Đây là bản ghi duy nhất về công ty này. Sửa ở đây là sửa cho mọi lead, mọi đơn và mọi hợp đồng bên dưới.'
+          : 'Vai của bạn đọc được sổ công ty nhưng không sửa được.'
+      }
+    >
       <AccountFields draft={work} onSet={set} errors={errors} />
 
       <Separator />
@@ -234,6 +266,7 @@ function AccountCard({ account }: { account: AccountProfile }) {
       <div className="flex flex-wrap items-center gap-4">
         <Button
           size="md"
+          className="pointer-coarse:h-12"
           disabled={blocked}
           onClick={() =>
             save.mutate(accountBodyOf(work), {
@@ -249,6 +282,7 @@ function AccountCard({ account }: { account: AccountProfile }) {
         <Button
           size="md"
           variant="ghost"
+          className="pointer-coarse:h-12"
           disabled={dirty.length === 0 || save.isPending}
           onClick={() => {
             setWork(saved)
@@ -264,58 +298,7 @@ function AccountCard({ account }: { account: AccountProfile }) {
           </span>
         )}
       </div>
-    </GlassCard>
-  )
-}
-
-/** People we know at this company.
- *
- *  The list is merged from EVERY lead of the company — see the docblock of
- *  `contact.schema.ts` for why a contact hangs under a lead rather than under
- *  a company. That is why every row carries its lead code along: opening a
- *  contact to edit means opening the lead profile holding them, not a third
- *  screen. */
-function ContactsCard({
-  account,
-  onOpenLead,
-}: {
-  account: AccountProfile
-  onOpenLead: (leadCode: string) => void
-}) {
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Người liên hệ">
-      <SectionTitle size="sm" hint="Gộp từ mọi lead của công ty này.">
-        <span className="flex items-center gap-2">
-          <Icon icon={Users} size={16} />
-          Người liên hệ · {account.contactRows.length}
-        </span>
-      </SectionTitle>
-
-      {account.contactRows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa ghi được ai ở công ty này. Thêm người liên hệ ở hồ sơ lead.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {account.contactRows.map((c) => (
-            <li key={c.code} className="flex flex-col gap-1">
-              <button
-                type="button"
-                onClick={() => onOpenLead(c.leadCode)}
-                className="motion-std flex items-center gap-2 text-left text-[12px] hover:underline"
-              >
-                <span className="font-semibold">{c.name}</span>
-                {c.isPrimary && <Badge tone="success">Chính</Badge>}
-              </button>
-              <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                {[c.title, c.email, c.phone].filter((x) => x !== undefined).join(' · ') ||
-                  'Chưa có kênh liên lạc nào'}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </GlassCard>
+    </RecordCard>
   )
 }
 
@@ -352,7 +335,7 @@ function LeadsCard({
                 <button
                   type="button"
                   onClick={() => onOpen(l.code)}
-                  className="motion-std flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
+                  className="motion-std pointer-coarse:min-h-12 flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
                 >
                   <Chip>{l.code}</Chip>
                   <span className="text-muted-foreground text-[11px]">{dm(l.createdAt)}</span>
@@ -383,10 +366,10 @@ function DealsCard({
     <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Đơn của công ty">
       <SectionTitle
         size="sm"
-        hint="Cả đơn đã đóng — thứ mình đã CHÀO cho khách này gồm cả những lần trượt."
+        hint="Cả đơn đã đóng — thứ mình đã chào cho khách này gồm cả những lần trượt."
       >
         <span className="flex items-center gap-2">
-          <Icon icon={TriangleAlert} size={16} />
+          <Icon icon={Handshake} size={16} />
           Cơ hội · {account.dealRows.length}
         </span>
       </SectionTitle>
@@ -402,7 +385,7 @@ function DealsCard({
               <button
                 type="button"
                 onClick={() => onOpen(d.code)}
-                className="motion-std flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
+                className="motion-std pointer-coarse:min-h-12 flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
               >
                 <span className="truncate">{d.name}</span>
                 {d.signed && <Badge tone="success">Đã ký</Badge>}

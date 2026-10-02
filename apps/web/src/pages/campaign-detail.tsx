@@ -1,21 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  CircleAlert,
-  EmptyState,
-  FileText,
-  GlassCard,
-  ScreenLayout,
-  SegmentedControl,
-  Send,
-  Skeleton,
-  Users,
-} from '@pv/ui'
+import { AppShell, FileText, SegmentedControl, Send, Users } from '@pv/ui'
 import type { CampaignProfile } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
-import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
@@ -29,25 +17,24 @@ import {
   useCampaignStop,
   useCampaignWaveAdd,
 } from '@/data/campaign-book'
+import { ActionBar } from '@/components/record/action-bar'
+import { RecordShell } from '@/components/record/record-shell'
+import { ContextStrip } from '@/components/record/run-strip'
 import { parseCampaignTab, DEFAULT_CAMPAIGN_TAB, type CampaignTab } from './campaign-model'
 import { ProfileTab } from './campaign-profile-parts'
 import { AudienceTab } from './campaign-audience-parts'
 import { StopModal, WaveTable } from './campaign-wave-parts'
 import { WaveModal } from './campaign-wave-modal'
-import {
-  CampaignActionBar,
-  CampaignIdentity,
-  WaveResults,
-  WavesEmpty,
-} from './campaign-overview-parts'
+import { CampaignHeader, CampaignTodo, WaveResults, WavesEmpty } from './campaign-overview-parts'
 
-/** Module 1 · one campaign's workspace — `/sales/campaigns/:code`.
+/** Module 1 · one campaign's workspace — `/sales/campaigns/:code`, on the
+ *  record shell without the run parts (ADR 0078): a campaign is no run.
  *
  *  NOT A WIZARD ANY MORE (20/09): a campaign that already exists is not a
- *  form being walked. The state badge names the lifecycle, a
- *  `SegmentedControl` moves between the faces of the object, a Modal holds
- *  the one act that sends real mail, and since 28/09 a bar pinned to the
- *  bottom keeps both acts in reach from every tab.
+ *  form being walked. The todo card's ladder names the lifecycle and holds
+ *  the fire act, the floating bar's more menu the stop, a `SegmentedControl`
+ *  moves between the faces of the object, and a Modal holds the one act that
+ *  sends real mail. No rail: the campaign's people are its audience tab.
  *
  *  The tab rides on the address (`?tab=`) so an opened face can be sent to
  *  whoever has to fix it — the same ritual the book uses for its filters. */
@@ -58,37 +45,24 @@ export function CampaignDetailPage() {
   const { code = '' } = useParams()
   const { data: campaign, isPending, error } = useQuery(campaignProfileQuery(code))
 
-  const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
-
-  if (isPending) {
-    return shell(
-      <ScreenLayout>
-        <Skeleton className="h-11 w-64" />
-        <Skeleton className="h-40 w-full" />
-      </ScreenLayout>,
-    )
-  }
-
-  if (!campaign) {
-    return shell(
-      <ScreenLayout>
-        <GlassCard className="p-5 lg:p-6">
-          <EmptyState
-            icon={CircleAlert}
-            message={
-              error && isApiError(error)
-                ? userMessage(error)
-                : `Không có chiến dịch nào mang mã ${code}.`
-            }
-            action={{ label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') }}
-            className="py-12"
-          />
-        </GlassCard>
-      </ScreenLayout>,
-    )
-  }
-
-  return shell(<CampaignWorkspace campaign={campaign} />)
+  return (
+    <AppShell {...chrome.shell}>
+      {campaign ? (
+        <CampaignWorkspace campaign={campaign} />
+      ) : (
+        <RecordShell
+          pending={isPending}
+          skeleton={{ rail: false }}
+          failure={{
+            error,
+            notFound: `Không có chiến dịch nào mang mã ${code}.`,
+            fallback: 'Không đọc được hồ sơ chiến dịch này.',
+            back: { label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') },
+          }}
+        />
+      )}
+    </AppShell>
+  )
 }
 
 export default CampaignDetailPage
@@ -104,7 +78,6 @@ export function CampaignEditRedirectPage() {
 // ---------------------------------------------------------------------------
 
 function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
-  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const tab = parseCampaignTab(params.get('tab'))
   const goTab = (next: CampaignTab) =>
@@ -148,60 +121,88 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
   const emptyWaves = campaign.waveCount === 0
   /* The empty waves tab carries its own first-wave call, and with nobody to
      send to the fire door is closed in both places — one rule for both. */
-  const barFire =
+  const showFire =
     canFire && !stopped && campaign.audienceCount > 0 && !(tab === 'waves' && emptyWaves)
-  const barStop = canFire && campaign.state === 'RUNNING'
+  const showStop = canFire && campaign.state === 'RUNNING'
 
   return (
-    <ScreenLayout>
-      <CampaignIdentity campaign={campaign} onBack={() => navigate('/sales/campaigns')} />
+    <RecordShell
+      strip={<ContextStrip objects={[{ code, source: true }]} />}
+      header={<CampaignHeader campaign={campaign} />}
+      main={
+        <>
+          <CampaignTodo campaign={campaign} onFire={showFire ? () => setFiring(true) : undefined} />
 
-      {/* Above the tabs and always drawn, zeros included: the results answer
-          "how is it going" whichever face is open, even before wave 1. */}
-      <WaveResults campaign={campaign} />
+          {/* Above the tabs and always drawn, zeros included: the results answer
+              "how is it going" whichever face is open, even before wave 1. */}
+          <WaveResults campaign={campaign} />
 
-      <SegmentedControl
-        label="Phần chiến dịch"
-        hideLabel
-        tone="quiet"
-        value={tab}
-        options={[
-          { value: 'profile', label: 'Thông tin chung', icon: FileText },
-          { value: 'audience', label: 'Người nhận', icon: Users, count: campaign.audienceCount },
-          { value: 'waves', label: 'Các đợt gửi', icon: Send, count: campaign.waveCount },
-        ]}
-        onChange={(next) => goTab(next as CampaignTab)}
-      />
-
-      {tab === 'waves' &&
-        (emptyWaves ? (
-          <WavesEmpty
-            campaign={campaign}
-            canFire={canFire}
-            canEdit={canEdit}
-            onFire={() => setFiring(true)}
-            onAudience={() => goTab('audience')}
+          <SegmentedControl
+            label="Phần chiến dịch"
+            hideLabel
+            tone="quiet"
+            value={tab}
+            options={[
+              { value: 'profile', label: 'Thông tin chung', icon: FileText },
+              {
+                value: 'audience',
+                label: 'Người nhận',
+                icon: Users,
+                count: campaign.audienceCount,
+              },
+              { value: 'waves', label: 'Các đợt gửi', icon: Send, count: campaign.waveCount },
+            ]}
+            onChange={(next) => goTab(next as CampaignTab)}
           />
-        ) : (
-          <WaveTable campaign={campaign} />
-        ))}
 
-      {tab === 'audience' && <AudienceTab code={code} members={members} canEdit={canEdit} />}
+          {tab === 'waves' &&
+            (emptyWaves ? (
+              <WavesEmpty
+                campaign={campaign}
+                canFire={canFire}
+                canEdit={canEdit}
+                onFire={() => setFiring(true)}
+                onAudience={() => goTab('audience')}
+              />
+            ) : (
+              <WaveTable campaign={campaign} />
+            ))}
 
-      {tab === 'profile' && (
-        /* Keyed: the route keeps this mounted when `:code` changes, and
-           `draft` is seeded once while `original` follows the query — without
-           it, Back between two profiles offers to save one onto the other. */
-        <ProfileTab
-          key={campaign.code}
-          campaign={campaign}
-          people={people}
-          sources={sources}
-          patch={patch}
-          canEdit={canEdit}
+          {tab === 'audience' && <AudienceTab code={code} members={members} canEdit={canEdit} />}
+
+          {tab === 'profile' && (
+            /* Keyed: the route keeps this mounted when `:code` changes, and
+               `draft` is seeded once while `original` follows the query — without
+               it, Back between two profiles offers to save one onto the other. */
+            <ProfileTab
+              key={campaign.code}
+              campaign={campaign}
+              people={people}
+              sources={sources}
+              patch={patch}
+              canEdit={canEdit}
+            />
+          )}
+        </>
+      }
+      actionBar={
+        <ActionBar
+          label="Thao tác chiến dịch"
+          more={
+            showStop
+              ? [
+                  {
+                    key: 'stop',
+                    label: 'Dừng chiến dịch',
+                    tone: 'danger',
+                    onSelect: () => setStopping(true),
+                  },
+                ]
+              : []
+          }
         />
-      )}
-
+      }
+    >
       <WaveModal
         campaign={campaign}
         templates={templates}
@@ -219,14 +220,6 @@ function CampaignWorkspace({ campaign }: { campaign: CampaignProfile }) {
         onClose={() => setStopping(false)}
         stop={stop}
       />
-
-      <CampaignActionBar
-        nextWave={campaign.waveCount + 1}
-        onFire={barFire ? () => setFiring(true) : undefined}
-        onStop={barStop ? () => setStopping(true) : undefined}
-      />
-      {/* Room under the last block so the fixed bar never sits on it. */}
-      {(barFire || barStop) && <div aria-hidden className="h-12 shrink-0" />}
-    </ScreenLayout>
+    </RecordShell>
   )
 }
