@@ -275,7 +275,7 @@ export class OpportunityController {
 
   /** Replace the deal's contact list (ADR 0073). `PUT`: the body IS the whole
    *  list, and a contact left out is taken off. Same grant and scope as the
-   *  profile save door, whose rule (`editVerdict`) it shares. */
+   *  profile save door; gated by `editDetailsVerdict` (ADR 0077 §5). */
   @Put(':code/contacts')
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   replaceContacts(

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ApprovalState } from '../approval'
 import { Moment, textInput, textInputOptional } from '../primitives'
+import { SETTING_REGISTRY } from '../setting'
 import { StageKey } from './enums'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
@@ -405,6 +406,28 @@ export const CommVocabularyResponse = z.object({
   stepKinds: z.array(CommVocabularyOption),
 })
 
+/** Days since a deal's last customer-facing activity before the book warns,
+ *  then alerts. `GET` / `PATCH /sales/config/activity-freshness`; the PATCH
+ *  answers `ConfigProposalReceipt` like every config write. Stored as two
+ *  `platform.setting` keys (bare thresholds, see `../setting`), but written as a
+ *  PAIR so `alertDays > warnDays` is judged on one body, not across two writes. */
+const warnDef = SETTING_REGISTRY['sales.activity.warn-days']
+const alertDef = SETTING_REGISTRY['sales.activity.alert-days']
+export const ActivityFreshness = z
+  .object({
+    warnDays: z.number().int().min(warnDef.min).max(warnDef.max),
+    alertDays: z.number().int().min(alertDef.min).max(alertDef.max),
+  })
+  .refine((v) => v.alertDays > v.warnDays, {
+    error: 'Ngưỡng báo động phải lớn hơn ngưỡng nhắc',
+    path: ['alertDays'],
+  })
+export const ActivityFreshnessResponse = ActivityFreshness
+export const ActivityFreshnessPatch = ActivityFreshness
+
+export type ActivityFreshness = z.infer<typeof ActivityFreshness>
+export type ActivityFreshnessResponse = z.infer<typeof ActivityFreshnessResponse>
+export type ActivityFreshnessPatch = z.infer<typeof ActivityFreshnessPatch>
 export type ConfigEntry = z.infer<typeof ConfigEntry>
 export type ConfigUsage = z.infer<typeof ConfigUsage>
 export type ConfigBundle = z.infer<typeof ConfigBundle>

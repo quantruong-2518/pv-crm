@@ -7,7 +7,7 @@ import {
 } from '@pv/contracts'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { byOf, TouchService } from '../touch/touch.service'
-import { editVerdict } from './opportunity-acts'
+import { editDetailsVerdict } from './opportunity-acts'
 import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityOpening } from './opportunity-opening.service'
 import { NOTE } from './opportunity.mapper'
@@ -15,7 +15,7 @@ import { OpportunityRepository } from './opportunity.repository'
 
 /** `PUT /sales/opportunities/:code/contacts` — replace the deal's contact list.
  *
- *  Gated by `editVerdict`, the profile save door's rule and `acts.edit`; the
+ *  Gated by `editDetailsVerdict` (`acts.editDetails`, ADR 0077 §5); the
  *  picks pass the create door's own check (`OpportunityOpening`). One
  *  transaction under the deal's row lock — so a stop racing it waits — and one
  *  `field-filled` touch naming the new list. An unchanged list writes nothing. */
@@ -37,7 +37,7 @@ export class OpportunityContacts {
       const lock = await this.deals.lockDeal(tx, code)
       const found = lock ? await this.deals.byCode(who, code, tx) : null
       if (!found || !found.inScope) throw notFound('cơ hội', code)
-      const verdict = editVerdict(found.row)
+      const verdict = editDetailsVerdict(found.row)
       if (!verdict.ok) throw conflict(verdict.reason)
 
       const names = await this.opening.replaceContacts(

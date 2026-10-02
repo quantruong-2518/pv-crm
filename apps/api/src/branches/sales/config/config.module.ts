@@ -1,6 +1,7 @@
 import { Module, type OnModuleInit } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { ApprovalAppliers } from '@api/platform/approval/approval.service'
+import { SettingModule } from '@api/platform/setting/setting.module'
 import {
   LeadMotionController,
   LeadStopReasonController,
@@ -43,7 +44,8 @@ import { SalesConfigService } from './config.service'
  *  mục có những gì", không được với thẳng vào bảng. Sổ lead sẽ cần đúng thế để
  *  đổi mã sang nhãn. */
 @Module({
-  imports: [ApprovalModule],
+  /* `SettingModule`: the activity-freshness pair lives in `platform.setting`. */
+  imports: [ApprovalModule, SettingModule],
   controllers: [
     SalesConfigController,
     LeadMotionController,

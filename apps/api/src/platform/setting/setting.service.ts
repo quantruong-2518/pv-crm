@@ -9,6 +9,7 @@ import {
   type SettingUnit,
 } from '@pv/contracts'
 import { AuditRepository } from '../audit/audit.repository'
+import type { Db } from '../db/db.module'
 import type { SettingRowDb } from '../db/platform.schema'
 import { SettingRepository } from './setting.repository'
 
@@ -24,10 +25,10 @@ import { SettingRepository } from './setting.repository'
  *  ------------------------------------------------------------------
  *  WHY THIS IS NOT A BARE `number`
  *  ------------------------------------------------------------------
- *  Five of the six keys are measured in days and the sixth counts steps, and a
+ *  Every key but one is measured in days and that one counts steps, and a
  *  bare number carries neither fact. Handed down three call levels it is
  *  eventually added to a timestamp, and the one key that must never be added to
- *  a timestamp looks exactly like the five that may. An object cannot be added
+ *  a timestamp looks exactly like the ones that may. An object cannot be added
  *  to a `Date` at all — TypeScript refuses it — so the call site has to write
  *  `.value`, and `unit` is then sitting on the line above where a reader sees
  *  it.
@@ -51,10 +52,10 @@ export type SettingAmount = {
  *  Defaults live in `SETTING_REGISTRY`, in code; the table only ever holds
  *  OVERRIDES. So `list()` walks the registry and looks each key up among the
  *  rows, rather than selecting rows and mapping them — the first shape cannot
- *  return fewer than six, the second returns zero on a fresh environment. For
+ *  return fewer than every key, the second returns zero on a fresh environment. For
  *  the same reason a row whose `key` is not a member of `SettingKey` is simply
  *  never looked at: it cannot exist (`setting_key_known` refuses it), and if a
- *  hand-written INSERT ever put one there, the door that reads six known dials
+ *  hand-written INSERT ever put one there, the door that reads the known dials
  *  is not the place to discover it.
  *
  *  ------------------------------------------------------------------
@@ -69,7 +70,7 @@ export type SettingAmount = {
  *  using the old one — the exact failure that is worse than no cache, because
  *  nothing on any screen says it is happening. A cross-process invalidation
  *  channel exists (pg-boss), but buying one to save a primary-key lookup of a
- *  six-row table is paying in the currency of things that go wrong silently.
+ *  few-row table is paying in the currency of things that go wrong silently.
  *
  *  The cost bought with that: one primary-key SELECT per question. If a caller
  *  ever needs a threshold inside a loop, it reads it ONCE above the loop — that
@@ -88,7 +89,7 @@ export class SettingService {
     private readonly audit: AuditRepository,
   ) {}
 
-  /** All six dials, overrides merged over registry defaults.
+  /** Every dial, overrides merged over registry defaults.
    *
    *  Ordered by `SettingKey.options` — the contract's own declaration order, so
    *  the screen's rows do not reshuffle when somebody overrides one key. */
@@ -108,18 +109,33 @@ export class SettingService {
    *  which is why this method has no validation of its own rather than a copy
    *  of the bounds that would drift the day one is retuned. */
   async set(who: Actor, body: SettingPatch): Promise<SettingRow> {
-    const written = await this.repo.run(async (tx) => {
-      const before = await this.repo.lock(tx, body.key)
-      const row = await this.repo.upsert(tx, body.key, body.value, who.id)
-
-      await this.audit.write(
-        { actorId: who.id, action: 'edit', note: changeNote(body.key, before, row) },
-        tx,
-      )
-      return row
-    })
+    const written = await this.repo.run((tx) => this.writeOne(tx, who.id, body.key, body.value))
 
     return SettingRow.parse(toContract(body.key, written))
+  }
+
+  /** Turn several dials inside the CALLER's transaction — for keys that must
+   *  move together (an approved sales-config change writes a pair whose order
+   *  rule lives in that branch's contract, not in `SettingPatch`). */
+  async setIn(
+    tx: Db,
+    actorId: string,
+    writes: readonly { key: SettingKey; value: number }[],
+  ): Promise<void> {
+    for (const { key, value } of writes) await this.writeOne(tx, actorId, key, value)
+  }
+
+  /** Lock, upsert and the audit line, all on one `tx` — the one write both doors share. */
+  private async writeOne(
+    tx: Db,
+    actorId: string,
+    key: SettingKey,
+    value: number,
+  ): Promise<SettingRowDb> {
+    const before = await this.repo.lock(tx, key)
+    const row = await this.repo.upsert(tx, key, value, actorId)
+    await this.audit.write({ actorId, action: 'edit', note: changeNote(key, before, row) }, tx)
+    return row
   }
 
   /** What one constant is worth right now — the door every other service uses.

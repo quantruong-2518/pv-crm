@@ -46,7 +46,6 @@ import { dm, dmy } from '@/lib/date'
  *  touches — because each controller `@Need` is scoped. */
 
 const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
-const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
 
 /** `TouchRow[]` → `LeadEvent[]`.
  *
@@ -222,43 +221,4 @@ export const leadTouchesQuery = (code: string) =>
         signal,
       }),
     select: (d: TouchTimelineResponse) => eventsOf(d.rows),
-  })
-
-/** Lần chạm của một ĐƠN. Cùng hình, khác quyền và khác đường — xem docblock
- *  đầu file về việc vì sao không gộp làm một query có tham số `kind`. */
-export const opportunityTouchesQuery = (code: string) =>
-  queryOptions({
-    queryKey: ['sales', 'ops-touches', code] as const,
-    queryFn: ({ signal }) =>
-      api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
-        need: OPS_TOUCH_NEED,
-        schema: TouchTimelineResponse,
-        signal,
-      }),
-    select: (d: TouchTimelineResponse) => eventsOf(d.rows),
-  })
-
-/** The holder chain of one DEAL. The vector belongs on BOTH profiles — who has
- *  held a deal is the same question as who has held a lead — and until 14/09
- *  only the lead had it.
- *
- *  THE SAME `queryKey` as `opportunityTouchesQuery`, exactly as the two lead
- *  queries share theirs: one fetch, two questions, `select` belonging to the
- *  observer rather than to the cache. A key of its own would load the same list
- *  twice and let the two copies drift apart by a few seconds.
- *
- *  `stepsOf` needs no variant for this: it reads `handed-over` and `created` rows and
- *  never asks what the subject is. A deal that has never changed hands answers
- *  an empty chain, and `FlowVector` draws nothing at all — which is the honest
- *  picture of a deal one person has carried the whole way. */
-export const opportunityVectorQuery = (code: string) =>
-  queryOptions({
-    queryKey: ['sales', 'ops-touches', code] as const,
-    queryFn: ({ signal }) =>
-      api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
-        need: OPS_TOUCH_NEED,
-        schema: TouchTimelineResponse,
-        signal,
-      }),
-    select: (d: TouchTimelineResponse) => stepsOf(d.rows),
   })

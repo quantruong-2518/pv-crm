@@ -24,6 +24,7 @@ import { toastDone } from '@/app/toast'
 import { ConfigBooks } from '@/components/config-books'
 import { MotionSection } from './sales-config-parts'
 import { CommCriteriaConfig, StepKindConfig } from './sales-config-comm'
+import { ActivityFreshnessConfig } from './sales-config-freshness'
 import { INTAKE_FACE, INTAKE_ORDER, MOTION_FACE, MOTION_ORDER, trustOf } from '@/data/intake'
 import { BADGE_INK } from '@/data/opportunities'
 import { ROLE_LABEL } from '@/data/users'
@@ -655,6 +656,14 @@ export function SalesConfigPage() {
               hint="Phiếu xác nhận liên hệ bắt buộc chọn một loại việc cho bước tiếp theo, lấy từ danh sách này."
             >
               <StepKindConfig />
+            </Section>
+
+            <Section
+              no="5.12"
+              title="Hoạt động cuối"
+              hint="Sổ cơ hội tô màu cột Hoạt động cuối theo số ngày kể từ cuộc gọi, cuộc gặp, email, Zalo, hoạt động chăm sóc hay báo giá gần nhất. Đổi ngưỡng đi qua Hộp duyệt như mọi cấu hình khác."
+            >
+              <ActivityFreshnessConfig />
             </Section>
 
             {/* Gửi duyệt — mọi thay đổi đi MỘT LẦN, không tự lưu lắt nhắt, và

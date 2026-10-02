@@ -55,6 +55,8 @@ export type BookPageProps = {
   count?: ReactNode
   /** Search box and `FilterMenu`, right end of the toolbar row. */
   tools?: ReactNode
+  /** A full-width row under the toolbar, inside the card — quick filters. */
+  quick?: ReactNode
   pending?: boolean
   /** A failed read. The button retries — it does not offer to clear filters,
    *  because the filters are not what broke. */
@@ -79,6 +81,7 @@ export function BookPage({
   tabs,
   count,
   tools,
+  quick,
   pending = false,
   failure,
   empty,
@@ -110,6 +113,8 @@ export function BookPage({
             )}
           </div>
         )}
+
+        {quick && <div className="px-5 pb-4">{quick}</div>}
 
         <div className="overflow-x-auto">
           {pending ? (

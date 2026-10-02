@@ -2,25 +2,27 @@ import { useMemo, useState } from 'react'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { ApiError, FieldErrors } from '@/app/api'
-import { useCan } from '@/app/auth'
 import { missingOf } from '@/data/opportunities'
-import { draftErrorsOf, updateBodyOf, useSaveOpportunity } from '@/data/opportunities-write'
+import {
+  draftErrorsOf,
+  echoBodyOf,
+  updateBodyOf,
+  useSaveOpportunity,
+} from '@/data/opportunities-write'
 
-/** Module 3 · the deal form's draft — ONE hook behind both write doors.
+/** Module 3 · the deal form's draft — ONE hook behind the three edit drawers.
  *
- *  The form card and the sticky bar are two blocks of the same screen and they
- *  type into the same boxes, so neither of them may own the draft; the same
- *  split `useLeadDraft` made for the lead screens.
+ *  Each edit drawer of the profile (terms, details, owners — ADR 0077 §5) mounts
+ *  its own copy on open, so a box abandoned in one drawer never rides along on
+ *  another's save. All send the whole editable set (PATCH); details and owners
+ *  echo the stored terms (`echoBodyOf`) so a won deal's lock is not tripped.
  *
- *  ONE WRITE DOOR NOW. The status box is gone with ADR 0064 — a seller picks
- *  neither state nor column, so this draft carries no cell that writes itself
- *  through, and every box waits for the Save button. Where the deal STANDS moves
- *  through the two doors on the sticky bar (`useLogMilestone`, `useStopDeal`),
- *  which touch the server row and never this draft.
+ *  ONE WRITE DOOR. A seller picks neither state nor column (ADR 0064), so every
+ *  box waits for the Save button; where the deal STANDS moves through the
+ *  action bar's doors (`useLogMilestone`, `useStopDeal`), never this draft.
  *
- *  `probability` and `currency` have no box on screen since 17/09 and still
- *  ride through here untouched: they are carried by `dealBody`, and a form
- *  that dropped them would silently rewrite a USD deal as VND. */
+ *  `currency` has no box of its own and rides through `dealBody` untouched: a
+ *  form that dropped it would silently rewrite a USD deal as VND. */
 
 /** Which boxes of the form a person may change. Exactly `OpportunityUpdate`'s
  *  field set — change one side and change the other. */
@@ -72,37 +74,29 @@ function rebase(
   return out
 }
 
+/** Which drawer the draft serves; decides the body and the completeness check. */
+export type DealEditPart = 'terms' | 'details' | 'owners'
+
 export type DealDraft = {
   work: OpportunityDraft
   set: SetDraft
-  /** Amount and the sale owners, locked while a signature is in play. */
-  moneyLocked: boolean
-  moneyHint: string | null
-  /** The SALE lane: editable only at `new`; after accept the assign door is
-   *  the only way in, for everyone (ADR 0071). */
-  saleLocked: boolean
-  saleHint: string | null
   errors: FieldErrors
   dirty: string[]
   missing: string[]
-  /** The server's `acts.edit` verdict for this reader on this deal — a stopped
-   *  deal (ADR 0069 §1) and an out-of-scope reader both turn the form read-only. */
-  canEdit: boolean
-  canClose: boolean
+  /** The server's two edit verdicts (ADR 0077 §5): terms (amount, close date,
+   *  products) shut while a signature waits and once signed; details until lost. */
+  canEditTerms: boolean
+  canEditDetails: boolean
+  /** Complete and changed; the drawer adds its own verdict on top. */
   canSubmit: boolean
   busy: boolean
   error: ApiError | null
   reset: () => void
-  submit: () => void
+  submit: (onSaved?: () => void) => void
 }
 
-export const WAITING_SIGN = 'Đơn đang chờ duyệt ký — tiền, đồng tiền và Sale đứng đơn tạm khoá.'
-
-export const SIGNED_MONEY_NEEDS_CLOSE =
-  'Đổi tiền/người ăn hoa hồng của đơn đã ký cần quyền chốt đơn.'
-
-export const SALE_BY_ASSIGN =
-  'Đã nhận PIC — chỉ trưởng phòng Kinh doanh đổi được Sale, qua nút Giao Sale.'
+/** Printed on the profile's value strip and on the locked boxes alike. */
+export const WAITING_SIGN = 'Giá trị và Sale đứng đơn tạm khoá trong lúc chờ duyệt ký.'
 
 export type UseDealDraftArgs = {
   /** The server's copy of the form. */
@@ -110,11 +104,12 @@ export type UseDealDraftArgs = {
   /** The stored row. A deal is opened in the drawer of
    *  `components/convert-dialog.tsx`, which also carries its contacts. */
   op: OpportunityProfileResponse
+  part: DealEditPart
 }
 
-export function useDealDraft({ saved, op }: UseDealDraftArgs): DealDraft {
-  const canEdit = op.acts.edit.ok
-  const canClose = useCan('opportunity.close')
+export function useDealDraft({ saved, op, part }: UseDealDraftArgs): DealDraft {
+  const canEditTerms = op.acts.editTerms.ok
+  const canEditDetails = op.acts.editDetails.ok
   const save = useSaveOpportunity(op.code)
 
   const [work, setWork] = useState<OpportunityDraft>(saved)
@@ -142,24 +137,20 @@ export function useDealDraft({ saved, op }: UseDealDraftArgs): DealDraft {
     })
   }
 
-  const signed = op.state === 'won'
-  const waiting = Boolean(op.pendingSign)
-  const moneyLocked = waiting || (signed && !canClose)
-  /* Past `new` the PATCH refuses any SALE change, for everyone (ADR 0071), so
-     the box shuts before anyone types into it. */
-  const accepted = Boolean(op.acceptedBy) || op.stage !== 'new'
-  const moneyHint = waiting ? WAITING_SIGN : moneyLocked ? SIGNED_MONEY_NEEDS_CLOSE : null
-
   const dirty = useMemo(() => changedFields(saved, work), [saved, work])
-  const missing = missingOf(work)
+  /* Only the terms drawer owns the required boxes; the others echo them. */
+  const body = part === 'terms' ? updateBodyOf(work) : echoBodyOf(op, work)
+  const missing = part === 'terms' ? missingOf(work) : []
   const busy = save.isPending
   const error = save.error
 
-  const submit = () => {
+  const submit = (onSaved?: () => void) => {
     /* The server names the box it refused and `draftErrorsOf` turns its
        spelling into the form's. An EMPTY map is a complaint about no one box,
        not the absence of a complaint — the sticky bar carries those. */
-    save.mutate(updateBodyOf(work), {
+    if (!body) return
+    save.mutate(body, {
+      onSuccess: () => onSaved?.(),
       onError: (failure: ApiError) => setErrors(draftErrorsOf(failure.errors)),
     })
   }
@@ -167,16 +158,12 @@ export function useDealDraft({ saved, op }: UseDealDraftArgs): DealDraft {
   return {
     work,
     set,
-    moneyLocked,
-    moneyHint,
-    saleLocked: moneyLocked || accepted,
-    saleHint: waiting ? WAITING_SIGN : accepted ? SALE_BY_ASSIGN : moneyHint,
     errors,
     dirty,
     missing,
-    canEdit,
-    canClose,
-    canSubmit: canEdit && missing.length === 0 && !busy && dirty.length > 0,
+    canEditTerms,
+    canEditDetails,
+    canSubmit: missing.length === 0 && !busy && dirty.length > 0,
     busy,
     error,
     reset: () => {

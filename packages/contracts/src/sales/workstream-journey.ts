@@ -119,9 +119,9 @@ export const JourneySubStep = z.object({
 })
 
 /** A deal-rung sub-step. Under `engaged`: one `activity` per recorded care
- *  activity (ADR 0072), carrying its own `by`/`note` since many share one rung.
- *  Under `quotation`: one per `quotation-sent` touch (`round` = n, the n-th
- *  send) and one per `contract-sign` approval (`decision` is E3's state; a won
+ *  activity (ADR 0072); it and `quote-sent` carry their own `by`/`note` since
+ *  many share one rung. Under `quotation`: one per `quotation-sent` touch
+ *  (`round` = n, the n-th send) and one per `contract-sign` approval (`decision` is E3's state; a won
  *  deal signing again adds another). Discount approval waits for a quote object. */
 export const JourneyDealSubStep = z.discriminatedUnion('kind', [
   JourneySubStep.extend({
@@ -134,6 +134,7 @@ export const JourneyDealSubStep = z.discriminatedUnion('kind', [
   JourneySubStep.extend({
     kind: z.literal('quote-sent'),
     round: z.number().int().positive(),
+    by: WorkstreamHolder.nullable(),
   }),
   JourneySubStep.extend({
     kind: z.literal('sign-approval'),

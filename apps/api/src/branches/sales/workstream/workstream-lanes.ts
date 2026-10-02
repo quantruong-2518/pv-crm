@@ -29,6 +29,7 @@ import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type {
   ContractLaneRow,
+  DealTouchRow,
   LaneRows,
   LeadTouchEntry,
   SignApprovalRow,
@@ -413,7 +414,7 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
 function quotationStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[] {
   const sends = rows.dealTouches
     .filter((q) => q.deal === dealCode && q.kind === 'quotation-sent')
-    .map((q, i) => ({ at: q.at, step: quoteSentStep(i + 1, q.at) }))
+    .map((q, i) => ({ at: q.at, step: quoteSentStep(i + 1, q) }))
   const signs = rows.signApprovals
     .filter((a) => a.deal === dealCode)
     .map((a) => ({ at: a.decidedAt ?? a.raisedAt, step: signStep(a) }))
@@ -443,16 +444,21 @@ function activityStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[]
   })
 }
 
-const quoteSentStep = (round: number, at: Date): JourneyDealSubStep => ({
-  kind: 'quote-sent',
-  round,
-  label: `Gửi lần ${round}`,
-  state: 'done',
-  at: at.toISOString(),
-  due: null,
-  note: null,
-  dueLevel: null,
-})
+/** Who sent it and what they wrote, like a care activity: rounds share one rung. */
+const quoteSentStep = (round: number, t: DealTouchRow): JourneyDealSubStep => {
+  const note = milestoneNoteOf('quotation', t.note)
+  return {
+    kind: 'quote-sent',
+    round,
+    label: `Gửi lần ${round}`,
+    state: 'done',
+    at: t.at.toISOString(),
+    by: personOf(t.actorId, t.by),
+    due: null,
+    note: note ? clip(note, NOTE_MAX) : null,
+    dueLevel: null,
+  }
+}
 
 /** `at` is when it was raised while waiting, when it was decided after. */
 const signStep = (a: SignApprovalRow): JourneyDealSubStep => ({

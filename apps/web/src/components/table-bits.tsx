@@ -57,16 +57,19 @@ function PageButton({
 }
 
 /** The foot of a book card: which rows are showing, then numbered pages.
- *  `page` is 0-based. */
+ *  `page` is 0-based. With `noun` the text is total, noun, page/pages instead
+ *  of the from–to range. */
 export function TableFooter({
   page,
   pageSize,
   total,
+  noun,
   onPage,
 }: {
   page: number
   pageSize: number
   total: number
+  noun?: string
   onPage: (p: number) => void
 }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
@@ -76,7 +79,9 @@ export function TableFooter({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
       <span className="text-muted-foreground tnum text-[11.5px]">
-        Hiển thị {from}–{to} trong {total}
+        {noun
+          ? `${total} ${noun} · trang ${page + 1}/${pageCount}`
+          : `Hiển thị ${from}–${to} trong ${total}`}
       </span>
       {pageCount > 1 && (
         <nav aria-label="Phân trang" className="flex items-center gap-1">
@@ -233,6 +238,7 @@ export function FilterMenu({
       <Button
         size="md"
         variant="ghost"
+        className="pointer-coarse:h-12"
         aria-expanded={open}
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}

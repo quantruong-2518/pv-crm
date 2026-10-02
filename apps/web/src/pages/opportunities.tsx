@@ -1,600 +1,129 @@
-import { useEffect, useMemo, useState } from 'react'
-import { CircleX, FileCheck, Plus, Target, Wallet, X } from '@pv/ui'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Plus } from '@pv/ui'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  Button,
-  Checkbox,
-  Chip,
-  Icon,
-  Kicker,
-  SearchField,
-  SegmentedControl,
-  Select,
-  ScreenLayout,
-  StatCard,
-  billions,
-  cn,
-  percent,
-  type TableSort,
-} from '@pv/ui'
-import {
-  OPPORTUNITY_STAGE_LABEL,
-  OPPORTUNITY_STATE_LABEL,
-  OpportunitySortKey,
-  OpportunityStatus,
-  OWNER_NONE,
-  type OpportunityBookQuery,
-  type OpportunityBookRow,
-  type OpportunityOwner,
-  type OpportunityRow,
-  type WorkstreamHolder,
-} from '@pv/contracts'
+import { AppShell, Button, Checkbox, Icon, ScreenLayout, type TableSort } from '@pv/ui'
+import type { OpportunityBookRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
-import { dm } from '@/lib/date'
 import {
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
-  amountVndOf,
-  facetsQueryOf,
-  isLateClose,
-  namesOf,
   opportunityBookQuery,
-  opportunityBookQueryToParams,
-  opportunityFacetQuery,
-  opportunityScorecardQuery,
-  parseOpportunityBookQuery,
+  saleOwnersOf,
 } from '@/data/opportunities'
-import { ACCEPT_QUEUE, inQueue, UNASSIGNED_QUEUE } from '@/data/deal-sale'
 import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
-import { type MasRecipient } from '@/data/mas-mail-draft'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
-import { BookCount, BookPage } from '@/components/book-page'
+import { BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
-import { AcceptQueueLink } from '@/components/opportunity-accept'
-import { UnassignedSaleLink } from '@/components/opportunity-assign'
-import { StateCell } from './opportunities-cells'
+import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
-  BookSelectionBar,
-  FilterMenu,
-  PersonCell,
-  SelectionCell,
-  TableFooter,
-} from '@/components/table-bits'
+  BOOK_COLUMNS,
+  CLEARED_FILTERS,
+  isDirty,
+  mailTally,
+  PAGE_SIZE,
+  sortPatch,
+  STICKY_LEAD,
+  TABLE_MIN_WIDTH,
+  useBookAddress,
+  useMailable,
+  usePageClamp,
+} from './opportunities-model'
+import { BookTabs, BookTools, QuickFilters, ScoreCards } from './opportunities-parts'
+import {
+  AmountCell,
+  CloseCell,
+  DealCell,
+  EmailCell,
+  ForecastCell,
+  LastActivityCell,
+  NextStepCell,
+  PeopleCell,
+  StageCell,
+} from './opportunities-cells'
 
-/** Module 3 · Sổ cơ hội — `GET /sales/opportunities`.
+/** Module 3 · the deal book — `GET /sales/opportunities`, filtered, sorted and
+ *  paged by the server; the filter lives in the address (`opportunities-model`).
  *
- *  ------------------------------------------------------------------
- *  HÌNH SỔ NẰM Ở `BookPage`, CÙNG HÌNH VỚI SỔ LEAD
- *  ------------------------------------------------------------------
- *  Màn chỉ đưa NỘI DUNG cho `components/book-page.tsx`: thẻ điểm, hàng tab, ô
- *  tìm, nút lọc, cột và chân trang. Hình thì một chỗ quyết.
+ *  The screen hands CONTENT to `BookPage`, the shape every book shares. Ten
+ *  columns in the order ADR 0077 set (`BOOK_COLUMNS`); every verdict a cell
+ *  prints — overdue, forecast, activity freshness — is the server's.
  *
- *  Hàng lọc rời và `Pager` đứng ngoài thẻ đã ĐI (17/09). Chúng là chỗ hai sổ
- *  của cùng một phòng trôi khỏi nhau: người dùng đi từ sổ lead sang sổ này mỗi
- *  ngày, và mỗi lần chuyển màn là một lần phải tìm lại ô tìm bằng mắt. Ô lọc
- *  trạng thái thành TAB vì đó là trục người ta đổi liên tục (A-19), ba ô còn
- *  lại lui vào `FilterMenu`. `FilterMenu`, `TableFooter` và `PersonCell` dùng
- *  CHUNG (`components/table-bits.tsx`) chứ không chép sang.
+ *  LAW 10 DEBT, on purpose: no ContextRail. A book has no OPEN object, and a
+ *  rail seeded from a fixed row would show a chain the user never picked. Pay
+ *  it off once the rail can be built from the selected row.
  *
- *  Khác sổ lead đúng một chỗ và khác có lý do: **không có cột Ghim.** Ghim là
- *  thứ của người ĐANG ĐỌC sổ lead, giữ theo `actorId` ở `app/desk.ts`; đẻ thêm
- *  một bộ ghim thứ hai cho sổ cơ hội trước khi có ai hỏi là thêm trạng thái mà
- *  không thêm câu trả lời nào.
- *
- *  ------------------------------------------------------------------
- *  NỢ LUẬT 10 — ContextRail, ghi ra chứ không im lặng
- *  ------------------------------------------------------------------
- *  Luật 10 đòi rail trên mọi màn, và màn này KHÔNG có. Đây là NỢ có ý thức chứ
- *  không phải quên, và lý do đúng bằng lý do đã ghi ở `pages/leads.tsx`: một sổ
- *  không có object nào ĐANG MỞ. Rail dựng từ một dòng mồi cứng là treo bốn chip
- *  mã lên đầu một trang mười dòng, nói về một đơn người dùng không hề chọn —
- *  tệ hơn không có rail, vì nó trông như một chuỗi thật.
- *
- *  Trả nợ khi nào rail dựng được từ DÒNG ĐANG ĐƯỢC CHỌN — không sớm hơn. Nợ
- *  của `pages/opportunity-detail.tsx` thì khác và nặng hơn; đọc ở đó.
- *
- *  ------------------------------------------------------------------
- *  ĐÃ CẮT SANG MÁY CHỦ — 28/08. BA THỨ ĐI THEO.
- *  ------------------------------------------------------------------
- *  Sổ đọc thẳng `GET /sales/opportunities`. Ba thứ của bản fixture biến mất, và không cái
- *  nào là dọn dẹp tuỳ hứng:
- *
- *   · **Nạp cơ hội từ tệp.** `ImportZone` ở màn này từng ghi vào `useIntakeDesk`,
- *     một sổ chỉ sống trong trình duyệt. Trên một cái bảng nay là dữ liệu thật,
- *     những dòng đó đọc y hệt dòng máy chủ nhưng không ai khác thấy, không nằm
- *     trong thẻ điểm của người bên cạnh, và biến mất khi đổi máy. Nút đã QUAY
- *     LẠI (29/08) đúng cái ngày `POST /sales/opportunities/import[/preview]` lên: nay nó
- *     ghi thẳng lên máy chủ qua `data/opportunity-import.ts`, và hàm dựng dòng
- *     sổ cục bộ ở `data/intake.ts` đã bị xoá — bộ kiểm của máy chủ thay nó.
- *   · **Hòm thư suy từ tên** (`staffEmail`). Dòng sổ nay chở `owners[]` có sẵn
- *     TÊN thật; cột người in tên, không in một địa chỉ ghép theo quy ước.
- *   · **Gộp ba nguồn** (`mergeOps`). Phiếu vừa gửi và bản sửa tại chỗ đều đã đi
- *     qua máy chủ, nên sổ chỉ còn một nguồn.
- *
- *  ------------------------------------------------------------------
- *  LỌC · SẮP · PHÂN TRANG ĐỀU Ở MÁY CHỦ — 29/08, VÀ BỘ LỌC NẰM TRÊN ĐỊA CHỈ
- *  ------------------------------------------------------------------
- *  Bản trước kéo `size=200` rồi lọc, sắp và cắt trang trong trình duyệt. Cách
- *  đó đúng cho tới đơn thứ 201 và im lặng sai sau đó, với một trang trông vẫn
- *  đầy đủ. Nay cả câu hỏi đi xuống `GET /sales/opportunities`, và ba thứ của
- *  bản cũ đi theo nó:
- *
- *   · **`SORTERS`** — bốn hàm so ở màn. Máy chủ sắp rồi; sắp lần thứ hai ở đây
- *     là dựng một chỗ thứ hai quyết định thứ tự, và hai chỗ đó lệch nhau đúng
- *     ngày sổ dài hơn một trang (màn chỉ sắp được mười dòng nó đang cầm).
- *   · **Đếm thẻ điểm tại trình duyệt** — `ScoreCards` nay đọc
- *     `GET /sales/opportunities/scorecard`.
- *   · **Filter choices gathered from the page in view** — they now come from
- *     `GET /sales/opportunities/facets` (`opportunityFacetQuery`), DISTINCT in SQL.
- *
- *  Và bộ lọc chuyển lên **ĐỊA CHỈ** (`useSearchParams` + hai hàm dịch ở
- *  `data/opportunities.ts`), không còn nằm trong `useState`. Đó không phải tiện
- *  nghi: mở một dòng rồi bấm Back phải quay về đúng cái sổ vừa rời, và một link
- *  gửi cho đồng nghiệp phải mở ra đúng cái sổ người gửi đang nhìn — cả hai đều
- *  không làm được khi bộ lọc chỉ sống trong bộ nhớ của một tab.
- *
- *  ------------------------------------------------------------------
- *  TÁM CỘT
- *  ------------------------------------------------------------------
- *  Mã · Ops name · Account · Amount · Close date · State · Sale owner ·
- *  BD owner. Đúng bộ đã đặt, thêm cột Mã ở đầu — sổ lead cũng mở đầu bằng mã,
- *  và mã là thứ người ta đọc cho nhau qua điện thoại.
- *
- *  Ba cột có tín hiệu phụ ngoài chữ:
- *   · **Amount** — canh phải và chữ mono, vì cột tiền để SO CHIỀU DỌC. Đơn chưa
- *     moi được ô 9 vẽ "—", không vẽ 0.
- *   · **Close date** — ngày dự kiến đã trôi qua thì tô cảnh báo. Đơn chưa đặt
- *     ngày đóng vẽ "—": không có hạn thì không có gì để quá.
- *   · **State** — màu nói "đơn còn trên bảng không", chữ nói đang ở CỘT nào (đơn
- *     đã rời bảng thì in trạng thái đọc); `title` chở số ngày và dấu quá hạn.
- *
- *  Vào được màn này là vai có nhánh Sales — cửa ở `app/guard.tsx`, không kiểm
- *  lại ở đây. Trục phạm vi thì máy chủ cắt, và `hidden` là con số nó trả về. */
+ *  Reaching this screen needs the Sales branch (`app/guard.tsx`); scope is cut
+ *  by the server and `hidden` is the number it reports. */
 
-/** Số dòng bảng này vẽ. Màn áp đè lên `size` của hợp đồng (mặc định 50 cho mọi
- *  sổ) chứ không ghi nó lên địa chỉ — một link chia sẻ không nên mang theo một
- *  con số không ai chọn. */
-const PAGE_SIZE = 10
-
-/** Bề rộng tối thiểu của bảng — thứ làm cho khối cuộn của `BookPage` có việc
- *  để làm. Không có nó thì con của khối cuộn không bao giờ rộng hơn chính
- *  khối cuộn, nên thanh cuộn ngang KHÔNG BAO GIỜ hiện và tám track `fr` bị bóp
- *  thay vì cuộn: ở 1024px cột "Mã" còn ~73px trong khi một `<Chip>` mã đơn cần
- *  ~90px, ở 390px nó còn ~21px. +32px so với bản không có cột chọn dòng, đúng
- *  bề rộng cố định của cột checkbox đứng đầu bảng. */
-const TABLE_MIN_WIDTH = 'min-w-[1212px]'
-
-/** Giá trị "không lọc trục này" của bốn ô Select. `<select>` gốc chỉ chở được
- *  chuỗi, nên trạng thái "mọi giá trị" phải có một chuỗi đại diện; trên dây thì
- *  nó là `undefined`, và phép dịch giữa hai bên nằm ở đúng bốn chỗ gọi
- *  `onChange` bên dưới. */
-const ANY = 'all'
-
-/** The book's tab row — the `state` axis, the one people flip back and forth all
- *  day, so it lies open (A-19) instead of hiding inside a select.
- *
- *  THREE tabs since ADR 0064, not the five old states: `open` covers all four
- *  columns, `lost` is a final stop, `won` is derived from a contract row.
- *  Built from `OpportunityStatus.options` and `OPPORTUNITY_STATE_LABEL` — the
- *  same list the server filters by and the same words it prints.
- *
- *  The all-states tab stands FIRST because it is the tab the screen opens on
- *  when nothing is filtered, and the lead book likewise opens on its own first
- *  tab — two books of one department have to open in the same place. The array
- *  lives outside the component because `useQueries` below reads its length:
- *  rebuilding it each render would still be the same length, but nobody should
- *  have to check that. */
-const STATE_TABS: { value: string; label: string }[] = [
-  { value: ANY, label: 'Tất cả' },
-  ...OpportunityStatus.options.map((state) => ({
-    value: state as string,
-    label: OPPORTUNITY_STATE_LABEL[state],
-  })),
-]
-
-/** Ô tìm nhỏ giọt lên địa chỉ sau chừng này. Gõ tới đâu thấy tới đó là việc của
- *  `useState`; ghi mỗi phím lên địa chỉ thì nút Back thành nút xoá từng chữ. */
-const SEARCH_DELAY_MS = 300
-
-const NO_BD_TITLE = 'Chưa ghi BD mở cửa — công trạng mở cửa chưa ai nhận'
-const NO_HOLDER_TITLE = 'Chưa ai giữ — chưa có Sale, người nhận PIC hay BD'
-
-/** Panel nạp tệp KHÔNG chống trùng trong trình duyệt — tập rỗng là một quyết
- *  định, không phải một chỗ chưa nối.
- *
- *  Máy chủ chống trùng theo MÃ LEAD (`lead:<mã>` — "khách này đã có đơn đang mở
- *  chưa"), và trình duyệt không biết mã đó: nó chỉ cầm một ô "Account" chưa được
- *  dịch sang hồ sơ nào. Một tập khoá dựng phía trình duyệt vì thế trả lời một
- *  câu khác (`ten:công-ty|tỉnh`) và sẽ báo sạch trong khi máy chủ vẫn từ chối —
- *  tệ hơn nữa là nó loại dòng TRƯỚC khi máy chủ được nhìn, mà bốn con số panel
- *  vẽ lại là số của máy chủ. Một cửa chống trùng, và đó là cửa biết mã lead. */
+/** The import panel does not dedupe in the browser: the server dedupes by lead
+ *  code, which a file's "Account" cell does not carry. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
 export function OpportunitiesPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
+  const address = useBookAddress()
+  const { urlQuery, query, text, setText, patch, goPage } = address
 
-  /* ĐỊA CHỈ là nguồn sự thật của bộ lọc — dịch hai chiều ở `data/opportunities.ts`.
-     `size` thì màn áp đè: `PAGE_SIZE` là số dòng bảng này vẽ, còn mặc định của
-     hợp đồng là 50 cho mọi sổ. Áp đè ở đây chứ không ghi lên địa chỉ, để một
-     link chia sẻ không mang theo một con số không ai chọn. */
-  const urlQuery = useMemo(() => parseOpportunityBookQuery(params), [params])
-  const query = useMemo<OpportunityBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
-
-  /* `error` đọc ra, KHÔNG bỏ. Bỏ nó đi thì một máy chủ chết hiện ra thành
-     "Không có cơ hội nào khớp bộ lọc đang chọn" kèm nút "Bỏ hết bộ lọc":
-     người dùng đi sửa bộ lọc cho một sự cố hạ tầng, và chỉ dừng lại khi đã bỏ
-     hết bộ lọc mà sổ vẫn trống. "Không có dòng nào" và "không hỏi được" là hai
-     câu khác nhau, dẫn tới hai việc khác nhau — xem nhánh `bookError` ở chỗ vẽ
-     bảng. */
-  const {
-    data,
-    isPending,
-    error: bookError,
-    refetch: refetchBook,
-  } = useQuery(opportunityBookQuery(query))
-
+  /* `error` is read: a dead server must not read as "no deal matches". */
+  const { data, isPending, error: bookError, refetch } = useQuery(opportunityBookQuery(query))
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
-  const hidden = data?.hidden ?? 0
+  const { pageIndex } = usePageClamp(address, data?.total)
 
-  /* Two facet reads: the choices span the whole visible book (no filter, so a
-     select never collapses to its own pick); the tab counts honour the filters. */
-  const { data: choices } = useQuery(opportunityFacetQuery({}))
-  const { data: facets } = useQuery(opportunityFacetQuery(facetsQueryOf(urlQuery)))
-
-  /* Codes outlive paging, so every page shown keeps its rows' recipients. */
-  const [mailable, setMailable] = useState<ReadonlyMap<string, MasRecipient>>(NO_RECIPIENTS)
-  const [mailPage, setMailPage] = useState<OpportunityBookRow[] | undefined>(undefined)
-  if (mailPage !== data?.rows) {
-    setMailPage(data?.rows)
-    setMailable((prev) => withRecipients(prev, data?.rows ?? []))
-  }
+  const mailable = useMailable(data?.rows)
   const recipients = useMemo(() => [...mailable.values()], [mailable])
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
 
-  /* Ghi một phần bộ lọc lên địa chỉ. Đổi bộ lọc thì LUÔN về trang đầu — đứng ở
-     trang 3 rồi đổi trạng thái thì máy chủ trả một trang rỗng, và người dùng
-     đọc nó thành "không có kết quả". */
-  const patch = (next: Partial<OpportunityBookQuery>) =>
-    setParams(
-      opportunityBookQueryToParams({
-        ...urlQuery,
-        ...next,
-        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-      }),
-    )
+  const dirty = isDirty(query, text)
+  const clearFilters = () => patch({ q: undefined, ...CLEARED_FILTERS })
 
-  /* Ô tìm giữ chữ trong state để gõ tới đâu thấy tới đó, rồi mới nhỏ giọt lên
-     địa chỉ (`SEARCH_DELAY_MS`). `replace` chứ không đẩy thêm mục lịch sử: một
-     câu tìm tám ký tự mà đẩy tám mục thì nút Back thành nút xoá từng chữ. */
-  const [text, setText] = useState(urlQuery.q ?? '')
-
-  /* Địa chỉ đổi từ BÊN NGOÀI — nút Back, F5, một link ai đó gửi tới — thì ô tìm
-     phải đi theo, nếu không chữ trong ô nói một đằng còn bảng lọc một nẻo. */
-  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
-
-  useEffect(() => {
-    const wanted = text.trim() === '' ? undefined : text.trim()
-    if (wanted === urlQuery.q) return
-    const timer = setTimeout(
-      () =>
-        setParams(
-          opportunityBookQueryToParams({
-            ...urlQuery,
-            q: wanted,
-            page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-          }),
-          { replace: true },
-        ),
-      SEARCH_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [text, urlQuery, setParams])
-
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
-
-  /* Trang ngoài tầm thì SỬA ĐỊA CHỈ, không chỉ kẹp con số đem đi vẽ.
-
-     Kẹp `pageIndex` ở trên mới chỉ chữa cái chân trang; câu hỏi gửi máy chủ vẫn
-     mang `page` cũ, nên `OFFSET` vẫn vượt sổ và trang về rỗng. Và rỗng ở đây
-     đọc ra một câu SAI hẳn: `total` nhỏ hơn một trang nên không chân trang nào
-     được vẽ, bộ lọc thì chưa ai chạm nên màn rơi vào nhánh "Sổ cơ hội chưa có
-     đơn nào" kèm đúng một nút "Về sổ lead" — người dùng có tám đơn trong sổ mà
-     không nút nào trên màn đưa họ về được trang 1.
-
-     Xảy ra thật với một link ai đó gửi (`?page=3`) sau khi sổ co lại, hoặc khi
-     trục phạm vi cắt sổ của người mở link ngắn hơn sổ của người gửi.
-
-     `replace` chứ không đẩy mục lịch sử: người dùng không tự đi tới trang này,
-     nên nút Back phải lùi về chỗ họ thật sự đến từ đó. Chờ `data` về mới sửa —
-     `total` lúc chưa có dữ liệu là 0, sửa sớm là đá mọi người về trang 1 ngay
-     giữa lượt đọc đầu tiên. */
-  useEffect(() => {
-    if (!data) return
-    if (pageIndexFromQueryPage(query.page) <= pageCount - 1) return
-    setParams(
-      opportunityBookQueryToParams({
-        ...urlQuery,
-        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-      }),
-      { replace: true },
-    )
-  }, [data, query.page, pageCount, urlQuery, setParams])
-
-  /* Một chỗ duy nhất đổi số trang của `TableFooter` (đếm từ 0) sang số trang
-     của hợp đồng (đếm từ 1) — hai đầu cầu ở `app/url.ts`, cùng cầu sổ lead đi. */
-  const goPage = (index: number) =>
-    setParams(opportunityBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
-
-  /* Ba danh sách lọc dựng TỪ CẢ SỔ chứ không khai tay: thêm một Sale hay một
-     công ty vào dữ liệu là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này. */
-  const saleOptions = useMemo(() => peopleOptions(choices?.saleOwners ?? []), [choices])
-  const bdOptions = useMemo(() => peopleOptions(choices?.bdOwners ?? []), [choices])
-  const accounts = useMemo(
-    () => [...(choices?.accounts ?? [])].sort((a, b) => a.localeCompare(b, 'vi')),
-    [choices],
-  )
-
-  /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
-     ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
-  const dirty =
-    text.trim() !== '' ||
-    query.state !== undefined ||
-    query.stage !== undefined ||
-    query.accepted !== undefined ||
-    query.overdue !== undefined ||
-    query.sale !== undefined ||
-    query.bd !== undefined ||
-    query.account !== undefined
-
-  const clearFilters = () =>
-    patch({
-      q: undefined,
-      state: undefined,
-      stage: undefined,
-      accepted: undefined,
-      overdue: undefined,
-      sale: undefined,
-      bd: undefined,
-      account: undefined,
-    })
-
-  /* A head's queue is a toggle: on, the book shows exactly its filter; off,
-     only the queue's own axes are lifted. */
-  const toggleQueue = (queue: Partial<OpportunityBookQuery>) =>
-    inQueue(query, queue)
-      ? patch(Object.fromEntries(Object.keys(queue).map((key) => [key, undefined])))
-      : setParams(opportunityBookQueryToParams({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, ...queue }))
-
-  /* `byState` counts under the other filters in force; "all" is their sum. */
-  const byState = facets?.byState
-  const tabs = STATE_TABS.map((tab) => ({
-    ...tab,
-    count: !byState
-      ? undefined
-      : tab.value === ANY
-        ? Object.values(byState).reduce((sum, n) => sum + n, 0)
-        : byState[tab.value as OpportunityStatus],
-  }))
-
-  /* The number printed on the filter button. State is NOT counted here: it is
-     already visible on the tab row, and counting it twice says one thing twice. */
-  const activeFilters = [query.sale, query.bd, query.account, query.overdue].filter(
-    (value) => value !== undefined,
-  ).length
-
-  /* Mũi tên chỉ sáng khi sổ ĐANG sắp theo cột này. Thứ tự mặc định là
-     `createdAt desc` — mới nhất trước — và `createdAt` không phải cột nào trên
-     bảng, nên lúc đó không cột nào có mũi tên. */
+  /* The default order (`createdAt`) is no column, so no arrow lights then. */
   const tableSort: TableSort | undefined =
     query.sort === DEFAULT_OPPORTUNITY_BOOK_QUERY.sort
       ? undefined
       : { key: query.sort, dir: query.dir }
 
   const [creating, setCreating] = useState(false)
-  /* Both write doors of the book open a deal, and only BD seats and heads may
-     (ADR 0071 §1) — so a Sale sees neither, rather than a 403 after a file. */
+  /* Both write doors open a deal, which only BD seats and heads may (ADR 0071 §1). */
   const canCreate = useCan('opportunity.create')
   const canAccept = useCan('opportunity.accept')
-  const canAssign = useCan('opportunity.assign')
 
-  const loadFile = useOpportunityImport()
+  const selection = useBookSelection(rows)
+  const { selectedCodes, pageSelected, allPageSelected, clearSelection } = selection
 
-  /* Lô nạp GHI THẲNG lên máy chủ — hai cửa, `preview` rồi `import`, cả hai nằm
-     ở `data/opportunity-import.ts`. Kho `intake-desk` không nhận lô của sổ này
-     nữa: dòng đã nằm trên máy chủ rồi, giữ thêm một bản cục bộ là mỗi đơn nạp
-     hiện hai lần mà không có gì nói cho người xem biết vì sao.
-
-     Trả BÁO CÁO CỦA MÁY CHỦ về cho panel: bốn con số ở bước 3 phải là số của
-     bên đã ghi thật — xem docblock `onCommit` ở `components/import-zone.tsx`.
-     Hàm này không bao giờ ném, vì `runOpportunityImport` đã đổi mọi lời từ chối
-     thành một báo cáo nói đúng những gì đã vào sổ.
-
-     `motion` của `ImportCommit` rơi ở đây và rơi có chủ ý: đơn không có cột thế,
-     và `OP_SPEC` cũng không còn hỏi. */
-  const commitOps = async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
-    const run = await loadFile({ rows, fileName })
-    const { report } = run
-
-    toast(run.failure ?? `${report.rows.length} cơ hội đã vào sổ`, {
-      tone: run.failure ? 'danger' : 'success',
-      detail: [
-        report.duplicates > 0 && `${report.duplicates} khách đã có đơn đang mở, bỏ qua`,
-        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-    })
-
-    return report
-  }
-
-  /* One selection protocol for every bulk-action book. Codes outlive paging;
-     the shared hook also owns mouse/pen paint selection and click suppression. */
-  const {
-    selectedCodes,
-    pageSelected,
-    allPageSelected,
-    changeSelection,
-    beginDrag,
-    paintSelection,
-    selectPage,
-    clearSelection,
-  } = useBookSelection(rows)
-
-  const selectedEmailCount = recipients.filter(
-    (r) => selectedCodes.has(r.code) && Boolean(r.email),
-  ).length
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        {/* Hai cửa ghi của sổ, cạnh nhau — cùng hình với sổ lead
-            (`pages/leads.tsx`), nên nút nạp của hai sổ đứng cùng một chỗ.
-
-            Nút "Tạo cơ hội" KHÔNG mở một phiếu trắng, và câu "đơn sinh ra từ
-            hồ sơ một lead" mà chỗ này từng ghi vẫn đúng nguyên: nó mở một ô
-            chọn lead trước, rồi giao cho ĐÚNG `ConvertDialog` mà hồ sơ lead
-            vẫn dùng. Thứ đổi là chỗ ĐỨNG để bắt đầu, không phải luật — ai đang
-            đọc sổ cơ hội không phải đi vòng qua sổ lead để mở một đơn. */}
         <BookPage
           title="Sổ cơ hội"
           actions={
-            <>
-              {canAccept && (
-                <AcceptQueueLink
-                  active={inQueue(query, ACCEPT_QUEUE)}
-                  onPress={() => toggleQueue(ACCEPT_QUEUE)}
-                />
-              )}
-              {canAssign && (
-                <UnassignedSaleLink
-                  active={inQueue(query, UNASSIGNED_QUEUE)}
-                  onPress={() => toggleQueue(UNASSIGNED_QUEUE)}
-                />
-              )}
-              {canCreate && (
-                <>
-                  <ImportZone
-                    spec={OP_SPEC}
-                    existingKeys={NO_LOCAL_KEYS}
-                    buttonLabel="Nạp cơ hội từ tệp"
-                    onCommit={commitOps}
-                    onSeeResult={clearFilters}
-                  />
-                  {/* Không mở một phiếu trắng: nó mở một ô chọn lead trước, rồi giao
-                  cho ĐÚNG `ConvertDialog` mà hồ sơ lead vẫn dùng — đơn vẫn sinh
-                  ra từ một lead, chỉ khác chỗ đứng để bắt đầu. */}
-                  <Button size="md" onClick={() => setCreating(true)} className="max-sm:flex-1">
-                    <Icon icon={Plus} size={16} />
-                    Mở cơ hội
-                  </Button>
-                </>
-              )}
-            </>
+            canCreate && (
+              <CreateDoors onCreate={() => setCreating(true)} onSeeResult={clearFilters} />
+            )
           }
           score={<ScoreCards />}
           tabs={
-            <SegmentedControl
-              label="Trạng thái đơn"
-              hideLabel
-              tone="quiet"
-              value={query.state ?? ANY}
-              options={tabs}
-              onChange={(value) =>
-                patch({ state: value === ANY ? undefined : (value as OpportunityStatus) })
-              }
-            />
+            <BookTabs query={urlQuery} total={total} hidden={data?.hidden ?? 0} onPatch={patch} />
           }
-          count={<BookCount total={total} noun="cơ hội" hidden={hidden} />}
+          quick={<QuickFilters query={urlQuery} onPatch={patch} />}
           tools={
-            <>
-              <SearchField
-                placeholder="Tìm theo tên cơ hội, mã hoặc account…"
-                value={text}
-                onChange={setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
-              />
-              {/* The column has no select of its own — it arrives from the
-                  accept queue's link — so it shows as a pill that clears itself. */}
-              {query.stage !== undefined && (
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="pointer-coarse:h-12"
-                  aria-label={`Bỏ lọc cột ${OPPORTUNITY_STAGE_LABEL[query.stage]}`}
-                  onClick={() => patch({ stage: undefined })}
-                >
-                  Cột: {OPPORTUNITY_STAGE_LABEL[query.stage]}
-                  <Icon icon={X} size={16} />
-                </Button>
-              )}
-              <FilterMenu label="Bộ lọc sổ cơ hội" active={activeFilters}>
-                <Select
-                  label="Sale đứng đơn"
-                  value={query.sale ?? ANY}
-                  onChange={(value) => patch({ sale: value === ANY ? undefined : value })}
-                  /* A native select grows to its longest option, and account
-                     names run long — clamp it to the panel. */
-                  className="w-full max-w-none"
-                  options={[
-                    { value: ANY, label: 'Mọi Sale' },
-                    /* The target of the unassigned quick filter, so it reads back. */
-                    { value: OWNER_NONE, label: 'Chưa có Sale' },
-                    ...saleOptions,
-                  ]}
-                />
-                <Select
-                  label="BD mở cửa"
-                  value={query.bd ?? ANY}
-                  onChange={(value) => patch({ bd: value === ANY ? undefined : value })}
-                  className="w-full max-w-none"
-                  options={[
-                    { value: ANY, label: 'Mọi BD' },
-                    /* Không có mục này thì cách duy nhất tìm ra đơn chưa ghi công
-                       trạng mở cửa là đọc hết sổ bằng mắt. Hằng `NO_BD` tự chế của
-                       màn đã đi: nó chỉ có nghĩa với chính màn này, mà bên lọc bây
-                       giờ là máy chủ. `OWNER_NONE` là cách viết của "chưa ai" TRÊN
-                       DÂY (`@pv/contracts`) — hai đầu đọc đúng một chuỗi. */
-                    { value: OWNER_NONE, label: 'Chưa ghi BD' },
-                    ...bdOptions,
-                  ]}
-                />
-                <Select
-                  label="Account"
-                  value={query.account ?? ANY}
-                  onChange={(value) => patch({ account: value === ANY ? undefined : value })}
-                  className="w-full max-w-none"
-                  options={[
-                    { value: ANY, label: 'Mọi account' },
-                    ...accounts.map((a) => ({ value: a, label: a })),
-                  ]}
-                />
-                <Checkbox
-                  checked={query.overdue === true}
-                  onChange={(on) => patch({ overdue: on || undefined })}
-                  label="Quá hạn cột hiện tại"
-                />
-                {dirty && (
-                  <Button size="md" variant="ghost" onClick={clearFilters}>
-                    Bỏ hết bộ lọc
-                  </Button>
-                )}
-              </FilterMenu>
-            </>
+            <BookTools
+              query={urlQuery}
+              text={text}
+              onText={setText}
+              onPatch={patch}
+              dirty={dirty}
+              onClear={clearFilters}
+            />
           }
           pending={isPending}
           failure={
@@ -603,16 +132,13 @@ export function OpportunitiesPage() {
                   message: `Không lấy được sổ cơ hội. ${
                     isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
                   }`,
-                  onRetry: () => void refetchBook(),
+                  onRetry: () => void refetch(),
                 }
               : undefined
           }
           empty={
             rows.length === 0
               ? {
-                  /* Hai câu khác nhau, và `dirty` là thứ phân biệt chúng — không
-                     phải một phép đếm sổ: màn chỉ cầm một trang, nên "sổ rỗng" là
-                     thứ nó không tự kiểm được. */
                   message: dirty
                     ? 'Không có cơ hội nào khớp bộ lọc đang chọn.'
                     : 'Sổ cơ hội chưa có đơn nào. Đổi một lead thành cơ hội từ hồ sơ lead.',
@@ -623,19 +149,11 @@ export function OpportunitiesPage() {
               : undefined
           }
           table={{
-            minWidth: TABLE_MIN_WIDTH,
+            minWidth: `${TABLE_MIN_WIDTH} ${STICKY_LEAD}`,
             sort: tableSort,
             onSort: (key) => {
-              /* Bốn cột có `sortKey` bên dưới đều là khoá máy chủ nhận. Khoá nào
-                 không nằm trong `OpportunitySortKey` sẽ chết ở cổng zod của máy
-                 chủ, nên chặn ngay ở đây thay vì gửi đi một 400. */
-              const parsed = OpportunitySortKey.safeParse(key)
-              if (!parsed.success) return
-              patch(
-                query.sort === parsed.data
-                  ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                  : { sort: parsed.data, dir: 'asc' },
-              )
+              const next = sortPatch(query, key)
+              if (next) patch(next)
             },
             columns: [
               {
@@ -643,67 +161,44 @@ export function OpportunitiesPage() {
                   <Checkbox
                     checked={allPageSelected}
                     indeterminate={pageSelected > 0 && !allPageSelected}
-                    onChange={selectPage}
+                    onChange={selection.selectPage}
                     label={<span className="sr-only">Chọn cả trang</span>}
                     className="w-full justify-center gap-0 p-0"
                   />
                 ),
                 width: '32px',
               },
-              /* `Mã` và `Trạng thái` không có `sortKey`: máy chủ không nhận hai
-                 khoá đó (`OpportunitySortKey`), và một mũi tên bấm được mà
-                 không sắp được gì là một lời hứa suông. */
-              { header: 'Mã', width: '0.8fr' },
-              { header: 'Tên cơ hội', width: '2.3fr', sortKey: 'name' },
-              { header: 'Account', width: '1.6fr', sortKey: 'account' },
-              { header: 'Giá trị', width: '0.8fr', align: 'right', sortKey: 'amount' },
-              { header: 'Ngày chốt', width: '0.8fr', sortKey: 'expectedClose' },
-              /* 1.5fr, not the 1.2fr it was: this cell stacks a badge over a
-                 flow bar. Four segments in a narrow cell shrink into four ticks
-                 that no longer read as a position. */
-              { header: 'Trạng thái', width: '1.5fr' },
-              /* The accountable person (ADR 0071 §5): seller, else acceptor, else BD. */
-              { header: 'Người giữ', width: '1fr' },
-              { header: 'BD', width: '1fr' },
+              ...BOOK_COLUMNS,
             ],
             rows: rows.map((o) => ({
               id: o.code,
               state: selectedCodes.has(o.code) ? ('selected' as const) : undefined,
               onOpen: () => open(o.code),
-              onPointerEnter: (event) => paintSelection(o.code, event),
+              onPointerEnter: (event) => selection.paintSelection(o.code, event),
               cells: [
                 <SelectionCell
                   key="select"
                   checked={selectedCodes.has(o.code)}
                   label={o.name}
-                  onPress={(event) => beginDrag(o.code, event)}
-                  onChange={(on) => changeSelection(o.code, on)}
+                  onPress={(event) => selection.beginDrag(o.code, event)}
+                  onChange={(on) => selection.changeSelection(o.code, on)}
                 />,
-                <Chip key="c">{o.code}</Chip>,
-                <span key="n" className="block truncate" title={o.name}>
-                  {o.name}
-                </span>,
-                <span key="a" className="block truncate" title={o.account}>
-                  {o.account}
-                </span>,
-                <AmountCell key="m" op={o} />,
-                <CloseCell key="d" op={o} />,
-                <StateCell key="s" op={o} canAccept={canAccept} canAssign={canAssign} />,
-                <PersonCell key="ho" value={o.holder?.name} missing={NO_HOLDER_TITLE} />,
-                <PersonCell key="bo" value={firstName(bdOwnersOf(o))} missing={NO_BD_TITLE} />,
+                ...bookCells(o, canAccept),
               ],
             })),
           }}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+            <TableFooter
+              page={pageIndex}
+              pageSize={PAGE_SIZE}
+              total={total}
+              noun="cơ hội"
+              onPage={goPage}
+            />
           }
         />
 
-        {/* Written, then STRAIGHT to the new deal's profile rather than back to
-            the book. Staying leaves the user in front of a table whose filters
-            may hide the very row they just made, and the code the server minted
-            on save — the one thing the form refuses to guess in advance — would
-            still be nowhere on screen. */}
+        {/* Straight to the new deal's profile: the book's filters may hide it. */}
         <OpportunityCreateDialog
           open={creating}
           onClose={() => setCreating(false)}
@@ -715,7 +210,7 @@ export function OpportunitiesPage() {
           <BookSelectionBar
             count={selectedCodes.size}
             noun="cơ hội"
-            meta={`${selectedEmailCount} địa chỉ email`}
+            meta={mailTally(selectedCodes, mailable)}
             onClear={clearSelection}
             onSend={() =>
               openMasMail({
@@ -732,211 +227,63 @@ export function OpportunitiesPage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-
-/** A person filter's choices from `/facets`, keyed by id, labelled with the
- *  server's name, sorted by name so entries do not jump between openings. */
-function peopleOptions(people: readonly WorkstreamHolder[]) {
-  return people
-    .map((p) => ({ value: p.id, label: p.name }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+/** The book's two write doors. The create button opens a lead picker, then the
+ *  lead profile's own `ConvertDialog` — a deal is still born from a lead. */
+function CreateDoors({ onCreate, onSeeResult }: { onCreate: () => void; onSeeResult: () => void }) {
+  const commitOps = useCommitOps()
+  return (
+    <>
+      <ImportZone
+        spec={OP_SPEC}
+        existingKeys={NO_LOCAL_KEYS}
+        buttonLabel="Nạp cơ hội từ tệp"
+        onCommit={commitOps}
+        onSeeResult={onSeeResult}
+      />
+      <Button size="md" onClick={onCreate} className="pointer-coarse:h-12 max-sm:flex-1">
+        <Icon icon={Plus} size={16} />
+        Mở cơ hội
+      </Button>
+    </>
+  )
 }
 
-const NO_RECIPIENTS: ReadonlyMap<string, MasRecipient> = new Map()
-
-/** Adds a page's mailable rows: the deal's primary contact, `email: null`
- *  kept as `''` so the composer says "no email" rather than dropping the row. */
-function withRecipients(
-  known: ReadonlyMap<string, MasRecipient>,
-  rows: readonly OpportunityBookRow[],
-): ReadonlyMap<string, MasRecipient> {
-  const next = new Map(known)
-  for (const op of rows) {
-    if (!op.primaryContact) continue
-    next.set(op.code, {
-      code: op.code,
-      leadCode: op.leadCode,
-      company: op.account,
-      contactName: op.primaryContact.name,
-      email: op.primaryContact.email ?? '',
-      destinationLabel: op.name,
+/** A file import writes straight to the server; the panel gets the SERVER's
+ *  report back so its four numbers are what was really written. Never throws:
+ *  `runOpportunityImport` turns every refusal into a report. */
+function useCommitOps() {
+  const loadFile = useOpportunityImport()
+  return async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
+    const run = await loadFile({ rows, fileName })
+    const { report } = run
+    toast(run.failure ?? `${report.rows.length} cơ hội đã vào sổ`, {
+      tone: run.failure ? 'danger' : 'success',
+      detail: [
+        report.duplicates > 0 && `${report.duplicates} khách đã có đơn đang mở, bỏ qua`,
+        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
+        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+      ]
+        .filter(Boolean)
+        .join(' · '),
     })
+    return report
   }
-  return next
 }
 
-/** Người đầu tiên của một danh sách, hoặc `undefined` nếu rỗng.
- *
- *  Hai cột người in MỘT tên, không in cả nhóm: một ô bảng rộng 1.3fr chở được
- *  đúng một cái tên, và ba cái chồng nhau thì không đọc được cái nào. Cả danh
- *  sách vẫn có ở hồ sơ cơ hội, chỗ có chỗ để bày nó. */
-const firstName = (owners: OpportunityOwner[]) => namesOf(owners)[0]
-
-/** Thẻ điểm cả sổ — BỐN con số trên cùng một mẫu số.
- *
- *  Số đọc từ MÁY CHỦ (`GET /sales/opportunities/scorecard`), không đếm lại trên
- *  trang đang xem: thẻ điểm là điểm của cả sổ, mà màn chỉ cầm mười dòng. Điểm
- *  mà đổi theo bộ lọc thì nó không còn là điểm — dòng "12 dòng khớp bộ lọc"
- *  ngay dưới mới là chỗ trả lời cho bộ lọc.
- *
- *  ------------------------------------------------------------------
- *  BỐN CON SỐ NÀY KHÔNG THEO PHẠM VI CỦA BẠN — VÀ `Kicker` PHẢI NÓI RA
- *  ------------------------------------------------------------------
- *  Cửa thẻ điểm KHÔNG bật trục phạm vi (chép đúng quyết định của
- *  `GET /sales/leads/scorecard`): điểm là điểm của cả phòng, cắt nó theo đơn ai
- *  đang giữ thì mỗi người đọc một con số khác nhau dưới cùng một dòng chữ.
- *
- *  Hệ quả có thật, và nó nhìn thấy được trên chính màn này: với một vai chỉ
- *  thấy đơn của mình, `total` ở đây KHÁC con số "dòng khớp bộ lọc" của cái sổ
- *  ngay bên dưới. Hai con số ấy không cãi nhau — chúng trả lời hai câu khác
- *  nhau ("cả sổ có bao nhiêu đơn" và "bạn nhìn thấy bao nhiêu") — nhưng người
- *  đọc chỉ biết thế nếu có ai nói. Đó là việc của chữ trên `Kicker`, và đó là
- *  lý do nó không còn dừng ở "Thẻ điểm cả sổ". Đừng rút gọn lại: sửa máy chủ
- *  cho hai số bằng nhau là bỏ mất câu hỏi thứ nhất, giấu chênh lệch đi là để
- *  người dùng tự phát hiện ra nó vào một ngày xấu trời. */
-function ScoreCards() {
-  const { data } = useQuery(opportunityScorecardQuery)
-
-  const total = data?.total ?? 0
-  const openCount = data?.open ?? 0
-  const openAmount = data?.openAmountVnd ?? 0
-  const openBlank = data?.openBlank ?? 0
-  const won = data?.won ?? 0
-  const lost = data?.lost ?? 0
-
-  /* Mẫu số 0 thì không có tỉ lệ nào để nói — trả "—", không trả "0%". */
-  const per = (n: number) => (total === 0 ? '—' : percent(n / total))
-
-  const items = [
-    {
-      icon: Target,
-      label: 'Tổng số cơ hội',
-      value: String(total),
-      /* An empty book is worth flagging — same warning threshold as the
-         open-pipeline and win-rate cards below. The lost card never gets this
-         tone: no stopped deal is good news, not something to warn about. */
-      tone: total === 0 ? ('warning' as const) : ('default' as const),
-      hint: 'đơn đang có trong sổ',
-    },
-    {
-      icon: Wallet,
-      label: 'Đang mở',
-      value: billions(openAmount),
-      tone: openAmount === 0 ? ('warning' as const) : ('default' as const),
-      /* Máy chủ cộng bằng ĐỒNG và bỏ qua đơn chưa có tiền — rồi báo lại số đơn
-         đã bỏ, vì cộng `null` thành 0 là nói dối về một con số chưa ai moi
-         được, còn im lặng bỏ đi thì pipeline đọc ra nhỏ hơn thật mà không có gì
-         trên màn nói vì sao. */
-      hint:
-        openBlank === 0
-          ? `${openCount} đơn còn trong bốn cột`
-          : `${openCount} đơn còn trong bốn cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
-    },
-    {
-      icon: FileCheck,
-      label: 'Thành hợp đồng',
-      value: per(won),
-      tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
-      hint: `${won} đơn đã ký trên ${total} cơ hội`,
-    },
-    {
-      icon: CircleX,
-      label: OPPORTUNITY_STATE_LABEL.lost,
-      value: per(lost),
-      hint: `${lost} đơn đã dừng trên ${total} cơ hội`,
-    },
+/** One row's ten cells, in `BOOK_COLUMNS` order. */
+function bookCells(op: OpportunityBookRow, canAccept: boolean) {
+  return [
+    <EmailCell key="mail" op={op} />,
+    <DealCell key="deal" op={op} />,
+    <StageCell key="stage" op={op} />,
+    <ForecastCell key="forecast" op={op} />,
+    <AmountCell key="amount" op={op} />,
+    <CloseCell key="close" op={op} />,
+    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa ghi BD mở cửa" />,
+    <PeopleCell key="sale" owners={saleOwnersOf(op)} missing="Chưa có Sale đứng đơn" />,
+    <LastActivityCell key="activity" op={op} />,
+    <NextStepCell key="next" op={op} canAccept={canAccept} />,
   ]
-
-  return (
-    <div className="flex flex-col gap-3">
-      <Kicker>Thẻ điểm cả sổ · không theo phạm vi của bạn</Kicker>
-
-      <div
-        role="group"
-        aria-label="Thẻ điểm sổ cơ hội"
-        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-      >
-        {items.map((item) => (
-          <StatCard
-            key={item.label}
-            size="compact"
-            icon={item.icon}
-            label={item.label}
-            value={item.value}
-            hint={item.hint}
-            tone={item.tone}
-          />
-        ))}
-      </div>
-
-      <p className="text-muted-foreground text-[11px] leading-[1.5]">
-        Mỗi cơ hội mọc ra từ một lead đã lên bậc SQL — cùng một sự kiện, không phải hai sổ. Phần còn
-        lại của phễu nằm ở Sổ lead.
-      </p>
-    </div>
-  )
-}
-
-/** Cột tiền — canh phải, mono, quy ra đồng.
- *
- *  Canh phải vì cột tiền để SO CHIỀU DỌC: hàng nghìn phải thẳng hàng nghìn.
- *  Ngoại tệ in kèm số gốc ở `title` — sổ cộng bằng đồng, nhưng đơn thì chào
- *  bằng đồng tiền của nó. */
-function AmountCell({ op }: { op: OpportunityRow }) {
-  const amountVnd = amountVndOf(op)
-  if (op.amount === null || amountVnd === null) {
-    return (
-      <span className="text-muted-foreground" title="Chưa moi được ô 9 — khoảng tiền khách nói">
-        —
-      </span>
-    )
-  }
-  return (
-    <span
-      className="tnum block truncate font-mono text-[11.5px]"
-      title={
-        op.currency === 'VND'
-          ? undefined
-          : `${op.amount.toLocaleString('vi-VN')} ${op.currency} quy ra đồng`
-      }
-    >
-      {billions(amountVnd)}
-    </span>
-  )
-}
-
-/** The close-date cell. A closed deal prints the day it really closed
- *  (`closedAt`); an open one its expected day, in warning once that day passed. */
-function CloseCell({ op }: { op: OpportunityRow }) {
-  const closed = op.stage === null
-  const day = closed ? op.closedAt : op.expectedClose
-  if (day === null) {
-    return (
-      <span
-        className="text-muted-foreground"
-        title={closed ? 'Chưa ghi ngày đóng' : 'Chưa đặt ngày đóng dự kiến'}
-      >
-        —
-      </span>
-    )
-  }
-
-  const late = isLateClose(op)
-
-  return (
-    <span
-      className={cn(late && 'text-warning')}
-      title={
-        closed
-          ? 'Ngày đóng thật'
-          : late
-            ? 'Ngày dự kiến đã trôi qua — đơn này đáng lẽ đóng rồi'
-            : 'Ngày dự kiến'
-      }
-    >
-      <span className="tnum font-num">{dm(day)}</span>
-    </span>
-  )
 }
 
 export default OpportunitiesPage

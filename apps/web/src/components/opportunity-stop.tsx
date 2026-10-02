@@ -76,12 +76,13 @@ export function StopDrawer({
     )
 
   /* The empty first row makes "nobody chose yet" a state; the flag rides in
-     the label because a Select row carries text only. */
+     the label because a Select row carries text only, worded as a recorded flag
+     since nothing enforces it yet (ADR 0076 §5). */
   const options = [
     { value: '', label: 'Chọn lý do…' },
     ...reasons.map((r) => ({
       value: r.id,
-      label: r.doNotContact ? `${r.name} · ${LOSS_REASON_DO_NOT_CONTACT_LABEL}` : r.name,
+      label: r.doNotContact ? `${r.name} · ghi cờ “${LOSS_REASON_DO_NOT_CONTACT_LABEL}”` : r.name,
     })),
     { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
   ]
@@ -162,7 +163,8 @@ export function StopDrawer({
         {flagged.has(reasonKey) && (
           <span className="flex">
             <Badge tone="warning" className="whitespace-normal">
-              {LOSS_REASON_DO_NOT_CONTACT_LABEL}: cờ này được ghi cùng lý do vào nhật ký dừng.
+              Cờ “{LOSS_REASON_DO_NOT_CONTACT_LABEL}” chỉ được ghi vào nhật ký dừng — chưa chặn việc
+              gọi hay gửi mail cho lead.
             </Badge>
           </span>
         )}

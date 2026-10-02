@@ -21,7 +21,8 @@ import { dmy } from '@/lib/date'
  *
  *  Every request names its own kind, amount and currency (ADR 0069 §5): a won
  *  deal may sign again (licence beside deployment), so the deal's own value
- *  cannot stand in for the paper's, and it is never changed by signing. The
+ *  cannot stand in for the paper's. Its stored estimate is never changed by
+ *  signing; the profile shows the signed sum beside it (ADR 0077 §1). The
  *  first sign prefills amount and currency from the deal; signing again takes
  *  only the currency, because copying the first paper's figure is how a second
  *  contract gets the wrong number. Kind always starts empty — nobody's default.
@@ -131,7 +132,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
         <>
           <span className="font-mono">{op.code}</span> · {op.account} —{' '}
           {again
-            ? 'một hợp đồng mới bên cạnh hợp đồng đã ký; giá trị cơ hội giữ nguyên.'
+            ? 'một hợp đồng mới bên cạnh hợp đồng đã ký; được duyệt thì cộng vào giá trị đơn.'
             : 'được duyệt thì đơn rời bốn cột và thành hợp đồng.'}
         </>
       }
@@ -206,8 +207,8 @@ export function SignDrawer({ op, open, onClose }: Props) {
             required
             hint={
               again
-                ? 'Số của riêng hợp đồng này. Giá trị cơ hội không đổi, không cộng dồn.'
-                : 'Mồi bằng giá trị đơn. Số chốt thường không phải số đã chào — sửa ở đây, đơn giữ nguyên số cũ.'
+                ? 'Số của riêng hợp đồng này. Được duyệt thì giá trị đơn của cơ hội là tổng các hợp đồng đã ký bằng đồng tiền của cơ hội; giá trị dự kiến vẫn giữ.'
+                : 'Mồi bằng giá trị dự kiến. Số chốt thường khác số đã chào — sửa ở đây. Được duyệt thì cơ hội hiện giá trị đơn theo hợp đồng đã ký; giá trị dự kiến vẫn giữ.'
             }
           >
             <span className="relative flex items-center">

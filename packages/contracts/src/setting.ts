@@ -42,7 +42,7 @@ import { Moment } from './primitives'
  *  how the read shape tells the two states apart for an operator's screen. */
 
 // ---------------------------------------------------------------------------
-// THE SIX KEYS — see the registry below for what each one decides
+// THE KEYS — see the registry below for what each one decides
 // ---------------------------------------------------------------------------
 
 export const SettingKey = z.enum([
@@ -52,6 +52,8 @@ export const SettingKey = z.enum([
   'sequence.step.default-wait-days',
   'sequence.max-steps',
   'content.share.expires-days',
+  'sales.activity.warn-days',
+  'sales.activity.alert-days',
 ])
 
 export type SettingKey = z.infer<typeof SettingKey>
@@ -131,6 +133,23 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     min: 1,
     max: 90,
     description: 'Link theo dõi nội dung hết hạn sau bao nhiêu ngày.',
+  },
+  /* The pair is written together through `ActivityFreshnessPatch`
+     (`./sales/config`), which holds alert > warn; neither is in `SettingPatch`
+     so the platform door cannot break the pair one key at a time. */
+  'sales.activity.warn-days': {
+    unit: 'days',
+    defaultValue: 6,
+    min: 1,
+    max: 89,
+    description: 'Cơ hội không có hoạt động bao nhiêu ngày thì bắt đầu nhắc.',
+  },
+  'sales.activity.alert-days': {
+    unit: 'days',
+    defaultValue: 9,
+    min: 2,
+    max: 90,
+    description: 'Cơ hội không có hoạt động bao nhiêu ngày thì báo động.',
   },
 }
 

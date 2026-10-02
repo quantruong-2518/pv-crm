@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  ActivityFreshnessPatch,
   ConfigEntryCreate,
   ConfigEntryPatch,
   ConfigList,
@@ -44,6 +45,25 @@ export class SalesConfigController {
   @Need({ branch: 'Sales', permission: 'config.view' })
   bundle() {
     return this.config.bundle()
+  }
+
+  /** The book's staleness pair (ADR 0077 §4). Declared before `:list`, the
+   *  habit `motions` keeps: a reader meets the narrow path first. */
+  @Get('activity-freshness')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  activityFreshness() {
+    return this.config.activityFreshness()
+  }
+
+  /** Both dials in one body, 202 like every write here. */
+  @Patch('activity-freshness')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchActivityFreshness(
+    @CurrentActor() who: Actor,
+    @Body(zod(ActivityFreshnessPatch)) body: ActivityFreshnessPatch,
+  ) {
+    return this.config.proposeActivityFreshness(who, body)
   }
 
   @Get(':list')

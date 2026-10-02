@@ -1,64 +1,29 @@
-import { type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Check, Handshake, Mail, PenLine, TriangleAlert, Users, type IconGlyph } from '@pv/ui'
-import {
-  Avatar,
-  Button,
-  ContextRail,
-  FlowVector,
-  GlassCard,
-  Icon,
-  MetaPill,
-  ScreenHeader,
-  SectionTitle,
-  Separator,
-  Skeleton,
-  cn,
-} from '@pv/ui'
-import {
-  campaignLabel,
-  OPPORTUNITY_STAGE_LABEL,
-  type LeadProfile,
-  type OpportunityProfileResponse,
-  type OpportunityRow,
-} from '@pv/contracts'
-import { userMessage } from '@/app/api'
-import { dm, dmhm } from '@/lib/date'
-import { phoneText } from '@/lib/phone'
-import { primaryContactOf, refusalOf } from '@/data/opportunities'
-import { opportunityStageHistoryQuery } from '@/data/opportunities-write'
-import type { DealDraft } from '@/data/deal-draft'
-import type { FlowVectorStep, RailObject } from '@pv/ui'
-import type { TouchEvent, TouchFocus } from '@/data/touches'
-import { CommActions, type CommMail } from '@/components/comm-actions'
-import { CommTimeline } from '@/components/comms-card'
-import { ActivityTimeline } from '@/components/lead-history-card'
-import { LetterLines } from '@/components/mail-letter/letter-lines'
-import { DealMoves } from './opportunity-moves'
+import { useState, type ReactNode } from 'react'
+import { ChevronDown, Users, type IconGlyph } from '@pv/ui'
+import { Badge, Button, ContextRail, Icon, MetaPill, ScreenHeader } from '@pv/ui'
+import { campaignLabel, type LeadProfile, type OpportunityProfileResponse } from '@pv/contracts'
+import type { RailObject } from '@pv/ui'
+import { StopDrawer } from '@/components/opportunity-stop'
+import { MenuButton, type MenuChoice } from './opportunity-menu'
+import { customerTagOf } from './opportunity-model'
 
-/** Module 3 · the blocks of the deal screen, around the form card itself.
- *
- *  The page keeps the query, the four ways it fails to draw, and the assembly;
- *  everything that PAINTS is here, the same split `lead-detail.tsx` /
- *  `lead-parts.tsx` runs on. The form card has a file of its own because all
- *  three doors share it — see `opportunity-form-card.tsx`. */
+/** Module 3 · the header of the deal screen and the block drawn when it will
+ *  not open. The page keeps the query and the assembly; the other blocks live
+ *  in `opportunity-status` · `-main` · `-side` · `-moves`, the same split
+ *  `lead-detail.tsx` / `lead-parts.tsx` runs on. */
 
 /** The header, with no glass around it.
  *
- *  Identity on the left, the person to call on the right, and ONE row under
- *  the title carrying both provenance and the object chain. The card that used
- *  to wrap this is gone: it split a header into two halves that competed, and
- *  law 12 counts every surface.
+ *  Identity on the left; the lead link and the menu holding the stop on the
+ *  right. No call buttons and no stage tag: contacts are reached from the
+ *  action bar, and where the deal stands is the status block (ADR 0077 §6).
  *
- *  THE RAIL RIDES IN THAT ROW rather than standing under the header as a strip
- *  of its own. Law 10 is satisfied either way, and the deal's own lead code was
- *  being printed twice — once as a dead pill, once as the rail's chip. The chip
- *  wins: it opens the record, the pill did not. */
+ *  THE RAIL RIDES IN THE META ROW (law 10), beside the customer tag of the
+ *  run (ADR 0076 §3) and the lead's provenance. */
 export function DealHeader({
   op,
   lead,
   rail,
-  mail,
   onBack,
   onOpenLead,
 }: {
@@ -66,352 +31,75 @@ export function DealHeader({
   lead: LeadProfile | null
   /** The object chain, already dressed by `railOf`. Law 10. */
   rail: RailObject[]
-  /** The page's letter composer, behind the contact's mail button. */
-  mail: CommMail
   onBack: () => void
   onOpenLead: () => void
 }) {
-  /* The deal's own primary contact (`sales.opportunity_contact`), not the lead's. */
-  const contact = primaryContactOf(op)
+  const [stopping, setStopping] = useState(false)
+  const customer = customerTagOf(op)
+  /* A stop is final, so a lost deal carries no menu at all. */
+  const menu: MenuChoice[] =
+    op.state !== 'lost' && op.acts.stop.ok
+      ? [{ key: 'stop', label: 'Dừng cơ hội', tone: 'danger', onSelect: () => setStopping(true) }]
+      : []
 
   return (
-    <ScreenHeader
-      back={{ label: 'Sổ cơ hội', onClick: onBack }}
-      kicker={
-        <span className="flex items-center gap-2">
-          <span className="font-sans">Cơ hội</span>
-          {op.code}
-        </span>
-      }
-      title={op.name}
-      actions={
-        <>
-          {contact ? (
-            <span className="flex min-w-0 items-center gap-2">
-              <Avatar name={contact.name} size="sm" />
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-[12.5px] font-semibold">{contact.name}</span>
-                <span className="text-muted-foreground truncate text-[11px] leading-[1.5]">
-                  {[contact.title, phoneText(contact.phone)].filter(Boolean).join(' · ') ||
-                    'chưa có kênh gọi'}
-                </span>
-              </span>
-            </span>
-          ) : (
-            <span className="text-warning text-[11.5px] leading-[1.5]">
-              Cơ hội chưa có người liên hệ chính.
-            </span>
-          )}
-
-          {/* A deal contact carries its `code`, sent as `contactCode` (ADR 0075). */}
-          {contact && (
-            <CommActions
-              subject={{ code: op.code, kind: 'opportunity' }}
-              contact={contact}
-              mail={mail}
-            />
-          )}
-
-          {/* 40px on a mouse, 48px on a finger (law 13). NOT `size="lg"`: that
-              is 48px everywhere and would swell the header on the desktop. */}
-          <Button size="md" className="pointer-coarse:h-12" onClick={onOpenLead}>
-            <Icon icon={Users} size={16} />
-            Hồ sơ lead
-          </Button>
-        </>
-      }
-      meta={
-        <>
-          {/* ALWAYS drawn (law 10), even as one chip: the deal's own azure chip
-              marks where it stands in lead → deal → contract, and a reader cut
-              off from the lead still needs that mark. */}
-          <ContextRail objects={rail} />
-          {lead ? (
-            <>
-              <MetaPill>{lead.province ?? '—'}</MetaPill>
-              <MetaPill>{campaignLabel(lead.source)}</MetaPill>
-            </>
-          ) : (
-            <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Chưa đọc được hồ sơ lead <span className="font-mono">{op.leadCode}</span> — có thể nó
-              nằm ngoài phạm vi quyền của bạn.
-            </span>
-          )}
-        </>
-      }
-    />
-  )
-}
-
-/** The history tab — who has carried the deal, what happened to it, and which
- *  columns it stood in.
- *
- *  Drawn WITHOUT a card of its own: it lives inside the form card's glass, and
- *  a second sheet of glass inside the first would stack two panels — avoided
- *  by convention, not law 12 (that law fixes only the screen's single
- *  aurora-glow layer). That is why it reaches for `ActivityTimeline` rather
- *  than `ActivityCard`. */
-export function DealHistoryTab({
-  op,
-  touches,
-  vector,
-  me,
-  focus,
-  onFocusStep,
-}: {
-  op: OpportunityRow
-  touches: readonly TouchEvent[]
-  vector: readonly FlowVectorStep[]
-  me?: string
-  focus: TouchFocus | null
-  onFocusStep: (id: string) => void
-}) {
-  const history = useQuery(opportunityStageHistoryQuery(op.code))
-  const rows = history.data?.rows ?? []
-
-  return (
-    <div className="flex min-w-0 flex-col gap-5">
-      {vector.length > 0 && <FlowVector steps={vector} you={me} onOpen={onFocusStep} />}
-
-      <ActivityTimeline history={touches} focus={focus} />
-
-      <Separator />
-
-      <SectionTitle size="sm" hint="Thư gửi từ cơ hội này và trạng thái của từng thư.">
-        Email
-      </SectionTitle>
-      <LetterLines door="opportunity" code={op.code} />
-
-      <Separator />
-
-      <SectionTitle size="sm">Tiến trình liên lạc</SectionTitle>
-      <CommTimeline subjectCode={op.code} />
-
-      <Separator />
-
-      <SectionTitle size="sm" hint="Mỗi lượt đổi cột, và đơn đã đứng đó bao lâu.">
-        Đã đi qua
-      </SectionTitle>
-
-      {history.isPending ? (
-        <Skeleton className="h-16 w-full" />
-      ) : rows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa có lượt đổi cột nào được ghi. Đơn mở trước ngày sổ lịch sử chạy thì bắt đầu từ lượt
-          chuyển tiếp theo — số cũ không suy ngược lại được.
-        </p>
-      ) : (
-        <ol className="flex flex-col gap-3">
-          {rows.map((e) => (
-            <li key={e.id} className="flex flex-col gap-1">
-              <span className="text-[12px] leading-[1.5]">
-                {/* A missing end is a real event, not missing data: entering
-                    the board when the deal opened, leaving it when the deal
-                    was signed or lost. */}
-                {e.from === null
-                  ? `Vào bảng ở ${e.to === null ? '—' : stageName(e.to)}`
-                  : e.to === null
-                    ? `Ra khỏi bảng từ ${stageName(e.from)}`
-                    : `${stageName(e.from)} → ${stageName(e.to)}`}
-              </span>
-              <span className="text-muted-foreground text-[11px] leading-[1.5]">
-                {dm(e.at)} · {e.by}
-                {e.daysInFrom !== null && ` · đứng ${e.daysInFrom} ngày`}
-              </span>
-              {e.note !== undefined && (
-                <span className="text-muted-foreground text-[11px] leading-[1.5]">{e.note}</span>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  )
-}
-
-/** A column's label, from the ONE table the server prints from as well — no
- *  fallback, because `StageKey` and this record are the same four keys. */
-const stageName = (key: NonNullable<OpportunityRow['stage']>) => OPPORTUNITY_STAGE_LABEL[key]
-
-/** The sticky bar — what BLOCKS on the left, where to go on the right.
- *
- *  Solid ground (`bg-hc-surface`), no `backdrop-blur`: `.glass-b` sits at alpha
- *  .84 so only 16% of the background comes through, and blurring a static
- *  ground at 16% strength is work the eye never sees — on an element that
- *  repaints every scrolled frame. */
-export function DealToolsBar({
-  draft,
-  op,
-  onSign,
-  canSendEmail = false,
-  composeBlocked,
-  onCompose,
-}: {
-  draft: DealDraft
-  op: OpportunityProfileResponse
-  onSign: () => void
-  /** `lead.send-email`, scoped — the permission `data/mas.ts` declares. */
-  canSendEmail?: boolean
-  /** Why this deal cannot be written to, when it cannot. */
-  composeBlocked?: string
-  onCompose?: () => void
-}) {
-  const blocking = Boolean(draft.error) || draft.missing.length > 0
-
-  /* Open signs for the first time, won signs again (ADR 0069 §5), lost never:
-     the door refuses it and there is no way back from a stop. */
-  const won = op.state === 'won'
-  const pending = op.pendingSign
-  const sign = signWhyOf(op, draft.canClose && !pending)
-  /* The bar prints the sign reason only when nothing outranks it; when that
-     reason is the missing seller, the moves row drops its own copy of it. */
-  const quiet = !draft.error && draft.missing.length === 0 && draft.dirty.length === 0
-  const sellerOnBar = quiet && sign.shown !== undefined && !op.hasSeller
-
-  return (
-    /* Sticky on a finger too (tablet portrait), capped at half the screen so a
-       wrapped bar never covers the form it saves. */
-    <div className="pointer-coarse:sticky pointer-coarse:bottom-4 z-10 lg:sticky lg:bottom-4">
-      <GlassCard
-        variant="b"
-        className="bg-hc-surface shadow-panel pointer-coarse:max-h-[50dvh] pointer-coarse:overflow-y-auto flex flex-wrap items-center gap-3 p-3"
-        aria-label="Thanh công cụ"
-      >
-        {/* WHERE THE DEAL STANDS, on its own line above the actions: the row
-            below is already full of buttons. */}
-        <DealMoves op={op} canEdit={draft.canEdit} sellerOnBar={sellerOnBar} />
-
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span
-            className={cn(
-              'flex min-w-0 items-center gap-2 text-[11.5px] leading-[1.5]',
-              blocking && 'text-destructive-foreground',
-            )}
-            aria-live="polite"
-          >
-            {blocking && <Icon icon={TriangleAlert} size={16} className="shrink-0" />}
-            {/* A refusal from the server wins every other sentence: whoever
-                just pressed Save and saw nothing change needs the reason
-                before they need a count of unsaved boxes. */}
-            {draft.error
-              ? userMessage(draft.error)
-              : draft.missing.length > 0
-                ? `Còn thiếu ${draft.missing.join(' · ')}`
-                : draft.dirty.length > 0
-                  ? `${draft.dirty.length} ô chưa lưu — rời màn bây giờ là mất.`
-                  : (sign.shown ?? 'Phiếu đã khớp với bản trên máy chủ.')}
+    <>
+      <ScreenHeader
+        back={{ label: 'Sổ cơ hội', onClick: onBack }}
+        kicker={
+          <span className="flex items-center gap-2">
+            <span className="font-sans">Cơ hội</span>
+            {op.code}
           </span>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          {/* Plain pills, not links: the contract routes are parked. */}
-          {op.contractCodes.map((contract) => (
-            <MetaPill key={contract} icon={Handshake} tone="success" mono>
-              {contract}
-            </MetaPill>
-          ))}
-          {pending && (
-            <MetaPill tone="warning">
-              Chờ duyệt ký · {pending.raisedBy} gửi {dmhm(pending.raisedAt)}
-            </MetaPill>
-          )}
-
-          {/* Every button in this bar clears law 13's 48px floor on a coarse
-              pointer, and keeps the bar's 40px rhythm on a mouse. A bar where
-              half the buttons are reachable is worse than one that is all small. */}
-          {/* Locked buttons say WHY on the title, the same way the lead toolbar
-              does: a panel filled in and then refused with a 403 is the one
-              outcome a disabled button is here to prevent. */}
-          {onCompose && (
+        }
+        title={op.name}
+        actions={
+          <>
+            {/* 40px on a mouse, 48px on a finger (law 13). */}
             <Button
               size="md"
               variant="secondary"
               className="pointer-coarse:h-12"
-              disabled={!canSendEmail || Boolean(composeBlocked)}
-              title={canSendEmail ? composeBlocked : 'Cần quyền gửi email cho lead.'}
-              onClick={onCompose}
+              onClick={onOpenLead}
             >
-              <Icon icon={Mail} size={16} />
-              Gửi mail cho khách
+              <Icon icon={Users} size={16} />
+              Hồ sơ lead
             </Button>
-          )}
-
-          {draft.canEdit && (
-            <Button
-              size="md"
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              disabled={draft.dirty.length === 0 || draft.busy}
-              onClick={draft.reset}
-            >
-              Bỏ sửa
-            </Button>
-          )}
-
-          {/* HIDDEN OUTRIGHT without `opportunity.close` — decision 4 of ADR
-              `docs/decisions/0018-opportunity-module-decisions.md`. Hiding is
-              NOT the fence: the real one stays at the api layer. */}
-          {/* Shut while the server's `acts.sign` refuses, its reason on the title:
-              a seller who filled in the whole panel first deserves to have been
-              told before pressing. */}
-          {op.state === 'open' && draft.canClose && (
-            <Button
-              size="md"
-              variant="success"
-              className="pointer-coarse:h-12"
-              disabled={Boolean(pending) || Boolean(sign.why)}
-              title={sign.why}
-              onClick={onSign}
-            >
-              <Icon icon={Check} size={16} />
-              Chốt thắng
-            </Button>
-          )}
-          {won && draft.canClose && (
-            <Button
-              size="md"
-              variant="success"
-              className="pointer-coarse:h-12"
-              disabled={Boolean(pending) || Boolean(sign.why)}
-              title={sign.why}
-              onClick={onSign}
-            >
-              <Icon icon={PenLine} size={16} />
-              Ký thêm hợp đồng
-            </Button>
-          )}
-
-          {/* Hidden, not greyed, for a read-only role — the same call ADR 0018
-              makes for the sign button above. */}
-          {draft.canEdit && (
-            <Button
-              size="md"
-              className="pointer-coarse:h-12"
-              disabled={!draft.canSubmit}
-              onClick={draft.submit}
-            >
-              <Icon icon={Check} size={16} />
-              {draft.busy ? 'Đang lưu…' : 'Lưu phiếu'}
-            </Button>
-          )}
-
-          {/* Room for the floating AI button (60px, `bottom-8 right-8` of
-              AppShell) — without it, it covers the last action on the bar. */}
-          <span
-            aria-hidden
-            className="pointer-coarse:block pointer-coarse:size-[60px] hidden shrink-0 lg:block lg:size-[60px]"
-          />
-        </div>
-      </GlassCard>
-    </div>
+            {menu.length > 0 && (
+              <MenuButton
+                label="Khác"
+                icon={ChevronDown}
+                ariaLabel="Thao tác khác"
+                size="md"
+                className="pointer-coarse:h-12"
+                align="right"
+                choices={menu}
+              />
+            )}
+          </>
+        }
+        meta={
+          <>
+            {customer && <Badge tone="running">{customer}</Badge>}
+            {/* ALWAYS drawn (law 10), even as one chip. */}
+            <ContextRail objects={rail} />
+            {lead ? (
+              <>
+                <MetaPill>{lead.province ?? '—'}</MetaPill>
+                <MetaPill>{campaignLabel(lead.source)}</MetaPill>
+              </>
+            ) : (
+              <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                Chưa đọc được hồ sơ lead <span className="font-mono">{op.leadCode}</span> — có thể
+                nó nằm ngoài phạm vi quyền của bạn.
+              </span>
+            )}
+          </>
+        }
+      />
+      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
+    </>
   )
-}
-
-/** Why the sign buttons are shut — the sign door's own verdict (`acts.sign`),
- *  in the server's words. `shown` is the one the bar prints. */
-function signWhyOf(op: OpportunityProfileResponse, offered: boolean) {
-  const why = refusalOf(op.acts.sign) ?? undefined
-  return { why, shown: offered && op.state !== 'lost' ? why : undefined }
 }
 
 /** The screen that would not open — ONE block, four sentences, glyph follows
@@ -430,7 +118,7 @@ export function EmptyOp({
     <div className="flex flex-col items-center gap-3 py-12 text-center">
       <Icon icon={icon} size={26} className="text-muted-foreground" />
       <p className="text-muted-foreground text-[12.5px] leading-[1.65]">{note}</p>
-      <Button size="sm" variant="ghost" onClick={onBack}>
+      <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onBack}>
         Về sổ cơ hội
       </Button>
     </div>

@@ -165,6 +165,29 @@ export function updateBodyOf(draft: OpportunityDraft): OpportunityUpdate {
   return dealBody(draft)
 }
 
+/** The PATCH body of the details and owners drawers (ADR 0077 §5): every term
+ *  and the SALE lane echoed as stored, so `touchesTerms` and the seller lock on
+ *  the server stay quiet; only description, files and the BD lane come from
+ *  the draft. The one place the owners write is shaped.
+ *  A legacy deal with no money or close date echoes its nulls as they are. */
+export function echoBodyOf(
+  op: OpportunityRow,
+  draft: Pick<OpportunityDraft, 'description' | 'attachments' | 'bdOwners'>,
+): OpportunityUpdate {
+  return {
+    name: op.name,
+    expectedClose: op.expectedClose,
+    amount: op.amount,
+    currency: op.currency,
+    saleOwners: idsOf(saleOwnersOf(op)),
+    bdOwners: draft.bdOwners,
+    ...(op.probability === null ? {} : { probability: op.probability }),
+    products: op.products.map((p) => p.id),
+    ...(some(draft.description) === undefined ? {} : { description: draft.description }),
+    attachments: draft.attachments,
+  }
+}
+
 /** Dòng sổ → phiếu.
  *
  *  Ba ô của phiếu không có mặt trên dây và được dựng lại ở đây, mỗi ô một lý

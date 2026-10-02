@@ -2,12 +2,21 @@ import { Injectable } from '@nestjs/common'
 import { stepLevelOf } from '@pv/engines'
 import {
   CARE_ACTIVITY_KINDS,
+  forecastOf,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
+  type ActivityFreshness,
+  type ActivityFreshnessLevel,
+  type OpportunityBookRow,
   type OpportunityContact,
   type OpportunityRow,
+  type ThreadChannel,
   type TouchKind,
 } from '@pv/contracts'
+import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
+import { SettingService } from '@api/platform/setting/setting.service'
+import { activityFreshnessOf } from '../config/activity-freshness'
+import { vnDay } from './opportunity-lifecycle'
 import { customerOf } from './opportunity-opening.service'
 import { OpportunityFactsRepository, type ContactRead } from './opportunity-facts.repository'
 import { MILESTONE_TOUCH, toContract, type RowFactKey } from './opportunity.mapper'
@@ -20,12 +29,24 @@ import { MILESTONE_TOUCH, toContract, type RowFactKey } from './opportunity.mapp
 type RowInput = Parameters<typeof toContract>[0]
 type RowFacts = Pick<OpportunityRow, RowFactKey>
 
+type BookFacts = Pick<
+  OpportunityBookRow,
+  'lastActivityAt' | 'activityFreshness' | 'forecast' | 'pendingSign'
+>
+
 const QUOTATION: TouchKind = MILESTONE_TOUCH.quotation
 const COUNTED: TouchKind[] = [...CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]), QUOTATION]
+/* The book's last-activity column (ADR 0077 §4): calls, meetings, mail and Zalo with the
+   customer, plus care and quotations. Telegram and in-app are not the customer. */
+const CUSTOMER_CHANNELS: ThreadChannel[] = ['phone', 'zalo-oa', 'email', 'meeting']
+const DAY_MS = 86_400_000
 
 @Injectable()
 export class OpportunityFacts {
-  constructor(private readonly repo: OpportunityFactsRepository) {}
+  constructor(
+    private readonly repo: OpportunityFactsRepository,
+    private readonly settings: SettingService,
+  ) {}
 
   /** `toContract` plus the facts, one grouped read per fact for the whole list,
    *  in input order. */
@@ -36,6 +57,31 @@ export class OpportunityFacts {
 
   async row(input: RowInput): Promise<OpportunityRow | undefined> {
     return (await this.rows([input]))[0]
+  }
+
+  /** What only the book row carries. Reads once per page by code, so it runs
+   *  beside `rows()`; the answer judges each row with its `waiting` approvals. */
+  async bookFacts(
+    codes: readonly string[],
+  ): Promise<(row: OpportunityRow, waiting: readonly ApprovalRowDb[]) => BookFacts> {
+    const [last, threshold] = await Promise.all([
+      this.repo.lastActivity(codes, COUNTED, CUSTOMER_CHANNELS),
+      activityFreshnessOf(this.settings),
+    ])
+    const today = vnDay(new Date())
+    return (row, waiting) => {
+      const at = last.get(row.code) ?? null
+      return {
+        lastActivityAt: at?.toISOString() ?? null,
+        /* A deal nobody has worked yet is as stale as it is old. */
+        activityFreshness:
+          row.state === 'open'
+            ? levelOf(at ? vnDay(at) : vnDay(new Date(row.createdAt)), today, threshold)
+            : null,
+        forecast: forecastOf(row.probability, row.state),
+        pendingSign: waiting.some((a) => a.kind === 'contract-sign'),
+      }
+    }
   }
 
   /** The live `LOSS_REASON` catalogue — the stop drawer's choices. */
@@ -72,9 +118,8 @@ export class OpportunityFacts {
     const tally = (code: string, kind: TouchKind) =>
       counts.find((c) => c.code === code && c.kind === kind)?.n ?? 0
 
-    return ({ row, contractCodes }) => {
+    return ({ row }) => {
       const step = steps.find((s) => s.code === row.code)
-      const open = row.state !== 'lost' && contractCodes.length === 0
       const run = runs.find((r) => r.code === row.workstreamCode)
       const primary =
         contacts.find((c) => c.deal === row.code) ??
@@ -91,9 +136,8 @@ export class OpportunityFacts {
           CARE_ACTIVITY_KINDS.map((k) => [k, tally(row.code, MILESTONE_TOUCH[k])]),
         ) as RowFacts['activityCounts'],
         quotationRounds: tally(row.code, QUOTATION),
-        /* A step left on a stopped or signed deal is not shown — next-step's rule. */
         nextStep:
-          step && open
+          step && row.state === 'open'
             ? { text: step.text, due: step.due, dueLevel: stepLevelOf(step.due, step.today) }
             : null,
         primaryContact: primary
@@ -110,6 +154,12 @@ export class OpportunityFacts {
       }
     }
   }
+}
+
+/** Whole VN calendar days from `since` to `today`, against the two dials. */
+function levelOf(since: string, today: string, t: ActivityFreshness): ActivityFreshnessLevel {
+  const days = (Date.parse(today) - Date.parse(since)) / DAY_MS
+  return days >= t.alertDays ? 'alert' : days >= t.warnDays ? 'warn' : 'fresh'
 }
 
 /** An empty string is "not given" on the wire, never a value. */

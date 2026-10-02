@@ -1,7 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
-  CARE_ACTIVITY_KINDS,
-  OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STATE_LABEL,
   OpportunityBookQuery,
@@ -11,7 +9,6 @@ import {
   OpportunityLiveDeal,
   OpportunityProfileResponse,
   OpportunityScorecard,
-  StageKey,
   type OpportunityAct,
   type OpportunityFacetsQuery,
   type OpportunityOwner,
@@ -404,59 +401,24 @@ export function stageClockOf(
   return formatStageClock(op.daysInStage, op.position?.limitDays ?? null, isRottingOp(op))
 }
 
-/** The four columns plus where this deal stands, shaped for `StageTrack`.
- *  `null` means the deal stands in no column (signed or parked) and there is no
- *  bar to draw at all.
- *
- *  Order and labels come from `StageKey.options` and `OPPORTUNITY_STAGE_LABEL`,
- *  the ladder the server ranks and prints by — this file reads live rows, so
- *  the frozen scenario's own stage list has no standing here.
- *
- *  ONE function for both callers — the book grid and the deal profile. Two
- *  screens each building their own step array is two screens painting the same
- *  deal differently the day somebody adds a column on the Settings screen; the
- *  same reason `isRottingOp` above exists only once.
- *
- *  The hint hangs on the STANDING column only, and it carries what a rotting
- *  deal needs: days here against the column's limit. `isRottingOp` deliberately
- *  does NOT recolour the bar — the rot warning already has its place (an amber
- *  badge in the book, a line on the profile), and a bar saying both position
- *  and health says neither legibly.
- *
- *  The limit in the hint is the server's `position.limitDays` — the rule the
- *  deal is judged by, with no second copy of the ladder on this side. A column
- *  nobody has timed says so instead of borrowing a number. */
-export function stageTrackOf(
-  op: Pick<OpportunityBookRow, 'stage' | 'daysInStage' | 'position'>,
-): { steps: { key: string; label: string; hint?: string }[]; current: number } | null {
-  const stage = op.stage
-  if (stage === null) return null
-
-  const current = StageKey.options.indexOf(stage)
-  /* A column the server returned that the enum does not know: the deal stands
-     somewhere this screen cannot draw. Return `null` so the caller falls back
-     to its badge, rather than painting four grey segments — that bar reads as
-     "this deal has not moved anywhere", which is a false sentence. */
-  if (current === -1) return null
-
-  const clock = stageClockOf(op)
-
-  return {
-    current,
-    steps: StageKey.options.map((key, i) => ({
-      key,
-      label: OPPORTUNITY_STAGE_LABEL[key],
-      ...(i === current && clock ? { hint: clock.text } : {}),
-    })),
-  }
-}
-
 /* `en-CA` formats as YYYY-MM-DD; the zone is the server's day boundary, so a
    UTC slice cannot print yesterday before 07:00. */
 const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
 
 /** Today as a Vietnam calendar day — the day every `Day` on the wire is in. */
 export const vnToday = () => VN_DAY.format(Date.now())
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/** Today / yesterday / N days ago, counted in Vietnam calendar days.
+ *  Wording only: whether that is stale is the row's `activityFreshness`. */
+export function activityAgo(at: string): string {
+  const days = Math.round(
+    (Date.parse(vnToday()) - Date.parse(VN_DAY.format(new Date(at)))) / DAY_MS,
+  )
+  if (days <= 0) return 'Hôm nay'
+  return days === 1 ? 'Hôm qua' : `${days} ngày trước`
+}
 
 /** An open deal whose expected close day is already behind it. No expected
  *  day is never late: there is nothing to overrun. */
@@ -548,19 +510,6 @@ export function eventOfferOf(
 
 /** The server's sentence for a refused door, or `null` when it is open. */
 export const refusalOf = (act: OpportunityAct): string | null => (act.ok ? null : act.reason)
-
-/** The deal's primary contact person, or `null` when its list is empty. */
-export const primaryContactOf = (op: Pick<OpportunityProfileResponse, 'contacts'>) =>
-  op.contacts.find((c) => c.primary) ?? null
-
-/** The non-zero care activity counts in the contract's kind order, or `null`
- *  when none was recorded — the server sends every kind, zero included. */
-export function activityTally(counts: OpportunityRow['activityCounts']): string | null {
-  const parts = CARE_ACTIVITY_KINDS.filter((kind) => counts[kind] > 0).map(
-    (kind) => `${OPPORTUNITY_MILESTONE_LABEL[kind]} ×${counts[kind]}`,
-  )
-  return parts.length === 0 ? null : parts.join(' · ')
-}
 
 /** The object chain as ContextRail wants it — chips, with a way to open each.
  *

@@ -1,13 +1,10 @@
 import { useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Inbox, UserPlus } from '@pv/ui'
+import { UserPlus } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
 import { focusSoon } from '@/lib/focus'
-import { opportunityHistogramQuery } from '@/data/opportunities'
 import { useAcceptDeal } from '@/data/opportunities-write'
-import { BookQueueButton } from './book-queue-button'
 import { SellerModal } from './seller-modal'
 
 /** Module 3 · the accept act — a head of sales takes a `new` deal off the queue
@@ -100,21 +97,6 @@ export function AcceptDealButton({
   )
 }
 
-/** The focus fallback of a book row's accept when no row follows it. */
+/** The focus fallback of a book row's accept when no row follows it — the
+ *  book's awaiting-accept quick filter carries this id. */
 export const ACCEPT_QUEUE_ID = 'deal-accept-queue'
-
-/** The head's accept queue on the deal book. The count is the histogram's
- *  `new` bucket — unscoped, like a head's reach. */
-export function AcceptQueueLink({ active, onPress }: { active: boolean; onPress: () => void }) {
-  const { data } = useQuery(opportunityHistogramQuery)
-  return (
-    <BookQueueButton
-      id={ACCEPT_QUEUE_ID}
-      icon={Inbox}
-      label="Chờ nhận PIC"
-      count={data?.buckets.find((b) => b.stage === 'new')?.count ?? (data ? 0 : undefined)}
-      active={active}
-      onPress={onPress}
-    />
-  )
-}

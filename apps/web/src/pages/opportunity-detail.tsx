@@ -1,37 +1,37 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Inbox, Lock, TriangleAlert } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, GlassCard, ScreenLayout, Skeleton } from '@pv/ui'
-import { OPPORTUNITY_STATE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
+import type { OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { useCan, useSession } from '@/app/auth'
+import { useCan } from '@/app/auth'
+import { toastFail } from '@/app/toast'
 import { useAppChrome } from '@/app/chrome'
-import { leadProfileQuery, NO_TOUCHES } from '@/data/lead-profile'
-import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
-import type { TouchFocus } from '@/data/touches'
+import type { DealEditPart } from '@/data/deal-draft'
+import { leadProfileQuery } from '@/data/lead-profile'
 import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
-import { draftOf } from '@/data/opportunities-write'
-import { useDealDraft } from '@/data/deal-draft'
+import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { SignDrawer } from '@/components/sign-drawer'
-import { FailLogCard } from '@/components/opportunity-stop'
-import { dealStepSubject } from '@/data/deal-next-step'
-import { acceptorText } from '@/data/deal-sale'
-import { NextStepCard } from './lead-next-action'
-import { DealFormCard } from './opportunity-form-card'
-import { DealHeader, DealHistoryTab, DealToolsBar, EmptyOp } from './opportunity-parts'
+import { ContactsEditDrawer } from './opportunity-contacts-edit'
+import { DealEditDrawer } from './opportunity-form-card'
+import { ContractsCard, DealComms, ValueStrip } from './opportunity-main'
+import { journeyRungOf } from './opportunity-model'
+import { DealActionBar } from './opportunity-moves'
+import { DealHeader, EmptyOp } from './opportunity-parts'
+import { ContactsPanel, DescriptionPanel, OwnersPanel } from './opportunity-side'
+import { DealStatus } from './opportunity-status'
+import { JourneyDrawer } from './workstream-drawers'
+import type { TreePick } from './workstream-tree-model'
 
-/** Module 3 · one deal's profile — `/sales/opportunities/:code`.
+/** Module 3 · one deal's profile — `/sales/opportunities/:code` (ADR 0077 §6).
  *
- *  ONE COLUMN, ONE CARD (17/09). The side column is gone and with it the six
- *  blocks that only restated the row: stage picker, origin lead, holders. What a reader looked them up for now sits where they were
- *  already looking — provenance in the header, holders and column inside the
- *  form, everything that HAPPENED behind the history tab.
- *
- *  Same card on the create door (`opportunity-new.tsx`), same reason the lead
- *  screens share `LeadForm`: a deal typed on one door and opened on the other
- *  must not read as two different pieces of paper.
+ *  One place per fact, one place per action. The header names the deal; the
+ *  status block says where it stands and what comes next; the main column
+ *  holds its value, contracts and contact timeline; the right column (400px)
+ *  holds who and what. Every action sits on the floating bar, and every edit
+ *  opens a drawer — no always-open form.
  *
  *  Four ways the screen fails to draw say four different things — each is a
  *  different next step. `DealScreen` is split out so that every hook of the
@@ -92,94 +92,113 @@ export default OpportunityDetailPage
 
 // ---------------------------------------------------------------------------
 
+/** `open: false` keeps the last part so the drawer can animate out. */
+type Editing = { part: DealEditPart | 'contacts'; open: boolean; session: number }
+
 function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const navigate = useNavigate()
-  const me = useSession((s) => s.actor)
+  const canSeeJourney = useCan('workstream.view')
 
   /* The origin lead, read for real. A failure here does NOT break the screen:
-     a deal stays readable when its lead is out of the reader's scope, and the
-     header says so rather than going quiet. */
+     a deal stays readable when its lead is out of the reader's scope. */
   const { data: lead = null } = useQuery({
     ...leadProfileQuery(op.leadCode),
     enabled: Boolean(op.leadCode),
   })
 
-  /* The DEAL's timeline, not the lead's — decision 5 of ADR
-     `docs/decisions/0018-opportunity-module-decisions.md`: the deal was born
-     after the lead had travelled, so the two chains do not mix. */
-  const { data: touches = NO_TOUCHES } = useQuery(opportunityTouchesQuery(op.code))
-  /* The holder chain, off the SAME query key — one fetch, two questions. */
-  const { data: vector = NO_STEPS } = useQuery(opportunityVectorQuery(op.code))
-
-  /* Which timeline row a vector face last pointed at — the wire between the
-     two blocks of the history tab. */
-  const [focusTouch, setFocusTouch] = useState<TouchFocus | null>(null)
   const [signing, setSigning] = useState(false)
+  /* Which contact the letter is addressed to; `null` = composer closed. */
+  const [mailTo, setMailTo] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Editing | null>(null)
+  const [journeyPick, setJourneyPick] = useState<TreePick | null>(null)
+  /* A fresh drawer per opening (`key`), so it seeds from the server's copy. */
+  const edit = (part: Editing['part']) =>
+    setEditing((prev) => ({ part, open: true, session: (prev?.session ?? 0) + 1 }))
+  const closeEdit = () => setEditing((prev) => prev && { ...prev, open: false })
 
-  /* Asked HERE and handed to the toolbar, the same call the lead screen makes:
-     a button that opens a panel ending in a 403 is worse than a locked one. */
-  const canSendEmail = useCan('lead.send-email')
-  /* The letter is written about the deal but through its ORIGIN LEAD — whose
-     contacts it addresses and whose scope the server checks (decision 7). */
-  const [composing, setComposing] = useState(false)
-
-  /* The stored row as the form sees it. Through `useMemo` so the seed keeps
-     its reference between renders — react-query hands back the same `op`, so
-     the draft must not re-seed over a box being typed into. */
-  const saved = useMemo(() => draftOf(op), [op])
-  const draft = useDealDraft({ saved, op })
+  const run = op.workstream
+  const journey = useQuery({
+    ...workstreamJourneyQuery(run?.code ?? ''),
+    enabled: canSeeJourney && run !== null && journeyPick !== null,
+  })
+  /* A read that fails drops the pick: the drawer cannot open, and the next
+     press must read again instead of waiting on a dead query. */
+  useEffect(() => {
+    if (!journey.error) return
+    setJourneyPick(null)
+    toastFail(
+      'Không mở được workstream.',
+      isApiError(journey.error) ? userMessage(journey.error) : 'Vui lòng thử lại.',
+    )
+  }, [journey.error])
+  const openJourney =
+    canSeeJourney && run
+      ? () => setJourneyPick({ kind: 'deal', code: op.code, rung: journeyRungOf(op) })
+      : undefined
 
   return (
     <ScreenLayout>
       {/* THE OBJECT CHAIN rides in the header's meta row (law 10), built by
-          `E1.story()` ON THE SERVER and already cut by permission. A strip of
-          its own printed the lead code twice, one row under itself. */}
+          `E1.story()` ON THE SERVER and already cut by permission. */}
       <DealHeader
         op={op}
         lead={lead}
         rail={railOf(op.chain, op.code, navigate)}
-        mail={{
-          onCompose: () => setComposing(true),
-          blocked: canSendEmail ? undefined : 'Cần quyền gửi email cho lead.',
-        }}
         onBack={() => navigate('/sales/opportunities')}
         onOpenLead={() => navigate(`/sales/leads/${op.leadCode}`)}
       />
 
-      {op.state === 'lost' ? (
-        <FailLogCard op={op} />
-      ) : (
-        <DealNextStep op={op} canEdit={draft.canEdit} />
-      )}
+      <DealStatus op={op} />
 
-      <DealFormCard
-        draft={draft}
-        acceptor={acceptorText(op)}
-        history={{
-          count: touches.length,
-          node: (
-            <DealHistoryTab
-              op={op}
-              touches={touches}
-              vector={vector}
-              me={me?.id}
-              focus={focusTouch}
-              onFocusStep={(id) => setFocusTouch((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))}
-            />
-          ),
-        }}
-      />
+      {/* One bottom edge: the side column stretches and its last panel grows. */}
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_400px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <ValueStrip op={op} onEdit={() => edit('terms')} />
+          <ContractsCard op={op} onSign={() => setSigning(true)} onViewRequest={openJourney} />
+          <DealComms op={op} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-4">
+          <ContactsPanel op={op} onEdit={() => edit('contacts')} />
+          <OwnersPanel op={op} onEdit={() => edit('owners')} />
+          <DescriptionPanel op={op} onEdit={() => edit('details')} />
+        </div>
+      </div>
 
-      <DealToolsBar
-        draft={draft}
+      {/* Room under the last card for the floating bar: up to three rows and
+          its note on a phone, two from `sm`. */}
+      <div aria-hidden className="h-56 shrink-0 sm:h-40" />
+
+      <DealActionBar
         op={op}
         onSign={() => setSigning(true)}
-        canSendEmail={canSendEmail}
-        onCompose={() => setComposing(true)}
+        onCompose={setMailTo}
+        onOpenJourney={openJourney}
+        journeyOpening={journeyPick !== null && !journey.data}
       />
 
       <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
-      {composing && (
+      {editing && editing.part !== 'contacts' && (
+        <DealEditDrawer
+          key={editing.session}
+          op={op}
+          part={editing.part}
+          open={editing.open}
+          onClose={closeEdit}
+        />
+      )}
+      {editing?.part === 'contacts' && (
+        <ContactsEditDrawer key={editing.session} op={op} open={editing.open} onClose={closeEdit} />
+      )}
+      {journey.data && (
+        <JourneyDrawer
+          journey={journey.data}
+          picked={journeyPick}
+          onPick={setJourneyPick}
+          onClose={() => setJourneyPick(null)}
+          go={navigate}
+        />
+      )}
+      {mailTo !== null && (
         <LetterComposer
           door="opportunity"
           code={op.code}
@@ -187,24 +206,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           deal={{
             offer: eventOfferOf(op, 'quotation'),
             block: refusalOf(op.acts.quotation),
-            primaryContact: op.primaryContact?.code ?? null,
+            primaryContact: mailTo,
           }}
-          onClose={() => setComposing(false)}
+          onClose={() => setMailTo(null)}
         />
       )}
     </ScreenLayout>
   )
-}
-
-/** The deal's next step (ADR 0069 §10). The default doer is the row's
- *  server-computed `holder`; the form sends it as "absent", so the server's
- *  own holder wins. Chips follow the column (`dealStepSubject`). */
-function DealNextStep({ op, canEdit }: { op: OpportunityProfileResponse; canEdit: boolean }) {
-  const subject = dealStepSubject(op.code, op.holder, op.stage)
-  const closedNote =
-    op.state === 'won'
-      ? `Cơ hội đã ${OPPORTUNITY_STATE_LABEL.won.toLowerCase()} — không còn việc tiếp theo ở đây.`
-      : undefined
-
-  return <NextStepCard subject={subject} canEdit={canEdit} closedNote={closedNote} />
 }

@@ -5,6 +5,7 @@ import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { RolesModule } from '@api/platform/roles/roles.module'
+import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
@@ -86,6 +87,8 @@ import { OpportunityService } from './opportunity.service'
     LeadStateModule,
     /* `RolePermissionRepository`, for the mail-sent hook's permission read. */
     RolesModule,
+    /* The book's activity-freshness dials (`sales.activity.*`, ADR 0077 §4). */
+    SettingModule,
   ],
   controllers: [OpportunityController],
   providers: [

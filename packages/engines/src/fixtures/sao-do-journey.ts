@@ -122,7 +122,7 @@ function step(label: string, state: JourneyRungState, s: StepInput = {}): Journe
 
 /** The n-th quote send, as a rung sub-step: one per quotation-sent touch. */
 function quoteSent(round: number, label: string, s: StepInput): JourneyDealSubStep {
-  return { ...step(label, 'done', s), kind: 'quote-sent', round }
+  return { ...step(label, 'done', s), kind: 'quote-sent', round, by: null }
 }
 
 /** A care activity done under the `engaged` rung (ADR 0072). */

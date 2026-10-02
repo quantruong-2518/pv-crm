@@ -52,8 +52,16 @@ const KIND_OPTIONS = [
 const isActivity = (v: string): v is (typeof CARE_ACTIVITY_KINDS)[number] =>
   (CARE_ACTIVITY_KINDS as readonly string[]).includes(v)
 
-/** Each button shows only while the server's `acts` open its door. */
-export function DealEventButtons({ op }: { op: OpportunityProfileResponse }) {
+/** Each button shows only while the server's `acts` open its door — on the
+ *  profile's floating bar, so 48px everywhere (law 13). `quotePrimary`: the
+ *  quotation is the deal's next stage move, so it wears the one primary. */
+export function DealEventButtons({
+  op,
+  quotePrimary = false,
+}: {
+  op: OpportunityProfileResponse
+  quotePrimary?: boolean
+}) {
   const [open, setOpen] = useState<EventKind | null>(null)
   /* A fresh modal per opening: its form and phase start clean, with no reset
      running during the exit animation. */
@@ -68,21 +76,15 @@ export function DealEventButtons({ op }: { op: OpportunityProfileResponse }) {
   return (
     <>
       {op.acts.activity.ok && (
-        <Button
-          size="md"
-          variant="secondary"
-          className="pointer-coarse:h-12"
-          onClick={() => start('activity')}
-        >
+        <Button size="lg" variant="secondary" onClick={() => start('activity')}>
           <Icon icon={ListChecks} size={16} />
           Ghi hoạt động
         </Button>
       )}
       {op.acts.quotation.ok && (
         <Button
-          size="md"
-          variant="secondary"
-          className="pointer-coarse:h-12"
+          size="lg"
+          variant={quotePrimary ? 'default' : 'secondary'}
           title={QUOTE_HINT}
           onClick={() => start('quotation')}
         >

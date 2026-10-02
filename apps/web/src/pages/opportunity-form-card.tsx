@@ -1,9 +1,16 @@
-import { useState, type ReactNode } from 'react'
-import { GlassCard, Input, SegmentedControl, Textarea } from '@pv/ui'
-import { OPPORTUNITY_DESCRIPTION_MAX, OPPORTUNITY_NAME_MAX } from '@pv/contracts'
-import { ACCEPTOR_LABEL } from '@/data/deal-sale'
-import { toggled } from '@/data/opportunities'
-import type { DealDraft } from '@/data/deal-draft'
+import { useMemo } from 'react'
+import { Save, TriangleAlert, X } from '@pv/ui'
+import { Button, Drawer, Icon, Input, Textarea, cn } from '@pv/ui'
+import {
+  OPPORTUNITY_DESCRIPTION_MAX,
+  OPPORTUNITY_NAME_MAX,
+  type OpportunityProfileResponse,
+} from '@pv/contracts'
+import { userMessage } from '@/app/api'
+import { toastDone } from '@/app/toast'
+import { namesOf, refusalOf, saleOwnersOf, toggled } from '@/data/opportunities'
+import { draftOf } from '@/data/opportunities-write'
+import { useDealDraft, type DealDraft, type DealEditPart } from '@/data/deal-draft'
 import { Field } from '@/components/ops-fields'
 import {
   AmountField,
@@ -12,168 +19,232 @@ import {
   ProductTagsField,
 } from '@/components/deal-fields'
 
-/** Module 3 · the deal form — ONE card behind both doors.
+/** Module 3 · the deal form, behind three drawers of the profile (ADR 0077 §5–6).
  *
- *  `/sales/opportunities/:code` reads and edits it, `/sales/opportunities/new`
- *  types a fresh one, and both get the same boxes in the same order for the
- *  same reason the lead screens share `LeadForm`: a deal typed on one door and
- *  opened on the other must not look like two different pieces of paper.
+ *  The value strip's edit button opens the terms — name, close date, value, win
+ *  probability, products — under `acts.editTerms`; the description card's opens
+ *  description and files, the owners card's the BD lane, both under
+ *  `acts.editDetails`. The seller is read-only here: past `new` only the assign
+ *  act changes it (ADR 0071). The always-open form and its save bar are gone.
  *
- *  NO BUTTONS HERE. Save, discard and sign live on the sticky bar; two save
- *  buttons are two answers to "which one actually saves". Win probability and
- *  currency are carried through by `useDealDraft` untouched — dropping a box is
- *  not the same act as clearing its value.
- *
- *  NO STATUS BOX AND NO LOSS BLOCK since ADR 0064. A seller picks neither state
- *  nor column: where the deal stands is READ-ONLY on the sticky bar and moved by
- *  the three doors beside it (`opportunity-parts.tsx`). */
+ *  The parent remounts this per opening (`key`), so each drawer starts from the
+ *  server's copy and an abandoned edit never rides on the next save. */
 
-export function DealFormCard({
-  draft,
-  history,
-  acceptor = null,
+const TITLE: Record<DealEditPart, string> = {
+  terms: 'Sửa phiếu cơ hội',
+  details: 'Sửa mô tả và tệp',
+  owners: 'Sửa người chịu trách nhiệm',
+}
+
+export function DealEditDrawer({
+  op,
+  part,
+  open,
+  onClose,
 }: {
-  draft: DealDraft
-  /** Who took the deal off the queue, as `acceptorText` prints it. */
-  acceptor?: string | null
-  /** The history tab. Absent on the create door — a deal that does not exist
-   *  yet has no timeline, and a tab promising one it cannot fill is worse than
-   *  no tab at all. */
-  history?: { count: number; node: ReactNode }
+  op: OpportunityProfileResponse
+  part: DealEditPart
+  open: boolean
+  onClose: () => void
 }) {
-  const [tab, setTab] = useState<'info' | 'history'>('info')
-  const open = history ? tab : 'info'
+  /* `useMemo` keeps the seed's reference while `op` is the same cached row. */
+  const saved = useMemo(() => draftOf(op), [op])
+  const draft = useDealDraft({ saved, op, part })
+  /* A re-read may shut the door under an open drawer; its reason blocks the save. */
+  const refusal = refusalOf(part === 'terms' ? op.acts.editTerms : op.acts.editDetails)
+  const save = () =>
+    draft.submit(() => {
+      toastDone(`Đã lưu ${op.code}.`)
+      onClose()
+    })
 
   return (
-    <GlassCard
-      variant="b"
-      className="flex min-w-0 flex-col gap-5 p-4 sm:p-5 lg:p-6"
-      aria-label="Phiếu cơ hội"
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title={TITLE[part]}
+      subtitle={
+        <>
+          <span className="font-mono">{op.code}</span> · {op.account}
+        </>
+      }
+      footer={<EditFooter draft={draft} refusal={refusal} onCancel={onClose} onSave={save} />}
     >
-      {history && (
-        <SegmentedControl
-          label="Phần phiếu"
-          hideLabel
-          tone="quiet"
-          value={open}
-          options={[
-            { value: 'info', label: 'Thông tin' },
-            { value: 'history', label: 'Lịch sử', count: history.count },
-          ]}
-          onChange={(next) => setTab(next as 'info' | 'history')}
-        />
+      {part === 'terms' ? (
+        <TermsFields draft={draft} />
+      ) : part === 'owners' ? (
+        <OwnersFields draft={draft} sellers={namesOf(saleOwnersOf(op))} />
+      ) : (
+        <DetailsFields draft={draft} />
       )}
-
-      {open === 'history' && history ? history.node : <InfoTab draft={draft} acceptor={acceptor} />}
-    </GlassCard>
+    </Drawer>
   )
 }
 
-function InfoTab({ draft, acceptor }: { draft: DealDraft; acceptor: string | null }) {
+function EditFooter({
+  draft,
+  refusal,
+  onCancel,
+  onSave,
+}: {
+  draft: DealDraft
+  refusal: string | null
+  onCancel: () => void
+  onSave: () => void
+}) {
+  const blocking = Boolean(draft.error) || draft.missing.length > 0 || refusal !== null
+  /* The server's refusal outranks every other sentence: it is why nothing saved. */
+  const line = draft.error
+    ? userMessage(draft.error)
+    : (refusal ??
+      (draft.missing.length > 0
+        ? `Còn thiếu ${draft.missing.join(' · ')}`
+        : draft.dirty.length > 0
+          ? `${draft.dirty.length} ô chưa lưu.`
+          : 'Chưa sửa ô nào.'))
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+      <span
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-2 text-[11.5px] leading-[1.5]',
+          blocking ? 'text-destructive-foreground' : 'text-muted-foreground',
+        )}
+        aria-live="polite"
+      >
+        {blocking && <Icon icon={TriangleAlert} size={16} className="shrink-0" />}
+        {line}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <Button size="lg" variant="ghost" disabled={draft.busy} onClick={onCancel}>
+          <Icon icon={X} size={16} />
+          Huỷ
+        </Button>
+        <Button size="lg" disabled={!draft.canSubmit || refusal !== null} onClick={onSave}>
+          <Icon icon={Save} size={16} />
+          {draft.busy ? 'Đang lưu…' : 'Lưu'}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function TermsFields({ draft }: { draft: DealDraft }) {
   const { work, set, errors } = draft
 
-  /* A reader without `opportunity.edit` gets every box shut BEFORE typing,
-     not a lit Save button that ends in a 403. */
   return (
-    <fieldset disabled={!draft.canEdit} className="contents">
-      <div className="flex min-w-0 flex-col gap-5">
-        <Field label="Tên cơ hội" required errors={errors.name}>
+    <div className="flex min-w-0 flex-col gap-5">
+      <Field label="Tên cơ hội" required errors={errors.name}>
+        <Input
+          value={work.name}
+          aria-label="Tên cơ hội"
+          aria-required
+          maxLength={OPPORTUNITY_NAME_MAX}
+          invalid={Boolean(errors.name)}
+          className="pointer-coarse:h-12"
+          onChange={(e) => set('name', e.target.value)}
+        />
+      </Field>
+
+      <section className="grid gap-4 sm:grid-cols-2">
+        {/* An empty required box says so here, not only in the footer. */}
+        <Field
+          label="Ngày chốt dự kiến"
+          required
+          errors={errors.closedDate ?? (work.closedDate === '' ? [MISSING_NOTE] : undefined)}
+        >
           <Input
-            value={work.name}
-            aria-label="Tên cơ hội"
+            type="date"
+            value={work.closedDate}
+            aria-label="Ngày chốt dự kiến"
             aria-required
-            maxLength={OPPORTUNITY_NAME_MAX}
-            invalid={Boolean(errors.name)}
-            onChange={(e) => set('name', e.target.value)}
+            invalid={Boolean(errors.closedDate) || work.closedDate === ''}
+            className="pointer-coarse:h-12"
+            onChange={(e) => set('closedDate', e.target.value)}
           />
         </Field>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          {/* A REQUIRED BOX LEFT EMPTY SAYS SO HERE, not only on the sticky bar.
-            The bar names what blocks the save; without this, the reader has to
-            carry that sentence back up the form to find the box it means. */}
-          <Field
-            label="Ngày chốt dự kiến"
-            required
-            errors={errors.closedDate ?? (work.closedDate === '' ? [MISSING_NOTE] : undefined)}
-          >
-            <Input
-              type="date"
-              value={work.closedDate}
-              aria-label="Ngày chốt dự kiến"
-              aria-required
-              invalid={Boolean(errors.closedDate) || work.closedDate === ''}
-              onChange={(e) => set('closedDate', e.target.value)}
-            />
-          </Field>
+        <AmountField draft={work} onSet={set} errors={errors.amount} />
+      </section>
 
-          <AmountField draft={work} onSet={set} errors={errors.amount} lockNote={draft.moneyHint} />
-        </section>
-
-        <section className="grid gap-4 sm:grid-cols-2">
-          {/* A native disabled fieldset shuts every control inside it — the sale
-            owners of a signed deal move the contract (`opportunity.close`), and
-            after accept the lane is the assign act's (ADR 0071). */}
-          <fieldset disabled={draft.saleLocked} className="contents">
-            <PersonPickField
-              label="Sale đứng đơn"
-              hint={
-                draft.saleHint ??
-                'Người chốt — nhận phần trăm hoa hồng chốt. Để trống được, nhưng phải có trước khi Chốt thắng.'
-              }
-              sellersOnly
-              picked={work.saleOwners}
-              errors={errors.saleOwners}
-              onToggle={(id) => set('saleOwners', toggled(work.saleOwners, id))}
-            />
-          </fieldset>
-
-          <PersonPickField
-            label="BD mở cửa"
-            hint="Người mở được khách — nhận công trạng mở cửa."
-            picked={work.bdOwners}
-            errors={errors.bdOwners}
-            onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
-          />
-        </section>
-
-        {/* Read-only: a recorded fact, not a box (ADR 0071 §3). */}
-        {acceptor && (
-          <Field label={ACCEPTOR_LABEL} plain>
-            <p className="text-foreground m-0 text-[12.5px] leading-[1.5]">{acceptor}</p>
-          </Field>
-        )}
-
-        <ProductTagsField
-          picked={work.products}
-          errors={errors.products}
-          onToggle={(id) => set('products', toggled(work.products, id))}
+      {/* Empty stays `null`: "nobody judged it" is not 0% (contract's `probability`). */}
+      <Field
+        label="Khả năng thắng (%)"
+        hint="0–100. Để trống nếu chưa đánh giá."
+        errors={errors.probability}
+      >
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          step={1}
+          value={work.probability ?? ''}
+          aria-label="Khả năng thắng (%)"
+          invalid={Boolean(errors.probability)}
+          className="tnum pointer-coarse:h-12 sm:max-w-40"
+          onChange={(e) => set('probability', percentOf(e.target.value, work.probability))}
         />
+      </Field>
 
-        {/* No `items-start`: the two cells STRETCH, so the textarea and the drop
-          zone end on the same line. Both boxes carry `grow` to take the height
-          the row hands them. */}
-        <section className="grid gap-4 sm:grid-cols-2">
-          <Field label="Mô tả" grow errors={errors.description}>
-            {/* `resize-none` over `autoGrow`: a box that sizes itself fights the
-              row that just sized it, and the drag handle is not in the design. */}
-            <Textarea
-              rows={5}
-              className="h-full resize-none"
-              maxLength={OPPORTUNITY_DESCRIPTION_MAX}
-              invalid={Boolean(errors.description)}
-              value={work.description}
-              aria-label="Mô tả cơ hội"
-              placeholder="Việc khách muốn giải — một hai câu là đủ."
-              onChange={(e) => set('description', e.target.value)}
-            />
-          </Field>
-
-          <AttachmentsDropField draft={work} onSet={set} errors={errors.attachments} />
-        </section>
-      </div>
-    </fieldset>
+      <ProductTagsField
+        picked={work.products}
+        errors={errors.products}
+        onToggle={(id) => set('products', toggled(work.products, id))}
+      />
+    </div>
   )
+}
+
+function DetailsFields({ draft }: { draft: DealDraft }) {
+  const { work, set, errors } = draft
+
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      <Field label="Mô tả" errors={errors.description}>
+        <Textarea
+          rows={6}
+          className="resize-none"
+          maxLength={OPPORTUNITY_DESCRIPTION_MAX}
+          invalid={Boolean(errors.description)}
+          value={work.description}
+          aria-label="Mô tả cơ hội"
+          placeholder="Việc khách muốn giải — một hai câu là đủ."
+          onChange={(e) => set('description', e.target.value)}
+        />
+      </Field>
+
+      <AttachmentsDropField draft={work} onSet={set} errors={errors.attachments} />
+    </div>
+  )
+}
+
+function OwnersFields({ draft, sellers }: { draft: DealDraft; sellers: string[] }) {
+  const { work, set, errors } = draft
+
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      <PersonPickField
+        label="BD mở cửa"
+        hint="Người mở được khách — nhận công trạng mở cửa."
+        picked={work.bdOwners}
+        errors={errors.bdOwners}
+        onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
+      />
+      <Field plain label="Sale đứng đơn" hint="Đổi Sale qua nút Giao Sale trên thanh thao tác.">
+        <p className="text-foreground m-0 text-[13px] leading-[1.5]">
+          {sellers.length > 0 ? sellers.join(', ') : 'Chưa có'}
+        </p>
+      </Field>
+    </div>
+  )
+}
+
+/** Whole numbers 0–100; a keystroke past the range keeps the last value. */
+function percentOf(typed: string, last: number | null): number | null {
+  if (typed.trim() === '') return null
+  const n = Number(typed)
+  return Number.isInteger(n) && n >= 0 && n <= 100 ? n : last
 }
 
 const MISSING_NOTE = 'Còn thiếu — chưa lưu được phiếu.'

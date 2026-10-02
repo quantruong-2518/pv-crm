@@ -4,6 +4,7 @@ import {
   FIRST_TOUCH_UNITS,
   MOTION_ASKS_LABEL,
   splitFirstTouch,
+  type ActivityFreshness,
   type ConfigList,
   type LeadMotion,
 } from '@pv/contracts'
@@ -66,6 +67,9 @@ export type ConfigChange =
    *  vocabulary list: they cannot be added to, removed or reordered, and each
    *  carries four unrelated fields. Same approval path, different table. */
   | { kind: 'motion'; motion: LeadMotion; patch: MotionPolicyPatchDb }
+  /** The book's two staleness dials (ADR 0077 §4), always as a pair so
+   *  `alertDays > warnDays` was judged on the very body that lands. */
+  | { kind: 'activity-freshness'; value: ActivityFreshness }
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
 export type ConfigReceipt = {
@@ -106,6 +110,10 @@ function consequenceOf(change: ConfigChange): string {
   if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
   if (change.kind === 'reorder') {
     return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+  }
+  if (change.kind === 'activity-freshness') {
+    const { warnDays, alertDays } = change.value
+    return `Đổi ngưỡng hoạt động của cơ hội: nhắc từ ${warnDays} ngày, báo động từ ${alertDays} ngày`
   }
   return `Đổi thiết lập luồng ${change.motion}: ${motionWords(change.patch).join(' · ')}`
 }
@@ -186,7 +194,12 @@ export class SalesConfigGateE3 extends SalesConfigGate {
       chain,
     })
 
-    const subject = change.kind === 'motion' ? change.motion : change.list
+    const subject =
+      change.kind === 'motion'
+        ? change.motion
+        : change.kind === 'activity-freshness'
+          ? `${change.value.warnDays}/${change.value.alertDays}`
+          : change.list
     this.log.log(`đề nghị ${request.id} · ${change.kind} · ${subject} · bởi ${who.id}`)
 
     return { requestId: request.id, state: request.state, change }

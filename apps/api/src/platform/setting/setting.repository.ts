@@ -20,7 +20,7 @@ export class SettingRepository {
   }
 
   /** Every override there is. No filter, no paging, no ordering: the table
-   *  cannot hold more rows than `SettingKey` has members — six — and the
+   *  cannot hold more rows than `SettingKey` has members, and the
    *  service reads them into a map keyed by `key` anyway, so any order the
    *  planner picks is the right one. */
   all(): Promise<SettingRowDb[]> {

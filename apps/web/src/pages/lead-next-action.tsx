@@ -46,7 +46,9 @@ import { Field } from '@/components/field-bits'
  *  (G2) — the card just offers to set one.
  *
  *  "Xong" asks for the NEXT step in the same breath and sends both in one
- *  request, so no other tab ever reads a gap between two steps. */
+ *  request, so no other tab ever reads a gap between two steps. `embedded`
+ *  draws the step as one row inside a card that is not its own (the profile's
+ *  status block), with no primary button of its own. */
 
 /** Openings that cover most of what follows a first conversation. A chip FILLS
  *  the box and saves nothing, and stands down once the box holds anything —
@@ -86,11 +88,20 @@ export function NextStepCard({
   subject,
   canEdit,
   closedNote,
+  embedded = false,
 }: {
   subject: StepSubject
   canEdit: boolean
   closedNote?: string
+  embedded?: boolean
 }) {
+  if (embedded) {
+    return (
+      <div aria-label="Việc tiếp theo" role="group">
+        <StepBody subject={subject} canEdit={canEdit} embedded />
+      </div>
+    )
+  }
   return (
     <StepShell>
       {closedNote ? (
@@ -116,11 +127,19 @@ function StepShell({ children }: { children: ReactNode }) {
 /** `finish` is the edit form opened by "Xong": same boxes, empty, different doors. */
 type Mode = 'view' | 'edit' | 'finish'
 
-function StepBody({ subject, canEdit }: { subject: StepSubject; canEdit: boolean }) {
+function StepBody({
+  subject,
+  canEdit,
+  embedded = false,
+}: {
+  subject: StepSubject
+  canEdit: boolean
+  embedded?: boolean
+}) {
   const { data, isPending, error } = useQuery(nextStepQuery(subject.kind, subject.code))
   const [mode, setMode] = useState<Mode>('view')
 
-  if (isPending) return <Skeleton className="h-16 w-full" />
+  if (isPending) return <Skeleton className={embedded ? 'h-10 w-full' : 'h-16 w-full'} />
   if (!data) {
     return (
       <p className="text-warning text-[12.5px] leading-[1.6]">
@@ -161,8 +180,9 @@ function StepBody({ subject, canEdit }: { subject: StepSubject; canEdit: boolean
       </div>
     )
   }
+  const View = embedded ? StepRow : StepView
   return (
-    <StepView
+    <View
       step={step}
       canEdit={canEdit}
       onEdit={() => setMode('edit')}
@@ -171,17 +191,44 @@ function StepBody({ subject, canEdit }: { subject: StepSubject; canEdit: boolean
   )
 }
 
-function StepView({
-  step,
-  canEdit,
-  onEdit,
-  onFinish,
-}: {
-  step: NextStep
-  canEdit: boolean
-  onEdit: () => void
-  onFinish: () => void
-}) {
+type ViewProps = { step: NextStep; canEdit: boolean; onEdit: () => void; onFinish: () => void }
+
+/** The embedded step: kind, text, doer and due on ONE row, then edit and a
+ *  secondary done button — the page's single primary is the stage action. */
+function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[12.5px]">
+      <span className="text-muted-foreground">Việc tiếp theo</span>
+      {step.kind && <MetaPill>{step.kind.name}</MetaPill>}
+      <span className="text-foreground min-w-0 flex-1 basis-48 break-words text-[13px] leading-[1.5]">
+        {step.text}
+      </span>
+      <span className="text-muted-foreground inline-flex min-w-0 items-center gap-2">
+        <Avatar name={step.doer.name} size="sm" />
+        <span className="min-w-0 break-words">{step.doer.name}</span>
+      </span>
+      <span className="text-muted-foreground inline-flex items-center gap-2 tabular-nums">
+        <Icon icon={CalendarDays} size={16} />
+        {dmy(step.due)}
+      </span>
+      <DueBadge level={step.dueLevel} className="normal-case tracking-normal" />
+      {canEdit && (
+        <div className="ml-auto flex gap-2">
+          <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
+            <Icon icon={Pencil} size={16} />
+            Sửa
+          </Button>
+          <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onFinish}>
+            <Icon icon={Check} size={16} />
+            Xong
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StepView({ step, canEdit, onEdit, onFinish }: ViewProps) {
   return (
     <>
       <p className="text-foreground break-words text-[13px] leading-[1.6]">{step.text}</p>

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  ActivityFreshnessResponse,
   CommVocabularyResponse,
   ConfigBundle,
   ConfigListResponse,
@@ -9,6 +10,7 @@ import {
   MotionPolicyResponse,
   LeadMotionOptionResponse,
   LeadStopReasonResponse,
+  type ActivityFreshnessPatch,
   type LeadMotion,
   type MotionPolicyPatch,
   type ConfigEntryCreate,
@@ -21,6 +23,8 @@ import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import type { ApprovalApplier } from '@api/platform/approval/approval.service'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import type { Db } from '@api/platform/db/db.module'
+import { SettingService } from '@api/platform/setting/setting.service'
+import { activityFreshnessOf } from './activity-freshness'
 import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository, type ConfigPatchDb } from './config.repository'
@@ -50,6 +54,7 @@ export class SalesConfigService implements ApprovalApplier {
   constructor(
     private readonly repo: SalesConfigRepository,
     private readonly gate: SalesConfigGate,
+    private readonly settings: SettingService,
   ) {}
 
   /** Cả sáu danh mục. Một lần gọi, một câu truy vấn. */
@@ -199,6 +204,20 @@ export class SalesConfigService implements ApprovalApplier {
     return this.propose(who, { kind: 'motion', motion, patch: body })
   }
 
+  /** `GET /sales/config/activity-freshness` — the book's staleness pair. */
+  async activityFreshness(): Promise<ActivityFreshnessResponse> {
+    return ActivityFreshnessResponse.parse(await activityFreshnessOf(this.settings))
+  }
+
+  /** Propose the pair. The contract already held each bound and
+   *  `alertDays > warnDays`; nothing here is checked against other rows. */
+  proposeActivityFreshness(
+    who: Actor,
+    body: ActivityFreshnessPatch,
+  ): Promise<ConfigProposalReceipt> {
+    return this.propose(who, { kind: 'activity-freshness', value: body })
+  }
+
   // ── CHỖ NỐI E3 · một điểm cho mọi đường ghi ───────────────────────────────
 
   /** Mọi thay đổi đi qua ĐÚNG hàm này. Không có đường vòng.
@@ -235,7 +254,7 @@ export class SalesConfigService implements ApprovalApplier {
    *  knowing what a config list is — so the cast here is the branch reading its
    *  own handwriting, not a type assertion about somebody else's data. */
   async apply(tx: Db, request: ApprovalRowDb): Promise<void> {
-    await this.applyChange(tx, request.payload as ConfigChange)
+    await this.applyChange(tx, request.payload as ConfigChange, request.raisedById)
   }
 
   /** The write itself. Nobody calls this directly.
@@ -261,7 +280,15 @@ export class SalesConfigService implements ApprovalApplier {
    *  The sentences are the propose-time sentences, deliberately: one wording
    *  per rule. "This name is taken" is the same fact whether it is read while
    *  typing or while approving. */
-  private async applyChange(tx: Db, change: ConfigChange): Promise<void> {
+  private async applyChange(tx: Db, change: ConfigChange, proposerId: string): Promise<void> {
+    if (change.kind === 'activity-freshness') {
+      /* Both keys land in the approval's tx, so the pair never half-applies. */
+      await this.settings.setIn(tx, proposerId, [
+        { key: 'sales.activity.warn-days', value: change.value.warnDays },
+        { key: 'sales.activity.alert-days', value: change.value.alertDays },
+      ])
+      return
+    }
     if (change.kind === 'motion') {
       /* Nothing to re-check across rows: a motion has no name to collide with
          and no order to keep whole. What could still be wrong — a nonsense

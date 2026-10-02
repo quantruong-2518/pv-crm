@@ -478,6 +478,7 @@
   --popover-foreground: #0f172a;
   --primary: #2451d6; /* brand */
   --primary-strong: #1c42b3; /* brand-strong */
+  --avatar-to: var(--primary-strong); /* white initials need ≥ 4.5:1 — aurora-2 is too pale here */
   --primary-foreground: #ffffff;
   --secondary: #e9edf4; /* bg-300 */
   --secondary-hover: #f5f7fb; /* bg-200 */

@@ -1,8 +1,21 @@
-import { and, asc, count, desc, eq, exists, inArray, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNotNull,
+  sql,
+  type SQLWrapper,
+} from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import type { OpportunityContactRole, StageKey, TouchKind } from '@pv/contracts'
+import type { OpportunityContactRole, StageKey, ThreadChannel, TouchKind } from '@pv/contracts'
+import { link, message, thread } from '@api/platform/comms/comms.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { emailDelivery } from '@api/platform/mail/mail.schema'
 import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { nextStep } from '../next-step/next-step.schema'
@@ -51,6 +64,51 @@ export class OpportunityFactsRepository {
       .from(touch)
       .where(and(inArray(touch.subjectCode, [...codes]), inArray(touch.kind, [...kinds])))
       .groupBy(touch.subjectCode, touch.kind)
+  }
+
+  /** Latest moment per deal across three books, ONE statement: its touches of
+   *  `kinds`, turns on threads linked to it over `channels`, and letters of a
+   *  mail run to its customer the provider accepted (internal notices carry no
+   *  run). A deal with none is absent from the map. */
+  async lastActivity(
+    codes: readonly string[],
+    kinds: readonly TouchKind[],
+    channels: readonly ThreadChannel[],
+  ): Promise<Map<string, Date>> {
+    if (codes.length === 0) return new Map()
+    const list = [...codes]
+    const latest = (at: SQLWrapper) => sql<Date>`max(${at})`.as('at')
+    const touches = this.db
+      .select({ code: touch.subjectCode, at: latest(touch.at) })
+      .from(touch)
+      .where(and(inArray(touch.subjectCode, list), inArray(touch.kind, [...kinds])))
+      .groupBy(touch.subjectCode)
+    const turns = this.db
+      .select({ code: link.objectCode, at: latest(message.at) })
+      .from(link)
+      .innerJoin(thread, eq(thread.id, link.threadId))
+      .innerJoin(message, eq(message.threadId, link.threadId))
+      .where(and(inArray(link.objectCode, list), inArray(thread.channel, [...channels])))
+      .groupBy(link.objectCode)
+    const mails = this.db
+      .select({ code: emailDelivery.aggregateId, at: latest(emailDelivery.acceptedAt) })
+      .from(emailDelivery)
+      .where(
+        and(
+          eq(emailDelivery.aggregateType, 'opportunity'),
+          eq(emailDelivery.role, 'recipient'),
+          isNotNull(emailDelivery.mailRunId),
+          isNotNull(emailDelivery.acceptedAt),
+          inArray(emailDelivery.aggregateId, list),
+        ),
+      )
+      .groupBy(emailDelivery.aggregateId)
+    const all = touches.unionAll(turns).unionAll(mails).as('activity')
+    const rows = await this.db
+      .select({ code: all.code, at: sql`max(${all.at})`.mapWith(touch.at) })
+      .from(all)
+      .groupBy(all.code)
+    return new Map(rows.map((r) => [r.code, r.at]))
   }
 
   async nextSteps(codes: readonly string[]) {

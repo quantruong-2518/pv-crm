@@ -17,6 +17,7 @@ import {
   type WaveChannel,
 } from '@pv/engines/fixtures/das-vina'
 import {
+  ActivityFreshnessResponse,
   LEAD_STOP_REASON_OTHER,
   LeadTier,
   OPPORTUNITY_STOP_REASON_OTHER,
@@ -27,6 +28,7 @@ import {
   type ConfigList,
   type ConfigEntryPatch,
   type ConfigProposalReceipt,
+  type ActivityFreshnessPatch,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 
@@ -627,6 +629,33 @@ export function useProposeConfigPatch() {
       api.write<ConfigProposalReceipt>(`/sales/config/${list}/${id}`, {
         method: 'PATCH',
         body: patch,
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => proposalSent(client),
+  })
+}
+
+/** The book's last-activity thresholds (ADR 0077 §4) — the two numbers the
+ *  server judges every row's `activityFreshness` against. */
+export const activityFreshnessQuery = queryOptions({
+  queryKey: ['sales', 'config', 'activity-freshness'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ActivityFreshnessResponse>('/sales/config/activity-freshness', {
+      need: { branch: 'Sales', permission: 'config.view' },
+      schema: ActivityFreshnessResponse,
+      signal,
+    }),
+})
+
+/** Proposes the PAIR, so `alertDays > warnDays` is judged on one body. */
+export function useProposeActivityFreshness() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigProposalReceipt, ApiError, ActivityFreshnessPatch>({
+    mutationFn: (body) =>
+      api.write<ConfigProposalReceipt>('/sales/config/activity-freshness', {
+        method: 'PATCH',
+        body,
         need: { branch: 'Sales', permission: 'config.propose' },
       }),
     onSuccess: () => proposalSent(client),

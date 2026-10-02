@@ -46,7 +46,19 @@ import { ContractRepository, type ContractRead } from '../contract/contract.repo
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
-import { editVerdict, OpportunityActs } from './opportunity-acts'
+import {
+  editDetailsVerdict,
+  editTermsVerdict,
+  OpportunityActs,
+  touchesTerms,
+} from './opportunity-acts'
+import { dealAtOf } from './opportunity-lifecycle'
+import {
+  pendingSignOf,
+  profileContractsOf,
+  signedTotalOf,
+  stageSpansOf,
+} from './opportunity-profile'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
@@ -175,20 +187,32 @@ export class OpportunityService {
 
        They run side by side and only after `visible`, for those two reasons in
        that order. */
-    const [stageRows, waiting, rows] = await Promise.all([
+    const codes = visible.map((v) => v.row.code)
+    const [stageRows, waiting, rows, bookFacts] = await Promise.all([
       this.repo.stageRows(),
-      this.approvals.pendingOnMany(visible.map((v) => v.row.code)),
+      this.approvals.pendingOnMany(codes),
       this.facts.rows(visible),
+      this.facts.bookFacts(codes),
     ])
 
     /* Kiểm chính dữ liệu MÌNH trả ra bằng hợp đồng. Một cột đổi kiểu, một
        trường quên map — cả hai lọt qua `tsc` nếu mapper sai theo, không lọt qua
        đây. Phí bị chặn trên bởi `size` tối đa 200 dòng. */
     return OpportunityBookResponse.parse({
-      rows: visible.map((v, i) => ({
-        ...rows[i],
-        position: positionOf(v.row, stageRows, waiting.get(v.row.code) ?? []),
-      })),
+      rows: visible.map((v, i) => {
+        const pending = waiting.get(v.row.code) ?? []
+        const row = rows[i]
+        return {
+          ...row,
+          ...(row ? bookFacts(row, pending) : {}),
+          canAssign: this.acts.canAssign(
+            who,
+            v,
+            pending.some((a) => a.kind === 'contract-sign'),
+          ),
+          position: positionOf(v.row, stageRows, pending),
+        }
+      }),
       total: page.total,
       hidden: page.hidden + hidden,
     })
@@ -270,23 +294,27 @@ export class OpportunityService {
     /* Independent reads, profile-only (see `OpportunityProfileResponse`).
        `storyFor`, not `story`: E2 cuts the chain to what this reader may open,
        and `hidden` is dropped because a count of what was cut is itself a leak. */
-    const [stageRows, approvals, story, row, contacts] = await Promise.all([
+    const [stageRows, approvals, story, row, contacts, events, signedRows] = await Promise.all([
       this.repo.stageRows(),
       this.approvals.pendingOn(code),
       this.graph.storyFor(who, code),
       this.facts.row(found),
       this.facts.contacts(found),
+      this.repo.stageEventsOf(code),
+      found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
     ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
+    const contracts = profileContractsOf(signedRows)
     return OpportunityProfileResponse.parse({
       ...row,
       position: positionOf(found.row, stageRows, approvals),
-      pendingSign: sign
-        ? { approvalId: sign.id, raisedBy: sign.raisedBy, raisedAt: sign.raisedAt.toISOString() }
-        : null,
+      pendingSign: pendingSignOf(sign),
       contacts,
       ...(await this.acts.of(who, found, sign !== undefined)),
+      stages: stageSpansOf(found.row, events, stageRows, new Date()),
+      contracts,
+      signedTotal: signedTotalOf(found.row, contracts),
       chain: story.chain.map(toChainLink),
     })
   }
@@ -472,24 +500,28 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    const edit = editVerdict(found.row)
-    if (!edit.ok) throw conflict(edit.reason)
-    /* Money or SALE owners on a signed deal rewrite the contract, so they need
-       the sign door's permission and scope. */
-    if (found.signed && touchesSignTerms(found, body)) {
-      const ref = scopeRefOf(found.row, found.owners, who)
-      const verdict = this.access.check(who, { permission: 'opportunity.close', ref })
-      if (!verdict.ok) throw denied(verdict.reason, verdict.note)
+    const details = editDetailsVerdict(found.row)
+    if (!details.ok) throw conflict(details.reason)
+    const pendingSign = await this.pendingSign(code)
+    const terms = editTermsVerdict(dealAtOf(found, pendingSign))
+    if (!terms.ok && touchesTerms(found, body)) throw conflict(terms.reason)
+    /* SALE owners are the sign request's commission holders: frozen while it
+       waits, and on a signed deal they need the sign door's permission. */
+    if (saleLaneMoved(found, body)) {
+      if (pendingSign) throw frozenForSign()
+      if (found.signed) {
+        const ref = scopeRefOf(found.row, found.owners, who)
+        const verdict = this.access.check(who, { permission: 'opportunity.close', ref })
+        if (!verdict.ok) throw denied(verdict.reason, verdict.note)
+      }
     }
 
     const pic = [...body.saleOwners, ...body.bdOwners]
-    const [names, roles, signedContracts, pendingSign] = await Promise.all([
+    const [names, roles, signedContracts] = await Promise.all([
       this.repo.actorNames(this.repo.readonlyHandle, pic),
       actorRoles(this.repo.readonlyHandle, pic),
       found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
-      this.pendingSign(code),
     ])
-    if (pendingSign && touchesSignTerms(found, body)) throw frozenForSign()
 
     const write = fromUpdate(body)
     const { row, owner, acceptedBy } = await this.repo.run(async (tx) => {
@@ -976,19 +1008,11 @@ function positionOf(
   return position === null ? null : PipelinePositionView.parse(position)
 }
 
-/** While a sign request waits, the terms the approver read are frozen: money and
- *  SALE owners. Name, dates, files and the rest may still be saved.
- *
- *  `state` left the list because it left the body (ADR 0064): the doors that move
- *  a deal are their own, and each of them refuses a signed deal on its own. */
-function touchesSignTerms(found: OpportunityRead, body: OpportunityUpdate): boolean {
+/** The body changes who stands on the SALE lane. The deal's terms are judged
+ *  apart (`touchesTerms`); `state` left the body with ADR 0064. */
+function saleLaneMoved(found: OpportunityRead, body: OpportunityUpdate): boolean {
   const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
-  return (
-    body.amount !== found.row.amount ||
-    body.currency !== found.row.currency ||
-    sale.length !== body.saleOwners.length ||
-    sale.some((id) => !body.saleOwners.includes(id))
-  )
+  return sale.length !== body.saleOwners.length || sale.some((id) => !body.saleOwners.includes(id))
 }
 
 /** `holderOf` over a body's owner ids, with names and roles resolved first so

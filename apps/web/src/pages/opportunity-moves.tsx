@@ -1,143 +1,215 @@
 import { useState } from 'react'
-import { Octagon, TriangleAlert } from '@pv/ui'
-import { Badge, Button, Icon, MetaPill, cn } from '@pv/ui'
-import { type OpportunityProfileResponse } from '@pv/contracts'
-import { useCan } from '@/app/auth'
-import { noSellerSentence } from '@/data/deal-sale'
+import { useQuery } from '@tanstack/react-query'
+import { Check, Contact, Route } from '@pv/ui'
+import { Button, Icon } from '@pv/ui'
 import {
-  activityTally,
-  BADGE_INK,
-  refusalOf,
-  stageClockOf,
-  standingLabel,
-  STATE_TONE,
-} from '@/data/opportunities'
-import { StopDrawer } from '@/components/opportunity-stop'
+  OPPORTUNITY_CONTACT_ROLE_LABEL,
+  type CommActionChannel,
+  type OpportunityContact,
+  type OpportunityProfileResponse,
+} from '@pv/contracts'
+import { useCan } from '@/app/auth'
+import { phoneText } from '@/lib/phone'
+import { COMMS_CHANNEL_ICON } from '@/data/comms'
+import { commTargetQuery } from '@/data/comm-record-detail'
+import { notConfirmableReason } from '@/data/comm-records'
+import { refusalOf } from '@/data/opportunities'
+import { CommActionConfirm } from '@/components/comm-action-confirm'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { DealEventButtons } from './opportunity-events'
+import { MenuButton, type MenuChoice } from './opportunity-menu'
+import { primaryMoveOf } from './opportunity-model'
 
-/** Module 3 · where the deal STANDS on the profile's sticky bar, and the doors
- *  that move it (ADR 0064 §3, 0069 §1, 0071). Split out of `opportunity-parts.tsx`.
+/** Module 3 · the profile's floating action bar — every action of the deal in
+ *  one place (ADR 0077 §6): reach a contact, open the history, record a fact,
+ *  and the ONE primary move to the next column.
  *
- *  A read-only badge, never a picker: `PATCH :code/stage` is gone, and a seller
- *  picks neither state nor column. Every button here carries a FACT instead — a
- *  care activity, a quotation, or a stop with a reason — and the server's
- *  single stage writer draws the conclusion from it (ADR 0072). A stop is
- *  final, so a lost deal keeps only its badge; the fail log is its own card.
- *
- *  WHETHER each door shows is the server's `acts` verdict, the same rule the
- *  door refuses by; a refused door prints the server's own reason. The accept,
- *  assign and event acts own their modals; this block only decides who sees them. */
-/** Where the accept hands focus: the assign button it reveals. */
-const ASSIGN_ID = 'deal-assign-sale'
+ *  Whether each door shows is the server's `acts` (ADR 0076 §4). Call, Zalo
+ *  and mail ask which deal contact, primary first, and go through the comm
+ *  confirm (ADR 0075); under `sm` the three fold into one contact button so
+ *  the bar stays short. A lost deal keeps only the workstream button: nothing
+ *  is recorded on it and nobody is contacted from it. 48px buttons (law 13). */
 
-export function DealMoves({
+const CHANNELS: { channel: CommActionChannel; label: string }[] = [
+  { channel: 'phone', label: 'Gọi' },
+  { channel: 'zalo-oa', label: 'Zalo' },
+  { channel: 'email', label: 'Gửi mail' },
+]
+
+type Asking = { channel: CommActionChannel; contact: OpportunityContact }
+
+export function DealActionBar({
   op,
-  canEdit,
-  sellerOnBar,
+  onSign,
+  onCompose,
+  onOpenJourney,
+  journeyOpening = false,
 }: {
   op: OpportunityProfileResponse
-  canEdit: boolean
-  /** The bar already prints the missing-seller sentence — do not say it twice. */
-  sellerOnBar: boolean
+  onSign: () => void
+  /** Opens the letter composer addressed to this contact. */
+  onCompose: (contactCode: string) => void
+  /** Absent = no workstream, or no `workstream.view`. */
+  onOpenJourney?: () => void
+  /** The journey read is in flight: the button waits instead of looking dead. */
+  journeyOpening?: boolean
 }) {
-  const [stopping, setStopping] = useState(false)
   const canAccept = useCan('opportunity.accept')
-  const canAssign = useCan('opportunity.assign')
-  const hasSeller = op.hasSeller
-  const open = op.state === 'open'
-  const clock = stageClockOf(op)
-  const accepted = open && op.stage !== null && op.stage !== 'new'
-  const unassigned = accepted && !hasSeller && !sellerOnBar
-  const tally = activityTally(op.activityCounts)
-  const recordable = op.acts.activity.ok || op.acts.quotation.ok
-  /* Both doors refused for one reason print it once. */
-  const refusal = [...new Set([refusalOf(op.acts.activity), refusalOf(op.acts.quotation)])].filter(
-    Boolean,
-  )
+  const canClose = useCan('opportunity.close')
+  const lost = op.state === 'lost'
+  const primary = primaryMoveOf(op, { accept: canAccept, close: canClose })
+  const [asking, setAsking] = useState<Asking | null>(null)
+  const choicesOf = useContactChoices(op, (channel, contact) => setAsking({ channel, contact }))
 
+  const signWhy = primary === 'sign' ? refusalOf(op.acts.sign) : null
+  /* An open deal nobody here can move says why once, in the server's words. */
+  const idle =
+    op.state === 'open' && primary === null && !op.acts.activity.ok && !op.acts.quotation.ok
+      ? refusalOf(op.acts.activity)
+      : null
+  const note = signWhy ?? idle
+  if (lost && !onOpenJourney) return null
+
+  /* Above the bottom nav under `lg`; clear of the assistant button above it. */
   return (
-    <div className="flex basis-full flex-wrap items-center gap-2">
-      {/* `BADGE_INK` only on the lost tone — law 13; see its own note. */}
-      <Badge tone={STATE_TONE[op.state]} className={cn(op.state === 'lost' && BADGE_INK)}>
-        {standingLabel(op)}
-      </Badge>
+    <div className="pointer-events-none fixed inset-x-4 bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 flex justify-center lg:bottom-6 lg:right-24">
+      <div
+        role="group"
+        aria-label="Thao tác cơ hội"
+        className="glass-overlay pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
+      >
+        {!lost && (
+          <>
+            <div className="sm:hidden">
+              <MenuButton
+                up
+                label="Liên hệ"
+                icon={Contact}
+                ariaLabel="Liên hệ — chọn cách và người liên hệ"
+                choices={
+                  op.contacts.length === 0
+                    ? choicesOf('phone')
+                    : CHANNELS.flatMap(({ channel, label }) =>
+                        choicesOf(channel).map((c) => ({
+                          ...c,
+                          key: `${channel}-${c.key}`,
+                          label: (
+                            <>
+                              {label} · {c.label}
+                            </>
+                          ),
+                        })),
+                      )
+                }
+              />
+            </div>
+            <div className="hidden sm:contents">
+              {CHANNELS.map(({ channel, label }) => (
+                <MenuButton
+                  key={channel}
+                  up
+                  label={label}
+                  icon={COMMS_CHANNEL_ICON[channel]}
+                  ariaLabel={`${label} — chọn người liên hệ`}
+                  choices={choicesOf(channel)}
+                />
+              ))}
+            </div>
+          </>
+        )}
 
-      {/* The book's and the drawer's clock, one formatter (`formatStageClock`). */}
-      {open && clock && (
-        <MetaPill tone={clock.tone} title="Số ngày ở cột này / hạn của cột">
-          <span className="tnum">{clock.label}</span>
-        </MetaPill>
-      )}
+        {onOpenJourney && (
+          <Button
+            size="lg"
+            variant="ghost"
+            disabled={journeyOpening}
+            aria-busy={journeyOpening}
+            onClick={onOpenJourney}
+          >
+            <Icon icon={Route} size={16} />
+            {journeyOpening ? 'Đang mở workstream…' : 'Xem workstream'}
+          </Button>
+        )}
 
-      {/* An unaccepted deal records nothing: the accept button where `acts.accept`
-          opens, the record doors' reason elsewhere. Mounted on the permission so
-          the modal outlives the accept that shuts the act. */}
-      {open && canAccept && (
-        <AcceptDealButton
-          code={op.code}
-          show={op.acts.accept.ok}
-          className="pointer-coarse:h-12"
-          returnFocus={() => document.getElementById(ASSIGN_ID)}
-        />
-      )}
-      {canEdit && open && !accepted && !op.acts.accept.ok && refusal.length > 0 && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">{refusal.join(' ')}</span>
-      )}
+        {!lost && <DealEventButtons op={op} quotePrimary={primary === 'quote'} />}
 
-      {unassigned && (
-        <span className="text-warning flex items-center gap-2 text-[11.5px] leading-[1.5]">
-          <Icon icon={TriangleAlert} size={16} className="shrink-0" />
-          {noSellerSentence(false, canAssign)}
-        </span>
-      )}
-      {/* One mount point whatever the wording, so the modal survives the
-          re-read that flips the label after a save. `acts.assign` shuts it at
-          `new` and while a signature waits — the lane is what that request names. */}
-      {op.acts.assign.ok && (
-        <AssignSaleButton
-          id={ASSIGN_ID}
-          op={op}
-          hasSeller={hasSeller}
-          className="pointer-coarse:h-12"
-        />
-      )}
+        {/* Mounted on the permission, not the verdict, so the modal outlives
+            the accept that shuts the act. */}
+        {op.state === 'open' && canAccept && (
+          <AcceptDealButton code={op.code} show={primary === 'accept'} size="lg" />
+        )}
+        {primary === 'assign' && (
+          <AssignSaleButton op={op} hasSeller={op.hasSeller} size="lg" variant="default" />
+        )}
+        {primary === 'sign' && (
+          <Button
+            size="lg"
+            disabled={Boolean(op.pendingSign) || signWhy !== null}
+            title={signWhy ?? undefined}
+            onClick={onSign}
+          >
+            <Icon icon={Check} size={16} />
+            Chốt thắng
+          </Button>
+        )}
 
-      {/* Counts read where the doors stand — and stay on a closed deal, as its record. */}
-      {!(open && op.stage === 'new') && (
-        <span className="text-muted-foreground tnum text-[11.5px] leading-[1.5]">
-          {tally ?? 'Chưa có hoạt động'}
-        </span>
-      )}
+        {note && (
+          <span className="text-muted-foreground basis-full px-2 text-center text-[12px] leading-[1.5]">
+            {note}
+          </span>
+        )}
+      </div>
 
-      {/* Recordable from `assigned` until lost, a won deal included (ADR 0072):
-          the server's `acts` say so, not the column. */}
-      {canEdit && (
-        <>
-          {recordable && <DealEventButtons op={op} />}
-          {/* Why a door is shut on an accepted or won deal, in the server's words. */}
-          {(accepted || op.state === 'won') && refusal.length > 0 && (
-            <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              {refusal.join(' ')}
-            </span>
-          )}
-
-          {op.acts.stop.ok && (
-            <Button
-              size="md"
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              onClick={() => setStopping(true)}
-            >
-              <Icon icon={Octagon} size={16} />
-              Dừng cơ hội
-            </Button>
-          )}
-        </>
-      )}
-
-      <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
+      <CommActionConfirm
+        channel={asking?.channel ?? null}
+        subject={{ code: op.code, kind: 'opportunity' }}
+        contact={asking?.contact ?? { name: '' }}
+        mail={asking ? { onCompose: () => onCompose(asking.contact.code) } : undefined}
+        onClose={() => setAsking(null)}
+      />
     </div>
   )
+}
+
+/** One menu row per deal contact, primary first; a row a channel cannot reach
+ *  stays listed and says why. */
+function useContactChoices(
+  op: OpportunityProfileResponse,
+  ask: (channel: CommActionChannel, contact: OpportunityContact) => void,
+) {
+  const canRecord = useCan('comm.view')
+  /* Cache only: the confirm dialog fetches it on open, then every row knows. */
+  const { data: known } = useQuery({ ...commTargetQuery(op.code), enabled: false })
+  const people = [...op.contacts].sort((a, b) => Number(b.primary) - Number(a.primary))
+
+  const blocked = (channel: CommActionChannel, c: OpportunityContact): string | undefined => {
+    if (!canRecord) return 'Vai của bạn không tạo được lượt liên hệ.'
+    if (known && !known.confirmable) return notConfirmableReason('opportunity')
+    if (channel === 'email') return c.email ? undefined : 'Chưa có email.'
+    return c.phone ? undefined : 'Chưa có số điện thoại.'
+  }
+
+  return (channel: CommActionChannel): MenuChoice[] =>
+    people.length === 0
+      ? [
+          {
+            key: 'none',
+            label: 'Chưa có người liên hệ',
+            blocked: 'Thêm ở thẻ Người liên hệ.',
+            onSelect: () => {},
+          },
+        ]
+      : people.map((c) => ({
+          key: c.code,
+          label: c.primary ? `${c.name} · Chính` : c.name,
+          hint: [
+            c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role],
+            channel === 'email' ? c.email : phoneText(c.phone),
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          blocked: blocked(channel, c),
+          onSelect: () => ask(channel, c),
+        }))
 }

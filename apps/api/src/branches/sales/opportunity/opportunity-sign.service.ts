@@ -108,7 +108,7 @@ export class OpportunitySign implements ApprovalApplier {
     const verdict = signVerdict({ ...signFactsOf(found, quoted), pendingSign, approverSeat })
     if (!verdict.ok) throw conflict(verdict.reason)
     /* Commission follows a Sale standing on the deal, never a stranger. Owners
-       are frozen while the request waits (`touchesSignTerms`). */
+       are frozen while the request waits (`saleLaneMoved`). */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
       throw invalid(
         { ownerId: ['Người hưởng hoa hồng phải là một Sale đứng tên cơ hội này.'] },

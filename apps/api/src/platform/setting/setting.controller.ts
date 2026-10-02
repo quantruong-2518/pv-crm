@@ -19,7 +19,7 @@ import { SettingService } from './setting.service'
  *  threshold of the whole system belongs to no product line, and hanging it off
  *  a Sales licence would shut the box for a company that bought only Supply.
  *
- *  No `scoped` either. There is no owner column to cut six system constants by,
+ *  No `scoped` either. There is no owner column to cut system constants by,
  *  and a flag claiming otherwise would be a promise the server cannot keep.
  *
  *  ONE ROUTE, ONE PERMISSION also means the PATCH stays one route: every member
@@ -29,7 +29,7 @@ import { SettingService } from './setting.service'
 export class SettingController {
   constructor(private readonly settings: SettingService) {}
 
-  /** All six, always — including the keys with no row behind them. */
+  /** Every key, always — including the keys with no row behind them. */
   @Get()
   @Need({ permission: 'setting.manage' })
   list() {

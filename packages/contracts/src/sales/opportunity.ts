@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ObjectChainLink, PipelinePositionView } from '../position'
+import { PipelinePositionView } from '../position'
 import { PageQuery, SortDir, paged } from '../pagination'
 import {
   MoneyVnd,
@@ -26,7 +26,7 @@ import { WorkstreamHolder } from './workstream'
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
  *
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
- *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram · …/facets
+ *      GET    /sales/opportunities              · GET   …/scorecard · …/histogram · …/facets
  *      POST   …/:code/accept · …/sale-owners · …/milestones · …/stop · PUT …/:code/contacts
  *      GET    …/open-context?leadCode=… (permission `opportunity.create`)
  *
@@ -73,6 +73,32 @@ export const OpportunityOwnerRole = z.enum(['SALE', 'BD'])
  *  not columns. One tuple read by both ends, so no screen keeps its own list. */
 export const CARE_ACTIVITY_KINDS = ['sample', 'poc', 'demo', 'site-visit'] as const
 export const CareActivityKind = z.enum(CARE_ACTIVITY_KINDS, 'Hoạt động không có trong danh sách')
+
+/** The seller's `probability` read as three buckets for the book. Thresholds are
+ *  named so `forecastOf` is the one place the cut is made. */
+export const OpportunityForecast = z.enum(['certain', 'likely', 'far'])
+export const FORECAST_CERTAIN_MIN = 80
+export const FORECAST_LIKELY_MIN = 50
+export const OPPORTUNITY_FORECAST_LABEL: Record<OpportunityForecast, string> = {
+  certain: 'Chắc chắn',
+  likely: 'Khả năng cao',
+  far: 'Còn xa',
+}
+
+/** How stale a deal's last activity is: `warn` from `warnDays`, `alert` from
+ *  `alertDays` (`ActivityFreshness` in `./config`). */
+export const ActivityFreshnessLevel = z.enum(['fresh', 'warn', 'alert'])
+export type ActivityFreshnessLevel = z.infer<typeof ActivityFreshnessLevel>
+
+/** `null` when nobody judged the deal, or it has left the board (won/lost). */
+export function forecastOf(
+  probability: number | null,
+  state: OpportunityStatus,
+): OpportunityForecast | null {
+  if (probability === null || state !== 'open') return null
+  if (probability >= FORECAST_CERTAIN_MIN) return 'certain'
+  return probability >= FORECAST_LIKELY_MIN ? 'likely' : 'far'
+}
 
 // ---------------------------------------------------------------------------
 // PARTS
@@ -256,7 +282,19 @@ export const OpportunityCreate = z.object({
  *  that could move it is a request that can rewrite somebody's pipeline by
  *  typo. `code` is not editable for the same reason it is not creatable, and
  *  `state`/`stage` are not editable at all — see the top of this file. */
-export const OpportunityUpdate = z.object({ ...dealFields })
+export const OpportunityUpdate = z
+  .object({
+    ...dealFields,
+    /* Nullable only so a details or owners save can echo a legacy deal that
+       never had money or a close date; the terms form still requires them. */
+    expectedClose: Day.nullable(),
+    amount: MoneyVnd.nullable(),
+    currency: CurrencyCode.nullable(),
+  })
+  .refine((v) => (v.amount === null) === (v.currency === null), {
+    error: 'Giá trị và đồng tiền phải đi cùng nhau',
+    path: ['currency'],
+  })
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -524,6 +562,21 @@ export const OpportunityBookQuery = PageQuery.extend({
  *  honestly rather than defaulted away. */
 export const OpportunityBookRow = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
+  /** Latest customer-facing call, meeting, mail or Zalo, care activity, or
+   *  quotation — system events excluded, so a reassignment does not read as care.
+   *  Judged against `ActivityFreshness` (`./config`). */
+  lastActivityAt: Moment.nullable(),
+  /** The server's judgement of `lastActivityAt` against the configured
+   *  thresholds, so sellers without `config.view` never need the numbers.
+   *  `null` once the deal left the board. */
+  activityFreshness: ActivityFreshnessLevel.nullable(),
+  /** `forecastOf(probability, state)` — server-derived, never by a screen. */
+  forecast: OpportunityForecast.nullable(),
+  /** A `contract-sign` request is waiting; the profile carries the request itself. */
+  pendingSign: z.boolean(),
+  /** The viewer may give this deal a seller now — the server's assign verdict,
+   *  scope included, so the book never re-derives it (ADR 0076 §4). */
+  canAssign: z.boolean(),
 })
 
 export const OpportunityBookResponse = paged(OpportunityBookRow)
@@ -540,65 +593,20 @@ export const OpportunityFacetsQuery = OpportunityBookQuery.omit({
 })
 
 /** Choices that actually occur, DISTINCT in SQL; `byState` counts EVERY
- *  `OpportunityStatus`, zeros included, so the tabs print straight off it. */
+ *  `OpportunityStatus`, zeros included, so the tabs print straight off it.
+ *  `quick` counts the three quick filters under the same scope and query —
+ *  `stage=new`, `accepted&sale=OWNER_NONE`, `overdue` — so a chip never shows a
+ *  number its own click would not reproduce. */
 export const OpportunityFacetsResponse = z.object({
   saleOwners: z.array(WorkstreamHolder),
   bdOwners: z.array(WorkstreamHolder),
   accounts: z.array(textInput(200)),
   byState: z.record(OpportunityStatus, z.number().int().nonnegative()),
-})
-
-/** The `contract-sign` request waiting on this deal. Required-nullable: `null`
- *  means none, never "not checked", so the screen can disable signing on one read. */
-export const PendingSign = z.object({
-  approvalId: z.string().min(1),
-  raisedBy: textInput(120),
-  raisedAt: Moment,
-})
-
-/** The server's verdict on one door for THIS reader on THIS deal. `reason` is a
- *  Vietnamese sentence the screen prints as-is beside the disabled control. */
-export const OpportunityAct = z.discriminatedUnion('ok', [
-  z.object({ ok: z.literal(true) }),
-  z.object({ ok: z.literal(false), reason: z.string().min(1) }),
-])
-
-/** One verdict per door the profile offers, so the screen gates on the rule
- *  the door will apply instead of a copy of it. `edit` also gates the contacts
- *  door. `activity`/`quotation` are the milestone door by kind (ADR 0072 §3). */
-export const OpportunityActs = z.object({
-  activity: OpportunityAct,
-  quotation: OpportunityAct,
-  sign: OpportunityAct,
-  stop: OpportunityAct,
-  accept: OpportunityAct,
-  assign: OpportunityAct,
-  edit: OpportunityAct,
-})
-
-/** `GET /sales/opportunities/:code` — the book row, plus where the deal stands.
- *
- *  The same extension the book row now carries, kept as its own name because
- *  the two doors are free to diverge and a shared alias would hide the day they
- *  do. */
-export const OpportunityProfileResponse = OpportunityRow.extend({
-  position: PipelinePositionView.nullable(),
-  pendingSign: PendingSign.nullable(),
-  /** Primary first; the same list `PUT …/:code/contacts` replaces. */
-  contacts: z.array(OpportunityContact),
-  acts: OpportunityActs,
-  /** The earliest VN calendar day the milestone door's `at` accepts, per door —
-   *  the floor `effectiveAt` applies. `null` = that door is not open. */
-  floors: z.object({ activityFrom: Day.nullable(), quotationFrom: Day.nullable() }),
-
-  /** The object chain this deal sits in — see `ObjectChainLink`.
-   *
-   *  The deal already holds `leadCode` and `contractCodes`, so a screen COULD
-   *  assemble a chain itself — and that is exactly what rule 10 forbids, for
-   *  the reason the rail exists: two screens each building their own chain draw
-   *  two different pictures of one record the day a link is added. The graph
-   *  answers once, permission-cut, for both profiles. */
-  chain: z.array(ObjectChainLink),
+  quick: z.object({
+    awaitingAccept: z.number().int().nonnegative(),
+    noSeller: z.number().int().nonnegative(),
+    overdue: z.number().int().nonnegative(),
+  }),
 })
 
 export const OpportunityCreateResponse = OpportunityRow
@@ -749,14 +757,11 @@ export type OpportunitySortKey = z.infer<typeof OpportunitySortKey>
 export type OpportunityBookQuery = z.infer<typeof OpportunityBookQuery>
 export type OpportunityBookResponse = z.infer<typeof OpportunityBookResponse>
 export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse>
-export type PendingSign = z.infer<typeof PendingSign>
-export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
 export type OpportunityContact = z.infer<typeof OpportunityContact>
 export type OpportunityWorkstream = z.infer<typeof OpportunityWorkstream>
 export type OpportunityNextStep = z.infer<typeof OpportunityNextStep>
-export type OpportunityAct = z.infer<typeof OpportunityAct>
-export type OpportunityActs = z.infer<typeof OpportunityActs>
+export type OpportunityForecast = z.infer<typeof OpportunityForecast>
 export type OpportunityFacetsQuery = z.infer<typeof OpportunityFacetsQuery>
 export type OpportunityFacetsResponse = z.infer<typeof OpportunityFacetsResponse>
 

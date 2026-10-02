@@ -1,13 +1,9 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { UserMinus, UserRoundPlus } from '@pv/ui'
+import { UserRoundPlus } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { OpportunityRow } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
-import { UNASSIGNED_QUEUE } from '@/data/deal-sale'
-import { DEFAULT_OPPORTUNITY_BOOK_QUERY, opportunityBookQuery } from '@/data/opportunities'
 import { useAssignSale } from '@/data/opportunities-write'
-import { BookQueueButton } from './book-queue-button'
 import { SellerModal } from './seller-modal'
 
 /** Module 3 · the assign act — a head gives or changes a deal's seller after
@@ -29,12 +25,15 @@ export function AssignSaleButton({
   hasSeller,
   id,
   size = 'md',
+  variant = 'secondary',
   className,
 }: {
   op: Lane
   hasSeller: boolean
   id?: string
   size?: 'sm' | 'md' | 'lg'
+  /** `default` is Button's primary look, for when "Giao Sale" is the deal's one stage action. */
+  variant?: 'default' | 'secondary'
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -68,7 +67,7 @@ export function AssignSaleButton({
 
   return (
     <>
-      <Button id={id} size={size} variant="secondary" className={className} onClick={start}>
+      <Button id={id} size={size} variant={variant} className={className} onClick={start}>
         <Icon icon={UserRoundPlus} size={16} />
         {label}
       </Button>
@@ -104,22 +103,5 @@ export function AssignSaleButton({
         onSubmit={submit}
       />
     </>
-  )
-}
-
-/** The book's "no seller yet" queue for assigners. The count is a `size=1`
- *  read of the same filter, so it is cut by the reader's scope like the book. */
-export function UnassignedSaleLink({ active, onPress }: { active: boolean; onPress: () => void }) {
-  const { data } = useQuery(
-    opportunityBookQuery({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, ...UNASSIGNED_QUEUE, size: 1 }),
-  )
-  return (
-    <BookQueueButton
-      icon={UserMinus}
-      label="Chưa giao Sale"
-      count={data?.total}
-      active={active}
-      onPress={onPress}
-    />
   )
 }

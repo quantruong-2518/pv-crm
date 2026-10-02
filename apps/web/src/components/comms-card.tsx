@@ -12,7 +12,8 @@ import { CommTimelineTrack, type CommCardItem } from './comm-timeline'
 
 /** The contact timeline of one lead or opportunity — every comm on the shared
  *  axis, the chosen one's read view underneath (ADR 0075, canvas `History`).
- *  No glass of its own: it draws inside a `.glass-b` card (law 8). */
+ *  With `onOpen` a card opens its own screen instead and no read view is drawn
+ *  (ADR 0077 §6). No glass of its own: it draws inside a `.glass-b` card (law 8). */
 
 const itemOf = (row: DebriefView): CommCardItem => ({
   id: row.id,
@@ -26,7 +27,13 @@ const itemOf = (row: DebriefView): CommCardItem => ({
   step: row.step,
 })
 
-export function CommTimeline({ subjectCode }: { subjectCode: string }) {
+export function CommTimeline({
+  subjectCode,
+  onOpen,
+}: {
+  subjectCode: string
+  onOpen?: (id: string) => void
+}) {
   const canView = useCan('comm.view')
   const { data, isPending, error } = useQuery({
     ...subjectCommRecordsQuery(subjectCode),
@@ -66,16 +73,24 @@ export function CommTimeline({ subjectCode }: { subjectCode: string }) {
 
   const waiting = rows.filter((row) => row.state === 'unconfirmed').length
   const empty = rows.filter((row) => row.state === 'empty').length
+  /* A zero count says nothing the reader needs. */
+  const caption = [
+    `${rows.length} lượt liên hệ`,
+    waiting > 0 && `${waiting} chưa xác nhận`,
+    empty > 0 && `${empty} chưa điền nội dung`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <CommTimelineTrack
         items={rows.map(itemOf)}
-        selectedId={selected?.id ?? null}
-        onSelect={setPicked}
-        caption={`${rows.length} lượt liên hệ · ${waiting} chưa xác nhận · ${empty} chưa điền nội dung`}
+        selectedId={onOpen ? null : (selected?.id ?? null)}
+        onSelect={onOpen ?? setPicked}
+        caption={caption}
       />
-      {selected && <CommRecordRead row={selected} as="panel" />}
+      {!onOpen && selected && <CommRecordRead row={selected} as="panel" />}
     </div>
   )
 }

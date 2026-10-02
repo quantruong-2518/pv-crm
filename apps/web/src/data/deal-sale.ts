@@ -1,11 +1,10 @@
-import { OWNER_NONE, type OpportunityBookQuery, type WorkstreamHolder } from '@pv/contracts'
+import type { WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dm } from '@/lib/date'
 
-/** Module 3 · who carries a deal after accept (ADR 0071) — the acceptor's words
- *  and the two head queues of the book, each declared once for the profile, the
- *  book and the journey drawer. Whether a seller stands on the deal is the
- *  row's server-judged `hasSeller`. */
+/** Module 3 · who carries a deal after accept (ADR 0071) — the acceptor's words,
+ *  declared once for the profile, the book and the journey drawer. Whether a
+ *  seller stands on the deal is the row's server-judged `hasSeller`. */
 
 /** The one sentence for a deal with no seller, worded with the button it blocks. */
 export function noSellerSentence(won: boolean, canAssign: boolean): string {
@@ -33,20 +32,3 @@ export function acceptorText(deal: {
     ? `${deal.acceptedBy.name} · ${dm(deal.acceptedAt)}`
     : null
 }
-
-/** The head's accept queue: open deals still at `new`. */
-export const ACCEPT_QUEUE = {
-  state: 'open',
-  stage: 'new',
-} as const satisfies Partial<OpportunityBookQuery>
-
-/** Accepted deals with no seller on SALE — what a head still owes. */
-export const UNASSIGNED_QUEUE = {
-  state: 'open',
-  accepted: true,
-  sale: OWNER_NONE,
-} as const satisfies Partial<OpportunityBookQuery>
-
-/** Is the book showing exactly this queue's filter? */
-export const inQueue = (query: OpportunityBookQuery, queue: Partial<OpportunityBookQuery>) =>
-  Object.entries(queue).every(([key, value]) => query[key as keyof OpportunityBookQuery] === value)

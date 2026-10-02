@@ -68,12 +68,14 @@ export function DuePill({ level, money = false }: { level: DueLevel | null; mone
 type AnyStep = JourneySubStep | JourneyDealSubStep
 
 /** The server sends each step's final wording, so the label prints as-is —
- *  but a care activity names its kind from the contract's table and says who
- *  recorded it, since many share one rung (ADR 0072 §6). */
+ *  but a care activity names its kind from the contract's table, and it and a
+ *  quotation say who recorded them, since many share one rung (ADR 0072 §6). */
 function SubStepRow({ step }: { step: AnyStep }) {
   const when = step.at ? dm(step.at) : step.due ? `${TEXT.due} ${dm(step.due)}` : null
   const activity = 'kind' in step && step.kind === 'activity' ? step : null
-  const aside = [activity?.by?.name, step.note].filter(Boolean).join(' · ')
+  const by =
+    'kind' in step && (step.kind === 'activity' || step.kind === 'quote-sent') ? step.by : null
+  const aside = [by?.name, step.note].filter(Boolean).join(' · ')
   return (
     <li className="flex items-start gap-3 py-2">
       <span className="flex pt-1">

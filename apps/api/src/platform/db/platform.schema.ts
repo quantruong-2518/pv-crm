@@ -206,8 +206,8 @@ export const audit = platform.table(
  *  ------------------------------------------------------------------
  *  WHICH FENCE IS THE TABLE'S AND WHICH IS THE CONTRACT'S
  *  ------------------------------------------------------------------
- *  The table guards what is true of ALL SIX keys and will stay true however the
- *  registry is retuned: the key is one of six known names, and the number is
+ *  The table guards what is true of EVERY key and will stay true however the
+ *  registry is retuned: the key is one of the known names, and the number is
  *  positive. Zero days of retention, zero steps in a sequence, a link expiring
  *  in zero days — each is a value the reading code cannot act on, so it belongs
  *  to the table and not to a validator somebody can route around.
@@ -219,7 +219,7 @@ export const audit = platform.table(
  *  every retune into a migration AND leave the two disagreeing until then.
  *
  *  `setting_key_known` is the opposite case and deliberately so: the day a
- *  seventh key exists, that has to be a migration a person reads, same as
+ *  new key exists, that has to be a migration a person reads, same as
  *  `identity_channel_known` and `touch_kind_known`. The key list is not a
  *  number to tune, it is the shape of the table. */
 export const setting = platform.table(
@@ -229,7 +229,7 @@ export const setting = platform.table(
      *  id and no `UNIQUE` beside it. */
     key: text('key').$type<SettingKey>().primaryKey(),
 
-    /** Days for five of the six keys, a count of steps for the sixth. Which one
+    /** Days for every key but `sequence.max-steps`, which counts steps. Which one
      *  applies is the registry's `unit`, not a column here. `integer` is ample:
      *  the widest bound any key holds today is 730. */
     value: integer('value').notNull(),
@@ -251,16 +251,17 @@ export const setting = platform.table(
   () => [
     /* No index beyond the primary key. The only two reads are "this key's
        override" — the primary key answers it — and "every override", which is
-       at most six rows and so a scan whatever an index says. An index on
+       at most eight rows and so a scan whatever an index says. An index on
        `updated_by` would answer a question nobody asks and cost every write. */
 
-    /** The six members of `SettingKey`, copied out by hand rather than
-     *  generated, character for character from the contract's enum. */
+    /** The eight members of `SettingKey`, copied out by hand rather than
+     *  generated, character for character from the contract's enum. The two
+     *  `sales.activity.*` keys joined in 0076. */
     check(
       'setting_key_known',
-      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days')`,
+      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days')`,
     ),
-    /** True of all six keys and of any key added later: a non-positive constant
+    /** True of every key today and of any added later: a non-positive constant
      *  is one the reading code cannot act on. The per-key ceiling is zod's. */
     check('setting_value_positive', sql`"value" > 0`),
   ],
