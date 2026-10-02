@@ -15,7 +15,7 @@ import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
  *  who types a lead and then opens it finds every box where they left it.
  *
  *  The two blocks that need a lead to hang on — activity and next action —
- *  stand `locked`: drawn, named, and saying they open once the lead exists.
+ *  stand in place: drawn, named, and saying they open once the lead exists.
  *  Not dimmed with `opacity-*`, which is how a screen loses law 13's 4.5:1.
  *
  *  No ContextRail (law 10, acknowledged debt): the object chain needs an object.
@@ -54,18 +54,18 @@ export function LeadNewPage() {
           main={
             <>
               <LeadForm draft={draft} code={null} />
-              <LeadActivityCard locked />
+              <LeadActivityCard />
             </>
           }
           side={
             <DetailSidePanel>
-              <NextActionCard lead={null} locked />
-              <OwnerSourceCard mode="create" draft={draft} />
+              <NextActionCard />
+              <OwnerSourceCard draft={draft} />
             </DetailSidePanel>
           }
         />
 
-        <LeadToolsBar mode="create" draft={draft} />
+        <LeadToolsBar draft={draft} />
       </ScreenLayout>
     </AppShell>
   )

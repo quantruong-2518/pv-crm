@@ -1,30 +1,24 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { GlassCard, SectionTitle, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
+import { SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
 import { useLeadDesk } from '@/app/desk'
-import type { CommMail } from '@/components/comm-actions'
-import { ContactsCard } from '@/components/contacts-card'
-import { leadContactsQuery } from '@/data/contacts'
 import type { LeadDraft } from '@/data/lead-draft'
 import type { SaveState } from '@/data/lead-patch'
-import { fieldsOf, PROFILE_GROUPS, readField } from '@/data/lead-form'
+import { fieldsOf, PROFILE_GROUPS, readField, type FormMode } from '@/data/lead-form'
+import { RecordCard } from '@/components/record/record-card'
 import { FieldRow } from './lead-fields'
 
 /** Module 2 · The profile card — one tab row and the boxes of the open tab.
  *
- *  IT WAS AN ACCORDION UNTIL 17/09. Three groups folded by "still missing an
- *  answer" — right idea, wrong shape: opening one group pushed everything below
- *  it down the page, so the card's height changed under the hand every time,
- *  and two open groups still meant scrolling past thirty boxes.
- *
- *  Tabs keep the card one height and put the count of every part on screen at
- *  once, which is what the accordion's fold state was really for.
+ *  Tabs, not the accordion it was until 17/09: one card height, and the count
+ *  of every part on screen at once.
  *
  *  NO BUTTONS ON EITHER DOOR. The edit door writes a box through the moment it
  *  loses a value (`useLeadDraft`); the create door's submit and clear buttons
  *  live in `LeadToolsBar`. What stays here is the line about which boxes are
- *  required and the refusal that names no box — both are about the boxes, and
- *  the toolbar deliberately prints neither. */
+ *  required and the refusal that names no box.
+ *
+ *  The edit door is the profile's reference card (ADR 0078 §1), set lighter
+ *  and with no people tab: the run rail's contacts block holds the people. */
 
 /** The fourth tab is the free-text note, a card of its own until 17/09. It sits
  *  inside the form because it is the same act — writing down what is known
@@ -39,25 +33,31 @@ const TABS = [...PROFILE_GROUPS, NOTE_TAB]
 
 type TabKey = (typeof TABS)[number]['key']
 
+const tabsOf = (mode: FormMode) =>
+  mode === 'edit' ? TABS.filter((entry) => entry.key !== 'person') : TABS
+
+/** The customer's own page (LinkedIn, fanpage, website) stays on the lead row
+ *  when its people move to the contacts list, so the edit door asks it with
+ *  the company. */
+const CHANNEL_URL_FIELDS = fieldsOf('person').filter((field) => field.key === 'channelUrl')
+
+const boxesOf = (tab: (typeof PROFILE_GROUPS)[number]['key'], mode: FormMode) =>
+  tab === 'company' && mode === 'edit'
+    ? [...fieldsOf(tab, mode), ...CHANNEL_URL_FIELDS]
+    : fieldsOf(tab, mode)
+
 export function LeadForm({
   draft,
   code,
-  /** `lead.edit`, reaching EVERY tab: the contacts buttons and the boxes of the
-   *  other three, which print as text without it. DEFAULTS TO DENY — a reader
-   *  handed typing earns a 403 on every blur. The create door omits it. */
+  /** `lead.edit`, reaching EVERY tab: the boxes print as text without it.
+   *  DEFAULTS TO DENY — a reader handed typing earns a 403 on every blur. The
+   *  create door omits it. */
   canEdit = false,
-  /** The page's mail composer, for the contact rows' mail button. */
-  mail,
 }: {
   draft: LeadDraft
   code: string | null
   canEdit?: boolean
-  mail?: CommMail
 }) {
-  /* The contacts tab counts PEOPLE, not slots: there is no denominator for how
-     many people a company has. Idle on the create door — no lead, no list. */
-  const contacts = useQuery({ ...leadContactsQuery(code ?? ''), enabled: code !== null })
-
   const [tab, setTab] = useState<TabKey>(() => firstTab(draft))
   /* Same reset-during-render as the draft itself: stepping to another lead must
      not leave the previous lead's tab open for one painted frame. */
@@ -67,31 +67,27 @@ export function LeadForm({
     setTab(firstTab(draft))
   }
 
-  const options: SegmentedOption[] = TABS.map((entry) => {
+  const options: SegmentedOption[] = tabsOf(draft.mode).map((entry) => {
     if (entry.key === 'note') return { value: entry.key, label: entry.label }
-    if (entry.key === 'person' && code !== null) {
-      return { value: entry.key, label: entry.label, count: contacts.data?.rows.length }
-    }
     /* Counted over the BOXES of the tab, not over the ten init-data slots: the
        number answers "how much of this tab is still empty", which is what the
        reader is looking at. The slot score lives on the lead book. */
-    const boxes = fieldsOf(entry.key, draft.mode)
+    const boxes = boxesOf(entry.key, draft.mode)
     const got = boxes.filter((box) => readField(draft.values, box.key) !== '').length
     return { value: entry.key, label: entry.label, count: `${got}/${boxes.length}` }
   })
 
   const purpose = TABS.find((entry) => entry.key === tab)?.purpose
 
-  return (
-    <GlassCard
-      variant="b"
-      className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6"
-      aria-label={draft.mode === 'create' ? 'Lead mới' : 'Hồ sơ lead'}
-    >
-      <SectionTitle size="detail" hint={purpose}>
-        {draft.mode === 'create' ? 'Thông tin lead' : 'Chi tiết lead'}
-      </SectionTitle>
+  const editing = draft.mode === 'edit'
 
+  return (
+    <RecordCard
+      title="Thông tin lead"
+      tone={editing ? 'reference' : 'work'}
+      hint={purpose}
+      actions={editing && <SaveStateNote state={draft.saveState} />}
+    >
       <SegmentedControl
         label="Phần hồ sơ"
         hideLabel
@@ -101,7 +97,11 @@ export function LeadForm({
         onChange={(next) => setTab(next as TabKey)}
       />
 
-      <TabPanel tab={tab} draft={draft} code={code} canEdit={canEdit} mail={mail} />
+      {tab === 'note' ? (
+        <NoteBox code={code} />
+      ) : (
+        <FieldRow fields={boxesOf(tab, draft.mode)} draft={draft} canEdit={canEdit} />
+      )}
 
       {/* Which boxes refuse to stay empty is the contract's answer, given
           against the boxes themselves — this line only says so out loud. */}
@@ -119,55 +119,7 @@ export function LeadForm({
           {draft.formError}
         </span>
       )}
-    </GlassCard>
-  )
-}
-
-function TabPanel({
-  tab,
-  draft,
-  code,
-  canEdit,
-  mail,
-}: {
-  tab: TabKey
-  draft: LeadDraft
-  code: string | null
-  canEdit: boolean
-  mail?: CommMail
-}) {
-  if (tab === 'note') return <NoteBox code={code} />
-  /* The edit door hands the tab to the contacts card: a lead has many people
-     and the profile's five contact boxes mirror whoever is primary. The create
-     door draws those boxes — no lead yet, no list yet, and `LeadCreate` asks. */
-  if (tab === 'person' && code !== null) {
-    return (
-      <div className="flex min-w-0 flex-col gap-5">
-        <ContactsCard code={code} canEdit={canEdit} embedded mail={mail} />
-        <ChannelUrlBox draft={draft} canEdit={canEdit} />
-      </div>
-    )
-  }
-  return <FieldRow fields={fieldsOf(tab, draft.mode)} draft={draft} canEdit={canEdit} />
-}
-
-/** The one box of the `person` group the contacts list cannot carry.
- *
- *  `ContactRow` has no column for it and should not: this URL is the CUSTOMER's
- *  page — LinkedIn, fanpage, website — not one person's. It stayed on the lead
- *  when the five contact boxes moved to the list, so without this line a value
- *  `LeadProfile` holds and `LeadPatch` still accepts would be drawn nowhere. */
-const CHANNEL_URL_FIELDS = fieldsOf('person').filter((field) => field.key === 'channelUrl')
-
-function ChannelUrlBox({ draft, canEdit }: { draft: LeadDraft; canEdit: boolean }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Trang của KHÁCH — LinkedIn công ty, fanpage hay website. Không phải trang riêng của một
-        người trong danh sách trên.
-      </span>
-      <FieldRow fields={CHANNEL_URL_FIELDS} draft={draft} canEdit={canEdit} />
-    </div>
+    </RecordCard>
   )
 }
 
@@ -179,8 +131,10 @@ function ChannelUrlBox({ draft, canEdit }: { draft: LeadDraft; canEdit: boolean 
  *  nothing is dug out yet, so "where the work is" is everywhere. */
 function firstTab(draft: LeadDraft): TabKey {
   if (draft.mode === 'create') return 'company'
-  const short = PROFILE_GROUPS.find((group) =>
-    fieldsOf(group.key, 'edit').some((box) => readField(draft.base, box.key) === ''),
+  const short = PROFILE_GROUPS.find(
+    (group) =>
+      group.key !== 'person' &&
+      boxesOf(group.key, 'edit').some((box) => readField(draft.base, box.key) === ''),
   )
   return short?.key ?? 'company'
 }

@@ -6,11 +6,11 @@
  *                              draws boxes;
  *   · `lead-form-card.tsx`   — the profile card (tab row + the open tab) and
  *                              the save-state sentence that belongs with it;
- *   · `lead-next-action.tsx` — the one thing that has to happen next.
+ *   · `components/run/next-step.tsx` — the one thing that has to happen next.
  *
  *  This file stays as the door the two lead screens import through, so moving a
  *  block again does not touch them. Nothing is declared here. */
 
 export { FieldRow } from './lead-fields'
 export { LeadForm, SaveStateNote } from './lead-form-card'
-export { NextActionCard } from './lead-next-action'
+export { NextActionCard } from '@/components/run/next-step'

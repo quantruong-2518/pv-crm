@@ -1,50 +1,16 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Timer, X, type IconGlyph } from '@pv/ui'
+import { Timer, X, type IconGlyph } from '@pv/ui'
 import { Button, Drawer, Icon, cn } from '@pv/ui'
 import { LEAD_STATE_LABEL, LEAD_STOP_REASON_OTHER, type LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
-import { toastDone, toastFail } from '@/app/toast'
+import { toastDone } from '@/app/toast'
 import { StopReasonField } from '@/components/exit-dialog'
-import { useNurtureLead, useResumeLead } from '@/data/lead-exit'
-import { LEAD_STATE_FACE } from '@/data/lead-state'
+import { useNurtureLead } from '@/data/lead-exit'
 
-/** The PIC's own lifecycle steps — the one forward step a state offers,
- *  standing in the toolbar, and the drawer behind the parking one.
- *
- *  Only `nurturing` gets a bar button now: it is the one state that waits on a
- *  person's call. `verifying` and `working` are entered by what the PIC DOES —
- *  scheduling care, logging an exchange — so they have no button of their own
- *  (ADR 0063). Parking a lead (`nurture`) is rarer, so it sits in the `…` menu.
- *  Every door answers a 409 when the state moved under the reader; the drawer
- *  prints the server's own sentence and stays open. */
-export function LeadStepButton({ lead, canEdit }: { lead: LeadProfile; canEdit: boolean }) {
-  const resume = useResumeLead(lead.code)
-  const locked = canEdit ? undefined : 'Cần quyền sửa lead.'
-
-  if (lead.state !== 'nurturing') return null
-
-  return (
-    <Button
-      size="md"
-      variant="secondary"
-      className="pointer-coarse:h-12"
-      disabled={!canEdit || resume.isPending}
-      title={locked}
-      onClick={() =>
-        resume.mutate(undefined, {
-          /* Which rung it lands on is read off the touch trail, not the tier —
-             so the toast prints the state the server answered with. */
-          onSuccess: (next) =>
-            toastDone(`${lead.code} chuyển sang ${LEAD_STATE_FACE[next.state].label}.`),
-          onError: (error) => toastFail('Không chăm lại được lead.', userMessage(error)),
-        })
-      }
-    >
-      <Icon icon={RefreshCw} size={16} />
-      {resume.isPending ? 'Đang ghi…' : 'Chăm lại'}
-    </Button>
-  )
-}
+/** The drawer behind the PIC's parking step (ADR 0063) — opened from the
+ *  lead profile's more menu. Every door answers a 409 when the state moved
+ *  under the reader; the drawer prints the server's own sentence and stays
+ *  open. */
 
 /** `verifying` | `working` → `nurturing`. Reason and note come from the same
  *  `EXIT_REASON` catalogue the exit door reads (ADR 0070, `StopReasonField`):

@@ -1,20 +1,9 @@
 import { useState, type ReactNode } from 'react'
-import { Chip, GlassCard, MetaPill, SectionTitle, SegmentedControl } from '@pv/ui'
-import {
-  LEAD_SIDE_LABEL,
-  LeadSide,
-  campaignLabel,
-  sourceKindLabel,
-  type LeadMotion,
-  type LeadProfile,
-} from '@pv/contracts'
-import type { Lead } from '@pv/engines/fixtures/das-vina'
+import { GlassCard, MetaPill, SectionTitle, SegmentedControl } from '@pv/ui'
+import { LEAD_SIDE_LABEL, LeadSide, type LeadMotion } from '@pv/contracts'
 import { OWNER_SOURCE_FIELDS, originValue, readField, type FormField } from '@/data/lead-form'
 import type { LeadDraft } from '@/data/lead-draft'
 import { NO_OWNER_TITLE } from '@/data/leads'
-import { sourcePartnerLabel } from '@/data/partners'
-import { useMotionLabel } from '@/data/sales-motions'
-import { AssignMenu } from './assign-menu'
 import {
   CampaignPicker,
   OriginPicker,
@@ -23,25 +12,14 @@ import {
   type OriginChoice,
   type PartnerChoice,
 } from './lead-origin-pickers'
-import { useLeadDealReach } from '@/data/deal-sale'
 
-/** The holder-and-origin card — who holds this lead and how it got here.
+/** The holder-and-origin card of the create door — who will hold the lead and
+ *  how it got here. The profile prints both in its header meta line and
+ *  changes the holder from the bar's more menu (ADR 0078).
  *
- *  The two blocks used to sit in the right half of the page header. They are
- *  not identity, they are the two answers a seller checks before touching the
- *  lead: whose call this is, and whether we were called or did the calling.
- *
- *  PIC STANDS ABOVE ORIGIN: "who holds it" is asked on every open — dialling a
- *  lead that is not yours is cutting in — while "how did it get here" is looked
- *  up once. The block read more often stands first.
- *
- *  Three fields, three different write doors, and that is the whole shape of
- *  this card: the holder writes through the assignment door, the motion is
- *  settled at intake, and the origin has no rewrite door at all. */
-export function OwnerSourceCard(
-  props:
-    { mode: 'edit'; profile: LeadProfile; legacy: Lead } | { mode: 'create'; draft: LeadDraft },
-) {
+ *  Three fields, three different write doors: the holder is a hand-over of its
+ *  own, the motion is settled here at intake, and the origin is asked once. */
+export function OwnerSourceCard({ draft }: { draft: LeadDraft }) {
   return (
     <GlassCard
       variant="b"
@@ -49,16 +27,10 @@ export function OwnerSourceCard(
       aria-label="Phụ trách và nguồn"
     >
       <SectionTitle size="detail">Phụ trách và nguồn</SectionTitle>
-      {props.mode === 'edit' ? (
-        <EditBody profile={props.profile} legacy={props.legacy} />
-      ) : (
-        <CreateBody draft={props.draft} />
-      )}
+      <CreateBody draft={draft} />
     </GlassCard>
   )
 }
-
-const PIC_HINT = 'PIC nhận việc tiếp theo và thông báo của lead này.'
 
 /** The draft boxes this card draws, read off `OWNER_SOURCE_FIELDS` — the list
  *  `data/lead-form.ts` exports FOR this card, rather than reached out of
@@ -68,64 +40,6 @@ const MOTION_BOX = boxOf('motion')
 const ORIGIN_BOX = boxOf('origin')
 const CAMPAIGN_BOX = boxOf('campaignCode')
 const REFERRER_BOX = boxOf('refCode')
-
-function EditBody({ profile, legacy }: { profile: LeadProfile; legacy: Lead }) {
-  const motionLabel = useMotionLabel()
-  const partner = sourcePartnerLabel(profile.source)
-  const dealReach = useLeadDealReach(profile)
-  return (
-    <>
-      <Block label="Lead PIC" hint={PIC_HINT}>
-        {/* The NAME, with the mailbox on the pill's tooltip — the same thing
-            the lead book's PIC column prints, because a table and a profile of
-            one row must not read out differently. */}
-        <div className="flex flex-wrap items-center gap-2">
-          {profile.ownerName ? (
-            <MetaPill avatar={profile.ownerName} title={profile.ownerEmail}>
-              {profile.ownerName}
-            </MetaPill>
-          ) : (
-            <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
-          )}
-          {/* NOT wrapped in a permission of this card's own: `AssignMenu` asks
-              `lead.assign` for itself, and the toolbar draws the same menu
-              unwrapped — two gates on one action are two answers. */}
-          <AssignMenu
-            lead={legacy}
-            profile={profile}
-            readOnly={dealReach}
-            buttonVariant="secondary"
-          />
-        </div>
-      </Block>
-
-      <Block label="Phương án tiếp cận" hint="Chốt lúc lead vào sổ — sửa lại phải qua sổ nguồn.">
-        {/* Printed, not drawn as a control: `LeadPatch` carries no `motion`, and
-            the repo's own rule for a read-only field is text rather than a
-            greyed-out box nobody can use (`FieldKind.read`). */}
-        <div className="flex flex-wrap items-center gap-2">
-          {profile.motion ? (
-            <MetaPill>{motionLabel(profile.motion)}</MetaPill>
-          ) : (
-            <MetaPill title="Lead vào sổ trước khi cột này được ghi.">Chưa rõ</MetaPill>
-          )}
-        </div>
-      </Block>
-
-      <Block
-        label="Nguồn · Chi tiết nguồn"
-        hint="Xuất xứ của một lead đã vào sổ không ghi lại được."
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          {profile.source.origin && <MetaPill>{profile.source.origin.name}</MetaPill>}
-          {partner && <MetaPill title="Mã giới thiệu">{partner}</MetaPill>}
-          <MetaPill>{campaignLabel(profile.source)}</MetaPill>
-          <Chip variant="source">{sourceKindLabel(profile.source)}</Chip>
-        </div>
-      </Block>
-    </>
-  )
-}
 
 /** The create door: the holder stated, the motion, then the ONE box it asks.
  *

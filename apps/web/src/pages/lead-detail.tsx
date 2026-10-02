@@ -1,61 +1,43 @@
-import { useState, type ReactNode } from 'react'
-import { Inbox, Lock, TriangleAlert, type IconGlyph } from '@pv/ui'
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  Badge,
-  Button,
-  Chip,
-  GlassCard,
-  Icon,
-  MetaPill,
-  ScreenDetailGrid,
-  ScreenHeader,
-  ScreenLayout,
-  Skeleton,
-  cn,
-} from '@pv/ui'
+import { AppShell } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
-import { isApiError, userMessage } from '@/app/api'
+import { userMessage } from '@/app/api'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useCan, useSession } from '@/app/auth'
-import { dmy } from '@/lib/date'
-import { leadStopReasonsQuery } from '@/data/leads'
-import { stopReasonLabel } from '@/data/sales-config'
-import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { useLeadDraft } from '@/data/lead-draft'
-import { leadOf, leadProfileQuery } from '@/data/lead-profile'
-import { chainPath, opportunitiesOfLeadQuery } from '@/data/opportunities'
-import { leadTouchesQuery } from '@/data/touches'
+import { toastDone, toastFail } from '@/app/toast'
+import { leadContactOf } from '@/data/comm-records'
+import { leadContactsQuery } from '@/data/contacts'
 import { useLeadDealReach } from '@/data/deal-sale'
+import { useLeadDraft } from '@/data/lead-draft'
+import { useReopenLead, useResumeLead } from '@/data/lead-exit'
+import { leadOf, leadProfileQuery } from '@/data/lead-profile'
+import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
+import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
+import { assignDoorOf } from '@/components/assign-door'
+import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
-import { DetailSidePanel } from '@/components/detail-side-panel'
 import { ExitDialog } from '@/components/exit-dialog'
-import { LeadActivityCard } from '@/components/lead-activity-card'
-import { LeadAttachmentsCard } from '@/components/lead-attachments-card'
 import { NurtureDialog } from '@/components/lead-state-actions'
-import { LeadToolsBar } from '@/components/lead-tools-bar'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
-import { OwnerSourceCard } from '@/components/owner-source-card'
-import { ObjectChip } from '@/components/workstream-bits'
-import { LeadForm, NextActionCard, SaveStateNote } from './lead-parts'
+import { ActionBar, type BarContact } from '@/components/record/action-bar'
+import { RecordShell } from '@/components/record/record-shell'
+import { RunStrip } from '@/components/record/run-strip'
+import { CommJourney } from '@/components/run/comm-journey'
+import { RunContacts } from '@/components/run/run-contacts'
+import { RunFiles } from '@/components/run/run-files'
+import { LeadHeader, LeadMeetings, LeadTodo } from './lead-blocks'
+import { leadMoreChoices } from './lead-model'
+import { LeadForm } from './lead-parts'
 
-/** Module 2 · One lead's profile — `/sales/leads/:code`.
- *
- *  Header: the account name with its status beside it, then ONE meta row — the
- *  code, the customer it became if it did, the date it was booked, and whether
- *  what was typed reached the server.
- *
- *  Two columns: LEFT is the record — form and activity; RIGHT is the work —
- *  next action, holder and origin. Below `xl` it folds to one column with the
- *  RIGHT one first: on a tablet a lead is opened to work it, not to fill a form.
- *
- *  Four ways the profile fails to draw (loading · 404 · 403 out-of-scope ·
- *  anything else) say four different things, because each is a different next
- *  step for the reader. `LeadBody` is split out so that every hook of the
- *  profile runs only once there IS a profile. */
+/** Module 2 · one lead's profile — `/sales/leads/:code`, on the record shell
+ *  (ADR 0078): run strip, header, then the body — todo card, meetings, the
+ *  lead form as reference — and the rail — contacts timeline, people, files.
+ *  The floating bar only reaches contacts; its more menu holds the state
+ *  moves, the hand-over and the pin. `LeadScreen` is split out so that every
+ *  hook of the profile runs only once there IS a profile. */
 
 export function LeadDetailPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -63,214 +45,147 @@ export function LeadDetailPage() {
   const { code = '' } = useParams()
   const { data: lead, isPending, error } = useQuery(leadProfileQuery(code))
 
-  const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
-
-  if (isPending) {
-    return shell(
-      <ScreenLayout>
-        <Skeleton className="h-11 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-40 w-full" />
-      </ScreenLayout>,
-    )
-  }
-
-  if (!lead) {
-    /* One `kind`, one sentence. The screen reads no numeric status and matches
-       no substring of `message`: `app/api/errors.ts` classified it once for the
-       whole app, and two screens classifying it again are two wordings. */
-    const failure = isApiError(error) ? error : null
-    const missing = failure?.kind === 'not-found'
-    const denied = failure?.kind === 'forbidden'
-
-    return shell(
-      <ScreenLayout>
-        <GlassCard className="p-5 lg:p-6">
-          <EmptyLead
-            icon={missing ? Inbox : denied ? Lock : TriangleAlert}
-            note={
-              missing ? (
-                <>
-                  Không tìm thấy lead nào mang mã <span className="font-mono">{code}</span>. Kiểm
-                  tra lại mã, hoặc mở lại từ sổ lead.
-                </>
-              ) : (
-                (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'
-              )
-            }
-            onBack={() => navigate('/sales/leads')}
-          />
-        </GlassCard>
-      </ScreenLayout>,
-    )
-  }
-
-  return shell(<LeadBody lead={lead} />)
+  return (
+    <AppShell {...chrome.shell}>
+      {lead ? (
+        <LeadScreen lead={lead} />
+      ) : (
+        <RecordShell
+          pending={isPending}
+          failure={{
+            error,
+            notFound: `Không tìm thấy lead nào mang mã ${code}. Kiểm tra lại mã, hoặc mở lại từ sổ lead.`,
+            fallback: 'Không đọc được hồ sơ lead này.',
+            back: { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
+          }}
+        />
+      )}
+    </AppShell>
+  )
 }
 
 export default LeadDetailPage
 
 // ---------------------------------------------------------------------------
 
-function LeadBody({ lead }: { lead: LeadProfile }) {
+/** Every open deal of this lead — only the drop gate reads it. A stable object
+ *  so the menu does not rebuild on a render where nothing changed. */
+const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
+
+function LeadScreen({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
-  /* `lead.canEdit` is false for a reader who reaches the lead only through one
-     of its live deals (ADR 0071): they read and mail, every write stays shut. */
-  const canWrite = useCan('lead.edit') && lead.canEdit
   const dealReach = useLeadDealReach(lead)
+  const canWrite = useCan('lead.edit') && lead.canEdit
   const canDisqualify = useCan('lead.disqualify') && lead.canEdit
-  /* Asked HERE, next to `lead.edit`, and handed to the toolbar: the bar is the
-     only block whose three buttons write through three different doors, and a
-     button opening a drawer that ends in a 403 is worse than a locked one. */
   const canSendEmail = useCan('lead.send-email')
   const canConvert = useCan('opportunity.create') && lead.canEdit
-  const pins = useLeadDesk((s) => pinsOf(s, me?.id))
+  const canAssign = useCan('lead.assign')
+  const pinned = useLeadDesk((s) => pinsOf(s, me?.id)).includes(lead.code)
   const togglePin = useLeadDesk((s) => s.togglePin)
-  /* Has this lead been turned into a deal yet — asked of the SERVER. */
-  const priorOps = useQuery(opportunitiesOfLeadQuery(lead.code))
-  /* The LEAD's timeline, not the opportunity's — decision 5 of ADR
-     `docs/decisions/0018-opportunity-module-decisions.md`. Handed over
-     UNRESOLVED: `undefined` is "not answered yet". */
-  const { data: touches } = useQuery(leadTouchesQuery(lead.code))
-  /* A COUNTER, not a flag: pressing the meeting button twice must open the
-     door twice, and a boolean already `true` says nothing the second time. */
-  const [scheduleSeq, setScheduleSeq] = useState(0)
+  const liveDeal = useQuery(opportunitiesOfLeadQuery(lead.code)).data ?? EMPTY_LIVE_DEAL
+  const contacts = useQuery(leadContactsQuery(lead.code)).data?.rows
+  const resume = useResumeLead(lead.code)
+  const reopen = useReopenLead(lead.code)
+  /* ONE draft for the whole screen, seeded from the server's copy. */
+  const draft = useLeadDraft({ mode: 'edit', profile: lead })
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
+  const [composing, setComposing] = useState(false)
+  const [assigning, setAssigning] = useState(false)
 
-  /* ONE draft for the whole screen: the form card on the left and the holder
-     card on the right type into the same boxes. */
-  const draft = useLeadDraft({ mode: 'edit', profile: lead })
-  /* The blocks still living on `app/desk.ts` read the fixture's `Lead` shape —
-     built ONCE here instead of every block converting it for itself. */
-  const legacy = leadOf(lead)
-  /* A dropped lead has left the funnel — say so on the button rather than
-     after composing. Who has an address is the composer's own question now:
-     it addresses the company's contacts, not the lead row. */
-  const masBlocker =
-    lead.state === 'disqualified'
+  /* A dropped lead has left the funnel: no mail, said on every mail row. */
+  const mailBlocked = !canSendEmail
+    ? 'Cần quyền gửi email cho lead.'
+    : lead.state === 'disqualified'
       ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
       : undefined
-  const [composing, setComposing] = useState(false)
-  const composeMail = () => setComposing(true)
+  const people: BarContact[] =
+    contacts && contacts.length > 0
+      ? contacts.map((c) => ({ ...c, primary: c.isPrimary, role: c.title }))
+      : [{ ...leadContactOf(lead), primary: true }]
+
+  const more = leadMoreChoices(
+    lead,
+    { write: canWrite, disqualify: canDisqualify },
+    assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined),
+    pinned,
+    liveDeal,
+    {
+      onResume: () =>
+        resume.mutate(undefined, {
+          onSuccess: (next) =>
+            toastDone(`${lead.code} chuyển sang ${LEAD_STATE_FACE[next.state].label}.`),
+          onError: (e) => toastFail('Không chăm lại được lead.', userMessage(e)),
+        }),
+      onNurture: () => setNurturing(true),
+      onAssign: () => setAssigning(true),
+      onPin: () => me && togglePin(me.id, lead.code),
+      onExit: () => setExiting(true),
+      onReopen: () =>
+        reopen.mutate(undefined, {
+          onSuccess: () => toastDone(`Đã mở lại ${lead.code}.`),
+          onError: (e) => toastFail('Không mở lại được lead.', userMessage(e)),
+        }),
+    },
+  )
 
   return (
-    <ScreenLayout>
-      <GlassCard variant="b" className="p-4">
-        <ScreenHeader
-          back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
-          className="gap-3 [&>div]:gap-3 [&_h2]:tracking-[-.4px]"
-          title={
-            <span className="flex flex-wrap items-center gap-3">
-              {lead.company}
-              {/* `font-sans` because the badge now sits INSIDE the `h2`, which
-                  carries `font-display` — a badge is body text (law 6). */}
-              <StatusBadge lead={lead} className="font-sans" />
-            </span>
-          }
-          meta={
-            <>
-              <Chip>{lead.code}</Chip>
-              <CustomerPill lead={lead} />
-              <WorkstreamChip lead={lead} go={navigate} />
-              {/* No "by <person>": the profile carries no creator column, and
-                  the vector's first holder answers a different question. */}
-              <MetaPill mono>Tạo {dmy(lead.createdAt)}</MetaPill>
-              {/* Since when the lead has stood in its state — the badge above
-                  names the state; no limit to be late against (ADR 0057 §4). */}
-              <MetaPill mono>
-                Từ {dmy(lead.stateSince)} · {lead.daysHere} ngày
-              </MetaPill>
-              {/* Who the lead waits ON, which is not who holds it: a request
-                  sitting with somebody else is why a lead stops moving while
-                  its holder looks idle. Nothing else on the page says it. */}
-              {lead.position?.waitingOn && (
-                <MetaPill tone="warning">
-                  chờ {lead.position.waitingOn.person} · {lead.position.waitingOn.role}
-                </MetaPill>
-              )}
-              <SaveStateNote state={draft.saveState} />
-            </>
-          }
+    <RecordShell
+      strip={
+        <RunStrip
+          workstreamCode={lead.workstreamCode}
+          current={{ kind: 'lead', code: lead.code }}
+          fallback={railOf(lead.chain, lead.code, navigate)}
         />
-        {dealReach && (
-          <p className="text-muted-foreground m-0 pt-3 text-[12.5px] leading-[1.6]">
-            Bạn tham gia một cơ hội của lead này nhưng không giữ lead — chỉ xem
-            {canSendEmail && ' và gửi mail'}.
-          </p>
-        )}
-      </GlassCard>
-
-      <ScreenDetailGrid
-        sideLabel="Việc cần làm với lead này"
-        className="w-full"
-        sideClassName="relative xl:self-stretch"
-        /* One column below `xl`, with the WORK column first: on a tablet a
-           lead is opened to work it, not to fill a form. */
-        sideFirst
-        main={
-          <>
-            <LeadForm
-              draft={draft}
-              code={lead.code}
-              canEdit={canWrite}
-              mail={{
-                onCompose: composeMail,
-                blocked: canSendEmail ? masBlocker : 'Cần quyền gửi email cho lead.',
-              }}
-            />
-            <LeadActivityCard
-              code={lead.code}
-              canEdit={canWrite}
-              touches={touches}
-              focus={null}
-              onCompose={composeMail}
-              composeBlocked={masBlocker}
-              openSchedule={scheduleSeq}
-            />
-          </>
-        }
-        side={
-          <DetailSidePanel>
-            {/* Next action stands first: this column answers "what do I do
-                now", while holder and origin are looked up once and dropped. */}
-            {/* Keyed by code: an open form must not carry one lead's sentence
-                onto the next. A closed lead answers 409 to every step write. */}
-            <NextActionCard
-              key={lead.code}
-              lead={lead}
-              canEdit={canWrite && isOpenState(lead.state)}
-            />
-            <OwnerSourceCard mode="edit" profile={lead} legacy={legacy} />
-            <LeadAttachmentsCard code={lead.code} />
-          </DetailSidePanel>
-        }
+      }
+      header={<LeadHeader lead={lead} readOnly={dealReach} />}
+      main={
+        <>
+          <LeadTodo
+            lead={lead}
+            canStep={canWrite && isOpenState(lead.state)}
+            canConvert={canConvert}
+            onConvert={() => setConverting(true)}
+          />
+          <LeadMeetings code={lead.code} canEdit={canWrite} />
+          <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
+        </>
+      }
+      railLabel="Liên hệ, người liên hệ và tệp của lead"
+      rail={
+        <>
+          <CommJourney
+            workstreamCode={lead.workstreamCode}
+            subject={{ kind: 'lead', code: lead.code }}
+          />
+          <RunContacts subject={{ kind: 'lead', code: lead.code }} />
+          <RunFiles subject={{ kind: 'lead', code: lead.code }} />
+        </>
+      }
+      actionBar={
+        <ActionBar
+          label="Thao tác lead"
+          subject={{ code: lead.code, kind: 'lead' }}
+          contacts={people}
+          mailBlocked={mailBlocked}
+          onCompose={() => setComposing(true)}
+          more={more}
+        />
+      }
+    >
+      {/* Opened from the bar's more menu, whose trigger the drawer hands focus
+          back to on close. */}
+      <AssignMenu
+        lead={leadOf(lead)}
+        profile={lead}
+        readOnly={dealReach}
+        trigger={false}
+        open={assigning}
+        onOpenChange={setAssigning}
       />
-
-      <LeadToolsBar
-        mode="edit"
-        lead={lead}
-        legacy={legacy}
-        pinned={pins.includes(lead.code)}
-        liveDeal={priorOps.data ?? EMPTY_LIVE_DEAL}
-        canDisqualify={canDisqualify}
-        canEdit={canWrite}
-        canSendEmail={canSendEmail}
-        canConvert={canConvert}
-        onPin={() => me && togglePin(me.id, lead.code)}
-        onExit={() => setExiting(true)}
-        onNurture={() => setNurturing(true)}
-        onConvert={() => setConverting(true)}
-        onOpenOp={(code) => navigate(chainPath('OP', code) ?? `/sales/opportunities/${code}`)}
-        onCompose={composeMail}
-        composeBlocked={masBlocker}
-        onSchedule={() => setScheduleSeq((n) => n + 1)}
-      />
-
-      {/* The WIRE profile, not `legacy`: the convert form is seeded from the
-          stored row rather than regenerated from the code. */}
+      {/* The WIRE profile: the convert form is seeded from the stored row. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
@@ -282,91 +197,6 @@ function LeadBody({ lead }: { lead: LeadProfile }) {
           onClose={() => setComposing(false)}
         />
       )}
-    </ScreenLayout>
-  )
-}
-
-// ---------------------------------------------------------------------------
-
-/** Every open deal of this lead — information beside the convert button, never
- *  a block. A stable object so the toolbar's props do not change identity on a
- *  render where nothing did. */
-const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
-
-/** Which customer this lead became — the `AC` link of the object chain.
- *
- *  NOT pressable, on purpose: `MetaPill` has no press door by design, and a
- *  pressable 24px chip in a meta row is a touch target under the 48px law 13
- *  asks of a tablet. */
-function CustomerPill({ lead }: { lead: LeadProfile }) {
-  const link = lead.chain.find((entry) => entry.kind === 'AC')
-  if (!link) return null
-  return <MetaPill>Khách hàng {link.code}</MetaPill>
-}
-
-/** The customer-journey run this lead started — the one screen that puts this
- *  lead beside its deals and its account.
- *
- *  Nothing is drawn when the code is null: a lead written before migration
- *  0045 has no run, and a chip that opens nothing is worse than no chip. The
- *  same rule costs the permission too — `marketing` holds `lead.view` without
- *  `workstream.view`, and the route gates on the latter, so the chip would
- *  open a refusal. Hiding it is not a data cut: the `WS-` code sits on a
- *  `LeadRow` this reader already reads. */
-function WorkstreamChip({ lead, go }: { lead: LeadProfile; go: (path: string) => void }) {
-  const canOpenWorkstream = useCan('workstream.view')
-  if (lead.workstreamCode === null || !canOpenWorkstream) return null
-  return <ObjectChip kind="WS" code={lead.workstreamCode} go={go} />
-}
-
-/** The screen that would not open — ONE block, three sentences, and the glyph
- *  follows the sentence.
- *
- *  One component for all three because all three are the same state of the
- *  screen (no profile to draw) with the same way out (back to the lead book).
- *  What differs is the SENTENCE, so the sentence is the prop — rather than
- *  three near-identical empty blocks that drift apart on the second edit. */
-function EmptyLead({
-  icon,
-  note,
-  onBack,
-}: {
-  icon: IconGlyph
-  note: ReactNode
-  onBack: () => void
-}) {
-  return (
-    <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <Icon icon={icon} size={26} className="text-muted-foreground" />
-      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">{note}</p>
-      <Button size="sm" variant="ghost" onClick={onBack}>
-        Về sổ lead
-      </Button>
-    </div>
-  )
-}
-
-/** The lead's stored lifecycle state (ADR 0058), named by the same table the
- *  book reads — two screens of one row must print one word. A disqualified
- *  lead also says why, because that is the first question about it. */
-function StatusBadge({ lead, className }: { lead: LeadProfile; className?: string }) {
-  const { data } = useQuery(leadStopReasonsQuery)
-  const face = LEAD_STATE_FACE[lead.state]
-  const reason =
-    lead.state === 'disqualified' && lead.exitReason
-      ? stopReasonLabel(data?.rows, lead.exitReason)
-      : undefined
-  const text = reason ? `${face.label} · ${reason}` : face.label
-
-  /* Truncates rather than pushes the company name off the row: this is the
-     longest state pill in the app, and the header is one line on a tablet. */
-  return (
-    <Badge
-      tone={face.badge}
-      className={cn('max-w-full', face.badge === 'draft' && 'text-foreground', className)}
-      title={text}
-    >
-      <span className="truncate">{text}</span>
-    </Badge>
+    </RecordShell>
   )
 }
