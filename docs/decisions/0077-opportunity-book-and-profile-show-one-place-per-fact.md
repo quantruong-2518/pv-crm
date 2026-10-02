@@ -37,8 +37,9 @@ seller enters with the terms ("Sửa phiếu").
 
 ### 3b · The book's deal cell
 
-As the lead book's company cell: "account · title" over `contact · email`,
+As the lead book's company cell: the deal's title over `contact · email`,
 the address opening the system's mail composer. No separate Email column.
+No quick-filter row: "overdue in stage" stays in the filter menu.
 
 ### 4 · "Hoạt động cuối" on the book
 

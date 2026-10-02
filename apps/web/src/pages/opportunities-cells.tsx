@@ -20,7 +20,7 @@ import {
   standingLabel,
   STATE_TONE,
 } from '@/data/opportunities'
-import { ACCEPT_QUEUE_ID, AcceptDealButton } from '@/components/opportunity-accept'
+import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { PicCell } from '@/components/table-bits'
 import { lateLevel } from './workstream-tree-model'
@@ -66,7 +66,7 @@ function Dash({ title }: { title: string }) {
 
 const stop = (event: SyntheticEvent) => event.stopPropagation()
 
-/** Deal over `contact · email`, small and italic — the lead book's company cell.
+/** The deal's name over `contact · email`, small and italic — the lead book's company cell.
  *  With `onEmail` the address opens the system's mail composer for this deal and
  *  stops the click, or the row would open as well; without it the address is
  *  plain text. */
@@ -74,9 +74,7 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
   const contact = op.primaryContact
   return (
     <span className="flex min-w-0 flex-col gap-1" title={`${op.code} · ${op.account} — ${op.name}`}>
-      <span className="truncate text-[13px] font-semibold">
-        {op.account} · {op.name}
-      </span>
+      <span className="truncate text-[13px] font-semibold">{op.name}</span>
       <span className="text-muted-foreground flex min-w-0 gap-1 text-[11.5px] italic">
         {contact ? (
           <>
@@ -298,9 +296,7 @@ function RowAccept({ code, show }: { code: string; show: boolean }) {
           size="sm"
           className="pointer-coarse:h-12"
           onAccepted={() => (next.current = nextRow())}
-          returnFocus={() =>
-            next.current?.isConnected ? next.current : document.getElementById(ACCEPT_QUEUE_ID)
-          }
+          returnFocus={() => (next.current?.isConnected ? next.current : null)}
         />
       </RowAct>
     </span>

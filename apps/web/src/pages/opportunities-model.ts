@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   OPPORTUNITY_STATE_LABEL,
-  OWNER_NONE,
   OpportunitySortKey,
   type OpportunityBookQuery,
   type OpportunityBookRow,
@@ -20,7 +19,7 @@ import {
 import type { MasRecipient } from '@/data/mas-mail-draft'
 
 /** Module 3 · the deal book's logic without JSX: the address as the filter's
- *  source of truth, the tab order, the three quick filters and the bulk-mail
+ *  source of truth, the tab order and the bulk-mail
  *  tally. The screen is `opportunities.tsx`. */
 
 /** Rows drawn per page; overrides the contract's default without writing it
@@ -83,50 +82,6 @@ export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefi
       count: byState?.[state],
     })),
   ]
-}
-
-export type QuickKey = keyof OpportunityFacetsResponse['quick']
-
-/** Each quick filter as book axes — the same three the server counts in
- *  `facets.quick`, so a chip's number is what its click returns. */
-export const QUICK_AXES: Record<QuickKey, Partial<OpportunityBookQuery>> = {
-  awaitingAccept: { stage: 'new' },
-  noSeller: { accepted: true, sale: OWNER_NONE },
-  overdue: { overdue: true },
-}
-
-const QUICK_KEYS = Object.keys(QUICK_AXES) as QuickKey[]
-const cleared = (axes: Partial<OpportunityBookQuery>) =>
-  Object.fromEntries(Object.keys(axes).map((key) => [key, undefined]))
-
-/** The chip in force, if any. One at a time: "awaiting accept" and "no seller"
- *  exclude each other, and a sum of two would not be any chip's count. */
-export const activeQuick = (query: OpportunityBookQuery): QuickKey | null =>
-  QUICK_KEYS.find((key) =>
-    Object.entries(QUICK_AXES[key]).every(
-      ([axis, value]) => query[axis as keyof OpportunityBookQuery] === value,
-    ),
-  ) ?? null
-
-/** The query the chip counts are read under: everything but the chip itself. */
-export function withoutQuick(query: OpportunityBookQuery): OpportunityBookQuery {
-  const active = activeQuick(query)
-  return active ? { ...query, ...cleared(QUICK_AXES[active]) } : query
-}
-
-/** The patch a chip press makes. All three chips are open deals only, so a
- *  closed-state tab falls back to "all" rather than answering zero. */
-export function quickPatch(
-  query: OpportunityBookQuery,
-  key: QuickKey,
-): Partial<OpportunityBookQuery> {
-  const active = activeQuick(query)
-  if (active === key) return cleared(QUICK_AXES[key])
-  return {
-    ...(active ? cleared(QUICK_AXES[active]) : {}),
-    ...QUICK_AXES[key],
-    state: query.state === 'open' ? 'open' : undefined,
-  }
 }
 
 /** A person filter's choices, sorted by name so entries do not jump around. */

@@ -570,20 +570,12 @@ export const OpportunityFacetsQuery = OpportunityBookQuery.omit({
 })
 
 /** Choices that actually occur, DISTINCT in SQL; `byState` counts EVERY
- *  `OpportunityStatus`, zeros included, so the tabs print straight off it.
- *  `quick` counts the three quick filters under the same scope and query —
- *  `stage=new`, `accepted&sale=OWNER_NONE`, `overdue` — so a chip never shows a
- *  number its own click would not reproduce. */
+ *  `OpportunityStatus`, zeros included, so the tabs print straight off it. */
 export const OpportunityFacetsResponse = z.object({
   saleOwners: z.array(WorkstreamHolder),
   bdOwners: z.array(WorkstreamHolder),
   accounts: z.array(textInput(200)),
   byState: z.record(OpportunityStatus, z.number().int().nonnegative()),
-  quick: z.object({
-    awaitingAccept: z.number().int().nonnegative(),
-    noSeller: z.number().int().nonnegative(),
-    overdue: z.number().int().nonnegative(),
-  }),
 })
 
 export const OpportunityCreateResponse = OpportunityRow

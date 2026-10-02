@@ -96,7 +96,3 @@ export function AcceptDealButton({
     </>
   )
 }
-
-/** The focus fallback of a book row's accept when no row follows it — the
- *  book's awaiting-accept quick filter carries this id. */
-export const ACCEPT_QUEUE_ID = 'deal-accept-queue'

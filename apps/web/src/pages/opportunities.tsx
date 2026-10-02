@@ -35,7 +35,7 @@ import {
   useMailable,
   usePageClamp,
 } from './opportunities-model'
-import { BookTabs, BookTools, QuickFilters, ScoreCards } from './opportunities-parts'
+import { BookTabs, BookTools, ScoreCards } from './opportunities-parts'
 import {
   AmountCell,
   CloseCell,
@@ -112,7 +112,6 @@ export function OpportunitiesPage() {
           tabs={
             <BookTabs query={urlQuery} total={total} hidden={data?.hidden ?? 0} onPatch={patch} />
           }
-          quick={<QuickFilters query={urlQuery} onPatch={patch} />}
           tools={
             <BookTools
               query={urlQuery}

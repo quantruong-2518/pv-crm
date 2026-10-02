@@ -1,24 +1,20 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useCan } from '@/app/auth'
 import {
   Button,
+  Checkbox,
   CircleX,
   Icon,
   SearchField,
   SegmentedControl,
   X,
   FileCheck,
-  Inbox,
   Select,
   StatCard,
   Target,
-  Timer,
-  UserMinus,
   Wallet,
   billions,
   percent,
-  type IconGlyph,
 } from '@pv/ui'
 import {
   OPPORTUNITY_STAGE_LABEL,
@@ -32,22 +28,12 @@ import {
   opportunityFacetQuery,
   opportunityScorecardQuery,
 } from '@/data/opportunities'
-import { ACCEPT_QUEUE_ID } from '@/components/opportunity-accept'
-import { BookQueueButton } from '@/components/book-queue-button'
 import { BookCount } from '@/components/book-page'
 import { FilterMenu } from '@/components/table-bits'
-import {
-  ANY,
-  activeQuick,
-  peopleOptions,
-  quickPatch,
-  stateTabs,
-  withoutQuick,
-  type QuickKey,
-} from './opportunities-model'
+import { ANY, peopleOptions, stateTabs } from './opportunities-model'
 
 /** Module 3 · the deal book's blocks: the toolbar's two ends (tabs, search with
- *  the filter menu, the quick-filter row) and the score cards
+ *  the filter menu) and the score cards
  *  (ADR 0077). Mounted by `opportunities.tsx`. */
 
 type Patch = (next: Partial<OpportunityBookQuery>) => void
@@ -125,45 +111,8 @@ export function BookTools({
   )
 }
 
-const QUICK: { key: QuickKey; label: string; icon: IconGlyph; id?: string }[] = [
-  /* The row accept's focus fallback when no row follows it. */
-  { key: 'awaitingAccept', label: 'Chờ nhận PIC', icon: Inbox, id: ACCEPT_QUEUE_ID },
-  { key: 'noSeller', label: 'Chưa có Sale', icon: UserMinus },
-  { key: 'overdue', label: 'Quá hạn', icon: Timer },
-]
-
-/** The quick-filter row — three toggles, counted by `facets.quick` under every other
- *  filter in force. A head's two queues show only to whoever can act on them. */
-export function QuickFilters({ query, onPatch }: { query: OpportunityBookQuery; onPatch: Patch }) {
-  const canAccept = useCan('opportunity.accept')
-  const canAssign = useCan('opportunity.assign')
-  const { data } = useQuery(opportunityFacetQuery(facetsQueryOf(withoutQuick(query))))
-  const active = activeQuick(query)
-  const shown = QUICK.filter(
-    (q) => (q.key !== 'awaitingAccept' || canAccept) && (q.key !== 'noSeller' || canAssign),
-  )
-
-  return (
-    <div role="group" aria-label="Lọc nhanh" className="flex flex-wrap items-center gap-2">
-      <span className="text-muted-foreground text-[11.5px]">Lọc nhanh:</span>
-      {shown.map((q) => (
-        <BookQueueButton
-          key={q.key}
-          id={q.id}
-          icon={q.icon}
-          label={q.label}
-          count={data?.quick[q.key]}
-          active={active === q.key}
-          onPress={() => onPatch(quickPatch(query, q.key))}
-        />
-      ))}
-    </div>
-  )
-}
-
 /** The secondary filters behind the filter button. Choices span the whole
- *  visible book (no filter), so a select never collapses to its own pick.
- *  Overdue lives only in the quick row, as does the no-seller pick it sets. */
+ *  visible book (no filter), so a select never collapses to its own pick. */
 function BookFilters({
   query,
   onPatch,
@@ -182,8 +131,7 @@ function BookFilters({
     () => [...(choices?.accounts ?? [])].sort((a, b) => a.localeCompare(b, 'vi')),
     [choices],
   )
-  const chipSale = activeQuick(query) === 'noSeller'
-  const active = [chipSale ? undefined : query.sale, query.bd, query.account].filter(
+  const active = [query.sale, query.bd, query.account, query.overdue].filter(
     (value) => value !== undefined,
   ).length
   const pick = (value: string) => (value === ANY ? undefined : value)
@@ -222,6 +170,11 @@ function BookFilters({
           { value: ANY, label: 'Mọi account' },
           ...accounts.map((a) => ({ value: a, label: a })),
         ]}
+      />
+      <Checkbox
+        checked={query.overdue === true}
+        onChange={(on) => onPatch({ overdue: on || undefined })}
+        label="Quá hạn cột hiện tại"
       />
       {dirty && (
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClear}>
