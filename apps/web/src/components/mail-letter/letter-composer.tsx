@@ -32,8 +32,9 @@ import {
 import { RecipientPicker, RecipientsCard } from './letter-recipients'
 import { useLetterRecipients } from './letter-recipients-state'
 
-/** An activity or the next quotation round, or the reason nothing is recorded. */
-type DealRecord = { offer: EventOffer | null; block: string | null }
+/** An activity or the next quotation round, or the reason nothing is recorded;
+ *  `primaryContact` is the deal's own addressee (contact code), seeded into To. */
+type DealRecord = { offer: EventOffer | null; block: string | null; primaryContact?: string | null }
 
 /** THE ONE-SCREEN COMPOSER (G1) — a detail door (lead · opportunity · contract)
  *  writes ONE letter every recipient reads in To/CC, with `sales@` locked in CC.
@@ -68,7 +69,7 @@ export function LetterComposer({
   const [guideOpen, setGuideOpen] = useState(false)
   const [failure, setFailure] = useState('')
 
-  const people = useLetterRecipients(door, code, leadCode)
+  const people = useLetterRecipients(door, code, leadCode, deal?.primaryContact)
   const { toCodes, cells, cc, preflight } = people
   const report = preflight.report
   const { data: catalogue } = useQuery(doorTemplatesQuery(door))
@@ -239,7 +240,7 @@ function MilestoneNote({
       )}
     >
       {!offer
-        ? `Thư vẫn gửi, nhưng ${deal.block ?? 'cơ hội này'} nên ${what} sẽ không được ghi.`
+        ? `Thư vẫn gửi, ${what} sẽ không được ghi. ${deal.block ?? ''}`.trim()
         : quoting
           ? `Gửi thành công sẽ ghi ${what} (lần ${offer.nextRound})${moves}` +
             (offer.atAssigned ? ' — bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.')

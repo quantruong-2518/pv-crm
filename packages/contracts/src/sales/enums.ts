@@ -286,6 +286,10 @@ export const CLOSE_REASON_LABEL: Record<WorkstreamCloseReason, string> = {
   CHURNED: 'Rời bỏ',
 }
 
+/** Whether a run's account has won with us before. Unknown has no value of its
+ *  own: it is `null` on the wire, said when the run has no account to check. */
+export const WorkstreamCustomer = z.enum(['new', 'returning'])
+
 /** Mirror of `DueLevel` in `packages/engines/src/contract-due.ts` — contracts may
  *  not import engines, so the two lists must be kept equal by hand (the type-level
  *  equality check belongs on a side that can import both). Sent server-computed
@@ -301,3 +305,4 @@ export type ContactChannel = z.infer<typeof ContactChannel>
 export type CurrencyCode = z.infer<typeof CurrencyCode>
 export type WorkstreamCloseReason = z.infer<typeof WorkstreamCloseReason>
 export type DueLevel = z.infer<typeof DueLevel>
+export type WorkstreamCustomer = z.infer<typeof WorkstreamCustomer>

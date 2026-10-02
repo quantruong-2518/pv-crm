@@ -1,29 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import {
-  isSellerRole,
-  OWNER_NONE,
-  type OpportunityBookQuery,
-  type OpportunityRow,
-  type WorkstreamHolder,
-} from '@pv/contracts'
+import { OWNER_NONE, type OpportunityBookQuery, type WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dm } from '@/lib/date'
-import { directoryQuery } from '@/data/directory'
 
-/** Module 3 · who carries a deal after accept (ADR 0071) — the seller question,
- *  the acceptor's words and the two head queues of the book, each declared once
- *  for the profile, the book and the journey drawer. */
-
-/** Does a seller (`isSellerRole`) stand on the SALE lane? `null` while the
- *  directory that knows the roles is still loading — no warning, no label and
- *  no sign reason may be drawn off a guess. */
-export function useHasSeller(op: Pick<OpportunityRow, 'owners'>): boolean | null {
-  const { data: staff } = useQuery(directoryQuery)
-  const lane = op.owners.filter((o) => o.role === 'SALE')
-  if (lane.length === 0) return false
-  if (!staff) return null
-  return lane.some((o) => isSellerRole(staff.find((a) => a.id === o.id)?.roleId))
-}
+/** Module 3 · who carries a deal after accept (ADR 0071) — the acceptor's words
+ *  and the two head queues of the book, each declared once for the profile, the
+ *  book and the journey drawer. Whether a seller stands on the deal is the
+ *  row's server-judged `hasSeller`. */
 
 /** The one sentence for a deal with no seller, worded with the button it blocks. */
 export function noSellerSentence(won: boolean, canAssign: boolean): string {

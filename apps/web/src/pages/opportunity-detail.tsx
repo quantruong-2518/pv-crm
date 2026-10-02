@@ -10,7 +10,7 @@ import { useAppChrome } from '@/app/chrome'
 import { leadProfileQuery, NO_TOUCHES } from '@/data/lead-profile'
 import { NO_STEPS, opportunityTouchesQuery, opportunityVectorQuery } from '@/data/touches'
 import type { TouchFocus } from '@/data/touches'
-import { eventBlockOf, eventOfferOf, opportunityProfileQuery, railOf } from '@/data/opportunities'
+import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
 import { draftOf } from '@/data/opportunities-write'
 import { useDealDraft } from '@/data/deal-draft'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
@@ -129,10 +129,6 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const saved = useMemo(() => draftOf(op), [op])
   const draft = useDealDraft({ saved, op })
 
-  /* Read as the FACT the sign door checks (`quotation-sent`), not off `stage`:
-     the door refuses on the touch, not on the column. Also the round count. */
-  const quotationsSent = touches.filter((t) => t.kind === 'quotation-sent').length
-
   return (
     <ScreenLayout>
       {/* THE OBJECT CHAIN rides in the header's meta row (law 10), built by
@@ -178,7 +174,6 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         draft={draft}
         op={op}
         onSign={() => setSigning(true)}
-        quotationLogged={quotationsSent > 0}
         canSendEmail={canSendEmail}
         onCompose={() => setComposing(true)}
       />
@@ -189,7 +184,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           door="opportunity"
           code={op.code}
           leadCode={op.leadCode}
-          deal={{ offer: eventOfferOf(op, quotationsSent), block: eventBlockOf(op) }}
+          deal={{
+            offer: eventOfferOf(op, 'quotation'),
+            block: refusalOf(op.acts.quotation),
+            primaryContact: op.primaryContact?.code ?? null,
+          }}
           onClose={() => setComposing(false)}
         />
       )}

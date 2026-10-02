@@ -1,7 +1,6 @@
 import { useRef, type ReactNode, type SyntheticEvent } from 'react'
 import { Badge, StageTrack, cn } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL, type OpportunityBookRow } from '@pv/contracts'
-import { useHasSeller } from '@/data/deal-sale'
 import {
   BADGE_INK,
   OVERDUE_WORD,
@@ -40,13 +39,11 @@ export function StateCell({
   const rotting = clock?.overdue ?? false
   const stage = op.stage === null ? null : OPPORTUNITY_STAGE_LABEL[op.stage]
   const track = stageTrackOf(op)
-  const hasSeller = useHasSeller(op)
   const open = op.state === 'open'
   /* Mounted for every open row so the modal outlives the accept that moves it. */
   const accept = canAccept && open
   const accepting = accept && op.stage === 'new'
-  const assigning =
-    canAssign && open && op.stage !== null && op.stage !== 'new' && hasSeller === false
+  const assigning = canAssign && open && op.stage !== null && op.stage !== 'new' && !op.hasSeller
 
   return (
     <div className="flex min-w-0 flex-col gap-1">

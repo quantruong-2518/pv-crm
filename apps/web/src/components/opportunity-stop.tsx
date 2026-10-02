@@ -19,13 +19,17 @@ import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
-import { salesCatalogQuery, useCareReasonLabel, useCareReasons } from '@/data/sales-config'
-import { opportunityStageHistoryQuery, useStopDeal } from '@/data/opportunities-write'
+import {
+  opportunityStageHistoryQuery,
+  opportunityStopReasonsQuery,
+  useStopDeal,
+} from '@/data/opportunities-write'
 import { Field } from './ops-fields'
 
 /** Module 3 · stopping a deal, and what a stopped deal remembers (ADR 0069 §1).
@@ -33,15 +37,9 @@ import { Field } from './ops-fields'
  *  A stop is final: no reopen door, re-nurturing goes through the lead. So the
  *  drawer says that before the press, and a lost deal prints its fail log —
  *  rung, reason, note, who, when — in place of the moves it no longer has.
- *  Reasons are the stage-scoped `LOSS_REASON` catalogue; a key travels, never
- *  a label, and `other` needs a note (the contract's own refine, mirrored). */
-
-/** Ids of the reasons flagged do-not-contact — read off the whole list, inactive
- *  rows included, so an old fail log still carries its flag. */
-function useDoNotContact(): ReadonlySet<string> {
-  const { data } = useQuery(salesCatalogQuery)
-  return new Set((data?.LOSS_REASON ?? []).filter((r) => r.doNotContact).map((r) => r.id))
-}
+ *  Reasons are the stage-scoped `LOSS_REASON` catalogue from the stop-reasons
+ *  door; a key travels, never a label, and `other` needs a note (the contract's
+ *  own refine, mirrored). */
 
 export function StopDrawer({
   op,
@@ -55,8 +53,10 @@ export function StopDrawer({
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const stop = useStopDeal(op.code)
-  const reasons = useCareReasons(op.stage)
-  const flagged = useDoNotContact()
+  const { data: catalog } = useQuery(opportunityStopReasonsQuery)
+  /* `stage: null` is offered in every column — the rule the server checks the key by. */
+  const reasons = (catalog?.rows ?? []).filter((r) => r.stage === null || r.stage === op.stage)
+  const flagged = new Set(reasons.filter((r) => r.doNotContact).map((r) => r.id))
   const busy = stop.isPending
   const noteNeeded = reasonKey === OPPORTUNITY_STOP_REASON_OTHER
   const ready = reasonKey !== '' && (!noteNeeded || note.trim() !== '') && !busy
@@ -81,9 +81,9 @@ export function StopDrawer({
     { value: '', label: 'Chọn lý do…' },
     ...reasons.map((r) => ({
       value: r.id,
-      label: flagged.has(r.id) ? `${r.label} · ${LOSS_REASON_DO_NOT_CONTACT_LABEL}` : r.label,
+      label: r.doNotContact ? `${r.name} · ${LOSS_REASON_DO_NOT_CONTACT_LABEL}` : r.name,
     })),
-    { value: OPPORTUNITY_STOP_REASON_OTHER, label: 'Khác' },
+    { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
   ]
 
   return (
@@ -113,7 +113,7 @@ export function StopDrawer({
                 : ready
                   ? `Nếu đây là cơ hội cuối còn chạy của lead và chưa ký gì, lead về "${LEAD_STATE_LABEL.nurturing}".`
                   : noteNeeded
-                    ? 'Chọn "Khác" thì phải ghi rõ lý do.'
+                    ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải ghi rõ lý do.`
                     : 'Chọn một lý do trong danh mục.'}
           </span>
           <div className="flex shrink-0 gap-2">
@@ -162,7 +162,7 @@ export function StopDrawer({
         {flagged.has(reasonKey) && (
           <span className="flex">
             <Badge tone="warning" className="whitespace-normal">
-              {LOSS_REASON_DO_NOT_CONTACT_LABEL}: lead này sẽ không được liên hệ lại.
+              {LOSS_REASON_DO_NOT_CONTACT_LABEL}: cờ này được ghi cùng lý do vào nhật ký dừng.
             </Badge>
           </span>
         )}
@@ -191,8 +191,8 @@ export function StopDrawer({
  *  event that took the deal off the board (`to: null`), read from the same
  *  cached history the history tab draws. */
 export function FailLogCard({ op }: { op: OpportunityRow }) {
-  const reason = useCareReasonLabel(op.stopReason)
-  const flagged = useDoNotContact()
+  /* Both resolved server-side, so a reader without `config.view` still reads why. */
+  const reason = op.stopReasonLabel
   const history = useQuery(opportunityStageHistoryQuery(op.code))
   const exit = (history.data?.rows ?? [])
     .filter((e) => e.to === null)
@@ -211,9 +211,7 @@ export function FailLogCard({ op }: { op: OpportunityRow }) {
       value: (
         <span className="flex flex-wrap items-center gap-2">
           {reason ?? 'Không ghi'}
-          {op.stopReason !== undefined && flagged.has(op.stopReason) && (
-            <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>
-          )}
+          {op.stopDoNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
         </span>
       ),
     },

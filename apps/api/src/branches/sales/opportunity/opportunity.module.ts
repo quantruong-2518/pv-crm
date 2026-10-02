@@ -11,7 +11,12 @@ import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityAccept } from './opportunity-accept.service'
+import { OpportunityActs } from './opportunity-acts'
 import { OpportunityAssign } from './opportunity-assign.service'
+import { OpportunityContacts } from './opportunity-contacts.service'
+import { OpportunityFacetsRepository } from './opportunity-facets.repository'
+import { OpportunityFacts } from './opportunity-facts'
+import { OpportunityFactsRepository } from './opportunity-facts.repository'
 import { OpportunityController } from './opportunity.controller'
 import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
@@ -96,6 +101,11 @@ import { OpportunityService } from './opportunity.service'
     OpportunityAssign,
     OpportunityOpening,
     OpportunityOpenRepository,
+    OpportunityFacts,
+    OpportunityFactsRepository,
+    OpportunityFacetsRepository,
+    OpportunityActs,
+    OpportunityContacts,
     OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không

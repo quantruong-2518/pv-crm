@@ -51,6 +51,9 @@ export const PipelinePositionView = z.object({
    *  configured — which is "nothing can be late here yet", not "nothing is
    *  late". */
   overdueBy: z.number().int().nullable(),
+  /** The current phase's configured limit, echoed so a screen prints the rule
+   *  it is judged by instead of recovering it as `daysHere − overdueBy`. */
+  limitDays: z.number().int().positive().nullable(),
 })
 
 export type PipelinePositionView = z.infer<typeof PipelinePositionView>

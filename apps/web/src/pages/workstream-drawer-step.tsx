@@ -4,7 +4,7 @@ import { Button, Check, Icon, Pencil, Plus, TriangleAlert } from '@pv/ui'
 import type { JourneyDeal, StageKey } from '@pv/contracts'
 import { dmy } from '@/lib/date'
 import { dealStepSubject } from '@/data/deal-next-step'
-import { noSellerSentence, useHasSeller } from '@/data/deal-sale'
+import { noSellerSentence } from '@/data/deal-sale'
 import { opportunityProfileQuery } from '@/data/opportunities'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { NextStepForm } from './lead-next-action'
@@ -87,8 +87,8 @@ export function DealStepSection({
  *  journey carries no lane, so the deal's own profile is read for it. */
 export function DealAssignSection({ code }: { code: string }) {
   const { data: op } = useQuery(opportunityProfileQuery(code))
-  const hasSeller = useHasSeller(op ?? { owners: [] })
-  if (!op || hasSeller === null) return null
+  if (!op) return null
+  const hasSeller = op.hasSeller
   const lane = op.owners.filter((o) => o.role === 'SALE')
 
   return (
@@ -102,8 +102,8 @@ export function DealAssignSection({ code }: { code: string }) {
             <span className="break-words">{noSellerSentence(false, true)}</span>
           </span>
         )}
-        {/* Hidden while a signature waits: the lane is what that request names. */}
-        {!op.pendingSign && <AssignSaleButton op={op} hasSeller={hasSeller} size="lg" />}
+        {/* `acts.assign` shuts it while a signature waits: the lane is what that request names. */}
+        {op.acts.assign.ok && <AssignSaleButton op={op} hasSeller={hasSeller} size="lg" />}
       </div>
     </Section>
   )

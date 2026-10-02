@@ -12,8 +12,9 @@ import { notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { syncLeadRuns } from '../workstream/workstream-sync'
 import { LEAD_NURTURED_WITHHOLD, LeadStateWriter } from '../lead/lead-state'
+import { OpportunityFacts } from './opportunity-facts'
 import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
-import { daysInStageOf, NOTE, toContract, toRef } from './opportunity.mapper'
+import { daysInStageOf, NOTE, toRef } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 import { OpportunityService } from './opportunity.service'
 
@@ -39,6 +40,7 @@ export class OpportunityMoves {
     private readonly ops: OpportunityService,
     private readonly leadStates: LeadStateWriter,
     private readonly mailRuns: MailRunRepository,
+    private readonly facts: OpportunityFacts,
   ) {}
 
   /** `POST /sales/opportunities/:code/milestones` — a care activity or a
@@ -58,7 +60,7 @@ export class OpportunityMoves {
       })
     })
 
-    return OpportunityMilestoneResponse.parse(this.answer(found, row, new Date()))
+    return OpportunityMilestoneResponse.parse(await this.answer(found, row, new Date()))
   }
 
   /** `POST /sales/opportunities/:code/stop` — the deal is lost, with a reason.
@@ -86,7 +88,7 @@ export class OpportunityMoves {
       return written
     })
 
-    return OpportunityStopResponse.parse(this.answer(found, row, at))
+    return OpportunityStopResponse.parse(await this.answer(found, row, at))
   }
 
   /** The lead goes back to waiting (the state writer re-syncs its run); parked
@@ -127,15 +129,10 @@ export class OpportunityMoves {
   /** The book row, built from the row the move returned plus the labels the read
    *  before the transaction already carried. */
   private answer(found: OpportunityRead, row: OpportunityRead['row'], at: Date) {
-    return toContract({
+    return this.facts.row({
+      ...found,
       row,
-      account: found.account,
-      owners: found.owners,
-      contractCodes: found.contractCodes,
-      holder: found.holder,
-      acceptedBy: found.acceptedBy,
       daysInStage: daysInStageOf(row, at),
-      products: found.products,
     })
   }
 }

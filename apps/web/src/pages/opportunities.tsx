@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CircleX, FileCheck, Plus, Target, Wallet, X } from '@pv/ui'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
@@ -26,8 +26,10 @@ import {
   OpportunityStatus,
   OWNER_NONE,
   type OpportunityBookQuery,
+  type OpportunityBookRow,
   type OpportunityOwner,
   type OpportunityRow,
+  type WorkstreamHolder,
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -40,6 +42,7 @@ import {
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   amountVndOf,
+  facetsQueryOf,
   isLateClose,
   namesOf,
   opportunityBookQuery,
@@ -47,12 +50,10 @@ import {
   opportunityFacetQuery,
   opportunityScorecardQuery,
   parseOpportunityBookQuery,
-  saleOwnersOf,
 } from '@/data/opportunities'
 import { ACCEPT_QUEUE, inQueue, UNASSIGNED_QUEUE } from '@/data/deal-sale'
 import { OP_SPEC } from '@/data/intake'
 import { useOpportunityImport } from '@/data/opportunity-import'
-import { leadFacetQuery } from '@/data/leads'
 import { type MasRecipient } from '@/data/mas-mail-draft'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
@@ -132,9 +133,8 @@ import {
  *     ngày sổ dài hơn một trang (màn chỉ sắp được mười dòng nó đang cầm).
  *   · **Đếm thẻ điểm tại trình duyệt** — `ScoreCards` nay đọc
  *     `GET /sales/opportunities/scorecard`.
- *   · **Ba ô lọc gom từ trang đang xem** — chúng nay dựng từ `opportunityFacetQuery`,
- *     một lượt đọc riêng. Lý do đầy đủ ở docblock của query đó; tóm tắt: một
- *     trang mười dòng chỉ biết mười người, nên bộ lọc sẽ tự giấu mất lựa chọn.
+ *   · **Filter choices gathered from the page in view** — they now come from
+ *     `GET /sales/opportunities/facets` (`opportunityFacetQuery`), DISTINCT in SQL.
  *
  *  Và bộ lọc chuyển lên **ĐỊA CHỈ** (`useSearchParams` + hai hàm dịch ở
  *  `data/opportunities.ts`), không còn nằm trong `useState`. Đó không phải tiện
@@ -248,36 +248,19 @@ export function OpportunitiesPage() {
   const total = data?.total ?? 0
   const hidden = data?.hidden ?? 0
 
-  /* Sổ ĐẦY ĐỦ, gọi riêng một lần. Đây là chỗ CHẮP VÁ — cả lý do lẫn ngày nó gãy
-     nằm trong docblock của `opportunityFacetQuery`, đọc ở đó trước khi bắt
-     chước cách này. Ba ô lọc người/công ty cần một câu trả lời về CẢ SỔ mà một
-     trang mười dòng không trả lời được. */
-  const { data: facets } = useQuery(opportunityFacetQuery)
-  const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
+  /* Two facet reads: the choices span the whole visible book (no filter, so a
+     select never collapses to its own pick); the tab counts honour the filters. */
+  const { data: choices } = useQuery(opportunityFacetQuery({}))
+  const { data: facets } = useQuery(opportunityFacetQuery(facetsQueryOf(urlQuery)))
 
-  /* `leadFacetQuery`'s own capped-book debt, reused rather than duplicated: a
-     recipient's name and address live on the LEAD row, and an opportunity only
-     carries the `leadCode` that points at one. */
-  const { data: leadFacets } = useQuery(leadFacetQuery)
-  const wholeLeadBook = useMemo(() => leadFacets?.rows ?? [], [leadFacets])
-  const recipients: MasRecipient[] = useMemo(() => {
-    const leadsByCode = new Map(wholeLeadBook.map((lead) => [lead.code, lead]))
-    return wholeBook.flatMap((op) => {
-      const lead = leadsByCode.get(op.leadCode)
-      if (!lead) return []
-      return [
-        {
-          code: op.code,
-          leadCode: lead.code,
-          company: lead.company,
-          contactName: lead.contactName,
-          contactTitle: lead.contactTitle,
-          email: lead.email,
-          destinationLabel: op.name,
-        },
-      ]
-    })
-  }, [wholeBook, wholeLeadBook])
+  /* Codes outlive paging, so every page shown keeps its rows' recipients. */
+  const [mailable, setMailable] = useState<ReadonlyMap<string, MasRecipient>>(NO_RECIPIENTS)
+  const [mailPage, setMailPage] = useState<OpportunityBookRow[] | undefined>(undefined)
+  if (mailPage !== data?.rows) {
+    setMailPage(data?.rows)
+    setMailable((prev) => withRecipients(prev, data?.rows ?? []))
+  }
+  const recipients = useMemo(() => [...mailable.values()], [mailable])
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
 
@@ -358,11 +341,11 @@ export function OpportunitiesPage() {
 
   /* Ba danh sách lọc dựng TỪ CẢ SỔ chứ không khai tay: thêm một Sale hay một
      công ty vào dữ liệu là ô lọc tự có, không ai phải nhớ sửa thêm chỗ này. */
-  const saleOptions = useMemo(() => peopleOptions(wholeBook, saleOwnersOf), [wholeBook])
-  const bdOptions = useMemo(() => peopleOptions(wholeBook, bdOwnersOf), [wholeBook])
+  const saleOptions = useMemo(() => peopleOptions(choices?.saleOwners ?? []), [choices])
+  const bdOptions = useMemo(() => peopleOptions(choices?.bdOwners ?? []), [choices])
   const accounts = useMemo(
-    () => [...new Set(wholeBook.map((o) => o.account))].sort((a, b) => a.localeCompare(b, 'vi')),
-    [wholeBook],
+    () => [...(choices?.accounts ?? [])].sort((a, b) => a.localeCompare(b, 'vi')),
+    [choices],
   )
 
   /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
@@ -372,6 +355,7 @@ export function OpportunitiesPage() {
     query.state !== undefined ||
     query.stage !== undefined ||
     query.accepted !== undefined ||
+    query.overdue !== undefined ||
     query.sale !== undefined ||
     query.bd !== undefined ||
     query.account !== undefined
@@ -382,6 +366,7 @@ export function OpportunitiesPage() {
       state: undefined,
       stage: undefined,
       accepted: undefined,
+      overdue: undefined,
       sale: undefined,
       bd: undefined,
       account: undefined,
@@ -394,24 +379,20 @@ export function OpportunitiesPage() {
       ? patch(Object.fromEntries(Object.keys(queue).map((key) => [key, undefined])))
       : setParams(opportunityBookQueryToParams({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, ...queue }))
 
-  /* One `size=1` read per tab, the move the lead book already makes: `total` is
-     the count under the OTHER filters in force, and no other endpoint answers
-     that question. */
-  const tabCounts = useQueries({
-    queries: STATE_TABS.map((tab) =>
-      opportunityBookQuery({
-        ...urlQuery,
-        state: tab.value === ANY ? undefined : (tab.value as OpportunityStatus),
-        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-        size: 1,
-      }),
-    ),
-  })
-  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
+  /* `byState` counts under the other filters in force; "all" is their sum. */
+  const byState = facets?.byState
+  const tabs = STATE_TABS.map((tab) => ({
+    ...tab,
+    count: !byState
+      ? undefined
+      : tab.value === ANY
+        ? Object.values(byState).reduce((sum, n) => sum + n, 0)
+        : byState[tab.value as OpportunityStatus],
+  }))
 
   /* The number printed on the filter button. State is NOT counted here: it is
      already visible on the tab row, and counting it twice says one thing twice. */
-  const activeFilters = [query.sale, query.bd, query.account].filter(
+  const activeFilters = [query.sale, query.bd, query.account, query.overdue].filter(
     (value) => value !== undefined,
   ).length
 
@@ -602,6 +583,11 @@ export function OpportunitiesPage() {
                     ...accounts.map((a) => ({ value: a, label: a })),
                   ]}
                 />
+                <Checkbox
+                  checked={query.overdue === true}
+                  onChange={(on) => patch({ overdue: on || undefined })}
+                  label="Quá hạn cột hiện tại"
+                />
                 {dirty && (
                   <Button size="md" variant="ghost" onClick={clearFilters}>
                     Bỏ hết bộ lọc
@@ -748,24 +734,35 @@ export function OpportunitiesPage() {
 
 // ---------------------------------------------------------------------------
 
-/** Mục chọn người cho một ô lọc, gom từ CẢ SỔ (`opportunityFacetQuery`).
- *
- *  Khoá theo `id` nhưng nhãn là TÊN mà máy chủ đã gửi kèm. Bản cũ tra ngược id
- *  sang tên bằng danh sách actor của fixture — với dữ liệu thật thì đó là đọc
- *  tên người ra từ một kịch bản không chứa họ.
- *
- *  Xếp theo TÊN chứ không theo thứ tự gặp: thứ tự gặp là thứ tự dòng máy chủ
- *  trả về, tức nó đổi mỗi lần ai đó tạo một đơn — một ô chọn mà mục nhảy chỗ
- *  giữa hai lần mở là một ô chọn phải đọc lại từ đầu mỗi lần. */
-function peopleOptions(
-  book: OpportunityRow[],
-  pick: (o: OpportunityRow) => { id: string; name: string }[],
-) {
-  const seen = new Map<string, string>()
-  for (const op of book) for (const p of pick(op)) seen.set(p.id, p.name)
-  return [...seen]
-    .map(([value, label]) => ({ value, label }))
+/** A person filter's choices from `/facets`, keyed by id, labelled with the
+ *  server's name, sorted by name so entries do not jump between openings. */
+function peopleOptions(people: readonly WorkstreamHolder[]) {
+  return people
+    .map((p) => ({ value: p.id, label: p.name }))
     .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+}
+
+const NO_RECIPIENTS: ReadonlyMap<string, MasRecipient> = new Map()
+
+/** Adds a page's mailable rows: the deal's primary contact, `email: null`
+ *  kept as `''` so the composer says "no email" rather than dropping the row. */
+function withRecipients(
+  known: ReadonlyMap<string, MasRecipient>,
+  rows: readonly OpportunityBookRow[],
+): ReadonlyMap<string, MasRecipient> {
+  const next = new Map(known)
+  for (const op of rows) {
+    if (!op.primaryContact) continue
+    next.set(op.code, {
+      code: op.code,
+      leadCode: op.leadCode,
+      company: op.account,
+      contactName: op.primaryContact.name,
+      email: op.primaryContact.email ?? '',
+      destinationLabel: op.name,
+    })
+  }
+  return next
 }
 
 /** Người đầu tiên của một danh sách, hoặc `undefined` nếu rỗng.
@@ -908,19 +905,23 @@ function AmountCell({ op }: { op: OpportunityRow }) {
   )
 }
 
-/** Cột ngày đóng. Đơn đã đóng sổ in ngày THẬT; đơn đang mở in ngày DỰ KIẾN, và
- *  ngày dự kiến đã trôi qua thì tô cảnh báo — nó nói "đáng lẽ đóng rồi". */
+/** The close-date cell. A closed deal prints the day it really closed
+ *  (`closedAt`); an open one its expected day, in warning once that day passed. */
 function CloseCell({ op }: { op: OpportunityRow }) {
-  if (op.expectedClose === null) {
+  const closed = op.stage === null
+  const day = closed ? op.closedAt : op.expectedClose
+  if (day === null) {
     return (
-      <span className="text-muted-foreground" title="Chưa đặt ngày đóng dự kiến">
+      <span
+        className="text-muted-foreground"
+        title={closed ? 'Chưa ghi ngày đóng' : 'Chưa đặt ngày đóng dự kiến'}
+      >
         —
       </span>
     )
   }
 
   const late = isLateClose(op)
-  const closed = op.stage === null
 
   return (
     <span
@@ -933,7 +934,7 @@ function CloseCell({ op }: { op: OpportunityRow }) {
             : 'Ngày dự kiến'
       }
     >
-      <span className="tnum font-num">{dm(op.expectedClose)}</span>
+      <span className="tnum font-num">{dm(day)}</span>
     </span>
   )
 }

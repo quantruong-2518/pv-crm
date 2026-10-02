@@ -16,8 +16,8 @@ import { dmy } from '@/lib/date'
 import { focusSoon } from '@/lib/focus'
 import { dealStepSubject } from '@/data/deal-next-step'
 import { nextStepQuery } from '@/data/next-step'
-import { type EventOffer } from '@/data/opportunities'
-import { opportunityStageHistoryQuery, useLogMilestone } from '@/data/opportunities-write'
+import { eventOfferOf, refusalOf, vnToday, type EventKind } from '@/data/opportunities'
+import { useLogMilestone } from '@/data/opportunities-write'
 import { Field } from '@/components/ops-fields'
 import { NextStepForm } from './lead-next-action'
 
@@ -26,12 +26,10 @@ import { NextStepForm } from './lead-next-action'
  *  is another round). One modal for both, because both carry a back-datable
  *  day and a note, and both end on the same question about the next step.
  *
- *  The day bounds mirror the door's, in Vietnam calendar days: an activity in
- *  [acceptance, today], a quotation in [entry into the current stage, today].
- *  Today sends no `at`, so the server stamps its own now; another day is sent
- *  as that day's VN midnight and the server clamps it to [floor, now]. */
+ *  The day bounds are the server's `floors` per door, in Vietnam calendar days,
+ *  up to today. Today sends no `at`, so the server stamps its own now; another
+ *  day is sent as that day's VN midnight and the server clamps it to [floor, now]. */
 
-type EventKind = 'activity' | 'quotation'
 type Phase = 'form' | 'follow' | 'step-done' | 'step-new'
 
 /** Each phase swaps out the button that was pressed, so focus is placed on the
@@ -43,26 +41,8 @@ const focusFollow = () =>
     return box?.querySelector<HTMLElement>('textarea') ?? box?.querySelector<HTMLElement>('button')
   })
 
-/* `en-CA` formats as YYYY-MM-DD; the zone is the server's day boundary. */
-const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
-const today = () => VN_DAY.format(Date.now())
-const dayOf = (iso: string) => VN_DAY.format(new Date(iso))
-
 const atOfDay = (day: string): string | undefined =>
-  day === today() ? undefined : `${day}T00:00:00+07:00`
-
-/** Where the current stage began: acceptance at `assigned`, else the latest
- *  history row into it. `null` when the history predates the log. */
-function useStageFloor(op: OpportunityProfileResponse, enabled: boolean): string | null {
-  const atAssigned = op.stage === 'assigned'
-  const { data } = useQuery({
-    ...opportunityStageHistoryQuery(op.code),
-    enabled: enabled && !atAssigned,
-  })
-  if (atAssigned) return op.acceptedAt
-  const into = (data?.rows ?? []).filter((e) => e.to === op.stage).map((e) => e.at)
-  return into.length === 0 ? null : into.reduce((a, b) => (a > b ? a : b))
-}
+  day === vnToday() ? undefined : `${day}T00:00:00+07:00`
 
 const KIND_OPTIONS = [
   { value: '', label: 'Chọn hoạt động…' },
@@ -72,13 +52,8 @@ const KIND_OPTIONS = [
 const isActivity = (v: string): v is (typeof CARE_ACTIVITY_KINDS)[number] =>
   (CARE_ACTIVITY_KINDS as readonly string[]).includes(v)
 
-export function DealEventButtons({
-  op,
-  offer,
-}: {
-  op: OpportunityProfileResponse
-  offer: EventOffer
-}) {
+/** Each button shows only while the server's `acts` open its door. */
+export function DealEventButtons({ op }: { op: OpportunityProfileResponse }) {
   const [open, setOpen] = useState<EventKind | null>(null)
   /* A fresh modal per opening: its form and phase start clean, with no reset
      running during the exit animation. */
@@ -87,33 +62,37 @@ export function DealEventButtons({
     setSession((n) => n + 1)
     setOpen(kind)
   }
-  const quoteLabel = offer.nextRound > 1 ? `Ghi báo giá lần ${offer.nextRound}` : 'Ghi báo giá'
+  const round = eventOfferOf(op, 'quotation')?.nextRound ?? 1
+  const quoteLabel = round > 1 ? `Ghi báo giá lần ${round}` : 'Ghi báo giá'
 
   return (
     <>
-      <Button
-        size="md"
-        variant="secondary"
-        className="pointer-coarse:h-12"
-        onClick={() => start('activity')}
-      >
-        <Icon icon={ListChecks} size={16} />
-        Ghi hoạt động
-      </Button>
-      <Button
-        size="md"
-        variant="secondary"
-        className="pointer-coarse:h-12"
-        title={QUOTE_HINT}
-        onClick={() => start('quotation')}
-      >
-        <Icon icon={FileText} size={16} />
-        {quoteLabel}
-      </Button>
+      {op.acts.activity.ok && (
+        <Button
+          size="md"
+          variant="secondary"
+          className="pointer-coarse:h-12"
+          onClick={() => start('activity')}
+        >
+          <Icon icon={ListChecks} size={16} />
+          Ghi hoạt động
+        </Button>
+      )}
+      {op.acts.quotation.ok && (
+        <Button
+          size="md"
+          variant="secondary"
+          className="pointer-coarse:h-12"
+          title={QUOTE_HINT}
+          onClick={() => start('quotation')}
+        >
+          <Icon icon={FileText} size={16} />
+          {quoteLabel}
+        </Button>
+      )}
       <DealEventModal
         key={session}
         op={op}
-        offer={offer}
         kind={open}
         quoteLabel={quoteLabel}
         onClose={() => setOpen(null)}
@@ -124,13 +103,11 @@ export function DealEventButtons({
 
 function DealEventModal({
   op,
-  offer,
   kind,
   quoteLabel,
   onClose,
 }: {
   op: OpportunityProfileResponse
-  offer: EventOffer
   kind: EventKind | null
   quoteLabel: string
   onClose: () => void
@@ -140,25 +117,29 @@ function DealEventModal({
   const { activity, day, note } = form
   const log = useLogMilestone(op.code)
   const quoting = kind === 'quotation'
-  const stageFloor = useStageFloor(op, quoting)
-  const floor = quoting ? stageFloor : op.acceptedAt
-  const min = floor === null ? undefined : dayOf(floor)
-  const max = today()
+  const offer = kind && eventOfferOf(op, kind)
+  const atAssigned = offer?.atAssigned ?? false
+  const min = (quoting ? op.floors.quotationFrom : op.floors.activityFrom) ?? undefined
+  const max = vnToday()
 
   const outOfRange = day > max || (min !== undefined && day < min)
+  /* A re-read may shut the door under an open modal; its reason blocks the press. */
   const blocker =
-    !quoting && activity === ''
-      ? 'Chọn một hoạt động.'
-      : day === ''
-        ? 'Chọn ngày.'
-        : outOfRange
-          ? range(min)
-          : ''
-  const label = quoting
-    ? `Báo giá (lần ${offer.nextRound})`
-    : isActivity(activity)
-      ? OPPORTUNITY_MILESTONE_LABEL[activity]
-      : ''
+    kind && !offer
+      ? (refusalOf(op.acts[kind]) ?? '')
+      : !quoting && activity === ''
+        ? 'Chọn một hoạt động.'
+        : day === ''
+          ? 'Chọn ngày.'
+          : outOfRange
+            ? range(min)
+            : ''
+  const label =
+    quoting && offer
+      ? `Báo giá (lần ${offer.nextRound})`
+      : isActivity(activity)
+        ? OPPORTUNITY_MILESTONE_LABEL[activity]
+        : ''
 
   const submit = () => {
     const recorded: OpportunityMilestoneKind | null = quoting
@@ -212,7 +193,7 @@ function DealEventModal({
               </Button>
               <Button size="lg" disabled={Boolean(blocker) || log.isPending} onClick={submit}>
                 <Icon icon={quoting ? FileText : ListChecks} size={16} />
-                {quoting && offer.atAssigned
+                {quoting && atAssigned
                   ? `Chuyển thẳng sang ${OPPORTUNITY_STAGE_LABEL.quotation}`
                   : 'Ghi'}
               </Button>
@@ -232,7 +213,7 @@ function DealEventModal({
           form={form}
           setForm={setForm}
           quoting={quoting}
-          atAssigned={offer.atAssigned}
+          atAssigned={atAssigned}
           min={min}
           max={max}
         />
@@ -249,7 +230,7 @@ const range = (min: string | undefined) =>
   min === undefined ? 'Không sau hôm nay.' : `Từ ${dmy(min)} đến hôm nay.`
 
 type EventForm = { activity: string; day: string; note: string }
-const blankForm = (): EventForm => ({ activity: '', day: today(), note: '' })
+const blankForm = (): EventForm => ({ activity: '', day: vnToday(), note: '' })
 
 function EventFields({
   form,

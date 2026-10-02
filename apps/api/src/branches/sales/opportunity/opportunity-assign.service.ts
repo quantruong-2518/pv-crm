@@ -3,14 +3,16 @@ import type { Actor } from '@pv/engines'
 import {
   OpportunitySaleOwnersResponse,
   type ObjectCode,
+  type OpportunityAct,
   type OpportunitySaleOwnersBody,
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { TouchService } from '../touch/touch.service'
-import { dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
+import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
 import { assertSellers, NO_OWNER, recordSaleLane } from './opportunity-owners'
-import { ownerRowsOf, toContract, toRef } from './opportunity.mapper'
+import { ownerRowsOf, toRef } from './opportunity.mapper'
+import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** The assign door (ADR 0071): the head gives an accepted deal its seller, or
@@ -29,9 +31,9 @@ import { OpportunityRepository } from './opportunity.repository'
 export class OpportunityAssign {
   constructor(
     private readonly deals: OpportunityRepository,
-    private readonly lifecycle: OpportunityLifecycle,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
+    private readonly facts: OpportunityFacts,
   ) {}
 
   async assign(
@@ -46,8 +48,8 @@ export class OpportunityAssign {
       const lock = await this.deals.lockDeal(tx, code)
       const found = lock ? await this.deals.byCode(who, code, tx) : null
       if (!lock || !found || !found.inScope) throw notFound('cơ hội', code)
-      const stage = this.lifecycle.onBoard(dealAtOf(found, lock.pendingSign), 'giao Sale')
-      if (stage === 'new') throw conflict('Cơ hội chưa được nhận PIC — nhận trước rồi giao Sale.')
+      const verdict = assignVerdict(dealAtOf(found, lock.pendingSign))
+      if (!verdict.ok) throw conflict(verdict.reason)
 
       const before = found.owners.filter((o) => o.role === 'SALE')
       const removed = before.filter((o) => !body.saleOwners.includes(o.id))
@@ -79,6 +81,15 @@ export class OpportunityAssign {
 
     const read = await this.deals.byCode(null, code)
     if (!read) throw notFound('cơ hội', code)
-    return OpportunitySaleOwnersResponse.parse(toContract(read))
+    return OpportunitySaleOwnersResponse.parse(await this.facts.row(read))
   }
+}
+
+/** On the board and past `new` — the door's guard and `acts.assign`, one rule. */
+export function assignVerdict(deal: DealAt): OpportunityAct {
+  const board = boardVerdict(deal, 'giao Sale')
+  if (!board.ok) return board
+  return board.stage === 'new'
+    ? { ok: false, reason: 'Cơ hội chưa được nhận PIC — nhận trước rồi giao Sale.' }
+    : { ok: true }
 }

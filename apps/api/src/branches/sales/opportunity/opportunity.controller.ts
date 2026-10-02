@@ -1,11 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
   ObjectCode,
   OpportunityAcceptBody,
   OpportunityBookQuery,
+  OpportunityContactsBody,
   OpportunityCreate,
+  OpportunityFacetsQuery,
   OpportunityImportBody,
   OpportunityLiveDealQuery,
   OpportunityMilestoneBody,
@@ -19,6 +21,7 @@ import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityAssign } from './opportunity-assign.service'
+import { OpportunityContacts } from './opportunity-contacts.service'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunityOpening } from './opportunity-opening.service'
 import { OpportunitySign } from './opportunity-sign.service'
@@ -59,6 +62,7 @@ export class OpportunityController {
     private readonly accepts: OpportunityAccept,
     private readonly assigns: OpportunityAssign,
     private readonly opening: OpportunityOpening,
+    private readonly contacts: OpportunityContacts,
   ) {}
 
   @Get()
@@ -93,6 +97,27 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.view' })
   histogram() {
     return this.ops.histogram()
+  }
+
+  /** The book's filter choices over the WHOLE scoped book, not one page — the
+   *  web's `size=200` facet read dropped choices past deal 200. Scoped and
+   *  filtered like `@Get()`; before `@Get(':code')` for `scorecard`'s reason. */
+  @Get('facets')
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
+  facets(
+    @CurrentActor() who: Actor,
+    @Query(zod(OpportunityFacetsQuery)) q: OpportunityFacetsQuery,
+  ) {
+    return this.ops.facets(who, q)
+  }
+
+  /** The stop drawer's reasons, on the permission of the door it serves
+   *  (`opportunity.edit`, ADR 0004): the `config.view` catalogue locked
+   *  presales and account-executive out of stopping. Before `@Get(':code')`. */
+  @Get('stop-reasons')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
+  stopReasons() {
+    return this.ops.stopReasons()
   }
 
   /** Every open deal of a lead: codes the reader may open, plus a count of
@@ -246,6 +271,19 @@ export class OpportunityController {
     @Body(zod(OpportunityUpdate)) body: OpportunityUpdate,
   ) {
     return this.ops.update(who, code, body)
+  }
+
+  /** Replace the deal's contact list (ADR 0073). `PUT`: the body IS the whole
+   *  list, and a contact left out is taken off. Same grant and scope as the
+   *  profile save door, whose rule (`editVerdict`) it shares. */
+  @Put(':code/contacts')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  replaceContacts(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(OpportunityContactsBody)) body: OpportunityContactsBody,
+  ) {
+    return this.contacts.replace(who, code, body)
   }
 
   /** Record a milestone — a care activity or a quotation (ADR 0072).

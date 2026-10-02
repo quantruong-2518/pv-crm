@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { and, asc, desc, eq, isNotNull, ne, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, ne, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
 import type { Actor } from '@pv/engines'
 import type { OpportunityContactPick, StageKey } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -9,6 +9,7 @@ import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { leadScope } from '../lead/lead-scope'
 import { dealStoodBy } from '../open-deal'
+import { runBefore } from '../workstream/workstream.repository'
 import { workstream } from '../workstream/workstream.schema'
 import { opportunity, opportunityContact } from './opportunity.schema'
 
@@ -24,6 +25,23 @@ export type OpenContact = {
   title: string | null
   source: 'lead' | 'account'
 }
+
+/** WON runs at `accountCode` other than `current` — the one reading of "this
+ *  account has won with us before". The drawer asks as of now; a deal row
+ *  passes its own run as `openedBefore`, so a later win cannot rewrite an older
+ *  run as returning (ADR 0076). */
+export const wonElsewhere = (
+  run: { accountCode: AnyColumn; closeReason: AnyColumn; code: AnyColumn; openedAt: AnyColumn },
+  accountCode: AnyColumn | string,
+  current: AnyColumn | string | null,
+  openedBefore?: { openedAt: AnyColumn; code: AnyColumn },
+): SQL | undefined =>
+  and(
+    eq(run.accountCode, accountCode),
+    eq(run.closeReason, 'WON'),
+    current === null ? undefined : ne(run.code, current),
+    openedBefore ? runBefore(run, { accountCode, ...openedBefore }, false) : undefined,
+  )
 
 /** Reads behind the "open an opportunity" drawer, and the contact rows the
  *  create door writes. One class because both halves answer the same question:
@@ -102,6 +120,25 @@ export class OpportunityOpenRepository {
     )
   }
 
+  /** The deal's contact rows as stored, with names, for the replace door. */
+  async contactsOf(tx: Db, code: string): Promise<(OpportunityContactPick & { name: string })[]> {
+    const rows = await tx
+      .select({
+        contactCode: opportunityContact.contactCode,
+        role: opportunityContact.role,
+        primary: opportunityContact.isPrimary,
+        name: contact.name,
+      })
+      .from(opportunityContact)
+      .innerJoin(contact, eq(contact.code, opportunityContact.contactCode))
+      .where(eq(opportunityContact.opportunityCode, code))
+    return rows.map((r) => ({ ...r, role: r.role ?? null }))
+  }
+
+  async deleteContacts(tx: Db, code: string): Promise<void> {
+    await tx.delete(opportunityContact).where(eq(opportunityContact.opportunityCode, code))
+  }
+
   async accountWithOwner(db: Db, code: string) {
     const [row] = await db
       .select({ code: account.code, name: account.name, ownerId: actor.id, ownerName: actor.name })
@@ -129,13 +166,7 @@ export class OpportunityOpenRepository {
       })
       .from(workstream)
       .leftJoin(lead, eq(lead.workstreamCode, workstream.code))
-      .where(
-        and(
-          eq(workstream.accountCode, accountCode),
-          eq(workstream.closeReason, 'WON'),
-          current === null ? undefined : ne(workstream.code, current),
-        ),
-      )
+      .where(wonElsewhere(workstream, accountCode, current))
       .orderBy(sql`${workstream.closedAt} DESC NULLS LAST`, desc(workstream.code))
       .limit(1)
     return row ?? null

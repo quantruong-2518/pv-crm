@@ -3,9 +3,9 @@ import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
 import {
   LEAD_STATE_LABEL,
+  TouchTimelineResponse,
   type TouchKind,
   type TouchRow,
-  type TouchTimelineResponse,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { tierLabel } from '@/data/lead-state'
@@ -42,11 +42,8 @@ import { dm, dmy } from '@/lib/date'
  *  (`opportunity.controller.ts`, `lead.controller.ts`), nên trục thứ ba phải
  *  có mặt ở đây.
  *
- *  Ghi chú cũ ở chỗ này nói `opportunityBookQuery` cũng thiếu trục đó — KHÔNG
- *  còn đúng từ 29/08: sổ cơ hội nay hiện con số `hidden`, mà `hidden` chính là
- *  thứ trục phạm vi cắt ra, nên hai đầu buộc phải đọc ra cùng một câu.
- *  `opportunityProfileQuery` thì vẫn để thiếu, và có lý do riêng ghi tại chỗ:
- *  một lượt đọc MỘT dòng không có gì để `hidden` nói. */
+ *  Every opportunity read declares it too — the book, the profile and these
+ *  touches — because each controller `@Need` is scoped. */
 
 const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
 const OPS_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
@@ -205,6 +202,7 @@ export const leadVectorQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read<TouchTimelineResponse>(`/sales/leads/${encodeURIComponent(code)}/touches`, {
         need: LEAD_TOUCH_NEED,
+        schema: TouchTimelineResponse,
         signal,
       }),
     select: (d: TouchTimelineResponse) => stepsOf(d.rows),
@@ -220,6 +218,7 @@ export const leadTouchesQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read<TouchTimelineResponse>(`/sales/leads/${encodeURIComponent(code)}/touches`, {
         need: LEAD_TOUCH_NEED,
+        schema: TouchTimelineResponse,
         signal,
       }),
     select: (d: TouchTimelineResponse) => eventsOf(d.rows),
@@ -233,6 +232,7 @@ export const opportunityTouchesQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
         need: OPS_TOUCH_NEED,
+        schema: TouchTimelineResponse,
         signal,
       }),
     select: (d: TouchTimelineResponse) => eventsOf(d.rows),
@@ -257,6 +257,7 @@ export const opportunityVectorQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read<TouchTimelineResponse>(`/sales/opportunities/${encodeURIComponent(code)}/touches`, {
         need: OPS_TOUCH_NEED,
+        schema: TouchTimelineResponse,
         signal,
       }),
     select: (d: TouchTimelineResponse) => stepsOf(d.rows),

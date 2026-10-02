@@ -418,7 +418,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.constraints.ts": {
@@ -444,7 +444,7 @@
       "count": 5
     },
     "aurora/comments-in-english": {
-      "count": 16
+      "count": 15
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.module.ts": {
@@ -460,7 +460,7 @@
       "count": 6
     },
     "aurora/comments-in-english": {
-      "count": 42
+      "count": 41
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity.schema.ts": {
@@ -1471,10 +1471,10 @@
   },
   "apps/web/src/data/opportunities.ts": {
     "aurora/comment-budget": {
-      "count": 8
+      "count": 7
     },
     "aurora/comments-in-english": {
-      "count": 20
+      "count": 16
     }
   },
   "apps/web/src/data/opportunity-import-wire.ts": {
@@ -1751,10 +1751,10 @@
   },
   "apps/web/src/pages/opportunities.tsx": {
     "aurora/comment-budget": {
-      "count": 11
+      "count": 10
     },
     "aurora/comments-in-english": {
-      "count": 31
+      "count": 28
     },
     "max-lines-per-function": {
       "count": 1

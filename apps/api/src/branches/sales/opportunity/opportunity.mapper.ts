@@ -13,7 +13,7 @@ import {
   type StageKey,
   type TouchKind,
 } from '@pv/contracts'
-import type { ObjectRef, RoleId } from '@pv/engines'
+import { daysUntil, type ObjectRef, type RoleId } from '@pv/engines'
 import { stageLabel } from './opportunity.labels'
 import type {
   opportunity,
@@ -81,17 +81,12 @@ export type OpportunityEdit = {
   products: readonly string[]
 }
 
-/** Số ngày đơn đứng ở cột hiện tại, tính từ một dòng đã ghi.
- *
- *  Bản của TẦNG ỨNG DỤNG, dùng cho câu trả lời của hai cửa ghi — chúng đã có
- *  dòng vừa ghi trong tay, và hỏi database lần thứ hai chỉ để đếm một phép trừ
- *  là một vòng mạng cho thứ đã biết. Bản của SQL (`DAYS_IN_STAGE` ở repository)
- *  phục vụ đường đọc, nơi phép trừ phải chạy trên từng dòng của cả trang.
- *
- *  Hai bản, một công thức — và chúng khớp nhau vì cùng cắt sàn theo ngày. */
+/** Days in the current column off a row already in hand — the write doors'
+ *  copy of the read path's `DAYS_IN_STAGE`, both counted by `daysUntil`, the
+ *  engine's calendar-day rule, so `daysInStage − limitDays` is `overdueBy`. */
 export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Date): number | null {
   if (!row.stageSince) return null
-  return Math.max(0, Math.floor((now.getTime() - row.stageSince.getTime()) / 86_400_000))
+  return Math.max(0, daysUntil(now.toISOString(), row.stageSince.toISOString()))
 }
 
 /** The create body minus the people it names: what the deal ROW is built from.
@@ -256,6 +251,15 @@ export const NOTE = {
   handOverSkipped: (to: string, why: string) => `Không chuyển theo lead sang ${to}: ${why}`,
 
   signed: (contractCode: string) => `Ký hợp đồng ${contractCode}`,
+
+  /** The holder changed hands (accept, assign, PATCH owners) — the chain's step. */
+  handedOver: (from: string | null, to: string) => `Đổi người giữ: ${from ?? 'chưa ai'} → ${to}`,
+
+  /** The deal's contact list replaced; the primary is named first. */
+  contacts: (names: readonly string[]) => `Đổi người liên hệ: ${names.join(', ')}`,
+
+  /** One field the profile form changed, old value then new. */
+  edited: (field: string, before: string, after: string) => `${field}: ${before} → ${after}`,
 
   /** A SALE-lane change by the accept or assign door: who was given, who was taken off. */
   saleLane: (added: readonly string[], removed: readonly string[]) =>
@@ -482,14 +486,26 @@ export function peopleOf(
   row: Pick<OpportunityRowDb, 'acceptedById'>,
   acceptorName: string | null,
   list: readonly OwnerRow[] = [],
-): { owners: OpportunityOwner[]; holder: RefOwner | null; acceptedBy: RefOwner | null } {
+): {
+  owners: OpportunityOwner[]
+  holder: RefOwner | null
+  acceptedBy: RefOwner | null
+  hasSeller: boolean
+} {
   const acceptedBy = acceptorOf(row, acceptorName)
   return {
     owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role })),
     holder: holderOf(list, acceptedBy),
     acceptedBy,
+    hasSeller: hasSellerOf(list),
   }
 }
+
+/** A seller (`isSellerRole`) stands on the SALE lane — the sign door's gate and
+ *  the row's `hasSeller`, one reading. */
+export const hasSellerOf = (
+  owners: readonly { role: OpportunityOwnerRole; roleId: RoleId | null | undefined }[],
+): boolean => owners.some((o) => o.role === 'SALE' && isSellerRole(o.roleId))
 
 const byNameThenId = (a: RefOwner, b: RefOwner): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
@@ -512,7 +528,17 @@ export function scopeRefOf(
   return toRef(row, pick ? { id: pick.id, name: pick.name } : null)
 }
 
-/** One book row, as a screen reads it. */
+/** The row fields read beside the deal (`OpportunityFacts`), not off its columns. */
+export type RowFactKey =
+  | 'workstream'
+  | 'activityCounts'
+  | 'quotationRounds'
+  | 'nextStep'
+  | 'primaryContact'
+  | 'stopReasonLabel'
+  | 'stopDoNotContact'
+
+/** One book row, as a screen reads it — minus the facts `OpportunityFacts` adds. */
 export function toContract(input: {
   row: OpportunityRowDb
   /** The customer's name, off `sales.lead` — the book prints names, not codes. */
@@ -527,12 +553,14 @@ export function toContract(input: {
   holder: RefOwner | null
   /** Who accepted the deal (ADR 0071), `accepted_by_id` with its name. */
   acceptedBy: RefOwner | null
+  /** `hasSellerOf` over the stored owners, or over the ones a write just set. */
+  hasSeller: boolean
   /** What the deal is asking about, with labels. Defaults to empty so the two
    *  WRITE doors do not have to build an array just to say "nothing picked" —
    *  they re-read the row after writing, and the read path is the one that
    *  always holds this list. */
   products?: OpportunityProduct[]
-}): OpportunityRow {
+}): Omit<OpportunityRow, RowFactKey> {
   const { row, account, owners } = input
   const signed = input.contractCodes.length > 0
 
@@ -546,6 +574,7 @@ export function toContract(input: {
     state: signed ? 'won' : row.state,
     contractCodes: [...input.contractCodes],
     holder: input.holder,
+    hasSeller: input.hasSeller,
     stage: signed ? null : (row.stage ?? null),
     /* A won deal has left the board, so its column clock means nothing —
        said here too because `stage_since` does not know about `signed`. */

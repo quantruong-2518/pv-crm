@@ -8,18 +8,26 @@ import {
   Moment,
   Day,
   Bool,
+  email,
   textInput,
   textInputOptional,
 } from '../primitives'
 import { ConfigCode } from './config'
-import { CurrencyCode, OpportunityContactRole, OpportunityStatus, StageKey } from './enums'
+import {
+  CurrencyCode,
+  OpportunityContactRole,
+  OpportunityStatus,
+  StageKey,
+  WorkstreamCustomer,
+} from './enums'
+import { NextStep } from './next-step'
 import { WorkstreamHolder } from './workstream'
 
 /** Module 3 · Cơ hội — the wire shape of the Ops book.
  *
  *      POST   /sales/opportunities              · PATCH /sales/opportunities/:code
- *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram
- *      POST   …/:code/accept · …/sale-owners · …/milestones · …/stop
+ *      GET    /sales/opportunities[/:code]      · GET   …/scorecard · …/histogram · …/facets
+ *      POST   …/:code/accept · …/sale-owners · …/milestones · …/stop · PUT …/:code/contacts
  *      GET    …/open-context?leadCode=… (permission `opportunity.create`)
  *
  *  ------------------------------------------------------------------
@@ -106,6 +114,8 @@ export const OPPORTUNITY_STOP_NOTE_MAX = 1_000
 /** The one stop reason key with a rule attached: picking it demands a note.
  *  Declared here so the form and the door test the same string. */
 export const OPPORTUNITY_STOP_REASON_OTHER = 'other'
+/** Its label: `other` has no catalogue row to carry one. */
+export const OPPORTUNITY_STOP_REASON_OTHER_LABEL = 'Khác'
 /** A deal asking about more than a dozen product lines is a deal nobody has
  *  qualified yet. The cap is generous rather than tight because refusing a
  *  legitimate form is worse than storing one that is too broad — it exists to
@@ -226,7 +236,7 @@ export const OpportunityCreate = z.object({
   /** The lead this deal came out of. One lead may produce many. */
   leadCode: ObjectCode,
   // No `accountCode`: the server copies the lead's own, never a client's.
-  /** Create-only: the update door does not move contacts yet. */
+  /** PATCH does not move contacts; `PUT …/:code/contacts` does. */
   contacts: contactPicks,
   ...dealFields,
 })
@@ -275,6 +285,28 @@ export const OpportunityOwner = z.object({
   role: OpportunityOwnerRole,
 })
 
+/** One person on the deal's own contact list (`sales.opportunity_contact`). */
+export const OpportunityContact = z.object({
+  code: ObjectCode,
+  name: textInput(120),
+  title: textInput(120).nullable(),
+  phone: z.string().min(1).nullable(),
+  email: email.nullable(),
+  role: OpportunityContactRole.nullable(),
+  primary: z.boolean(),
+})
+
+/** The workstream run the deal belongs to. `ordinal` is which run of its account
+ *  this is, from 1 (`ordinalOf`); `customer: null` = no account to check. */
+export const OpportunityWorkstream = z.object({
+  code: ObjectCode,
+  ordinal: z.number().int().min(1),
+  customer: WorkstreamCustomer.nullable(),
+})
+
+/** The open next step, cut to what a book cell prints; the full step is `NextStep`. */
+export const OpportunityNextStep = NextStep.pick({ text: true, due: true, dueLevel: true })
+
 /** One row of the Ops book. */
 export const OpportunityRow = z.object({
   code: ObjectCode,
@@ -297,17 +329,26 @@ export const OpportunityRow = z.object({
    *  else the acceptor, else the first BD (ADR 0071) — computed by the server so
    *  no screen re-derives it. */
   holder: WorkstreamHolder.nullable(),
+  /** A seller-role person (`isSellerRole`) stands on the SALE lane — judged by
+   *  the server, which holds the roles, so no screen re-derives it. */
+  hasSeller: z.boolean(),
+  workstream: OpportunityWorkstream.nullable(),
   /** Which of the four columns the deal stands in. `null` = it has left the
    *  board — won, or `lost`, where `stoppedAtStage` records where it stopped. */
   stage: StageKey.nullable(),
-  /** Days the deal has stood in its CURRENT column, counted server-side.
-   *
-   *  A number, not a flag: "is it rotting" needs a per-column limit, and those
-   *  limits are a `sales.config_entry` row the screen already holds. The server
-   *  sends the fact, the screen applies the rule it can see. `null` when the
-   *  deal has left the board — a closed deal stands in no column, so there is
-   *  no clock to read. */
+  /** Days the deal has stood in its CURRENT column, counted server-side. The
+   *  lateness verdict against the configured limit is `position.overdueBy`.
+   *  `null` when the deal has left the board — no column, no clock. */
   daysInStage: z.number().int().nonnegative().nullable(),
+
+  /** Recorded care activities per kind, every kind present (zero included) so
+   *  the screen prints the non-zero ones without defaulting any itself. */
+  activityCounts: z.record(CareActivityKind, z.number().int().nonnegative()),
+  /** Quotations recorded on the deal; a quotation on a won deal opens a new round. */
+  quotationRounds: z.number().int().nonnegative(),
+  nextStep: OpportunityNextStep.nullable(),
+  /** The bulk-mail recipient; `email: null` = this person cannot be mailed. */
+  primaryContact: OpportunityContact.pick({ code: true, name: true, email: true }).nullable(),
 
   /** Nullable, and only in the READ shape: the create door requires a date, but
    *  the deals the frozen book already carries were closed before anybody was
@@ -336,9 +377,14 @@ export const OpportunityRow = z.object({
 
   /** The fail log, present exactly when `state === 'lost'`: the column the deal
    *  stood in, why, and the note; who concluded it is on the stage history.
-   *  `stopReason` is a `LOSS_REASON` catalogue KEY, never its Vietnamese label. */
+   *  `stopReason` is a `LOSS_REASON` catalogue KEY, never its Vietnamese label;
+   *  `stopReasonLabel` is that label, resolved server-side so a reader without
+   *  `config.view` still reads why. Null exactly when `stopReason` is absent;
+   *  so is `stopDoNotContact`, the reason's `doNotContact` flag (`other`: false). */
   stoppedAtStage: StageKey.optional(),
   stopReason: z.string().optional(),
+  stopReasonLabel: z.string().min(1).nullable(),
+  stopDoNotContact: z.boolean().nullable(),
   stopNote: z.string().optional(),
 
   /** Who accepted the deal, and when (ADR 0071); set once, never cleared. Null
@@ -412,6 +458,9 @@ export const OpportunityBookQuery = PageQuery.extend({
   /** Open deals past `new` — the head's "no seller yet" queue pairs this with
    *  `sale=OWNER_NONE`, which means no seller-role owner (ADR 0071 §4). */
   accepted: Bool.optional(),
+  /** `true` = open deals past their current column's configured limit
+   *  (`position.overdueBy > 0`); a column with no limit is never overdue. */
+  overdue: Bool.optional(),
 
   /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
    *  yet". Two fields rather than one `owner`, unlike the lead book: the two
@@ -479,12 +528,52 @@ export const OpportunityBookRow = OpportunityRow.extend({
 
 export const OpportunityBookResponse = paged(OpportunityBookRow)
 
+/** `GET /sales/opportunities/facets` — the book's filters without `state` or
+ *  paging, scoped like the book. Replaces the web's `size=200` facet read,
+ *  which silently dropped choices past deal 200. */
+export const OpportunityFacetsQuery = OpportunityBookQuery.omit({
+  state: true,
+  page: true,
+  size: true,
+  sort: true,
+  dir: true,
+})
+
+/** Choices that actually occur, DISTINCT in SQL; `byState` counts EVERY
+ *  `OpportunityStatus`, zeros included, so the tabs print straight off it. */
+export const OpportunityFacetsResponse = z.object({
+  saleOwners: z.array(WorkstreamHolder),
+  bdOwners: z.array(WorkstreamHolder),
+  accounts: z.array(textInput(200)),
+  byState: z.record(OpportunityStatus, z.number().int().nonnegative()),
+})
+
 /** The `contract-sign` request waiting on this deal. Required-nullable: `null`
  *  means none, never "not checked", so the screen can disable signing on one read. */
 export const PendingSign = z.object({
   approvalId: z.string().min(1),
   raisedBy: textInput(120),
   raisedAt: Moment,
+})
+
+/** The server's verdict on one door for THIS reader on THIS deal. `reason` is a
+ *  Vietnamese sentence the screen prints as-is beside the disabled control. */
+export const OpportunityAct = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), reason: z.string().min(1) }),
+])
+
+/** One verdict per door the profile offers, so the screen gates on the rule
+ *  the door will apply instead of a copy of it. `edit` also gates the contacts
+ *  door. `activity`/`quotation` are the milestone door by kind (ADR 0072 §3). */
+export const OpportunityActs = z.object({
+  activity: OpportunityAct,
+  quotation: OpportunityAct,
+  sign: OpportunityAct,
+  stop: OpportunityAct,
+  accept: OpportunityAct,
+  assign: OpportunityAct,
+  edit: OpportunityAct,
 })
 
 /** `GET /sales/opportunities/:code` — the book row, plus where the deal stands.
@@ -495,9 +584,12 @@ export const PendingSign = z.object({
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
   pendingSign: PendingSign.nullable(),
-  /** Recorded care activities per kind, every kind present (zero included) so
-   *  the screen prints the non-zero ones without defaulting any itself. */
-  activityCounts: z.record(CareActivityKind, z.number().int().nonnegative()),
+  /** Primary first; the same list `PUT …/:code/contacts` replaces. */
+  contacts: z.array(OpportunityContact),
+  acts: OpportunityActs,
+  /** The earliest VN calendar day the milestone door's `at` accepts, per door —
+   *  the floor `effectiveAt` applies. `null` = that door is not open. */
+  floors: z.object({ activityFrom: Day.nullable(), quotationFrom: Day.nullable() }),
 
   /** The object chain this deal sits in — see `ObjectChainLink`.
    *
@@ -574,8 +666,8 @@ export const OpportunityScorecard = z.object({
 /** "Which deals of this lead are still open?" — open means neither `lost`
  *  nor signed, the same meaning the import door uses (`liveDealsByLead`).
  *
- *  Unscoped on purpose: the book is `scoped: true`, so a Sale filtering it
- *  would not see a colleague's deal on the same lead. */
+ *  Scoped like the book, but unlike a book page it COUNTS what scope cut
+ *  (`hidden`), so a colleague's deal on the same lead is still known to exist. */
 export const OpportunityLiveDealQuery = z.object({
   leadCode: ObjectCode,
 })
@@ -601,7 +693,7 @@ export const OpportunityOpenContext = z.object({
   workstream: z
     .object({
       code: ObjectCode,
-      customer: z.enum(['new', 'returning']).nullable(),
+      customer: WorkstreamCustomer.nullable(),
       /** Latest WON run at the same account; null also when the reader may not open it. */
       previousWonCode: ObjectCode.nullable(),
     })
@@ -660,6 +752,13 @@ export type OpportunityCreateResponse = z.infer<typeof OpportunityCreateResponse
 export type PendingSign = z.infer<typeof PendingSign>
 export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
 export type OpportunityScorecard = z.infer<typeof OpportunityScorecard>
+export type OpportunityContact = z.infer<typeof OpportunityContact>
+export type OpportunityWorkstream = z.infer<typeof OpportunityWorkstream>
+export type OpportunityNextStep = z.infer<typeof OpportunityNextStep>
+export type OpportunityAct = z.infer<typeof OpportunityAct>
+export type OpportunityActs = z.infer<typeof OpportunityActs>
+export type OpportunityFacetsQuery = z.infer<typeof OpportunityFacetsQuery>
+export type OpportunityFacetsResponse = z.infer<typeof OpportunityFacetsResponse>
 
 // ---------------------------------------------------------------------------
 // THE THREE DOORS THAT MOVE A DEAL — ACCEPT · MILESTONE · STOP
@@ -738,6 +837,12 @@ export const OpportunitySaleOwnersResponse = OpportunityRow
 export const OpportunityMilestoneResponse = OpportunityRow
 export const OpportunityStopResponse = OpportunityRow
 
+/** `PUT /sales/opportunities/:code/contacts` — replace the deal's contact list.
+ *  Permission `opportunity.edit`, `scoped: true`; the create door's rules
+ *  (≥1, exactly one primary). Answers with the row like every door above. */
+export const OpportunityContactsBody = z.object({ contacts: contactPicks })
+export const OpportunityContactsResponse = OpportunityRow
+
 // ---------------------------------------------------------------------------
 // REMEMBERING THAT IT MOVED
 // ---------------------------------------------------------------------------
@@ -788,6 +893,8 @@ export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>
 export type OpportunityStopBody = z.infer<typeof OpportunityStopBody>
 export type OpportunityStopResponse = z.infer<typeof OpportunityStopResponse>
+export type OpportunityContactsBody = z.infer<typeof OpportunityContactsBody>
+export type OpportunityContactsResponse = z.infer<typeof OpportunityContactsResponse>
 export type OpportunityStageEvent = z.infer<typeof OpportunityStageEvent>
 export type OpportunityStageHistory = z.infer<typeof OpportunityStageHistory>
 
@@ -831,3 +938,19 @@ export const OpportunityHistogram = z.object({
 
 export type OpportunityStageBucket = z.infer<typeof OpportunityStageBucket>
 export type OpportunityHistogram = z.infer<typeof OpportunityHistogram>
+
+/** `GET /sales/opportunities/stop-reasons` — the ACTIVE `LOSS_REASON` entries
+ *  for whoever may stop a deal (`opportunity.edit`) but holds no `config.view`.
+ *  `stage: null` = offered in every column; `other` is virtual and not listed. */
+export const OpportunityStopReasons = z.object({
+  rows: z.array(
+    z.object({
+      id: ConfigCode,
+      name: z.string().min(1),
+      stage: StageKey.nullable(),
+      doNotContact: z.boolean(),
+    }),
+  ),
+})
+
+export type OpportunityStopReasons = z.infer<typeof OpportunityStopReasons>

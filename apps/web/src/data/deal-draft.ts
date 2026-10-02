@@ -85,8 +85,8 @@ export type DealDraft = {
   errors: FieldErrors
   dirty: string[]
   missing: string[]
-  /** `opportunity.edit`, and the deal is not lost — the server 409s every
-   *  write on a stopped deal (ADR 0069 §1), so the form turns read-only. */
+  /** The server's `acts.edit` verdict for this reader on this deal — a stopped
+   *  deal (ADR 0069 §1) and an out-of-scope reader both turn the form read-only. */
   canEdit: boolean
   canClose: boolean
   canSubmit: boolean
@@ -113,8 +113,7 @@ export type UseDealDraftArgs = {
 }
 
 export function useDealDraft({ saved, op }: UseDealDraftArgs): DealDraft {
-  const mayEdit = useCan('opportunity.edit')
-  const canEdit = mayEdit && op.state !== 'lost'
+  const canEdit = op.acts.edit.ok
   const canClose = useCan('opportunity.close')
   const save = useSaveOpportunity(op.code)
 

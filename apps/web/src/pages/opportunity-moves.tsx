@@ -1,16 +1,13 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Octagon, TriangleAlert } from '@pv/ui'
 import { Badge, Button, Icon, MetaPill, cn } from '@pv/ui'
 import { type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { noSellerSentence, useHasSeller } from '@/data/deal-sale'
-import { NO_TOUCHES } from '@/data/lead-profile'
-import { opportunityTouchesQuery } from '@/data/touches'
+import { noSellerSentence } from '@/data/deal-sale'
 import {
   activityTally,
   BADGE_INK,
-  eventOfferOf,
+  refusalOf,
   stageClockOf,
   standingLabel,
   STATE_TONE,
@@ -29,9 +26,9 @@ import { DealEventButtons } from './opportunity-events'
  *  single stage writer draws the conclusion from it (ADR 0072). A stop is
  *  final, so a lost deal keeps only its badge; the fail log is its own card.
  *
- *  WHETHER the activity and quotation doors show is `eventOfferOf`'s answer, the
- *  same rule the door refuses by. The accept, assign and event acts own their
- *  modals; this block only decides who sees them. */
+ *  WHETHER each door shows is the server's `acts` verdict, the same rule the
+ *  door refuses by; a refused door prints the server's own reason. The accept,
+ *  assign and event acts own their modals; this block only decides who sees them. */
 /** Where the accept hands focus: the assign button it reveals. */
 const ASSIGN_ID = 'deal-assign-sale'
 
@@ -48,16 +45,17 @@ export function DealMoves({
   const [stopping, setStopping] = useState(false)
   const canAccept = useCan('opportunity.accept')
   const canAssign = useCan('opportunity.assign')
-  const hasSeller = useHasSeller(op)
-
-  /* The profile's own timeline read, cached: rounds are `quotation-sent` rows. */
-  const { data: touches = NO_TOUCHES } = useQuery(opportunityTouchesQuery(op.code))
-  const offer = eventOfferOf(op, touches.filter((t) => t.kind === 'quotation-sent').length)
+  const hasSeller = op.hasSeller
   const open = op.state === 'open'
   const clock = stageClockOf(op)
   const accepted = open && op.stage !== null && op.stage !== 'new'
-  const unassigned = accepted && hasSeller === false && !sellerOnBar
+  const unassigned = accepted && !hasSeller && !sellerOnBar
   const tally = activityTally(op.activityCounts)
+  const recordable = op.acts.activity.ok || op.acts.quotation.ok
+  /* Both doors refused for one reason print it once. */
+  const refusal = [...new Set([refusalOf(op.acts.activity), refusalOf(op.acts.quotation)])].filter(
+    Boolean,
+  )
 
   return (
     <div className="flex basis-full flex-wrap items-center gap-2">
@@ -73,20 +71,19 @@ export function DealMoves({
         </MetaPill>
       )}
 
-      {/* A deal no head has accepted records nothing, and the door says so in
-          a 409 — the accept button for a head, the reason for anyone else. */}
+      {/* An unaccepted deal records nothing: the accept button where `acts.accept`
+          opens, the record doors' reason elsewhere. Mounted on the permission so
+          the modal outlives the accept that shuts the act. */}
       {open && canAccept && (
         <AcceptDealButton
           code={op.code}
-          show={op.stage === 'new'}
+          show={op.acts.accept.ok}
           className="pointer-coarse:h-12"
           returnFocus={() => document.getElementById(ASSIGN_ID)}
         />
       )}
-      {canEdit && open && op.stage === 'new' && !canAccept && (
-        <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          Chờ trưởng phòng Kinh doanh nhận PIC — chưa ghi hoạt động hay báo giá được.
-        </span>
+      {canEdit && open && !accepted && !op.acts.accept.ok && refusal.length > 0 && (
+        <span className="text-muted-foreground text-[11px] leading-[1.5]">{refusal.join(' ')}</span>
       )}
 
       {unassigned && (
@@ -96,9 +93,9 @@ export function DealMoves({
         </span>
       )}
       {/* One mount point whatever the wording, so the modal survives the
-          re-read that flips the label after a save. Hidden while a signature
-          waits: the lane is what that request names. */}
-      {accepted && canAssign && !op.pendingSign && hasSeller !== null && (
+          re-read that flips the label after a save. `acts.assign` shuts it at
+          `new` and while a signature waits — the lane is what that request names. */}
+      {op.acts.assign.ok && (
         <AssignSaleButton
           id={ASSIGN_ID}
           op={op}
@@ -114,25 +111,29 @@ export function DealMoves({
         </span>
       )}
 
-      {canEdit && open && (
+      {/* Recordable from `assigned` until lost, a won deal included (ADR 0072):
+          the server's `acts` say so, not the column. */}
+      {canEdit && (
         <>
-          {offer && <DealEventButtons op={op} offer={offer} />}
-          {/* The one reason the doors are absent on an accepted deal. */}
-          {accepted && op.pendingSign && (
+          {recordable && <DealEventButtons op={op} />}
+          {/* Why a door is shut on an accepted or won deal, in the server's words. */}
+          {(accepted || op.state === 'won') && refusal.length > 0 && (
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Cơ hội đang chờ duyệt ký — chưa ghi hoạt động hay báo giá được.
+              {refusal.join(' ')}
             </span>
           )}
 
-          <Button
-            size="md"
-            variant="ghost"
-            className="pointer-coarse:h-12"
-            onClick={() => setStopping(true)}
-          >
-            <Icon icon={Octagon} size={16} />
-            Dừng cơ hội
-          </Button>
+          {op.acts.stop.ok && (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={() => setStopping(true)}
+            >
+              <Icon icon={Octagon} size={16} />
+              Dừng cơ hội
+            </Button>
+          )}
         </>
       )}
 

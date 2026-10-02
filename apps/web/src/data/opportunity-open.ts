@@ -1,9 +1,9 @@
 import { queryOptions } from '@tanstack/react-query'
-import type {
-  OpportunityContactPick,
-  OpportunityContactRole,
+import {
   OpportunityOpenContext,
-  StageKey,
+  type OpportunityContactPick,
+  type OpportunityContactRole,
+  type StageKey,
 } from '@pv/contracts'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api } from '@/app/api'
@@ -27,7 +27,7 @@ export const openContextQuery = (leadCode: string, enabled: boolean) =>
     queryFn: ({ signal }) =>
       api.read<OpportunityOpenContext>(
         `/sales/opportunities/open-context?leadCode=${encodeURIComponent(leadCode)}`,
-        { need: OPPORTUNITY_WRITE_NEED, signal },
+        { need: OPPORTUNITY_WRITE_NEED, schema: OpportunityOpenContext, signal },
       ),
     enabled,
     staleTime: 0,

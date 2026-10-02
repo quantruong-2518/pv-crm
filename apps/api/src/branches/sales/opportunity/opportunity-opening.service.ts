@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { OpportunityOpenContext, type ObjectCode, type OpportunityContactPick } from '@pv/contracts'
+import {
+  OpportunityOpenContext,
+  type ObjectCode,
+  type OpportunityContactPick,
+  type WorkstreamCustomer,
+} from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { stageConfigOf } from '../ladder'
@@ -16,6 +21,12 @@ export const foreignLead = (code: string) =>
   denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
 
 const STRANGER = 'Người liên hệ phải thuộc lead này hoặc một lead khác của cùng công ty.'
+
+/** New or returning: a run with no account cannot say; one whose account won
+ *  another run before (`wonElsewhere`) is returning. The drawer and the deal row
+ *  both answer through here. */
+export const customerOf = (hasAccount: boolean, wonBefore: boolean): WorkstreamCustomer | null =>
+  hasAccount ? (wonBefore ? 'returning' : 'new') : null
 
 /** The door's two halves around the people a deal names: what the drawer shows
  *  before the first keystroke, and the check that a create body names only
@@ -50,7 +61,7 @@ export class OpportunityOpening {
       workstream: workstreamCode
         ? {
             code: workstreamCode,
-            customer: accountCode ? (previousWon ? 'returning' : 'new') : null,
+            customer: customerOf(accountCode !== null, previousWon !== null),
             previousWonCode: previousWon?.inScope ? previousWon.code : null,
           }
         : null,
@@ -71,18 +82,48 @@ export class OpportunityOpening {
     })
   }
 
-  /** Refuse any pick outside `reachableContacts`, then write the rows. Inside
-   *  the deal's own transaction, so a refusal leaves no deal behind. */
+  /** Refuse any pick outside `reachableContacts` unless `kept` (already on the
+   *  deal: code → name) holds it, then write the rows. Inside the deal's own
+   *  transaction, so a refusal leaves no deal behind. Returns the picked
+   *  people's names, primary first, for the caller's touch. */
   async writeContacts(
     tx: Db,
     who: Actor,
     code: string,
     leadCode: string,
     picks: readonly OpportunityContactPick[],
-  ): Promise<void> {
-    const reach = new Set((await this.repo.reachableContacts(tx, who, leadCode)).map((c) => c.code))
+    kept: ReadonlyMap<string, string> = new Map(),
+  ): Promise<string[]> {
+    const reach = new Map([
+      ...(await this.repo.reachableContacts(tx, who, leadCode)).map(
+        (c) => [c.code, c.name] as const,
+      ),
+      ...kept,
+    ])
     if (picks.some((p) => !reach.has(p.contactCode)))
       throw invalid({ contacts: [STRANGER] }, STRANGER)
     await this.repo.insertContacts(tx, code, picks)
+    return [...picks]
+      .sort((a, b) => Number(b.primary) - Number(a.primary))
+      .map((p) => reach.get(p.contactCode) ?? p.contactCode)
+  }
+
+  /** `PUT …/:code/contacts`: the create door's check and write over a cleared
+   *  list. A person already on the deal stays nameable whatever the editor's
+   *  reach — only ADDED picks are checked. `null` = nothing changed. */
+  async replaceContacts(
+    tx: Db,
+    who: Actor,
+    code: string,
+    leadCode: string,
+    picks: readonly OpportunityContactPick[],
+  ): Promise<string[] | null> {
+    const key = (p: OpportunityContactPick) => `${p.contactCode}|${p.role ?? ''}|${p.primary}`
+    const stored = await this.repo.contactsOf(tx, code)
+    const before = new Set(stored.map(key))
+    if (before.size === picks.length && picks.every((p) => before.has(key(p)))) return null
+    await this.repo.deleteContacts(tx, code)
+    const kept = new Map(stored.map((c) => [c.contactCode, c.name]))
+    return this.writeContacts(tx, who, code, leadCode, picks, kept)
   }
 }

@@ -21,7 +21,7 @@ import { OpportunityRepository } from './opportunity.repository'
  *
  *  Runs inside the accept's transaction (`MAIL_SENT_HOOK`), each attempt its
  *  own savepoint, so a retried event records once. A refusal (no right,
- *  disabled creator, lost, signed, pending sign, still at `new`)
+ *  disabled creator, lost, still at `new`)
  *  is logged and writes nothing; the mail stays sent. Anything else rethrows
  *  so the worker retries. Only a run's recipient letter counts. */
 @Injectable()

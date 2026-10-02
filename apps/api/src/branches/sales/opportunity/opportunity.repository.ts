@@ -23,6 +23,7 @@ import {
   SELLER_ROLES,
   StageKey,
   type OpportunityBookQuery,
+  type OpportunityFacetsQuery,
   type OpportunityOwner,
   type OpportunityProduct,
   type OpportunityStageBucket,
@@ -46,7 +47,8 @@ import {
   type OpportunityRowDb,
   type OpportunityStageEventRowDb,
 } from './opportunity.schema'
-import { stageConfigOf, type StageConfig } from '../ladder'
+import { stageConfigOf } from '../ladder'
+import { DAYS_IN_STAGE, overdueIn } from './opportunity-book.sql'
 import type { ActorLite } from './opportunity-import.check'
 import {
   peopleOf,
@@ -72,6 +74,8 @@ export type OpportunityRead = {
   holder: RefOwner | null
   /** Who accepted the deal (ADR 0071 §3); `null` while it waits at `new`. */
   acceptedBy: RefOwner | null
+  /** A seller stands on the SALE lane (`hasSellerOf`), read with the owners. */
+  hasSeller: boolean
   /** Mọi hợp đồng đã ký của đơn, cũ nhất trước — một đơn thắng ký thêm được
    *  (ADR 0069 §5). `signed` là "danh sách không rỗng": hai trường, MỘT nguồn. */
   contractCodes: string[]
@@ -91,19 +95,6 @@ export type OpportunityRead = {
  *  gives two instants a few milliseconds apart — enough for the next row's
  *  `days_in_from` to be off by a day when the write lands on midnight. */
 export type OpportunityStageEventInsert = Omit<typeof opportunityStageEvent.$inferInsert, 'id'>
-
-/** Số ngày đơn đã đứng trong cột hiện tại.
- *
- *  Tính trong CÂU TRUY VẤN chứ không đọc từ một cột: đây là con số đổi theo
- *  thời gian ngay cả khi không ai chạm vào dòng dữ liệu, nên một cột
- *  `days_in_stage` chỉ đúng vào đêm job vừa chạy. Cùng phép mà `DAYS_HERE` của
- *  sổ lead dùng, kể cả việc đi qua `epoch`: epoch luôn là tổng số giây của cả
- *  khoảng, không phụ thuộc cách Postgres cắt interval thành tháng/ngày.
- *
- *  `stage_since` NULL thì trả NULL, không trả 0 — đơn đã đóng sổ không đứng ở
- *  cột nào, và số 0 ở đó đọc ra là "vừa mới vào cột". */
-const DAYS_IN_STAGE = sql<number | null>`CASE WHEN ${opportunity.stageSince} IS NULL THEN NULL ELSE
-  GREATEST(0, FLOOR(EXTRACT(epoch FROM now() - ${opportunity.stageSince}) / 86400))::int END`
 
 /** Every contract of the deal, oldest first — a won deal may sign again (ADR
  *  0069 §5). A subquery, not a join: a join would print the deal once per paper
@@ -146,29 +137,8 @@ const AMOUNT_VND = sql<number | null>`CASE ${opportunity.currency} ${sql.join(
   sql` `,
 )} END`
 
-/** "This deal has stood in its column longer than that column allows."
- *
- *  Built from limits ALREADY resolved by `stageConfigOf` rather than joined in
- *  the query, because the pairing between a stage key and a configuration row
- *  is by ordinal position and has to pass a fence SQL cannot apply.
- *
- *  A stage with no configured limit falls through the CASE to NULL and is never
- *  counted, which is what the contract asks for: `rotting: 0` standing beside
- *  `limitDays: null` reads as "nothing can be late here yet". */
-function rottingIn(config: Map<StageKey, StageConfig>): SQL {
-  const limits: [StageKey, number][] = []
-  for (const [key, c] of config) if (c.limitDays !== null) limits.push([key, c.limitDays])
-
-  /* Nothing configured anywhere — and an empty CASE is not valid SQL. */
-  if (limits.length === 0) return sql`false`
-
-  const days = sql`CASE ${opportunity.stage} ${sql.join(
-    limits.map(([key, n]) => sql`WHEN ${key} THEN ${sql.raw(String(n))}`),
-    sql` `,
-  )} END`
-
-  return sql`now() - ${opportunity.stageSince} > ${days} * interval '1 day'`
-}
+/** The book's filters without paging — what the book and its facets share. */
+export type BookFilters = OpportunityFacetsQuery & Pick<OpportunityBookQuery, 'state'>
 
 export type OpportunityBookPage = {
   rows: OpportunityRead[]
@@ -238,7 +208,7 @@ export class OpportunityRepository {
        theo lead sẽ đọc ra "số đơn cả sổ bạn không thấy", tức một con số đúng
        cho câu không ai hỏi. Tính chất đó không đổi khi bộ lọc mọc từ một ô lên
        sáu — `filtersOf` trả về một MẢNG, và trục phạm vi vẫn đứng ngoài nó. */
-    const filters = this.filtersOf(q)
+    const filters = await this.filtersOf(q)
     const where = and(...filters, scope)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
@@ -890,7 +860,7 @@ export class OpportunityRepository {
    *
    *  `EXISTS` chứ không `JOIN`: một đơn có ba người thì join nhân dòng đó lên
    *  ba, và `COUNT` sau đó đếm ba. */
-  private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
+  scopeOf(who: Actor, scoped: boolean): SQL | undefined {
     return scoped && who.ownOnly ? dealStoodBy(opportunity.code, who.id) : undefined
   }
 
@@ -962,8 +932,10 @@ export class OpportunityRepository {
    *  Mỗi ô vắng mặt trả `undefined`, và `and()` của Drizzle bỏ qua chúng: "ô
    *  trống nghĩa là không lọc" là quy ước của cả hai sổ, và nó nằm ở đúng một
    *  chỗ thay vì một `if` mỗi ô. */
-  private filtersOf(q: OpportunityBookQuery): (SQL | undefined)[] {
+  async filtersOf(q: BookFilters): Promise<(SQL | undefined)[]> {
+    const ladder = q.overdue ? stageConfigOf(await this.stageRows()) : null
     return [
+      ladder ? overdueIn(ladder) : undefined,
       q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
       this.stateFilter(q.state),
       /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
@@ -1104,7 +1076,7 @@ export class OpportunityRepository {
    *  the same reason stated there: won and lost deals have left the board. */
   async histogram(): Promise<OpportunityStageBucket[]> {
     const config = stageConfigOf(await this.stageRows())
-    const rotting = rottingIn(config)
+    const rotting = overdueIn(config)
 
     const rows = await this.db
       .select({
@@ -1179,7 +1151,7 @@ export class OpportunityRepository {
 
   /** Same question in PREDICATE shape, for `WHERE` and `FILTER`: `stateFilter`
    *  (the fifth state) and `scorecard` (won deals) need a boolean, not a code. */
-  private signed(): SQL {
+  signed(): SQL {
     return exists(
       this.db
         .select({ one: sql`1` })

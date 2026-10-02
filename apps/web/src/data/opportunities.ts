@@ -6,14 +6,17 @@ import {
   OPPORTUNITY_STATE_LABEL,
   OpportunityBookQuery,
   OpportunityBookResponse,
+  OpportunityFacetsResponse,
   OpportunityHistogram,
+  OpportunityLiveDeal,
+  OpportunityProfileResponse,
   OpportunityScorecard,
   StageKey,
-  type OpportunityLiveDeal,
+  type OpportunityAct,
+  type OpportunityFacetsQuery,
   type OpportunityOwner,
   type ObjectChainLink,
   type OpportunityBookRow,
-  type OpportunityProfileResponse,
   type OpportunityRow,
   type OpportunityStatus,
 } from '@pv/contracts'
@@ -62,8 +65,7 @@ import { api, type ApiNeed } from '@/app/api'
  *  Ba query mọc ra từ đó, và cả ba đều là hệ quả của cùng một phép chia:
  *   · `opportunityBookQuery(query)` — trang đang xem, tham số đi vào `queryKey`;
  *   · `opportunityScorecardQuery`   — bốn con số của CẢ sổ, đếm bằng SQL;
- *   · `opportunityFacetQuery`       — ba ô lọc, đọc riêng một lượt (đọc docblock
- *     của nó trước khi bắt chước: đó là chắp vá, không phải giải pháp).
+ *   · `opportunityFacetQuery`       — filter choices and tab counts, from `/facets`.
  *
  *  Hai hàm dịch địa chỉ (`opportunityBookQueryToParams` /
  *  `parseOpportunityBookQuery`) ở ngay đây chứ không ở `app/url.ts`: file đó là
@@ -227,47 +229,29 @@ export const opportunityHistogramQuery = queryOptions({
   staleTime: 60 * 1000,
 })
 
-/** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho
- *  `opportunityFacetQuery` bên dưới có HẠN SỬ DỤNG, nên nó phải đọc được thành
- *  số chứ không nấp trong một chuỗi. */
-export const FACET_SIZE = 200
+/** The book's filters minus `state` and paging — what `/facets` takes. Built
+ *  by dropping keys, not by `.parse`: `Bool` parses the wire's `'true'`, not
+ *  the `true` a parsed query already holds. */
+export function facetsQueryOf(query: OpportunityBookQuery): OpportunityFacetsQuery {
+  const { state: _state, page: _page, size: _size, sort: _sort, dir: _dir, ...rest } = query
+  return rest
+}
 
-/** CHẮP VÁ — không phải một giải pháp. Đọc hết trước khi dùng lại kiểu này.
- *
- *  Ba ô lọc "Sale owner", "BD owner" và "Account" là danh sách CHỌN, nên chúng
- *  cần mọi giá trị có trong SỔ, không phải mọi giá trị có trên TRANG đang mở.
- *  Khi sổ còn nằm cả trong bộ nhớ thì gom từ `book` trả lời đúng; từ lúc máy
- *  chủ chỉ gửi mười dòng một trang thì đúng phép gom đó trả về những người xuất
- *  hiện trên mười dòng ấy, và bộ lọc HỎNG THẦM LẶNG — nó tự giấu mất lựa chọn,
- *  người dùng không tìm thấy đồng nghiệp hay công ty mà họ biết chắc là có
- *  trong sổ, và không có gì trên màn nói cho họ biết vì sao.
- *
- *  Không có endpoint nào trả facet, nên đây là một lần gọi thứ hai vào chính
- *  `GET /sales/opportunities` với `size=200`, cache theo tiền tố của sổ, chỉ để
- *  dựng ba danh sách chọn. Sổ lead đã gặp và đã giải đúng cách này
- *  (`leadFacetQuery`, `data/leads.ts`); chỗ này chép nước đi đó, kể cả phần nợ.
- *
- *  **Nó gãy khi sổ vượt 200 đơn.** Ở đơn thứ 201, trang đầu vẫn đúng còn ba ô
- *  lọc lặng lẽ thiếu giá trị — cùng một kiểu hỏng, chỉ chậm hơn. `size` không
- *  nâng lên được: 200 là trần của `PageQuery` (`FACET_SIZE`), và nâng trần chỉ
- *  dời ngày gãy chứ không bỏ nó.
- *
- *  Cách sửa THẬT là một endpoint facet — `GET /sales/opportunities/facets` trả
- *  danh sách người và account đã DISTINCT ở SQL, kèm số dòng mỗi giá trị. Một
- *  câu `SELECT DISTINCT` trên cột đã có index, thay cho việc kéo cả sổ về trình
- *  duyệt để làm đúng việc đó bằng JavaScript.
- *
- *  Lượt đọc này CÓ `scoped`, và điều đó đúng chứ không mâu thuẫn với thẻ điểm:
- *  ô lọc là để lọc CÁI SỔ người dùng nhìn thấy, nên nó không được liệt kê một
- *  người mà lọc theo họ thì ra không dòng nào. */
-export const opportunityFacetQuery = queryOptions({
-  queryKey: [...OPPORTUNITY_BOOK_KEY, 'facets'] as const,
-  queryFn: ({ signal }) =>
-    api.read<OpportunityBookResponse>(`/sales/opportunities?size=${FACET_SIZE}`, {
-      need: BOOK_NEED,
-      signal,
-    }),
-})
+/** `GET /sales/opportunities/facets` — the filter choices and the per-state tab
+ *  counts, DISTINCT and counted in SQL. Scoped like the book, so a select never
+ *  lists a person whose filter would return no visible row. */
+export const opportunityFacetQuery = (query: OpportunityFacetsQuery) =>
+  queryOptions({
+    queryKey: [...OPPORTUNITY_BOOK_KEY, 'facets', query] as const,
+    queryFn: ({ signal }) =>
+      api.read<OpportunityFacetsResponse>(
+        `/sales/opportunities/facets?${opportunityBookQueryToParams({
+          ...DEFAULT_OPPORTUNITY_BOOK_QUERY,
+          ...query,
+        })}`,
+        { need: BOOK_NEED, schema: OpportunityFacetsResponse, signal },
+      ),
+  })
 
 /** One deal, plus WHERE IT STANDS.
  *
@@ -283,9 +267,11 @@ export const opportunityFacetQuery = queryOptions({
 export const opportunityProfileQuery = (code: string) =>
   queryOptions({
     queryKey: ['sales', 'ops', code] as const,
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api.read<OpportunityProfileResponse>(`/sales/opportunities/${code}`, {
         need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
+        schema: OpportunityProfileResponse,
+        signal,
       }),
   })
 
@@ -310,6 +296,7 @@ export const opportunitiesOfLeadQuery = (leadCode: string) =>
         `/sales/opportunities/live-deal?leadCode=${encodeURIComponent(leadCode)}`,
         {
           need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
+          schema: OpportunityLiveDeal,
           signal,
         },
       ),
@@ -378,7 +365,9 @@ export const OVERDUE_WORD = 'quá hạn'
 /** A column's clock: days here against the column's limit, and whether it ran
  *  over. ONE formatter for the book, the bar's hint, the profile and the
  *  journey drawer. `limit` is null when nobody timed the column; `short` drops
- *  that sentence for a narrow cell, `label` adds the overdue word. */
+ *  that sentence for a narrow cell, `label` adds the overdue word. `overdue` is
+ *  the server's verdict where the caller has one (`isRottingOp`); the default
+ *  re-derives it and stays only for the journey drawer's rung. */
 export type StageClock = {
   days: number
   limit: number | null
@@ -389,8 +378,11 @@ export type StageClock = {
   label: string
 }
 
-export function formatStageClock(days: number, limit: number | null): StageClock {
-  const overdue = limit !== null && days > limit
+export function formatStageClock(
+  days: number,
+  limit: number | null,
+  overdue = limit !== null && days > limit,
+): StageClock {
   const short = limit === null ? `${days} ngày` : `${days}/${limit} ngày`
   const text = limit === null ? `${days} ngày · chưa đặt hạn` : short
   return {
@@ -409,9 +401,7 @@ export function stageClockOf(
   op: Pick<OpportunityBookRow, 'stage' | 'daysInStage' | 'position'>,
 ): StageClock | null {
   if (op.stage === null || op.daysInStage === null) return null
-  /* Derived, not looked up: `overdueBy` is `daysHere - limitDays` by definition. */
-  const overdueBy = op.position?.overdueBy ?? null
-  return formatStageClock(op.daysInStage, overdueBy === null ? null : op.daysInStage - overdueBy)
+  return formatStageClock(op.daysInStage, op.position?.limitDays ?? null, isRottingOp(op))
 }
 
 /** The four columns plus where this deal stands, shaped for `StageTrack`.
@@ -433,12 +423,9 @@ export function stageClockOf(
  *  badge in the book, a line on the profile), and a bar saying both position
  *  and health says neither legibly.
  *
- *  THE LIMIT IN THE HINT IS DERIVED, NOT LOOKED UP (14/09). `overdueBy` is
- *  `daysHere − limitDays` by definition, so the configured limit comes back out
- *  of the two numbers the server already sent — exact, and with no second copy
- *  of the ladder on this side to go stale. A column nobody has timed says so
- *  instead of borrowing a number from the frozen fixture, which is what this
- *  line used to do. */
+ *  The limit in the hint is the server's `position.limitDays` — the rule the
+ *  deal is judged by, with no second copy of the ladder on this side. A column
+ *  nobody has timed says so instead of borrowing a number. */
 export function stageTrackOf(
   op: Pick<OpportunityBookRow, 'stage' | 'daysInStage' | 'position'>,
 ): { steps: { key: string; label: string; hint?: string }[]; current: number } | null {
@@ -464,16 +451,17 @@ export function stageTrackOf(
   }
 }
 
-/** Hôm nay, dạng ISO ngày. Sổ nay là dữ liệu SỐNG nên mốc so sánh là hôm nay,
- *  không còn là lát cắt đóng băng của kịch bản. */
-const today = () => new Date().toISOString().slice(0, 10)
+/* `en-CA` formats as YYYY-MM-DD; the zone is the server's day boundary, so a
+   UTC slice cannot print yesterday before 07:00. */
+const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
 
-/** Đơn đang mở mà ngày đóng dự kiến đã trôi qua — "đáng lẽ đóng rồi".
- *
- *  Đơn chưa đặt ngày đóng thì KHÔNG trễ: không có hạn thì không có gì để quá.
- *  Hai chục dòng của sổ đóng băng rơi vào đúng nhánh đó. */
+/** Today as a Vietnam calendar day — the day every `Day` on the wire is in. */
+export const vnToday = () => VN_DAY.format(Date.now())
+
+/** An open deal whose expected close day is already behind it. No expected
+ *  day is never late: there is nothing to overrun. */
 export function isLateClose(op: OpportunityRow): boolean {
-  return op.stage !== null && op.expectedClose !== null && op.expectedClose <= today()
+  return op.stage !== null && op.expectedClose !== null && op.expectedClose < vnToday()
 }
 
 // ---------------------------------------------------------------------------
@@ -541,37 +529,33 @@ export const standingLabel = (op: Pick<OpportunityRow, 'state' | 'stage'>): stri
     ? OPPORTUNITY_STAGE_LABEL[op.stage]
     : OPPORTUNITY_STATE_LABEL[op.state]
 
-/** Why the deal records no care activity or quotation right now, as a clause
- *  the screen finishes into a sentence, or `null` when it may.
- *  Mirrors the door's refusals: off the board, not accepted yet (ADR 0071 §3),
- *  or a sign request waiting (the request names the deal as it stands). */
-export function eventBlockOf(
-  op: Pick<OpportunityProfileResponse, 'state' | 'stage' | 'pendingSign'>,
-): string | null {
-  if (op.state === 'won') return `cơ hội đã ${OPPORTUNITY_STATE_LABEL.won.toLowerCase()}`
-  if (op.state === 'lost') return `cơ hội ${OPPORTUNITY_STATE_LABEL.lost.toLowerCase()}`
-  if (op.stage === null || op.stage === 'new') return 'cơ hội chưa được nhận PIC'
-  if (op.pendingSign) return 'cơ hội đang chờ duyệt ký'
-  return null
-}
+/** The two fact doors of a deal (ADR 0072), judged per reader by the server. */
+export type EventKind = 'activity' | 'quotation'
 
-/** What the deal may record now (ADR 0072) — `null` whenever `eventBlockOf`
- *  names a reason. `atAssigned`: a quotation now skips `engaged` (the screen
- *  confirms first) and a first activity enters it. `nextRound` is the
- *  quotation's n-th send. */
+/** What recording a fact does now. `atAssigned`: a quotation skips `engaged`
+ *  (the screen confirms first) and a first activity enters it. `nextRound` is
+ *  the quotation's n-th send — on a won deal, a new round. */
 export type EventOffer = { nextRound: number; atAssigned: boolean }
 
+/** The offer, or `null` when the server's verdict (`acts`) refuses the door. */
 export function eventOfferOf(
-  op: Pick<OpportunityProfileResponse, 'state' | 'stage' | 'pendingSign'>,
-  quotationsSent: number,
+  op: Pick<OpportunityProfileResponse, 'acts' | 'stage' | 'quotationRounds'>,
+  kind: EventKind,
 ): EventOffer | null {
-  if (eventBlockOf(op) !== null) return null
-  return { nextRound: quotationsSent + 1, atAssigned: op.stage === 'assigned' }
+  if (!op.acts[kind].ok) return null
+  return { nextRound: op.quotationRounds + 1, atAssigned: op.stage === 'assigned' }
 }
+
+/** The server's sentence for a refused door, or `null` when it is open. */
+export const refusalOf = (act: OpportunityAct): string | null => (act.ok ? null : act.reason)
+
+/** The deal's primary contact person, or `null` when its list is empty. */
+export const primaryContactOf = (op: Pick<OpportunityProfileResponse, 'contacts'>) =>
+  op.contacts.find((c) => c.primary) ?? null
 
 /** The non-zero care activity counts in the contract's kind order, or `null`
  *  when none was recorded — the server sends every kind, zero included. */
-export function activityTally(counts: OpportunityProfileResponse['activityCounts']): string | null {
+export function activityTally(counts: OpportunityRow['activityCounts']): string | null {
   const parts = CARE_ACTIVITY_KINDS.filter((kind) => counts[kind] > 0).map(
     (kind) => `${OPPORTUNITY_MILESTONE_LABEL[kind]} ×${counts[kind]}`,
   )

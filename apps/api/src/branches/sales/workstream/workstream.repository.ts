@@ -12,6 +12,7 @@ import {
   lte,
   or,
   sql,
+  type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
@@ -50,6 +51,28 @@ import { syncClosed } from './workstream-sync'
  *  for the whole page (`FOOTPRINT`), and every follow-up read takes the page's
  *  codes at once. A book over four ledgers asked row by row is `4n` round
  *  trips to Neon, which is what makes this screen affordable or not. */
+type RunKey = {
+  accountCode: AnyColumn | string
+  openedAt: AnyColumn | Date
+  code: AnyColumn | string
+}
+
+/** `other` is a run of `run`'s account opened before it in `(opened_at, code)`
+ *  order — the order `ordinalOf` numbers runs in; `orSelf` counts `run` itself.
+ *  The ONE copy: the deal row's ordinal and its "won before" both call it. */
+export const runBefore = (
+  other: { accountCode: AnyColumn; openedAt: AnyColumn; code: AnyColumn },
+  run: RunKey,
+  orSelf: boolean,
+): SQL | undefined =>
+  and(
+    eq(other.accountCode, run.accountCode),
+    or(
+      lt(other.openedAt, run.openedAt),
+      and(eq(other.openedAt, run.openedAt), (orSelf ? lte : lt)(other.code, run.code)),
+    ),
+  )
+
 @Injectable()
 export class WorkstreamRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -159,12 +182,10 @@ export class WorkstreamRepository {
       .select({ n: count() })
       .from(workstream)
       .where(
-        and(
-          eq(workstream.accountCode, run.accountCode),
-          or(
-            lt(workstream.openedAt, run.openedAt),
-            and(eq(workstream.openedAt, run.openedAt), lte(workstream.code, run.code)),
-          ),
+        runBefore(
+          workstream,
+          { accountCode: run.accountCode, openedAt: run.openedAt, code: run.code },
+          true,
         ),
       )
     return r?.n ?? 1

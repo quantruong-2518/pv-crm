@@ -23,11 +23,9 @@ import {
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
-import { useCan } from '@/app/auth'
 import { dm, dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
-import { realContact } from '@/data/lead-profile'
-import { noSellerSentence, useHasSeller } from '@/data/deal-sale'
+import { primaryContactOf, refusalOf } from '@/data/opportunities'
 import { opportunityStageHistoryQuery } from '@/data/opportunities-write'
 import type { DealDraft } from '@/data/deal-draft'
 import type { FlowVectorStep, RailObject } from '@pv/ui'
@@ -64,7 +62,7 @@ export function DealHeader({
   onBack,
   onOpenLead,
 }: {
-  op: OpportunityRow
+  op: OpportunityProfileResponse
   lead: LeadProfile | null
   /** The object chain, already dressed by `railOf`. Law 10. */
   rail: RailObject[]
@@ -73,8 +71,8 @@ export function DealHeader({
   onBack: () => void
   onOpenLead: () => void
 }) {
-  /* Read from the REAL profile, the same translation `lead-detail` runs on. */
-  const contact = lead ? realContact(lead) : null
+  /* The deal's own primary contact (`sales.opportunity_contact`), not the lead's. */
+  const contact = primaryContactOf(op)
 
   return (
     <ScreenHeader
@@ -101,11 +99,11 @@ export function DealHeader({
             </span>
           ) : (
             <span className="text-warning text-[11.5px] leading-[1.5]">
-              Chưa đọc được người liên hệ.
+              Cơ hội chưa có người liên hệ chính.
             </span>
           )}
 
-          {/* The lead's own contact person, so no `contactCode` (ADR 0075). */}
+          {/* A deal contact carries its `code`, sent as `contactCode` (ADR 0075). */}
           {contact && (
             <CommActions
               subject={{ code: op.code, kind: 'opportunity' }}
@@ -245,7 +243,6 @@ export function DealToolsBar({
   draft,
   op,
   onSign,
-  quotationLogged = false,
   canSendEmail = false,
   composeBlocked,
   onCompose,
@@ -253,9 +250,6 @@ export function DealToolsBar({
   draft: DealDraft
   op: OpportunityProfileResponse
   onSign: () => void
-  /** Has a `quotation-sent` touch been recorded? The first sign 409s without
-   *  one (ADR 0064 §3), so the button says so BEFORE the press rather than after. */
-  quotationLogged?: boolean
   /** `lead.send-email`, scoped — the permission `data/mas.ts` declares. */
   canSendEmail?: boolean
   /** Why this deal cannot be written to, when it cannot. */
@@ -268,11 +262,11 @@ export function DealToolsBar({
      the door refuses it and there is no way back from a stop. */
   const won = op.state === 'won'
   const pending = op.pendingSign
-  const sign = useSignWhy(op, quotationLogged, draft.canClose && !pending)
+  const sign = signWhyOf(op, draft.canClose && !pending)
   /* The bar prints the sign reason only when nothing outranks it; when that
      reason is the missing seller, the moves row drops its own copy of it. */
   const quiet = !draft.error && draft.missing.length === 0 && draft.dirty.length === 0
-  const sellerOnBar = quiet && sign.shown !== undefined && sign.shown === sign.noSeller
+  const sellerOnBar = quiet && sign.shown !== undefined && !op.hasSeller
 
   return (
     /* Sticky on a finger too (tablet portrait), capped at half the screen so a
@@ -357,16 +351,16 @@ export function DealToolsBar({
           {/* HIDDEN OUTRIGHT without `opportunity.close` — decision 4 of ADR
               `docs/decisions/0018-opportunity-module-decisions.md`. Hiding is
               NOT the fence: the real one stays at the api layer. */}
-          {/* Shut until a quotation has been sent, reason on the title: the door
-              answers 409 otherwise, and a seller who filled in the whole panel
-              first deserves to have been told before pressing. */}
+          {/* Shut while the server's `acts.sign` refuses, its reason on the title:
+              a seller who filled in the whole panel first deserves to have been
+              told before pressing. */}
           {op.state === 'open' && draft.canClose && (
             <Button
               size="md"
               variant="success"
               className="pointer-coarse:h-12"
-              disabled={Boolean(pending) || Boolean(sign.first)}
-              title={sign.first}
+              disabled={Boolean(pending) || Boolean(sign.why)}
+              title={sign.why}
               onClick={onSign}
             >
               <Icon icon={Check} size={16} />
@@ -378,8 +372,8 @@ export function DealToolsBar({
               size="md"
               variant="success"
               className="pointer-coarse:h-12"
-              disabled={Boolean(pending) || Boolean(sign.again)}
-              title={sign.again}
+              disabled={Boolean(pending) || Boolean(sign.why)}
+              title={sign.why}
               onClick={onSign}
             >
               <Icon icon={PenLine} size={16} />
@@ -413,27 +407,12 @@ export function DealToolsBar({
   )
 }
 
-/** Why each sign button is shut — mirrors the sign door's 409s off the SAVED
- *  row (ADR 0071 §4): a seller (`isSellerRole`) must stand on the SALE lane,
- *  and a first sign needs a quotation. `shown` is the one the bar prints. No
- *  seller reason while the roles are still loading — never a guess. */
-function useSignWhy(op: OpportunityRow, quotationLogged: boolean, offered: boolean) {
-  const seller = useHasSeller(op)
-  const canAssign = useCan('opportunity.assign')
-  const noSeller = noSellerSentence(op.state === 'won', canAssign)
-  const again = seller === false ? noSeller : undefined
-  const first = again ?? (quotationLogged ? undefined : NO_QUOTATION)
-  const shown = !offered
-    ? undefined
-    : op.state === 'open'
-      ? first
-      : op.state === 'won'
-        ? again
-        : undefined
-  return { first, again, shown, noSeller }
+/** Why the sign buttons are shut — the sign door's own verdict (`acts.sign`),
+ *  in the server's words. `shown` is the one the bar prints. */
+function signWhyOf(op: OpportunityProfileResponse, offered: boolean) {
+  const why = refusalOf(op.acts.sign) ?? undefined
+  return { why, shown: offered && op.state !== 'lost' ? why : undefined }
 }
-
-const NO_QUOTATION = `Chưa ghi ${OPPORTUNITY_STAGE_LABEL.quotation} — gửi báo giá trước khi chốt.`
 
 /** The screen that would not open — ONE block, four sentences, glyph follows
  *  the sentence. Four near-identical empty blocks would drift apart on the

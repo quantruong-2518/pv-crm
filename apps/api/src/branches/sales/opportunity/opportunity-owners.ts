@@ -71,7 +71,9 @@ export function assertSaleLaneKept(
 
 /** What an owners change leaves, in the door's tx: ONE touch naming who was
  *  given and who was taken off the SALE lane, if anyone was; and whenever the
- *  holder changes, the old holder's open step follows the new one. */
+ *  holder changes, a `handed-over` touch with both ends (the holder chain, as
+ *  `opportunity-handover.ts` writes it) and the old holder's open step follows
+ *  the new one. */
 export async function recordSaleLane(
   tx: Db,
   touch: TouchService,
@@ -101,9 +103,24 @@ export async function recordSaleLane(
       },
     ])
   }
-  if (change.from && change.to && change.from.id !== change.to.id) {
-    await handStepOver(tx, change.code, change.from.id, change.to.id)
+  const { from, to } = change
+  if (to && from?.id !== to.id) {
+    const role = (await actorRoles(tx, [to.id])).get(to.id)
+    await touch.record(tx, [
+      {
+        subjectCode: change.code,
+        subjectKind: 'opportunity',
+        kind: 'handed-over',
+        by: change.by.name,
+        actorId: change.by.id,
+        ...(from ? { from: { actorId: from.id, name: from.name } } : {}),
+        to: { actorId: to.id, name: to.name, ...(role ? { role } : {}) },
+        note: NOTE.handedOver(from?.name ?? null, to.name),
+        at: change.at,
+      },
+    ])
   }
+  if (from && to && from.id !== to.id) await handStepOver(tx, change.code, from.id, to.id)
 }
 
 /** The PATCH's owners change as `recordSaleLane` reads it: SALE ids added and

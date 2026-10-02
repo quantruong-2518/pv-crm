@@ -97,6 +97,8 @@ export type PipelinePosition = {
    *  twice to print "2 days left" and "1 day late" in the same column. `null`
    *  when the phase has no `limitDays` configured. */
   overdueBy: number | null
+  /** The phase's configured limit, so a screen prints the rule it is judged by. */
+  limitDays: number | null
 }
 
 export type PositionInput = {
@@ -159,6 +161,7 @@ export function pipelinePosition(input: PositionInput, now: string): PipelinePos
        — nothing can be said about lateness here — and neither may be printed as
        a zero, which would read as "right on time". */
     overdueBy: phase.limitDays === null || daysHere === null ? null : daysHere - phase.limitDays,
+    limitDays: phase.limitDays,
   }
 }
 

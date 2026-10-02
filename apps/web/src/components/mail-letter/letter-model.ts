@@ -127,8 +127,14 @@ export function toCell(
   return { code, name, line: `${why} · không nhận`, flag: why, ok: false }
 }
 
-/** The default To: the lead's primary person, else its first with an address. */
-export function seedTo(rows: readonly LetterContact[], leadCode: string): string[] {
+/** The default To: a deal letter's own primary contact (`OpportunityRow.primaryContact`),
+ *  else the lead's primary person, else its first with an address. */
+export function seedTo(
+  rows: readonly LetterContact[],
+  leadCode: string,
+  dealPrimary?: string | null,
+): string[] {
+  if (dealPrimary) return [dealPrimary]
   const home = rows.filter((row) => row.leadCode === leadCode)
   const first = home.find((row) => row.isPrimary) ?? home.find((row) => row.email) ?? home[0]
   return first ? [first.code] : []

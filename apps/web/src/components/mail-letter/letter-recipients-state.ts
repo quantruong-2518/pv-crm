@@ -7,7 +7,12 @@ import { seedTo, toCell } from './letter-model'
 /** Who the letter goes to: the To picks (contact codes), the CC colleagues
  *  (actor ids) and the server's verdict on exactly this To list (G2). Split
  *  from the shell so the shell only assembles. */
-export function useLetterRecipients(door: MailSubjectKind, code: string, leadCode: string) {
+export function useLetterRecipients(
+  door: MailSubjectKind,
+  code: string,
+  leadCode: string,
+  dealPrimary?: string | null,
+) {
   const contacts = useLetterContacts(leadCode)
   const directory = useDirectory()
   /* `null` until the contact book lands, then seeded ONCE — a refetch must not
@@ -16,8 +21,8 @@ export function useLetterRecipients(door: MailSubjectKind, code: string, leadCod
   const [ccIds, setCcIds] = useState<string[]>([])
 
   useEffect(() => {
-    if (to === null && contacts.rows) setTo(seedTo(contacts.rows, leadCode))
-  }, [to, contacts.rows, leadCode])
+    if (to === null && contacts.rows) setTo(seedTo(contacts.rows, leadCode, dealPrimary))
+  }, [to, contacts.rows, leadCode, dealPrimary])
 
   const pool = useMemo(
     () => new Map((contacts.rows ?? []).map((row) => [row.code, row])),

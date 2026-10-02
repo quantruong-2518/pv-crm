@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, max, or } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
 import {
   OPPORTUNITY_STAGE_LABEL,
@@ -13,6 +13,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { configEntry } from '../config/config.schema'
+import { contract } from '../contract/contract.schema'
 import { dropStep } from '../next-step/next-step.handover'
 import { TouchService } from '../touch/touch.service'
 import { MILESTONE_TOUCH, NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
@@ -20,7 +21,6 @@ import { OpportunityRepository } from './opportunity.repository'
 import { opportunity, opportunityStageEvent, type OpportunityRowDb } from './opportunity.schema'
 
 /** EVERY MOVE A DEAL MAKES BEFORE A CONTRACT EXISTS (ADR 0064, 0069).
- *
  *  Four facts move a deal here and nothing else does: a head accepted it
  *  (`new` → `assigned`, ADR 0071), its first care activity was recorded
  *  (`assigned` → `engaged`, ADR 0072), a quotation was recorded, or it was
@@ -29,7 +29,8 @@ import { opportunity, opportunityStageEvent, type OpportunityRowDb } from './opp
  *  The ONE other writer is the sign flow (`closeForSign` in
  *  `opportunity.mapper.ts`), which owns the one-way trip off the board. They
  *  cannot race: signing needs a quotation, a milestone only this class
- *  records, and a signed deal is refused by every move here for good.
+ *  records, and on a signed deal no move here writes a column again — a care
+ *  milestone there is a timeline row only (owner decision 01/10, ADR 0072 §3).
  *
  *  Every move is ONE conditional UPDATE naming the column it may leave, so it
  *  is forward-only without a second lock, and carries `stage_since`, a timeline
@@ -104,9 +105,9 @@ export class OpportunityLifecycle {
     return written
   }
 
-  /** A milestone was recorded — `POST /:code/milestones` (ADR 0072). Guards in
-   *  the order a person hits them: signed, pending sign, lost, not accepted
-   *  yet, then the date. `at` defaults to now and is the moment every row
+  /** A milestone was recorded — `POST /:code/milestones` (ADR 0072). Refused
+   *  by `careVerdict` (lost, still at `new`), then by the date against its
+   *  floor (`floors`). `at` defaults to now and is the moment every row
    *  written here carries. */
   async milestone(
     tx: Db,
@@ -115,29 +116,41 @@ export class OpportunityLifecycle {
     by: By,
     opts: { at?: Date | undefined; note?: string | undefined },
   ): Promise<OpportunityRowDb> {
-    const from = this.onBoard(deal, 'ghi hoạt động hay báo giá')
-    const now = new Date()
-    const step = { asked: opts.at, now, note: NOTE.milestone(kind, opts.note) }
+    const care = careVerdict(deal, kind === 'quotation' ? 'quotation' : 'activity')
+    if (!care.ok) throw conflict(care.reason)
+    const floor = await this.floors(tx, deal)
+    const step = { asked: opts.at, now: new Date(), note: NOTE.milestone(kind, opts.note) }
     return kind === 'quotation'
-      ? this.quotation(tx, deal, from, by, step)
-      : this.activity(tx, deal, from, kind, by, step)
+      ? this.quotation(tx, deal, care.stage, by, step, floor.quotation)
+      : this.activity(tx, deal, care.stage, kind, by, step, floor.activity)
+  }
+
+  /** The earliest moment each care door accepts (ADR 0072 §3–4): an activity
+   *  from the acceptance; a quotation from entry into the current column, or on
+   *  a won deal from its latest signing. The door and the profile both ask here. */
+  async floors(handle: Db, deal: DealAt): Promise<CareFloors> {
+    const [accepted, signedAt] = await Promise.all([
+      this.acceptedAt(handle, deal.row),
+      deal.signed ? this.lastSignedAt(handle, deal.row.code) : null,
+    ])
+    return { activity: accepted, quotation: signedAt ?? deal.row.stageSince ?? deal.row.createdAt }
   }
 
   /** A care activity: repeatable, in any order, never at `new`. Only the first
    *  one on a deal standing at `assigned` moves it — to `engaged`, with the
-   *  activity's own moment as the column's clock. Anywhere else it is a
-   *  timeline row and nothing more. */
+   *  activity's own moment as the column's clock. Anywhere else, a won deal
+   *  included (`from: null`), it is a timeline row and nothing more. */
   private async activity(
     tx: Db,
     deal: DealAt,
-    from: StageKey,
+    from: StageKey | null,
     kind: CareActivityKind,
     by: By,
     step: Step,
+    floor: Date,
   ): Promise<OpportunityRowDb> {
     const code = deal.row.code
-    if (from === 'new') throw conflict('Cơ hội chưa được nhận PIC — chưa ghi hoạt động được.')
-    const at = effectiveAt(step, await this.acceptedAt(tx, deal.row), 'ngày nhận PIC')
+    const at = effectiveAt(step, floor, 'ngày nhận PIC')
 
     const touchKind = MILESTONE_TOUCH[kind]
     if (from !== 'assigned') {
@@ -163,25 +176,22 @@ export class OpportunityLifecycle {
   }
 
   /** A quotation: forward-only into `quotation`, skipping `engaged` when none
-   *  was recorded. Re-recording it while standing there is another round —
-   *  the timeline row only, so the rot clock is not pushed back. Its moment
-   *  may not precede the entry into the column it leaves. */
+   *  was recorded. Re-recording it while standing there, or on a won deal
+   *  (`from: null`), is another round — the timeline row only, so the rot clock
+   *  is not pushed back. Its moment may not precede its floor (`floors`). */
   private async quotation(
     tx: Db,
     deal: DealAt,
-    from: StageKey,
+    from: StageKey | null,
     by: By,
     step: Step,
+    floor: Date,
   ): Promise<OpportunityRowDb> {
     const code = deal.row.code
-    if (RANK[from] < RANK.assigned) {
-      throw conflict(
-        `Cơ hội ${code} chưa được nhận PIC nên chưa ghi hoạt động hay báo giá được — chờ trưởng phòng bấm Nhận PIC trước.`,
-      )
-    }
-    const at = effectiveAt(step, deal.row.stageSince ?? deal.row.createdAt, 'ngày vào cột hiện tại')
+    const floorName = from === null ? 'ngày ký hợp đồng gần nhất' : 'ngày vào cột hiện tại'
+    const at = effectiveAt(step, floor, floorName)
 
-    if (from === 'quotation') {
+    if (from === null || from === 'quotation') {
       await this.record(tx, code, MILESTONE_TOUCH.quotation, by, step.note, at)
       return deal.row
     }
@@ -205,6 +215,15 @@ export class OpportunityLifecycle {
     const kind = MILESTONE_TOUCH.quotation
     await this.after(tx, deal, written, by, { at, from, kind, note: step.note })
     return written
+  }
+
+  /** The latest contract's signing instant — a won deal's quotation floor. */
+  private async lastSignedAt(handle: Db, code: string): Promise<Date | null> {
+    const [r] = await handle
+      .select({ at: max(contract.signedAt) })
+      .from(contract)
+      .where(eq(contract.opportunityCode, code))
+    return r?.at ?? null
   }
 
   /** The floor of an activity's date: the accept. A deal accepted before ADR
@@ -298,25 +317,11 @@ export class OpportunityLifecycle {
     }
   }
 
-  /** The column a deal is standing in, or the refusal for one that has left the
-   *  board. Won and lost deals both read `stage IS NULL`, and they get two
-   *  different sentences because they lead to two different next actions.
-   *  Public for the accept door, which refuses in these same words. */
+  /** `boardVerdict` as a 409 — the stop, accept and assign doors' guard. */
   onBoard(deal: DealAt, action: string): StageKey {
-    const code = deal.row.code
-    if (deal.signed) throw conflict(`Cơ hội ${code} đã ký hợp đồng — không ${action} được nữa.`)
-    if (deal.pendingSign) {
-      throw conflict(`Cơ hội ${code} đang chờ duyệt ký — không ${action} được lúc này.`)
-    }
-    if (deal.row.state === 'lost') {
-      throw conflict(
-        `Cơ hội ${code} đã dừng — không ${action} được nữa. Muốn chăm lại thì đi từ lead.`,
-      )
-    }
-    if (deal.row.stage === null) {
-      throw conflict(`Cơ hội ${code} đã ra khỏi bảng nên không ${action} được.`)
-    }
-    return deal.row.stage
+    const verdict = boardVerdict(deal, action)
+    if (!verdict.ok) throw conflict(verdict.reason)
+    return verdict.stage
   }
 
   /** The three rows every move owes beside the deal: the funnel row, the
@@ -367,6 +372,51 @@ export class OpportunityLifecycle {
     ])
   }
 }
+
+/** A door's answer on a deal: the column it may act from, or why not. */
+export type StageVerdict<S> = { ok: true; stage: S } | { ok: false; reason: string }
+
+const refuse = (reason: string): { ok: false; reason: string } => ({ ok: false, reason })
+
+/** The column a deal is standing in, or the refusal for one that has left the
+ *  board. Won and lost deals both read `stage IS NULL`, and they get two
+ *  different sentences because they lead to two different next actions. Pure:
+ *  the stop, accept and assign doors and the profile's `acts` all read it. */
+export function boardVerdict(deal: DealAt, action: string): StageVerdict<StageKey> {
+  const code = deal.row.code
+  if (deal.signed) return refuse(`Cơ hội ${code} đã ký hợp đồng — không ${action} được nữa.`)
+  if (deal.pendingSign)
+    return refuse(`Cơ hội ${code} đang chờ duyệt ký — không ${action} được lúc này.`)
+  if (deal.row.state === 'lost') return refuse(lostSentence(code, action))
+  if (deal.row.stage === null)
+    return refuse(`Cơ hội ${code} đã ra khỏi bảng nên không ${action} được.`)
+  return { ok: true, stage: deal.row.stage }
+}
+
+/** The two milestone doors by kind (ADR 0072 §3, owner decision 01/10): open
+ *  from `assigned` until lost — a pending sign does not close them, and on a
+ *  won deal (`stage: null`) they write the timeline row only. Never at `new`. */
+export function careVerdict(deal: DealAt, door: CareDoor): StageVerdict<StageKey | null> {
+  const code = deal.row.code
+  if (deal.row.state === 'lost') return refuse(lostSentence(code, 'ghi hoạt động hay báo giá'))
+  if (deal.signed) return { ok: true, stage: null }
+  if (deal.row.stage === null) return refuse(`Cơ hội ${code} đã ra khỏi bảng nên không ghi được.`)
+  if (deal.row.stage !== 'new') return { ok: true, stage: deal.row.stage }
+  return refuse(
+    door === 'activity'
+      ? 'Cơ hội chưa được nhận PIC — chưa ghi hoạt động được.'
+      : `Cơ hội ${code} chưa được nhận PIC nên chưa ghi hoạt động hay báo giá được — chờ trưởng phòng bấm Nhận PIC trước.`,
+  )
+}
+
+export type CareDoor = 'activity' | 'quotation'
+export type CareFloors = Record<CareDoor, Date>
+
+const lostSentence = (code: string, action: string) =>
+  `Cơ hội ${code} đã dừng — không ${action} được nữa. Muốn chăm lại thì đi từ lead.`
+
+/** A VN calendar day, `YYYY-MM-DD` — how the profile prints a floor. */
+export const vnDay = (at: Date): string => VN_DAY.format(at)
 
 /** What a milestone door hands its two paths: the moment asked for, if any. */
 type Step = { asked: Date | undefined; now: Date; note: string }

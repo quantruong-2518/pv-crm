@@ -7,6 +7,7 @@ import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STATE_LABEL,
   OPPORTUNITY_STOP_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER_LABEL,
 } from '@pv/contracts'
 import { OpportunityRepository } from './opportunity.repository'
 
@@ -103,10 +104,11 @@ export class OpportunityMailComposer implements MailComposer {
   }
 
   /** The stored reason is a catalogue id; the reader gets its label, and
-   *  `other` reads "Khác" — its sentence is the note printed under it. */
+   *  `other` reads its fixed label — its sentence is the note printed under it. */
   private async reasonOf(id: string | null): Promise<{ stopReason?: string }> {
     if (id === null) return {}
-    if (id === OPPORTUNITY_STOP_REASON_OTHER) return { stopReason: 'Khác' }
+    if (id === OPPORTUNITY_STOP_REASON_OTHER)
+      return { stopReason: OPPORTUNITY_STOP_REASON_OTHER_LABEL }
     return { stopReason: (await this.repo.lossReasonName(id)) ?? id }
   }
 }

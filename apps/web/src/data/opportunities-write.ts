@@ -1,5 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  OpportunityStageHistory,
+  OpportunityStopReasons,
   type ConfigProposalReceipt,
   type ContractSign,
   type LeadProfile,
@@ -8,6 +10,8 @@ import {
   type OpportunityAcceptResponse,
   type OpportunityContactPick,
   type OpportunityCreate,
+  type OpportunityContactsBody,
+  type OpportunityContactsResponse,
   type OpportunityCreateResponse,
   type OpportunityMilestoneBody,
   type OpportunityMilestoneResponse,
@@ -15,7 +19,6 @@ import {
   type OpportunityRow,
   type OpportunitySaleOwnersBody,
   type OpportunitySaleOwnersResponse,
-  type OpportunityStageHistory,
   type OpportunityStopBody,
   type OpportunityStopResponse,
   type OpportunityUpdate,
@@ -332,11 +335,12 @@ export function useSaveOpportunity(code: ObjectCode) {
   return useMutation<OpportunityUpdateResponse, ApiError, OpportunityUpdate>({
     mutationFn: (body) => saveOpportunity(code, body),
     onSuccess: (row) => {
-      /* Merged, not replaced: the row lacks the profile's `chain`, `position`
-         and `pendingSign`, and a bare row would crash the rail on the next render. */
+      /* Merged, not replaced: the row lacks the profile's `chain`, `position`,
+         `acts` and `contacts`. Then re-read, since `acts` judge the saved row. */
       client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
         prev ? { ...prev, ...row } : prev,
       )
+      void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true })
       void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
       /* A signed deal's amount, currency and owner are carried onto its contract. */
       void client.invalidateQueries({ queryKey: CONTRACT_BOOK_KEY })
@@ -524,6 +528,38 @@ export function useAssignSale(code: ObjectCode) {
   })
 }
 
+/** `PUT :code/contacts` replaces the deal's contact list — `opportunity.edit`,
+ *  scoped, like the edit door. The answer is a bare row, so the profile is
+ *  re-read for its `contacts` rather than merged. */
+export function useSaveDealContacts(code: ObjectCode) {
+  const client = useQueryClient()
+
+  return useMutation<OpportunityContactsResponse, ApiError, OpportunityContactsBody>({
+    mutationFn: (body) =>
+      api.write<OpportunityContactsResponse>(`${BOOK_PATH}/${code}/contacts`, {
+        method: 'PUT',
+        body,
+        need: OPPORTUNITY_UPDATE_NEED,
+      }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
+      void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
+    },
+  })
+}
+
+/** `GET /sales/opportunities/stop-reasons` — the active `LOSS_REASON` list on
+ *  `opportunity.edit`, unscoped, so a stopper without `config.view` can pick. */
+export const opportunityStopReasonsQuery = queryOptions({
+  queryKey: ['sales', 'opportunity-stop-reasons'] as const,
+  queryFn: ({ signal }) =>
+    api.read<OpportunityStopReasons>(`${BOOK_PATH}/stop-reasons`, {
+      need: { branch: 'Sales', permission: 'opportunity.edit' },
+      schema: OpportunityStopReasons,
+      signal,
+    }),
+})
+
 export function useStopDeal(code: ObjectCode) {
   const settled = useMoveSettled(code)
 
@@ -550,6 +586,7 @@ export function opportunityStageHistoryQuery(code: ObjectCode) {
     queryFn: ({ signal }) =>
       api.read<OpportunityStageHistory>(`${BOOK_PATH}/${code}/stage-history`, {
         need: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
+        schema: OpportunityStageHistory,
         signal,
       }),
   })

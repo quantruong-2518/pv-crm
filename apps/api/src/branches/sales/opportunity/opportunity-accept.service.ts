@@ -3,14 +3,16 @@ import type { Actor } from '@pv/engines'
 import {
   OpportunityAcceptResponse,
   type ObjectCode,
+  type OpportunityAct,
   type OpportunityAcceptBody,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { TouchService } from '../touch/touch.service'
-import { dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
+import { boardVerdict, dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
 import { actorRoles, assertSellers, recordSaleLane } from './opportunity-owners'
-import { holderOf, toContract, type RefOwner } from './opportunity.mapper'
+import { holderOf, type RefOwner } from './opportunity.mapper'
+import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
 /** The accept door (ADR 0071 §3): a head of sales or director takes a `new`
@@ -32,6 +34,7 @@ export class OpportunityAccept {
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
     private readonly touch: TouchService,
+    private readonly facts: OpportunityFacts,
   ) {}
 
   async accept(
@@ -46,8 +49,8 @@ export class OpportunityAccept {
       const lock = await this.deals.lockDeal(tx, code)
       const found = lock ? await this.deals.byCode(null, code, tx) : null
       if (!lock || !found) throw notFound('cơ hội', code)
-      const from = this.lifecycle.onBoard(dealAtOf(found, lock.pendingSign), 'nhận PIC')
-      if (from !== 'new') throw alreadyAccepted(found)
+      const verdict = acceptVerdict(found, lock.pendingSign)
+      if (!verdict.ok) throw conflict(verdict.reason)
 
       /* Union, never replace: accepting must not drop someone already on the
          deal. Only ids new to the SALE lane are judged as sellers. */
@@ -70,7 +73,7 @@ export class OpportunityAccept {
         by,
         at,
       )
-      if (!moved) throw alreadyAccepted(found)
+      if (!moved) throw conflict(alreadyAccepted(found))
       await recordSaleLane(tx, this.touch, {
         code,
         added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
@@ -84,7 +87,7 @@ export class OpportunityAccept {
 
     const read = await this.deals.byCode(null, code)
     if (!read) throw notFound('cơ hội', code)
-    return OpportunityAcceptResponse.parse(toContract(read))
+    return OpportunityAcceptResponse.parse(await this.facts.row(read))
   }
 
   /** The holder once `by` is the acceptor — read before the move, because the
@@ -109,12 +112,20 @@ const DAY_MONTH = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Ho_Chi_Minh',
 })
 
+/** Accepting is once, and only on the board (`boardVerdict`). Pure: the door
+ *  and the profile's `acts.accept` read the same answer. */
+export function acceptVerdict(found: OpportunityRead, pendingSign: boolean): OpportunityAct {
+  const board = boardVerdict(dealAtOf(found, pendingSign), 'nhận PIC')
+  if (!board.ok) return board
+  return board.stage === 'new' ? { ok: true } : { ok: false, reason: alreadyAccepted(found) }
+}
+
 /** Past `new` already. A deal that reached `assigned` before ADR 0071 with no
  *  head on it has no acceptor to name, so it gets the sentence without one. */
-function alreadyAccepted(found: OpportunityRead) {
+function alreadyAccepted(found: OpportunityRead): string {
   const { acceptedBy } = found
   const at = found.row.acceptedAt
   return acceptedBy && at
-    ? conflict(`Cơ hội đã được ${acceptedBy.name} nhận PIC ngày ${DAY_MONTH.format(at)}`)
-    : conflict(`Cơ hội ${found.row.code} đã qua bước nhận PIC — không nhận lại được.`)
+    ? `Cơ hội đã được ${acceptedBy.name} nhận PIC ngày ${DAY_MONTH.format(at)}`
+    : `Cơ hội ${found.row.code} đã qua bước nhận PIC — không nhận lại được.`
 }

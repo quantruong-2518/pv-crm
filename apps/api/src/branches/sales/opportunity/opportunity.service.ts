@@ -11,10 +11,11 @@ import {
   type ObjectRef,
 } from '@pv/engines'
 import {
-  CARE_ACTIVITY_KINDS,
   OpportunityBookResponse,
   OpportunityCreateResponse,
+  OpportunityFacetsResponse,
   OpportunityProfileResponse,
+  OpportunityStopReasons,
   OpportunityHistogram,
   OpportunityImportCommitResponse,
   OpportunityImportPreviewResponse,
@@ -27,6 +28,7 @@ import {
   type ObjectCode,
   type OpportunityBookQuery,
   type OpportunityCreate,
+  type OpportunityFacetsQuery,
   type OpportunityImportBody,
   type OpportunityUpdate,
   type TouchTimelineResponse,
@@ -44,7 +46,11 @@ import { ContractRepository, type ContractRead } from '../contract/contract.repo
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { editVerdict, OpportunityActs } from './opportunity-acts'
+import { OpportunityFacetsRepository } from './opportunity-facets.repository'
+import { OpportunityFacts } from './opportunity-facts'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
+import { editTrail } from './opportunity-trail'
 import { foreignLead, holds, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorRoles,
@@ -57,16 +63,15 @@ import {
 import {
   fromCreate,
   fromUpdate,
+  hasSellerOf,
   holderOf,
   daysInStageOf,
-  MILESTONE_TOUCH,
   NOTE,
   ownerRowsOf,
   productRowsOf,
   refOf,
   scopeRefOf,
   stageEventOf,
-  toContract,
   toRef,
   toStageEvent,
   type RefOwner,
@@ -121,6 +126,9 @@ export class OpportunityService {
     /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
     private readonly leadStates: LeadStateWriter,
     private readonly opening: OpportunityOpening,
+    private readonly facts: OpportunityFacts,
+    private readonly acts: OpportunityActs,
+    private readonly facetsRepo: OpportunityFacetsRepository,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -167,22 +175,34 @@ export class OpportunityService {
 
        They run side by side and only after `visible`, for those two reasons in
        that order. */
-    const [stageRows, waiting] = await Promise.all([
+    const [stageRows, waiting, rows] = await Promise.all([
       this.repo.stageRows(),
       this.approvals.pendingOnMany(visible.map((v) => v.row.code)),
+      this.facts.rows(visible),
     ])
 
     /* Kiểm chính dữ liệu MÌNH trả ra bằng hợp đồng. Một cột đổi kiểu, một
        trường quên map — cả hai lọt qua `tsc` nếu mapper sai theo, không lọt qua
        đây. Phí bị chặn trên bởi `size` tối đa 200 dòng. */
     return OpportunityBookResponse.parse({
-      rows: visible.map((v) => ({
-        ...toContract(v),
+      rows: visible.map((v, i) => ({
+        ...rows[i],
         position: positionOf(v.row, stageRows, waiting.get(v.row.code) ?? []),
       })),
       total: page.total,
       hidden: page.hidden + hidden,
     })
+  }
+
+  /** `GET /sales/opportunities/facets` — the book's filter choices, scoped and
+   *  filtered like the book itself (`OpportunityFacets`). */
+  async facets(who: Actor, q: OpportunityFacetsQuery): Promise<OpportunityFacetsResponse> {
+    return OpportunityFacetsResponse.parse(await this.facetsRepo.facets(who, q))
+  }
+
+  /** `GET /sales/opportunities/stop-reasons` — the stop drawer's catalogue. */
+  async stopReasons(): Promise<OpportunityStopReasons> {
+    return OpportunityStopReasons.parse({ rows: await this.facts.stopReasons() })
   }
 
   /** Thẻ điểm Sổ cơ hội. `GET /sales/opportunities/scorecard`.
@@ -247,29 +267,26 @@ export class OpportunityService {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
-    /* Four independent reads, profile-only (see `OpportunityProfileResponse`).
+    /* Independent reads, profile-only (see `OpportunityProfileResponse`).
        `storyFor`, not `story`: E2 cuts the chain to what this reader may open,
        and `hidden` is dropped because a count of what was cut is itself a leak. */
-    const [stageRows, approvals, story, done] = await Promise.all([
+    const [stageRows, approvals, story, row, contacts] = await Promise.all([
       this.repo.stageRows(),
       this.approvals.pendingOn(code),
       this.graph.storyFor(who, code),
-      this.touch.countKinds(
-        code,
-        CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]),
-      ),
+      this.facts.row(found),
+      this.facts.contacts(found),
     ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
     return OpportunityProfileResponse.parse({
-      ...toContract(found),
+      ...row,
       position: positionOf(found.row, stageRows, approvals),
       pendingSign: sign
         ? { approvalId: sign.id, raisedBy: sign.raisedBy, raisedAt: sign.raisedAt.toISOString() }
         : null,
-      activityCounts: Object.fromEntries(
-        CARE_ACTIVITY_KINDS.map((k) => [k, done.get(MILESTONE_TOUCH[k]) ?? 0]),
-      ),
+      contacts,
+      ...(await this.acts.of(who, found, sign !== undefined)),
       chain: story.chain.map(toChainLink),
     })
   }
@@ -406,7 +423,7 @@ export class OpportunityService {
     const productNames = (await this.repo.productsOf(handle, [code])).get(code) ?? []
 
     return OpportunityCreateResponse.parse(
-      toContract({
+      await this.facts.row({
         row,
         account: lead.company,
         owners: [
@@ -420,6 +437,7 @@ export class OpportunityService {
         contractCodes: [],
         holder: owner,
         acceptedBy: acceptor,
+        hasSeller: sellerAmong(body.saleOwners, roles),
         daysInStage: daysInStageOf(row, row.createdAt),
         /* Labels read from the catalog after the write rather than rebuilt from
            the ids in the body: the body only carries ids, and the answer has to
@@ -454,7 +472,8 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    if (found.row.state === 'lost') throw frozenLost(code)
+    const edit = editVerdict(found.row)
+    if (!edit.ok) throw conflict(edit.reason)
     /* Money or SALE owners on a signed deal rewrite the contract, so they need
        the sign door's permission and scope. */
     if (found.signed && touchesSignTerms(found, body)) {
@@ -480,6 +499,8 @@ export class OpportunityService {
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
       await recordSaleLane(tx, this.touch, saleLaneChange(now, body.saleOwners, names, owner, who))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
+      const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
+      await this.touch.record(tx, editTrail({ found, body, names, products, who }))
       for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
 
       /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
@@ -493,7 +514,7 @@ export class OpportunityService {
       (await this.repo.productsOf(this.repo.readonlyHandle, [code])).get(code) ?? []
 
     return OpportunityUpdateResponse.parse(
-      toContract({
+      await this.facts.row({
         row,
         account: found.account,
         owners: [
@@ -510,6 +531,7 @@ export class OpportunityService {
         contractCodes: found.contractCodes,
         holder: owner,
         acceptedBy,
+        hasSeller: sellerAmong(body.saleOwners, roles),
         daysInStage: daysInStageOf(row, new Date()),
         products: productNames,
       }),
@@ -1003,8 +1025,9 @@ function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): Touch
   ]
 }
 
-const frozenLost = (code: string) =>
-  conflict(`Cơ hội ${code} đã dừng — không sửa được nữa. Muốn chăm lại thì đi từ lead.`)
+/** `hasSellerOf` over a body's SALE ids, roles resolved first. */
+const sellerAmong = (ids: readonly string[], roles: ReadonlyMap<string, RoleId>): boolean =>
+  hasSellerOf(ids.map((id) => ({ role: 'SALE' as const, roleId: roles.get(id) })))
 
 const frozenForSign = () =>
   conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')
