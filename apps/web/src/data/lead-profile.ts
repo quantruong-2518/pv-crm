@@ -11,7 +11,6 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import type { TouchEvent } from '@/data/touches'
 
 /** Module 2 · `GET /sales/leads/:code` — ONE whole lead profile.
  *
@@ -267,24 +266,6 @@ export function leadOf(p: LeadProfile): Lead {
     history: [],
   }
 }
-
-// ---------------------------------------------------------------------------
-// The fallback the touch query falls back TO · one named constant, not `[]`
-// ---------------------------------------------------------------------------
-
-/** The lead's touches when the query has not answered yet, or has failed.
- *
- *  Not what the screens normally render: both detail screens read `sales.touch`
- *  through `data/touches.ts`. This survives as the fallback only.
- *
- *  A named constant rather than an inline `[]`, because a bare `[]` cannot say
- *  WHICH empty it is — nobody has touched this lead, or the answer has not come
- *  back. Module-level and frozen, so its identity holds across renders.
- *
- *  Its twin `NO_TRANSCRIPT` is gone: the verbatim-conversation panel was
- *  dead on screen (both call sites passed an empty transcript), so the panel
- *  and the constant went together. */
-export const NO_TOUCHES: readonly TouchEvent[] = []
 
 // ---------------------------------------------------------------------------
 // Wire → the contact `nextActions` reads — no generator involved

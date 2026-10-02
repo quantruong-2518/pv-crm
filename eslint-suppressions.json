@@ -1450,7 +1450,7 @@
       "count": 7
     },
     "aurora/comments-in-english": {
-      "count": 7
+      "count": 5
     }
   },
   "apps/web/src/data/meetings.ts": {
@@ -1636,11 +1636,6 @@
       "count": 1
     }
   },
-  "apps/web/src/pages/account-detail.tsx": {
-    "aurora/comment-budget": {
-      "count": 3
-    }
-  },
   "apps/web/src/pages/accounts.tsx": {
     "aurora/comment-budget": {
       "count": 3
@@ -1670,14 +1665,6 @@
       "count": 3
     }
   },
-  "apps/web/src/pages/contact-detail.tsx": {
-    "aurora/comment-budget": {
-      "count": 2
-    },
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "apps/web/src/pages/contacts.tsx": {
     "aurora/comment-budget": {
       "count": 2
@@ -1702,11 +1689,6 @@
     },
     "aurora/comments-in-english": {
       "count": 5
-    }
-  },
-  "apps/web/src/pages/installment-detail.tsx": {
-    "max-lines-per-function": {
-      "count": 1
     }
   },
   "apps/web/src/pages/leads.tsx": {

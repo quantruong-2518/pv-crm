@@ -1,14 +1,8 @@
 import { queryOptions } from '@tanstack/react-query'
 import type { FlowVectorStep } from '@pv/ui'
 import type { LeadEvent } from '@pv/engines/fixtures/das-vina'
-import {
-  LEAD_STATE_LABEL,
-  TouchTimelineResponse,
-  type TouchKind,
-  type TouchRow,
-} from '@pv/contracts'
+import { TouchTimelineResponse, type TouchKind, type TouchRow } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { tierLabel } from '@/data/lead-state'
 import { ROLE_LABEL } from '@/data/users'
 import { dm, dmy } from '@/lib/date'
 
@@ -16,10 +10,6 @@ import { dm, dmy } from '@/lib/date'
  *
  *      GET /sales/leads/:code/touches   quyền `lead.view`    · scoped
  *      GET /sales/opportunities/:code/touches     quyền `opportunity.view`  · scoped
- *
- *  Đây là thứ thay hằng số `NO_TOUCHES` ở `data/lead-profile.ts`, nay chỉ còn
- *  là chỗ lui khi câu hỏi chưa về. (`NO_TRANSCRIPT` đã bỏ cùng khối nguyên văn
- *  hội thoại — nó chết trên màn vì cả hai chỗ gọi đều truyền tập rỗng.)
  *
  *  ------------------------------------------------------------------
  *  HAI QUERY CHỨ KHÔNG MỘT, VÀ HAI DÒNG THỜI GIAN KHÔNG TRỘN
@@ -58,9 +48,8 @@ const LEAD_TOUCH_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', sco
  *  Bốn trường được lấy, phần còn lại của `TouchRow` cố ý bỏ:
  *
  *   · `subjectCode`/`subjectKind` — đã biết, vì chính lời gọi chọn chúng;
- *   · `toTier` — kept for one job: a LEGACY `verified` sentence carries the tier
- *     KEY (`mql`), so `lifecycleTitle` rewrites it with the tier label. Nothing
- *     writes such a row any more (ADR 0063), but the old ones stay readable;
+ *   · `toTier` — only legacy `verified` rows carry it (ADR 0063), and no screen
+ *     reads a tier off a touch any more;
  *   · `actorId` — `by` là ẢNH CHỤP tên lúc ghi, và thẻ chỉ in tên. Cầm thêm id
  *     là mở đường cho ai đó join lại `actor` để "lấy tên mới hơn", đúng thứ
  *     docblock của `TouchRow.by` cấm.
@@ -74,7 +63,6 @@ export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
     kind: r.kind,
     by: r.by,
     note: r.note,
-    ...(r.toTier ? { toTier: r.toTier } : {}),
   }))
 }
 
@@ -100,39 +88,6 @@ export function eventsOf(rows: readonly TouchRow[]): TouchEvent[] {
 export type TouchFocus = { id: string; seq: number }
 
 export type TouchEvent = Omit<LeadEvent, 'kind'> & { id: string; kind: TouchKind }
-
-/** The screen's own sentence for a lifecycle step, or `undefined` to print the
- *  server's `note`. The screen only takes over where the server wrote a KEY it
- *  cannot name (a tier key, not its label). A `nurtured` row keeps the PIC's own
- *  note, which rides after the server's first ` · `.
- *
- *  `care-planned` and `exchange-logged` fall through on purpose: the server
- *  words those rows itself — what was scheduled, what was exchanged — and a
- *  fixed sentence here would throw that away (ADR 0063). */
-export function lifecycleTitle(event: TouchEvent): string | undefined {
-  switch (event.kind) {
-    case 'verified': {
-      /* Legacy rows only, and only the ones carrying a tier: the rest say what
-         the server wrote, since the word "verified" no longer names a step. */
-      const tier = event.toTier && tierLabel(event.toTier)
-      return tier ? `Đã xác minh · bậc ${tier}` : undefined
-    }
-    case 'nurtured': {
-      const head = `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`
-      const note = event.note.split(' · ').slice(1).join(' · ')
-      return note ? `${head} · ${note}` : head
-    }
-    case 'resumed':
-      return 'Chăm lại'
-    case 'archived':
-      /* Legacy rows only: `archived` retired as a live state (ADR 0068), but
-         old touch rows still carry the kind, so the sentence stays fixed text
-         rather than a table entry with no state behind it. */
-      return `Lưu trữ (quá lâu ở ${LEAD_STATE_LABEL.nurturing})`
-    default:
-      return undefined
-  }
-}
 
 /** `TouchRow[]` → the chain of PEOPLE who have held it, for `FlowVector` (M-16).
  *
@@ -178,15 +133,6 @@ export function stepsOf(rows: readonly TouchRow[]): FlowVectorStep[] {
 
   return steps
 }
-
-/** No holder has ever been recorded for this lead.
- *
- *  A module-level frozen value rather than `[]` in the screen, for the reason
- *  `NO_TOUCHES` is one: a fresh `[]` on every render gives `FlowVector` a new
- *  array identity each time and makes its memo work for nothing. It also says
- *  WHICH empty this is — nobody has held the lead, as opposed to the query not
- *  having answered. */
-export const NO_STEPS: readonly FlowVectorStep[] = []
 
 /** The holder chain of one LEAD.
  *

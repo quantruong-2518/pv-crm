@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
-  LeadMailEventsResponse,
-  LeadMailTimelineResponse,
   MailDoor,
   MailTemplateCreate,
   MailTemplateCreateResponse,
@@ -72,7 +70,6 @@ const CAMPAIGN_SEND_NEED: ApiNeed = {
   permission: 'campaign.broadcast',
   scoped: true,
 }
-const TIMELINE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view', scoped: true }
 
 /** Prefix of every mail-timeline key, so one send can invalidate all of them
  *  without knowing which leads it just wrote to. */
@@ -430,52 +427,3 @@ export function useMasSend() {
     },
   })
 }
-
-/** One lead's whole mail history. `GET /sales/leads/:code/mail`.
- *
- *  A FUNCTION of the code, and `code` is inside `queryKey` — same rule as
- *  `leadProfileQuery`: a timeline is not one value but one value per lead, and
- *  a key that forgot the code would draw the previous lead's letters on the
- *  next lead opened. On a card that says "đã gửi 3 lá thư" that is not a
- *  refresh bug, it is a wrong sentence about a real customer.
- *
- *  Not paged, because the endpoint is not: see `LeadMailTimelineResponse`. */
-export const leadMailTimelineQuery = (code: string) =>
-  queryOptions({
-    queryKey: [...LEAD_MAIL_KEY, code] as const,
-    queryFn: ({ signal }) =>
-      api.read<LeadMailTimelineResponse>(`/sales/leads/${encodeURIComponent(code)}/mail`, {
-        need: TIMELINE_NEED,
-        signal,
-      }),
-    /* Chỉ theo dõi sát khi worker đang thực sự xử lý đợt gửi. Một đợt hẹn cho
-       ngày mai không được đánh thức trình duyệt mỗi 5 giây suốt một ngày. */
-    refetchInterval: (query) =>
-      query.state.data?.rows.some(
-        (row) =>
-          row.runState === 'SENDING' ||
-          row.deliveryState === 'sending' ||
-          row.deliveryState === 'delayed',
-      )
-        ? 5_000
-        : false,
-  })
-
-/** One run's full engagement history for one lead — opens, clicks, replies, in
- *  order. `GET /sales/leads/:code/mail/:runId/events`, the detail panel behind
- *  one row of `leadMailTimelineQuery`.
- *
- *  `enabled: runId !== null` rather than a conditional call to this function —
- *  hooks cannot be called conditionally, so the drawer that opens this always
- *  calls the hook and this flag is what turns the request off while the panel
- *  is closed. See `MailTimelineDetailDrawer` in `components/lead-history-card.tsx`. */
-export const leadMailEventsQuery = (code: string, runId: string | null) =>
-  queryOptions({
-    queryKey: [...LEAD_MAIL_KEY, code, 'events', runId] as const,
-    queryFn: ({ signal }) =>
-      api.read<LeadMailEventsResponse>(
-        `/sales/leads/${encodeURIComponent(code)}/mail/${encodeURIComponent(runId ?? '')}/events`,
-        { need: TIMELINE_NEED, signal },
-      ),
-    enabled: runId !== null,
-  })

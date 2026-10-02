@@ -15,6 +15,60 @@ import aurora from '@pv/eslint-plugin-aurora'
  *  with `pnpm lint --suppress-all`). The rule stays `error`: a new violation
  *  goes red, and old debt is countable and paid down over time. No rule is
  *  ever left at `warn` — `warn` is the gentle way to never fix it. */
+
+const APP_PACKAGE_BOUNDARY = {
+  group: ['@pv/ui/*', '@pv/engines/src/*', '**/packages/*/src/**', '@api/*'],
+  message:
+    'Import qua cửa chính của package (@pv/ui · @pv/engines · @pv/tokens), không với vào ruột nó. Thiếu export thì mở export ở package đó. `@api/*` là alias NỘI BỘ của máy chủ — app web không với sang đó (khối 3b khai lại rule này cho chính apps/api).',
+}
+
+/** Page-file prefixes of each profile module; a module may import only its own. */
+const PAGE_MODULES = {
+  lead: ['lead', 'leads'],
+  opportunity: ['opportunity', 'opportunities'],
+  contract: ['contract', 'contracts', 'installment'],
+  workstream: ['workstream', 'workstreams'],
+  campaign: ['campaign', 'campaigns'],
+}
+
+const pageGlobs = (prefixes) =>
+  prefixes.flatMap((p) => [`./${p}-*`, `./${p}`, `@/pages/${p}-*`, `@/pages/${p}`])
+
+function webBoundaryBlocks() {
+  const toPages = {
+    group: ['@/pages/*', '../pages/*', '../../pages/*'],
+    message:
+      'components/ và data/ dùng chung cho mọi màn, nên không được với vào pages/. Thứ cần dùng chung thì dời nó ra components/.',
+  }
+  const shared = {
+    files: ['apps/web/src/components/**/*.{ts,tsx}', 'apps/web/src/data/**/*.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [APP_PACKAGE_BOUNDARY, toPages] }] },
+  }
+  const modules = Object.entries(PAGE_MODULES).map(([name, own]) => ({
+    files: own.flatMap((p) => [
+      `apps/web/src/pages/${p}-*.{ts,tsx}`,
+      `apps/web/src/pages/${p}.{ts,tsx}`,
+    ]),
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            APP_PACKAGE_BOUNDARY,
+            {
+              group: Object.entries(PAGE_MODULES)
+                .filter(([other]) => other !== name)
+                .flatMap(([, prefixes]) => pageGlobs(prefixes)),
+              message: `Màn ${name} không import file trang của module khác (ADR 0078). Thứ dùng chung thì dời ra components/.`,
+            },
+          ],
+        },
+      ],
+    },
+  }))
+  return [shared, ...modules]
+}
+
 export default tseslint.config(
   { ignores: ['**/dist/**', '**/node_modules/**', '**/coverage/**'] },
 
@@ -119,17 +173,17 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            {
-              group: ['@pv/ui/*', '@pv/engines/src/*', '**/packages/*/src/**', '@api/*'],
-              message:
-                'Import qua cửa chính của package (@pv/ui · @pv/engines · @pv/tokens), không với vào ruột nó. Thiếu export thì mở export ở package đó. `@api/*` là alias NỘI BỘ của máy chủ — app web không với sang đó (khối 3b khai lại rule này cho chính apps/api).',
-            },
-          ],
+          patterns: [APP_PACKAGE_BOUNDARY],
         },
       ],
     },
   },
+  // ---- 3a · boundary INSIDE apps/web ----------------------------------------
+  // A flat config REPLACES a rule's options per file, so each block below
+  // repeats the package-boundary pattern from the block above. Why the fences
+  // exist: profile modules once mounted each other's page files and drifted
+  // into five layouts (ADR 0078); shared pieces live in components/.
+  ...webBoundaryBlocks(),
   {
     files: ['packages/ui/**/*.{ts,tsx}'],
     rules: {
