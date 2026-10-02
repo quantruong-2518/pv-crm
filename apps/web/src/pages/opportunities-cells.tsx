@@ -8,7 +8,7 @@ import {
   type OpportunityOwner,
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
-import { DUE_LABEL } from '@/data/contracts'
+import { DUE_LABEL, lateLevel } from '@/data/contracts'
 import {
   activityAgo,
   amountVndOf,
@@ -23,7 +23,6 @@ import {
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { PicCell } from '@/components/table-bits'
-import { lateLevel } from './workstream-tree-model'
 
 /** Module 3 · the deal book's cells, one per column (ADR 0077 §3–4), split out
  *  of `opportunities.tsx`. Every verdict here is the server's — overdue in

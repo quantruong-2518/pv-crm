@@ -15,7 +15,7 @@ import {
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
 import { billions, millions } from '@pv/ui'
-import { DUE_LABEL } from '@/data/contracts'
+import { DUE_LABEL, lateLevel, overdue } from '@/data/contracts'
 import { STATE_TONE } from '@/data/opportunities'
 
 /** The journey tree's arithmetic — ordering, rung and status reading, layout.
@@ -31,13 +31,12 @@ import { STATE_TONE } from '@/data/opportunities'
 export type Journey = WorkstreamJourneyResponse
 export type PickKind = 'lead' | 'deal' | 'contract'
 
-/** The selection the detail drawer reads: one rung of one object, or one
- *  continuation door (keyed by the lead it parked or opened). */
-export type TreePick =
-  { kind: PickKind; code: string; rung: JourneyRungKey } | { kind: 'door'; code: string }
+/** The chain kind each ladder's object opens under — `chainPath`'s keys. */
+export const CHAIN_KIND = { lead: 'LD', deal: 'OP', contract: 'HĐ' } as const
 
-export const isPicked = (p: TreePick | null, kind: TreePick['kind'], code: string) =>
-  p?.kind === kind && p.code === code
+/** Where a code's profile opens (ADR 0078 §2: a node opens its profile, no
+ *  drawer); undefined = the reader has no door to it. */
+export type PathOf = (kind: string, code: string) => string | undefined
 
 export const doorId = (d: JourneyDoor) => `door:${d.leadCode}`
 
@@ -115,24 +114,11 @@ export const STATE_WORD: Record<JourneyRungState, string> = {
   upcoming: 'Chưa tới',
 }
 
-const OVERDUE = new Set<DueLevel>(['overdue', 'long-overdue'])
-const overdue = (level: DueLevel | null | undefined): level is DueLevel =>
-  level !== null && level !== undefined && OVERDUE.has(level)
-
-/** The level itself when it is overdue, else null — the one reading of "late". */
-export const lateLevel = (level: DueLevel | null | undefined) => (overdue(level) ? level : null)
-
 /** The badge word for one rung: its due level when late, else its state word. */
 export function rungStatus(state: JourneyRungState, late: DueLevel | null): Status {
   if (late) return { label: DUE_LABEL[late], tone: 'danger' }
   const tone = state === 'current' ? 'warning' : state === 'done' ? 'success' : 'draft'
   return { label: STATE_WORD[state], tone }
-}
-
-/** The rung `step` places before or after `key` on the same ladder, if any. */
-export function stepAlong<K>(keys: readonly K[], key: K, step: -1 | 1): K | undefined {
-  const i = keys.indexOf(key)
-  return i < 0 ? undefined : keys[i + step]
 }
 
 export type RailRung = AnyRung & {

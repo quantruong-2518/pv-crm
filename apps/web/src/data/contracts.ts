@@ -33,6 +33,14 @@ import { api, type ApiNeed } from '@/app/api'
  *  told apart. */
 export const today = () => systemClock().slice(0, 10)
 
+const OVERDUE = new Set<DueLevel>(['overdue', 'long-overdue'])
+export const overdue = (level: DueLevel | null | undefined): level is DueLevel =>
+  level !== null && level !== undefined && OVERDUE.has(level)
+
+/** The level itself when it is overdue, else null — the one reading of "late"
+ *  shared by the workstream tree and the deal book. */
+export const lateLevel = (level: DueLevel | null | undefined) => (overdue(level) ? level : null)
+
 export type { ConditionSide }
 
 /** Wire shapes under the names three screens and `components/contract-bits`

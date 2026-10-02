@@ -32,10 +32,8 @@ import {
  *  continuation lanes, curved edges lead → deal → contract → door, and a zoom
  *  bar whose default is "fit the frame".
  *
- *  Selection lives with the page (the drawer reads it); zoom and which
- *  finished deals are expanded die with the tree. */
-
-type Go = (path: string) => void
+ *  A node opens its object's profile (ADR 0078 §2); zoom and which finished
+ *  deals and contract details are expanded die with the tree. */
 
 const QUIET = 'hover:bg-surface-ink/9 bg-transparent shadow-none'
 /** Share of the window the tree's own scroller may take before it scrolls. */
@@ -222,7 +220,7 @@ function LaneBands({ journey }: { journey: Journey }) {
   ))
 }
 
-export function WorkstreamTree({ journey, go, ...track }: Track & { journey: Journey; go: Go }) {
+export function WorkstreamTree({ journey, ...track }: Track & { journey: Journey }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const [zoomAsked, setZoom] = useState<number | null>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -299,7 +297,7 @@ export function WorkstreamTree({ journey, go, ...track }: Track & { journey: Jou
                 )}
               </svg>
 
-              <LeadCard lead={journey.lead} box={layout.lead} go={go} {...track} />
+              <LeadCard lead={journey.lead} box={layout.lead} {...track} />
               {layout.ghost && (
                 <div
                   className="text-glass-foreground absolute flex items-center px-4 text-[12px]"
@@ -320,7 +318,6 @@ export function WorkstreamTree({ journey, go, ...track }: Track & { journey: Jou
                   box={box}
                   full={full}
                   onToggle={() => toggle(deal.code)}
-                  go={go}
                   {...track}
                 />
               ))}
@@ -329,12 +326,13 @@ export function WorkstreamTree({ journey, go, ...track }: Track & { journey: Jou
                   key={contract.code}
                   contract={contract}
                   box={box}
-                  go={go}
+                  open={expanded.has(contract.code)}
+                  onToggle={() => toggle(contract.code)}
                   {...track}
                 />
               ))}
               {layout.doors.map(({ door, box, from }) => (
-                <DoorCard key={doorId(door)} door={door} from={from} box={box} go={go} {...track} />
+                <DoorCard key={doorId(door)} door={door} from={from} box={box} {...track} />
               ))}
             </div>
           </div>

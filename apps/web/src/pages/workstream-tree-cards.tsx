@@ -25,17 +25,19 @@ import {
 } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
 import { ACCEPTOR_LABEL, acceptorText } from '@/data/deal-sale'
-import { BADGE_INK, chainPath } from '@/data/opportunities'
+import { BADGE_INK } from '@/data/opportunities'
 import { DueBadge } from '@/components/contract-bits'
+import { ContractInside } from '@/components/contract-inside'
+import { hasInside } from '@/components/contract-run'
 import {
   CARD,
+  CHAIN_KIND,
   contractLate,
   contractStatus,
   dealLate,
   dealStatus,
   doorId,
   gridCols,
-  isPicked,
   leadStatus,
   moneyShort,
   POOL,
@@ -47,10 +49,10 @@ import {
   stoppedRungLabel,
   type Box,
   type Journey,
+  type PathOf,
   type PickKind,
   type RailRung,
   type Status,
-  type TreePick,
 } from './workstream-tree-model'
 
 /** The cards of the journey tree — lead, deal (full or compact), contract,
@@ -59,14 +61,15 @@ import {
  *
  *  Each card is absolutely placed by `workstream-tree-model.ts` but sized by
  *  its own content, so titles wrap instead of ending in "…". `data-node`
- *  is how the tree finds the cards to measure. */
+ *  is how the tree finds the cards to measure. A code, a rung and a door
+ *  title open the object's profile; there is no selection (ADR 0078 §2). */
 
 type Go = (path: string) => void
-export type Track = { picked: TreePick | null; onPick: (pick: TreePick) => void }
+export type Track = { go: Go; pathOf: PathOf }
 
-/** A code with no screen behind it (contracts, parked) still reads as a code. */
-export function CodePill({ kind, code, go }: { kind: string; code: string; go: Go }) {
-  const path = chainPath(kind, code)
+/** A code the reader has no door to still reads as a code. */
+export function CodePill({ kind, code, go, pathOf }: Track & { kind: string; code: string }) {
+  const path = pathOf(kind, code)
   return (
     <Chip className="shrink-0" onOpen={path ? () => go(path) : undefined}>
       {code}
@@ -176,8 +179,8 @@ function Rail({
   code,
   rungs,
   notes,
-  picked,
-  onPick,
+  go,
+  pathOf,
 }: Track & {
   kind: PickKind
   code: string
@@ -185,30 +188,24 @@ function Rail({
   /** A line a rung's tooltip carries after its label, keyed by rung. */
   notes?: Partial<Record<string, string>>
 }) {
+  const path = pathOf(CHAIN_KIND[kind], code)
   return (
     <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
       {rungs.map((r, i) => {
-        const on =
-          isPicked(picked, kind, code) &&
-          picked !== null &&
-          'rung' in picked &&
-          picked.rung === r.key
         const word = rungStatus(r.state, r.late).label
         const note = notes?.[r.key]
         return (
           <li key={r.key} className="min-w-0">
             <button
               type="button"
-              aria-pressed={on}
+              disabled={!path}
               aria-current={r.state === 'current' ? 'step' : undefined}
-              aria-label={[r.label, word, note].filter(Boolean).join(' · ')}
+              aria-label={`${[r.label, word, note].filter(Boolean).join(' · ')} — mở ${code}`}
               title={note ? `${r.label} · ${note}` : r.label}
-              onClick={() => onPick({ kind, code, rung: r.key })}
+              onClick={() => path && go(path)}
               className={cn(
                 'motion-std flex min-h-12 w-full flex-col items-center rounded-md pt-1',
-                on
-                  ? 'bg-surface-ink/9 shadow-[inset_0_0_0_1px_var(--primary)]'
-                  : 'hover:bg-surface-ink/9',
+                path && 'hover:bg-surface-ink/9',
               )}
             >
               <span className="relative block h-4 w-full">
@@ -242,14 +239,11 @@ function Rail({
 // CARDS
 // ---------------------------------------------------------------------------
 
-/** Selection is a ring, not a fill: any tint under the success pill drops it
- *  below 4.5:1 on the light theme (law 13). */
 function Card({
   id,
   x,
   w,
   box,
-  on,
   className,
   children,
 }: {
@@ -257,18 +251,13 @@ function Card({
   x: number
   w: number
   box: Box
-  on: boolean
   className?: string
   children: ReactNode
 }) {
   return (
     <div
       data-node={id}
-      className={cn(
-        'bg-card motion-std absolute flex flex-col rounded-lg',
-        on ? 'shadow-[inset_0_0_0_2px_var(--primary)]' : 'shadow-control-soft',
-        className,
-      )}
+      className={cn('bg-card shadow-control-soft absolute flex flex-col rounded-lg', className)}
       style={{ left: x, top: box.top, width: w }}
     >
       {children}
@@ -276,23 +265,12 @@ function Card({
   )
 }
 
-export function LeadCard({
-  lead,
-  box,
-  go,
-  ...track
-}: Track & { lead: Journey['lead']; box: Box; go: Go }) {
+export function LeadCard({ lead, box, ...track }: Track & { lead: Journey['lead']; box: Box }) {
   const status = leadStatus(lead)
   return (
-    <Card
-      id={lead.code}
-      {...CARD.lead}
-      box={box}
-      on={isPicked(track.picked, 'lead', lead.code)}
-      className="gap-3 p-3"
-    >
+    <Card id={lead.code} {...CARD.lead} box={box} className="gap-3 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <CodePill kind="LD" code={lead.code} go={go} />
+        <CodePill kind="LD" code={lead.code} {...track} />
         {status && <StatusPill status={status} />}
       </div>
       <Rail kind="lead" code={lead.code} rungs={railOf('lead', lead.rungs, null)} {...track} />
@@ -322,12 +300,12 @@ function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAction']>
       <Icon icon={ArrowRight} size={16} className="text-muted-foreground" />
       <span className="min-w-0 grow break-words">{action.text}</span>
       <DateText iso={action.due} title="Hạn" />
-      <DueBadge level={action.dueLevel} className="shrink-0 normal-case tracking-normal" />
+      <DueBadge level={action.dueLevel} className="shrink-0" />
     </div>
   )
 }
 
-/** The fail log's headline; the drawer carries its note and who concluded. */
+/** The fail log's headline; the deal's profile carries its note and who concluded. */
 function StopLine({ deal }: { deal: JourneyDeal }) {
   if (!deal.stop) return null
   const at = stoppedRungLabel(deal)
@@ -358,10 +336,8 @@ export function DealCard({
   box,
   full,
   onToggle,
-  go,
   ...track
-}: Track & { deal: JourneyDeal; box: Box; full: boolean; onToggle: () => void; go: Go }) {
-  const on = isPicked(track.picked, 'deal', deal.code)
+}: Track & { deal: JourneyDeal; box: Box; full: boolean; onToggle: () => void }) {
   const status = dealStatus(deal)
   const finished = deal.outcome !== 'open'
   if (!full) {
@@ -370,13 +346,12 @@ export function DealCard({
         id={deal.code}
         {...CARD.deal}
         box={box}
-        on={on}
         className="flex-row items-center gap-3 py-3 pl-3 pr-1"
       >
         <div className="flex min-w-0 grow flex-col gap-1">
           <span className="break-words text-[14px] font-medium">{deal.name}</span>
           <span className="flex flex-wrap items-center gap-2">
-            <CodePill kind="OP" code={deal.code} go={go} />
+            <CodePill kind="OP" code={deal.code} {...track} />
             <StatusPill status={status} />
           </span>
           <StopLine deal={deal} />
@@ -386,10 +361,10 @@ export function DealCard({
     )
   }
   return (
-    <Card id={deal.code} {...CARD.deal} box={box} on={on} className="gap-2 p-4">
+    <Card id={deal.code} {...CARD.deal} box={box} className="gap-2 p-4">
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 grow flex-wrap items-center gap-2">
-          <CodePill kind="OP" code={deal.code} go={go} />
+          <CodePill kind="OP" code={deal.code} {...track} />
           {deal.amount !== null && <MoneyPill>{moneyShort(deal.amount)}</MoneyPill>}
           {deal.expectedClose !== null && (
             <DateText iso={deal.expectedClose} title="Dự kiến chốt" />
@@ -427,30 +402,34 @@ export function DealCard({
   )
 }
 
+/** What sits inside the rungs opens under the card, read here under
+ *  `workstream.view` alone — the profile behind the code needs `contract.view`. */
 export function ContractCard({
   contract,
   box,
-  go,
+  open,
+  onToggle,
   ...track
-}: Track & { contract: JourneyContract; box: Box; go: Go }) {
+}: Track & { contract: JourneyContract; box: Box; open: boolean; onToggle: () => void }) {
   const late = contractLate(contract)
   return (
-    <Card
-      id={contract.code}
-      {...CARD.contract}
-      box={box}
-      on={isPicked(track.picked, 'contract', contract.code)}
-      className="gap-3 p-3"
-    >
+    <Card id={contract.code} {...CARD.contract} box={box} className="gap-3 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[14px] font-semibold">
           {contract.kind && CONTRACT_KIND_LABEL[contract.kind]}
         </span>
         {contract.amount !== null && <MoneyPill>{moneyShort(contract.amount)}</MoneyPill>}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <CodePill kind="HĐ" code={contract.code} go={go} />
-        <StatusPill status={contractStatus(contract)} />
+      <div className="flex items-center gap-2">
+        <div className="flex min-w-0 grow flex-wrap items-center gap-2">
+          <CodePill kind="HĐ" code={contract.code} {...track} />
+          <StatusPill status={contractStatus(contract)} />
+        </div>
+        {hasInside(contract) && (
+          <span className="-my-3 -mr-2 flex shrink-0">
+            <Expander code={contract.code} open={open} onToggle={onToggle} />
+          </span>
+        )}
       </div>
       <Rail
         kind="contract"
@@ -458,6 +437,7 @@ export function ContractCard({
         rungs={railOf('contract', contract.rungs, late)}
         {...track}
       />
+      {open && <ContractInside contract={contract} />}
     </Card>
   )
 }
@@ -466,27 +446,52 @@ export function ContractCard({
 // CONTINUATION DOORS (lane 4)
 // ---------------------------------------------------------------------------
 
-type DoorProps = Track & { box: Box; go: Go }
+type DoorProps = Track & { box: Box }
 
-/** The title is the door's select button — the codes inside are links, and a
- *  link may not sit inside a button. */
+/* Recovered from the retired journey drawer. ADR 0068: a parked lead loops back
+   on itself; flow C4: a do-not-contact lead is never mailed. */
+const DOOR_TEXT = {
+  arose: 'Phát sinh từ',
+  whyNewTitle: 'Vì sao là hành trình mới',
+  whyNew:
+    'Nhu cầu nảy ra khi khách đang triển khai hoặc đang dùng thì mở hành trình mới, kể cả thay đổi nhỏ.',
+  wakeAny:
+    'Đưa lead vào chiến dịch hoặc bấm tay "Chăm lại" là chính lead này quay lại chăm sóc, vẫn trong hành trình này và vẫn do người giữ cũ phụ trách.',
+  wakeManual:
+    'Chỉ bấm tay "Chăm lại": chính lead này quay lại chăm sóc trong hành trình này. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
+  wakeUnknown: 'Chưa ghi nhận khách có đồng ý được liên hệ lại hay không.',
+} as const
+
+/** The anchor's code, then its rung's label when the ladder knows it. */
+function fromText(from: JourneyDoor['from'], kind: PickKind) {
+  const label = rungLabel(kind, from.rung)
+  return label ? `${from.code} · ${label}` : from.code
+}
+
+/** The title is the door's open button — the new journey for growth, the
+ *  parked lead for waiting. The codes inside are links, and a link may not
+ *  sit inside a button. */
 function DoorShell({
   door,
   title,
   box,
-  picked,
-  onPick,
+  go,
+  pathOf,
   children,
 }: DoorProps & { door: JourneyDoor; title: string; children: ReactNode }) {
-  const on = isPicked(picked, 'door', door.leadCode)
+  const code = door.kind === 'growth' ? door.journeyCode : door.leadCode
+  const path = pathOf(door.kind === 'growth' ? 'WS' : 'LD', code)
   return (
-    <Card id={doorId(door)} {...CARD.door} box={box} on={on} className="gap-3 p-3">
+    <Card id={doorId(door)} {...CARD.door} box={box} className="gap-3 p-3">
       <button
         type="button"
-        aria-pressed={on}
-        aria-label={`${title} · ${door.leadCode}`}
-        onClick={() => onPick({ kind: 'door', code: door.leadCode })}
-        className="motion-std hover:bg-surface-ink/9 -mx-2 -mt-1 flex min-h-12 items-center rounded-md px-2 text-left text-[14px] font-semibold"
+        disabled={!path}
+        aria-label={`${title} — mở ${code}`}
+        onClick={() => path && go(path)}
+        className={cn(
+          'motion-std -mx-2 -mt-1 flex min-h-12 items-center rounded-md px-2 text-left text-[14px] font-semibold',
+          path && 'hover:bg-surface-ink/9',
+        )}
       >
         {title}
       </button>
@@ -507,16 +512,26 @@ function Person({ who, role }: { who: WorkstreamHolder | null; role: string }) {
   )
 }
 
-function GrowthDoor({ door, ...props }: DoorProps & { door: JourneyGrowthDoor }) {
+function GrowthDoor({
+  door,
+  from,
+  ...props
+}: DoorProps & { door: JourneyGrowthDoor; from: PickKind }) {
   return (
     <DoorShell door={door} title={JOURNEY_BORN_BY_LABEL.growth} {...props}>
       <div className="pointer-coarse:gap-x-2 pointer-coarse:gap-y-6 flex flex-wrap items-center gap-2">
-        <CodePill kind="WS" code={door.journeyCode} go={props.go} />
-        <CodePill kind="LD" code={door.leadCode} go={props.go} />
+        <CodePill kind="WS" code={door.journeyCode} {...props} />
+        <CodePill kind="LD" code={door.leadCode} {...props} />
       </div>
       <DateText iso={door.at} title="Mở" />
       <p className="m-0 break-words text-[12px]">{door.need}</p>
+      <span className="text-muted-foreground break-words text-[12px]">
+        {DOOR_TEXT.arose} {fromText(door.from, from)}
+      </span>
       <Person who={door.decidedBy} role="quyết định và giữ lead" />
+      <p className="text-muted-foreground m-0 break-words text-[12px]">
+        <span className="font-semibold">{DOOR_TEXT.whyNewTitle}</span> · {DOOR_TEXT.whyNew}
+      </p>
     </DoorShell>
   )
 }
@@ -530,7 +545,7 @@ function WaitingDoor({
   return (
     <DoorShell door={door} title={LEAD_STATE_LABEL.nurturing} {...props}>
       <div className="flex flex-wrap items-center gap-2">
-        <CodePill kind="LD" code={door.leadCode} go={props.go} />
+        <CodePill kind="LD" code={door.leadCode} {...props} />
         {door.doNotContact && <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>}
       </div>
       <span className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -549,6 +564,14 @@ function WaitingDoor({
           <span className="tnum">{dm(door.lastTouch.at)}</span> · {door.lastTouch.text}
         </span>
       )}
+      {/* null = not recorded: promise nothing, unlike false. */}
+      <p className="text-muted-foreground m-0 break-words text-[12px]">
+        {door.doNotContact === null
+          ? DOOR_TEXT.wakeUnknown
+          : door.doNotContact
+            ? DOOR_TEXT.wakeManual
+            : DOOR_TEXT.wakeAny}
+      </p>
     </DoorShell>
   )
 }
@@ -559,7 +582,7 @@ export function DoorCard({
   ...props
 }: DoorProps & { door: JourneyDoor; from: PickKind }) {
   return door.kind === 'growth' ? (
-    <GrowthDoor door={door} {...props} />
+    <GrowthDoor door={door} from={from} {...props} />
   ) : (
     <WaitingDoor door={door} from={from} {...props} />
   )
