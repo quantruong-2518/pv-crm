@@ -82,9 +82,9 @@ export function CommRecordPage() {
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12"
-            onClick={() => navigate('/comms')}
+            onClick={() => navigate(-1)}
           >
-            Về Liên hệ của tôi
+            Quay lại
           </Button>
         </GlassCard>
       </ScreenLayout>,
@@ -107,7 +107,10 @@ function RecordBody({ record }: { record: DebriefView }) {
     <ScreenLayout>
       <GlassCard variant="b" className="p-4">
         <ScreenHeader
-          back={{ label: 'Liên hệ của tôi', onClick: () => navigate('/comms') }}
+          back={{
+            label: `Về ${subjectKindLabel(record.subject.code)}`,
+            onClick: () => (path ? navigate(path) : navigate(-1)),
+          }}
           title={record.subject.label}
           meta={
             <>

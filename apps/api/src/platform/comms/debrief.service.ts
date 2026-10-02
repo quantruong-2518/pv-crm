@@ -95,8 +95,13 @@ export class DebriefService {
   }
 
   async list(who: Actor, q: DebriefListQuery): Promise<DebriefListResponse> {
-    await this.inReach(who, q.subjectCode)
-    const reads = await this.repo.bySubject(q.subjectCode)
+    let reads: DebriefRead[]
+    if (q.subjectCode) {
+      await this.inReach(who, q.subjectCode)
+      reads = await this.repo.bySubject(q.subjectCode)
+    } else {
+      reads = await this.repo.bySubjects(await this.runInReach(who, q.workstreamCode ?? ''))
+    }
     return DebriefListResponse.parse({
       rows: await this.views(who, reads, q.summary !== 'none'),
     })
@@ -228,12 +233,13 @@ export class DebriefService {
     )
     /* A summary is content: revealing one leaves `trailContentRead`'s one line. */
     const shown = views.filter((v) => v.summary.state === 'visible')
-    if (shown.length > 0) {
+    for (const code of new Set(shown.map((v) => v.subject.code))) {
+      const ofCode = shown.filter((v) => v.subject.code === code)
       await this.audit.write({
         actorId: who.id,
         action: 'view',
-        code: shown[0]?.subject.code,
-        note: `comms.debrief · read summary of ${shown.length} record(s): ${shown.map((v) => v.id).join(', ')}`,
+        code,
+        note: `comms.debrief · read summary of ${ofCode.length} record(s): ${ofCode.map((v) => v.id).join(', ')}`,
       })
     }
     return views
@@ -243,6 +249,18 @@ export class DebriefService {
   private async targetsOf(who: Actor, reads: readonly DebriefRead[]) {
     const codes = [...new Set(reads.filter((r) => !r.row.closedAt).map((r) => r.row.subjectCode))]
     return this.hook && codes.length > 0 ? this.hook.targets(who, codes) : new Map()
+  }
+
+  /** The run's subjects the caller may view; the rest are left out, not refused,
+   *  because a seat can reach the lead of a run whose contract it cannot. A run
+   *  has no object row (no mirror), so reach is asked per subject only. */
+  private async runInReach(who: Actor, workstreamCode: string): Promise<string[]> {
+    const codes = (await this.hook?.subjectsOfRun(workstreamCode)) ?? []
+    if (codes.length === 0) throw notFound('hành trình', workstreamCode)
+    const rows = await Promise.all(codes.map((c) => this.threads.objectByCode(c)))
+    return rows.flatMap((row) =>
+      row && this.access.check(who, { ref: toObjectRef(row), action: 'view' }).ok ? [row.code] : [],
+    )
   }
 
   /** E2 `view` on one object code; 404 and 403 apart, as `ThreadService` keeps

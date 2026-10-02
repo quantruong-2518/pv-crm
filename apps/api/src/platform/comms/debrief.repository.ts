@@ -115,6 +115,14 @@ export class DebriefRepository {
       .orderBy(desc(debrief.createdAt), desc(debrief.id))
   }
 
+  /** The records of several subjects at once, newest first. */
+  async bySubjects(codes: readonly string[]): Promise<DebriefRead[]> {
+    if (codes.length === 0) return []
+    return this.reads(this.db)
+      .where(inArray(debrief.subjectCode, [...codes]))
+      .orderBy(desc(debrief.createdAt), desc(debrief.id))
+  }
+
   /** The row lock `close` takes before judging "still open" — a double-sent
    *  close waits here and then finds `closed_at` set. */
   async lockOpen(tx: Db, id: string): Promise<boolean> {

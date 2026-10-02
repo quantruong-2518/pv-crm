@@ -10,7 +10,7 @@ import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadR
 /** Comm record — one comm, its fixed subject, and the owner's close-out (ADR 0074, 0075).
  *
  *      POST /comms/debriefs                  `comm.view` + reach on subject · 201, empty record
- *      GET  /comms/debriefs?subjectCode=     `comm.view` + reach · the object's comm timeline
+ *      GET  /comms/debriefs?subjectCode= | workstreamCode=  `comm.view` + reach · comm timeline of one object or run
  *      GET  /comms/debriefs/target           `comm.view` + reach · what a new comm would ask, no write
  *      GET  /comms/debriefs/pending          `comm.view` · my open records (`workstreamCode` narrows)
  *      GET  /comms/debriefs/counts           `comm.view` · pending per owner (`ownOnly` → own row)
@@ -130,12 +130,18 @@ export const DebriefView = z.object({
 
 /** `summary=none`: a visible summary arrives as `hidden` and no read is audited —
  *  for screens that only count or map comms, never show what was said. */
-export const DebriefListQuery = z.object({
-  subjectCode: LinkableCode,
-  summary: z.enum(['none']).optional(),
-})
+export const DebriefListQuery = z
+  .object({
+    subjectCode: LinkableCode.optional(),
+    /** Every subject of one sales run: its lead, deals and contract. */
+    workstreamCode: ObjectCode.optional(),
+    summary: z.enum(['none']).optional(),
+  })
+  .refine((q) => (q.subjectCode === undefined) !== (q.workstreamCode === undefined), {
+    message: 'Pass exactly one of subjectCode and workstreamCode.',
+  })
 
-/** Not paged: scoped to one object, the bound `ThreadListResponse` relies on. */
+/** Not paged: scoped to one object or one run, the bound `ThreadListResponse` relies on. */
 export const DebriefListResponse = z.object({ rows: z.array(DebriefView) })
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,6 @@ import {
   ListChecks,
   LogOut,
   Megaphone,
-  MessageSquare,
   Route,
   ShieldCheck,
   SlidersHorizontal,
@@ -220,17 +219,6 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'primary',
   },
   {
-    /* Every customer contact across the journey waits here for its logger to
-       confirm it (ADR 0075); the count rides on the entry, like approvals. */
-    no: 8,
-    icon: MessageSquare,
-    label: 'Liên hệ',
-    path: '/comms',
-    permission: 'comm.view',
-    question: 'Các lượt liên hệ của tôi đang chờ điền nội dung hoặc xác nhận',
-    group: 'primary',
-  },
-  {
     no: 2,
     icon: Users,
     label: 'Lead',
@@ -400,7 +388,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     label: module.label,
     description: module.question,
     active: inModule(module.path),
-    count: module.path === '/comms' ? pendingComms : undefined,
+    count: module.path === '/sales/workstreams' ? pendingComms : undefined,
     onClick: () => navigate(module.path),
   })
 

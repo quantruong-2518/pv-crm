@@ -8,7 +8,7 @@ import { dm, dmhm, dmy } from '@/lib/date'
 import { commRecordPath } from '@/data/comm-records'
 import { WAITING_SIGN } from '@/data/deal-draft'
 import { refusalOf } from '@/data/opportunities'
-import { CommTimeline } from '@/components/comms-card'
+import { WorkstreamComms } from '@/components/comms-card'
 import { moneyText } from './opportunity-model'
 
 /** Module 3 · the profile's main column: the deal's value, its contracts, and
@@ -209,14 +209,23 @@ function ContractLine({
   )
 }
 
-/** The deal's contact timeline; a card opens the comm's own screen. */
+/** The contact timeline of the deal's whole run; a card opens the comm's own screen. */
 export function DealComms({ op }: { op: Profile }) {
   const navigate = useNavigate()
 
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5" aria-label="Liên hệ">
       <SectionTitle size="detail">Liên hệ</SectionTitle>
-      <CommTimeline subjectCode={op.code} onOpen={(id) => navigate(commRecordPath(id))} />
+      {op.workstream ? (
+        <WorkstreamComms
+          workstreamCode={op.workstream.code}
+          onOpen={(id) => navigate(commRecordPath(id))}
+        />
+      ) : (
+        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+          Chưa có hành trình để gom các lượt liên hệ.
+        </p>
+      )}
     </GlassCard>
   )
 }

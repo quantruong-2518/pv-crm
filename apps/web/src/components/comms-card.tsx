@@ -5,13 +5,14 @@ import type { DebriefView } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { dmhm } from '@/lib/date'
-import { summaryTextOf } from '@/data/comm-record-detail'
-import { subjectCommRecordsQuery } from '@/data/comm-records'
+import { subjectKindLabel, summaryTextOf } from '@/data/comm-record-detail'
+import { workstreamCommRecordsQuery } from '@/data/comm-records'
 import { CommRecordRead } from './comm-record-bits'
 import { CommTimelineTrack, type CommCardItem } from './comm-timeline'
 
-/** The contact timeline of one lead or opportunity — every comm on the shared
- *  axis, the chosen one's read view underneath (ADR 0075, canvas `History`).
+/** The contact timeline of one workstream run — every comm of its lead, deals
+ *  and contract on the shared axis, each card naming its object, the chosen
+ *  one's read view underneath (ADR 0075, canvas `History`).
  *  With `onOpen` a card opens its own screen instead and no read view is drawn
  *  (ADR 0077 §6). No glass of its own: it draws inside a `.glass-b` card (law 8). */
 
@@ -24,19 +25,20 @@ const itemOf = (row: DebriefView): CommCardItem => ({
   title: summaryTextOf(row.summary),
   titleMuted: row.summary.state !== 'visible',
   meta: `${dmhm(row.createdAt)} · ${row.owner.name}`,
+  subject: { code: row.subject.code, label: subjectKindLabel(row.subject.code) },
   step: row.step,
 })
 
-export function CommTimeline({
-  subjectCode,
+export function WorkstreamComms({
+  workstreamCode,
   onOpen,
 }: {
-  subjectCode: string
+  workstreamCode: string
   onOpen?: (id: string) => void
 }) {
   const canView = useCan('comm.view')
   const { data, isPending, error } = useQuery({
-    ...subjectCommRecordsQuery(subjectCode),
+    ...workstreamCommRecordsQuery(workstreamCode),
     enabled: canView,
   })
   /* Sorted here because the axis IS the order and the contract promises none. */

@@ -38,6 +38,9 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { ConditionBar, DueBadge, MoneySplit } from '@/components/contract-bits'
+import { WorkstreamComms } from '@/components/comms-card'
+import { commRecordPath } from '@/data/comm-records'
+import { opportunityProfileQuery } from '@/data/opportunities'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { LetterLines } from '@/components/mail-letter/letter-lines'
 
@@ -117,6 +120,134 @@ function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) 
           </span>
         ))}
       </div>
+    </GlassCard>
+  )
+}
+
+/** The headline numbers and the split of the money, above the installment list. */
+function MoneySummary({
+  contract,
+  money,
+  next,
+}: {
+  contract: Contract
+  money: ReturnType<typeof moneyOf>
+  next: InstallmentView<Installment> | undefined
+}) {
+  return (
+    <GlassCard className="flex flex-col gap-5 p-5">
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          size="compact"
+          label="Giá trị hợp đồng"
+          value={contract.amount === null ? '—' : billions(contract.amount)}
+          source={contract.amount === null ? 'chưa có số tiền' : vnd(contract.amount)}
+        />
+        <StatCard
+          size="compact"
+          label="Đã thu"
+          value={millions(money.collected, 0)}
+          source={
+            contract.amount
+              ? `${Math.round((money.collected / contract.amount) * 100)}% giá trị`
+              : 'chưa có số tiền để so'
+          }
+        />
+        <StatCard
+          size="compact"
+          label="Còn phải thu"
+          value={millions(money.remaining, 0)}
+          source={`${contract.installments.filter((d) => !d.paidAt).length} đợt còn lại`}
+        />
+        <StatCard
+          size="compact"
+          label="Quá hạn thu"
+          value={money.overdue > 0 ? millions(money.overdue, 0) : '0 ₫'}
+          source={money.overdue > 0 ? 'phải gọi hôm nay' : 'chưa đợt nào trễ hạn tiền'}
+        />
+      </div>
+
+      <MoneySplit
+        collected={money.collected}
+        atRisk={next && needsAttention(next.level) ? next.installment.amount : 0}
+        ahead={money.remaining - (next && needsAttention(next.level) ? next.installment.amount : 0)}
+      />
+
+      <div className="flex flex-wrap gap-6">
+        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
+          <StatusDot state="ok" /> Đã thu
+        </span>
+        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
+          <StatusDot state="warning" /> Đang cần chú ý
+        </span>
+        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
+          <StatusDot state="next" /> Chưa tới hạn
+        </span>
+      </div>
+    </GlassCard>
+  )
+}
+
+/** The pills under the contract title: schedule size, owner, contact, next due. */
+function ContractMeta({
+  contract,
+  next,
+}: {
+  contract: Contract
+  next: InstallmentView<Installment> | undefined
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <MetaPill icon={FileCheck}>{contract.installments.length} đợt thanh toán</MetaPill>
+      {/* Id and name arrive together or not at all — an unassigned
+          contract has neither, so there is no pill to draw. */}
+      {contract.ownerName && <MetaPill avatar={contract.ownerName}>{contract.ownerName}</MetaPill>}
+      <MetaPill>
+        {contract.contact} · {contract.contactRole}
+      </MetaPill>
+      {next && (
+        <MetaPill tone={needsAttention(next.level) ? 'warning' : 'muted'}>
+          Đợt {next.installment.no} {daysPhrase(next.daysLeft)}
+        </MetaPill>
+      )}
+    </div>
+  )
+}
+
+/** The contract carries no workstream code on the wire, so the run is read off
+ *  its opportunity (cached by the deal screen). Needs `opportunity.view`. */
+function ContractComms({ opportunityCode }: { opportunityCode: string }) {
+  const navigate = useNavigate()
+  const canViewDeal = useCan('opportunity.view')
+  const { data: deal, isPending } = useQuery({
+    ...opportunityProfileQuery(opportunityCode),
+    enabled: canViewDeal,
+  })
+  const workstreamCode = deal?.workstream?.code
+
+  return (
+    <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-5" aria-label="Liên hệ">
+      <SectionTitle
+        kicker="Dòng hoạt động"
+        size="lg"
+        hint="Mọi lượt liên hệ của hành trình, từ lead tới hợp đồng này."
+      >
+        Liên hệ
+      </SectionTitle>
+      {workstreamCode ? (
+        <WorkstreamComms
+          workstreamCode={workstreamCode}
+          onOpen={(id) => navigate(commRecordPath(id))}
+        />
+      ) : (
+        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+          {!canViewDeal
+            ? 'Vai của bạn không có quyền xem cơ hội của hợp đồng này, nên không gom được hành trình.'
+            : isPending
+              ? 'Đang đọc hành trình…'
+              : 'Chưa có hành trình để gom các lượt liên hệ.'}
+        </p>
+      )}
     </GlassCard>
   )
 }
@@ -270,79 +401,11 @@ export function ContractDetailPage() {
               Gửi email
             </Button>
           }
-          meta={
-            <div className="flex flex-wrap gap-2">
-              <MetaPill icon={FileCheck}>{contract.installments.length} đợt thanh toán</MetaPill>
-              {/* Id and name arrive together or not at all — an unassigned
-                  contract has neither, so there is no pill to draw. */}
-              {contract.ownerName && (
-                <MetaPill avatar={contract.ownerName}>{contract.ownerName}</MetaPill>
-              )}
-              <MetaPill>
-                {contract.contact} · {contract.contactRole}
-              </MetaPill>
-              {next && (
-                <MetaPill tone={needsAttention(next.level) ? 'warning' : 'muted'}>
-                  Đợt {next.installment.no} {daysPhrase(next.daysLeft)}
-                </MetaPill>
-              )}
-            </div>
-          }
+          meta={<ContractMeta contract={contract} next={next} />}
           context={<Chip variant="source">{contract.code}</Chip>}
         />
 
-        <GlassCard className="flex flex-col gap-5 p-5">
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              size="compact"
-              label="Giá trị hợp đồng"
-              value={contract.amount === null ? '—' : billions(contract.amount)}
-              source={contract.amount === null ? 'chưa có số tiền' : vnd(contract.amount)}
-            />
-            <StatCard
-              size="compact"
-              label="Đã thu"
-              value={millions(money.collected, 0)}
-              source={
-                contract.amount
-                  ? `${Math.round((money.collected / contract.amount) * 100)}% giá trị`
-                  : 'chưa có số tiền để so'
-              }
-            />
-            <StatCard
-              size="compact"
-              label="Còn phải thu"
-              value={millions(money.remaining, 0)}
-              source={`${contract.installments.filter((d) => !d.paidAt).length} đợt còn lại`}
-            />
-            <StatCard
-              size="compact"
-              label="Quá hạn thu"
-              value={money.overdue > 0 ? millions(money.overdue, 0) : '0 ₫'}
-              source={money.overdue > 0 ? 'phải gọi hôm nay' : 'chưa đợt nào trễ hạn tiền'}
-            />
-          </div>
-
-          <MoneySplit
-            collected={money.collected}
-            atRisk={next && needsAttention(next.level) ? next.installment.amount : 0}
-            ahead={
-              money.remaining - (next && needsAttention(next.level) ? next.installment.amount : 0)
-            }
-          />
-
-          <div className="flex flex-wrap gap-6">
-            <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-              <StatusDot state="ok" /> Đã thu
-            </span>
-            <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-              <StatusDot state="warning" /> Đang cần chú ý
-            </span>
-            <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-              <StatusDot state="next" /> Chưa tới hạn
-            </span>
-          </div>
-        </GlassCard>
+        <MoneySummary contract={contract} money={money} next={next} />
 
         <InstallmentChart views={views} />
 
@@ -387,6 +450,8 @@ export function ContractDetailPage() {
           </SectionTitle>
           <LetterLines door="contract" code={contract.code} />
         </GlassCard>
+
+        <ContractComms opportunityCode={contract.opportunityCode} />
 
         {next?.blocking && (
           <AiAction

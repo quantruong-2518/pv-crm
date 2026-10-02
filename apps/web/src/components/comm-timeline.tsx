@@ -7,8 +7,7 @@ import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-
 
 /** The one comm timeline — a horizontal axis, oldest left, cards alternating
  *  above and below (ADR 0075, canvas boards `History` and `V2Queue`). The
- *  subject's history (`comms-card.tsx`) and the queue (`pages/comms.tsx`)
- *  both draw it, each mapping its rows to `CommCardItem`.
+ *  workstream's history (`comms-card.tsx`) maps its rows to `CommCardItem`.
  *
  *  Native horizontal scroll carries touch, trackpad and keyboard; a mouse drag
  *  only moves `scrollLeft`. The selected card wears a solid `ring` edge that
@@ -24,6 +23,8 @@ export type CommCardItem = {
   /** The title is a placeholder sentence, not content. */
   titleMuted: boolean
   meta: string
+  /** The object the comm belongs to, as one muted line (e.g. OP-0231, kind Opportunity). */
+  subject?: { code: string; label: string }
   step: DebriefStepCopy | null
 }
 
@@ -172,6 +173,11 @@ function CommCard({
       <span className="text-muted-foreground truncate text-[11.5px] leading-[1.5]">
         {item.meta}
       </span>
+      {item.subject && (
+        <span className="text-muted-foreground truncate text-[11.5px] leading-[1.5]">
+          <span className="font-mono">{item.subject.code}</span> · {item.subject.label}
+        </span>
+      )}
       <CommLateMark late={item.late} />
       {item.step && <StepCopyLine step={item.step} />}
     </button>

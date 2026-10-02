@@ -1683,11 +1683,6 @@
       "count": 2
     }
   },
-  "apps/web/src/pages/contract-detail.tsx": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "apps/web/src/pages/contracts.tsx": {
     "aurora/comment-budget": {
       "count": 1

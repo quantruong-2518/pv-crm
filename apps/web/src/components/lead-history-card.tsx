@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { GlassCard, MetaPill, SectionTitle, SegmentedControl, Timeline } from '@pv/ui'
 import type { TouchKind } from '@pv/contracts'
@@ -8,10 +9,11 @@ import { lifecycleTitle, type TouchFocus } from '@/data/touches'
 import { NO_TOUCHES } from '@/data/lead-profile'
 import type { TouchEvent } from '@/data/touches'
 import { useCan } from '@/app/auth'
-import { subjectCommIndexQuery } from '@/data/comm-records'
+import { commRecordPath, workstreamCommIndexQuery } from '@/data/comm-records'
+import { leadProfileQuery } from '@/data/lead-profile'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { salesCatalogQuery, stopReasonLabel } from '@/data/sales-config'
-import { CommTimeline } from './comms-card'
+import { WorkstreamComms } from './comms-card'
 import { LetterLines } from './mail-letter/letter-lines'
 
 /** The three timelines of a lead behind three doors — mail, activity, talk.
@@ -44,7 +46,10 @@ export function LeadHistoryPanel({
 }) {
   const [tab, setTab] = useState<HistoryTab>('activity')
   const mail = useQuery(subjectLettersQuery('lead', code))
-  const commCount = useCommRecordCount(code)
+  const navigate = useNavigate()
+  const { data: lead } = useQuery(leadProfileQuery(code))
+  const workstreamCode = lead?.workstreamCode ?? null
+  const commCount = useCommRecordCount(workstreamCode)
 
   useEffect(() => {
     setTab('activity')
@@ -74,16 +79,29 @@ export function LeadHistoryPanel({
 
       {tab === 'activity' && <ActivityTimeline history={touches ?? NO_TOUCHES} focus={focus} />}
       {tab === 'mail' && <LetterLines door="lead" code={code} />}
-      {tab === 'comms' && <CommTimeline subjectCode={code} />}
+      {tab === 'comms' &&
+        (workstreamCode ? (
+          <WorkstreamComms
+            workstreamCode={workstreamCode}
+            onOpen={(id) => navigate(commRecordPath(id))}
+          />
+        ) : (
+          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+            {lead ? 'Chưa có hành trình để gom các lượt liên hệ.' : 'Đang đọc hồ sơ…'}
+          </p>
+        ))}
     </section>
   )
 }
 
 /** The tab's count from the summary-less list: its own request, but one that
  *  reads no content and so writes no audit line. */
-function useCommRecordCount(code: string) {
+function useCommRecordCount(workstreamCode: string | null) {
   const canView = useCan('comm.view')
-  const { data } = useQuery({ ...subjectCommIndexQuery(code), enabled: canView })
+  const { data } = useQuery({
+    ...workstreamCommIndexQuery(workstreamCode ?? ''),
+    enabled: canView && workstreamCode !== null,
+  })
   return data?.rows.length
 }
 

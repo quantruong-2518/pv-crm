@@ -404,13 +404,6 @@ export const SCREENS: ScreenDef[] = [
   /** Comm records (ADR 0075). `branch: 'Sales'` because the confirm form reads
    *  the Sales-gated vocabulary; the static `log` segment outranks `:id`. */
   {
-    path: '/comms',
-    name: 'Liên hệ · Liên hệ của tôi',
-    branch: 'Sales',
-    permission: 'comm.view',
-    load: () => import('@/pages/comms'),
-  },
-  {
     path: '/comms/log',
     name: 'Liên hệ · Ghi liên hệ',
     branch: 'Sales',
@@ -473,6 +466,7 @@ export const SCREENS: ScreenDef[] = [
  *  the right screen holding no ticket — a failure harder to read than the 404
  *  it replaced. */
 const LEGACY_PATHS: Record<string, string> = {
+  '/comms': '/sales/workstreams',
   '/quan-tri/nguoi-dung': '/admin/users',
   '/quan-tri/vai-tro': '/admin/roles',
   '/duyet': '/approvals',

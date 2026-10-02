@@ -11,24 +11,35 @@ import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
 import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
 import { invalidateLeadState } from '@/data/lead-exit'
 
-/** Comm records on one lead or opportunity (ADR 0075) — two of the doors listed
+/** Comm records on one subject or one workstream run (ADR 0075) — doors listed
  *  in `@pv/contracts` `comms/debrief.ts`; the record page reads its own.
  *
  *  Every key starts with `COMM_RECORDS_KEY`, shared with the record page, so a
  *  write on either side drops the other's copy by prefix. Bare `comm.view`, as
  *  in `data/comms.ts`: the server checks reach on the subject itself. */
 
-/** The object's comm timeline. The code is in the key: a key without it would
- *  paint one customer's calls onto the next profile opened. */
-export const subjectCommRecordsQuery = (subjectCode: string) =>
+/** The comms of every subject in one workstream run — lead, deals, contract.
+ *  Under `COMM_RECORDS_KEY` like the subject keys, so a confirm drops it too. */
+export const workstreamCommRecordsQuery = (workstreamCode: string) =>
   queryOptions({
-    queryKey: [...COMM_RECORDS_KEY, 'subject', subjectCode] as const,
+    queryKey: [...COMM_RECORDS_KEY, 'workstream', workstreamCode] as const,
     queryFn: ({ signal }) =>
-      api.read(`/comms/debriefs?subjectCode=${encodeURIComponent(subjectCode)}`, {
+      api.read(`/comms/debriefs?workstreamCode=${encodeURIComponent(workstreamCode)}`, {
         need: COMM_VIEW_NEED,
         signal,
         schema: DebriefListResponse,
       }),
+  })
+
+/** The workstream list without summaries — the tab count, where nobody reads content. */
+export const workstreamCommIndexQuery = (workstreamCode: string) =>
+  queryOptions({
+    queryKey: [...COMM_RECORDS_KEY, 'workstream-index', workstreamCode] as const,
+    queryFn: ({ signal }) =>
+      api.read(
+        `/comms/debriefs?workstreamCode=${encodeURIComponent(workstreamCode)}&summary=none`,
+        { need: COMM_VIEW_NEED, signal, schema: DebriefListResponse },
+      ),
   })
 
 /** The same list without summaries (`summary=none`): rows, states and threads

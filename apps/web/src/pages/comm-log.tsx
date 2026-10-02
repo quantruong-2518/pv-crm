@@ -82,7 +82,7 @@ export function CommLogPage() {
       <ScreenLayout className="mx-auto w-full max-w-[480px]">
         <ScreenHeader
           title="Ghi liên hệ"
-          back={{ label: 'Liên hệ của tôi', onClick: () => navigate('/comms') }}
+          back={{ label: 'Quay lại', onClick: () => navigate(-1) }}
         />
         <ContextRail
           max={3}
