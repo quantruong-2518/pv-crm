@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Button, Skeleton } from '@pv/ui'
+import { Avatar, Button, Icon, Pencil, Skeleton, UserRoundPlus } from '@pv/ui'
 import type { WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
@@ -83,30 +83,41 @@ export function RunOwners({
     <RunBlock title="Người phụ trách">
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {rows.map((row) => (
-          <li key={row.key} className="flex min-w-0 items-baseline justify-between gap-3">
-            <span className="flex min-w-0 flex-col">
-              <span className="text-[14px] font-medium leading-[1.5]">{row.step}</span>
-              {several(row.step) && <span className={`${NOTE} font-mono`}>{row.code}</span>}
-            </span>
-            <span className="flex min-w-0 items-center justify-end gap-2">
+          <li key={row.key} className="flex min-w-0 items-center gap-3">
+            {row.who ? (
+              <Avatar name={row.who} size="md" />
+            ) : (
               <span
-                className={
-                  row.who ? 'min-w-0 text-right text-[14px] leading-[1.5]' : `${NOTE} text-right`
-                }
+                aria-hidden
+                className="bg-surface-ink/10 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-full"
+              >
+                <Icon icon={UserRoundPlus} size={16} />
+              </span>
+            )}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span
+                className={row.who ? 'truncate text-[14px] font-medium leading-[1.5]' : NOTE}
+                title={row.who ?? undefined}
               >
                 {row.who ?? row.hint}
               </span>
-              {doors[row.key] && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="pointer-coarse:h-12 shrink-0"
-                  onClick={doors[row.key]?.onClick}
-                >
-                  {doors[row.key]?.label}
-                </Button>
-              )}
+              <span className={NOTE}>
+                {row.step}
+                {several(row.step) && <span className="font-mono"> · {row.code}</span>}
+              </span>
             </span>
+            {doors[row.key] && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="pointer-coarse:h-12 pointer-coarse:w-12 w-8 shrink-0 px-0"
+                title={doors[row.key]?.label}
+                aria-label={`${doors[row.key]?.label} · ${row.step}`}
+                onClick={doors[row.key]?.onClick}
+              >
+                <Icon icon={row.who ? Pencil : UserRoundPlus} size={16} />
+              </Button>
+            )}
           </li>
         ))}
       </ul>
