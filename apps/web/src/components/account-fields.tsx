@@ -130,17 +130,6 @@ export function AccountFields({
             onChange={(e) => onSet('headcount', e.target.value)}
           />
         </Field>
-
-        <Field label="Số nhà máy" errors={errors.plants}>
-          <Input
-            type="number"
-            min={0}
-            value={draft.plants}
-            aria-label="Số nhà máy"
-            invalid={Boolean(errors.plants)}
-            onChange={(e) => onSet('plants', e.target.value)}
-          />
-        </Field>
       </div>
 
       <Field

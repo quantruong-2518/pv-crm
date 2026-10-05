@@ -199,7 +199,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
           onClick={() => navigate(`/sales/workstreams/${encodeURIComponent(journey.code)}`)}
         >
           <Icon icon={Route} size={16} />
-          Xem cây lượt
+          Tiến trình tổng
         </Button>
       )}
     </GlassCard>

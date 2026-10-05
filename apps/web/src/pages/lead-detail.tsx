@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell } from '@pv/ui'
+import { AppShell, ArrowRight } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
@@ -143,12 +143,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       header={<LeadHeader lead={lead} readOnly={dealReach} />}
       main={
         <>
-          <LeadTodo
-            lead={lead}
-            canStep={canWrite && isOpenState(lead.state)}
-            canConvert={canConvert}
-            onConvert={() => setConverting(true)}
-          />
+          <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
           <LeadMeetings code={lead.code} canEdit={canWrite} />
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
@@ -172,6 +167,11 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           mailBlocked={mailBlocked}
           onCompose={() => setComposing(true)}
           more={more}
+          primary={
+            canConvert && (isOpenState(lead.state) || lead.state === 'converted')
+              ? { label: 'Mở cơ hội', icon: ArrowRight, onClick: () => setConverting(true) }
+              : undefined
+          }
         />
       }
     >

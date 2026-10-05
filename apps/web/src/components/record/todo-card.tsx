@@ -10,8 +10,8 @@ import { Badge, GlassCard, Icon, Separator, StatusDot, cn } from '@pv/ui'
  *  A local stepper rather than `Stepper`/`StageTrack`: those draw a form's
  *  progress or a bar without dates, and this one carries a caption per rung
  *  and a stop marker. The current rung's name is a text pill (law 16), so the
- *  header needs none. Rungs sit side by side only once the card is wide enough
- *  (a container query, not the viewport). Both foot slots are optional: a
+ *  header needs none. Rungs size to their label and wrap as whole cells, so a
+ *  label never breaks across lines. Both foot slots are optional: a
  *  contract has no next step, and with no verdict there is no primary. */
 
 export type RungMark = 'done' | 'current' | 'waiting' | 'stopped' | 'skipped' | 'future'
@@ -27,11 +27,13 @@ export type TodoRung = {
 }
 
 export function TodoCard({
+  title = 'Việc cần làm',
   rungs,
   rungsLabel,
   next,
   primary,
 }: {
+  title?: string
   rungs: TodoRung[]
   /** What the ladder is, for a screen reader. */
   rungsLabel: string
@@ -49,14 +51,10 @@ export function TodoCard({
       className="@container flex flex-col gap-5 p-4 sm:p-6"
     >
       <h2 id={titleId} className="font-display m-0 text-[20px] font-semibold leading-[1.4]">
-        Việc cần làm
+        {title}
       </h2>
       {/* `list-none` strips the list role in Safari; say it back. */}
-      <ol
-        role="list"
-        aria-label={rungsLabel}
-        className="@3xl:auto-cols-fr @3xl:grid-flow-col m-0 grid list-none gap-2 p-0"
-      >
+      <ol role="list" aria-label={rungsLabel} className="m-0 flex list-none flex-wrap gap-2 p-0">
         {rungs.map((rung) => (
           <RungCell key={rung.key} rung={rung} />
         ))}
@@ -84,7 +82,7 @@ function RungCell({ rung }: { rung: TodoRung }) {
     <li
       aria-current={current ? 'step' : undefined}
       className={cn(
-        'flex min-w-0 items-start gap-3 rounded-md px-3 py-2',
+        'flex min-w-0 max-w-full grow items-start gap-3 rounded-md px-3 py-2',
         current ? 'bg-accent' : 'bg-muted',
       )}
     >
@@ -93,7 +91,9 @@ function RungCell({ rung }: { rung: TodoRung }) {
       </span>
       <span className="flex min-w-0 flex-col items-start gap-1">
         {current ? (
-          <Badge tone="running">{rung.label}</Badge>
+          <Badge tone="running" className="whitespace-normal">
+            {rung.label}
+          </Badge>
         ) : (
           <span
             className={cn(
@@ -104,23 +104,32 @@ function RungCell({ rung }: { rung: TodoRung }) {
             {rung.label}
           </span>
         )}
-        {rung.caption && (
-          <span
-            className={cn(
-              'tnum text-[12px] leading-[1.5]',
-              rung.late || rung.mark === 'stopped'
-                ? 'text-destructive-foreground'
-                : current
-                  ? 'text-accent-foreground'
-                  : 'text-muted-foreground',
-            )}
-          >
-            {rung.caption}
-          </span>
-        )}
+        <span
+          aria-hidden={rung.caption === null || undefined}
+          className={cn(
+            'tnum text-[12px] leading-[1.5]',
+            rung.late || rung.mark === 'stopped'
+              ? 'text-destructive-foreground'
+              : current
+                ? 'text-accent-foreground'
+                : 'text-muted-foreground',
+          )}
+        >
+          {rung.caption ?? CAPTION_FALLBACK[rung.mark]}
+        </span>
       </span>
     </li>
   )
+}
+
+/** Row two never stays empty: a rung with nothing to date says where it stands. */
+const CAPTION_FALLBACK: Record<RungMark, string> = {
+  done: 'Đã xong',
+  current: 'Đang ở bậc này',
+  waiting: 'Đang chờ',
+  stopped: 'Đã dừng',
+  skipped: 'Bỏ qua',
+  future: 'Chưa tới',
 }
 
 const MARK_WORD: Record<RungMark, string> = {

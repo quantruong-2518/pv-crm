@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowRight, CalendarClock } from '@pv/ui'
+import { CalendarClock } from '@pv/ui'
 import { Button, GlassCard, Icon, SectionTitle, Skeleton } from '@pv/ui'
 import { campaignLabel, sourceKindLabel, type LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dmy } from '@/lib/date'
-import { isOpenState } from '@/data/lead-state'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
@@ -50,14 +49,10 @@ export function LeadHeader({ lead, readOnly }: { lead: LeadProfile; readOnly: bo
 export function LeadTodo({
   lead,
   canStep,
-  canConvert,
-  onConvert,
 }: {
   lead: LeadProfile
   /** May write the next step: holder rights on a lead still in the funnel. */
   canStep: boolean
-  canConvert: boolean
-  onConvert: () => void
 }) {
   const runReadable = useCan('workstream.view') && lead.workstreamCode !== null
   const journey = useQuery({
@@ -70,11 +65,11 @@ export function LeadTodo({
   const { data: reasons } = useQuery(leadStopReasonsQuery)
   const canAssign = useCan('lead.assign')
   const firstHeld = holders?.find((step) => step.kind === 'held')?.at
-  const convertible = isOpenState(lead.state) || lead.state === 'converted'
 
   if (journey.isLoading) return <Skeleton height={240} />
   return (
     <TodoCard
+      title="Tiến trình lead"
       rungs={leadRungsOf(lead, served, touches, firstHeld, reasons?.rows)}
       rungsLabel="Các bậc của lead"
       next={
@@ -84,14 +79,6 @@ export function LeadTodo({
           subject={leadStepSubject(lead, canAssign)}
           canEdit={canStep}
         />
-      }
-      primary={
-        convertible && canConvert ? (
-          <Button size="lg" onClick={onConvert}>
-            <Icon icon={ArrowRight} size={16} />
-            Mở cơ hội
-          </Button>
-        ) : undefined
       }
     />
   )

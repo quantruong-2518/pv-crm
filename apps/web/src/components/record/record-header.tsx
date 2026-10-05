@@ -1,7 +1,9 @@
-import { Fragment, useId, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
+import { MetaPill } from '@pv/ui'
 
-/** The header of every profile: the record's name, then ONE meta line of what
- *  the screen supplies (people, source, date), in that order.
+/** The header of every profile: the record's name, then ONE row of meta pills
+ *  for what the screen supplies (people, source, date), in that order — one
+ *  pill per fact so the eye can pick each one out.
  *
  *  No code, no kicker naming the object type and no status pill (ADR 0078
  *  §1): the strip already shows the code and which step this is, and the todo
@@ -29,14 +31,13 @@ export function RecordHeader({
         {title}
       </h2>
       {facts.length > 0 && (
-        <p className="text-muted-foreground m-0 text-[14px] leading-[1.5]">
+        <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
           {facts.map((fact, i) => (
-            <Fragment key={i}>
-              {i > 0 && ' · '}
-              {fact}
-            </Fragment>
+            <li key={i} className="min-w-0">
+              <MetaPill>{fact}</MetaPill>
+            </li>
           ))}
-        </p>
+        </ul>
       )}
     </header>
   )
