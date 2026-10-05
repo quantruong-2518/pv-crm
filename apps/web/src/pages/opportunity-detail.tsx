@@ -138,7 +138,19 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       railLabel="Liên hệ, người liên hệ và tệp của cơ hội"
       rail={
         <>
-          <RunOwners workstreamCode={op.workstream?.code ?? null} />
+          <RunOwners
+            workstreamCode={op.workstream?.code ?? null}
+            doors={
+              op.state === 'open' && op.acts.assign.ok
+                ? {
+                    [op.code]: {
+                      label: op.hasSeller ? 'Đổi Sale' : 'Giao Sale',
+                      onClick: () => setAssigning(true),
+                    },
+                  }
+                : {}
+            }
+          />
           <CommJourney workstreamCode={op.workstream?.code ?? null} subject={subject} />
           <RunContacts subject={subject} />
           <RunFiles subject={subject} />

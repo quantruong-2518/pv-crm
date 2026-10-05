@@ -107,10 +107,11 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       ? contacts.map((c) => ({ ...c, primary: c.isPrimary, role: c.title }))
       : [{ ...leadContactOf(lead), primary: true }]
 
+  const assignDoor = assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined)
   const more = leadMoreChoices(
     lead,
     { write: canWrite, disqualify: canDisqualify },
-    assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined),
+    assignDoor,
     pinned,
     liveDeal,
     {
@@ -152,7 +153,14 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       railLabel="Liên hệ, người liên hệ và tệp của lead"
       rail={
         <>
-          <RunOwners workstreamCode={lead.workstreamCode} />
+          <RunOwners
+            workstreamCode={lead.workstreamCode}
+            doors={
+              assignDoor.shut
+                ? {}
+                : { [lead.code]: { label: assignDoor.label, onClick: () => setAssigning(true) } }
+            }
+          />
           <CommJourney
             workstreamCode={lead.workstreamCode}
             subject={{ kind: 'lead', code: lead.code }}
