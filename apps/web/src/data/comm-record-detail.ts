@@ -15,6 +15,7 @@ import {
   DebriefTargetResponse,
   DebriefView,
   PendingDebriefResponse,
+  type CommRecordState,
   type CommVocabularyResponse,
   type DebriefClose,
   type DebriefStepInput,
@@ -276,6 +277,14 @@ export const COMM_CARD_SURFACE = 'bg-surface-ink/5 stone:bg-transparent shadow-c
  *  the edge, so it never reads as the solid `ring` that marks the selection. */
 export const COMM_FOCUS =
   'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4'
+
+/** The dot of a comm state — one map, so the rail card and the axis agree
+ *  with the pill's tone (`empty` is the furthest from done, hence `bad`). */
+export const COMM_STATE_DOT = {
+  empty: 'bad',
+  unconfirmed: 'warning',
+  done: 'ok',
+} as const satisfies Record<CommRecordState, string>
 
 const SUBJECT_KIND: Record<string, string> = { LD: 'Lead', OP: 'Cơ hội', HĐ: 'Hợp đồng' }
 

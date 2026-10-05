@@ -75,6 +75,8 @@ export function useCreateCommRecord() {
 
 /** Where one record opens. The route belongs to the record screen. */
 export const commRecordPath = (id: string) => `/comms/${encodeURIComponent(id)}`
+export const workstreamCommsPath = (code: string) =>
+  `/sales/workstreams/${encodeURIComponent(code)}/comms`
 
 /** How a subject kind is named inside a sentence. */
 export const COMM_SUBJECT_NOUN: Record<MailSubjectKind, string> = {

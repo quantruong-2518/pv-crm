@@ -171,7 +171,7 @@ export function MailRunEditModal({
       <Skeleton height={320} />
     )
   ) : locked ? (
-    <LockedNote run={base} />
+    <LockedView run={base} letter={letterReady ? preview : null} />
   ) : null
 
   return (
@@ -180,7 +180,7 @@ export function MailRunEditModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title="Sửa lô thư chưa gửi"
+        title={locked ? 'Chi tiết thư' : 'Sửa lô thư chưa gửi'}
         subtitle={base ? runLine(base) : 'Đang mở lô…'}
         meta={base ? runBadge(base) : null}
         footer={
@@ -425,6 +425,29 @@ function runLine(run: MailRunDetail): string {
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+/** A run past editing still reads: the note, then the letter as it left. */
+function LockedView({
+  run,
+  letter,
+}: {
+  run: MailRunDetail
+  letter: ReturnType<typeof useMailPreview> | null
+}) {
+  return (
+    <>
+      <LockedNote run={run} />
+      {letter && (
+        <MailPreviewCard
+          letter={letter.letter}
+          pending={letter.pending}
+          error={letter.error}
+          caption={run.kind === 'group' ? GROUP_PREVIEW_CAPTION : PREVIEW_CAPTION}
+        />
+      )}
+    </>
+  )
 }
 
 /** Why the form is not there. The server knows something the run book cannot:
