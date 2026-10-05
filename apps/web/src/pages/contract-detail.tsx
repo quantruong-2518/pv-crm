@@ -26,6 +26,7 @@ import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
+import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { InstallmentChart, InstallmentList, MoneySummary } from './contract-money'
 import { ContractTodo } from './contract-todo'
@@ -149,6 +150,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
       railLabel="Liên hệ và người liên hệ của hợp đồng"
       rail={
         <>
+          <RunOwners workstreamCode={run.workstreamCode} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
         </>

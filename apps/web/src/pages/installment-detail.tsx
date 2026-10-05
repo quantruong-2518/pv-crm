@@ -47,6 +47,7 @@ import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { TodoCard, type RungMark, type TodoRung } from '@/components/record/todo-card'
 import { CommJourney } from '@/components/run/comm-journey'
+import { RunOwners } from '@/components/run/run-owners'
 import { RunBlock } from '@/components/run/run-block'
 import { RunContacts } from '@/components/run/run-contacts'
 
@@ -165,6 +166,7 @@ function InstallmentScreen({
       railLabel="Liên hệ, người liên hệ, giấy tờ và ghi chú của đợt"
       rail={
         <>
+          <RunOwners workstreamCode={run.workstreamCode} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
           <DocsCard installment={installment} />

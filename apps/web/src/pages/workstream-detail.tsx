@@ -17,6 +17,7 @@ import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
+import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { WorkstreamTree } from './workstream-tree'
 import { POOL, type PathOf } from './workstream-tree-model'
@@ -84,6 +85,7 @@ function RunScreen({ journey }: { journey: Journey }) {
       railLabel="Liên hệ và người liên hệ của hành trình"
       rail={
         <>
+          <RunOwners workstreamCode={journey.code} />
           <CommJourney workstreamCode={journey.code} />
           <RunContacts subject={lead} />
         </>

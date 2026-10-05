@@ -26,6 +26,7 @@ import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
+import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunFiles } from '@/components/run/run-files'
 import { LeadHeader, LeadMeetings, LeadTodo } from './lead-blocks'
@@ -151,6 +152,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       railLabel="Liên hệ, người liên hệ và tệp của lead"
       rail={
         <>
+          <RunOwners workstreamCode={lead.workstreamCode} />
           <CommJourney
             workstreamCode={lead.workstreamCode}
             subject={{ kind: 'lead', code: lead.code }}

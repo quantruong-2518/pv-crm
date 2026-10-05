@@ -21,6 +21,7 @@ import { ActionBar } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
+import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunFiles } from '@/components/run/run-files'
 import { SignDrawer } from '@/components/sign-drawer'
@@ -137,6 +138,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       railLabel="Liên hệ, người liên hệ và tệp của cơ hội"
       rail={
         <>
+          <RunOwners workstreamCode={op.workstream?.code ?? null} />
           <CommJourney workstreamCode={op.workstream?.code ?? null} subject={subject} />
           <RunContacts subject={subject} />
           <RunFiles subject={subject} />
