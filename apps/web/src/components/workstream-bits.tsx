@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Badge, Chip, cn } from '@pv/ui'
-import type { WorkstreamCloseReason, WorkstreamStand, WorkstreamStandKind } from '@pv/contracts'
+import type { WorkstreamCloseReason, WorkstreamStandKind } from '@pv/contracts'
 import { chainPath } from '@/data/opportunities'
 import { CLOSE_REASON_LABEL } from '@/data/workstreams'
 
@@ -71,30 +71,6 @@ export function OverdueNote({
     <Badge tone="warning" className="shrink-0 gap-1">
       Trễ <span className="tnum font-num">{overdueBy}</span> ngày
     </Badge>
-  )
-}
-
-/** `closed` hides the overdue note: a closed run always carries a null
- *  `overdueBy`, and "no deadline set" would misread a finished journey. */
-export function StandCell({
-  stand,
-  overdueBy,
-  closed,
-  go,
-}: {
-  stand: WorkstreamStand
-  overdueBy: number | null
-  closed: boolean
-  go: (path: string) => void
-}) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <ObjectChip kind={stand.kind} code={stand.code} go={go} />
-      <span className="min-w-0 truncate" title={stand.phaseLabel}>
-        {stand.phaseLabel}
-      </span>
-      {!closed && <OverdueNote overdueBy={overdueBy} />}
-    </span>
   )
 }
 

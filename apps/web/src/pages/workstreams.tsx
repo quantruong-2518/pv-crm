@@ -35,7 +35,7 @@ import {
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
 import { PersonCell, TableFooter } from '@/components/table-bits'
-import { CloseBadge, ObjectChip, StandCell } from '@/components/workstream-bits'
+import { CloseBadge, ObjectChip, OverdueNote } from '@/components/workstream-bits'
 import { WorkstreamsBoard } from './workstreams-board'
 import { ViewSwitch } from './workstreams-board-parts'
 
@@ -56,14 +56,17 @@ const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamS
   (value) => ({ value, label: WORKSTREAM_STATUS_LABEL[value] }),
 )
 
+/* Ordered by the question the book answers first: whose journey, where it
+   stands, whether it needs action, who holds it, then the history. */
 const COLUMNS: TableColumn[] = [
-  { header: 'Mã', width: '0.9fr' },
   { header: 'Khách hàng', width: '2fr', sortKey: 'customer' },
-  { header: 'Đang ở', width: '2.4fr' },
+  { header: 'Đang ở', width: '2.2fr' },
+  { header: 'Tình trạng', width: '1.4fr' },
   { header: 'Sale', width: '1.1fr' },
   { header: 'BD', width: '1.1fr' },
   { header: 'Liên lạc', width: '1fr' },
-  { header: 'Mở / Đóng', width: '1.8fr', sortKey: 'openedAt' },
+  { header: 'Ngày mở', width: '0.9fr', sortKey: 'openedAt' },
+  { header: 'Mã', width: '0.9fr' },
 ]
 
 function CustomerCell({ row, go }: { row: WorkstreamRow; go: Go }) {
@@ -93,27 +96,29 @@ function ContactCell({ row }: { row: WorkstreamRow }) {
   )
 }
 
-function OpenCloseCell({ row }: { row: WorkstreamRow }) {
+/** One place for "does this need me": overdue while open, the outcome once closed. */
+function StatusCell({ row }: { row: WorkstreamRow }) {
+  if (row.closeReason === null || row.closedAt === null) {
+    return <OverdueNote overdueBy={row.overdueBy} />
+  }
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="tnum font-num">{dmy(row.openedAt)}</span>
-      {row.closeReason !== null && <CloseBadge reason={row.closeReason} />}
-      {row.closedAt !== null && <span className="tnum font-num">{dmy(row.closedAt)}</span>}
+      <CloseBadge reason={row.closeReason} />
+      <span className="tnum font-num text-muted-foreground">{dmy(row.closedAt)}</span>
     </span>
   )
 }
 
 function rowCells(row: WorkstreamRow, go: Go) {
   return [
-    <Chip key="code">{row.code}</Chip>,
     <CustomerCell key="customer" row={row} go={go} />,
-    <StandCell
-      key="stand"
-      stand={row.stand}
-      overdueBy={row.overdueBy}
-      closed={row.closedAt !== null}
-      go={go}
-    />,
+    <span key="stand" className="flex min-w-0 items-center gap-2">
+      <ObjectChip kind={row.stand.kind} code={row.stand.code} go={go} />
+      <span className="min-w-0 truncate" title={row.stand.phaseLabel}>
+        {row.stand.phaseLabel}
+      </span>
+    </span>,
+    <StatusCell key="status" row={row} />,
     <PersonCell
       key="sale"
       value={row.saleHolder?.name}
@@ -121,7 +126,10 @@ function rowCells(row: WorkstreamRow, go: Go) {
     />,
     <PersonCell key="bd" value={row.bdHolder?.name} missing="Chưa có BD giữ hành trình này" />,
     <ContactCell key="contact" row={row} />,
-    <OpenCloseCell key="openClose" row={row} />,
+    <span key="opened" className="tnum font-num">
+      {dmy(row.openedAt)}
+    </span>,
+    <Chip key="code">{row.code}</Chip>,
   ]
 }
 

@@ -210,13 +210,10 @@ export function AppHeader({
 
         <AppNav
           groups={apps}
-          className="order-last basis-full lg:order-none lg:min-w-0 lg:flex-1 lg:basis-auto"
+          className="order-last basis-full lg:order-none lg:min-w-0 lg:shrink lg:basis-auto"
         />
 
-        <SearchField
-          className="min-w-0 flex-1 lg:w-[200px] lg:flex-none 2xl:w-[280px]"
-          {...search}
-        />
+        <SearchField className="min-w-0 flex-1 lg:min-w-[200px] lg:max-w-[520px]" {...search} />
 
         <div className="flex shrink-0 items-center justify-end gap-2">
           {approvals ? <ApprovalsButton action={approvals} /> : null}

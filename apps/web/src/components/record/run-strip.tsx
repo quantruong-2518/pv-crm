@@ -41,6 +41,28 @@ const codesOf = (journey: Journey, key: StepKey): string[] =>
         ? journey.contracts.map((contract) => contract.code)
         : []
 
+/** Who answers for a reached step, in the words the book uses: a lead outside
+ *  every desk is the head's to place; a deal nobody accepted yet waits for the
+ *  head's accept (ADR 0071); a contract also names who deploys it. */
+function picOf(journey: Journey, key: StepKey, code: string): string | null {
+  if (key === 'lead') return journey.lead.holder?.name ?? 'Chưa phân công'
+  if (key === 'opportunity') {
+    const deal = journey.deals.find((d) => d.code === code)
+    if (!deal) return null
+    return deal.holder?.name ?? (deal.acceptedAt === null ? 'Chờ nhận PIC' : null)
+  }
+  if (key === 'contract') {
+    const contract = journey.contracts.find((c) => c.code === code)
+    if (!contract) return null
+    const names = [
+      contract.holder?.name,
+      contract.implementer && `Triển khai: ${contract.implementer.name}`,
+    ]
+    return names.filter(Boolean).join(' · ') || null
+  }
+  return null
+}
+
 export function RunStrip({
   workstreamCode,
   current,
@@ -122,33 +144,45 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
             ? { code: focus, source: here, ...(path ? { onOpen: () => navigate(path) } : {}) }
             : null
 
+          const pic = focus ? picOf(journey, step.key, focus) : null
+
           return (
             <li key={step.key} className="flex items-center gap-1">
               {i > 0 && <Icon icon={ChevronRight} size={16} className="text-glass-foreground" />}
               <span
                 aria-current={here ? 'step' : undefined}
-                className={cn('flex items-center gap-2 rounded-md px-3 py-2', here && 'bg-accent')}
+                className={cn('flex flex-col gap-1 rounded-md px-3 py-2', here && 'bg-accent')}
               >
-                <StatusDot
-                  state={here ? 'current' : focus ? 'ok' : 'next'}
-                  label={here ? 'đang ở đây' : focus ? 'đã tới' : 'chưa tới'}
-                />
-                <span
-                  className={cn(
-                    'text-[14px] leading-[1.5]',
-                    here
-                      ? 'text-accent-foreground font-semibold'
-                      : focus
-                        ? 'text-foreground font-medium'
-                        : 'text-glass-foreground font-medium',
+                <span className="flex items-center gap-2">
+                  <StatusDot
+                    state={here ? 'current' : focus ? 'ok' : 'next'}
+                    label={here ? 'đang ở đây' : focus ? 'đã tới' : 'chưa tới'}
+                  />
+                  <span
+                    className={cn(
+                      'text-[14px] leading-[1.5]',
+                      here
+                        ? 'text-accent-foreground font-semibold'
+                        : focus
+                          ? 'text-foreground font-medium'
+                          : 'text-glass-foreground font-medium',
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                  {chip && <ContextRail objects={[chip]} />}
+                  {codes.length > 1 && (
+                    <span className="text-muted-foreground tnum text-[12px]">
+                      +{codes.length - 1}
+                    </span>
                   )}
-                >
-                  {step.label}
                 </span>
-                {chip && <ContextRail objects={[chip]} />}
-                {codes.length > 1 && (
-                  <span className="text-muted-foreground tnum text-[12px]">
-                    +{codes.length - 1}
+                {pic && (
+                  <span
+                    className="text-glass-foreground pl-5 text-[12px] leading-[1.5]"
+                    title="Người giữ khâu này"
+                  >
+                    {pic}
                   </span>
                 )}
               </span>
