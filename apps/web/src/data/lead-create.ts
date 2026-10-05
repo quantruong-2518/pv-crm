@@ -13,9 +13,11 @@ import {
   isRequiredOnCreate,
   originPickOf,
   readField,
+  readTags,
   type FieldKey,
   type FormValues,
 } from '@/data/lead-form'
+import { leadIndustryTagsQuery } from '@/data/leads'
 
 /** Module 2 · `POST /sales/leads` — the HAND-TYPED door of the lead book.
  *
@@ -107,8 +109,11 @@ export function useCreateLead() {
 
   return useMutation<LeadCreateResponse, ApiError, LeadCreate>({
     mutationFn: (body) => createLead(body),
-    onSuccess: () => {
+    onSuccess: (_, body) => {
       void client.invalidateQueries({ queryKey: LEAD_BOOK_KEY })
+      if (body.industries.length > 0) {
+        void client.invalidateQueries({ queryKey: leadIndustryTagsQuery.queryKey })
+      }
     },
   })
 }
@@ -134,6 +139,7 @@ export const emptyDraft = (): FormValues => ({
   province: '',
   category: '' as LeadCategory,
   mainProduct: '',
+  industries: [],
   headcount: null,
   plants: null,
 
@@ -247,6 +253,11 @@ export function buildLeadCreate(values: FormValues, asks: MotionAsks): BuildResu
          absent. `writeField` already made a cleared box `null`, which reads
          back as `''` here. */
       if (raw !== '') candidate[wire] = Number(raw)
+      continue
+    }
+    if (field.kind === 'tags') {
+      const tags = readTags(values, field.key)
+      if (tags.length > 0) candidate[wire] = tags
       continue
     }
 

@@ -28,6 +28,7 @@ import {
   Skeleton,
   Sparkline,
   StatusDot,
+  TagInput,
   Textarea,
 } from '@pv/ui'
 
@@ -657,7 +658,31 @@ export function ZoneAtoms() {
           />
           <Textarea invalid readOnly rows={2} value="Thiếu lý do thua" aria-label="Textarea lỗi" />
         </SpecCard>
+        {/* A-23 */}
+        <SpecCard
+          code="A-23"
+          name="TagInput"
+          note="nhiều mục tự do"
+          bodyClassName="flex min-h-72 flex-col gap-4 px-4 py-5"
+          footer="Enter hoặc dấu phẩy chốt mục · Backspace trên ô trống lấy lại mục cuối · rời ô cũng chốt và báo onLeave một lần · trùng bị bỏ qua · max khoá ô khi đủ · suggestions lọc theo chữ đang gõ"
+        >
+          <TagInputDemo />
+        </SpecCard>
       </ZoneBody>
     </section>
+  )
+}
+
+function TagInputDemo() {
+  const [tags, setTags] = useState(['Bán dẫn', 'Điện tử'])
+  return (
+    <TagInput
+      label="Ngành"
+      value={tags}
+      onChange={setTags}
+      placeholder="Gõ ngành rồi Enter"
+      max={4}
+      suggestions={['Bán dẫn', 'Bao bì', 'Điện tử', 'Ô tô']}
+    />
   )
 }

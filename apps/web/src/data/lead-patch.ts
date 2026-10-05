@@ -1,9 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { LeadPatch, type LeadPatchResponse } from '@pv/contracts'
-import type { LeadProfile as ProfileForm } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { ROOT_FIELD } from '@/data/lead-create'
-import { changedFields, PROFILE_TO_WIRE, type ProfileField } from '@/data/lead-form'
+import {
+  changedFields,
+  PROFILE_TO_WIRE,
+  type FormValues,
+  type ProfileField,
+} from '@/data/lead-form'
+import { leadIndustryTagsQuery } from '@/data/leads'
 
 /** Module 2 · `PATCH /sales/leads/:code` — the autosave door of the profile
  *  card. Since 17/09 there is no save button: a value that leaves a box goes
@@ -72,8 +77,12 @@ export function useUpdateLeadProfile() {
         body,
         need: PATCH_NEED,
       }),
-    onSuccess: () => {
+    onSuccess: (_, { body }) => {
       for (const key of TOUCHED_KEYS) void client.invalidateQueries({ queryKey: key })
+      /* A tag typed a moment ago is offered on the next lead. */
+      if (body.industries !== undefined) {
+        void client.invalidateQueries({ queryKey: leadIndustryTagsQuery.queryKey })
+      }
     },
   })
 }
@@ -130,7 +139,7 @@ function fieldErrorsOf(
  *  Returns `ok: false` with a root complaint when nothing changed. The card
  *  disables the button in that state, so reaching it means the diff and the
  *  button disagree — and answering with a silent no-op would hide that. */
-export function buildLeadPatch(base: ProfileForm, work: ProfileForm): PatchResult {
+export function buildLeadPatch(base: FormValues, work: FormValues): PatchResult {
   const candidate: Record<string, unknown> = {}
 
   for (const key of changedFields(base, work)) {

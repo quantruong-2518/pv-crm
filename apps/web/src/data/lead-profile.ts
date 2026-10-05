@@ -6,11 +6,11 @@ import {
   type Lead,
   type LeadCategory,
   type LeadContact,
-  type LeadProfile as ProfileForm,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
 import type { LeadProfile } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import type { ProfileValues } from '@/data/lead-form'
 
 /** Module 2 · `GET /sales/leads/:code` — ONE whole lead profile.
  *
@@ -108,7 +108,7 @@ export const leadProfileQuery = (code: string) =>
  *  single column can name "the" deal or "the" contract, and `signed` is the
  *  boolean that survived that change. Keeping the fixture's codes on screen
  *  would print a contract number the database has never heard of. */
-export function profileForm(p: LeadProfile): ProfileForm {
+export function profileForm(p: LeadProfile): ProfileValues {
   return {
     // ── 1 · who the customer is ─────────────────────────────────────────────
     legalName: p.legalName ?? '',
@@ -117,6 +117,9 @@ export function profileForm(p: LeadProfile): ProfileForm {
     province: p.province ?? '',
     category: (p.category ?? '') as LeadCategory,
     mainProduct: p.mainProduct ?? '',
+    /* `?? []` only while the API rolls out without the field; the contract
+       always sends it. */
+    industries: p.industries ?? [],
     headcount: p.headcount ?? null,
     plants: p.plants ?? null,
 

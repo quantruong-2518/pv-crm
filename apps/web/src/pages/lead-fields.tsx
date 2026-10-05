@@ -1,10 +1,10 @@
 import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Input, Select, Textarea, billions, cn, vnd } from '@pv/ui'
+import { Input, Select, TagInput, Textarea, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
-import { leadStopReasonsQuery } from '@/data/leads'
+import { leadIndustryTagsQuery, leadStopReasonsQuery } from '@/data/leads'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { LeadDraft } from '@/data/lead-draft'
 import {
@@ -15,6 +15,8 @@ import {
   isRequired,
   maxCharsOf,
   readField,
+  readTags,
+  tagLimitsOf,
   type FormField,
   type FormValues,
 } from '@/data/lead-form'
@@ -102,23 +104,29 @@ const grouped = (raw: string) => (raw === '' ? '' : Number(raw).toLocaleString('
 function FieldControl({
   field,
   value,
+  tags,
   required,
   invalid,
   options,
   onChange,
   onBlur,
+  onLeave,
 }: {
   field: FormField
   value: string
+  /** What a `tags` box holds; `value` is the same list printed as one line. */
+  tags: string[]
   required: boolean
   invalid: boolean
   /** The select's list. Handed in rather than read off `field.options`: the
    *  three holder boxes take theirs from the directory on the server, and
    *  `FieldRow` builds that once for the whole row. */
   options: { value: string; label: string }[]
-  onChange: (raw: string) => void
+  onChange: (raw: string | string[]) => void
   /** Absent on the boxes that commit the moment they change. */
   onBlur?: () => void
+  /** A tag box's blur: focus has left the WHOLE box, final list in hand. */
+  onLeave: (tags: string[]) => void
 }) {
   const marked = required || undefined
 
@@ -151,6 +159,18 @@ function FieldControl({
         onChange={onChange}
         neutralValue={value}
         className="[&_button]:pointer-coarse:h-12 w-full [&_button]:h-11 [&_button]:text-[13px]"
+      />
+    )
+  }
+
+  if (field.kind === 'tags') {
+    return (
+      <TagsControl
+        field={field}
+        tags={tags}
+        invalid={invalid}
+        onChange={onChange}
+        onLeave={onLeave}
       />
     )
   }
@@ -294,7 +314,9 @@ function LeadAddressBoxes({
  *
  *  A select, a date picker and a segmented control have no blur a person would
  *  recognise: the value is chosen and the pointer moves on, often without the
- *  control ever holding focus. Waiting for a blur there means waiting forever. */
+ *  control ever holding focus. Waiting for a blur there means waiting forever.
+ *  A tag box is NOT one of them: saved per pill, three tags were three PATCHes
+ *  and three timeline rows, so it writes once, on leaving (`onLeave`). */
 const savesOnChange = (field: FormField) => field.kind === 'select' || field.kind === 'date'
 
 /** The field as THIS door draws it.
@@ -380,11 +402,14 @@ export function FieldRow({
             field={drawn}
             required={writable && isRequired(field, draft.mode)}
             error={error}
-            plain={drawn.kind === 'select' || drawn.kind === 'read'}
+            /* A tag box holds buttons: a wrapping label would aim its click at
+               the first pill's remove button. */
+            plain={drawn.kind === 'select' || drawn.kind === 'read' || drawn.kind === 'tags'}
           >
             <FieldControl
               field={drawn}
               value={readField(draft.values, field.key)}
+              tags={readTags(draft.values, field.key)}
               required={writable && isRequired(field, draft.mode)}
               invalid={error !== undefined}
               options={options}
@@ -396,6 +421,12 @@ export function FieldRow({
                 if (instant) draft.commit(field)
               }}
               onBlur={!writable || instant ? undefined : () => draft.commit(field)}
+              /* The list `onLeave` hands over, not the draft's: it carries the
+                 text still being typed. `commit` writes nothing if unchanged. */
+              onLeave={(tags) => {
+                draft.set(field, tags)
+                draft.commit(field)
+              }}
             />
             {drawn.kind === 'money' && (
               <MoneyRead work={draft.values} value={readField(draft.values, field.key)} />
@@ -404,6 +435,42 @@ export function FieldRow({
         )
       })}
     </div>
+  )
+}
+
+/** The tag box, split out for the same reason as `StopReasonRead` below: only
+ *  this box pays for the vocabulary query.
+ *
+ *  A pending or failed read is simply no suggestions — the box takes typed
+ *  text either way, so the query's error is never shown. */
+function TagsControl({
+  field,
+  tags,
+  invalid,
+  onChange,
+  onLeave,
+}: {
+  field: FormField
+  tags: string[]
+  invalid: boolean
+  onChange: (tags: string[]) => void
+  onLeave: (tags: string[]) => void
+}) {
+  const { data } = useQuery(leadIndustryTagsQuery)
+  const limits = tagLimitsOf(field)
+
+  return (
+    <TagInput
+      value={tags}
+      onChange={onChange}
+      onLeave={onLeave}
+      suggestions={data?.tags}
+      label={field.label}
+      placeholder={field.placeholder}
+      maxLength={limits?.chars}
+      max={limits?.count}
+      invalid={invalid}
+    />
   )
 }
 

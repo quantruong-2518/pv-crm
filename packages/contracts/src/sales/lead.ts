@@ -30,6 +30,7 @@ import {
   counted,
   channelUrlOptional,
   deadlineDay,
+  industryTags,
   taxCodeClearable,
   taxCodeOptional,
 } from './lead-fields'
@@ -414,6 +415,8 @@ export const LeadProfile = LeadRow.extend({
   taxCode: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
   mainProduct: z.string().min(1).optional(),
+  /** Notes only, never routing. Always present; `[]` when none. */
+  industries: z.array(z.string()),
 
   /** Headcount and plants — `nonnegative`, not `positive`, and the difference
    *  is deliberate. `LeadCreate` narrows both to `positive()` because a person
@@ -593,6 +596,7 @@ export const LeadCreate = z
     province: textInputOptional(LEAD_MAX.province),
     category: LeadCategory.optional(),
     mainProduct: textInputOptional(LEAD_MAX.mainProduct),
+    industries: industryTags.default([]),
     headcount: counted('Số người', LEAD_NUM.headcountMax).optional(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).optional(),
 
@@ -758,6 +762,7 @@ export const LeadPatch = z
      *  `disqualified`. Not clearable once set. */
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
+    industries: industryTags.optional(),
     headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).nullish(),
 
@@ -880,6 +885,11 @@ export const LeadStopReasonOption = z.object({
 export const LeadStopReasonResponse = z.object({ rows: z.array(LeadStopReasonOption) })
 export type LeadStopReasonOption = z.infer<typeof LeadStopReasonOption>
 export type LeadStopReasonResponse = z.infer<typeof LeadStopReasonResponse>
+
+/** Industry tags already typed on other leads, most used first — what the tag
+ *  box suggests while a rep types, so one industry keeps one spelling. */
+export const LeadIndustryTagsResponse = z.object({ tags: z.array(z.string()) })
+export type LeadIndustryTagsResponse = z.infer<typeof LeadIndustryTagsResponse>
 
 /** `POST /sales/leads/:code/exit`. No approval: `POST :code/reopen` (no body)
  *  undoes it, so E3 has nothing irreversible to weigh (ADR 0057). */

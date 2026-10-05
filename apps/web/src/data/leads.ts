@@ -32,7 +32,12 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import { LeadFacetsQuery, LeadScorecard, LeadStopReasonResponse } from '@pv/contracts'
+import {
+  LeadFacetsQuery,
+  LeadIndustryTagsResponse,
+  LeadScorecard,
+  LeadStopReasonResponse,
+} from '@pv/contracts'
 import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadRow } from '@pv/contracts'
 import { api } from '@/app/api'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
@@ -157,6 +162,23 @@ export const leadStopReasonsQuery = queryOptions({
       schema: LeadStopReasonResponse,
       signal,
     }),
+})
+
+/** `GET /sales/leads/industry-tags` — every industry tag already written on a
+ *  lead, offered while a rep types so one industry keeps one spelling.
+ *
+ *  One minute, the scorecard's own number, rather than the app's `Infinity`:
+ *  a colleague's new tag has no invalidation to ride on. This tab's own saves do invalidate it
+ *  (`lead-patch.ts`, `lead-create.ts`). */
+export const leadIndustryTagsQuery = queryOptions({
+  queryKey: ['sales', 'lead-industry-tags'] as const,
+  queryFn: ({ signal }) =>
+    api.read<LeadIndustryTagsResponse>('/sales/leads/industry-tags', {
+      need: { branch: 'Sales', permission: 'lead.view' },
+      schema: LeadIndustryTagsResponse,
+      signal,
+    }),
+  staleTime: 60 * 1000,
 })
 
 /** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho

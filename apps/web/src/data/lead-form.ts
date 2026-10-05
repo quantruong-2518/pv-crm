@@ -87,15 +87,19 @@ export type FormMode = 'edit' | 'create'
  *  `read` KHÔNG phải "input bị disabled": ô chỉ đọc vẽ ra thành chữ, không vẽ
  *  thành một ô nhập xám. Một ô nhập không gõ được là một lời mời bấm vào rồi
  *  thất vọng — và trên tablet thì nó còn ăn mất một vùng chạm 48px. */
-export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'read'
+export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'tags' | 'read'
+
+/** The profile as the form holds it: the frozen fixture shape plus the wire
+ *  fields it never had. `industries` is notes only, so it joins no slot. */
+export type ProfileValues = LeadProfile & { industries: string[] }
 
 /** The create door draws boxes no stored profile has a column for — `motion`,
  *  then ONE of `origin` · `campaignCode` · `refCode`, as the motion's `asks`
  *  says, tell how the lead got here. */
-export type FieldKey = keyof LeadProfile | 'motion' | 'origin' | 'campaignCode' | 'refCode'
+export type FieldKey = keyof ProfileValues | 'motion' | 'origin' | 'campaignCode' | 'refCode'
 
 export type ProfileField = {
-  key: keyof LeadProfile
+  key: keyof ProfileValues
   label: string
   kind: FieldKind
   group: GroupKey
@@ -120,6 +124,9 @@ export type ProfileField = {
   people?: string
   /** Chữ mono: mã, số thuế, số điện thoại — thứ người ta đọc từng ký tự. */
   mono?: boolean
+  /** Notes only: left empty it is not a missing answer, so the tab's filled
+   *  count and the choice of which tab opens first both skip it. */
+  notesOnly?: boolean
 }
 
 /** A box on EITHER write door — the same shape as a profile box, one key
@@ -129,7 +136,7 @@ export type FormField = Omit<ProfileField, 'key'> & { key: FieldKey }
 /** What the boxes hold: the frozen profile shape plus the create-only boxes,
  *  ABSENT on a lead that already exists. `origin` is the pick encoded as one
  *  string (`originValue`) so dirty tracking stays a string compare. */
-export type FormValues = LeadProfile & {
+export type FormValues = ProfileValues & {
   motion?: string
   origin?: string
   campaignCode?: string
@@ -209,12 +216,23 @@ export const PROFILE_FIELDS: ProfileField[] = [
   { key: 'province', label: 'Tỉnh', kind: 'text', group: 'company' },
   {
     key: 'category',
-    label: 'Ngành',
+    label: 'Nhóm ngành',
     kind: 'select',
     group: 'company',
     slot: 'industry',
     options: CATEGORY_OPTIONS,
     hint: 'Đổi ngành có thể thay đổi người phụ trách mặc định.',
+  },
+  {
+    key: 'industries',
+    label: 'Ngành',
+    kind: 'tags',
+    group: 'company',
+    /* No `slot`: free notes, read by no gate and no routing — `category` above
+       is what decides the default holder. */
+    notesOnly: true,
+    placeholder: 'Gõ ngành rồi Enter',
+    hint: 'Ghi chú tham khảo, không đổi người phụ trách. Ngành đã nhập hiện làm gợi ý cho người khác.',
   },
   {
     key: 'mainProduct',
@@ -230,14 +248,6 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'company',
     slot: 'scale',
     unit: 'người',
-  },
-  {
-    key: 'plants',
-    label: 'Số nhà máy',
-    kind: 'num',
-    group: 'company',
-    slot: 'scale',
-    unit: 'nhà máy',
   },
   { key: 'tier', label: 'Bậc', kind: 'select', group: 'company', options: TIER_OPTIONS },
 
@@ -419,9 +429,16 @@ const digitsOf = (n: number) => String(n).length
 
 const NUM_MAX: Record<string, number | undefined> = {
   headcount: digitsOf(LEAD_NUM.headcountMax),
-  plants: digitsOf(LEAD_NUM.plantsMax),
   budget: digitsOf(LEAD_NUM.budgetMax),
 }
+
+/** A tag box has two ceilings — characters per tag and tags per lead — both
+ *  the contract's own, keyed by wire name like the two tables above. */
+const TAG_MAX: Record<string, { chars: number; count: number } | undefined> = {
+  industries: { chars: LEAD_MAX.industryTag, count: LEAD_NUM.industriesMax },
+}
+
+export const tagLimitsOf = (field: FormField) => TAG_MAX[PROFILE_TO_WIRE[field.key] ?? field.key]
 
 /** How many characters this box accepts — `maxLength` on the control, and never
  *  a second opinion about the rule: it is the contract's own ceiling, read off
@@ -440,6 +457,7 @@ export function maxCharsOf(field: FormField): number | undefined {
   if (field.kind === 'read' || field.kind === 'select' || field.kind === 'date') return undefined
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   if (field.kind === 'num' || field.kind === 'money') return NUM_MAX[wire]
+  if (field.kind === 'tags') return TAG_MAX[wire]?.chars
   if (wire === 'email') return EMAIL_MAX
   if (wire === 'phone') return PHONE_MAX
   return TEXT_MAX[wire]
@@ -507,10 +525,9 @@ const PATCH_SHAPE = LeadPatch.shape as Record<string, FieldProbe>
 export function isRequiredOnSave(field: FormField): boolean {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   const probe = PATCH_SHAPE[wire]
-  /* Refuses `null` = the column is NOT NULL and this door may not empty it.
-     Asked of the schema, never listed: the day the contract makes a third field
-     unclearable, the star follows in the same commit. */
-  return probe !== undefined && !probe.safeParse(null).success
+  /* Refuses its empty value = this door may not empty it. Asked of the schema,
+     never listed. A tag box is emptied with `[]`, never with `null`. */
+  return probe !== undefined && !probe.safeParse(field.kind === 'tags' ? [] : null).success
 }
 
 /** Does the SAVE door carry this box at all?
@@ -677,7 +694,24 @@ export function fieldOfWire(wire: string): FormField | undefined {
 export function readField(values: FormValues, key: FieldKey): string {
   const v = values[key]
   if (v === null || v === undefined) return ''
+  /* A tag list printed as one line — the read-only box and the "empty?" checks. */
+  if (Array.isArray(v)) return v.join(' · ')
   return String(v)
+}
+
+/** The list a tag box holds; `[]` for any box that holds something else. */
+export function readTags(values: FormValues, key: FieldKey): string[] {
+  const v = values[key]
+  return Array.isArray(v) ? v : []
+}
+
+/** Equality of two stored values: a tag list by content, since every edit makes
+ *  a new array and a reference compare would call an undone edit dirty. */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => v === b[i])
+  }
+  return a === b
 }
 
 /** Chuỗi từ ô nhập, quy ngược về kiểu của trường.
@@ -685,7 +719,8 @@ export function readField(values: FormValues, key: FieldKey): string {
  *  Ô số rỗng trả `null` chứ không trả `0`: xoá trắng ô "số người" nghĩa là
  *  "chưa moi được", còn `0` nghĩa là "nhà máy không có ai" — hai chuyện khác
  *  hẳn nhau, và `filledSlots` đọc đúng khác biệt đó. */
-export function writeField(field: FormField, raw: string): FormValues[FieldKey] {
+export function writeField(field: FormField, raw: string | string[]): FormValues[FieldKey] {
+  if (Array.isArray(raw)) return raw
   if (field.kind === 'num' || field.kind === 'money') {
     const digits = raw.replace(/\D/g, '')
     return digits === '' ? null : Number(digits)
@@ -710,7 +745,7 @@ export function changedFields(base: FormValues, work: FormValues): FieldKey[] {
     'campaignCode',
     'refCode',
   ]
-  return keys.filter((k) => base[k] !== work[k])
+  return keys.filter((k) => !sameValue(base[k], work[k]))
 }
 
 /** Ô của bộ 10 câu mà một cụm đang chở — dùng cho dòng đếm trên đầu cụm. */

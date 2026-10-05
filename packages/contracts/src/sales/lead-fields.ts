@@ -36,6 +36,8 @@ export const LEAD_MAX = {
   address: 255,
   province: 64,
   mainProduct: 200,
+  /** One industry tag, in characters — set by the owner, 05/10/2026. */
+  industryTag: 20,
   contactName: 120,
   contactTitle: 120,
   contactChannelUrl: 500,
@@ -67,7 +69,33 @@ export const LEAD_NUM = {
   headcountMax: 1_000_000,
   plantsMax: 1_000,
   budgetMax: 1_000_000_000_000_000,
+  /** Tags per lead — set by the owner, 05/10/2026. The DB CHECK
+   *  `lead_industries_max` hard-codes the same 4: change both together. */
+  industriesMax: 4,
 } as const
+
+/** Free-text industry tags, notes only (routing stays with `category`).
+ *
+ *  Case-insensitive duplicates are COLLAPSED, first spelling wins, rather than
+ *  rejected: a rep who types the same tag twice meant one, and an error on a
+ *  chip box teaches nothing. The count is checked after collapsing so a
+ *  duplicate never spends the budget. Patch REPLACES the whole array. */
+export const industryTags = z
+  .array(
+    z
+      .string('Ngành phải là chữ')
+      .trim()
+      .min(1, 'Ngành không được để trống')
+      .max(LEAD_MAX.industryTag, `Mỗi ngành tối đa ${LEAD_MAX.industryTag} ký tự`),
+  )
+  .transform((tags) => {
+    const seen = new Set<string>()
+    return tags.filter((t) => {
+      const key = t.toLowerCase()
+      return seen.has(key) ? false : (seen.add(key), true)
+    })
+  })
+  .pipe(z.array(z.string()).max(LEAD_NUM.industriesMax, `Tối đa ${LEAD_NUM.industriesMax} ngành`))
 
 /** A COUNT of something: whole, above zero, under a stated ceiling.
  *

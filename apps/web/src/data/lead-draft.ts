@@ -13,6 +13,7 @@ import {
   fieldOfWire,
   isEditable,
   PROFILE_TO_WIRE,
+  sameValue,
   writeField,
   type FieldKey,
   type FormField,
@@ -43,8 +44,9 @@ export type LeadDraft = {
   values: FormValues
   /** The server's copy (edit) or a blank draft (create). */
   base: FormValues
-  /** Type into one box. Does NOT write anything through. */
-  set: (field: FormField, raw: string) => void
+  /** Type into one box (a tag box hands over its whole list). Does NOT write
+   *  anything through. */
+  set: (field: FormField, raw: string | string[]) => void
   /** Edit door only: value left a box → PATCH that one field if it changed.
    *  No-op on the create door. */
   commit: (field: FormField) => void
@@ -87,6 +89,17 @@ function refusalMessage(errors: FieldErrors): string {
     .join(' · ')
 }
 
+/** `industries.2` → `industries`: a complaint about one tag belongs under the
+ *  tag box, which is the only box carrying that wire name. */
+function byBox(errors: FieldErrors): FieldErrors {
+  const out: FieldErrors = {}
+  for (const [wire, messages] of Object.entries(errors)) {
+    const head = wire.split('.')[0] ?? wire
+    ;(out[fieldOfWire(head) ? head : wire] ??= []).push(...messages)
+  }
+  return out
+}
+
 export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   const mode: FormMode = args.mode
   const profile = args.mode === 'edit' ? args.profile : null
@@ -124,7 +137,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
      here it would outrank a NEWER `base` a colleague wrote, and `commit` would
      read the stale one as "the server already holds this" and write nothing. */
   for (const key of Object.keys(sent.current) as FieldKey[]) {
-    if (sent.current[key] === base[key]) delete sent.current[key]
+    if (sameValue(sent.current[key], base[key])) delete sent.current[key]
   }
 
   /* Reloading the boxes on a LEAD change is an assignment during render, React's
@@ -150,7 +163,8 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
       return Object.keys(next).length > 0 ? next : null
     })
 
-  const refuse = (errors: FieldErrors) => {
+  const refuse = (raw: FieldErrors) => {
+    const errors = byBox(raw)
     setFailed((cur) => ({ ...cur, ...errors }))
     setSaveState({ kind: 'failed', message: refusalMessage(errors) })
   }
@@ -158,10 +172,10 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   const refuseCall = (error: ApiError) =>
     refuse(error.errors ?? { [ROOT_FIELD]: [userMessage(error)] })
 
-  const set = (field: FormField, raw: string) => {
+  const set = (field: FormField, raw: string | string[]) => {
     const next = { ...live.current, [field.key]: writeField(field, raw) } as FormValues
     /* A new motion may ask a different box; the old answer must not ride along. */
-    if (field.key === 'motion') {
+    if (field.key === 'motion' && typeof raw === 'string') {
       const keep = asksOf(raw)
       if (keep !== 'ORIGIN') next.origin = ''
       if (keep !== 'CAMPAIGN') next.campaignCode = ''
@@ -184,7 +198,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
        flight is what was sent, not `base`. Typing A→B→A before the refetch lands
        leaves B stored: measured against `base` that undo writes nothing. */
     const server = key in sent.current ? sent.current[key] : base[key]
-    if (value === server) return
+    if (sameValue(value, server)) return
 
     /* Diffed from `server` too, not from `base`: the body carries only what
        differs, so an undo back to the value `base` still holds would build an

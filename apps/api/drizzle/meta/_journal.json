@@ -540,6 +540,13 @@
       "when": 1788504800000,
       "tag": "0077_comm_debrief_title",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1788504900000,
+      "tag": "0078_lead_industries",
+      "breakpoints": true
     }
   ]
 }

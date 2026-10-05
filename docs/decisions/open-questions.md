@@ -128,3 +128,13 @@ are in `.claude/HANDOFF-workstream-loop.md`; the presale ones are ADR 0067.
     contract has no rung it maps to. The canvas only rings the holder's bell.
     **Answered 29/09/2026 for opportunities: recorded in its activity only, it
     never moves a rung — ADR 0069 §9. Contracts stay open until Postsale.**
+
+Raised 05/10/2026 while reviewing the lead profile screen (ADR 0079).
+
+28. **Is `plants` dropped for good?** "Số nhà máy" left the lead and company
+    forms, but the column and the contract field `plants` stayed, because
+    dropping them is a destructive migration nobody asked for. Nobody decided
+    whether they go.
+29. **Do the opportunity and contract profiles move their primary move to the
+    bar too?** The lead did (ADR 0079 §2); the other two still draw it in the
+    todo card.

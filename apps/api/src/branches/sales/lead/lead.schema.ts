@@ -179,6 +179,13 @@ export const lead = sales.table(
     /** Ô 2 chỉ đo cột này. `category` có sẵn từ lúc lead vào sổ nên không phải
      *  thứ moi được — đúng như `SLOT_FIELDS` bên engine đã khai. */
     mainProduct: text('main_product'),
+    /** Free-text industry tags a rep types as notes. NOT a routing input:
+     *  `category` alone decides who gets the lead, so nothing may branch on this
+     *  column. Bounded by the two `lead_industries_*` CHECKs below. */
+    industries: text('industries')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     headcount: integer('headcount'),
     plants: integer('plants'),
 
@@ -458,6 +465,17 @@ export const lead = sales.table(
         'campaign_id',
         'origin_raw',
       ),
+    ),
+    /** Four, set by the owner; mirrors `LEAD_NUM.industriesMax`. */
+    check('lead_industries_max', sql`cardinality("industries") <= 4`),
+    /** `lead_no_blank` cannot cover an array. A blank tag (empty, whitespace or
+     *  NULL) shows as an empty gap once joined on chr(31); `cardinality = 0` is
+     *  exempt because an empty array joins to '' too. */
+    check(
+      'lead_industries_no_blank',
+      sql`array_position("industries", NULL) IS NULL
+          AND (cardinality("industries") = 0
+               OR array_to_string("industries", chr(31)) !~ '(^|\\x1f)\\s*(\\x1f|$)')`,
     ),
   ],
 )

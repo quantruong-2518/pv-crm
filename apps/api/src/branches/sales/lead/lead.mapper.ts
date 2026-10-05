@@ -234,6 +234,9 @@ export function toProfile(
     ...(row.taxCode ? { taxCode: row.taxCode } : {}),
     ...(row.address ? { address: row.address } : {}),
     ...(row.mainProduct ? { mainProduct: row.mainProduct } : {}),
+    /* Always present, `[]` included: the contract spells it required so the tag
+       input never has to special-case a missing key. */
+    industries: row.industries,
     /* `!== null` and not a truthiness test, unlike the strings above: `0` plants
        is a fact somebody dug out, `null` is a question nobody has asked yet, and
        `if (row.plants)` cannot tell those two apart. */

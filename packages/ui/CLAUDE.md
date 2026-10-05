@@ -2,7 +2,7 @@
 
 Four zones, in the order src/index.ts exports them:
 
-- `ui/` — atoms (A-01…A-20): button, input, badge, icon... no business state of its own
+- `ui/` — atoms (A-01…A-23): button, input, badge, icon... no business state of its own
 - `patterns/` — molecules (M-01…M-12): a few atoms composed together, still no engine knowledge
 - `organisms/` — larger compositions (O-02…O-07), usually tied to one specific screen block
 - `layout/` — foundations + templates (AuroraField, GlassCard, AppShell, Drawer...)

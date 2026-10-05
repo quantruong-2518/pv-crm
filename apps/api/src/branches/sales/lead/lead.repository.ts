@@ -674,6 +674,33 @@ export class LeadRepository {
     }
   }
 
+  /** Our own bound on the payload, not a ratified number: past it the rarest
+   *  tags stop being suggested, which is the wrong end to lose if it ever bites. */
+  private static readonly INDUSTRY_TAGS_SHOWN = 200
+
+  /** Industry tags typed on leads, case-folded, most used first then A-Z.
+   *
+   *  Folding on `lower()` keeps the commonest spelling so the typeahead pushes
+   *  one industry toward one spelling; the cap bounds the payload. Ties break
+   *  in codepoint order so PGlite and Neon cut the cap at the same tag. */
+  async industryTags(): Promise<string[]> {
+    const r = (await this.db.execute(sql`
+      WITH spelled AS (
+        SELECT tag, count(*) AS n
+        FROM (SELECT unnest("industries") AS tag FROM "sales"."lead") t
+        GROUP BY tag
+      ),
+      folded AS (
+        SELECT sum(n) AS total, (array_agg(tag ORDER BY n DESC, tag))[1] AS tag
+        FROM spelled
+        GROUP BY lower(tag)
+      )
+      SELECT tag FROM folded ORDER BY total DESC, lower(tag) COLLATE "C", tag COLLATE "C"
+      LIMIT ${LeadRepository.INDUSTRY_TAGS_SHOWN}
+    `)) as { rows: { tag: string }[] }
+    return r.rows.map((row) => row.tag)
+  }
+
   /** When the lead reached this tier: the latest `verified`/`tier-raised`
    *  touch naming it, or `null` when the ledger has none. */
   async tierSince(code: string, tier: LeadTier | null): Promise<Date | null> {

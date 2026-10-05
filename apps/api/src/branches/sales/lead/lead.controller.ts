@@ -94,6 +94,17 @@ export class LeadController {
     return this.leads.facets(who, q)
   }
 
+  /** Tag vocabulary for the lead form's typeahead.
+   *
+   *  Must stay above `@Get(':code')` for the reason `scorecard` gives. Not
+   *  `scoped`: a rep sees tags from leads they do not hold, so spellings agree.
+   *  Strings only — a tag is not a private field (ADR 0079 §5). */
+  @Get('industry-tags')
+  @Need({ branch: 'Sales', permission: 'lead.view' })
+  industryTags() {
+    return this.leads.industryTags()
+  }
+
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.
    *
    *  Khai `@Get(':code')` SAU `@Get()`, và cùng ba trục quyền y hệt. Bộ định

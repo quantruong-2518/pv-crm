@@ -46,6 +46,10 @@ const boxesOf = (tab: (typeof PROFILE_GROUPS)[number]['key'], mode: FormMode) =>
     ? [...fieldsOf(tab, mode), ...CHANNEL_URL_FIELDS]
     : fieldsOf(tab, mode)
 
+/** The boxes whose emptiness means an answer is still missing. */
+const countedOf = (tab: (typeof PROFILE_GROUPS)[number]['key'], mode: FormMode) =>
+  boxesOf(tab, mode).filter((box) => !box.notesOnly)
+
 export function LeadForm({
   draft,
   code,
@@ -72,7 +76,7 @@ export function LeadForm({
     /* Counted over the BOXES of the tab, not over the ten init-data slots: the
        number answers "how much of this tab is still empty", which is what the
        reader is looking at. The slot score lives on the lead book. */
-    const boxes = boxesOf(entry.key, draft.mode)
+    const boxes = countedOf(entry.key, draft.mode)
     const got = boxes.filter((box) => readField(draft.values, box.key) !== '').length
     return { value: entry.key, label: entry.label, count: `${got}/${boxes.length}` }
   })
@@ -134,7 +138,7 @@ function firstTab(draft: LeadDraft): TabKey {
   const short = PROFILE_GROUPS.find(
     (group) =>
       group.key !== 'person' &&
-      boxesOf(group.key, 'edit').some((box) => readField(draft.base, box.key) === ''),
+      countedOf(group.key, 'edit').some((box) => readField(draft.base, box.key) === ''),
   )
   return short?.key ?? 'company'
 }
