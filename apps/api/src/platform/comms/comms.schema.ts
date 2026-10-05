@@ -460,6 +460,10 @@ export const debrief = comms.table(
       .notNull()
       .references(() => objectRef.code),
 
+    /** Short label the owner gives the comm at confirm; not content, so ungated.
+     *  NULL on records closed before 0077. 120 is `DEBRIEF_TITLE_MAX`. */
+    title: text('title'),
+
     /** Content, gated by `comm.view-content` at read like `message.body_text`. */
     summary: text('summary'),
 
@@ -497,6 +501,10 @@ export const debrief = comms.table(
       'debrief_closed_has_summary',
       sql`"closed_at" IS NULL
           OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 2000)`,
+    ),
+    check(
+      'debrief_title_bounded',
+      sql`"title" IS NULL OR (btrim("title") <> '' AND char_length("title") <= 120)`,
     ),
     /** The step copy is one fact: half a step is a row no timeline can read.
      *  Text bounds mirror `next_step_text_bounded`. */

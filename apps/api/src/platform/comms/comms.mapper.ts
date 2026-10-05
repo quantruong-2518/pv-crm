@@ -251,6 +251,7 @@ export function toDebriefView(
     owner: { id: row.ownerId, name: read.ownerName },
     createdAt: row.createdAt.toISOString(),
     closedAt: row.closedAt ? row.closedAt.toISOString() : null,
+    title: row.title,
     summary: cutContent(row.summary, access.allows(who, 'comm.view-content')),
     answers: answers.map((a) => ({
       criterionId: a.criterionId,

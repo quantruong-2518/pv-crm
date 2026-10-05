@@ -197,7 +197,10 @@ export class DebriefRepository {
   async close(
     tx: Db,
     id: string,
-    values: Pick<DebriefValues, 'summary' | 'nextKindId' | 'nextKindName' | 'nextText' | 'nextDue'>,
+    values: Pick<
+      DebriefValues,
+      'title' | 'summary' | 'nextKindId' | 'nextKindName' | 'nextText' | 'nextDue'
+    >,
   ): Promise<void> {
     await tx
       .update(debrief)

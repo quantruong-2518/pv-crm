@@ -142,6 +142,12 @@ export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
     message: 'Xác nhận liên hệ cần một bản tóm tắt, tối đa 2000 ký tự.',
   },
 
+  debrief_title_bounded: {
+    kind: 'invalid',
+    fields: ['title'],
+    message: 'Tiêu đề liên hệ không được để trống, tối đa 120 ký tự.',
+  },
+
   debrief_next_all_or_none: {
     kind: 'invalid',
     fields: ['step'],

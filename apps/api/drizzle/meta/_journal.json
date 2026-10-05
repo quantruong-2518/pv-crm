@@ -533,6 +533,13 @@
       "when": 1788504700000,
       "tag": "0076_setting_activity_freshness",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1788504800000,
+      "tag": "0077_comm_debrief_title",
+      "breakpoints": true
     }
   ]
 }

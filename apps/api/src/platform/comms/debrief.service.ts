@@ -167,6 +167,7 @@ export class DebriefService {
 
       const step = prepared.step
       await this.repo.close(tx, id, {
+        title: body.title ?? null,
         summary: body.summary,
         nextKindId: step?.kind.id ?? null,
         nextKindName: step?.kind.name ?? null,

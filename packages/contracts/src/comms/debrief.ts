@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PageQuery, paged } from '../pagination'
-import { Day, Moment, ObjectCode, textInput } from '../primitives'
+import { Day, Moment, ObjectCode, textInput, textInputOptional } from '../primitives'
 import { ConfigCode } from '../sales/config'
 import { NextStepDoneBody, NextStepKind, NextStepSetBody } from '../sales/next-step'
 import { TouchSubject } from '../sales/touch'
@@ -23,6 +23,7 @@ import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadR
  *  is why its shape is borrowed from `NextStepSetBody` rather than restated. */
 
 export const DEBRIEF_SUMMARY_MAX = 2000
+export const DEBRIEF_TITLE_MAX = 120
 
 // ---------------------------------------------------------------------------
 // POST /comms/debriefs — the call / Zalo / mail action buttons
@@ -58,6 +59,8 @@ export const DebriefStepInput = NextStepSetBody.extend({
 /** `step` is absent exactly when the subject takes none (contracts, closed
  *  objects); that rule needs the branch, so the sales hook judges it. */
 export const DebriefClose = z.object({
+  /** Optional: the mobile log has no title step; the desktop form asks for one. */
+  title: textInputOptional(DEBRIEF_TITLE_MAX),
   summary: textInput(DEBRIEF_SUMMARY_MAX),
   answers: z
     .array(DebriefAnswerInput)
@@ -123,6 +126,8 @@ export const DebriefView = z.object({
   owner: z.object({ id: z.string().min(1).max(64), name: z.string().min(1) }),
   createdAt: Moment,
   closedAt: Moment.nullable(),
+  /** Plain label, not content: no view right gates it. NULL on a record closed before 0077. */
+  title: z.string().min(1).max(DEBRIEF_TITLE_MAX).nullable(),
   summary: DebriefSummary,
   answers: z.array(DebriefAnswer),
   step: DebriefStepCopy.nullable(),

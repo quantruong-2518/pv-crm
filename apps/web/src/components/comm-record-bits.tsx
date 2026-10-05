@@ -14,6 +14,9 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
   const navigate = useNavigate()
   const body = (
     <>
+      {as === 'panel' && row.title && (
+        <h4 className="m-0 text-[13px] font-semibold">{row.title}</h4>
+      )}
       <p
         className={cn(
           'm-0 whitespace-pre-wrap break-words text-[13px] leading-[1.6]',
