@@ -78,13 +78,13 @@ export class LeadWriteRepository {
   async actorById(
     tx: Db,
     id: string,
-  ): Promise<{ id: string; name: string; email: string; roleId: RoleId } | null> {
-    /* `roleId` joined the select for `sales.touch.to_role` (`0039`): a hand-over
+  ): Promise<{ id: string; name: string; email: string; roleIds: RoleId[] } | null> {
+    /* `roleIds` joined the select for `sales.touch.to_role` (`0039`): a hand-over
        row freezes the role the RECEIVER held that day, and this is the read that
        already knows who they are. One more column on a query that was running
        anyway, rather than a second trip at write time. */
     const [row] = await tx
-      .select({ id: actor.id, name: actor.name, email: actor.email, roleId: actor.roleId })
+      .select({ id: actor.id, name: actor.name, email: actor.email, roleIds: actor.roleIds })
       .from(actor)
       .where(eq(actor.id, id))
       .limit(1)

@@ -184,7 +184,7 @@ export class AuthService {
       userAgent,
     })
 
-    const permissions = await this.grants.grantsFor(row.roleId)
+    const permissions = await this.grants.grantsFor(row.roleIds)
     return { view: SessionView.parse(toSessionView(row, session, permissions)), token }
   }
 
@@ -223,7 +223,7 @@ export class AuthService {
     }
 
     return {
-      actor: toActor(found.actor, await this.grants.grantsFor(found.actor.roleId)),
+      actor: toActor(found.actor, await this.grants.grantsFor(found.actor.roleIds)),
       /* Read off the row `living()` already loaded, so `PasswordChangeGuard`
          costs no query of its own. */
       owesPasswordChange: found.actor.mustChangePasswordAt !== null,
@@ -236,7 +236,7 @@ export class AuthService {
   async view(token: string): Promise<SessionView> {
     const found = await this.living(token)
     if (!found) throw denied('unauthenticated')
-    const permissions = await this.grants.grantsFor(found.actor.roleId)
+    const permissions = await this.grants.grantsFor(found.actor.roleIds)
     return SessionView.parse(toSessionView(found.actor, found.session, permissions))
   }
 

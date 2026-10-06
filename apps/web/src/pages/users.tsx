@@ -187,7 +187,7 @@ export function UsersPage() {
                 <span key="e" className="block truncate font-mono text-[11px]" title={user.email}>
                   {user.email}
                 </span>,
-                <UserRoleCell key="r" label={user.role} roleId={user.roleId} />,
+                <UserRoleCell key="r" label={user.role} roleIds={user.roleIds} />,
                 /* Branch names stay English — luật 14 fixes them as product
                    names, so there is nothing here to translate. */
                 <span key="b" className="block truncate" title={user.branches.join(' · ')}>

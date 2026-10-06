@@ -57,10 +57,10 @@ export function PermissionName({ permission }: { permission: Permission }) {
 export type MatrixProps = {
   grants: RoleDraft
   onToggle: (roleId: RoleId, permission: Permission, on: boolean) => void
-  /** The role the reader is wearing. Marked in its column heading because the
-   *  server refuses to strip a permission off it, and a refusal is easier to
+  /** The roles the reader is wearing. Marked in their column headings because the
+   *  server refuses to strip a permission off them, and a refusal is easier to
    *  read when the column was labelled before the click. */
-  meRoleId?: RoleId
+  meRoleIds?: readonly RoleId[]
   /** A save is in flight. Ticking during it would be swallowed: the request
    *  carries the draft as it was when the button was pressed, and the draft is
    *  cleared when the last role lands — so a box ticked in between disappears
@@ -70,7 +70,7 @@ export type MatrixProps = {
 
 /** Desktop · the grid. Rows are permissions grouped by resource, columns are
  *  the seven roles, cells are checkboxes. */
-export function RoleMatrix({ grants, onToggle, meRoleId, saving = false }: MatrixProps) {
+export function RoleMatrix({ grants, onToggle, meRoleIds, saving = false }: MatrixProps) {
   return (
     <DataTable
       className="min-w-[1180px]"
@@ -81,7 +81,9 @@ export function RoleMatrix({ grants, onToggle, meRoleId, saving = false }: Matri
            role name wraps to three lines and shoves every row down. The full
            name still shows on the picker, where there is room for it. */
         ...ROLE_IDS.map((id) => ({
-          header: id === meRoleId ? `${ROLE_COLUMN_LABEL[id]} · bạn` : ROLE_COLUMN_LABEL[id],
+          header: meRoleIds?.includes(id)
+            ? `${ROLE_COLUMN_LABEL[id]} · bạn`
+            : ROLE_COLUMN_LABEL[id],
           width: 'minmax(104px,1fr)',
         })),
       ]}
@@ -141,7 +143,7 @@ export function RoleSheet({
   onPick,
   onToggle,
   dirty,
-  meRoleId,
+  meRoleIds,
   saving = false,
 }: SheetProps) {
   const row = grants[roleId]
@@ -162,7 +164,7 @@ export function RoleSheet({
               onClick={() => onPick(id)}
             >
               <span className="min-w-0 truncate">
-                {id === meRoleId ? `${ROLE_LABEL[id]} · bạn` : ROLE_LABEL[id]}
+                {meRoleIds?.includes(id) ? `${ROLE_LABEL[id]} · bạn` : ROLE_LABEL[id]}
               </span>
               {/* Plain text in the button's own foreground, NOT a warning
                   pill. The selected button is solid `--primary`, and amber on

@@ -17,7 +17,8 @@ export type StaffMember = {
   email: string
   /** Display label. Vietnamese on purpose — it is printed, not keyed on. */
   role: string
-  roleId: RoleId
+  /** What the account may do is the union of these roles' grants. */
+  roleIds: RoleId[]
   branches: Branch[]
   ownOnly?: boolean
 }
@@ -34,7 +35,7 @@ export const STAFF: StaffMember[] = [
     name: 'Quantb',
     email: 'quantb@pebblevina.com',
     role: 'Giám đốc',
-    roleId: 'director',
+    roleIds: ['director'],
     branches: ALL,
   },
   {
@@ -42,7 +43,7 @@ export const STAFF: StaffMember[] = [
     name: 'Grace',
     email: 'grace@pebblevina.com',
     role: 'Trưởng phòng Kinh doanh',
-    roleId: 'head-of-sales',
+    roleIds: ['head-of-sales'],
     branches: SALES,
   },
   {
@@ -50,7 +51,7 @@ export const STAFF: StaffMember[] = [
     name: 'Marketing',
     email: 'marketing@pebblevina.com',
     role: 'Marketing',
-    roleId: 'marketing',
+    roleIds: ['marketing'],
     branches: SALES,
   },
   {
@@ -58,7 +59,7 @@ export const STAFF: StaffMember[] = [
     name: 'BD',
     email: 'bd@pebblevina.com',
     role: 'BD',
-    roleId: 'bd',
+    roleIds: ['bd'],
     branches: SALES,
   },
   {
@@ -66,7 +67,7 @@ export const STAFF: StaffMember[] = [
     name: 'Presales',
     email: 'presales@pebblevina.com',
     role: 'Presales',
-    roleId: 'presales',
+    roleIds: ['presales'],
     branches: SALES,
   },
   {
@@ -77,7 +78,7 @@ export const STAFF: StaffMember[] = [
     name: 'Sale',
     email: 'sale@pebblevina.com',
     role: 'Sale',
-    roleId: 'sale',
+    roleIds: ['sale'],
     branches: SALES,
     ownOnly: true,
   },
@@ -86,7 +87,7 @@ export const STAFF: StaffMember[] = [
     name: 'AM',
     email: 'am@pebblevina.com',
     role: 'Account Executive',
-    roleId: 'account-executive',
+    roleIds: ['account-executive'],
     branches: SALES,
   },
 ]

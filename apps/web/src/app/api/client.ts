@@ -152,7 +152,7 @@ const requireLiveSession: BeforeSend = (req) => {
  *  `/auth/me` — not one this app picked out of a fixture. That makes the two
  *  ends agree by construction rather than by luck, and it moves the whole
  *  weight of this check onto one translation: `data/auth.ts` maps the wire's
- *  ASCII `roleId` onto the Vietnamese key `DEFAULT_ROLE_PERMISSIONS` is written in. Get
+ *  ASCII `roleIds` onto the Vietnamese key `DEFAULT_ROLE_PERMISSIONS` is written in. Get
  *  that map wrong and `access.check` fails closed on every call — read the
  *  warning at that table before touching either spelling. */
 const requireAccess: BeforeSend = (req) => {

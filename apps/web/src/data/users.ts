@@ -31,14 +31,14 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *     cannot keep.
  *
  *  The permission itself is the widest one in the matrix — whoever holds it can
- *  grant themselves every other permission by editing their own `roleId` — so
+ *  grant themselves every other permission by editing their own `roleIds` — so
  *  only `director` and `head-of-sales` have it. The reasoning lives beside the
  *  entry in `packages/engines/src/e2-access.ts`; it is not repeated here.
  *
  *  ------------------------------------------------------------------
- *  `roleId` NEVER MEETS E2 ON THIS SCREEN
+ *  `roleIds` NEVER MEETS E2 ON THIS SCREEN
  *  ------------------------------------------------------------------
- *  `@pv/contracts` and `@pv/engines` spell roles identically, so `UserRow.roleId`
+ *  `@pv/contracts` and `@pv/engines` spell roles identically, so `UserRow.roleIds`
  *  needs no translation at all — this screen only ever PRINTS it (via
  *  `ROLE_LABEL`) or sends it back unchanged. `ROLE_LABEL` is `satisfies
  *  Record<RoleId, string>` so a role added to the contract without a Vietnamese
@@ -312,17 +312,17 @@ export const tallyLine = (t: UserTally): string =>
 export type UserDraft = {
   name: string
   role: string
-  roleId: RoleId
+  roleIds: readonly RoleId[]
   branches: readonly Branch[]
   ownOnly: boolean
 }
 
-/** Branch lists are SETS, so compare them as sets. The form renders checkboxes
+/** Branch and role lists are SETS, so compare them as sets. The form renders checkboxes
  *  in the contract's order while a row comes back in whatever order the server
  *  stored, and comparing the two as sequences would report an edit every time
  *  somebody opened a panel and closed it again. */
-const sameBranches = (a: readonly Branch[], b: readonly Branch[]): boolean =>
-  a.length === b.length && a.every((branch) => b.includes(branch))
+const sameSet = <T>(a: readonly T[], b: readonly T[]): boolean =>
+  a.length === b.length && a.every((item) => b.includes(item))
 
 /** What actually changed, or `null` when nothing did.
  *
@@ -348,8 +348,8 @@ export function diffUser(row: UserRow, draft: UserDraft): UserPatch | null {
 
   if (name !== row.name) patch.name = name
   if (role !== row.role) patch.role = role
-  if (draft.roleId !== row.roleId) patch.roleId = draft.roleId
-  if (!sameBranches(row.branches, draft.branches)) patch.branches = [...draft.branches]
+  if (!sameSet(row.roleIds, draft.roleIds)) patch.roleIds = [...draft.roleIds]
+  if (!sameSet(row.branches, draft.branches)) patch.branches = [...draft.branches]
   if (draft.ownOnly !== row.ownOnly) patch.ownOnly = draft.ownOnly
 
   return Object.keys(patch).length === 0 ? null : patch

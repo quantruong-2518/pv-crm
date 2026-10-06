@@ -7,5 +7,5 @@ import type { LeaderboardTally } from './leaderboard.repository'
  *  keeps rather than a second one: adding a seventh role to E2 must break the
  *  build in one place, not fail to break it in two. */
 export function toLeaderboardRow(t: LeaderboardTally): LeaderboardRow {
-  return { ...t, roleId: toContractRole(t.roleId) }
+  return { ...t, roleIds: t.roleIds.map(toContractRole) }
 }

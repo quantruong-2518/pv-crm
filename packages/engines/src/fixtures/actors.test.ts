@@ -91,42 +91,42 @@ describe('Luật chung của email, áp cho cả hai kịch bản', () => {
 
 /** Khoá VAI — cùng lý do với email, và nặng hơn một bậc.
  *
- *  Gõ nhầm `roleId` không làm hỏng màn nào: app vẫn dựng, người vẫn đăng nhập
+ *  Gõ nhầm `roleIds` không làm hỏng màn nào: app vẫn dựng, người vẫn đăng nhập
  *  được, chỉ là họ mang quyền của người khác. Một Sale gắn nhầm `head-of-sales`
  *  thì nhìn được sổ của cả phòng và gật được phê duyệt — không compiler nào bắt
  *  được, không ai nhìn màn mà thấy, và đó đúng là loại lỗi ngoại lệ "test khoá
  *  dữ liệu fixture" (CLAUDE.md · mục Test) sinh ra để chặn. */
 describe('Vai chuẩn hoá của người đăng nhập', () => {
   it('bảy vai DAS Vina — đúng bảng đã chốt', () => {
-    expect(dasVina.actors.map((a) => [a.id, a.roleId])).toEqual([
-      ['u-ha', 'head-of-sales'],
-      ['u-chau', 'marketing'],
-      ['u-nam', 'bd'],
-      ['u-huy', 'sale'],
-      ['u-binh', 'sale'],
-      ['u-linh', 'sale'],
-      ['u-anh', 'presales'],
+    expect(dasVina.actors.map((a) => [a.id, a.roleIds])).toEqual([
+      ['u-ha', ['head-of-sales']],
+      ['u-chau', ['marketing']],
+      ['u-nam', ['bd']],
+      ['u-huy', ['sale']],
+      ['u-binh', ['sale']],
+      ['u-linh', ['sale']],
+      ['u-anh', ['presales']],
     ])
   })
 
   it('ba vai Sao Đỏ — đúng bảng đã chốt', () => {
-    expect(saoDo.actors.map((a) => [a.id, a.roleId])).toEqual([
-      ['u-thang', 'director'],
-      ['u-ha', 'head-of-sales'],
-      ['u-huy', 'sale'],
+    expect(saoDo.actors.map((a) => [a.id, a.roleIds])).toEqual([
+      ['u-thang', ['director']],
+      ['u-ha', ['head-of-sales']],
+      ['u-huy', ['sale']],
     ])
   })
 
   it('người xuất hiện ở cả hai kịch bản thì mang cùng một vai', () => {
     for (const a of saoDo.actors) {
       const twin = dasVina.actors.find((b) => b.id === a.id)
-      if (twin) expect(twin.roleId).toBe(a.roleId)
+      if (twin) expect(twin.roleIds).toEqual(a.roleIds)
     }
   })
 
   it('chỉ người `ownOnly` mới là vai sale, và mọi vai sale đều `ownOnly`', () => {
     for (const a of [...dasVina.actors, ...saoDo.actors]) {
-      expect(Boolean(a.ownOnly)).toBe(a.roleId === 'sale')
+      expect(Boolean(a.ownOnly)).toBe(a.roleIds.includes('sale'))
     }
   })
 })

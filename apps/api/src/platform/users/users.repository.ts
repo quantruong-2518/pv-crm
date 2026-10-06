@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, arrayOverlaps, eq, isNull, ne } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId as EngineRoleId } from '@pv/engines'
 import type { AuditEntry } from '../audit/audit.repository'
@@ -124,7 +124,7 @@ export class UsersRepository {
     return row ?? null
   }
 
-  /** Everyone OTHER than `exceptId` who is enabled and holds one of `roleIds`.
+  /** Everyone OTHER than `exceptId` who is enabled and holds at least one of `roleIds`.
    *
    *  Only meaningful while `lockPeopleBook` is held — see that method for the
    *  race this answer is otherwise stale for, and for why the lock is one
@@ -139,15 +139,21 @@ export class UsersRepository {
    *  `@pv/engines`, and a repository that knew it would be a second copy of the
    *  permission matrix written in SQL. This file only knows how to ask.
    *
-   *  An empty `roleIds` short-circuits rather than emitting `IN ()`, which is a
-   *  syntax error in Postgres. It cannot happen while any role holds the
+   *  An empty `roleIds` short-circuits rather than emitting an empty `ARRAY[]`,
+   *  which Postgres cannot type. It cannot happen while any role holds the
    *  permission, and it must not become a 500 on the day one stops. */
   async enabledIdsWithRoles(tx: Db, exceptId: string, roleIds: EngineRoleId[]): Promise<string[]> {
     if (roleIds.length === 0) return []
     const rows = await tx
       .select({ id: actor.id })
       .from(actor)
-      .where(and(ne(actor.id, exceptId), isNull(actor.disabledAt), inArray(actor.roleId, roleIds)))
+      .where(
+        and(
+          ne(actor.id, exceptId),
+          isNull(actor.disabledAt),
+          arrayOverlaps(actor.roleIds, roleIds),
+        ),
+      )
     return rows.map((r) => r.id)
   }
 

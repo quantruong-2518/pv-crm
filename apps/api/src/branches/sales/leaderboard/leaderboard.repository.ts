@@ -15,7 +15,7 @@ import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema
 export type LeaderboardTally = {
   actorId: string
   name: string
-  roleId: EngineRoleId
+  roleIds: EngineRoleId[]
   leadsOwned: number
   opsOpen: number
   opsOpenAmountVnd: number
@@ -106,7 +106,7 @@ export class LeaderboardRepository {
     const byContract = new Map(contracts.map((r) => [r.actorId, r]))
 
     const people = await this.db
-      .select({ id: actor.id, name: actor.name, roleId: actor.roleId })
+      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
       .from(actor)
       .where(inArray(actor.id, [...ids]))
 
@@ -118,7 +118,7 @@ export class LeaderboardRepository {
         return {
           actorId: p.id,
           name: p.name,
-          roleId: p.roleId,
+          roleIds: p.roleIds,
           leadsOwned: byLead.get(p.id)?.n ?? 0,
           opsOpen: o?.open ?? 0,
           opsOpenAmountVnd: Number(o?.openAmountVnd ?? 0),

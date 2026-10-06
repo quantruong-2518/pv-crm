@@ -24,72 +24,86 @@ type AuditAction = Action | 'ai-read'
  *  ngoại lệ đúng ở đây: `platform` không phải một nhánh, nó là nền. */
 export const platform = pgSchema('platform')
 
-export const actor = platform.table('actor', {
-  id: text('id').primaryKey(),
+export const actor = platform.table(
+  'actor',
+  {
+    id: text('id').primaryKey(),
 
-  /** Display label. E2's scope axis (`e2-access.ts`) compares `owner_id`
-   *  against this row's `id`, never this field — debt #2 is paid: a ref
-   *  naming a holder by name only, with no id, now reads as someone else's
-   *  rather than being string-matched against this column. */
-  name: text('name').notNull(),
+    /** Display label. E2's scope axis (`e2-access.ts`) compares `owner_id`
+     *  against this row's `id`, never this field — debt #2 is paid: a ref
+     *  naming a holder by name only, with no id, now reads as someone else's
+     *  rather than being string-matched against this column. */
+    name: text('name').notNull(),
 
-  email: text('email').notNull().unique(),
+    email: text('email').notNull().unique(),
 
-  /** Nhãn vai, có mang tên ngành ("Sale · chip"). Không bám quyền vào đây. */
-  role: text('role').notNull(),
+    /** Nhãn vai, có mang tên ngành ("Sale · chip"). Không bám quyền vào đây. */
+    role: text('role').notNull(),
 
-  /** Khoá của ma trận quyền E2. Đây mới là thứ quyền bám vào. */
-  roleId: text('role_id').$type<RoleId>().notNull(),
+    /** Keys into the E2 permission matrix; a person holds one or more roles and
+     *  the grant is the union. At least one, every element a known `RoleId`
+     *  (see the two CHECKs below) so a typo cannot silently grant nothing. */
+    roleIds: text('role_ids').array().$type<RoleId[]>().notNull(),
 
-  /** Trục 1 · LICENSE — nhánh công ty đã mua. Rỗng = chỉ One Core. */
-  branches: text('branches').array().$type<Branch[]>().notNull().default([]),
+    /** Trục 1 · LICENSE — nhánh công ty đã mua. Rỗng = chỉ One Core. */
+    branches: text('branches').array().$type<Branch[]>().notNull().default([]),
 
-  /** Trục 3 · PHẠM VI — chỉ thấy object mình đứng tên. */
-  ownOnly: boolean('own_only').notNull().default(false),
+    /** Trục 3 · PHẠM VI — chỉ thấy object mình đứng tên. */
+    ownOnly: boolean('own_only').notNull().default(false),
 
-  // ── xác thực ───────────────────────────────────────────────────────────
-  // Ba cột dưới đây KHÔNG thuộc ba trục quyền ở trên, và đó là lý do chúng
-  // đứng thành cụm riêng: ba trục kia trả lời "người này được làm gì", ba cột
-  // này trả lời "người này có vào được không". Một người có đủ quyền nhưng
-  // đang bị khoá thì không vào; một người vào được nhưng sai vai thì vào rồi
-  // không thấy gì. Hai câu hỏi, hai cụm.
+    // ── xác thực ───────────────────────────────────────────────────────────
+    // Ba cột dưới đây KHÔNG thuộc ba trục quyền ở trên, và đó là lý do chúng
+    // đứng thành cụm riêng: ba trục kia trả lời "người này được làm gì", ba cột
+    // này trả lời "người này có vào được không". Một người có đủ quyền nhưng
+    // đang bị khoá thì không vào; một người vào được nhưng sai vai thì vào rồi
+    // không thấy gì. Hai câu hỏi, hai cụm.
 
-  /** Mật khẩu đã băm, dạng `scrypt$N,r,p$salt$hash` — xem `password.ts`.
-   *
-   *  `null` KHÔNG phải lỗi dữ liệu: đó là tài khoản quản lý vừa mở mà chủ nó
-   *  chưa đặt mật khẩu. Trạng thái đó có thật, kéo dài từ lúc mở tài khoản tới
-   *  lúc người ta bấm link trong thư, và nó phải phân biệt được với "có mật
-   *  khẩu nhưng gõ sai". Một cột `NOT NULL DEFAULT ''` gộp hai thứ đó lại và
-   *  biến chuỗi rỗng thành một mật khẩu hợp lệ với đúng một người: người quên
-   *  kiểm nó. */
-  passwordHash: text('password_hash'),
+    /** Mật khẩu đã băm, dạng `scrypt$N,r,p$salt$hash` — xem `password.ts`.
+     *
+     *  `null` KHÔNG phải lỗi dữ liệu: đó là tài khoản quản lý vừa mở mà chủ nó
+     *  chưa đặt mật khẩu. Trạng thái đó có thật, kéo dài từ lúc mở tài khoản tới
+     *  lúc người ta bấm link trong thư, và nó phải phân biệt được với "có mật
+     *  khẩu nhưng gõ sai". Một cột `NOT NULL DEFAULT ''` gộp hai thứ đó lại và
+     *  biến chuỗi rỗng thành một mật khẩu hợp lệ với đúng một người: người quên
+     *  kiểm nó. */
+    passwordHash: text('password_hash'),
 
-  /** Owes a password change SINCE WHEN. `null` = owes nothing.
-   *
-   *  Set while the account holds a password somebody else chose:
-   *  `reset-staff.ts` planting the whole book with `DEFAULT_PASSWORD`, or an
-   *  administrator pressing reset. Cleared when the owner picks their own.
-   *
-   *  While it is set, `PasswordChangeGuard` shuts every door but the four that
-   *  survive. That is what turns a password living in git into a one-time
-   *  ticket, and it is the condition on which `DEFAULT_PASSWORD` may exist at
-   *  all without breaking the rule stated on `UserCreate` — that a manager must
-   *  never know a password an account then acts under.
-   *
-   *  A mark rather than a `boolean`, same convention as `disabled_at` just
-   *  below: the question asked about a blocked account is "since when". */
-  mustChangePasswordAt: timestamp('must_change_password_at', { withTimezone: true }),
+    /** Owes a password change SINCE WHEN. `null` = owes nothing.
+     *
+     *  Set while the account holds a password somebody else chose:
+     *  `reset-staff.ts` planting the whole book with `DEFAULT_PASSWORD`, or an
+     *  administrator pressing reset. Cleared when the owner picks their own.
+     *
+     *  While it is set, `PasswordChangeGuard` shuts every door but the four that
+     *  survive. That is what turns a password living in git into a one-time
+     *  ticket, and it is the condition on which `DEFAULT_PASSWORD` may exist at
+     *  all without breaking the rule stated on `UserCreate` — that a manager must
+     *  never know a password an account then acts under.
+     *
+     *  A mark rather than a `boolean`, same convention as `disabled_at` just
+     *  below: the question asked about a blocked account is "since when". */
+    mustChangePasswordAt: timestamp('must_change_password_at', { withTimezone: true }),
 
-  /** Bị khoá từ LÚC NÀO. `null` = đang hoạt động.
-   *
-   *  Mốc thời gian chứ không phải `boolean`, vì câu người ta thật sự hỏi về
-   *  một tài khoản bị khoá là "khoá từ bao giờ" — và `disabled = true` trả lời
-   *  câu đó bằng một cái nhún vai. Cùng quy ước với `closed_at`, `exited_at`,
-   *  `revoked_at` ở khắp repo này. */
-  disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    /** Bị khoá từ LÚC NÀO. `null` = đang hoạt động.
+     *
+     *  Mốc thời gian chứ không phải `boolean`, vì câu người ta thật sự hỏi về
+     *  một tài khoản bị khoá là "khoá từ bao giờ" — và `disabled = true` trả lời
+     *  câu đó bằng một cái nhún vai. Cùng quy ước với `closed_at`, `exited_at`,
+     *  `revoked_at` ở khắp repo này. */
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
 
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-})
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    /* `<@` alone passes '{}', so the empty array needs its own CHECK. Both lists
+     are copied by hand from `RoleId`: a new role is a migration someone reads. */
+    check('actor_role_ids_not_empty', sql`cardinality(${t.roleIds}) >= 1`),
+    check(
+      'actor_role_ids_known',
+      sql`${t.roleIds} <@ ARRAY['director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale', 'account-executive']::text[]`,
+    ),
+  ],
+)
 
 // ---------------------------------------------------------------------------
 // E1 · đồ thị object — dữ liệu, KHÔNG phải logic

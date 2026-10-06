@@ -47,8 +47,8 @@ export const DIRECTORY_KEY = ['platform', 'directory'] as const
 /** Cả sổ người, đã dịch sang `Actor` của engine.
  *
  *  Dịch NGAY trong `queryFn` chứ không để chỗ gọi tự lo: mọi chỗ tiêu thụ danh
- *  sách này đều đưa nó cho E2 hoặc cho một hàm nhận `Actor[]`, và `roleId` trên
- *  dây là ASCII còn `roleId` mà ma trận quyền tra là tiếng Việt. Để chỗ gọi tự
+ *  sách này đều đưa nó cho E2 hoặc cho một hàm nhận `Actor[]`, và `roleIds` trên
+ *  dây là ASCII còn `roleIds` mà ma trận quyền tra là tiếng Việt. Để chỗ gọi tự
  *  dịch là mười hai bản dịch, và bản quên dịch không hỏng ra lỗi — nó chỉ làm
  *  một người mất sạch quyền mà không có dòng log nào nói vì sao (xem
  *  `toActor` trong `data/auth.ts`).
@@ -77,7 +77,7 @@ export function useDirectory(): Actor[] {
 /** Người của phòng Kinh doanh — trục LICENSE, không phải trục vai.
  *
  *  Lọc bằng `branches` vì câu hỏi là "ai làm việc trên màn Sales", và đó đúng
- *  là điều `branches` nói. Lọc bằng `roleId` sẽ phải liệt kê bốn vai rồi quên
+ *  là điều `branches` nói. Lọc bằng `roleIds` sẽ phải liệt kê bốn vai rồi quên
  *  vai thứ năm vào ngày công ty thêm nó. */
 export function useSalesPeople(): Actor[] {
   return useDirectory().filter((a) => a.branches.includes('Sales'))
@@ -85,7 +85,7 @@ export function useSalesPeople(): Actor[] {
 
 /** Tên người GẬT của phòng — thứ từng là hằng số `HEAD_OF_SALES` trong fixture.
  *
- *  Tra bằng `roleId` chứ không bằng tên: "ai là trưởng phòng" là một sự thật
+ *  Tra bằng `roleIds` chứ không bằng tên: "ai là trưởng phòng" là một sự thật
  *  của bảng người dùng, đổi được ở màn Quản trị, và câu chữ trên màn ("chờ ...
  *  gật") phải đổi theo trong cùng một lượt tải.
  *
@@ -95,7 +95,7 @@ export function useSalesPeople(): Actor[] {
 export const APPROVER_ROLE_LABEL = 'trưởng phòng kinh doanh'
 
 export function useApproverName(): string {
-  const head = useDirectory().find((a) => a.roleId === 'head-of-sales')
+  const head = useDirectory().find((a) => a.roleIds.includes('head-of-sales'))
   return head?.name ?? APPROVER_ROLE_LABEL
 }
 

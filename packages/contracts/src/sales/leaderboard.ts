@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { MoneyVnd, textInput } from '../primitives'
-import { RoleId } from '../auth'
+import { RoleIds } from '../auth'
 
 /** `GET /sales/leaderboard` — one row per salesperson, the desk side by side.
  *
@@ -19,7 +19,7 @@ import { RoleId } from '../auth'
 export const LeaderboardRow = z.object({
   actorId: z.string().min(1).max(64),
   name: textInput(120),
-  roleId: RoleId,
+  roleIds: RoleIds,
 
   /** Leads whose `status` is still `running` and whose `owner_id` is this
    *  person. Leads they used to hold are not counted — the column answers

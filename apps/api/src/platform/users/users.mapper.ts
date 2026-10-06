@@ -1,6 +1,7 @@
 import type { Branch, RoleId as EngineRoleId } from '@pv/engines'
 import type { UserCreate, UserPatch, UserRow } from '@pv/contracts'
 import { toEngineRole, toSessionActor } from '../auth/auth.mapper'
+import { RoleId as ContractRoleId } from '@pv/contracts'
 import type { ActorRow } from '../db/platform.schema'
 
 /** THE PEOPLE BOOK'S TWO DIRECTIONS — row → admin DTO, and body → columns.
@@ -25,6 +26,10 @@ import type { ActorRow } from '../db/platform.schema'
  *  `branches` as a list of licences, so an unknown string is simply a licence
  *  nobody has, i.e. a person who sees nothing and no error anywhere. */
 const CORE: Branch = 'One'
+
+/** Fixed role order on write, so "first role" means the same thing from every door. */
+const canonicalRoles = (ids: readonly ContractRoleId[]): EngineRoleId[] =>
+  ContractRoleId.options.filter((r) => ids.includes(r)).map(toEngineRole)
 
 /** Every account carries `One`, whatever the caller sent.
  *
@@ -76,7 +81,7 @@ export type ActorDraft = {
   name: string
   email: string
   role: string
-  roleId: EngineRoleId
+  roleIds: EngineRoleId[]
   branches: Branch[]
   ownOnly: boolean
 }
@@ -87,10 +92,7 @@ export function toActorDraft(id: string, body: UserCreate): ActorDraft {
     name: body.name,
     email: body.email,
     role: body.role,
-    /* Vietnamese in the column, ASCII on the wire. `auth.mapper.ts` explains
-       which side stores which and why storing ASCII would mean translating on
-       every permission check instead of at the two edges that touch a wire. */
-    roleId: toEngineRole(body.roleId),
+    roleIds: canonicalRoles(body.roleIds),
     branches: withCore(body.branches),
     ownOnly: body.ownOnly,
   }
@@ -105,7 +107,7 @@ export function toActorDraft(id: string, body: UserCreate): ActorDraft {
 export type ActorColumns = {
   name?: string
   role?: string
-  roleId?: EngineRoleId
+  roleIds?: EngineRoleId[]
   branches?: Branch[]
   ownOnly?: boolean
   disabledAt?: Date | null
@@ -120,7 +122,7 @@ export function toActorColumns(patch: UserPatch): ActorColumns {
   const columns: ActorColumns = {}
   if (patch.name !== undefined) columns.name = patch.name
   if (patch.role !== undefined) columns.role = patch.role
-  if (patch.roleId !== undefined) columns.roleId = toEngineRole(patch.roleId)
+  if (patch.roleIds !== undefined) columns.roleIds = canonicalRoles(patch.roleIds)
   if (patch.branches !== undefined) columns.branches = withCore(patch.branches)
   if (patch.ownOnly !== undefined) columns.ownOnly = patch.ownOnly
   /* `disabled` is a boolean on the wire and a MOMENT in the table. The column

@@ -54,7 +54,7 @@ export type ScanCached = Pick<ScanFileJoined, 'kind' | 'extraction' | 'note'> & 
 export type ScanCreator = {
   id: string
   name: string
-  roleId: RoleId
+  roleIds: RoleId[]
   ownOnly: boolean
   disabledAt: Date | null
 }
@@ -458,7 +458,7 @@ export class LeadScanRepository {
       .select({
         id: actor.id,
         name: actor.name,
-        roleId: actor.roleId,
+        roleIds: actor.roleIds,
         ownOnly: actor.ownOnly,
         disabledAt: actor.disabledAt,
       })

@@ -7,12 +7,12 @@ import type { Actor } from './types'
  *  and the browser both lean on this one law and nothing else would notice it
  *  sliding back. */
 
-const person = (id: string, roleId: Actor['roleId']): Actor => ({
+const person = (id: string, roleId: Actor['roleIds'][number]): Actor => ({
   id,
   name: 'Hải',
   email: `${id}@pebblevina.com`,
   role: roleId,
-  roleId,
+  roleIds: [roleId],
   permissions: [],
   branches: ['Sales'],
 })

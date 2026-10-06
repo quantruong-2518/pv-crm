@@ -122,7 +122,7 @@ function plantAccounts(): void {
   })
 }
 
-type Hand = Pick<StaffMember, 'id' | 'name' | 'roleId'>
+type Hand = Pick<StaffMember, 'id' | 'name' | 'roleIds'>
 
 /** One line of a timeline, on the lead or on its deal. */
 function pushTouch(
@@ -146,7 +146,7 @@ function pushTouch(
   })
 }
 
-const handTo = (p: Hand) => ({ toActorId: p.id, toName: p.name, toRole: p.roleId })
+const handTo = (p: Hand) => ({ toActorId: p.id, toName: p.name, toRole: p.roleIds[0] })
 
 /** Days-ago of each pre-pipeline milestone, never later than the day the
  *  lead leaves that phase, so the timeline cannot run backwards. */

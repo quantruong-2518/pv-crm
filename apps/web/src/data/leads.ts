@@ -537,13 +537,13 @@ export function myWork(input: {
   const running = leads.filter(isRunning)
   const mine = running.filter((l) => l.owner === actor.name)
 
-  /* Bốn nhánh dưới đây so bằng `roleId`, KHÔNG bằng `name` hay nhãn `role`.
+  /* Bốn nhánh dưới đây so bằng `roleIds`, KHÔNG bằng `name` hay nhãn `role`.
      Bản trước so `actor.name === HEAD_OF_SALES` — một cái tên có thật trong
      fixture và không có thật trong bảng người dùng, nên với tài khoản thật thì
-     bốn nhánh này im lặng không chạy nhánh nào. `roleId` là khoá của ma trận
+     bốn nhánh này im lặng không chạy nhánh nào. `roleIds` là khoá của ma trận
      quyền, thứ duy nhất ở đây không đổi khi người ta đổi tên hay đổi nhãn vai
      (`Actor.role` mang cả ngành: "Sale · chip"). */
-  if (actor.roleId === 'sale') {
+  if (actor.roleIds.includes('sale')) {
     for (const lead of mine) {
       push(
         lead,
@@ -554,7 +554,7 @@ export function myWork(input: {
     }
   }
 
-  if (actor.roleId === 'bd') {
+  if (actor.roleIds.includes('bd')) {
     for (const lead of mine) {
       const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
       push(
@@ -564,11 +564,11 @@ export function myWork(input: {
     }
   }
 
-  if (actor.roleId === 'marketing') {
+  if (actor.roleIds.includes('marketing')) {
     for (const lead of mine) push(lead, `Đang nuôi ở bậc đầu mối · ${lead.daysHere} ngày`)
   }
 
-  if (actor.roleId === 'presales') {
+  if (actor.roleIds.includes('presales')) {
     for (const lead of running) {
       if (lead.stage === 'assigned' || lead.stage === 'engaged') {
         push(lead, `Đơn ở cột có demo · chủ đơn ${lead.owner ?? 'chưa ai'}`)
@@ -576,7 +576,7 @@ export function myWork(input: {
     }
   }
 
-  if (actor.roleId === 'head-of-sales') {
+  if (actor.roleIds.includes('head-of-sales')) {
     for (const lead of running) {
       if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn gật cho vào pipeline')
     }
@@ -639,13 +639,13 @@ export function assigneeOptions(
       } else if (a.name === owner) {
         rank = 10
         why = `Sale phụ trách ngành ${domains.join(' · ')}`
-      } else if (a.roleId === 'bd' && missing > 0) {
+      } else if (a.roleIds.includes('bd') && missing > 0) {
         rank = 20
         why = `Còn ${missing} ô bắt buộc — moi ô là việc của vai này`
-      } else if (a.roleId === 'marketing' && lead.tier === 'prospect') {
+      } else if (a.roleIds.includes('marketing') && lead.tier === 'prospect') {
         rank = 40
         why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
-      } else if (a.roleId === 'head-of-sales') {
+      } else if (a.roleIds.includes('head-of-sales')) {
         rank = 50
         /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
            Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người
@@ -655,7 +655,7 @@ export function assigneeOptions(
       } else if (domains.length > 0) {
         rank = 70
         why = `Sale ngành ${domains.join(' · ')}`
-      } else if (a.roleId === 'bd') {
+      } else if (a.roleIds.includes('bd')) {
         rank = 60
         why = 'Mở khách mới, moi ô bắt buộc'
       }

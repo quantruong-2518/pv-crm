@@ -34,7 +34,7 @@ export async function lockAdminSurface(tx: Db): Promise<void> {
 
 /** The permissions whose last holder must never be removed.
  *
- *  Both can reach the other — `user.manage` edits a person's `roleId`,
+ *  Both can reach the other — `user.manage` edits a person's `roleIds`,
  *  `role.manage` edits what a role may do — so losing either one strands the
  *  product just as completely, and both guards have to count both.
  *

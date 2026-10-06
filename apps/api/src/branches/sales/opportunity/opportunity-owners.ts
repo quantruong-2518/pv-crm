@@ -28,25 +28,25 @@ export const NOT_SELLER = 'Chỉ người vai Sale hoặc Account Executive đ�
 export const NO_OWNER = 'Cơ hội cần ít nhất một người đứng đơn — BD hoặc Sale.'
 export const ASSIGN_ONLY = 'Đã nhận PIC — đổi Sale qua nút Giao Sale.'
 
-/** The role of each actor — what the holder rule and the sign door turn on.
+/** The roles of each actor — what the holder rule and the sign door turn on.
  *  A key a decision reads, kept apart from `actorNames`, the label a screen prints. */
-export async function actorRoles(tx: Db, ids: readonly string[]): Promise<Map<string, RoleId>> {
+export async function actorRoles(tx: Db, ids: readonly string[]): Promise<Map<string, RoleId[]>> {
   if (ids.length === 0) return new Map()
   const rows = await tx
-    .select({ id: actor.id, roleId: actor.roleId })
+    .select({ id: actor.id, roleIds: actor.roleIds })
     .from(actor)
     .where(inArray(actor.id, [...ids]))
-  return new Map(rows.map((r) => [r.id, r.roleId]))
+  return new Map(rows.map((r) => [r.id, r.roleIds]))
 }
 
 /** Refuses with 400 on `saleOwners` when any id is not an active seller. */
 export async function assertSellers(tx: Db, added: readonly string[]): Promise<void> {
   if (added.length === 0) return
   const rows = await tx
-    .select({ id: actor.id, roleId: actor.roleId })
+    .select({ id: actor.id, roleIds: actor.roleIds })
     .from(actor)
     .where(and(inArray(actor.id, [...added]), isNull(actor.disabledAt)))
-  const sellers = new Set(rows.filter((r) => isSellerRole(r.roleId)).map((r) => r.id))
+  const sellers = new Set(rows.filter((r) => isSellerRole(r.roleIds)).map((r) => r.id))
   if (added.some((id) => !sellers.has(id))) throw invalid({ saleOwners: [NOT_SELLER] }, NOT_SELLER)
 }
 
@@ -105,7 +105,8 @@ export async function recordSaleLane(
   }
   const { from, to } = change
   if (to && from?.id !== to.id) {
-    const role = (await actorRoles(tx, [to.id])).get(to.id)
+    /* `touch.to_role` holds one role: the receiver's first. */
+    const role = (await actorRoles(tx, [to.id])).get(to.id)?.[0]
     await touch.record(tx, [
       {
         subjectCode: change.code,

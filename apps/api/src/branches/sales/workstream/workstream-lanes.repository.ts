@@ -158,7 +158,7 @@ export class WorkstreamLanesRepository {
               id: opportunityOwner.actorId,
               name: actor.name,
               role: opportunityOwner.role,
-              roleId: actor.roleId,
+              roleIds: actor.roleIds,
             })
             .from(opportunityOwner)
             .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
@@ -311,7 +311,7 @@ export type DealOwnerRow = {
   id: string
   name: string
   role: OpportunityOwnerRole
-  roleId: RoleId
+  roleIds: RoleId[]
 }
 
 /** `doNotContact` is the catalogue's own flag, `false` on every pre-0068 row. */

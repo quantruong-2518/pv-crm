@@ -168,7 +168,7 @@ export function PersonPickField({
           return { id, name: person?.name ?? id, ...(person && { note: person.role }) }
         })}
         suggestions={people
-          .filter((a) => !picked.includes(a.id) && (!sellersOnly || isSellerRole(a.roleId)))
+          .filter((a) => !picked.includes(a.id) && (!sellersOnly || isSellerRole(a.roleIds)))
           .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
         onPick={onToggle}
         onRemove={onToggle}

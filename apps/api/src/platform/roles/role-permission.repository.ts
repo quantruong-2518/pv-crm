@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
+import { and, arrayOverlaps, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { PERMISSIONS, type Permission, type RoleId } from '@pv/engines'
 import { DB, type Db } from '../db/db.module'
@@ -11,7 +11,8 @@ import { permissionSeed, rolePermission } from './role.schema'
 export class RolePermissionRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  /** What one role may do.
+  /** What a person holding these roles may do: the UNION of the roles' grants,
+   *  each permission once, in a stable order.
    *
    *  On the authentication path, so it runs on every request that carries a
    *  session — a second round trip next to the one that loads the actor. That
@@ -23,11 +24,13 @@ export class RolePermissionRepository {
    *  actor query. It is worth doing the day this shows up in a trace; it is not
    *  worth doing before, because it has to be repeated in every query that
    *  builds an `Actor` and each copy is a place to forget it. */
-  async grantsFor(roleId: RoleId, tx: Db = this.db): Promise<Permission[]> {
+  async grantsFor(roleIds: readonly RoleId[], tx: Db = this.db): Promise<Permission[]> {
+    if (roleIds.length === 0) return []
     const rows = await tx
-      .select({ permission: rolePermission.permission })
+      .selectDistinct({ permission: rolePermission.permission })
       .from(rolePermission)
-      .where(eq(rolePermission.roleId, roleId))
+      .where(inArray(rolePermission.roleId, [...roleIds]))
+      .orderBy(rolePermission.permission)
     return rows.map((r) => r.permission)
   }
 
@@ -65,8 +68,8 @@ export class RolePermissionRepository {
       .values(permissions.map((permission) => ({ roleId, permission, grantedBy })))
   }
 
-  /** Is there anybody still ABLE to use a permission — someone holding one of
-   *  these roles whose account is not locked?
+  /** Is there anybody still ABLE to use a permission — someone holding at
+   *  least one of these roles whose account is not locked?
    *
    *  Both halves matter. A role that holds the keys but nobody occupies leaves
    *  the door shut; so does a role held only by locked accounts. */
@@ -75,7 +78,7 @@ export class RolePermissionRepository {
     const [row] = await tx
       .select({ id: actor.id })
       .from(actor)
-      .where(and(inArray(actor.roleId, [...roles]), isNull(actor.disabledAt)))
+      .where(and(arrayOverlaps(actor.roleIds, [...roles]), isNull(actor.disabledAt)))
       .limit(1)
     return row !== undefined
   }

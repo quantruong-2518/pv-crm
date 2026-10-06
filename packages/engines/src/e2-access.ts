@@ -212,7 +212,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  and `performance.view` are withheld because those two screens stay with the
    *  head of department — a decision about who reads them, not about what this
    *  seat can do. `user.manage` is withheld because keeping it would
-   *  UNDO the other two: whoever edits their own `roleId` can hand themselves
+   *  UNDO the other two: whoever edits their own `roleIds` can hand themselves
    *  any row in this table, including one that has all three back. */
   'account-executive': [
     'campaign.view',
@@ -380,10 +380,10 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
    *  `Actor` là kiểu, không phải lời hứa: nó đi vào từ kho của trình duyệt và
    *  từ máy chủ, nên `permissions` có thể vắng mặt (một phiên lưu từ bản trước
    *  khi trường này tồn tại). `actor.permissions.includes` thẳng tay thì cả app
-   *  trắng màn ở lần render đầu — 23/08 đã xảy ra đúng vậy khi `roleId` là thứ
+   *  trắng màn ở lần render đầu — 23/08 đã xảy ra đúng vậy khi `roleIds` là thứ
    *  vắng mặt, và hình dạng của lỗi đó không đổi khi đổi trường.
    *
-   *  Hỏi thẳng mảng chứ không tra `DEFAULT_ROLE_PERMISSIONS[actor.roleId]`: tra
+   *  Hỏi thẳng mảng chứ không tra `DEFAULT_ROLE_PERMISSIONS[actor.roleIds]`: tra
    *  bảng ở đây là bỏ qua mọi thay đổi người quản trị vừa lưu, và tệ hơn cả
    *  việc bỏ qua là nó SẼ ĐÚNG trong mọi lần thử ở máy dev — nơi database còn
    *  nguyên hàng đã gieo. */

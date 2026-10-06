@@ -46,7 +46,7 @@ const ImportDraft = OpportunityCreate.omit({ contacts: true })
  *  chấp nhận đúng một tập giá trị, và cách rẻ nhất để không lệch là để cả hai
  *  đi qua cùng một schema. */
 
-export type ActorLite = { id: string; name: string; roleId: RoleId }
+export type ActorLite = { id: string; name: string; roleIds: RoleId[] }
 
 export type ImportCheckInput = {
   rows: readonly OpportunityImportRow[]
@@ -266,7 +266,7 @@ function checkRow(
   if (rawSale !== '') {
     const sale = personOf(rawSale, staffByName)
     if ('reason' in sale) return { field: 'saleOwner', reason: sale.reason }
-    if (!isSellerRole(sale.roleId)) return { field: 'saleOwner', reason: NOT_SELLER }
+    if (!isSellerRole(sale.roleIds)) return { field: 'saleOwner', reason: NOT_SELLER }
     saleOwners = [sale.id]
   }
 

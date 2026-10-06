@@ -74,7 +74,7 @@ export const SCREENS: ScreenDef[] = [
      *
      *  `permission` is present, and it is NOT a `.xem` permission like the eight
      *  branch screens below. `user.manage` is the widest key in the
-     *  matrix: whoever reaches this screen can edit their own `roleId` and
+     *  matrix: whoever reaches this screen can edit their own `roleIds` and
      *  thereby grant themselves every other permission. So there is deliberately
      *  no "read the people book" gate separate from "write the people book" —
      *  splitting them would build a door whose far side is the whole matrix. */

@@ -98,7 +98,7 @@ export class OpportunityAccept {
       read.owners.map((o) => o.id),
     )
     return holderOf(
-      read.owners.map((o) => ({ ...o, roleId: roles.get(o.id) ?? null })),
+      read.owners.map((o) => ({ ...o, roleIds: roles.get(o.id) ?? null })),
       by,
     )
   }

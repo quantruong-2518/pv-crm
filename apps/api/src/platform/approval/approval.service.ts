@@ -101,14 +101,16 @@ export class ApprovalService {
    *  system promised an approval route and has nobody standing on it. Same
    *  shape the refusing gate used before E3 had a table.
    *
-   *  One seat per role is the staff book's own rule; where two people hold a
-   *  role the lowest actor id wins, so the same request always waits on the
-   *  same person instead of alternating between them per call. */
+   *  Where two people hold a role the lowest actor id wins, so the same request
+   *  always waits on the same person. One person never fills two links: a
+   *  multi-role holder takes the first seat and the next holder the rest, or one
+   *  person would sign the same chain twice. */
   async chainFor(roles: readonly RoleId[]): Promise<ChainLink[]> {
     const holders = await this.repo.holdersOf(roles)
 
+    const taken = new Set<string>()
     return roles.map((role) => {
-      const person = holders.find((h) => h.roleId === role)
+      const person = holders.find((h) => h.roleIds.includes(role) && !taken.has(h.id))
       if (!person) {
         this.log.error(`chainFor: không có actor nào đang giữ vai ${role}`)
         throw new PvError({
@@ -119,6 +121,7 @@ export class ApprovalService {
             'Cần một tài khoản còn hoạt động mang vai đó trong sổ nhân sự.',
         })
       }
+      taken.add(person.id)
       return { role, person: person.name, personId: person.id, state: 'waiting' as const }
     })
   }

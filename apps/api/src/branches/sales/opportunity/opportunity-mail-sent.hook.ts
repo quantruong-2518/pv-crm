@@ -44,7 +44,7 @@ export class OpportunityMailSentHook implements MailSentHook {
     const code = sent.aggregateId
     /* Grants read on `tx`, not the pool: PGlite has one connection and the
        accept's transaction holds it. */
-    const who = toActor(found.creator, await this.grants.grantsFor(found.creator.roleId, tx))
+    const who = toActor(found.creator, await this.grants.grantsFor(found.creator.roleIds, tx))
     try {
       /* Own savepoint: a refusal must leave no half-written row behind the catch. */
       await tx.transaction(async (sp) => {

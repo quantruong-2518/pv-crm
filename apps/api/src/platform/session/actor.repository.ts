@@ -22,14 +22,14 @@ export class ActorRepository {
        round trip on this path, and the alternative — caching the matrix in
        memory — is what would let two server instances disagree about who may
        do what for as long as the cache lives. */
-    const permissions = await this.grants.grantsFor(row.roleId)
+    const permissions = await this.grants.grantsFor(row.roleIds)
     return {
       actor: {
         id: row.id,
         name: row.name,
         email: row.email,
         role: row.role,
-        roleId: row.roleId,
+        roleIds: row.roleIds,
         permissions,
         branches: row.branches,
         ownOnly: row.ownOnly,

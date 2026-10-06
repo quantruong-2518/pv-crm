@@ -51,7 +51,7 @@ export function OwnersSection({
   const locked = lastBdLocked(draft, canAccept)
   const suggested = accountOwner ? byId(accountOwner.id) : undefined
   const offerSuggested =
-    suggested && isSellerRole(suggested.roleId) && !draft.saleOwners.includes(suggested.id)
+    suggested && isSellerRole(suggested.roleIds) && !draft.saleOwners.includes(suggested.id)
 
   return (
     <section className="flex flex-col gap-4" aria-label="Người chịu trách nhiệm">
@@ -102,7 +102,7 @@ export function OwnersSection({
             }
             tokens={draft.saleOwners.map((id) => ({ id, name: byId(id)?.name ?? id }))}
             suggestions={people
-              .filter((a) => !draft.saleOwners.includes(a.id) && isSellerRole(a.roleId))
+              .filter((a) => !draft.saleOwners.includes(a.id) && isSellerRole(a.roleIds))
               .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
             onPick={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}
             onRemove={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}

@@ -1,5 +1,6 @@
 import {
   and,
+  arrayOverlaps,
   asc,
   count,
   desc,
@@ -316,7 +317,7 @@ export class OpportunityRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
-        roleId: actor.roleId,
+        roleIds: actor.roleIds,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
@@ -449,7 +450,7 @@ export class OpportunityRepository {
    *  bảy người. Cùng phép mà `LeadWriteRepository.staff` dùng. */
   async staff(tx: Db): Promise<ActorLite[]> {
     return tx
-      .select({ id: actor.id, name: actor.name, roleId: actor.roleId })
+      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
       .from(actor)
       .where(isNull(actor.disabledAt))
   }
@@ -1010,7 +1011,7 @@ export class OpportunityRepository {
 
     if (id !== OWNER_NONE) return held(eq(opportunityOwner.actorId, id))
     /* No SALE owner means no SELLER there (ADR 0071 §4): a head left on the lane is not one. */
-    return not(held(role === 'SALE' ? inArray(actor.roleId, [...SELLER_ROLES]) : undefined))
+    return not(held(role === 'SALE' ? arrayOverlaps(actor.roleIds, [...SELLER_ROLES]) : undefined))
   }
 
   /** Sáu con số của thẻ điểm, MỘT lượt đi tới database.

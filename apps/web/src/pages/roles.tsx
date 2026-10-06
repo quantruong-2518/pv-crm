@@ -93,7 +93,7 @@ export function RolesPage() {
      the row they are most likely to be here about, and the one the server
      will refuse to let them narrow. */
   const [picked, setPicked] = useState<RoleId | null>(null)
-  const shown = picked ?? me?.roleId ?? FIRST_ROLE
+  const shown = picked ?? me?.roleIds[0] ?? FIRST_ROLE
 
   const [failure, setFailure] = useState('')
 
@@ -229,7 +229,7 @@ export function RolesPage() {
                   <RoleMatrix
                     grants={grants}
                     onToggle={toggle}
-                    meRoleId={me?.roleId}
+                    meRoleIds={me?.roleIds}
                     saving={save.isPending}
                   />
                 </div>
@@ -240,7 +240,7 @@ export function RolesPage() {
                     dirty={dirty}
                     onPick={setPicked}
                     onToggle={toggle}
-                    meRoleId={me?.roleId}
+                    meRoleIds={me?.roleIds}
                     saving={save.isPending}
                   />
                 </div>

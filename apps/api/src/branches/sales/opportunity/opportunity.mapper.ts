@@ -460,20 +460,20 @@ export function holderOf(
     id: string
     name: string
     role: OpportunityOwnerRole
-    roleId: RoleId | null
+    roleIds: readonly RoleId[] | null
   }[],
   acceptor: RefOwner | null,
 ): RefOwner | null {
   const sorted = [...owners].sort(byNameThenId)
   const pick =
-    sorted.find((o) => o.role === 'SALE' && isSellerRole(o.roleId)) ??
+    sorted.find((o) => o.role === 'SALE' && isSellerRole(o.roleIds)) ??
     acceptor ??
     sorted.find((o) => o.role === 'BD')
   return pick ? { id: pick.id, name: pick.name } : null
 }
 
 /** An owner row as `holderOf` reads it: the wire shape plus the actor's role. */
-export type OwnerRow = OpportunityOwner & { roleId: RoleId }
+export type OwnerRow = OpportunityOwner & { roleIds: RoleId[] }
 
 /** The acceptor as a person, or `null` while nobody has accepted. */
 export const acceptorOf = (
@@ -504,8 +504,8 @@ export function peopleOf(
 /** A seller (`isSellerRole`) stands on the SALE lane — the sign door's gate and
  *  the row's `hasSeller`, one reading. */
 export const hasSellerOf = (
-  owners: readonly { role: OpportunityOwnerRole; roleId: RoleId | null | undefined }[],
-): boolean => owners.some((o) => o.role === 'SALE' && isSellerRole(o.roleId))
+  owners: readonly { role: OpportunityOwnerRole; roleIds: readonly RoleId[] | null | undefined }[],
+): boolean => owners.some((o) => o.role === 'SALE' && isSellerRole(o.roleIds))
 
 const byNameThenId = (a: RefOwner, b: RefOwner): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0

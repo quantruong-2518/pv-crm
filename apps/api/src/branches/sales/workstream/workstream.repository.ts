@@ -217,7 +217,7 @@ export class WorkstreamRepository {
 
   /** Who stands on a batch of deals. Same shape, same table and same stable
    *  ordering as `OpportunityRepository.ownersOf` — one question, one answer.
-   *  The role rides along: `holderOf` picks the holder by it. */
+   *  The roles ride along: `holderOf` picks the holder by it. */
   async dealOwnersOf(codes: readonly string[]): Promise<Map<string, OwnerRow[]>> {
     if (codes.length === 0) return new Map()
 
@@ -227,7 +227,7 @@ export class WorkstreamRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
-        roleId: actor.roleId,
+        roleIds: actor.roleIds,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
@@ -236,7 +236,7 @@ export class WorkstreamRepository {
 
     const byDeal = new Map<string, OwnerRow[]>()
     for (const r of rows) {
-      const owner = { id: r.id, name: r.name, role: r.role, roleId: r.roleId }
+      const owner = { id: r.id, name: r.name, role: r.role, roleIds: r.roleIds }
       const list = byDeal.get(r.code)
       if (list) list.push(owner)
       else byDeal.set(r.code, [owner])

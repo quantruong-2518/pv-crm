@@ -822,7 +822,7 @@ export class OpportunityService {
 
   /** A creator who may accept (ADR 0071 §3, head of sales or director by the
    *  default matrix) accepts the deal at birth. Asked of E2 rather than of
-   *  `roleId`, so it follows the same grant as the accept door itself. */
+   *  `roleIds`, so it follows the same grant as the accept door itself. */
   private acceptorAtCreate(who: Actor): RefOwner | null {
     return this.access.allows(who, 'opportunity.accept') ? { id: who.id, name: who.name } : null
   }
@@ -834,7 +834,7 @@ export class OpportunityService {
     code: string,
     body: OpportunityUpdate,
     names: ReadonlyMap<string, string>,
-    roles: ReadonlyMap<string, RoleId>,
+    roles: ReadonlyMap<string, RoleId[]>,
   ): Promise<{ now: OpportunityRead; owner: RefOwner | null }> {
     const now = await this.repo.byCode(null, code, tx)
     if (!now) throw notFound('cơ hội', code)
@@ -1021,13 +1021,13 @@ function saleLaneMoved(found: OpportunityRead, body: OpportunityUpdate): boolean
 function holderOfIds(
   body: { saleOwners: readonly string[]; bdOwners: readonly string[] },
   names: ReadonlyMap<string, string>,
-  roles: ReadonlyMap<string, RoleId>,
+  roles: ReadonlyMap<string, RoleId[]>,
   acceptor: RefOwner | null,
 ): RefOwner | null {
   const lane = (ids: readonly string[], role: 'SALE' | 'BD') =>
     ids.flatMap((id) => {
       const name = names.get(id)
-      return name === undefined ? [] : [{ id, name, role, roleId: roles.get(id) ?? null }]
+      return name === undefined ? [] : [{ id, name, role, roleIds: roles.get(id) ?? null }]
     })
   return holderOf([...lane(body.saleOwners, 'SALE'), ...lane(body.bdOwners, 'BD')], acceptor)
 }
@@ -1050,8 +1050,8 @@ function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): Touch
 }
 
 /** `hasSellerOf` over a body's SALE ids, roles resolved first. */
-const sellerAmong = (ids: readonly string[], roles: ReadonlyMap<string, RoleId>): boolean =>
-  hasSellerOf(ids.map((id) => ({ role: 'SALE' as const, roleId: roles.get(id) })))
+const sellerAmong = (ids: readonly string[], roles: ReadonlyMap<string, RoleId[]>): boolean =>
+  hasSellerOf(ids.map((id) => ({ role: 'SALE' as const, roleIds: roles.get(id) })))
 
 const frozenForSign = () =>
   conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')

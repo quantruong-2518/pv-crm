@@ -56,7 +56,7 @@ export function SellerModal({
   onSubmit: () => void
 }) {
   const people = useSalesPeople()
-  const sellerPool = people.filter((a) => isSellerRole(a.roleId))
+  const sellerPool = people.filter((a) => isSellerRole(a.roleIds))
   const toggle = (id: string) => onChange(toggled(sellers, id))
 
   return (

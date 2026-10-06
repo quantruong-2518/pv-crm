@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Copy, Lock, Mail, RefreshCw, RotateCcw, Save, X } from '@pv/ui'
-import { Badge, Button, Checkbox, Drawer, Icon, Input, Kicker, MetaPill, Select, cn } from '@pv/ui'
+import { Badge, Button, Checkbox, Drawer, Icon, Input, Kicker, MetaPill, cn } from '@pv/ui'
 import type { Branch, RoleId, UserRow } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
 import { toastDone } from '@/app/toast'
@@ -58,23 +58,26 @@ export function UserNameCell({ name, isMe }: { name: string; isMe: boolean }) {
 
 /** The role column — BOTH names, stacked, and that is the whole point.
  *
- *  `role` is a free-text display label somebody typed ("Sale · chip"); `roleId`
- *  is the key the permission matrix is read by. They are allowed to differ, and
- *  when they do it matters: an account labelled "Sale · chip" whose `roleId` is
- *  `head-of-sales` can approve the whole department, and a table printing only
+ *  `role` is a free-text display label somebody typed ("Sale · chip"); `roleIds`
+ *  are the keys the permission matrix is read by, one line however many there
+ *  are. They are allowed to differ, and when they do it matters: an account
+ *  labelled "Sale · chip" whose `roleIds` include `head-of-sales` can approve the whole department, and a table printing only
  *  the label would show nothing at all wrong. Printing only the key would be
  *  the opposite mistake — it would drop the industry the department actually
  *  organises itself by.
  *
  *  `SessionActor.role` already warns never to bind a permission to the label.
  *  This cell is where that warning becomes visible to a person. */
-export function UserRoleCell({ label, roleId }: { label: string; roleId: RoleId }) {
+export function UserRoleCell({ label, roleIds }: { label: string; roleIds: readonly RoleId[] }) {
+  const names = roleIds.map((id) => ROLE_LABEL[id]).join(' · ')
   return (
     <span className="flex min-w-0 flex-col">
       <span className="truncate" title={label}>
         {label}
       </span>
-      <span className="text-muted-foreground truncate text-[11px]">{ROLE_LABEL[roleId]}</span>
+      <span className="text-muted-foreground truncate text-[11px]" title={names}>
+        {names}
+      </span>
     </span>
   )
 }
@@ -163,7 +166,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [roleLabel, setRoleLabel] = useState('')
-  const [roleId, setRoleId] = useState<RoleId>(DEFAULT_ROLE)
+  const [roleIds, setRoleIds] = useState<readonly RoleId[]>([DEFAULT_ROLE])
   const [branches, setBranches] = useState<readonly Branch[]>([CORE_BRANCH])
   const [ownOnly, setOwnOnly] = useState(false)
 
@@ -200,7 +203,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     setName(user?.name ?? '')
     setEmail(user?.email ?? '')
     setRoleLabel(user?.role ?? '')
-    setRoleId(user?.roleId ?? DEFAULT_ROLE)
+    setRoleIds(user?.roleIds ?? [DEFAULT_ROLE])
     setBranches(user ? withCore(user.branches) : [CORE_BRANCH])
     setOwnOnly(user?.ownOnly ?? false)
     setLockedAt(user?.disabledAt ?? null)
@@ -255,7 +258,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           name: name.trim(),
           email: email.trim(),
           role: roleLabel.trim(),
-          roleId,
+          roleIds: [...roleIds],
           branches: [...branches],
           ownOnly,
         },
@@ -264,7 +267,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
       return
     }
 
-    const patch = diffUser(user, { name, role: roleLabel, roleId, branches, ownOnly })
+    const patch = diffUser(user, { name, role: roleLabel, roleIds, branches, ownOnly })
     if (!patch) {
       setFailure(NOTHING_TO_SAVE)
       return
@@ -348,6 +351,19 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
          swallowing the failure. */
       setFailure('Trình duyệt không cho chép tự động. Bôi đen ô đường dẫn rồi Ctrl+C.')
     }
+  }
+
+  /* Never empties: an account with no role holds no permission and cannot see
+     a single screen. The last ticked box is drawn disabled, and this guard
+     covers the keyboard path that disabled does not. */
+  const toggleRole = (role: RoleId, on: boolean) => {
+    clearError('roleIds')
+    setRoleIds((current) => {
+      const next = ROLE_OPTIONS.map((o) => o.value).filter((id) =>
+        id === role ? on : current.includes(id),
+      )
+      return next.length > 0 ? next : current
+    })
   }
 
   const toggleBranch = (branch: Branch, on: boolean) => {
@@ -512,37 +528,36 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           <FormField
             control="select"
             label="Vai quyền"
-            errors={errors.roleId}
+            errors={errors.roleIds}
             hint={
               isMe
                 ? 'Không tự đổi vai của chính mình. Một người tự hạ vai xong là một người vừa khoá mình ra khỏi màn này, và không còn ai trong phòng mở lại được — máy chủ cũng từ chối lệnh này.'
-                : 'Quyết định người này mở được màn nào. Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị này.'
+                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào; Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị này.'
             }
           >
             {isMe ? (
               <Input
-                value={ROLE_LABEL[roleId]}
+                value={roleIds.map((id) => ROLE_LABEL[id]).join(' · ')}
                 disabled
                 aria-label="Vai quyền"
                 className="text-muted-foreground cursor-not-allowed"
               />
             ) : (
-              <Select
-                label="Vai quyền"
-                hideLabel
-                value={roleId}
-                options={ROLE_OPTIONS}
-                /* `neutralValue` set to the current value keeps the control off
-                   its azure "đang lọc" look. This is a form field, not a filter
-                   — luật 3 counts azure per screen, and one highlighted select
-                   per row of the form would spend the budget on nothing. */
-                neutralValue={roleId}
-                onChange={(value) => {
-                  setRoleId(value as RoleId)
-                  clearError('roleId')
-                }}
-                className="w-full"
-              />
+              <div role="group" aria-label="Vai quyền" className="grid gap-2 sm:grid-cols-2">
+                {ROLE_OPTIONS.map(({ value, label }) => {
+                  const only = roleIds.length === 1 && roleIds.includes(value)
+                  return (
+                    <Checkbox
+                      key={value}
+                      checked={roleIds.includes(value)}
+                      disabled={only}
+                      label={label}
+                      hint={only ? 'Cần ít nhất một vai' : undefined}
+                      onChange={(on) => toggleRole(value, on)}
+                    />
+                  )
+                })}
+              </div>
             )}
           </FormField>
         </section>
@@ -745,8 +760,8 @@ function FormField({
   label: string
   hint?: string
   errors?: string[]
-  /** `select` skips the wrapping `<label>`: A-15 brings its own labelling, and
-   *  nesting a second `<label>` makes a screen reader announce two names for
+  /** `select` skips the wrapping `<label>`: A-15 and the role checkbox group
+   *  bring their own labelling, and nesting a second `<label>` makes a screen reader announce two names for
    *  one control. */
   control?: 'input' | 'select'
   children: ReactNode

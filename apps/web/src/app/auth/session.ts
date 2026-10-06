@@ -230,7 +230,7 @@ const rememberAware: PersistStorage<SessionState> = {
  *  luật quyền bám vào. Không có vai thì không phải một phiên — bắt đăng nhập
  *  lại còn hơn để một người đi tiếp với quyền không ai tra được. */
 function settleLocally(actor: Actor | null, ticket: Ticket | null): Partial<SessionState> {
-  if (!actor?.roleId)
+  if (!actor?.roleIds?.length)
     return {
       status: 'guest',
       actor: null,

@@ -27,7 +27,7 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *  `OpportunityModule` provider there would be a module cycle. The deals are
  *  locked AFTER the lead — the order the stop door takes. */
 
-type Person = { code: string; id: string; name: string; role: 'SALE' | 'BD'; roleId: RoleId }
+type Person = { code: string; id: string; name: string; role: 'SALE' | 'BD'; roleIds: RoleId[] }
 
 export async function handDealsOver(
   tx: Db,
@@ -185,7 +185,7 @@ async function peopleOf(tx: Db, codes: readonly string[]): Promise<Person[]> {
       id: opportunityOwner.actorId,
       name: actor.name,
       role: opportunityOwner.role,
-      roleId: actor.roleId,
+      roleIds: actor.roleIds,
     })
     .from(opportunityOwner)
     .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))

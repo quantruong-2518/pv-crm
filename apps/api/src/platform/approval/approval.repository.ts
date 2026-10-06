@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, arrayOverlaps, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId } from '@pv/engines'
 import { DB, type Db } from '../db/db.module'
@@ -45,7 +45,8 @@ export class ApprovalRepository {
     })
   }
 
-  /** Who currently holds each of these roles, name included.
+  /** Who currently holds any of these roles, name included. A person with
+   *  several roles appears once, carrying all of them.
    *
    *  DISABLED ACCOUNTS ARE NOT SEATS. Off-boarding sets `disabled_at` and never
    *  deletes the row (`users.service.ts`), so without this filter a departed
@@ -59,12 +60,12 @@ export class ApprovalRepository {
    *  is read is an approval nobody can finish. */
   async holdersOf(
     roles: readonly RoleId[],
-  ): Promise<{ roleId: RoleId; id: string; name: string }[]> {
+  ): Promise<{ roleIds: RoleId[]; id: string; name: string }[]> {
     if (roles.length === 0) return []
     return this.db
-      .select({ roleId: actor.roleId, id: actor.id, name: actor.name })
+      .select({ roleIds: actor.roleIds, id: actor.id, name: actor.name })
       .from(actor)
-      .where(and(inArray(actor.roleId, [...roles]), isNull(actor.disabledAt)))
+      .where(and(arrayOverlaps(actor.roleIds, [...roles]), isNull(actor.disabledAt)))
       .orderBy(actor.id)
   }
 

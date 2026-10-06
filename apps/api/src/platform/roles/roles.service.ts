@@ -50,8 +50,8 @@ export class RolesService {
          lock `UsersService` takes, because the invariant spans both tables. */
       await lockAdminSurface(tx)
 
-      const before = await this.repo.grantsFor(roleId, tx)
-      this.assertNotLockingSelfOut(who, roleId, wanted)
+      const before = await this.repo.grantsFor([roleId], tx)
+      await this.assertNotLockingSelfOut(tx, who, roleId, wanted)
       await this.assertSomebodyKeepsTheKeys(tx, roleId, wanted)
 
       await this.repo.replace(tx, roleId, wanted, who.id)
@@ -66,16 +66,28 @@ export class RolesService {
   /** RULE 1 · you cannot take the keys off your own role.
    *
    *  The mirror of `UsersService`'s "you cannot demote yourself": there, the
-   *  route out was editing your own `roleId`; here it is editing what your role
+   *  route out was editing your own `roleIds`; here it is editing what your role
    *  may do, which reaches every person wearing it including you. Left open, an
    *  administrator clears `role.manage` from their own row to tidy up and
    *  discovers the screen that would put it back is now shut to them.
    *
    *  Deliberately narrow. Changing your own role's OTHER permissions is
-   *  ordinary work and stays allowed; only the two keys are held down. */
-  private assertNotLockingSelfOut(who: Actor, roleId: RoleId, wanted: readonly Permission[]): void {
-    if (who.roleId !== roleId) return
-    const dropped = ADMIN_KEYS.filter((k) => who.permissions.includes(k) && !wanted.includes(k))
+   *  ordinary work and stays allowed; only the two keys are held down. A key
+   *  that another role of yours still grants is not lost, so it is not dropped. */
+  private async assertNotLockingSelfOut(
+    tx: Db,
+    who: Actor,
+    roleId: RoleId,
+    wanted: readonly Permission[],
+  ): Promise<void> {
+    if (!who.roleIds.includes(roleId)) return
+    const fromOthers = await this.repo.grantsFor(
+      who.roleIds.filter((r) => r !== roleId),
+      tx,
+    )
+    const dropped = ADMIN_KEYS.filter(
+      (k) => who.permissions.includes(k) && !wanted.includes(k) && !fromOthers.includes(k),
+    )
     if (dropped.length === 0) return
     throw conflict(
       `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình được — nhờ một quản trị viên khác làm việc này. Người tự bỏ quyền sửa phân quyền sẽ không mở lại được chính màn vừa dùng.`,

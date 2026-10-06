@@ -57,6 +57,11 @@ import { referrerOf, refuseByAsks } from './lead-motion-asks'
 import { handStepOver } from '../next-step/next-step.handover'
 import { handDealsOver } from '../opportunity/opportunity-handover'
 
+/** `sales.touch.to_role` holds one role: the first of the receiver's, with the
+ *  column left empty when they hold none. */
+const headRole = (who: { roleIds: readonly RoleId[] }): { role?: RoleId } =>
+  who.roleIds[0] ? { role: who.roleIds[0] } : {}
+
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
  *  exists at all. Pulled out once because both `create()` and `commit()`
@@ -237,7 +242,7 @@ export class LeadWriteService {
       write: LeadWrite
       extra: Pick<LeadValues, 'campaignId' | 'originId' | 'originRaw' | 'partnerCode'>
       who: { id: string; name: string } | null
-      owner: { id: string; name: string; roleId: RoleId } | null
+      owner: { id: string; name: string; roleIds: RoleId[] } | null
       note: string
     },
   ): Promise<LeadRowDb> {
@@ -279,7 +284,7 @@ export class LeadWriteService {
         subjectKind: 'lead',
         kind: 'created',
         ...byOf(who),
-        ...(owner ? { to: { actorId: owner.id, name: owner.name, role: owner.roleId } } : {}),
+        ...(owner ? { to: { actorId: owner.id, name: owner.name, ...headRole(owner) } } : {}),
         note: b.note,
       },
     ])
@@ -420,7 +425,7 @@ export class LeadWriteService {
           {
             leadCode: code,
             from: { actorId: prev.id, name: prev.name },
-            to: { actorId: next.id, name: next.name, role: next.roleId },
+            to: { actorId: next.id, name: next.name, ...headRole(next) },
             toSeesDeals: nextSeesDeals,
             by: byOf(who),
             note: `${LEAD_NOTE.handedTo} ${next.name}`,
@@ -446,10 +451,9 @@ export class LeadWriteService {
              no `from` means claimed out of it, no `to` means released into it —
              and `touch_hand_over_sides` refuses a row with neither. */
           ...(prev ? { from: { actorId: prev.id, name: prev.name } } : {}),
-          /* `role` is the role they hold TODAY, which is the day this row is
-             written — so freezing it here is what makes it still true in a
-             year, when the vector redraws this step. */
-          ...(next ? { to: { actorId: next.id, name: next.name, role: next.roleId } } : {}),
+          /* `role` is their FIRST role as of TODAY (the column holds one), so
+             freezing it here keeps it true when the vector redraws this step. */
+          ...(next ? { to: { actorId: next.id, name: next.name, ...headRole(next) } } : {}),
           note: next ? `${LEAD_NOTE.handedTo} ${next.name}` : LEAD_NOTE.released,
         },
       ])

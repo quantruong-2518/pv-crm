@@ -36,7 +36,7 @@ import { email, Moment, textInput, textInputOptional } from './primitives'
  *  must not drag the engine in behind it. The two lists are now spelled
  *  identically, so `auth.mapper.ts` ASSERTS they are one union instead of
  *  translating between them — drift is still a red build, with no lookup table
- *  left to keep in step. These strings also go into `platform.actor.role_id`
+ *  left to keep in step. These strings also go into `platform.actor.role_ids`
  *  verbatim, so changing one is a migration, not a rename.
  *
  *  Order matches `DEFAULT_ROLE_PERMISSIONS` top to bottom: widest reach first. */
@@ -118,6 +118,13 @@ export const Permission = z.enum([
   'data.export',
 ])
 
+/** The roles one actor holds: at least one, no repeats. Permissions are the
+ *  union over these, so a duplicate would only hide a bad write. */
+export const RoleIds = z
+  .array(RoleId)
+  .min(1)
+  .refine((r) => new Set(r).size === r.length, { message: 'Vai trò bị trùng.' })
+
 export type Permission = z.infer<typeof Permission>
 export type RoleId = z.infer<typeof RoleId>
 
@@ -125,8 +132,8 @@ export type RoleId = z.infer<typeof RoleId>
  *  request needs and the holder rule prefers (ADR 0071). One predicate for both
  *  ends: four hand-written variants of it had already drifted. */
 export const SELLER_ROLES: readonly RoleId[] = ['sale', 'account-executive']
-export const isSellerRole = (role: RoleId | null | undefined): boolean =>
-  role !== null && role !== undefined && SELLER_ROLES.includes(role)
+export const isSellerRole = (roleIds: readonly RoleId[] | null | undefined): boolean =>
+  roleIds?.some((r) => SELLER_ROLES.includes(r)) ?? false
 export type Branch = z.infer<typeof Branch>
 
 // ---------------------------------------------------------------------------
@@ -169,9 +176,9 @@ export const SessionActor = z.object({
   name: z.string().min(1).max(200),
   email: z.email(),
   /** Display label, with the industry in it ("Sale · chip"). Never bind a
-   *  permission to this — that is what `roleId` is for. */
+   *  permission to this — that is what `roleIds` is for. */
   role: z.string().min(1).max(120),
-  roleId: RoleId,
+  roleIds: RoleIds,
   branches: z.array(Branch),
   ownOnly: z.boolean(),
 })
@@ -195,7 +202,7 @@ export const SessionWindow = z.object({
 export const SessionView = z.object({
   actor: SessionActor,
   /** What the SIGNED-IN person may do today — resolved server-side from
-   *  `platform.role_permission`, not worked out by the browser from `roleId`.
+   *  `platform.role_permission`, not worked out by the browser from `roleIds`.
    *
    *  The browser used to keep its own copy of the role matrix and look the
    *  answer up. That was correct only while the two copies agreed, and once the
@@ -411,7 +418,7 @@ export const UserCreate = z.object({
   name: textInput(200),
   email,
   role: textInput(120),
-  roleId: RoleId,
+  roleIds: RoleIds,
   /** `One` is added by the server if absent — every account needs the core to
    *  see any screen at all, and a person who cannot open the home page is not
    *  a useful account. */
@@ -427,7 +434,7 @@ export const UserPatch = z
   .object({
     name: textInputOptional(200),
     role: textInputOptional(120),
-    roleId: RoleId.optional(),
+    roleIds: RoleIds.optional(),
     branches: z.array(Branch).max(5).optional(),
     ownOnly: z.boolean().optional(),
     /** `true` locks the account and kills every live session it holds;

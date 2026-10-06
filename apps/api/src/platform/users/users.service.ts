@@ -46,10 +46,10 @@ const ID_ATTEMPTS = 25
  *  system SHIPPED with, and it would go on protecting a role that no longer
  *  holds the keys while leaving the one that does unguarded. */
 const holdsKeys = (
-  roleId: EngineRoleId,
+  roleIds: readonly EngineRoleId[],
   disabledAt: Date | null,
   keyholders: readonly EngineRoleId[],
-): boolean => disabledAt === null && keyholders.includes(roleId)
+): boolean => disabledAt === null && roleIds.some((r) => keyholders.includes(r))
 
 /** Vietnamese text → an ASCII handle fit for a primary key, a URL and a log.
  *
@@ -190,7 +190,7 @@ export class UsersService {
               actorId: who.id,
               action: 'edit',
               code: saved.id,
-              note: `mở tài khoản ${saved.id} · ${saved.email} · vai=${saved.roleId} · nhánh=${saved.branches.join('/')}`,
+              note: `mở tài khoản ${saved.id} · ${saved.email} · vai=${saved.roleIds.join('/')} · nhánh=${saved.branches.join('/')}`,
             },
             tx,
           )
@@ -227,7 +227,7 @@ export class UsersService {
    *  ------------------------------------------------------------------
    *  `AuthRepository.sessionByTokenHash` INNER JOINs `platform.actor` on every
    *  authenticated request and `AuthService.resolve` hands the row it read
-   *  straight to `toActor`, so `req.actor.roleId` is re-read from the table on
+   *  straight to `toActor`, so `req.actor.roleIds` is re-read from the table on
    *  each call. A role edited now is in force on the person's very next
    *  request, in either direction — widened or narrowed. Nothing is cached, so
    *  there is nothing to invalidate.
@@ -464,7 +464,7 @@ export class UsersService {
     if (who.id !== id) return
 
     const refused: string[] = []
-    if (body.roleId !== undefined) refused.push('vai')
+    if (body.roleIds !== undefined) refused.push('vai')
     if (body.disabled !== undefined) refused.push('trạng thái khoá')
     if (refused.length === 0) return
 
@@ -500,7 +500,7 @@ export class UsersService {
     target: ActorRow,
     body: UserPatch,
   ): Promise<void> {
-    const nextRoleId = body.roleId === undefined ? target.roleId : toEngineRole(body.roleId)
+    const nextRoleIds = body.roleIds === undefined ? target.roleIds : body.roleIds.map(toEngineRole)
     const nextDisabledAt =
       body.disabled === undefined ? target.disabledAt : body.disabled ? new Date() : null
 
@@ -514,8 +514,8 @@ export class UsersService {
        set, because a person holding one key is no help to the other. */
     for (const key of ADMIN_KEYS) {
       const keyholders = await this.grants.rolesHolding(key, tx)
-      if (!holdsKeys(target.roleId, target.disabledAt, keyholders)) continue
-      if (holdsKeys(nextRoleId, nextDisabledAt, keyholders)) continue
+      if (!holdsKeys(target.roleIds, target.disabledAt, keyholders)) continue
+      if (holdsKeys(nextRoleIds, nextDisabledAt, keyholders)) continue
 
       const others = await this.repo.enabledIdsWithRoles(tx, target.id, keyholders)
       if (others.length > 0) continue
@@ -578,7 +578,7 @@ export class UsersService {
     const parts: string[] = []
     if (body.name !== undefined) parts.push(`tên=${body.name}`)
     if (body.role !== undefined) parts.push(`nhãn vai=${body.role}`)
-    if (body.roleId !== undefined) parts.push(`vai=${body.roleId}`)
+    if (body.roleIds !== undefined) parts.push(`vai=${body.roleIds.join('/')}`)
     if (body.branches !== undefined) parts.push(`nhánh=${body.branches.join('/')}`)
     if (body.ownOnly !== undefined) parts.push(`phạm vi=${body.ownOnly ? 'chỉ của mình' : 'cả sổ'}`)
     if (body.disabled !== undefined) parts.push(body.disabled ? 'khoá' : 'mở khoá')

@@ -71,12 +71,12 @@ export { PASSWORD_MIN } from '@pv/contracts'
  *  `Record<WireRoleId, EngineRoleId>` and is now an assignment the compiler
  *  checks. The check still matters, and it fails the same way it always would:
  *  a role missing from one side does not throw. E2's `allows` fails closed on a
- *  `roleId` it does not recognise, so the actor sails through sign-in, the
+ *  `roleIds` entry it does not recognise, so the actor sails through sign-in, the
  *  shell paints, their name is in the corner, and every screen and button then
  *  reports "Bị ẩn theo quyền của bạn" — no error, no 403, no log line naming a
  *  role, just a person apparently granted nothing.
  *
- *  Keeping the two unions identical is what makes `roleId: wire.roleId` legal;
+ *  Keeping the two unions identical is what makes `roleIds: wire.roleIds` legal;
  *  the day they diverge, this line stops compiling instead of quietly locking
  *  somebody out of the product.
  *
@@ -93,7 +93,7 @@ export function toActor(wire: SessionActor, permissions: readonly Permission[]):
     name: wire.name,
     email: wire.email,
     role: wire.role,
-    roleId: wire.roleId,
+    roleIds: wire.roleIds,
     permissions,
     branches: wire.branches,
     ownOnly: wire.ownOnly,
@@ -188,7 +188,7 @@ const SERVER_TROUBLE: AuthError = { field: 'form', key: 'serverTrouble' }
 /** The server answered, and what it said does not fit the contract.
  *
  *  Treated as a hard failure rather than waved through, because the field most
- *  likely to be missing or renamed is `roleId` — and an actor with no readable
+ *  likely to be missing or renamed is `roleIds` — and an actor with no readable
  *  role is the silent "granted nothing" state described at `toActor`. Being
  *  sent back to the sign-in screen is annoying; being let in as a person the
  *  permission matrix cannot classify is a day of debugging. */

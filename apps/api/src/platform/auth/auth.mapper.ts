@@ -12,7 +12,7 @@ import type { SessionRow } from './auth.schema'
  *
  *  The two used to be spelled differently — Vietnamese in E2, ASCII on the wire
  *  — and two exhaustive `Record<>`s translated between them. They are one
- *  spelling now, and `platform.actor.role_id` stores that value verbatim, so
+ *  spelling now, and `platform.actor.role_ids` stores that value verbatim, so
  *  the translation collapses into the two SIGNATURES below.
  *
  *  Those signatures are still the check, and it is the same check: assigning an
@@ -30,7 +30,7 @@ export const toContractRole = (r: EngineRoleId): ContractRoleId => r
 /** Wire spelling → DB/engine spelling.
  *
  *  The only supported way to turn a `RoleId` that arrived over HTTP into a
- *  value fit for `platform.actor.role_id`. Identity like its mirror, and kept
+ *  value fit for `platform.actor.role_ids`. Identity like its mirror, and kept
  *  for the same two reasons: it is half of the compile-time equality above, and
  *  it marks the `/users` write path as having gone through the contract's enum
  *  rather than straight from a request body. */
@@ -48,21 +48,21 @@ export function toActor(row: ActorRow, permissions: readonly Permission[]): Acto
     name: row.name,
     email: row.email,
     role: row.role,
-    roleId: row.roleId,
+    roleIds: row.roleIds,
     permissions,
     branches: row.branches,
     ownOnly: row.ownOnly,
   }
 }
 
-/** The same person as the browser is allowed to see them — ASCII `roleId`. */
+/** The same person as the browser is allowed to see them — ASCII `roleIds`. */
 export function toSessionActor(row: ActorRow): SessionActor {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     role: row.role,
-    roleId: toContractRole(row.roleId),
+    roleIds: row.roleIds.map(toContractRole),
     branches: row.branches,
     ownOnly: row.ownOnly,
   }

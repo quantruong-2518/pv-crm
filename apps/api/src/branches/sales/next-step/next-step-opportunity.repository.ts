@@ -98,7 +98,7 @@ export class OpportunityStepRepository {
         id: actor.id,
         name: actor.name,
         role: opportunityOwner.role,
-        roleId: actor.roleId,
+        roleIds: actor.roleIds,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))

@@ -188,7 +188,7 @@ async function main(): Promise<void> {
     console.log(`\n### Sổ nhân sự mới — ${STAFF.length} tài khoản, mỗi vai một người`)
     for (const p of STAFF) {
       console.log(
-        `  + ${p.id.padEnd(12)} ${p.email.padEnd(26)} ${p.roleId.padEnd(18)} ` +
+        `  + ${p.id.padEnd(12)} ${p.email.padEnd(26)} ${p.roleIds.join('/').padEnd(18)} ` +
           `${p.branches.join('·')}${p.ownOnly ? ' · own-only' : ''}`,
       )
     }
@@ -217,7 +217,7 @@ async function main(): Promise<void> {
           name: p.name,
           email: p.email,
           role: p.role,
-          roleId: p.roleId,
+          roleIds: p.roleIds,
           branches: p.branches,
           ownOnly: p.ownOnly ?? false,
           passwordHash: hash,

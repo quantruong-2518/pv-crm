@@ -211,7 +211,7 @@ export const PERMISSIONS = [
    *
    *  One of the two WIDEST keys here, and wide in a way no other key is: whoever
    *  holds it can grant themselves every other permission simply by editing
-   *  their own `roleId`. That is why it is absent from `marketing` · `bd` ·
+   *  their own `roleIds`. That is why it is absent from `marketing` · `bd` ·
    *  `presales` · `sale` · `account-executive` — not because those five never
    *  need it, but because granting it to them grants the whole table.
    *
@@ -249,15 +249,15 @@ export type Actor = {
    *  và đó phải là lỗi lúc biên dịch chứ không phải một nút bấm mãi không ăn. */
   email: string
   /** NHÃN vai, thứ hiện trên màn. Mang cả tên ngành phụ trách ("Sale · chip")
-   *  nên nó còn đổi — đừng bám quyền vào chuỗi này, bám vào `roleId`. */
+   *  nên nó còn đổi — đừng bám quyền vào chuỗi này, bám vào `roleIds`. */
   role: string
-  /** Vai chuẩn hoá — khoá của ma trận quyền (`DEFAULT_ROLE_PERMISSIONS` trong E2).
+  /** Các vai chuẩn hoá (≥ 1) — khoá của ma trận quyền (`DEFAULT_ROLE_PERMISSIONS` trong E2).
    *
    *  Bắt buộc chứ không `?`: mặc định ngầm cho người thiếu vai chỉ có hai lựa
    *  chọn, và cả hai đều sai. Mặc định rộng thì một dòng fixture gõ thiếu là
    *  một người có quyền họ không được có; mặc định hẹp thì họ mất quyền và
    *  không ai biết vì sao. Thiếu vai phải là lỗi lúc biên dịch. */
-  roleId: RoleId
+  roleIds: RoleId[]
   /** Axis 2 · THE RESOLVED SET — the final answer to "what may this person
    *  do", not the ingredients for working it out.
    *
@@ -268,17 +268,17 @@ export type Actor = {
    *  two copies agreed — a condition nobody can check once the matrix became
    *  editable at runtime.
    *
-   *  Read it alongside `roleId`, never instead of it: `roleId` says who this
+   *  Read it alongside `roleIds`, never instead of it: `roleIds` says who this
    *  person IS in the organisation (shown on screen, chosen when the account is
    *  opened, the key new grants are seeded against), this array says what they
    *  may do TODAY. Two questions — and since the matrix became editable, one no
    *  longer derives from the other.
    *
-   *  Required rather than `?` for `roleId`'s reason: an implicit default for a
+   *  Required rather than `?` for `roleIds`'s reason: an implicit default for a
    *  person missing it has only two possible values and both are wrong. */
   permissions: readonly Permission[]
   /** Trục LICENSE: nhánh công ty đã mua và người này được đọc. Rỗng = chỉ One
-   *  Core. Khác hẳn `roleId` — xem "ba trục quyền" ở đầu `e2-access.ts`. */
+   *  Core. Khác hẳn `roleIds` — xem "ba trục quyền" ở đầu `e2-access.ts`. */
   branches: Branch[]
   /** Trục PHẠM VI: chỉ thấy object mình đứng tên. */
   ownOnly?: boolean

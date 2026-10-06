@@ -101,19 +101,19 @@ const scenario: Scenario = {
       name: 'Nguyễn Văn Thắng',
       email: 'thang@pebblevina.com',
       role: 'Giám đốc',
-      roleId: 'director',
+      roleIds: ['director'],
       permissions: DEFAULT_ROLE_PERMISSIONS['director'],
       branches: ['One', 'Sales', 'Supply', 'Factory', 'Finance'],
     },
     {
-      /** Cùng `id` và cùng `roleId` với người của kịch bản kia — người xuất hiện
+      /** Cùng `id` và cùng `roleIds` với người của kịch bản kia — người xuất hiện
        *  ở cả hai kịch bản phải mang cùng vai, `actors.test.ts` khoá việc đó.
        *  Hai TP Kinh doanh có quyền khác nhau là hai hệ thống khác nhau. */
       id: 'u-ha',
       name: 'Trần Thu Hà',
       email: 'sales@pebblevina.com',
       role: 'Trưởng phòng Kinh doanh',
-      roleId: 'head-of-sales',
+      roleIds: ['head-of-sales'],
       permissions: DEFAULT_ROLE_PERMISSIONS['head-of-sales'],
       branches: ['One', 'Sales'],
     },
@@ -122,7 +122,7 @@ const scenario: Scenario = {
       name: 'Đỗ Quang Huy',
       email: 'huy@pebblevina.com',
       role: 'Sale · ngành chip',
-      roleId: 'sale',
+      roleIds: ['sale'],
       permissions: DEFAULT_ROLE_PERMISSIONS['sale'],
       branches: ['One', 'Sales'],
       ownOnly: true,

@@ -204,7 +204,7 @@ async function main(): Promise<void> {
             name: p.member.name,
             email: p.member.email,
             role: p.member.role,
-            roleId: p.member.roleId,
+            roleIds: p.member.roleIds,
             branches: p.member.branches,
             ...(p.member.ownOnly === undefined ? {} : { ownOnly: p.member.ownOnly }),
             passwordHash: hash,
