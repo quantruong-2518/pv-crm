@@ -444,16 +444,16 @@ export async function requestPasswordReset(email: string): Promise<AuthError | n
  *  or the same as the old. A single sentence would leave the person guessing
  *  which box to fix. */
 export async function changePassword(
-  currentPassword: string,
+  currentPassword: string | undefined,
   newPassword: string,
 ): Promise<AuthError | null> {
-  if (!currentPassword) return { field: 'currentPassword', key: 'missingCurrentPassword' }
+  if (currentPassword === '') return { field: 'currentPassword', key: 'missingCurrentPassword' }
   if (newPassword.length < PASSWORD_MIN) return { field: 'newPassword', key: 'passwordTooShort' }
   if (currentPassword === newPassword) return { field: 'newPassword', key: 'samePassword' }
 
   const res = await knock('/auth/change-password', {
     method: 'POST',
-    body: { currentPassword, newPassword },
+    body: currentPassword === undefined ? { newPassword } : { currentPassword, newPassword },
   })
   if (!res) return OFFLINE
   if (res.status === 429) return TOO_FAST

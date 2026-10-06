@@ -557,7 +557,7 @@ export class AuthService {
    *  session, so leaving those alive defeats the act; killing this one too
    *  would sign the person out of the screen they are standing on, which reads
    *  as a failure and teaches them not to do it again. */
-  async changePassword(token: string, current: string, next: string): Promise<void> {
+  async changePassword(token: string, current: string | undefined, next: string): Promise<void> {
     const found = await this.living(token)
     if (!found) throw denied('unauthenticated')
 
@@ -565,13 +565,19 @@ export class AuthService {
     this.refuseWhileThrottled(key)
 
     const stored = found.actor.passwordHash ?? (await dummyPasswordHash())
-    if (!(await verifyPassword(current, stored))) {
+    /* A forced first change waives the old password: the person typed it to get
+       in. Outside that window its absence is a refusal, not a free pass. */
+    const forced = found.actor.mustChangePasswordAt !== null
+    if (current === undefined && !forced) {
+      throw denied('unauthenticated', 'Cần nhập mật khẩu hiện tại.')
+    }
+    if (current !== undefined && !(await verifyPassword(current, stored))) {
       this.throttle.fail(key)
       throw denied('unauthenticated', 'Mật khẩu hiện tại không đúng.')
     }
     this.throttle.clear(key)
 
-    if (current === next) {
+    if (current === next || (current === undefined && (await verifyPassword(next, stored)))) {
       throw invalid({ newPassword: ['Mật khẩu mới phải khác mật khẩu đang dùng.'] })
     }
 

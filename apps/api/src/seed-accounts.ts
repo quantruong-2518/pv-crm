@@ -4,7 +4,7 @@ import { loadEnv } from '@api/platform/config/env'
 import { DEFAULT_PASSWORD, hashPassword } from '@api/platform/auth/password'
 import { session } from '@api/platform/auth/auth.schema'
 import { actor } from '@api/platform/db/platform.schema'
-import { STAFF } from './staff'
+import { ACCOUNTS } from './accounts'
 
 /** Give the existing people a mailbox and a password — WITHOUT rebuilding anything.
  *
@@ -32,9 +32,9 @@ import { STAFF } from './staff'
  *  and both casts stand in the same book.
  *
  *  ------------------------------------------------------------------
- *  `STAFF` IS THE SOURCE OF IDENTITY, `password.ts` OF THE DEFAULT SECRET
+ *  `ACCOUNTS` IS THE SOURCE OF IDENTITY, `password.ts` OF THE DEFAULT SECRET
  *  ------------------------------------------------------------------
- *  Names, ids and mailboxes come from `staff.ts`; the fallback password comes
+ *  Names, ids and mailboxes come from `accounts.ts`; the fallback password comes
  *  from `platform/auth/password.ts`, the module the running server also hands
  *  it out from. Neither this command nor `reset-staff.ts` keeps a copy, so the
  *  three cannot disagree.
@@ -65,7 +65,7 @@ import { STAFF } from './staff'
  *      "and let the ones we locked out back in" — a decision this command was
  *      never asked to make, taken silently, in the same statement as a routine
  *      password reset. A disabled seat is now reported and left alone, exactly
- *      like a row that is in the database but not in `staff.ts`. Unlocking one
+ *      like a row that is in the database but not in `accounts.ts`. Unlocking one
  *      is somebody's deliberate act, and it belongs to a door that says so. */
 
 const APPLY = process.argv.includes('--apply')
@@ -110,7 +110,7 @@ async function main(): Promise<void> {
        most of a second and buy nothing here. */
     const hash = await hashPassword(PASSWORD)
 
-    const plan = STAFF.map((a) => {
+    const plan = ACCOUNTS.map((a) => {
       const row = byId.get(a.id)
       return {
         member: a,
@@ -156,7 +156,7 @@ async function main(): Promise<void> {
     if (clash.length > 0) {
       throw new Error(
         `${clash.length} ghế có email đang thuộc về người khác. ` +
-          'Sửa `staff.ts` hoặc dọn dòng kia trước — không ghi gì cả.',
+          'Sửa `accounts.ts` hoặc dọn dòng kia trước — không ghi gì cả.',
       )
     }
 
@@ -165,9 +165,9 @@ async function main(): Promise<void> {
        added on purpose, and silently handing it a known password would be the
        worst possible reading of "seed the accounts". */
     for (const row of rows) {
-      if (!STAFF.some((a) => a.id === row.id)) {
+      if (!ACCOUNTS.some((a) => a.id === row.id)) {
         console.log(
-          `  ! ${row.id.padEnd(8)} có trong DB nhưng không có trong staff.ts — KHÔNG đụng`,
+          `  ! ${row.id.padEnd(8)} có trong DB nhưng không có trong accounts.ts — KHÔNG đụng`,
         )
       }
     }
@@ -195,7 +195,7 @@ async function main(): Promise<void> {
         if (p.disabledAt) continue
 
         if (p.fresh) {
-          /* Everything `actor` demands is already in `staff.ts` — the book is
+          /* Everything `actor` demands is already in `accounts.ts` — the book is
              the source of identity, and this is the one place it becomes rows.
              `mustChangePasswordAt` is set here for the same reason it is set on
              an update: the operator typed this password, so it is a ticket. */

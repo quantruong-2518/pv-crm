@@ -68,7 +68,7 @@ export function ChangePasswordPage() {
           if (busy) return
 
           setBusy(true)
-          const refused = await changePassword(current, next)
+          const refused = await changePassword(forced ? undefined : current, next)
           setBusy(false)
           if (refused) return setError(refused)
 
@@ -81,24 +81,26 @@ export function ChangePasswordPage() {
         }}
         className="flex flex-col gap-5"
       >
-        <AuthField
-          label={t(lang, changePasswordText.currentPassword)}
-          htmlFor="currentPassword"
-          error={error?.field === 'currentPassword' ? authErrorText(lang, error) : undefined}
-        >
-          <PasswordInput
-            ref={firstRef}
-            id="currentPassword"
-            autoComplete="current-password"
-            placeholder={t(lang, changePasswordText.currentPasswordPlaceholder)}
-            value={current}
-            invalid={error?.field === 'currentPassword'}
-            onChange={(e) => {
-              setCurrent(e.target.value)
-              setError(null)
-            }}
-          />
-        </AuthField>
+        {!forced && (
+          <AuthField
+            label={t(lang, changePasswordText.currentPassword)}
+            htmlFor="currentPassword"
+            error={error?.field === 'currentPassword' ? authErrorText(lang, error) : undefined}
+          >
+            <PasswordInput
+              ref={firstRef}
+              id="currentPassword"
+              autoComplete="current-password"
+              placeholder={t(lang, changePasswordText.currentPasswordPlaceholder)}
+              value={current}
+              invalid={error?.field === 'currentPassword'}
+              onChange={(e) => {
+                setCurrent(e.target.value)
+                setError(null)
+              }}
+            />
+          </AuthField>
+        )}
 
         <AuthField
           label={t(lang, changePasswordText.newPassword)}
@@ -106,6 +108,7 @@ export function ChangePasswordPage() {
           error={error?.field === 'newPassword' ? authErrorText(lang, error) : undefined}
         >
           <PasswordInput
+            ref={forced ? firstRef : undefined}
             id="newPassword"
             autoComplete="new-password"
             placeholder={t(lang, changePasswordText.newPasswordPlaceholder(PASSWORD_MIN))}

@@ -245,11 +245,15 @@
     overflow-y: scroll;
   }
   /* Selection band — a token, not the OS default. Undeclared, Chrome uses the
-     OS `Highlight`: a flat blue outside the palette. `--primary-strong` reads
-     as a selection at once and `--foreground` on it measures 5,3:1. */
+     OS `Highlight`: a flat blue outside the palette. Dark ink on the light
+     theme's deep blue measures ~2:1, so that theme flips to white text. */
   ::selection {
     background: var(--primary-strong);
     color: var(--foreground);
+  }
+  :root[data-theme='stone'] ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
   }
   * {
     border-color: transparent;

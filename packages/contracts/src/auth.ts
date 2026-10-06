@@ -321,6 +321,10 @@ export const ConfirmPasswordBody = z.object({ password })
 
 /** Change your own password from inside a live session.
  *
+ *  `currentPassword` is required EXCEPT during a forced first change: the person
+ *  has just signed in with that very password, so the server waives it there and
+ *  rejects its absence everywhere else.
+ *
  *  CARRIES THE OLD PASSWORD, and that field is the re-authentication — which is
  *  why this door is the one write on `platform.actor` with no `@NeedsReauth()`.
  *  Bolting the sudo dialog on top would ask for the same secret twice in one
@@ -331,7 +335,7 @@ export const ConfirmPasswordBody = z.object({ password })
  *  A cross-field `refine` would put the comparison in the browser's copy of the
  *  schema too, and a rule about a secret belongs on the side that holds it. */
 export const PasswordChangeBody = z.object({
-  currentPassword: password,
+  currentPassword: password.optional(),
   newPassword: password,
 })
 
