@@ -291,6 +291,9 @@ export type ImportSpec = {
    *  ceiling of whatever contract this loader posts to. Absent means no check,
    *  exactly as before. */
   cellMax?: number
+  /** What makes two rows the same thing. Absent = same COMPANY (`dedupeKeys`);
+   *  the lead book overrides it, since two people at one company are two leads. */
+  dedupe?: (values: Record<string, string>) => string[]
   /** Tên tệp mẫu tải về, không có đuôi. */
   sampleStem: string
 }
@@ -355,6 +358,8 @@ export const LEAD_SPEC: ImportSpec = {
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
   rowNoun: 'lead',
+  /* The server's key (`lead-import.check.ts`), so both ends count the same rows. */
+  dedupe: (values) => [`email:${(values.email ?? '').trim().toLowerCase()}`],
   /* `importCell`'s ceiling in the contract. The columns with no `max` of their
      own — industry, campaign, tier, channel, headcount — still have to stay
      under it, because it is a ceiling on the BODY: one cell over it fails
@@ -1044,7 +1049,7 @@ export async function buildRows(
       /* So bằng CẢ HAI khoá, không chỉ khoá chính: một dòng mang mã số thuế
          vẫn phải đụng được dòng cũ chỉ có tên+tỉnh, và ngược lại. Chỉ so khoá
          chính thì mọi tệp có cột mã số thuế đều lọt sạch qua cửa chống trùng. */
-      const keys = dedupeKeys(values)
+      const keys = (spec.dedupe ?? dedupeKeys)(values)
       if (keys.some((k) => existingKeys.has(k))) duplicates += 1
       else if (keys.some((k) => seen.has(k))) dupInFile += 1
       else {
