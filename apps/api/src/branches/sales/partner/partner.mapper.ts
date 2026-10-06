@@ -1,7 +1,7 @@
 import type { Partner } from '@pv/contracts'
 import type { PartnerRowDb } from './partner.schema'
 
-/** Table row → `Partner`. Every column travels; only the dates change shape. */
+/** Table row → `Partner`. `contact_code` stays behind — see `PartnerCreate`. */
 export function toContract(row: PartnerRowDb): Partner {
   return {
     code: row.code,

@@ -410,16 +410,24 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'source',
-      label: 'Nguồn',
-      aliases: ['nguon', 'ma nguon', 'chien dich', 'source', 'campaign'],
+      label: 'Chiến dịch',
+      aliases: ['ma nguon', 'ma chien dich', 'chien dich', 'campaign'],
       options: SOURCE_OPTIONS,
       sample: 'CD-0101',
     },
     {
       /* Free text, folded by `originKey` on the server; a new name mints a row. */
       key: 'origin',
-      label: 'Nguồn lead',
-      aliases: ['nguon lead', 'nguon goc', 'kenh nguon', 'lead source', 'origin'],
+      label: 'Nguồn',
+      aliases: [
+        'nguon',
+        'nguon lead',
+        'nguon goc',
+        'kenh nguon',
+        'lead source',
+        'source',
+        'origin',
+      ],
       sample: 'LinkedIn',
     },
     {

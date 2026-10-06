@@ -46,6 +46,11 @@ export class PartnerRepository {
     return row ?? null
   }
 
+  async byContact(code: string): Promise<PartnerRowDb | null> {
+    const [row] = await this.db.select().from(partner).where(eq(partner.contactCode, code)).limit(1)
+    return row ?? null
+  }
+
   /** Is `id` a live (active, unmerged) origin filed under some motion whose
    *  policy currently `asks` REFERRER. */
   async originOffered(db: Db, id: string): Promise<boolean> {
@@ -75,7 +80,13 @@ export class PartnerRepository {
 
   async insert(
     tx: Db,
-    values: { code: string; name: string; originId: string; createdBy: string },
+    values: {
+      code: string
+      name: string
+      originId: string
+      contactCode?: string | undefined
+      createdBy: string
+    },
   ): Promise<PartnerRowDb> {
     const [row] = await tx.insert(partner).values(values).returning()
     if (!row) throw new Error(`sales.partner: INSERT ${values.code} returned no row`)

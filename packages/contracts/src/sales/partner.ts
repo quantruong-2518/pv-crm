@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { Moment, Bool, textInput } from '../primitives'
+import { Moment, Bool, ObjectCode, textInput } from '../primitives'
 import { LeadOriginId } from './lead-origin'
 
 /** The partner book — someone who SENDS us leads: a dealer, an integration
  *  partner, an old customer, an employee, an acquaintance. `sales.partner`.
  *
  *      GET   /sales/partners            `lead.view`
- *      POST  /sales/partners            `lead-origin.manage`
+ *      POST  /sales/partners            `lead.edit`
  *      PATCH /sales/partners/:code      `lead-origin.manage`
  *
  *  `code` (`REF-nnnn`) IS the id, minted by the server from a sequence — never
@@ -43,6 +43,11 @@ const partnerName = textInput(PARTNER_NAME_MAX)
 export const PartnerCreate = z.object({
   name: partnerName,
   originId: LeadOriginId,
+  /** Present = mint the code for this contact, under the CONTACT's name (`name`
+   *  is then ignored); if the contact already holds one, that EXISTING partner
+   *  comes back and nothing is written. Not echoed on `Partner`: the list is
+   *  unscoped, and a contact's code is the contact book's to show. */
+  contactCode: ObjectCode.optional(),
 })
 export type PartnerCreate = z.infer<typeof PartnerCreate>
 

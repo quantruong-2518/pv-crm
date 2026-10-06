@@ -153,13 +153,14 @@ function ReferrerBlock({ draft }: { draft: LeadDraft }) {
   if (!REFERRER_BOX) return null
   const raw = readField(draft.values, 'refCode')
   const shown = partner && partner.code === raw ? partner : null
+  const motion = readField(draft.values, 'motion') as LeadMotion | ''
   return (
     <Block
       label="Mã giới thiệu *"
       hint={
         shown?.originName
           ? `Nguồn lấy theo mã giới thiệu: ${shown.originName}.`
-          : 'Nguồn của lead lấy theo mã giới thiệu. Chưa có trong danh sách thì nhờ quản trị thêm.'
+          : 'Nguồn của lead lấy theo mã giới thiệu.'
       }
       error={draft.fieldError('refCode')}
     >
@@ -167,10 +168,11 @@ function ReferrerBlock({ draft }: { draft: LeadDraft }) {
         label="Mã giới thiệu"
         hideLabel
         value={shown}
+        motion={motion === '' ? undefined : motion}
         invalid={Boolean(draft.fieldError('refCode'))}
         onChange={(choice) => {
           setPartner(choice)
-          draft.set(REFERRER_BOX, choice.code)
+          draft.set(REFERRER_BOX, choice?.code ?? '')
         }}
       />
     </Block>

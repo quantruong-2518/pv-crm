@@ -127,7 +127,7 @@ const LABEL: Record<LeadImportField, string> = {
   company: 'Account',
   province: 'Tỉnh',
   category: 'Ngành',
-  source: 'Nguồn',
+  source: 'Chiến dịch',
   owner: 'Lead PIC',
   tier: 'Bậc',
   legalName: 'Tên pháp nhân',
@@ -140,7 +140,7 @@ const LABEL: Record<LeadImportField, string> = {
   channel: 'Kênh liên hệ',
   headcount: 'Quy mô',
   pain: 'Vấn đề đang gặp',
-  origin: 'Nguồn lead',
+  origin: 'Nguồn',
 }
 
 /** Text bounds, read off `LEAD_MAX` — the SAME table `LeadCreate` is built

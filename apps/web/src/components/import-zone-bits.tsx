@@ -440,8 +440,7 @@ export function BatchAssign({
             onChange={(v) => onMotion(v as LeadMotion)}
           />
           <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-            {MOTION_FACE[motion].blurb}{' '}
-            <span className="text-muted-foreground">{MOTION_FACE[motion].example}</span>
+            {MOTION_FACE[motion].blurb}
           </p>
         </div>
       )}

@@ -7,9 +7,11 @@ import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { PartnerService } from './partner.service'
 
 /** `/sales/partners` — the referrer book. Read on the lead-origin catalog's
- *  own permission (the lead form's picker). Writes shape how FUTURE referred
- *  leads are filed — a lead's origin is a snapshot at intake, so old leads keep
- *  theirs — and that catalog upkeep is `lead-origin.manage`. */
+ *  own permission (the lead form's picker). ADDING rides on `lead.edit`, as
+ *  `POST /sales/lead-origins` does: whoever types a lead may name a new
+ *  referrer on the spot. Renaming, re-filing and hiding shape how FUTURE
+ *  referred leads are filed — a lead's origin is a snapshot at intake, so old
+ *  leads keep theirs — and that catalog upkeep is `lead-origin.manage`. */
 @Controller('sales/partners')
 export class PartnerController {
   constructor(private readonly partners: PartnerService) {}
@@ -21,7 +23,7 @@ export class PartnerController {
   }
 
   @Post()
-  @Need({ branch: 'Sales', permission: 'lead-origin.manage' })
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
   create(@CurrentActor() who: Actor, @Body(zod(PartnerCreate)) body: PartnerCreate) {
     return this.partners.create(who, body)
   }

@@ -7,10 +7,8 @@ import { useMotionAsks } from '@/data/sales-motions'
 import type { BatchExtra } from './import-zone-bits'
 import {
   CampaignPicker,
-  OriginPicker,
   PartnerPicker,
   type CampaignChoice,
-  type OriginChoice,
   type PartnerChoice,
 } from './lead-origin-pickers'
 
@@ -24,12 +22,12 @@ import {
 
 type BatchWire = Pick<LeadImportInput, 'origin' | 'refCode' | 'campaignCode' | 'source'>
 
-/* The file never carries where a lead came from: the person picks it once. */
+/* A campaign or a ref code decides the origin, so no column may. */
 const PICKED_NOT_FILED = ['origin', 'source']
+const CAMPAIGN_ONLY = ['source']
 
 export function useLeadImportBatch() {
   const asksOf = useMotionAsks()
-  const [origin, setOrigin] = useState<OriginChoice | null>(null)
   const [campaign, setCampaign] = useState<CampaignChoice | null>(null)
   const [partner, setPartner] = useState<PartnerChoice | null>(null)
 
@@ -70,6 +68,7 @@ export function useLeadImportBatch() {
               label="Mã giới thiệu cho cả lô *"
               value={partner}
               onChange={setPartner}
+              motion={wire}
             />
             {partner?.originName && (
               <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
@@ -82,20 +81,14 @@ export function useLeadImportBatch() {
         hideFields: PICKED_NOT_FILED,
       }
     }
+    /* ORIGIN: only the motion is picked; each row names its own origin. */
     return {
       node: (
-        <OriginPicker
-          label="Nguồn lead cho cả lô *"
-          value={origin}
-          onChange={setOrigin}
-          onClear={() => setOrigin(null)}
-          motion={wire}
-          /* Picked, never minted here: a new origin is added on the admin origins page. */
-          allowCreate={false}
-        />
+        <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+          Nguồn chi tiết lấy theo cột Nguồn của từng dòng trong tệp.
+        </p>
       ),
-      missing: origin ? undefined : MOTION_ASKS_MISSING.ORIGIN,
-      hideFields: PICKED_NOT_FILED,
+      hideFields: CAMPAIGN_ONLY,
     }
   }
 
@@ -105,8 +98,7 @@ export function useLeadImportBatch() {
     if (asked === undefined) return { source: scope }
     if (asked === 'CAMPAIGN') return { source: scope, campaignCode: campaign?.code }
     if (asked === 'REFERRER') return { source: scope, refCode: partner?.code }
-    const picked = origin ? (origin.id ? { id: origin.id } : { name: origin.name }) : undefined
-    return { source: scope, origin: picked }
+    return { source: scope }
   }
 
   return { extra, wireOf }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { ContactModule } from '../contact/contact.module'
 import { PartnerController } from './partner.controller'
 import { PartnerRepository } from './partner.repository'
 import { PartnerService } from './partner.service'
@@ -8,7 +9,7 @@ import { PartnerService } from './partner.service'
 /** The referrer book. Exports the service only: the lead write doors call
  *  `live` inside their own transaction, never the table. */
 @Module({
-  imports: [AuditModule, EnginesModule],
+  imports: [AuditModule, EnginesModule, ContactModule],
   controllers: [PartnerController],
   providers: [PartnerService, PartnerRepository],
   exports: [PartnerService],

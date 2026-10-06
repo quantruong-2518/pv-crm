@@ -1,6 +1,15 @@
-import { boolean, check, index, text, timestamp } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  index,
+  text,
+  timestamp,
+  uniqueIndex,
+  type AnyPgColumn,
+} from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { actor } from '@api/platform/db/platform.schema'
+import { contact } from '../contact/contact.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { sales } from '../sales.schema'
 
@@ -31,6 +40,11 @@ export const partner = sales.table(
     originId: text('origin_id')
       .notNull()
       .references(() => leadOrigin.id),
+    /** The contact this referrer is, when already in the book. SET NULL on
+     *  delete: the ref code outlives the contact row, leads keep naming it. */
+    contactCode: text('contact_code').references((): AnyPgColumn => contact.code, {
+      onDelete: 'set null',
+    }),
     active: boolean('active').notNull().default(true),
     /** NULL = written by the machine. */
     createdBy: text('created_by').references(() => actor.id),
@@ -41,6 +55,10 @@ export const partner = sales.table(
     /** No name index: a referrer list is dozens of rows, and `ILIKE '%…%'`
      *  would not use a B-tree anyway. */
     index('partner_origin_idx').on(t.originId),
+    /** One contact, one ref code — what makes "pick a contact" idempotent. */
+    uniqueIndex('partner_contact_unique')
+      .on(t.contactCode)
+      .where(sql`"contact_code" IS NOT NULL`),
     /** `{4,}` not `{4}`: `%04d` pads, it does not truncate, so REF-10000 is legal. */
     check('partner_code_shape', sql`"code" ~ '^REF-[0-9]{4,}$'`),
     check('partner_no_blank', sql`"name" <> ''`),

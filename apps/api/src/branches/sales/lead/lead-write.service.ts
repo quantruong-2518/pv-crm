@@ -292,7 +292,7 @@ export class LeadWriteService {
   }
 
   /** The scan door's motion + campaign rules: `create()`'s asks and pickable
-   *  check, with no origin to pick — hence `originRequired: false`. */
+   *  check, with no origin to pick — the file door's `originRequired: false`. */
   async scanCampaign(motion: LeadMotion, campaignCode: string | undefined): Promise<void> {
     const asks = await this.asksOf(this.repo.readonlyHandle, motion)
     refuseByAsks(asks, {
@@ -849,7 +849,7 @@ export class LeadWriteService {
       origin: body.origin !== undefined,
       campaign: body.campaignCode !== undefined,
       refCode: body.refCode !== undefined,
-      originRequired: true,
+      originRequired: false,
     })
     const referrer = body.refCode ? await referrerOf(this.partners, handle, body.refCode) : null
     const picked = body.campaignCode ? await this.pickable(body.campaignCode) : null

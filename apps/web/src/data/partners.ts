@@ -3,7 +3,7 @@ import {
   PartnerListResponse,
   type LeadSource,
   type PartnerCreate,
-  type PartnerCreateResponse,
+  PartnerCreateResponse,
   type PartnerListQuery,
   type PartnerPatch,
   type PartnerPatchResponse,
@@ -15,13 +15,16 @@ import { paramsOf } from '@/data/lead-origins'
  *  import panel when the motion's `asks` is `REFERRER`.
  *
  *      GET   /sales/partners          `lead.view`
- *      POST  /sales/partners          `lead-origin.manage`
+ *      POST  /sales/partners          `lead.edit`
  *      PATCH /sales/partners/:code    `lead-origin.manage`
  *
  *  A rename or a re-file changes what the lead book prints beside a referred
  *  lead, so a patch refreshes the book too. */
 
 const LIST_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.view' }
+/* Whoever may write a lead may name its referrer on the spot — the picker
+   mints the code mid-form, so the door cannot ask for an admin permission. */
+const CREATE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 const MANAGE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead-origin.manage' }
 
 const PARTNERS_PATH = '/sales/partners'
@@ -53,7 +56,7 @@ export function useCreatePartner() {
   const client = useQueryClient()
   return useMutation<PartnerCreateResponse, ApiError, PartnerCreate>({
     mutationFn: (body) =>
-      api.write<PartnerCreateResponse>(PARTNERS_PATH, { body, need: MANAGE_NEED }),
+      api.write(PARTNERS_PATH, { body, need: CREATE_NEED, schema: PartnerCreateResponse }),
     onSuccess: () => void client.invalidateQueries({ queryKey: PARTNERS_KEY }),
   })
 }
