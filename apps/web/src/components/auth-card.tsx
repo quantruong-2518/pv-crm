@@ -56,7 +56,7 @@ export function AuthCard({
               <img
                 src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
                 alt="PV One"
-                className="h-6 object-contain"
+                className="h-10 object-contain"
               />
               <LangSwitch />
             </div>

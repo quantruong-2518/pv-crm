@@ -178,7 +178,7 @@ export function ServerDown() {
         <img
           src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
           alt="PV One"
-          className="h-6 self-start object-contain"
+          className="h-10 self-start object-contain"
         />
         {health === 'down' ? <Waiting /> : <Recovered />}
       </GlassCard>

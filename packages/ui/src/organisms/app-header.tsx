@@ -197,7 +197,7 @@ export function AppHeader({
           <img
             src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
             alt=""
-            className="hidden h-6 shrink-0 object-contain md:block"
+            className="hidden h-10 shrink-0 object-contain md:block"
           />
         </button>
         <Hairline className={cn('max-lg:hidden', dim)} />
