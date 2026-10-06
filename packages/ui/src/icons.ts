@@ -121,6 +121,7 @@ export {
   Loading03Icon as Loader,
   Location01Icon as MapPin,
   Logout03Icon as LogOut,
+  MoreHorizontalIcon as Ellipsis,
   Moon02Icon as Moon,
   Route01Icon as Route,
   CheckmarkSquare02Icon as SquareCheckBig,

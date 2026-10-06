@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
-import { Lock } from '../icons'
+import { ChevronDown, Lock } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { MenuCaret, MenuRow } from './account-menu'
@@ -50,7 +50,7 @@ function AppButton({
           ? `${app.label} · ${app.count} đang chờ`
           : app.description
             ? `${app.label}. ${app.description}`
-            : undefined
+            : app.label
       }
       disabled={app.locked}
       aria-expanded={hasItems ? open : undefined}
@@ -61,13 +61,13 @@ function AppButton({
       /* Locked: only the icons dim, the label keeps `--muted-foreground`.
          Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
       className={cn(
-        'motion-std pointer-coarse:h-12 group flex h-9 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2 text-[12.5px] 2xl:px-3',
-        app.active ? 'bg-primary/15 text-on-tint-primary font-semibold' : 'text-muted-foreground',
-        app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10',
+        'motion-std pointer-coarse:h-12 group flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[14px] font-medium max-xl:w-10 max-xl:px-0',
+        app.active || open ? 'bg-primary/15 text-on-tint-primary' : 'text-foreground/80',
+        app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10 hover:text-foreground',
       )}
     >
-      <Icon icon={app.icon} size={16} className={cn(app.locked && 'opacity-55')} />
-      {app.label}
+      <Icon icon={app.icon} size={18} className={cn(app.locked && 'opacity-55')} />
+      <span className="hidden xl:inline">{app.label}</span>
       {app.count ? (
         /* No fill on an active or hovered entry: warning/20 over primary/15
            measured 4.06:1 in stone, over the hover tint 4.16:1; the bare ink
@@ -81,8 +81,13 @@ function AppButton({
           {app.count > 99 ? '99+' : app.count}
         </span>
       ) : null}
-      {/* No chevron on a menu entry: the one-row header has no width for it, and
-          `aria-haspopup` already tells assistive tech the entry opens a menu. */}
+      {hasItems ? (
+        <Icon
+          icon={ChevronDown}
+          size={14}
+          className={cn('motion-std -ml-1 hidden xl:block', open && 'rotate-180')}
+        />
+      ) : null}
       {app.locked ? <LockMark /> : null}
     </button>
   )
@@ -173,7 +178,7 @@ export function AppNav({ groups, className }: AppNavProps) {
             role="menu"
             aria-label={openApp.label}
             style={{ left: Math.min(Math.max(open.center, MENU_HALF), rootWidth - MENU_HALF) }}
-            className="glass-overlay absolute top-[calc(100%+4px)] z-50 flex w-[232px] -translate-x-1/2 flex-col rounded-lg p-2"
+            className="glass-overlay motion-std starting:-translate-y-1 starting:opacity-0 absolute top-[calc(100%+4px)] z-50 flex w-[232px] -translate-x-1/2 flex-col rounded-lg p-2"
           >
             {openApp.items.map((item) => (
               <MenuRow key={item.label} action={item} onSelect={() => setOpen(null)} />

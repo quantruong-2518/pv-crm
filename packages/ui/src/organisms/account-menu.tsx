@@ -133,13 +133,18 @@ export function AccountMenu({
         aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'motion-std focus-visible:outline-ring flex h-10 items-center gap-2 rounded-md pl-1 pr-2 focus-visible:outline-2 focus-visible:outline-offset-2',
+          'motion-std focus-visible:outline-ring pointer-coarse:h-12 flex h-10 items-center gap-1 rounded-md pl-2 pr-2 focus-visible:outline-2 focus-visible:outline-offset-2',
           open ? 'bg-surface-ink/10' : 'hover:bg-surface-ink/10',
         )}
       >
         {/* Initials only: the one-row header has no width for a name, and the
             open menu prints name and role in full. */}
-        <Avatar name={user.name} initials={user.initials} size="md" />
+        <Avatar
+          name={user.name}
+          initials={user.initials}
+          size="md"
+          className="bg-primary bg-none"
+        />
         <Icon
           icon={ChevronDown}
           size={14}

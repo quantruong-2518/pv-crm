@@ -2,9 +2,8 @@ import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
   Building,
-  ChartAnalysis,
   Contact,
-  ContactBook,
+  Ellipsis,
   FileCheck,
   Gauge,
   Handshake,
@@ -35,9 +34,9 @@ import { commCountsQuery } from '@/data/comm-record-detail'
  *  NAVBAR LÀ BẢN ĐỒ CÔNG VIỆC CỦA SẢN PHẨM
  *  ------------------------------------------------------------------
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
- *  Hành trình · Lead · Cơ hội · Hợp đồng · Chiến dịch là năm lối vào trực
+ *  Tiến trình · Lead · Cơ hội · Hợp đồng · Chiến dịch là năm lối vào trực
  *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng và
- *  Điều hành gom các sổ tham chiếu/phân tích ít cần mở hơn. Chúng không nấp
+ *  Hiệu suất gom vào một menu "Thêm" vì ít cần mở hơn. Chúng không nấp
  *  dưới một mục "Kinh doanh" và
  *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
@@ -212,7 +211,7 @@ export const SALES_MODULES: SalesModule[] = [
        therefore the first direct entry, not a child of the customer directory. */
     no: 0,
     icon: Route,
-    label: 'Hành trình',
+    label: 'Tiến trình',
     path: '/sales/workstreams',
     permission: 'workstream.view',
     question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
@@ -403,6 +402,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     ).map(moduleApp)
   const customer = appsIn('customer')
   const manage = appsIn('manage')
+  const more = [...customer, ...manage]
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
@@ -414,28 +414,17 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     apps: [
       [
         ...appsIn('primary'),
-        ...(customer.length
+        ...(more.length
           ? [
               {
-                icon: ContactBook,
-                label: 'Khách hàng',
-                description: 'Hồ sơ công ty và những người liên hệ tại đó',
-                active: customer.some((app) => app.active),
-                items: customer,
+                icon: Ellipsis,
+                label: 'Thêm',
+                description: 'Hồ sơ khách hàng, hiệu suất đội ngũ và kế hoạch kỳ tới',
+                active: more.some((app) => app.active),
+                items: more,
               },
             ]
           : []),
-        ...(manage.length > 1
-          ? [
-              {
-                icon: ChartAnalysis,
-                label: 'Điều hành',
-                description: 'Hiệu suất đội ngũ và kế hoạch cho kỳ tiếp theo',
-                active: manage.some((app) => app.active),
-                items: manage,
-              },
-            ]
-          : manage),
       ],
     ],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
