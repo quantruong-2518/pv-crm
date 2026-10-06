@@ -1,10 +1,25 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { pvAliases } from '../../alias.config'
 
+const buildId = process.env.VERCEL_GIT_COMMIT_SHA ?? Date.now().toString(36)
+
+/** Writes `version.json` beside the bundle so open tabs can see a newer deploy. */
+const versionFile: Plugin = {
+  name: 'pv-version-file',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ id: buildId }),
+    })
+  },
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  define: { __BUILD_ID__: JSON.stringify(buildId) },
+  plugins: [react(), tailwindcss(), versionFile],
   server: {
     // Keep browser requests on the web origin, including forwarded dev ports.
     // Only Vite connects to the local API; the browser needs one exposed port.

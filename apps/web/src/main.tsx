@@ -6,6 +6,7 @@ import { ServerDown } from '@/app/api'
 import { startAuthLifecycle } from '@/app/auth'
 import { closeMasMail } from '@/app/mas-mail-composer'
 import { queryClient } from '@/app/query-client'
+import { startReleaseWatch } from '@/app/release'
 import { AppToasts } from '@/components/app-toasts'
 import { MasMailComposerHost } from '@/components/mas-mail-composer-host'
 import { router } from '@/routes'
@@ -22,6 +23,7 @@ if (!host) throw new Error('#root không tồn tại trong index.html')
  *  `StrictMode` gắn–nhả–gắn lại effect ở dev: nghe hai lần thì mỗi cú chạm màn
  *  gia hạn hai lần và mỗi tin đa tab xử lý hai lần. */
 startAuthLifecycle()
+startReleaseWatch()
 
 /* The composer host sits outside the router so every screen reaches the same
    instance. Close it when the location key changes, matching the old local
