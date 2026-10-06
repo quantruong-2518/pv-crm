@@ -32,7 +32,15 @@ import { STAFF } from './staff'
  *  `email_suppression` is the list of addresses that bounced hard or asked to
  *  be left alone. Those people are outside the company and never agreed to a
  *  reset; forgetting them means mailing them again. */
-const KEEP = ['role_permission', 'permission_seed', 'email_suppression']
+const KEEP = [
+  'role_permission',
+  'permission_seed',
+  'email_suppression',
+  /* Planted once by migrations and rebuilt by no seed — emptying them leaves
+     no motion to pick and no mail template to send. */
+  'mail_template',
+  'motion_policy',
+]
 
 /** `actor` is emptied separately, by DELETE rather than TRUNCATE.
  *
