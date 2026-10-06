@@ -1,9 +1,11 @@
 import { sql } from 'drizzle-orm'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
+import { MAIL_TEMPLATES } from './seed-reference-mail'
 
-/** Replants the reference rows migrations 0036/0057/0059 planted once: the six
- *  motion policies and the lead-origin catalogue with its motions and aliases.
+/** Replants the reference rows migrations planted once: the six motion
+ *  policies, the lead-origin catalogue with its motions and aliases
+ *  (0036/0057/0059), and the MAS mail templates (0013/0019/0023).
  *
  *  Exists because a staff reset empties every `sales` table and no migration
  *  runs twice, which leaves every intake door with no motion to offer.
@@ -79,7 +81,13 @@ async function main(): Promise<void> {
         )) as { rows: { n: number }[] }
         return res.rows[0]!.n
       }
-      const tables = ['motion_policy', 'lead_origin', 'lead_origin_motion', 'lead_origin_alias']
+      const tables = [
+        'motion_policy',
+        'lead_origin',
+        'lead_origin_motion',
+        'lead_origin_alias',
+        'mail_template',
+      ]
       /* One at a time: a transaction is one connection. */
       const countAll = async (): Promise<number[]> => {
         const out: number[] = []
@@ -112,6 +120,15 @@ async function main(): Promise<void> {
             INSERT INTO sales.lead_origin_alias (key, origin_id) VALUES (${alias}, ${id})
             ON CONFLICT DO NOTHING`)
         }
+      }
+      for (const t of MAIL_TEMPLATES) {
+        const doors = sql.raw(`ARRAY['${t.doors.join("','")}']::text[]`)
+        await tx.execute(sql`
+          INSERT INTO sales.mail_template
+            (code, name, subject, body, cta_label, cta_url, booking_url, doors, milestone, active)
+          VALUES (${t.code}, ${t.name}, ${t.subject}, ${t.body}, ${t.ctaLabel}, ${t.ctaUrl},
+            ${t.bookingUrl}, ${doors}, ${t.milestone}, ${t.active})
+          ON CONFLICT DO NOTHING`)
       }
       /* Never backwards: ids minted since the reset must stay ahead. */
       await tx.execute(sql`
