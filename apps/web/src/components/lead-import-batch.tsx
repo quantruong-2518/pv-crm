@@ -24,7 +24,8 @@ import {
 
 type BatchWire = Pick<LeadImportInput, 'origin' | 'refCode' | 'campaignCode' | 'source'>
 
-const ORIGIN_ONLY = ['origin']
+/* The file never carries where a lead came from: the person picks it once. */
+const PICKED_NOT_FILED = ['origin', 'source']
 
 export function useLeadImportBatch() {
   const asksOf = useMotionAsks()
@@ -38,13 +39,13 @@ export function useLeadImportBatch() {
   }
 
   const extra = (motion: LeadMotion): BatchExtra => {
-    const { asks: asked } = asks(motion)
+    const { wire, asks: asked } = asks(motion)
     /* Not loaded yet, or the motion is off: nothing below the motion control. */
     if (asked === undefined) {
       return {
         node: null,
         missing: 'Phương án tiếp cận chưa sẵn sàng — đang tải hoặc đã tắt.',
-        hideFields: ORIGIN_ONLY,
+        hideFields: PICKED_NOT_FILED,
       }
     }
     if (asked === 'CAMPAIGN') {
@@ -58,7 +59,7 @@ export function useLeadImportBatch() {
           />
         ),
         missing: campaign ? undefined : MOTION_ASKS_MISSING.CAMPAIGN,
-        hideFields: ORIGIN_ONLY,
+        hideFields: PICKED_NOT_FILED,
       }
     }
     if (asked === 'REFERRER') {
@@ -78,18 +79,23 @@ export function useLeadImportBatch() {
           </div>
         ),
         missing: partner ? undefined : MOTION_ASKS_MISSING.REFERRER,
-        hideFields: ORIGIN_ONLY,
+        hideFields: PICKED_NOT_FILED,
       }
     }
     return {
       node: (
         <OriginPicker
-          label="Nguồn lead cho cả lô — dùng cho dòng để trống cột Nguồn lead"
+          label="Nguồn lead cho cả lô *"
           value={origin}
           onChange={setOrigin}
           onClear={() => setOrigin(null)}
+          motion={wire}
+          /* Picked, never minted here: a new origin is added on the admin origins page. */
+          allowCreate={false}
         />
       ),
+      missing: origin ? undefined : MOTION_ASKS_MISSING.ORIGIN,
+      hideFields: PICKED_NOT_FILED,
     }
   }
 

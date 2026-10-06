@@ -13,8 +13,8 @@ import type { PartnerService } from '../partner/partner.service'
  *  would be kept. Every refusal is collected, so one 400 names every field. */
 
 /** What the body carried. `campaign` is `campaignCode` at both doors (never
- *  the file's `source`, a config id); `originRequired` is false for a file,
- *  where a row may still carry no origin under ORIGIN (behaviour before 0059). */
+ *  the file's `source`, a config id); `originRequired` is false only for the
+ *  scan door, which has no origin to pick. */
 export type AskedFields = {
   origin: boolean
   campaign: boolean

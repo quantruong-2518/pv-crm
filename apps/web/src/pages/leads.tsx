@@ -194,24 +194,6 @@ export function LeadsPage() {
     [sourceCatalog],
   )
 
-  /* Cùng danh mục, khác câu hỏi — nên khác danh sách. Ô lọc hỏi "xem nguồn
-     nào", ô này hỏi "gán nguồn nào cho cả lô vừa nạp", và câu trả lời hợp lệ
-     cho câu thứ hai gồm cả "không gán": một tệp mang về từ hội chợ không thuộc
-     chiến dịch nào.
-
-     Mục rỗng đứng ĐẦU vì `ImportZone` lấy option đầu làm giá trị mở panel, và
-     `neutralValue=""` của ô chọn khớp đúng nó — lô không bấm gì thì
-     `campaign_id` nhận NULL. Mặc định vào nguồn đầu danh sách thì mọi lô quên
-     bấm đều bị gán vào một chiến dịch không liên quan, và không ai thấy cho
-     tới lúc đọc báo cáo theo nguồn. */
-  const importSourceOptions = useMemo(
-    () => [
-      { value: '', label: '— chưa gán nguồn —' },
-      ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
-    ],
-    [sourceOptions],
-  )
-
   const me = useSession((s) => s.actor)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
@@ -567,7 +549,6 @@ export function LeadsPage() {
               <ImportZone
                 spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
-                scopeOptions={importSourceOptions}
                 batchExtra={importBatch.extra}
                 buttonLabel="Nhập từ file"
                 onCommit={commitLeads}

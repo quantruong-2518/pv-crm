@@ -98,7 +98,13 @@ export function OriginPicker({
         createLabel={creatable ? (text) => `Tạo nguồn mới “${text}” khi lưu` : undefined}
         onCreate={creatable ? (text) => onChange({ name: text }) : undefined}
         placeholder={placeholder}
-        emptyText={q === '' ? 'Chưa có nguồn nào' : 'Không có nguồn nào khớp'}
+        emptyText={
+          allowCreate
+            ? q === ''
+              ? 'Chưa có nguồn nào'
+              : 'Không có nguồn nào khớp'
+            : 'Không có nguồn nào khớp — thêm ở trang Nguồn lead'
+        }
         loading={isFetching}
         invalid={invalid}
       />
