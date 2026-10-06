@@ -358,8 +358,9 @@ export const LEAD_SPEC: ImportSpec = {
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-lead',
   rowNoun: 'lead',
-  /* The server's key (`lead-import.check.ts`), so both ends count the same rows. */
-  dedupe: (values) => [`email:${(values.email ?? '').trim().toLowerCase()}`],
+  /* No browser pre-check: the server decides what a duplicate is and LISTS the
+     rows it kept out, which a row dropped here would never reach. */
+  dedupe: () => [],
   /* `importCell`'s ceiling in the contract. The columns with no `max` of their
      own — industry, campaign, tier, channel, headcount — still have to stay
      under it, because it is a ceiling on the BODY: one cell over it fails

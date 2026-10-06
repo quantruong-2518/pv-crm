@@ -355,6 +355,36 @@ export class LeadRepository {
       .orderBy(asc(lead.code))
   }
 
+  /** Live leads at any of the companies a file names — the candidates the
+   *  import door folds with `leadDupKey`. Matched on `lower(company)` only: the
+   *  key itself strips diacritics, which SQL here cannot do portably. */
+  async importBook(
+    who: Pick<Actor, 'id' | 'ownOnly'>,
+    companiesLower: readonly string[],
+    db: Db = this.db,
+  ): Promise<
+    { code: string; company: string; contactName: string; phone: string | null; inScope: boolean }[]
+  > {
+    if (companiesLower.length === 0) return []
+    const scope = this.scopeOf(who, true)
+    return db
+      .select({
+        code: lead.code,
+        company: lead.company,
+        contactName: lead.contactName,
+        phone: lead.phone,
+        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+      })
+      .from(lead)
+      .where(
+        and(
+          notInArray(lead.state, [...LEAD_GONE_STATES]),
+          inArray(sql`lower(${lead.company})`, [...companiesLower]),
+        ),
+      )
+      .orderBy(asc(lead.code))
+  }
+
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.
    *
    *  By `id`, never by display name — the same axis E2 now compares (ADR 0070):

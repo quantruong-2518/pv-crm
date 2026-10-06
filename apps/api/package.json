@@ -24,6 +24,8 @@
     "db:seed:reference": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-reference.ts",
     "//db:seed:mail-leads": "Chỉ THÊM — một lead cho mỗi hộp thư thử MAS trong src/seed-mail-leads.ts, đi qua đúng cửa POST /sales/leads. Hộp thư đã có lead sống thì bỏ qua. Mặc định xem trước; phải thêm --apply mới ghi.",
     "db:seed:mail-leads": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/seed-mail-leads.ts",
+    "//db:reset:data": "XOÁ mọi dữ liệu nghiệp vụ (lead và mọi thứ treo dưới nó), GIỮ tài khoản, quyền, cấu hình và các danh mục migration trồng. Mặc định xem trước từng bảng sẽ mất bao nhiêu dòng; phải thêm --apply mới xoá.",
+    "db:reset:data": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-data.ts",
     "//db:reset:staff": "XOÁ SẠCH sales + platform rồi dựng lại sổ nhân sự thật từ src/staff.ts — bảy tài khoản, mỗi vai một người, cùng DEFAULT_PASSWORD. Destructive hơn db:seed: không nạp lại dữ liệu nào cả. Mặc định xem trước; phải thêm --apply mới ghi.",
     "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts"
   },

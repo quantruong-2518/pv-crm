@@ -7,6 +7,7 @@ import {
   LeadTier,
   ORIGIN_NAME_MAX,
   email as emailField,
+  leadDupKey,
   originKey,
   phoneOptional,
   taxCodeOptional,
@@ -104,9 +105,8 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
-  /** `lower(email)` → code, over leads not disqualified — the same live set
-   *  the book's `duplicateOf` flags on. `null` = a lead outside the caller's
-   *  scope: still a duplicate, but its code is not theirs to learn. */
+  /** `keyOf` → code, over leads not disqualified. `null` = a lead outside the
+   *  caller's scope: still a duplicate, but its code is not theirs to learn. */
   book: ReadonlyMap<string, string | null>
 }
 
@@ -185,17 +185,13 @@ const GROUPED_INT = /^\d[\d.,\s]*$/
    cell is still CHECKED against the closed list, because a value outside it
    means the column mapping is wrong — then it is dropped. */
 
-/** The dedupe key, and the only identity this import has.
+/** The dedupe key, and the only identity this import has: `leadDupKey` —
+ *  contact name + company + phone, the owner's definition of "the same lead".
  *
- *  `lower(email)`, the mailbox key the book flags duplicates on (ADR 0070 —
- *  flagged, no longer enforced unique). Prefixed the way the screen prefixes its own keys (`mst:`, `ten:`) so a key
- *  printed in the report says what kind of thing it is.
- *
- *  Note for whoever reads the panel: the screen dedupes on tax code, then on
- *  company+province. That is a PRE-CHECK inside the browser and it answers "is
- *  this the same company"; this answers "is this the same live lead". Both are
- *  useful, only one of them is what the book flags on. */
-export const keyOf = (email: string): string => `email:${email}`
+ *  NOT the mailbox key the book's `duplicateOf` flag reads (ADR 0070). That
+ *  flag is a signal on a lead already written; this key decides whether a row
+ *  of a file is written at all. */
+export const keyOf = leadDupKey
 
 type Cells = Partial<Record<LeadImportField, string>>
 
@@ -209,8 +205,8 @@ type Outcome =
  *
  *  A broken row is reported as broken and never as a duplicate — reversing that
  *  produces "312 duplicates" when the real answer was "312 rows have no
- *  mailbox". A repeat inside the file is dropped; only its first row is written
- *  and, if the book already holds that mailbox, flagged (ADR 0070). */
+ *  mailbox". A repeat inside the file is dropped, and so is a row the book
+ *  already holds — both are listed, neither is written. */
 export function checkBatch(input: ImportCheckInput): ImportCheck {
   const staff = indexStaff(input.staff)
 
@@ -232,6 +228,12 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     const first = firstOf(row, out.values)
     const code = input.book.get(out.key)
 
+    /* Already in the system: reported with the lead holding it, never written
+       again — loading one file twice must not double the book. */
+    if (code !== undefined) {
+      dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
+      continue
+    }
     if (seen.has(out.key)) {
       dupWithinFile.push({ line: row.line, first, key: out.key })
       continue
@@ -239,11 +241,6 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     seen.add(out.key)
     rows.push(out)
     writes.push(write)
-    /* Written AND reported (ADR 0070): the book flags it through `duplicateOf`,
-       like a second landing submit — a collision is a signal, not a refusal. */
-    if (code !== undefined) {
-      dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
-    }
   }
 
   return {
@@ -423,7 +420,15 @@ function checkRow(
 
   return {
     ok: true,
-    out: { line: row.line, values: out, key: keyOf(email.value) },
+    out: {
+      line: row.line,
+      values: out,
+      key: keyOf({
+        contactName: contactName.value,
+        company: company.value,
+        phone: phone.value ?? null,
+      }),
+    },
     write: {
       ownerName: held?.name ?? null,
       ...(origin.value ? { origin: origin.value } : {}),

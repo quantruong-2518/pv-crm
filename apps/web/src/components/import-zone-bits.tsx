@@ -36,8 +36,7 @@ import {
  *  actually has is "which ones". "17 rows could not be loaded" leaves them with
  *  a file of 500 rows and no idea where to look.
  *
- *  Three lists and not one table with a status column: the three outcomes need
- *  different columns and lead to different actions.
+ *  Two lists: what went in, and what stayed out with its reason.
  *
  *  Capped, and saying so — a 5.000-row batch is a drawer nobody can scroll.
  *  Each list stops here and prints how many it is not showing. */
@@ -125,75 +124,55 @@ export function DoneRows({
   )
 }
 
-export function FailedRows({ errors, spec }: { errors: RowError[]; spec: ImportSpec }) {
-  /* The header the user is looking at, not the wire name `contactName`. Falls
-     back to the key, then a dash — a row can fail as a WHOLE rather than at one
-     column, and that is an answer rather than a missing one. */
-  const labelOf = (key: string | undefined) =>
-    key === undefined ? '—' : (spec.fields.find((f) => f.key === key)?.label ?? key)
-
-  return (
-    <ResultList
-      kicker="Không nạp được"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Cột sai', 'Vì sao']}
-      count={errors.length}
-    >
-      {errors.slice(0, LIST_CAP).map((e) => (
-        <tr key={e.line} className="bg-surface-ink/[3%]">
-          <Line n={e.line} />
-          <td className="max-w-[200px] truncate px-3 py-2">{e.first || '—'}</td>
-          <td className="text-warning w-[140px] whitespace-nowrap px-3 py-2">{labelOf(e.field)}</td>
-          <td className="text-destructive-foreground px-3 py-2 leading-[1.6]">{e.reason}</td>
-        </tr>
-      ))}
-    </ResultList>
-  )
-}
-
-/** Duplicates are neither plainly done nor plainly broken, so they get their
- *  own list — but the two kinds no longer share ONE fate (ADR 0070).
+/** Every row that stayed out, in ONE table with the reason beside it: broken
+ *  cells, rows the system already holds, repeats inside the file. One list
+ *  because the person asks one question — "which rows did not go in, and why".
  *
- *  A collision WITHIN the file is still dropped: the second row of one file
- *  colliding with the first has no lead of its own behind it to write. A
- *  collision WITH THE BOOK is not — the lead door writes that row anyway and
- *  flags it (`LeadRow.duplicateOf`), the same way a landing-page duplicate
- *  already worked. So `withBook` rows also show up in `DoneRows` above; this
- *  list still names what they collided with, but the "why" column says which
- *  outcome it got — written-and-flagged for a book collision, dropped for one
- *  inside the file — rather than one kicker claiming both were dropped.
- *
- *  Absent arrays mean this loader reports duplicates as counts only (the
- *  recipient and opportunity doors still do), and then nothing is drawn — a
- *  list that cannot be filled must not appear as an empty one. */
-export function DroppedRows({
+ *  Absent dup arrays mean that loader reports duplicates as counts only (the
+ *  recipient and opportunity doors still do); its broken rows are listed alone. */
+export function RejectedRows({
+  errors,
   withBook,
   withinFile,
+  spec,
 }: {
+  errors: RowError[]
   withBook?: DupRow[]
   withinFile?: DupRow[]
+  spec: ImportSpec
 }) {
+  /* The header the user is looking at, not the wire name `contactName`. */
+  const labelOf = (key: string | undefined) =>
+    key === undefined ? undefined : (spec.fields.find((f) => f.key === key)?.label ?? key)
+
   const rows = [
+    ...errors.map((e) => {
+      const column = labelOf(e.field)
+      return { line: e.line, first: e.first, why: column ? `${column}: ${e.reason}` : e.reason }
+    }),
     ...(withBook ?? []).map((d) => ({
-      ...d,
-      why: d.code ? `Đã nạp, gắn cờ trùng ${d.code}` : 'Đã nạp, gắn cờ trùng một lead đang sống',
+      line: d.line,
+      first: d.first,
+      why: d.code ? `Đã có trong hệ thống (${d.code})` : 'Đã có trong hệ thống',
     })),
     ...(withinFile ?? []).map((d) => ({
-      ...d,
-      why: 'Bỏ qua · trùng một dòng khác trong chính tệp này',
+      line: d.line,
+      first: d.first,
+      why: 'Trùng một dòng khác trong tệp',
     })),
   ].sort((a, b) => a.line - b.line)
 
   return (
     <ResultList
-      kicker="Trùng phát hiện được"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Kết quả']}
+      kicker="Không vào hệ thống"
+      head={['Dòng trong tệp', 'Ô đầu dòng', 'Vấn đề']}
       count={rows.length}
     >
-      {rows.slice(0, LIST_CAP).map((d) => (
-        <tr key={`${d.line}-${d.why}`} className="bg-surface-ink/[3%]">
-          <Line n={d.line} />
-          <td className="max-w-[240px] truncate px-3 py-2">{d.first || '—'}</td>
-          <td className="px-3 py-2">{d.why}</td>
+      {rows.slice(0, LIST_CAP).map((r) => (
+        <tr key={`${r.line}-${r.why}`} className="bg-surface-ink/[3%]">
+          <Line n={r.line} />
+          <td className="max-w-[200px] truncate px-3 py-2">{r.first || '—'}</td>
+          <td className="text-destructive-foreground px-3 py-2 leading-[1.6]">{r.why}</td>
         </tr>
       ))}
     </ResultList>

@@ -838,9 +838,10 @@ export class LeadWriteService {
    *  two different sentences about one file. The reads are identical too: the
    *  same staff book, the same live mailboxes, the same lookup. */
   private async check(handle: Db, body: LeadImportBody, who: Actor): Promise<ImportCheck> {
-    const mailboxes = body.rows
-      .map((r) => r.values.email?.trim().toLowerCase())
-      .filter((e): e is string => e !== undefined && e !== '')
+    /* As `textInput` stores it (trimmed, single-spaced), lowered for the lookup. */
+    const companies = body.rows
+      .map((r) => r.values.company?.trim().replace(/\s+/g, ' ').toLowerCase())
+      .filter((c): c is string => c !== undefined && c !== '')
 
     /* The create door's motion rules, asked here so preview and commit agree.
        Batch-wide: one file is one motion, so one answer for every row. */
@@ -873,7 +874,7 @@ export class LeadWriteService {
     const [staff, book, live, origins] = await Promise.all([
       this.repo.staff(handle),
       /* The book's own scope verdict, so a duplicate never leaks a code the caller cannot open. */
-      this.leads.scanBook(who, [...new Set(mailboxes)], [], handle),
+      this.leads.importBook(who, [...new Set(companies)], handle),
       this.repo.campaignCodes(handle, campaigns),
       this.origins.index(),
     ])
@@ -895,10 +896,9 @@ export class LeadWriteService {
       ...(mayAssign ? {} : { onlyOwner: who.id }),
       ...(mayAssign || !who.ownOnly ? {} : { blankOwner: { id: who.id, name: who.name } }),
       campaigns: live,
-      /* The check speaks in dedupe keys, the table speaks in mailboxes. One
-         `keyOf` on both sides is what keeps the two vocabularies from needing
-         a translation nobody maintains. */
-      book: new Map(book.map((b) => [keyOf(b.emailLower), b.inScope ? b.code : null])),
+      /* One `keyOf` on both sides: the file's rows and the book's leads are
+         folded by the same function, so neither side needs a translation. */
+      book: new Map(book.map((b) => [keyOf(b), b.inScope ? b.code : null])),
     })
   }
 }

@@ -32,7 +32,7 @@ process.stdin.on('end', () => {
      pointed at the live database. Without the lookahead the prefix `db:seed`
      inside it matched, so the one command written to be run against Neon was
      the one an agent could not run. */
-  if (!/\bdb:(seed|push|reset:staff)\b(?!:)/.test(command)) process.exit(0)
+  if (!/\bdb:(seed|push|reset:staff|reset:data)\b(?!:)/.test(command)) process.exit(0)
 
   process.stdout.write(
     JSON.stringify({
@@ -40,7 +40,7 @@ process.stdin.on('end', () => {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
         permissionDecisionReason:
-          'db:seed, db:push and db:reset:staff rebuild the database from scratch, and apps/api/.env points at production Neon. Blocked by tools/scripts/guard-db.mjs — run it yourself if you really mean to. (db:seed:accounts is not blocked: it only ever adds.)',
+          'db:seed, db:push, db:reset:staff and db:reset:data wipe or rebuild the database, and apps/api/.env points at production Neon. Blocked by tools/scripts/guard-db.mjs — run it yourself if you really mean to. (db:seed:accounts is not blocked: it only ever adds.)',
       },
     }),
   )

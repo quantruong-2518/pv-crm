@@ -43,8 +43,7 @@ import {
 import {
   BatchAssign,
   DoneRows,
-  DroppedRows,
-  FailedRows,
+  RejectedRows,
   FileStrip,
   MojibakeNote,
   Tally,
@@ -785,7 +784,7 @@ function StepRun({
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tally label="Vào sổ" value={report.rows.length} tone="success" />
-            <Tally label="Trùng dòng đã có" value={report.duplicates} />
+            <Tally label="Đã có trong hệ thống" value={report.duplicates} />
             <Tally label="Trùng trong tệp" value={report.dupInFile} />
             <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
           </div>
@@ -817,8 +816,12 @@ function StepRun({
           )}
 
           <DoneRows rows={report.rows} codes={report.codes} spec={spec} />
-          <FailedRows errors={report.errors} spec={spec} />
-          <DroppedRows withBook={report.dupWithBook} withinFile={report.dupWithinFile} />
+          <RejectedRows
+            errors={report.errors}
+            withBook={report.dupWithBook}
+            withinFile={report.dupWithinFile}
+            spec={spec}
+          />
 
           {report.rows.length > 0 && onSeeResult && (
             <div>

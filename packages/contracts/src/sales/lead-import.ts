@@ -217,6 +217,26 @@ export const LeadImportError = z.object({
   reason: z.string().min(1),
 })
 
+/** What makes two leads THE SAME PERSON at the import door: same contact name,
+ *  same company, same phone. Folded (case, diacritics, punctuation; phone to
+ *  digits with `84` read as the leading `0`) so "Cty ABC" typed twice still
+ *  meets. A blank phone only meets a blank phone. One function for both ends. */
+export function leadDupKey(v: {
+  contactName: string
+  company: string
+  phone?: string | null
+}): string {
+  const fold = (text: string): string =>
+    text
+      .replace(/đ/gi, 'd')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+  const digits = (v.phone ?? '').replace(/\D/g, '').replace(/^84/, '0')
+  return `lead:${fold(v.contactName)}|${fold(v.company)}|${digits}`
+}
+
 /** A row that collided with something.
  *
  *  Collisions are reported as ROWS and not only as a count, because a count
@@ -224,10 +244,9 @@ export const LeadImportError = z.object({
  *  is that right". A batch that reports "312 duplicates" and nothing else gets
  *  either trusted blindly or abandoned.
  *
- *  `dupWithBook` rows are NOT dropped (ADR 0070, like a landing-page
- *  duplicate): the commit writes them anyway, flagged on read through
- *  `LeadRow.duplicateOf`. `dupWithinFile` rows still are — a second row of one
- *  file colliding with the FIRST has no lead of its own behind it to write. */
+ *  Neither kind is written: a `dupWithBook` row is already in the system (its
+ *  `code` says where), and a `dupWithinFile` row repeats an earlier row of the
+ *  same file. Both are listed so the person sees which rows stayed out. */
 export const LeadImportDup = z.object({
   line: z.number().int().min(2),
   first: z.string(),
