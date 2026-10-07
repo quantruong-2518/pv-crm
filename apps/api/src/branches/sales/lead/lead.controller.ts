@@ -5,6 +5,7 @@ import {
   LeadAccountAttach,
   LeadBookQuery,
   LeadCreate,
+  LeadDisableBody,
   LeadExitBody,
   LeadFacetsQuery,
   LeadImportBody,
@@ -20,6 +21,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { LeadDisableService } from './lead-disable.service'
 import { LeadService } from './lead.service'
 import { LeadExitService } from './lead-exit.service'
 import { LeadWriteService } from './lead-write.service'
@@ -55,6 +57,7 @@ export class LeadController {
     private readonly leads: LeadService,
     private readonly write: LeadWriteService,
     private readonly exits: LeadExitService,
+    private readonly disabling: LeadDisableService,
   ) {}
 
   @Get()
@@ -103,6 +106,17 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.view' })
   industryTags() {
     return this.leads.industryTags()
+  }
+
+  /** Switch leads off, or back on — with every deal and contract raised on
+   *  them. Above every `:code` route so a reader finds the static path first.
+   *  Not `scoped`: it is a director's decision over the whole book. 200, not
+   *  201 — nothing is created. */
+  @Post('disabled')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.disable' })
+  setDisabled(@CurrentActor() who: Actor, @Body(zod(LeadDisableBody)) body: LeadDisableBody) {
+    return this.disabling.set(who, body)
   }
 
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.

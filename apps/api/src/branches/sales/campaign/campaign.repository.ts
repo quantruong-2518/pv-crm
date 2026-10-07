@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, not, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { CampaignBookQuery, CampaignMemberQuery, CampaignState } from '@pv/contracts'
@@ -7,6 +7,7 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { mailSequenceRun } from '../mail-sequence.schema'
 import { campaign, campaignMember, type CampaignRowDb } from './campaign.schema'
 import type { CampaignMemberRead, CampaignRead } from './campaign.mapper'
@@ -28,9 +29,11 @@ const SOURCE_ON = and(eq(configEntry.id, campaign.sourceId), eq(configEntry.list
 
 /** Hai số đếm KHÔNG phải cột — subquery tương quan thay vì đọc rồi đếm ở Node,
  *  cùng lý do `DAYS_HERE` ở `lead.repository.ts` là biểu thức SQL: một sổ 100
- *  chiến dịch mà đếm ở Node là 100 câu truy vấn phụ thay vì một cột SELECT. */
+ *  chiến dịch mà đếm ở Node là 100 câu truy vấn phụ thay vì một cột SELECT.
+ *  A switched-off lead is not audience — `leadLive`, spelled on the alias. */
 const AUDIENCE_COUNT = sql<number>`(
   SELECT count(*)::int FROM "sales"."campaign_member" cm
+    JOIN "sales"."lead" l ON l."code" = cm."lead_code" AND l."disabled_at" IS NULL
    WHERE cm."campaign_code" = ${campaign.code} AND cm."state" = 'ACTIVE'
 )`
 
@@ -293,6 +296,7 @@ export class CampaignRepository {
         FROM "sales"."campaign_member" mine
         JOIN "sales"."campaign_member" other ON other."lead_code" = mine."lead_code"
         JOIN "sales"."campaign" c ON c."code" = other."campaign_code"
+        JOIN "sales"."lead" l ON l."code" = mine."lead_code" AND l."disabled_at" IS NULL
        WHERE mine."campaign_code" = ${code}
          AND mine."state" = 'ACTIVE'
          AND other."campaign_code" <> mine."campaign_code"
@@ -308,8 +312,22 @@ export class CampaignRepository {
     const rows = await this.db
       .select({ leadCode: campaignMember.leadCode })
       .from(campaignMember)
-      .where(and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, 'ACTIVE')))
+      .innerJoin(lead, eq(lead.code, campaignMember.leadCode))
+      .where(
+        and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, 'ACTIVE'), leadLive),
+      )
     return rows.map((r) => r.leadCode)
+  }
+
+  /** Which of `leadCodes` are switched off — a fact for `members()` to refuse. */
+  async disabledAmong(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
+    if (leadCodes.length === 0) return []
+    const rows = await tx
+      .select({ code: lead.code })
+      .from(lead)
+      .where(and(inArray(lead.code, [...leadCodes]), not(leadLive)))
+      .orderBy(asc(lead.code))
+    return rows.map((r) => r.code)
   }
 
   /** WHO is in the audience, one page at a time.
@@ -323,10 +341,15 @@ export class CampaignRepository {
     code: string,
     q: CampaignMemberQuery,
   ): Promise<{ rows: CampaignMemberRead[]; total: number }> {
-    const where = and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, q.state))
+    const where = and(
+      eq(campaignMember.campaignCode, code),
+      eq(campaignMember.state, q.state),
+      leadLive,
+    )
+    const onLead = eq(lead.code, campaignMember.leadCode)
 
     const [[counted], rows] = await Promise.all([
-      this.db.select({ n: count() }).from(campaignMember).where(where),
+      this.db.select({ n: count() }).from(campaignMember).innerJoin(lead, onLead).where(where),
       this.db
         .select({
           leadCode: campaignMember.leadCode,
@@ -337,7 +360,7 @@ export class CampaignRepository {
           addedAt: campaignMember.addedAt,
         })
         .from(campaignMember)
-        .innerJoin(lead, eq(lead.code, campaignMember.leadCode))
+        .innerJoin(lead, onLead)
         .where(where)
         .orderBy(asc(campaignMember.addedAt), asc(campaignMember.leadCode))
         .limit(q.size)
@@ -351,7 +374,10 @@ export class CampaignRepository {
     const [row] = await this.db
       .select({ n: count() })
       .from(campaignMember)
-      .where(and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, 'ACTIVE')))
+      .innerJoin(lead, eq(lead.code, campaignMember.leadCode))
+      .where(
+        and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, 'ACTIVE'), leadLive),
+      )
     return row?.n ?? 0
   }
 

@@ -101,6 +101,17 @@ export class ObjectMirror {
       })
   }
 
+  /** Switch mirror rows off (`at`) or back on (`null`). The branch names every
+   *  code that goes with its decision — a lead, its contacts, deals, contracts
+   *  and run — because the platform knows no branch's notion of "belongs to". */
+  async setDisabled(tx: Db, codes: readonly string[], at: Date | null): Promise<void> {
+    if (codes.length === 0) return
+    await tx
+      .update(objectRef)
+      .set({ disabledAt: at })
+      .where(inArray(objectRef.code, [...codes]))
+  }
+
   /** Record one directed relation between two objects.
    *
    *  Same contract as `put`: the caller owns the transaction, and both

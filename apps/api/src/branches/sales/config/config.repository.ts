@@ -109,20 +109,26 @@ export class SalesConfigRepository {
    *  not to edit one side alone.
    *
    *  `CHANNEL` has no branch: no column in the database records a send channel.
-   *  The mapper hands back an empty table for it. */
+   *  The mapper hands back an empty table for it.
+   *
+   *  Every lead branch carries `disabled_at IS NULL` (`leadLive`, in raw SQL),
+   *  and every deal/contract branch joins its lead for it: a switched-off lead
+   *  and what hangs from it weigh nothing here, as in the books. */
   async usage(): Promise<UsageTally[]> {
     /* `Db` is the driver-agnostic type, so `execute()` cannot know the result
        shape in advance — the same spot that has to be said by hand in
        `graph.repository.ts`. */
     const result = (await this.db.execute(sql`
-      SELECT 'STAGE' AS bucket, stage AS key, count(*)::int AS n
-        FROM sales.opportunity WHERE stage IS NOT NULL GROUP BY stage
+      SELECT 'STAGE' AS bucket, o.stage AS key, count(*)::int AS n
+        FROM sales.opportunity o
+        JOIN sales.lead l ON l.code = o.lead_code AND l.disabled_at IS NULL
+       WHERE o.stage IS NOT NULL GROUP BY o.stage
       UNION ALL
       SELECT 'TIER', tier, count(*)::int
-        FROM sales.lead WHERE tier IS NOT NULL GROUP BY tier
+        FROM sales.lead WHERE tier IS NOT NULL AND disabled_at IS NULL GROUP BY tier
       UNION ALL
       SELECT 'CATEGORY', category, count(*)::int
-        FROM sales.lead WHERE category IS NOT NULL GROUP BY category
+        FROM sales.lead WHERE category IS NOT NULL AND disabled_at IS NULL GROUP BY category
       UNION ALL
       /* Stop EVENTS, not leads now disqualified (ADR 0070): every exit and park
          keeps its reason on its own touch, so a loop never erases a count. */
@@ -133,25 +139,30 @@ export class SalesConfigRepository {
        GROUP BY reason_id
       UNION ALL
       SELECT 'SOURCE', campaign_id, count(*)::int
-        FROM sales.lead WHERE campaign_id IS NOT NULL GROUP BY campaign_id
+        FROM sales.lead
+       WHERE campaign_id IS NOT NULL AND disabled_at IS NULL GROUP BY campaign_id
       UNION ALL
       /* PRODUCT is the only branch here keyed by a REAL foreign key rather than
          by a slug the lead happens to hold: sales.opportunity_product.product_id
          references config_entry.id. So this count is exact, and switching an
          entry off while deals point at it is a decision an approver can see the
          weight of — which is what the whole usage table is for. */
-      SELECT 'PRODUCT', product_id, count(*)::int
-        FROM sales.opportunity_product GROUP BY product_id
+      SELECT 'PRODUCT', p.product_id, count(*)::int
+        FROM sales.opportunity_product p
+        JOIN sales.opportunity o ON o.code = p.opportunity_code
+        JOIN sales.lead l ON l.code = o.lead_code AND l.disabled_at IS NULL
+       GROUP BY p.product_id
       UNION ALL
       /* LOSS_REASON is keyed by config_entry.id too, the same real key as
          PRODUCT above: the stop door writes the id it was given, not a label,
          so the count is exact and switching a reason off is a decision with a
          visible weight. 'other' is excluded because it is a VIRTUAL key
          (OPPORTUNITY_STOP_REASON_OTHER) with no row to tally onto. */
-      SELECT 'LOSS_REASON', stop_reason, count(*)::int
-        FROM sales.opportunity
-       WHERE stop_reason IS NOT NULL AND stop_reason <> ${OPPORTUNITY_STOP_REASON_OTHER}
-       GROUP BY stop_reason
+      SELECT 'LOSS_REASON', o.stop_reason, count(*)::int
+        FROM sales.opportunity o
+        JOIN sales.lead l ON l.code = o.lead_code AND l.disabled_at IS NULL
+       WHERE o.stop_reason IS NOT NULL AND o.stop_reason <> ${OPPORTUNITY_STOP_REASON_OTHER}
+       GROUP BY o.stop_reason
       UNION ALL
       /* Close-out answers count rows in comms.debrief_answer, keyed by plain
          text ids (no FK, ADR 0074 §7). STEP_KIND counts standing steps only:
@@ -169,21 +180,26 @@ export class SalesConfigRepository {
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL
       SELECT 'slots', '1', count(*)::int FROM sales.lead
-       WHERE legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL
+       WHERE (legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL)
+         AND disabled_at IS NULL
       UNION ALL
-      SELECT 'slots', '2', count(*)::int FROM sales.lead WHERE main_product IS NOT NULL
+      SELECT 'slots', '2', count(*)::int FROM sales.lead
+       WHERE main_product IS NOT NULL AND disabled_at IS NULL
       UNION ALL
       SELECT 'slots', '3', count(*)::int FROM sales.lead
-       WHERE headcount IS NOT NULL OR plants IS NOT NULL
+       WHERE (headcount IS NOT NULL OR plants IS NOT NULL) AND disabled_at IS NULL
       UNION ALL
-      SELECT 'slots', '4', count(*)::int FROM sales.lead WHERE contact_title IS NOT NULL
+      SELECT 'slots', '4', count(*)::int FROM sales.lead
+       WHERE contact_title IS NOT NULL AND disabled_at IS NULL
       UNION ALL
       SELECT 'slots', '5', count(*)::int FROM sales.lead
-       WHERE phone IS NOT NULL OR contact_channel IS NOT NULL
+       WHERE (phone IS NOT NULL OR contact_channel IS NOT NULL) AND disabled_at IS NULL
       UNION ALL
-      SELECT 'slots', '6', count(*)::int FROM sales.lead WHERE pain IS NOT NULL
+      SELECT 'slots', '6', count(*)::int FROM sales.lead
+       WHERE pain IS NOT NULL AND disabled_at IS NULL
       UNION ALL
-      SELECT 'signedDeals', '', count(DISTINCT lead_code)::int FROM sales.contract
+      SELECT 'signedDeals', '', count(DISTINCT c.lead_code)::int FROM sales.contract c
+        JOIN sales.lead l ON l.code = c.lead_code AND l.disabled_at IS NULL
       UNION ALL
       /* Still open = the five open states of ADR 0058, the book's default tab.
          Early tiers = every tier but 'sql'.
@@ -191,6 +207,7 @@ export class SalesConfigRepository {
       SELECT 'earlyStageLeads', '', count(*)::int FROM sales.lead l
        WHERE l.state IN (${OPEN_STATES})
          AND l.tier IS DISTINCT FROM 'sql'
+         AND l.disabled_at IS NULL
     `)) as unknown as { rows: UsageTally[] }
 
     return result.rows

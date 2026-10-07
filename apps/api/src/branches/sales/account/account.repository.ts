@@ -6,6 +6,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
+import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contact } from '../contact/contact.schema'
@@ -60,8 +61,13 @@ const NEXT_CODE = sql`SELECT 'AC-' || lpad(nextval('sales.account_code_seq')::te
  *  warranted. */
 const at = (column: AnyPgColumn): SQL => sql`${column.table}.${sql.identifier(column.name)}`
 
+/** `leadLive` spelled through `at()`: these fragments land in a projection,
+ *  where the shared predicate's bare column would lose its table. */
+const LIVE = sql`${at(lead.disabledAt)} IS NULL`
+
 const LEAD_COUNT = sql<number>`(
-  SELECT count(*)::int FROM ${lead} WHERE ${at(lead.accountCode)} = ${at(account.code)}
+  SELECT count(*)::int FROM ${lead}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
 )`
 
 const OPEN_DEALS = sql<number>`(
@@ -69,6 +75,7 @@ const OPEN_DEALS = sql<number>`(
   FROM ${opportunity}
   JOIN ${lead} ON ${at(lead.code)} = ${at(opportunity.leadCode)}
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${at(opportunity.closedAt)} IS NULL
+    AND ${LIVE}
 )`
 
 /** Signed = a row exists in `sales.contract`. Counted from the contract side
@@ -79,7 +86,7 @@ const SIGNED_DEALS = sql<number>`(
   SELECT count(*)::int
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-  WHERE ${at(lead.accountCode)} = ${at(account.code)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
 )`
 
 /** Everything signed, converted to dong with the same rate table the deal book
@@ -98,7 +105,7 @@ const SIGNED_AMOUNT_VND = sql<number>`(
   )} END), 0)::bigint
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-  WHERE ${at(lead.accountCode)} = ${at(account.code)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
 )`
 
 /** The identity expression `account_identity_uniq` indexes, written a second
@@ -240,7 +247,7 @@ export class AccountRepository {
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
-      .where(eq(lead.accountCode, code))
+      .where(and(eq(lead.accountCode, code), leadLive))
       .orderBy(desc(lead.createdAt))
   }
 
@@ -264,7 +271,7 @@ export class AccountRepository {
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
       .leftJoin(contract, eq(contract.opportunityCode, opportunity.code))
-      .where(eq(lead.accountCode, code))
+      .where(and(eq(lead.accountCode, code), leadLive))
       .orderBy(desc(opportunity.createdAt))
   }
 
@@ -284,7 +291,7 @@ export class AccountRepository {
       })
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
-      .where(eq(lead.accountCode, code))
+      .where(and(eq(lead.accountCode, code), leadLive))
       .orderBy(desc(contact.isPrimary), asc(contact.name))
   }
 
@@ -325,7 +332,7 @@ export class AccountRepository {
     const rows = await tx
       .update(lead)
       .set({ accountCode })
-      .where(eq(lead.code, leadCode))
+      .where(and(eq(lead.code, leadCode), leadLive))
       .returning({ code: lead.code })
     return rows.length > 0
   }
@@ -371,7 +378,7 @@ export class AccountRepository {
       const signed = sql`EXISTS (
         SELECT 1 FROM ${contract}
         JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-        WHERE ${at(lead.accountCode)} = ${at(account.code)}
+        WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
       )`
       parts.push(q.customer === 1 ? signed : sql`NOT ${signed}`)
     }

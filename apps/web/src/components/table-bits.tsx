@@ -307,6 +307,7 @@ export function BookSelectionBar({
   meta,
   onClear,
   onSend,
+  actions,
 }: {
   count: number
   /** The picked noun, already declined for the count line — "lead", or an
@@ -314,9 +315,12 @@ export function BookSelectionBar({
   noun: string
   /** Second line under the count — an email-address tally, or whatever else
    *  the caller has to say about the picked rows beyond how many there are. */
-  meta: string
+  meta?: string
   onClear: () => void
-  onSend: () => void
+  /** Absent = this selection is not mailed (the lead book's switched-off tab). */
+  onSend?: () => void
+  /** A book's own bulk actions, drawn before the mail button. */
+  actions?: ReactNode
 }) {
   return (
     <div
@@ -332,17 +336,20 @@ export function BookSelectionBar({
           <span className="text-[13px] font-semibold">
             {count} {noun} đã chọn
           </span>
-          <span className="text-muted-foreground text-[11.5px]">{meta}</span>
+          {meta && <span className="text-muted-foreground text-[11.5px]">{meta}</span>}
         </span>
       </div>
       <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
         <Button size="lg" variant="ghost" onClick={onClear}>
           Bỏ chọn hết
         </Button>
-        <Button size="lg" onClick={onSend}>
-          <Icon icon={Mail} size={16} />
-          Gửi email
-        </Button>
+        {actions}
+        {onSend && (
+          <Button size="lg" onClick={onSend}>
+            <Icon icon={Mail} size={16} />
+            Gửi email
+          </Button>
+        )}
       </div>
     </div>
   )

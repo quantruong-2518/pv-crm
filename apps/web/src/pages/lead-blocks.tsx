@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock } from '@pv/ui'
+import { CalendarClock, CircleAlert } from '@pv/ui'
 import { Button, GlassCard, Icon, SectionTitle, Skeleton } from '@pv/ui'
 import { campaignLabel, sourceKindLabel, type LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
@@ -10,11 +10,12 @@ import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
 import { leadTouchesQuery, leadVectorQuery } from '@/data/touches'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
+import { useRestoreLeads } from '@/components/lead-restore'
 import { MeetingsPanel } from '@/components/meetings-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { TodoCard } from '@/components/record/todo-card'
 import { NextStepCard } from '@/components/run/next-step'
-import { leadRungsOf, leadStepSubject } from './lead-model'
+import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
 
 /** Module 2 · the header, todo card and meetings card of the lead profile.
  *
@@ -112,5 +113,32 @@ export function LeadMeetings({ code, canEdit }: { code: string; canEdit: boolean
       </SectionTitle>
       <MeetingsPanel code={code} canEdit={canEdit} openSchedule={asked} />
     </GlassCard>
+  )
+}
+
+/** A switched-off lead says so once, above everything, with its one way back.
+ *  Only a `lead.disable` holder ever sees it: for anyone else the profile is
+ *  a 404. Same tinted block as the config screen's "nothing here yet" notice. */
+export function LeadDisabledNotice({ code, since }: { code: string; since: string }) {
+  const { pending, restore } = useRestoreLeads()
+
+  return (
+    <div
+      role="status"
+      className="bg-warning/12 flex flex-wrap items-center justify-between gap-3 rounded-md p-4"
+    >
+      <span className="flex min-w-0 items-center gap-3 text-[13px] font-semibold">
+        <Icon icon={CircleAlert} size={20} className="text-warning shrink-0" />
+        <span className="tnum">Lead đã vô hiệu hoá từ {momentText(since)}</span>
+      </span>
+      <Button
+        size="md"
+        className="pointer-coarse:h-12"
+        disabled={pending}
+        onClick={() => restore([code])}
+      >
+        Khôi phục
+      </Button>
+    </div>
   )
 }

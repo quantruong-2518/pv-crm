@@ -78,6 +78,7 @@ export class OpportunityMoves {
     const at = new Date()
 
     const row = await this.deals.run(async (tx) => {
+      /* A lead switched off meanwhile: `locked` re-reads the deal and 404s. */
       await this.deals.lockLeads(tx, [found.row.leadCode])
       const fresh = await this.locked(tx, who, code)
       const written = await this.lifecycle.stop(tx, fresh, mover(who), body, at)

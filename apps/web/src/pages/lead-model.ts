@@ -8,7 +8,7 @@ import {
   type OpportunityLiveDeal,
   type TouchKind,
 } from '@pv/contracts'
-import { dm } from '@/lib/date'
+import { dm, dmy } from '@/lib/date'
 import { isOpenState } from '@/data/lead-state'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { StepSubject } from '@/data/next-step'
@@ -153,12 +153,26 @@ export function leadStepSubject(lead: LeadProfile, canAssign: boolean): StepSubj
   }
 }
 
+const HOUR = new Intl.DateTimeFormat('vi-VN', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+})
+
+/** Hour first, then the day with its year — a moment said inside a sentence.
+ *  The reader's own zone, like every other date on the profile (`lib/date`). */
+export function momentText(iso: string): string {
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return iso
+  return `${HOUR.format(at)} ngày ${dmy(iso)}`
+}
+
 /** The bar's more menu: the state moves the todo card does not hold, the
  *  hand-over and the pin. Same gates as the old toolbar's `…` menu; a door
  *  this reader cannot use is left out rather than shown shut. */
 export function leadMoreChoices(
   lead: LeadProfile,
-  can: { write: boolean; disqualify: boolean },
+  can: { write: boolean; disqualify: boolean; disable: boolean },
   /** The hand-over drawer's own door (`assignDoorOf`), so the row reads its words. */
   assign: AssignDoor,
   pinned: boolean,
@@ -170,6 +184,7 @@ export function leadMoreChoices(
     onPin: () => void
     onExit: () => void
     onReopen: () => void
+    onDisable: () => void
   },
 ): MenuChoice[] {
   /* A converted lead may still be dropped while it holds no open deal and has
@@ -200,6 +215,14 @@ export function leadMoreChoices(
       label: LEAD_STATE_LABEL.disqualified,
       tone: 'danger',
       onSelect: doors.onExit,
+    })
+  }
+  if (can.disable) {
+    choices.push({
+      key: 'disable',
+      label: 'Vô hiệu hoá lead',
+      tone: 'danger',
+      onSelect: doors.onDisable,
     })
   }
   return choices

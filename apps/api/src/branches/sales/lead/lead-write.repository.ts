@@ -8,6 +8,7 @@ import { motionPolicy } from '../config/motion.schema'
 import { leadConverted, leadHasOpenDeal, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
+import { leadLive } from './lead-scope'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
 import type { LeadContactMirror } from '../contact/contact.repository'
@@ -233,7 +234,9 @@ export class LeadWriteRepository {
    *  caller is about to change.
    *
    *  `state` comes back because a hand-over can move it (ADR 0058): `new` →
-   *  `assigned` on a claim, back to `new` on a release. */
+   *  `assigned` on a claim, back to `new` on a release.
+   *
+   *  A disabled lead is not there: `null`, so every door answers 404. */
   async lockForOwnerChange(
     tx: Db,
     code: string,
@@ -245,7 +248,7 @@ export class LeadWriteRepository {
         ownerId: lead.ownerId,
       })
       .from(lead)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .limit(1)
       .for('update')
 
@@ -294,7 +297,7 @@ export class LeadWriteRepository {
         reached: reachedRung,
       })
       .from(lead)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .limit(1)
       .for('update')
 
@@ -321,7 +324,7 @@ export class LeadWriteRepository {
     const rows = await tx
       .update(lead)
       .set(values)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .returning({ code: lead.code })
 
     return rows.length > 0
@@ -347,7 +350,7 @@ export class LeadWriteRepository {
     const rows = await tx
       .update(lead)
       .set(set)
-      .where(and(eq(lead.code, code), or(...columns.map((c) => isNull(c)))))
+      .where(and(eq(lead.code, code), leadLive, or(...columns.map((c) => isNull(c)))))
       .returning({ code: lead.code })
     return rows.length > 0
   }

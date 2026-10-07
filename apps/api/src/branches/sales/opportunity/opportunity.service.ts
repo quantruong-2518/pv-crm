@@ -883,6 +883,10 @@ export class OpportunityService {
     leadCodes: readonly string[],
   ): Promise<ReadonlyMap<string, string | null>> {
     const rows = await this.repo.lockLeads(tx, leadCodes)
+    /* Absent under the lock = switched off (or never there): a 404, to anyone. */
+    const live = new Set(rows.map((r) => r.code))
+    const gone = leadCodes.find((code) => !live.has(code))
+    if (gone) throw notFound('lead', gone)
     const foreign = rows.find((r) => !holds(who, r.ownerId))
     if (foreign) throw foreignLead(foreign.code)
     if (rows.some((r) => r.exited))

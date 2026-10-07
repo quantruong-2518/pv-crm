@@ -32,6 +32,7 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { dealStoodBy, leadDealHeldBy } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import {
@@ -307,7 +308,7 @@ export class MasRepository {
         .from(opportunity)
         .innerJoin(lead, eq(lead.code, opportunity.leadCode))
         .leftJoin(emailSuppression, SUPPRESSED_ON)
-        .where(and(inArray(opportunity.code, [...codes]), this.dealScopeOf(who, scoped)))
+        .where(and(inArray(opportunity.code, [...codes]), leadLive, this.dealScopeOf(who, scoped)))
         .orderBy(asc(opportunity.code))
     }
 
@@ -315,7 +316,7 @@ export class MasRepository {
       .select({ code: lead.code, ...LEAD_FACTS })
       .from(lead)
       .leftJoin(emailSuppression, SUPPRESSED_ON)
-      .where(and(inArray(lead.code, [...codes]), this.scopeOf(who, scoped)))
+      .where(and(inArray(lead.code, [...codes]), leadLive, this.scopeOf(who, scoped)))
       .orderBy(asc(lead.code))
   }
 
@@ -331,6 +332,7 @@ export class MasRepository {
       .where(
         and(
           eq(lead.code, leadCode),
+          leadLive,
           who.ownOnly ? or(eq(lead.ownerId, who.id), viaDeal) : undefined,
         ),
       )
@@ -838,7 +840,11 @@ export class MasRepository {
    *  reason: `MasService.recipients` settles the entitlement on the RUN before
    *  this runs, and cutting a second time on `lead.owner_id` would answer a
    *  refusal with an empty list — a run somebody else's leads are in would read
-   *  "sent to nobody". */
+   *  "sent to nobody".
+   *
+   *  A letter to a switched-off lead (or to a deal on one) is DROPPED, not
+   *  blanked: `merge` snapshots the same two names, so a blank join would
+   *  still print them. The run's tallies keep counting it. */
   async recipients(runId: string): Promise<MasRecipientRead[]> {
     const r = (await this.db.execute(sql`
       SELECT d."aggregate_id"                                AS lead_code,
@@ -865,6 +871,13 @@ export class MasRepository {
              ) e ON true
        WHERE d."mail_run_id" = ${runId}
          AND d."aggregate_type" IN ('lead', 'opportunity')
+         AND NOT EXISTS (
+               SELECT 1 FROM "sales"."lead" off
+                WHERE off."disabled_at" IS NOT NULL
+                  AND off."code" = CASE WHEN d."aggregate_type" = 'lead' THEN d."aggregate_id"
+                        ELSE (SELECT o."lead_code" FROM "sales"."opportunity" o
+                               WHERE o."code" = d."aggregate_id") END
+             )
        ORDER BY d."created_at" ASC, d."aggregate_id" ASC
     `)) as { rows: MasRecipientRead[] }
 

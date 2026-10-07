@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { CommsChannel } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -221,7 +221,12 @@ export class ThreadRepository {
   }
 
   async objectByCode(code: string, tx: Db = this.db): Promise<ObjectRow | null> {
-    const [row] = await tx.select().from(objectRef).where(eq(objectRef.code, code)).limit(1)
+    /* Switched off = not there: no thread opens on it, none is listed under it. */
+    const [row] = await tx
+      .select()
+      .from(objectRef)
+      .where(and(eq(objectRef.code, code), isNull(objectRef.disabledAt)))
+      .limit(1)
     return row ?? null
   }
 
@@ -230,7 +235,7 @@ export class ThreadRepository {
     return tx
       .select()
       .from(objectRef)
-      .where(inArray(objectRef.code, [...codes]))
+      .where(and(inArray(objectRef.code, [...codes]), isNull(objectRef.disabledAt)))
   }
 
   async insertThread(tx: Db, values: ThreadValues): Promise<ThreadRowDb> {

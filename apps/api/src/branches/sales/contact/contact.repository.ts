@@ -5,6 +5,7 @@ import type { ContactBookQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { account } from '../account/account.schema'
+import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
 import { contact, type ContactRowDb } from './contact.schema'
 import type { ContactValues } from './contact.mapper'
@@ -84,7 +85,7 @@ export class ContactRepository {
         contactChannel: lead.contactChannel,
       })
       .from(lead)
-      .where(eq(lead.code, leadCode))
+      .where(and(eq(lead.code, leadCode), leadLive))
       .limit(1)
     return found ?? null
   }
@@ -127,7 +128,7 @@ export class ContactRepository {
        this one happens to go through the same column the lead book does
        because it JOINs that same table. */
     const scope = scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
-    const where = and(...this.filtersOf(q), scope)
+    const where = and(...this.filtersOf(q), leadLive, scope)
 
     const rows = await this.db
       .select({
@@ -176,7 +177,7 @@ export class ContactRepository {
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
       .leftJoin(account, eq(account.code, lead.accountCode))
-      .where(and(eq(contact.code, code), scope))
+      .where(and(eq(contact.code, code), leadLive, scope))
       .limit(1)
 
     return found ?? null
@@ -298,6 +299,6 @@ export class ContactRepository {
         contactChannel: row.channel,
         ...(row.email ? { email: row.email } : {}),
       })
-      .where(eq(lead.code, leadCode))
+      .where(and(eq(lead.code, leadCode), leadLive))
   }
 }

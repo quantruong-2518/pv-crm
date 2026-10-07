@@ -136,6 +136,10 @@ export const objectRef = platform.table(
     /** Tiền, đơn vị ĐỒNG. `bigint` vì một hợp đồng vài tỷ đã vượt `int4`, và
      *  `mode: 'number'` an toàn tới 2^53 — hơn 9 triệu tỷ đồng. */
     amount: bigint('amount', { mode: 'number' }),
+    /** Non-null = the owning branch switched this object off: the graph and
+     *  the comms layer treat it as absent. Set by `ObjectMirror.setDisabled`
+     *  only, and left alone by `putMany`, so a later re-put cannot revive it. */
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
   },
   (t) => [index('object_kind_idx').on(t.kind), index('object_branch_idx').on(t.branch)],
 )

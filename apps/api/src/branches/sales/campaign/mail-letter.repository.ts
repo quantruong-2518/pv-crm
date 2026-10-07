@@ -8,6 +8,7 @@ import { account } from '../account/account.schema'
 import { contact } from '../contact/contact.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { opportunity } from '../opportunity/opportunity.schema'
 
 /** The object a group letter is about, resolved to the lead that carries its
@@ -86,19 +87,23 @@ export class MailLetterRepository {
     }
     const base =
       door === 'lead'
-        ? this.db.select(facts).from(lead).where(eq(lead.code, code)).$dynamic()
+        ? this.db
+            .select(facts)
+            .from(lead)
+            .where(and(eq(lead.code, code), leadLive))
+            .$dynamic()
         : door === 'opportunity'
           ? this.db
               .select(facts)
               .from(opportunity)
               .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-              .where(eq(opportunity.code, code))
+              .where(and(eq(opportunity.code, code), leadLive))
               .$dynamic()
           : this.db
               .select(facts)
               .from(contract)
               .innerJoin(lead, eq(lead.code, contract.leadCode))
-              .where(eq(contract.code, code))
+              .where(and(eq(contract.code, code), leadLive))
               .$dynamic()
     const [row] = await base.leftJoin(account, eq(account.code, lead.accountCode)).limit(1)
     return row ?? null
@@ -133,7 +138,7 @@ export class MailLetterRepository {
           isNull(emailSuppression.releasedAt),
         ),
       )
-      .where(inArray(contact.code, [...codes]))
+      .where(and(inArray(contact.code, [...codes]), leadLive))
   }
 
   /** Colleagues to copy in — active accounts only, address normalised the way

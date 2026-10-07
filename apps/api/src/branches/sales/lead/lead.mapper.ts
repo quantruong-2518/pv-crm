@@ -177,6 +177,7 @@ export function toContract(read: LeadRead): LeadRow {
     ...(row.exitReason ? { exitReason: row.exitReason } : {}),
     ...(row.exitedAt ? { exitedAt: row.exitedAt.toISOString() } : {}),
     ...(read.duplicateOf?.length ? { duplicateOf: read.duplicateOf } : {}),
+    ...(row.disabledAt ? { disabledAt: row.disabledAt.toISOString() } : {}),
   }
 }
 

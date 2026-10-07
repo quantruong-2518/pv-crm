@@ -11,6 +11,7 @@ import { TouchModule } from '../touch/touch.module'
 import { toRef } from './lead.mapper'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { lead, type LeadRowDb } from './lead.schema'
+import { leadLive } from './lead-scope'
 import { dropStep, dropSteps } from '../next-step/next-step.handover'
 import { syncLeadRuns } from '../workstream/workstream-sync'
 
@@ -23,7 +24,7 @@ import { syncLeadRuns } from '../workstream/workstream-sync'
  *  Every write moves `state_since` with `state`, refreshes the lead's mirror
  *  row (whose `state` IS `lead.state`) and re-syncs its run — so no door can
  *  move one without the others. Callers pass their own `tx`: the move lands in the same commit as
- *  the write that caused it.
+ *  the write that caused it. `leadLive` on every UPDATE skips a disabled lead in silence.
  *
  *  A leaf on purpose: lead table and mappers, `TouchModule` (no controller, no
  *  lead import) and the module-free `next-step.handover` and `workstream-sync`
@@ -178,6 +179,7 @@ export class LeadStateWriter {
           inArray(lead.code, [...codes]),
           mover && 'holderId' in mover ? eq(lead.ownerId, mover.holderId) : undefined,
           inArray(lead.state, [...step.from]),
+          leadLive,
         ),
       )
       .returning({ code: lead.code })
@@ -219,7 +221,9 @@ export class LeadStateWriter {
     const moved = await tx
       .update(lead)
       .set({ state: 'converted', stateSince: sql`now()` })
-      .where(and(inArray(lead.code, [...codes]), inArray(lead.state, [...LEAD_OPEN_STATES])))
+      .where(
+        and(inArray(lead.code, [...codes]), inArray(lead.state, [...LEAD_OPEN_STATES]), leadLive),
+      )
       .returning({ code: lead.code })
     await this.refresh(
       tx,
@@ -246,7 +250,7 @@ export class LeadStateWriter {
         state: sql`CASE WHEN ${lead.ownerId} IS NULL THEN 'new' ELSE 'nurturing' END`,
         stateSince: sql`now()`,
       })
-      .where(and(eq(lead.code, code), eq(lead.state, 'converted')))
+      .where(and(eq(lead.code, code), eq(lead.state, 'converted'), leadLive))
       .returning({ state: lead.state })
     if (!moved) return null
     const landed = moved.state === 'new' ? 'new' : 'nurturing'
@@ -273,7 +277,7 @@ export class LeadStateWriter {
     await tx
       .update(lead)
       .set({ ...also, state: to, stateSince: sql`now()` })
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
     await this.refresh(tx, [code])
     await syncLeadRuns(tx, [code])
     if (!isOpen(to)) await dropStep(tx, code)

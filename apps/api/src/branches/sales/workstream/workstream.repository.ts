@@ -33,6 +33,7 @@ import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { dealStoodBy } from '../open-deal'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
+import { leadLive } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
 import {
   opportunity,
@@ -168,7 +169,7 @@ export class WorkstreamRepository {
       .leftJoin(SALE_ACTOR, eq(SALE_ACTOR.id, lead.ownerId))
       .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
-      .where(eq(workstream.code, code))
+      .where(and(eq(workstream.code, code), leadLive))
       .limit(1)
 
     return found ? { ...toRead(found), inScope: found.inScope } : null
@@ -415,9 +416,12 @@ export class WorkstreamRepository {
     return dealStoodBy(STAND_DEAL, who.id)
   }
 
-  /** THE USER's filters. The scope axis stands outside them — see `book()`. */
+  /** THE USER's filters. The scope axis stands outside them — see `book()`.
+   *  `leadLive` rides here, not in scope: a run whose lead is switched off is
+   *  absent from every count, `hidden` included. */
   private filtersOf(q: WorkstreamFilters, stand: StandPair): (SQL | undefined)[] {
     return [
+      leadLive,
       q.status === 'open'
         ? isNull(workstream.closedAt)
         : q.status === 'closed'
@@ -712,12 +716,16 @@ function FOOTPRINT(codes: readonly string[]): SQL {
   )
 
   return sql`
-    WITH obj AS (
-      SELECT workstream_code AS ws, code FROM sales.lead        WHERE workstream_code IN (${list})
+    WITH live AS (
+      SELECT workstream_code AS ws, code FROM sales.lead
+       WHERE workstream_code IN (${list}) AND disabled_at IS NULL
+    ),
+    obj AS (
+      SELECT ws, code FROM live
       UNION ALL
-      SELECT workstream_code AS ws, code FROM sales.opportunity WHERE workstream_code IN (${list})
+      SELECT workstream_code AS ws, code FROM sales.opportunity WHERE workstream_code IN (SELECT ws FROM live)
       UNION ALL
-      SELECT workstream_code AS ws, code FROM sales.contract    WHERE workstream_code IN (${list})
+      SELECT workstream_code AS ws, code FROM sales.contract    WHERE workstream_code IN (SELECT ws FROM live)
     )
     SELECT o.ws AS ws, t.channel AS channel, count(DISTINCT m.id)::int AS n, max(m.at) AS last_at
       FROM obj o
@@ -726,18 +734,16 @@ function FOOTPRINT(codes: readonly string[]): SQL {
       JOIN comms.message m ON m.thread_id = t.id
      GROUP BY o.ws, t.channel
     UNION ALL
-    SELECT l.workstream_code AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
+    SELECT l.ws AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
       FROM sales.meeting mt
-      JOIN sales.lead l ON l.code = mt.lead_code
-     WHERE l.workstream_code IN (${list})
-     GROUP BY l.workstream_code
+      JOIN live l ON l.code = mt.lead_code
+     GROUP BY l.ws
     UNION ALL
-    SELECT l.workstream_code AS ws, 'mail' AS channel, count(*)::int AS n,
+    SELECT l.ws AS ws, 'mail' AS channel, count(*)::int AS n,
            max(COALESCE(d.delivered_at, d.accepted_at)) AS last_at
       FROM platform.email_delivery d
-      JOIN sales.lead l ON l.code = d.aggregate_id
+      JOIN live l ON l.code = d.aggregate_id
      WHERE ${MAIL_IS_CUSTOMER_FACING}
-       AND l.workstream_code IN (${list})
-     GROUP BY l.workstream_code
+     GROUP BY l.ws
   `
 }

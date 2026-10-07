@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
+import { AuditModule } from '@api/platform/audit/audit.module'
 import { AiModule } from '@api/platform/ai/ai.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
@@ -21,6 +22,8 @@ import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
 import { LeadWriteRepository } from './lead-write.repository'
+import { LeadDisableRepository } from './lead-disable.repository'
+import { LeadDisableService } from './lead-disable.service'
 import { LeadExitService } from './lead-exit.service'
 import { LeadWriteService } from './lead-write.service'
 import { LeadIntakeController } from './lead-intake.controller'
@@ -73,6 +76,8 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
        registers no applier — reading the inbox and having something to apply
        are separate things. */
     ApprovalModule,
+    /* The disable door writes its audit line inside its own transaction. */
+    AuditModule,
     EnginesModule,
     GraphModule,
     MailModule,
@@ -108,6 +113,8 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadWriteService,
     LeadWriteRepository,
     LeadExitService,
+    LeadDisableService,
+    LeadDisableRepository,
     LeadIntakeService,
     LeadIntakeRepository,
     LeadIntakeGuard,

@@ -34,6 +34,12 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     message: 'Ngân sách phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
   },
 
+  lead_disabled_pair: {
+    kind: 'invalid',
+    fields: ['disabledAt', 'disabledBy'],
+    message: 'Vô hiệu hoá lead phải kèm người thực hiện.',
+  },
+
   lead_exit_pair: {
     kind: 'invalid',
     fields: ['exitReason', 'exitedAt'],

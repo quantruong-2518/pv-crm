@@ -71,7 +71,10 @@ export class LeadService {
   ) {}
 
   async book(who: Actor, q: LeadBookQuery): Promise<LeadBookResponse> {
-    const page = await this.repo.book(who, q, true)
+    /* Silent downgrade, as `PartnerService.list`: asking for the disabled view
+       without `lead.disable` reads the ordinary book, not a 403. */
+    const onlyDisabled = !!q.disabled && this.seesDisabled(who)
+    const page = await this.repo.book(who, q, true, onlyDisabled)
 
     /* Lưới thứ hai. SQL đã cắt theo phạm vi rồi, nên bình thường E2 không cắt
        thêm gì — và đó là điều đúng: hai hàng rào đọc CÙNG một trục, hàng rào
@@ -99,12 +102,13 @@ export class LeadService {
    *  lead nào để gắn `ref` mà xét lại. Hàng rào duy nhất là `scopeOf()` trong
    *  SQL, đúng hàng rào `book()` dùng để cắt xuống cùng một tập lead. */
   async facets(who: Actor, q: LeadFacetsQuery): Promise<LeadFacets> {
-    const [sourceKinds, byState, { motions, origins }] = await Promise.all([
+    const [sourceKinds, byState, { motions, origins }, disabled] = await Promise.all([
       this.repo.sourceKindFacets(who),
       this.repo.stateFacets(who, q),
       this.repo.originFacets(who),
+      this.seesDisabled(who) ? this.repo.disabledCount(who, q) : undefined,
     ])
-    return LeadFacets.parse({ sourceKinds, motions, origins, byState })
+    return LeadFacets.parse({ sourceKinds, motions, origins, byState, disabled })
   }
 
   /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.
@@ -140,7 +144,7 @@ export class LeadService {
    *  the SQL let through. Adding a check that cannot fire is how a reader
    *  learns to trust a fence that is not holding anything. */
   async profile(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    const found = await this.repo.byCode(who, code)
+    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
@@ -204,7 +208,7 @@ export class LeadService {
    *  person — which is the one question a timeline exists to answer before
    *  somebody writes to them again. */
   async mailTimeline(who: Actor, code: ObjectCode): Promise<LeadMailTimelineResponse> {
-    const found = await this.repo.byCode(who, code)
+    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
@@ -226,7 +230,7 @@ export class LeadService {
     code: ObjectCode,
     runId: MailRunId,
   ): Promise<LeadMailEventsResponse> {
-    const found = await this.repo.byCode(who, code)
+    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
@@ -258,7 +262,7 @@ export class LeadService {
    *  have exactly one row — so it cannot also mean "no such lead" or "not
    *  yours" without answering three questions at once. */
   async touches(who: Actor, code: ObjectCode): Promise<TouchTimelineResponse> {
-    const found = await this.repo.byCode(who, code)
+    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
@@ -379,12 +383,18 @@ export class LeadService {
    *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
    *  người review sẽ phải đọc cả hai cùng lúc. */
   async guard(who: Actor, code: ObjectCode, edit = false): Promise<void> {
-    const found = await this.repo.byCode(who, code)
+    /* A disabled lead opens read-only for a `lead.disable` holder; an edit
+       never asks for it, so every write door answers 404. */
+    const found = await this.repo.byCode(who, code, !edit && this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!(edit ? found.holds : found.inScope)) {
       throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
     }
+  }
+
+  private seesDisabled(who: Actor): boolean {
+    return this.access.allows(who, 'lead.disable')
   }
 
   /** The write fence: only the lead's holder, not a deal owner who may read it. */

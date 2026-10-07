@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common'
 import type { CommsChannel, ThreadChannel } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, invalid } from '@api/platform/http/problem'
+import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { normaliseAddress, type NormalisedAddress } from './comms.mapper'
 import { DebriefRepository } from './debrief.repository'
 import { ThreadRepository } from './thread.repository'
@@ -69,6 +69,9 @@ export class CommRecordService {
     if ((channel === 'meeting') !== (meetingId !== undefined)) {
       throw new Error('comms: a meeting record needs its meeting id, and only a meeting has one')
     }
+    /* A switched-off subject is absent (`objectByCode`): no caller — a door or
+       the meeting-end worker — may open a record on it. */
+    if (!(await this.threads.objectByCode(subjectCode))) throw notFound('đối tượng', subjectCode)
     /* Pool reads before the transaction: PGlite holds one connection. */
     const guest = await this.guestOf(channel, {
       code: holder,

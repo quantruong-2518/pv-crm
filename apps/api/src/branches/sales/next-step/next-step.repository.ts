@@ -1,4 +1,4 @@
-import { and, arrayContains, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, arrayContains, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { LEAD_OPEN_STATES } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
@@ -7,7 +7,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { contract } from '../contract/contract.schema'
-import { leadScope } from '../lead/lead-scope'
+import { leadLive, leadScope } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { dealOpen } from '../open-deal'
@@ -105,22 +105,31 @@ export class NextStepRepository {
         and(
           inArray(lead.code, [...codes]),
           inArray(lead.state, [...LEAD_OPEN_STATES]),
+          leadLive,
           leadScope(who, true),
         ),
       )
   }
 
-  /** An open lead or deal by the book alone — whoever asks, whatever their grants. */
+  /** An open lead or deal by the book alone — whoever asks, whatever their
+   *  grants. A deal is off with its lead, hence the join on every deal arm. */
   async isOpenSubject(code: string): Promise<boolean> {
     const [row] = await this.db
       .select({ code: lead.code })
       .from(lead)
-      .where(and(eq(lead.code, code), inArray(lead.state, [...LEAD_OPEN_STATES])))
+      .where(and(eq(lead.code, code), inArray(lead.state, [...LEAD_OPEN_STATES]), leadLive))
       .unionAll(
         this.db
           .select({ code: opportunity.code })
           .from(opportunity)
-          .where(and(eq(opportunity.code, code), dealOpen(opportunity.code, opportunity.state))),
+          .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+          .where(
+            and(
+              eq(opportunity.code, code),
+              dealOpen(opportunity.code, opportunity.state),
+              leadLive,
+            ),
+          ),
       )
     return row !== undefined
   }
@@ -131,18 +140,20 @@ export class NextStepRepository {
     const rows = await this.db
       .select({ code: lead.code })
       .from(lead)
-      .where(eq(lead.workstreamCode, workstreamCode))
+      .where(and(eq(lead.workstreamCode, workstreamCode), leadLive))
       .unionAll(
         this.db
           .select({ code: opportunity.code })
           .from(opportunity)
-          .where(eq(opportunity.workstreamCode, workstreamCode)),
+          .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+          .where(and(eq(opportunity.workstreamCode, workstreamCode), leadLive)),
       )
       .unionAll(
         this.db
           .select({ code: contract.code })
           .from(contract)
-          .where(eq(contract.workstreamCode, workstreamCode)),
+          .innerJoin(lead, eq(lead.code, contract.leadCode))
+          .where(and(eq(contract.workstreamCode, workstreamCode), leadLive)),
       )
     return rows.map((r) => r.code)
   }
@@ -169,21 +180,35 @@ export class NextStepRepository {
     return { ...row, sameLead: [leadCode, ...kin.map((k) => k.code)] }
   }
 
-  /** The lead a lead, deal or contract grew from; null for any other code. */
+  /** The LIVE lead a lead, deal or contract grew from; null for any other
+   *  code, and for a lead that is switched off. */
   private async leadOf(code: string): Promise<string | null> {
     const [row] = await this.db
       .select({ code: lead.code })
       .from(lead)
-      .where(eq(lead.code, code))
-      .unionAll(
-        this.db
-          .select({ code: opportunity.leadCode })
-          .from(opportunity)
-          .where(eq(opportunity.code, code)),
+      .where(
+        and(
+          leadLive,
+          or(
+            eq(lead.code, code),
+            inArray(
+              lead.code,
+              this.db
+                .select({ code: opportunity.leadCode })
+                .from(opportunity)
+                .where(eq(opportunity.code, code)),
+            ),
+            inArray(
+              lead.code,
+              this.db
+                .select({ code: contract.leadCode })
+                .from(contract)
+                .where(eq(contract.code, code)),
+            ),
+          ),
+        ),
       )
-      .unionAll(
-        this.db.select({ code: contract.leadCode }).from(contract).where(eq(contract.code, code)),
-      )
+      .limit(1)
     return row?.code ?? null
   }
 
@@ -203,7 +228,7 @@ export class NextStepRepository {
     const [row] = await tx
       .select({ state: lead.state, ownerId: lead.ownerId })
       .from(lead)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .limit(1)
       .for('update')
     return row ?? null

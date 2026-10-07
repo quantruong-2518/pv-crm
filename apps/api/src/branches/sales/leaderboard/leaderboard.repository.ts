@@ -6,6 +6,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { dealLost, dealOpen } from '../open-deal'
 import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
@@ -60,7 +61,7 @@ export class LeaderboardRepository {
         .from(lead)
         /* On the desk = one of the five open states (ADR 0058), the book's
            default tab. Leads this person used to hold do not count. */
-        .where(and(isNotNull(lead.ownerId), inArray(lead.state, [...LEAD_OPEN_STATES])))
+        .where(and(isNotNull(lead.ownerId), inArray(lead.state, [...LEAD_OPEN_STATES]), leadLive))
         .groupBy(lead.ownerId),
       /* Joined through `opportunity_owner` filtered to SALE, so a deal with a
          Sale and a BD on it lands once, on the Sale. */
@@ -77,7 +78,8 @@ export class LeaderboardRepository {
         })
         .from(opportunityOwner)
         .innerJoin(opportunity, eq(opportunity.code, opportunityOwner.opportunityCode))
-        .where(eq(opportunityOwner.role, 'SALE'))
+        .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+        .where(and(eq(opportunityOwner.role, 'SALE'), leadLive))
         .groupBy(opportunityOwner.actorId),
       /* The whole book, no period: the overview has no period axis of its own,
          and inventing one here would disagree with the Performance screen's. */
@@ -88,7 +90,8 @@ export class LeaderboardRepository {
           amountVnd: sql<number | string>`COALESCE(SUM(${contractVnd}), 0)::bigint`,
         })
         .from(contract)
-        .where(isNotNull(contract.ownerId))
+        .innerJoin(lead, eq(lead.code, contract.leadCode))
+        .where(and(isNotNull(contract.ownerId), leadLive))
         .groupBy(contract.ownerId),
     ])
 

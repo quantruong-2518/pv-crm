@@ -45,11 +45,13 @@ import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useLeadImportBatch } from '@/components/lead-import-batch'
+import { LeadDisableAction } from '@/components/lead-disable'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
+  DisabledAtCell,
   EnteredCell,
   LeadPicCell,
   PinCell,
@@ -114,6 +116,9 @@ const STATE_TABS: { key: StateTab; label: string }[] = [
 /** The pinned tab's value — not a `LeadStateFilter`, so it never reaches the URL. */
 const PINNED = 'pinned'
 
+/** The switched-off tab's value — `disabled=true` on the URL, not a state. */
+const DISABLED = 'disabled'
+
 /** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
  *  một mảng MỚI mỗi lượt vẽ, và mọi `useMemo` phụ thuộc vào nó mất tác dụng. */
 const NO_SOURCES: ConfigEntry[] = []
@@ -142,12 +147,18 @@ export function LeadsPage() {
      (`routes.tsx`, `permission: 'lead.edit'`), so the button and the fence
      never disagree. Precedent: `campaigns.tsx`'s `canWrite`. */
   const canWrite = useCan('lead.edit')
+  const canDisable = useCan('lead.disable')
 
   /* ĐỊA CHỈ là nguồn sự thật của bộ lọc — dịch hai chiều ở `app/url.ts`.
      `size` thì màn áp đè: `PAGE_SIZE` là số dòng bảng này vẽ, còn mặc định của
      hợp đồng là 50 cho mọi sổ. Áp đè ở đây chứ không ghi lên địa chỉ, để một
      link chia sẻ không mang theo một con số không ai chọn. */
-  const urlQuery = useMemo(() => parseLeadBookQuery(params), [params])
+  const urlQuery = useMemo(() => {
+    const parsed = parseLeadBookQuery(params)
+    /* A hand-typed `?disabled=true` without the permission is dropped here, as
+       the server drops it: the reader gets the ordinary book. */
+    return canDisable ? parsed : { ...parsed, disabled: undefined }
+  }, [params, canDisable])
   const query = useMemo<LeadBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
 
   /* `error` đọc ra, KHÔNG bỏ.
@@ -242,11 +253,15 @@ export function LeadsPage() {
 
   const [pinnedView, setPinnedView] = useState(false)
   const shown = pinnedView ? pinned : rows
+  const disabledView = !pinnedView && query.disabled === true
 
   /* One read answers every tab — `byState` under the current search and source
      filter; `open` and `all` are sums the screen takes — and feeds the
      no-campaign half of the source select (`sourceKinds`). See `LeadFacets`. */
-  const { data: counts } = useQuery(leadFacetsQuery(urlQuery))
+  /* Asked WITHOUT `disabled`, so the state tabs keep counting the live book
+     while the switched-off tab is open — and `LeadFacetsQuery.parse` takes the
+     wire's 'true'/'false', not the boolean the URL parse already produced. */
+  const { data: counts } = useQuery(leadFacetsQuery({ ...urlQuery, disabled: undefined }))
   const byState = counts?.byState
   const sumOf = (states: readonly LeadState[]) =>
     byState && states.reduce((sum, state) => sum + (byState[state] ?? 0), 0)
@@ -259,13 +274,18 @@ export function LeadsPage() {
   const tabs = [
     ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: countOf(t.key) })),
     { value: PINNED, label: 'Đã ghim', count: pinned.length },
+    ...(canDisable ? [{ value: DISABLED, label: 'Đã vô hiệu', count: counts?.disabled }] : []),
   ]
   /* One open state picked in the filter menu still lights the `open` tab. */
   const oneOpenState = isOpenState(query.state)
-  const tabValue = oneOpenState ? 'open' : query.state
+  const tabValue = query.disabled ? DISABLED : oneOpenState ? 'open' : query.state
   const onTab = (value: string) => {
+    /* A selection never crosses the switched-off tab's edge: its action flips. */
+    if ((value === DISABLED) !== disabledView) clearSelection()
     setPinnedView(value === PINNED)
-    if (value !== PINNED) patch({ state: value as LeadStateFilter })
+    /* The switched-off tab REPLACES the state filter — it lists every state. */
+    if (value === DISABLED) patch({ disabled: true, state: DEFAULT_LEAD_BOOK_QUERY.state })
+    else if (value !== PINNED) patch({ state: value as LeadStateFilter, disabled: undefined })
   }
 
   /* The state select: every open state, or one of them. */
@@ -459,8 +479,14 @@ export function LeadsPage() {
       { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
       { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
       { header: 'Ngày vào', width: 'minmax(0,0.8fr)' },
-      { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
-      { header: <span className="sr-only">Ghim</span>, width: '48px' },
+      /* A switched-off lead takes no hand-over and no pin: the two action
+         columns give way to the one fact that tab adds. */
+      ...(disabledView
+        ? [{ header: 'Ngày vô hiệu', width: 'minmax(0,1.1fr)' }]
+        : [
+            { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
+            { header: <span className="sr-only">Ghim</span>, width: '48px' },
+          ]),
     ],
     rows: shown.map((l) => ({
       id: l.code,
@@ -479,7 +505,7 @@ export function LeadsPage() {
           key="c"
           lead={l}
           onEmail={
-            canEmail && l.state !== 'disqualified'
+            canEmail && !disabledView && l.state !== 'disqualified'
               ? () =>
                   openMasMail({
                     recipients: wholeBook,
@@ -491,13 +517,17 @@ export function LeadsPage() {
         <SourceCell key="s" lead={l} />,
         <StatusCell key="w" lead={l} />,
         <EnteredCell key="d" lead={l} />,
-        <LeadPicCell key="o" lead={l} />,
-        <PinCell
-          key="p"
-          on={pins.includes(l.code)}
-          company={l.company}
-          onToggle={() => me && togglePin(me.id, l.code)}
-        />,
+        ...(disabledView
+          ? [<DisabledAtCell key="x" lead={l} />]
+          : [
+              <LeadPicCell key="o" lead={l} />,
+              <PinCell
+                key="p"
+                on={pins.includes(l.code)}
+                company={l.company}
+                onToggle={() => me && togglePin(me.id, l.code)}
+              />,
+            ]),
       ],
     })),
   }
@@ -693,14 +723,26 @@ export function LeadsPage() {
           <BookSelectionBar
             count={selectedCodes.size}
             noun="lead"
-            meta={`${selectedEmailCount} địa chỉ email`}
+            meta={disabledView ? undefined : `${selectedEmailCount} địa chỉ email`}
             onClear={clearSelection}
-            onSend={() =>
-              openMasMail({
-                recipients: wholeBook,
-                initialCodes: [...selectedCodes],
-                onQueued: clearSelection,
-              })
+            onSend={
+              disabledView
+                ? undefined
+                : () =>
+                    openMasMail({
+                      recipients: wholeBook,
+                      initialCodes: [...selectedCodes],
+                      onQueued: clearSelection,
+                    })
+            }
+            actions={
+              canDisable && (
+                <LeadDisableAction
+                  codes={[...selectedCodes]}
+                  restoring={disabledView}
+                  onDone={clearSelection}
+                />
+              )
             }
           />
         )}

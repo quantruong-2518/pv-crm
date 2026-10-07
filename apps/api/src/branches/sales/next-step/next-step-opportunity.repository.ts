@@ -5,6 +5,8 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
+import { leadLive } from '../lead/lead-scope'
+import { lead } from '../lead/lead.schema'
 import { holderOf } from '../opportunity/opportunity.mapper'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 import { dealOpen, dealStoodBy } from '../open-deal'
@@ -25,6 +27,10 @@ const signedOf = (code: SQLWrapper): SQL<boolean> =>
   sql<boolean>`EXISTS (SELECT 1 FROM ${contract} WHERE ${contract.opportunityCode} = ${code})`
 
 const openOf = (): SQL<boolean> => sql<boolean>`${dealOpen(opportunity.code, opportunity.state)}`
+
+/** A deal is off exactly when its lead is: no flag of its own. A subquery, not
+ *  a join, so `lock()` keeps locking the deal row alone. */
+const leadOn = sql`EXISTS (SELECT 1 FROM ${lead} WHERE ${lead.code} = ${opportunity.leadCode} AND ${leadLive})`
 
 const VIETNAM_TODAY = sql<string>`((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::text`
 
@@ -55,7 +61,7 @@ export class OpportunityStepRepository {
       .leftJoin(nextStep, eq(nextStep.subjectCode, opportunity.code))
       .leftJoin(actor, eq(actor.id, nextStep.doerId))
       .leftJoin(configEntry, eq(configEntry.id, nextStep.kindId))
-      .where(eq(opportunity.code, code))
+      .where(and(eq(opportunity.code, code), leadOn))
       .limit(1)
     if (!row) return null
 
@@ -71,7 +77,7 @@ export class OpportunityStepRepository {
       .select({ code: opportunity.code, text: nextStep.text, due: nextStep.due })
       .from(opportunity)
       .leftJoin(nextStep, eq(nextStep.subjectCode, opportunity.code))
-      .where(and(inArray(opportunity.code, [...codes]), openOf(), this.inScope(who)))
+      .where(and(inArray(opportunity.code, [...codes]), openOf(), leadOn, this.inScope(who)))
   }
 
   /** The deal row under lock: it is the row the sign and stop doors lock too, so
@@ -84,7 +90,7 @@ export class OpportunityStepRepository {
         inScope: this.inScope(who),
       })
       .from(opportunity)
-      .where(eq(opportunity.code, code))
+      .where(and(eq(opportunity.code, code), leadOn))
       .limit(1)
       .for('update')
     return row ?? null

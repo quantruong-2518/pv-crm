@@ -80,6 +80,7 @@ export const Permission = z.enum([
   'lead.assign',
   'lead.convert',
   'lead.disqualify',
+  'lead.disable',
   'account.view',
   'account.edit',
   'opportunity.view',

@@ -359,9 +359,21 @@ export const lead = sales.table(
      *  catalogue became desk-edited (`LeadRow.exitReason`). */
     exitReason: text('exit_reason'),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
+
+    // ── disabled · switched off by a director ──────────────────────────────
+    /** Non-null = hidden from everybody and frozen, with every deal and
+     *  contract raised on this lead. Orthogonal to `state`, which is kept so
+     *  switching back on restores the lead exactly where it stood. */
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    disabledBy: text('disabled_by').references(() => actor.id),
   },
   (t) => [
     index('lead_owner_idx').on(t.ownerId),
+    /** Only the disabled-leads tab looks FOR disabled leads; everyone else
+     *  filters them out, which on a mostly-live table needs no index. */
+    index('lead_disabled_idx')
+      .on(t.disabledAt)
+      .where(sql`"disabled_at" IS NOT NULL`),
     /** "Which leads are open / in state X" — the book's default tab filters on
      *  `LEAD_OPEN_STATES`, and each state tab counts by this column. */
     index('lead_state_idx').on(t.state),
@@ -411,6 +423,8 @@ export const lead = sales.table(
     check('lead_money_pair', sql`("budget" IS NULL) = ("currency" IS NULL)`),
     /** Rơi thì phải có mốc rơi. Thiếu mốc thì mọi báo cáo theo kỳ đếm hụt. */
     check('lead_exit_pair', sql`("exit_reason" IS NULL) = ("exited_at" IS NULL)`),
+    /** Switched off always says by whom — the audit trail's second witness. */
+    check('lead_disabled_pair', sql`("disabled_at" IS NULL) = ("disabled_by" IS NULL)`),
     /** The seven `LeadState` values, copied out by hand for `touch_kind_known`'s
      *  reason: a state added to the contract must be a migration somebody reads.
      *  `archived` retired by ADR 0068 — 0067 moves those rows to `nurturing`. */

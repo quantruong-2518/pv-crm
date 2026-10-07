@@ -79,7 +79,11 @@ export class IdentityRepository {
 export type IdentityInsert = Omit<IdentityValues, 'address'> & { address: NormalisedAddress }
 
 function filtersOf(q: IdentityQuery): SQL[] {
-  const parts: SQL[] = []
+  /* An address filed under a switched-off object is not in the book. */
+  const parts: SQL[] = [
+    sql`NOT EXISTS (SELECT 1 FROM "platform"."object" o
+          WHERE o."code" = ${identity.objectCode} AND o."disabled_at" IS NOT NULL)`,
+  ]
 
   if (q.channel !== undefined) parts.push(eq(identity.channel, q.channel))
 

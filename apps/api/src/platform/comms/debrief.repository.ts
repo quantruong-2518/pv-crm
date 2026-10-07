@@ -50,6 +50,10 @@ const LATE = sql<boolean>`(${debrief.closedAt} IS NULL
 
 /** SQL of the comm record book (ADR 0074, 0075). Decides nothing, checks no
  *  permission; `tx` defaults to the pool the way `ThreadRepository` does. */
+/** A debrief counts and lists only while its subject is not switched off —
+ *  one join for the page, its total and the per-owner backlog alike. */
+const LIVE_SUBJECT = and(eq(objectRef.code, debrief.subjectCode), isNull(objectRef.disabledAt))
+
 @Injectable()
 export class DebriefRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
@@ -147,9 +151,11 @@ export class DebriefRepository {
       isNull(debrief.closedAt),
       subjectCodes ? inArray(debrief.subjectCode, [...subjectCodes]) : undefined,
     )
+    /* Same live-subject join as `reads`, or the total outruns the rows. */
     const [count] = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(debrief)
+      .innerJoin(objectRef, LIVE_SUBJECT)
       .where(where)
     const rows = await this.reads(this.db)
       .where(where)
@@ -189,6 +195,7 @@ export class DebriefRepository {
       })
       .from(debrief)
       .innerJoin(actor, eq(actor.id, debrief.ownerId))
+      .innerJoin(objectRef, LIVE_SUBJECT)
       .where(and(isNull(debrief.closedAt), ownerId ? eq(debrief.ownerId, ownerId) : undefined))
       .groupBy(debrief.ownerId, actor.name)
       .orderBy(asc(min(debrief.createdAt)), asc(debrief.ownerId))
@@ -247,7 +254,7 @@ export class DebriefRepository {
       .innerJoin(thread, eq(thread.id, debrief.threadId))
       .innerJoin(actor, eq(actor.id, debrief.ownerId))
       .innerJoin(message, eq(message.id, debrief.messageId))
-      .innerJoin(objectRef, eq(objectRef.code, debrief.subjectCode))
+      .innerJoin(objectRef, LIVE_SUBJECT)
       .$dynamic()
   }
 }

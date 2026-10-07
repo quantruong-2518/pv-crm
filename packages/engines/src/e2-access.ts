@@ -87,12 +87,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
   /** TP Kinh doanh — người gật của cả phòng: mọi màn Sales đều ghi "người gật
    *  là TP Kinh doanh".
    *
-   *  Trùng đúng bằng Giám đốc, và đó KHÔNG phải chép nhầm. Trong phạm vi Sales
+   *  Trùng Giám đốc trừ đúng `lead.disable` (chủ dự án chốt 07/10/2026: chỉ
+   *  Giám đốc tắt được lead), và phần trùng đó KHÔNG phải chép nhầm. Trong phạm vi Sales
    *  hai vai này làm được như nhau; thứ tách họ ra là TRỤC LICENSE — Giám đốc
    *  có cả năm nhánh, TP chỉ có One + Sales, nên cùng một ma trận vai vẫn ra hai
    *  hệ màn khác hẳn nhau. Nhét khác biệt đó vào ma trận vai là đặt nó nhầm
    *  trục, và sẽ sai ngay khi công ty mua thêm nhánh thứ hai cho phòng. */
-  'head-of-sales': PERMISSIONS,
+  'head-of-sales': PERMISSIONS.filter((p) => p !== 'lead.disable'),
 
   /** Marketing — sở hữu chiến dịch, đọc lead để biết nguồn nào ra khách. Không
    *  giao việc, không chuyển đổi, không loại lead: đó là quyết định của người

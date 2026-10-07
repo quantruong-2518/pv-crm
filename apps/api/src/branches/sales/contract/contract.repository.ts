@@ -5,6 +5,7 @@ import type { ContractMonthPoint, ContractSummary, PageQuery } from '@pv/contrac
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
 import {
   contract,
@@ -85,6 +86,11 @@ const CONTRACT_VND = toVndSql(contract.amount, contract.currency)
 /** How far back the trend strip reaches. Twelve points including the current
  *  month, which is what `ContractSummary.byMonth` promises. */
 const TREND_MONTHS = 12
+
+/** A contract reaches its lead directly: `lead_code` is NOT NULL and the pair
+ *  FK `contract_opportunity_fk` keeps it equal to its deal's. Every read joins
+ *  through here and cuts on `leadLive` — a contract is off when its lead is. */
+const ON_LEAD = eq(lead.code, contract.leadCode)
 
 /** Chỗ DUY NHẤT có SQL của module hợp đồng — cả đường ghi lẫn đường đọc.
  *
@@ -180,9 +186,9 @@ export class ContractRepository {
     const rows = await this.db
       .select({ row: contract, ownerName: actor.name, customer: lead.company })
       .from(contract)
-      .innerJoin(lead, eq(lead.code, contract.leadCode))
+      .innerJoin(lead, ON_LEAD)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
-      .where(scope)
+      .where(and(scope, leadLive))
       /* Newest signature first, then the code — a book with no tie-break lets
          Postgres return one row on both page 1 and page 2, or on neither. */
       .orderBy(desc(contract.signedAt), asc(contract.code))
@@ -215,9 +221,9 @@ export class ContractRepository {
         inScope: this.inScopeValue(who),
       })
       .from(contract)
-      .innerJoin(lead, eq(lead.code, contract.leadCode))
+      .innerJoin(lead, ON_LEAD)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
-      .where(eq(contract.code, code))
+      .where(and(eq(contract.code, code), leadLive))
       .limit(1)
 
     if (!found) return null
@@ -302,7 +308,9 @@ export class ContractRepository {
           signedAmountVnd: sql<number | string>`COALESCE(SUM(${CONTRACT_VND}), 0)::bigint`,
           blankAmount: sql<number>`count(*) FILTER (WHERE ${contract.amount} IS NULL)::int`,
         })
-        .from(contract),
+        .from(contract)
+        .innerJoin(lead, ON_LEAD)
+        .where(leadLive),
       /* Installments carry no currency column — the schedule is drafted in
          dong — so these four sums add the column itself. */
       this.db
@@ -320,7 +328,10 @@ export class ContractRepository {
           >`COALESCE(SUM(${money}) FILTER (WHERE ${dueSoon}), 0)::bigint`,
           dueSoonCount: sql<number>`count(*) FILTER (WHERE ${dueSoon})::int`,
         })
-        .from(contractInstallment),
+        .from(contractInstallment)
+        .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
+        .innerJoin(lead, ON_LEAD)
+        .where(leadLive),
       /* Late PAPERWORK, counted per CONDITION and not per contract: two unmet
          lines on one contract are two things to chase, which is what the tile
          has always printed. A separate question from `overdueCount` above —
@@ -331,7 +342,11 @@ export class ContractRepository {
           theirs: sql<number>`count(*) FILTER (WHERE ${contractCondition.side} = 'customer')::int`,
         })
         .from(contractCondition)
-        .where(and(isNull(contractCondition.doneAt), sql`${contractCondition.due} < now()`)),
+        .innerJoin(contract, eq(contract.code, contractCondition.contractCode))
+        .innerJoin(lead, ON_LEAD)
+        .where(
+          and(isNull(contractCondition.doneAt), sql`${contractCondition.due} < now()`, leadLive),
+        ),
       this.trend(),
     ])
 
@@ -371,7 +386,8 @@ export class ContractRepository {
         FROM generate_series(date_trunc('month', now()) - ${back} * interval '1 month',
                              date_trunc('month', now()),
                              interval '1 month') AS m(at)
-        LEFT JOIN ${contract} ON date_trunc('month', ${contract.signedAt}) = m.at
+        LEFT JOIN (${contract} JOIN ${lead} ON ${ON_LEAD} AND ${leadLive})
+               ON date_trunc('month', ${contract.signedAt}) = m.at
        GROUP BY m.at
        ORDER BY m.at
     `)) as { rows: { month: string; signed_count: number; signed_amount_vnd: number | string }[] }
@@ -421,7 +437,11 @@ export class ContractRepository {
   }
 
   private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db.select({ n: count() }).from(contract).where(where)
+    const [r] = await this.db
+      .select({ n: count() })
+      .from(contract)
+      .innerJoin(lead, ON_LEAD)
+      .where(and(where, leadLive))
     return r?.n ?? 0
   }
 }

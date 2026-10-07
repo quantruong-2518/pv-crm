@@ -49,11 +49,12 @@ export class LeadOriginRepository {
     return this.db.transaction((tx) => work(tx))
   }
 
-  /** `ownerId` set = count only that holder's leads (the book's scope axis). */
+  /** `ownerId` set = count only that holder's leads (the book's scope axis).
+   *  `disabled_at IS NULL` is `leadLive` on the alias, here and in `sourceStats`. */
   origins(db: Db, ownerId?: string): Promise<LeadOriginRead[]> {
     const own = ownerId ? sql` AND l."owner_id" = ${ownerId}` : sql``
     const leadCount = sql<number>`(
-      SELECT count(*)::int FROM "sales"."lead" l WHERE l."origin_id" = ${leadOrigin.id}${own}
+      SELECT count(*)::int FROM "sales"."lead" l WHERE l."origin_id" = ${leadOrigin.id} AND l."disabled_at" IS NULL${own}
     )`
     return db.select({ row: leadOrigin, leadCount }).from(leadOrigin).orderBy(asc(leadOrigin.id))
   }
@@ -203,7 +204,7 @@ export class LeadOriginRepository {
   }): Promise<SourceStatsRead[]> {
     const day = sql`(l."created_at" AT TIME ZONE 'Asia/Ho_Chi_Minh')::date`
     const where = [
-      sql`true`,
+      sql`l."disabled_at" IS NULL`,
       ...(q.from ? [sql`${day} >= ${q.from}::date`] : []),
       ...(q.to ? [sql`${day} <= ${q.to}::date`] : []),
       ...(q.ownerId ? [sql`l."owner_id" = ${q.ownerId}`] : []),

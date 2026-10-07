@@ -6,6 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { mailSequenceRun } from '../mail-sequence.schema'
 import { campaign } from './campaign.schema'
@@ -89,7 +90,7 @@ export class SourceRepository {
         lastAt: sql<Date | null>`max(${lead.createdAt})`,
       })
       .from(lead)
-      .where(isNotNull(lead.campaignId))
+      .where(and(isNotNull(lead.campaignId), leadLive))
       .groupBy(lead.campaignId)
   }
 
@@ -107,7 +108,7 @@ export class SourceRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(isNotNull(lead.campaignId))
+      .where(and(isNotNull(lead.campaignId), leadLive))
       .groupBy(lead.campaignId)
   }
 
@@ -170,8 +171,13 @@ export class SourceRepository {
         lastAt: sql<Date | null>`max(${lead.createdAt})`,
       })
       .from(lead)
+      .where(leadLive)
 
-    const [ops] = await this.db.select({ n: sql<number>`count(*)::int` }).from(opportunity)
+    const [ops] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(opportunity)
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .where(leadLive)
 
     return {
       leadsAll: row?.leadsAll ?? 0,

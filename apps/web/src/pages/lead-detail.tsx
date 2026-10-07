@@ -20,6 +20,7 @@ import { assignDoorOf } from '@/components/assign-door'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
+import { DisableLeadsDialog } from '@/components/lead-disable'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { ActionBar, type BarContact } from '@/components/record/action-bar'
@@ -29,7 +30,7 @@ import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunFiles } from '@/components/run/run-files'
-import { LeadHeader, LeadMeetings, LeadTodo } from './lead-blocks'
+import { LeadDisabledNotice, LeadHeader, LeadMeetings, LeadTodo } from './lead-blocks'
 import { leadMoreChoices } from './lead-model'
 import { LeadForm } from './lead-parts'
 
@@ -76,7 +77,11 @@ const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
 function LeadScreen({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
-  const dealReach = useLeadDealReach(lead)
+  /* Switched off: the server already answers `canEdit: false`, which is not
+     the deal-reach case, and the doors gated on a permission alone (hand-over,
+     contact, pin) are shut here. */
+  const off = lead.disabledAt !== undefined
+  const dealReach = useLeadDealReach(lead) && !off
   const canWrite = useCan('lead.edit') && lead.canEdit
   const canDisqualify = useCan('lead.disqualify') && lead.canEdit
   const canSendEmail = useCan('lead.send-email')
@@ -95,6 +100,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const [nurturing, setNurturing] = useState(false)
   const [composing, setComposing] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [disabling, setDisabling] = useState(false)
 
   /* A dropped lead has left the funnel: no mail, said on every mail row. */
   const mailBlocked = !canSendEmail
@@ -110,7 +116,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const assignDoor = assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined)
   const more = leadMoreChoices(
     lead,
-    { write: canWrite, disqualify: canDisqualify },
+    { write: canWrite, disqualify: canDisqualify, disable: useCan('lead.disable') },
     assignDoor,
     pinned,
     liveDeal,
@@ -130,17 +136,21 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           onSuccess: () => toastDone(`Đã mở lại ${lead.code}.`),
           onError: (e) => toastFail('Không mở lại được lead.', userMessage(e)),
         }),
+      onDisable: () => setDisabling(true),
     },
   )
 
   return (
     <RecordShell
       strip={
-        <RunStrip
-          workstreamCode={lead.workstreamCode}
-          current={{ kind: 'lead', code: lead.code }}
-          fallback={railOf(lead.chain, lead.code, navigate)}
-        />
+        <>
+          {lead.disabledAt && <LeadDisabledNotice code={lead.code} since={lead.disabledAt} />}
+          <RunStrip
+            workstreamCode={lead.workstreamCode}
+            current={{ kind: 'lead', code: lead.code }}
+            fallback={railOf(lead.chain, lead.code, navigate)}
+          />
+        </>
       }
       header={<LeadHeader lead={lead} readOnly={dealReach} />}
       main={
@@ -156,33 +166,39 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <RunOwners
             workstreamCode={lead.workstreamCode}
             doors={
-              assignDoor.shut
+              assignDoor.shut || off
                 ? {}
                 : { [lead.code]: { label: assignDoor.label, onClick: () => setAssigning(true) } }
             }
           />
-          <CommJourney
-            workstreamCode={lead.workstreamCode}
-            subject={{ kind: 'lead', code: lead.code }}
-          />
+          {/* Off: the comms layer treats the lead as absent, so the card could
+              only print "not found" — nothing is better than two errors. */}
+          {!off && (
+            <CommJourney
+              workstreamCode={lead.workstreamCode}
+              subject={{ kind: 'lead', code: lead.code }}
+            />
+          )}
           <RunContacts subject={{ kind: 'lead', code: lead.code }} />
           <RunFiles subject={{ kind: 'lead', code: lead.code }} />
         </>
       }
       actionBar={
-        <ActionBar
-          label="Thao tác lead"
-          subject={{ code: lead.code, kind: 'lead' }}
-          contacts={people}
-          mailBlocked={mailBlocked}
-          onCompose={() => setComposing(true)}
-          more={more}
-          primary={
-            canConvert && (isOpenState(lead.state) || lead.state === 'converted')
-              ? { label: 'Mở cơ hội', icon: ArrowRight, onClick: () => setConverting(true) }
-              : undefined
-          }
-        />
+        !off && (
+          <ActionBar
+            label="Thao tác lead"
+            subject={{ code: lead.code, kind: 'lead' }}
+            contacts={people}
+            mailBlocked={mailBlocked}
+            onCompose={() => setComposing(true)}
+            more={more}
+            primary={
+              canConvert && (isOpenState(lead.state) || lead.state === 'converted')
+                ? { label: 'Mở cơ hội', icon: ArrowRight, onClick: () => setConverting(true) }
+                : undefined
+            }
+          />
+        )
       }
     >
       {/* Opened from the bar's more menu, whose trigger the drawer hands focus
@@ -199,6 +215,12 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
+      <DisableLeadsDialog
+        codes={[lead.code]}
+        open={disabling}
+        onClose={() => setDisabling(false)}
+        onDone={() => navigate('/sales/leads')}
+      />
       {composing && (
         <LetterComposer
           door="lead"

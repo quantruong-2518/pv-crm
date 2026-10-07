@@ -125,6 +125,10 @@ export const PERMISSIONS = [
   'lead.convert',
   /** Take a lead out of the funnel (`ExitDialog`). Rare, and one-way. */
   'lead.disqualify',
+  /** Switch a lead OFF for everybody (and back on): hidden from every list
+   *  and frozen, together with the deals and contracts raised on it. The
+   *  director's alone by default — it removes other people's work from view. */
+  'lead.disable',
   /** The customer COMPANY book — `/sales/accounts`.
    *
    *  A DOMAIN OF ITS OWN rather than a reuse of the lead domain, and

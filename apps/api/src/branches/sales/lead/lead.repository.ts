@@ -38,7 +38,7 @@ import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
 import { lead } from './lead.schema'
-import { leadScope } from './lead-scope'
+import { leadLive, leadScope } from './lead-scope'
 import type {
   LeadMailEventRead,
   LeadMailTimelineRead,
@@ -157,8 +157,17 @@ export class LeadRepository {
     return code
   }
 
-  async book(who: Actor, q: LeadBookQuery, scoped: boolean): Promise<LeadBookPage> {
-    const filters = [...this.filtersOf(q), this.stateFilter(q.state)]
+  async book(
+    who: Actor,
+    q: LeadBookQuery,
+    scoped: boolean,
+    onlyDisabled = false,
+  ): Promise<LeadBookPage> {
+    /* `leadLive` is a FILTER, never scope: a disabled lead inside scope would be
+       counted as `hidden`. The disabled view spans every state. */
+    const filters = onlyDisabled
+      ? [...this.filtersOf(q), isNotNull(lead.disabledAt)]
+      : [...this.filtersOf(q), this.stateFilter(q.state), leadLive]
 
     const scope = this.scopeOf(who, scoped)
 
@@ -213,7 +222,7 @@ export class LeadRepository {
     const rows = await this.db
       .selectDistinct({ kind: lead.sourceKind })
       .from(lead)
-      .where(and(isNull(lead.campaignId), isNotNull(lead.sourceKind), scope))
+      .where(and(isNull(lead.campaignId), isNotNull(lead.sourceKind), leadLive, scope))
 
     return rows.map((r) => r.kind as LeadSourceKind)
   }
@@ -228,12 +237,12 @@ export class LeadRepository {
       this.db
         .selectDistinct({ motion: lead.motion })
         .from(lead)
-        .where(and(isNotNull(lead.motion), scope)),
+        .where(and(isNotNull(lead.motion), leadLive, scope)),
       this.db
         .selectDistinct({ id: leadOrigin.id, name: leadOrigin.name })
         .from(lead)
         .innerJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
-        .where(scope)
+        .where(and(leadLive, scope))
         .orderBy(asc(leadOrigin.name)),
     ])
     return {
@@ -248,7 +257,7 @@ export class LeadRepository {
     const rows = await this.db
       .select({ state: lead.state, n: count() })
       .from(lead)
-      .where(and(...this.filtersOf(q), this.scopeOf(who, true)))
+      .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
       .groupBy(lead.state)
     const byState = Object.fromEntries(LeadState.options.map((s) => [s, 0])) as Record<
       LeadState,
@@ -256,6 +265,14 @@ export class LeadRepository {
     >
     for (const r of rows) byState[r.state] = r.n
     return byState
+  }
+
+  /** How many leads the "disabled" view would list — the book's filters and
+   *  scope, every state. */
+  disabledCount(who: Actor, q: LeadFacetsQuery): Promise<number> {
+    return this.count(
+      and(...this.filtersOf(q), isNotNull(lead.disabledAt), this.scopeOf(who, true)),
+    )
   }
 
   /** Một lead theo mã — CẢ DÒNG, kể cả khi trục phạm vi không cho người này
@@ -288,8 +305,11 @@ export class LeadRepository {
    *  `null` would sail straight through an `if (!inScope)` written the obvious
    *  way. It also states the rule the book already applies: an unclaimed lead
    *  is out of scope for an `ownOnly` actor, which is why `u-huy` counts ten
-   *  rows and not ten plus the common pool. */
-  async byCode(who: Actor, code: string): Promise<LeadProfileFound | null> {
+   *  rows and not ten plus the common pool.
+   *
+   *  A disabled lead is absent (`null`) unless the caller asks `withDisabled`;
+   *  even then `holds` is false, so no edit door built on this read opens. */
+  async byCode(who: Actor, code: string, withDisabled = false): Promise<LeadProfileFound | null> {
     const scope = this.scopeOf(who, true)
     const reads = this.readScopeOf(who)
 
@@ -309,7 +329,7 @@ export class LeadRepository {
         signed: this.signedValue(),
         duplicateOf: this.duplicatesOf(who, true),
         inScope: reads ? sql<boolean>`COALESCE(${reads}, false)` : sql<boolean>`true`,
-        holds: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+        holds: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
@@ -318,7 +338,7 @@ export class LeadRepository {
       .leftJoin(configEntry, CAMPAIGN_ON)
       .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
       .leftJoin(partner, eq(partner.code, lead.partnerCode))
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), withDisabled ? undefined : leadLive))
       .limit(1)
 
     return row ?? null
@@ -326,7 +346,9 @@ export class LeadRepository {
 
   /** Live leads sharing a mailbox or a tax root with a scan batch, the scope
    *  verdict SELECTED as `byCode` does, ordered by code so the preview is
-   *  the same on every poll. A branch code (`…-001`) matches its root. */
+   *  the same on every poll. A branch code (`…-001`) matches its root.
+   *  A disabled lead stays a candidate — never re-created — with its code
+   *  withheld (`inScope = false`), here and in `importBook`. */
   async scanBook(
     who: Pick<Actor, 'id' | 'ownOnly'>,
     emails: readonly string[],
@@ -341,7 +363,7 @@ export class LeadRepository {
         code: lead.code,
         emailLower: sql<string>`lower(${lead.email})`,
         taxCode: lead.taxCode,
-        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+        inScope: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
       })
       .from(lead)
       .where(
@@ -377,7 +399,7 @@ export class LeadRepository {
         company: lead.company,
         contactName: lead.contactName,
         phone: lead.phone,
-        inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+        inScope: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
         person: { name: contact.name, phone: contact.phone },
       })
       .from(lead)
@@ -432,6 +454,7 @@ export class LeadRepository {
        WHERE lower(${twin.email}) = lower(${lead.email})
          AND ${twin.code} <> ${lead.code}
          AND ${notInArray(twin.state, [...LEAD_GONE_STATES])}
+         AND ${isNull(twin.disabledAt)}
     ) END`
   }
 
@@ -686,11 +709,15 @@ export class LeadRepository {
     contracts: number
   }> {
     const r = (await this.db.execute(sql`
+      WITH live AS (SELECT "code" FROM "sales"."lead" WHERE "disabled_at" IS NULL)
       SELECT
-        (SELECT count(*)::int FROM "sales"."lead")                              AS leads,
-        (SELECT count(DISTINCT "lead_code")::int FROM "sales"."meeting")        AS first_meetings,
-        (SELECT count(*)::int FROM "sales"."opportunity")                       AS opportunities,
-        (SELECT count(*)::int FROM "sales"."contract")                          AS contracts
+        (SELECT count(*)::int FROM live)                                         AS leads,
+        (SELECT count(DISTINCT m."lead_code")::int FROM "sales"."meeting" m
+           JOIN live ON live."code" = m."lead_code")                            AS first_meetings,
+        (SELECT count(*)::int FROM "sales"."opportunity" o
+           JOIN live ON live."code" = o."lead_code")                            AS opportunities,
+        (SELECT count(*)::int FROM "sales"."contract" c
+           JOIN live ON live."code" = c."lead_code")                            AS contracts
     `)) as {
       rows: {
         leads: number
@@ -722,7 +749,8 @@ export class LeadRepository {
     const r = (await this.db.execute(sql`
       WITH spelled AS (
         SELECT tag, count(*) AS n
-        FROM (SELECT unnest("industries") AS tag FROM "sales"."lead") t
+        FROM (SELECT unnest("industries") AS tag FROM "sales"."lead"
+               WHERE "disabled_at" IS NULL) t
         GROUP BY tag
       ),
       folded AS (

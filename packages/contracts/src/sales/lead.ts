@@ -3,6 +3,7 @@ import {
   MoneyVnd,
   ObjectCode,
   Moment,
+  Bool,
   Day,
   email,
   collapseSpaces,
@@ -186,6 +187,9 @@ export const LeadRow = z.object({
    *  somebody just added on the Config screen. */
   exitReason: z.string().optional(),
   exitedAt: Moment.optional(),
+  /** When the lead was switched off. Present only on a row a `lead.disable`
+   *  holder reads — nobody else is ever handed a disabled lead. */
+  disabledAt: Moment.optional(),
 
   /** Other LIVE leads sharing this mailbox, by code — flagged, not blocked
    *  (ADR 0070): the book stopped refusing a second live lead on one email, so
@@ -255,6 +259,10 @@ export const LeadBookQuery = PageQuery.extend({
   category: LeadCategory.optional(),
 
   state: LeadStateFilter.default('open'),
+  /** `true` = ONLY the leads switched off (`disabledAt`), for the people who
+   *  may switch them back. Silently ignored without `lead.disable` — the
+   *  partner book's `includeInactive` rule — so the flag is never an oracle. */
+  disabled: Bool.optional(),
 
   /** Campaign id, exact match. Absent = every campaign, including none.
    *
@@ -347,11 +355,31 @@ export const LeadFacets = z.object({
    *  off the object — the rule `WorkstreamFootprint.byChannel` states. `open`
    *  and `all` are sums the screen takes itself. */
   byState: z.record(LeadState, z.number().int().nonnegative()),
+  /** How many leads are switched off. Present only for a reader holding
+   *  `lead.disable`; everyone else gets no number to infer anything from. */
+  disabled: z.number().int().nonnegative().optional(),
 })
 
 // ---------------------------------------------------------------------------
 // One whole lead — `GET /sales/leads/:code`
 // ---------------------------------------------------------------------------
+
+/** `POST /sales/leads/disabled` — switch leads off, or back on. `lead.disable`.
+ *
+ *  Off means: gone from every list, picker and count for everybody, frozen
+ *  against every write, and so are the deals and contracts raised on it —
+ *  the lead's `disabledAt` is the ONE fact, nothing is copied onto them.
+ *  A list, so the book's selection bar and the profile use one door. */
+export const LEAD_DISABLE_MAX = 200
+export const LeadDisableBody = z.object({
+  codes: z.array(ObjectCode).min(1).max(LEAD_DISABLE_MAX),
+  disabled: z.boolean(),
+})
+export type LeadDisableBody = z.infer<typeof LeadDisableBody>
+
+/** Codes actually switched; one already in the asked state is left out. */
+export const LeadDisableResponse = z.object({ changed: z.array(ObjectCode) })
+export type LeadDisableResponse = z.infer<typeof LeadDisableResponse>
 
 /** The profile of ONE lead. `GET /sales/leads/:code`.
  *

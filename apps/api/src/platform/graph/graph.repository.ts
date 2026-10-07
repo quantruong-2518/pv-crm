@@ -1,4 +1,4 @@
-import { and, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Edge, ObjectRef } from '@pv/engines'
 import { DB, type Db } from '../db/db.module'
@@ -67,13 +67,24 @@ export class GraphRepository {
        Một phép lọc viết hai kiểu trong cùng một hàm là chỗ để đúng một kiểu
        sai; `inArray` là kiểu mà dòng trên đã dùng và đã đúng. */
     const [objects, edges] = await Promise.all([
-      this.db.select().from(objectRef).where(inArray(objectRef.code, codes)),
+      /* A switched-off object is absent from every neighbour's story. The
+         starting code stays: whoever was allowed to open it sees it. */
+      this.db
+        .select()
+        .from(objectRef)
+        .where(
+          and(
+            inArray(objectRef.code, codes),
+            or(isNull(objectRef.disabledAt), eq(objectRef.code, code)),
+          ),
+        ),
       this.db
         .select()
         .from(edge)
         .where(and(inArray(edge.fromCode, codes), inArray(edge.toCode, codes))),
     ])
 
+    const shown = new Set(objects.map((o) => o.code))
     return {
       objects: objects.map((o) => ({
         code: o.code,
@@ -85,7 +96,9 @@ export class GraphRepository {
         ...(o.state ? { state: o.state } : {}),
         ...(o.amount !== null ? { amount: o.amount } : {}),
       })),
-      edges: edges.map((e) => ({ from: e.fromCode, to: e.toCode, kind: e.kind })),
+      edges: edges
+        .filter((e) => shown.has(e.fromCode) && shown.has(e.toCode))
+        .map((e) => ({ from: e.fromCode, to: e.toCode, kind: e.kind })),
     }
   }
 }

@@ -235,10 +235,19 @@ const ENTRY_TIME = new Intl.DateTimeFormat('vi-VN', {
 /** Day the lead entered the book (`createdAt`), the hour beneath it. Pinned to
  *  Vietnam time so two machines in two zones print the same day. */
 export function EnteredCell({ lead }: { lead: LeadRow }) {
-  const at = new Date(lead.createdAt)
+  return <MomentCell iso={lead.createdAt} />
+}
+
+/** When the lead was switched off — only rows of the switched-off tab carry it. */
+export function DisabledAtCell({ lead }: { lead: LeadRow }) {
+  return <MomentCell iso={lead.disabledAt} />
+}
+
+function MomentCell({ iso }: { iso?: string }) {
+  const at = new Date(iso ?? '')
   if (Number.isNaN(at.getTime())) return <span className="text-muted-foreground">—</span>
   return (
-    <span className="flex min-w-0 flex-col gap-1" title={lead.createdAt}>
+    <span className="flex min-w-0 flex-col gap-1" title={iso}>
       <span className="truncate text-[13px] font-semibold">{ENTRY_DAY.format(at)}</span>
       <span className="text-muted-foreground truncate text-[11.5px] italic">
         {ENTRY_TIME.format(at)}

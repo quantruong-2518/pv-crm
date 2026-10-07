@@ -7,7 +7,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
-import { leadScope } from '../lead/lead-scope'
+import { leadLive, leadScope } from '../lead/lead-scope'
 import { dealStoodBy } from '../open-deal'
 import { runBefore } from '../workstream/workstream.repository'
 import { workstream } from '../workstream/workstream.schema'
@@ -62,7 +62,7 @@ export class OpportunityOpenRepository {
         workstreamCode: lead.workstreamCode,
       })
       .from(lead)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .limit(1)
     return row ?? null
   }
@@ -86,9 +86,12 @@ export class OpportunityOpenRepository {
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
       .where(
-        or(
-          eq(contact.leadCode, leadCode),
-          and(isNotNull(lead.accountCode), sql`${lead.accountCode} = ${mine}`, scope),
+        and(
+          leadLive,
+          or(
+            eq(contact.leadCode, leadCode),
+            and(isNotNull(lead.accountCode), sql`${lead.accountCode} = ${mine}`, scope),
+          ),
         ),
       )
       .orderBy(
@@ -166,7 +169,8 @@ export class OpportunityOpenRepository {
       })
       .from(workstream)
       .leftJoin(lead, eq(lead.workstreamCode, workstream.code))
-      .where(wonElsewhere(workstream, accountCode, current))
+      /* LEFT join: a run with no lead keeps its row, `disabled_at` being NULL. */
+      .where(and(wonElsewhere(workstream, accountCode, current), leadLive))
       .orderBy(sql`${workstream.closedAt} DESC NULLS LAST`, desc(workstream.code))
       .limit(1)
     return row ?? null

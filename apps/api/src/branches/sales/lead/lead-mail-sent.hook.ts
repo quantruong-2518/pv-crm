@@ -30,8 +30,10 @@ export class LeadMailSentHook implements MailSentHook {
 
   async afterTrouble(sent: MailSent, trouble: MailTrouble): Promise<void> {
     if (!toCustomer(sent)) return
-    await this.repo.run((tx) =>
-      this.touch.record(tx, [
+    await this.repo.run(async (tx) => {
+      /* A switched-off lead takes no new timeline row, not even a failure. */
+      if (!(await this.repo.lockForOwnerChange(tx, sent.aggregateId))) return
+      await this.touch.record(tx, [
         {
           subjectCode: sent.aggregateId,
           subjectKind: 'lead',
@@ -40,8 +42,8 @@ export class LeadMailSentHook implements MailSentHook {
             ? { kind: 'mail-failed', note: LEAD_NOTE.mailFailed(trouble.address, trouble.unknown) }
             : { kind: 'mail-sync-failed', note: LEAD_NOTE.mailSyncFailed }),
         },
-      ]),
-    )
+      ])
+    })
   }
 }
 

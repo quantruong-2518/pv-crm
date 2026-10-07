@@ -37,6 +37,7 @@ import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealOpen, dealSignWaiting, dealStoodBy, leadDealsAllLost } from '../open-deal'
 import { touch } from '../touch/touch.schema'
@@ -264,7 +265,10 @@ export class OpportunityRepository {
    *  đã lọc theo phạm vi thì chỉ trả lời được câu thứ nhất.
    *
    *  `who` null is the E3 applier: an approved request has no reader to scope,
-   *  and it reads through the settling transaction's `handle`. */
+   *  and it reads through the settling transaction's `handle`.
+   *
+   *  `leadLive` is FILTERED, unlike scope: a deal on a switched-off lead is not
+   *  there for anyone, and every write door loads through here. */
   async byCode(
     who: Actor | null,
     code: string,
@@ -281,7 +285,7 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(eq(opportunity.code, code))
+      .where(and(eq(opportunity.code, code), leadLive))
       .limit(1)
 
     if (!found) return null
@@ -351,7 +355,7 @@ export class OpportunityRepository {
         exited: sql<boolean>`${inArray(lead.state, [...LEAD_GONE_STATES])}`,
       })
       .from(lead)
-      .where(eq(lead.code, code))
+      .where(and(eq(lead.code, code), leadLive))
       .limit(1)
     return row ?? null
   }
@@ -385,7 +389,7 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(eq(opportunity.code, code))
+      .where(and(eq(opportunity.code, code), leadLive))
       .limit(1)
 
     if (!found) return null
@@ -489,6 +493,7 @@ export class OpportunityRepository {
         ownerId: lead.ownerId,
       })
       .from(lead)
+      .where(leadLive)
 
     const byCompany = new Map<string, string>()
     const ambiguous = new Set<string>()
@@ -550,9 +555,10 @@ export class OpportunityRepository {
         role: opportunityOwner.role,
       })
       .from(opportunity)
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
       .leftJoin(opportunityOwner, eq(opportunityOwner.opportunityCode, opportunity.code))
       .leftJoin(actor, eq(actor.id, opportunityOwner.actorId))
-      .where(and(eq(opportunity.leadCode, leadCode), this.live()))
+      .where(and(eq(opportunity.leadCode, leadCode), this.live(), leadLive))
       .orderBy(opportunity.createdAt, opportunity.code, opportunityOwner.role, actor.name)
 
     const deals = new Map<string, { row: OpportunityRowDb; owners: OpportunityOwner[] }>()
@@ -690,7 +696,8 @@ export class OpportunityRepository {
    *  changing hands in the same instant. Not `FOR SHARE`: the same tx then
    *  UPDATEs the lead to `converted`, and two share-holders upgrading at once
    *  deadlock. The deal's FK takes KEY SHARE, which this mode allows;
-   *  `ORDER BY code` keeps batch locks ordered. */
+   *  `ORDER BY code` keeps batch locks ordered. A switched-off lead comes back
+   *  in no row: Postgres re-checks the WHERE once the lock is granted. */
   async lockLeads(tx: Db, leadCodes: readonly string[]) {
     if (leadCodes.length === 0) return []
     const rows = await tx
@@ -701,7 +708,7 @@ export class OpportunityRepository {
         accountCode: lead.accountCode,
       })
       .from(lead)
-      .where(inArray(lead.code, [...leadCodes]))
+      .where(and(inArray(lead.code, [...leadCodes]), leadLive))
       .orderBy(asc(lead.code))
       .for('no key update')
     return rows.map(({ state, ...r }) => ({ ...r, exited: GONE.has(state) }))
@@ -936,6 +943,9 @@ export class OpportunityRepository {
   async filtersOf(q: BookFilters): Promise<(SQL | undefined)[]> {
     const ladder = q.overdue ? stageConfigOf(await this.stageRows()) : null
     return [
+      /* Not a user filter, and here on purpose: a deal on a switched-off lead is
+         absent, so it must leave BOTH counts `hidden` is the difference of. */
+      leadLive,
       ladder ? overdueIn(ladder) : undefined,
       q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
       this.stateFilter(q.state),
@@ -1054,6 +1064,8 @@ export class OpportunityRepository {
         lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'lost' AND NOT ${this.signed()})::int`,
       })
       .from(opportunity)
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .where(leadLive)
 
     return {
       total: r?.total ?? 0,
@@ -1091,7 +1103,8 @@ export class OpportunityRepository {
         >`COALESCE(SUM(${AMOUNT_VND}) FILTER (WHERE ${rotting}), 0)::bigint`,
       })
       .from(opportunity)
-      .where(isNotNull(opportunity.stage))
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .where(and(isNotNull(opportunity.stage), leadLive))
       .groupBy(opportunity.stage)
 
     const tally = new Map(rows.map((r) => [r.stage, r]))
