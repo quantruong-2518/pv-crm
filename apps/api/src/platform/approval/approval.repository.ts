@@ -97,6 +97,12 @@ export class ApprovalRepository {
         and(
           eq(approval.state, 'waiting'),
           sql`${approval.chain} @> ${JSON.stringify([{ person: personName, state: 'waiting' }])}::jsonb`,
+          /* A request on a switched-off object leaves the inbox until the
+             object is back: deciding it would only answer "not found". */
+          sql`NOT EXISTS (
+            SELECT 1 FROM "platform"."approval_link" al
+              JOIN "platform"."object" o ON o."code" = al."object_code"
+             WHERE al."request_id" = ${approval.id} AND o."disabled_at" IS NOT NULL)`,
         ),
       )
       .orderBy(desc(approval.raisedAt))
