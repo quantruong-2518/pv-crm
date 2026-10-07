@@ -36,11 +36,25 @@ export function clustersOf(rows: readonly BuiltRow[], field: string): CompanyClu
   return [...byKey.values()].filter((c) => c.rows.length > 1)
 }
 
+/** Does the mapped company column name any company twice? Read off the raw
+ *  sheet so the load button can say "next" before a single row is built. */
+export function repeatsCompany(rows: readonly (readonly string[])[], at: number): boolean {
+  if (at < 0) return false
+  const seen = new Set<string>()
+  for (const row of rows) {
+    const key = foldText(row[at] ?? '')
+    if (key === '') continue
+    if (seen.has(key)) return true
+    seen.add(key)
+  }
+  return false
+}
+
 export const modeOf = (plan: GroupPlan, cluster: CompanyCluster): GroupMode =>
   plan.companies[cluster.key]?.mode ?? 'apart'
 
 export const letterOf = (plan: GroupPlan, cluster: CompanyCluster, line: number): number =>
-  plan.companies[cluster.key]?.letters[line] ?? 0
+  plan.companies[cluster.key]?.letters[line] ?? cluster.rows.findIndex((r) => r.line === line)
 
 export type GroupMark = { group: string; primary: boolean }
 

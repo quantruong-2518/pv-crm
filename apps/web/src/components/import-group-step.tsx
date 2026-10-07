@@ -22,14 +22,10 @@ import type { ImportSpec } from '@/data/intake'
  *  clusters are an exact fold of the company cell. */
 
 const MODES: { value: GroupMode; label: string }[] = [
-  { value: 'apart', label: 'Riêng' },
-  { value: 'together', label: 'Chung' },
+  { value: 'apart', label: 'Tách riêng' },
+  { value: 'together', label: 'Gộp chung' },
   { value: 'split', label: 'Tự chia' },
 ]
-
-/** One letter per lead a company can be split into. Past the alphabet a
- *  company simply gets no further leads to split into. */
-const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 
 type Fields = NonNullable<ImportSpec['groupBy']>
 
@@ -68,7 +64,7 @@ export function StepGroup({
           className="pointer-coarse:h-12"
           onClick={() => setAll('apart')}
         >
-          Tất cả: mỗi người một lead
+          Tất cả: tách riêng
         </Button>
         <Button
           size="md"
@@ -76,7 +72,7 @@ export function StepGroup({
           className="pointer-coarse:h-12"
           onClick={() => setAll('together')}
         >
-          Tất cả: một lead chung
+          Tất cả: gộp chung
         </Button>
       </div>
 
@@ -91,7 +87,15 @@ export function StepGroup({
               ...plan,
               companies: {
                 ...plan.companies,
-                [cluster.key]: { mode, letters: lettersOf(cluster.key) },
+                [cluster.key]: {
+                  mode,
+                  /* Splitting carries on from what was on screen: one shared
+                     lead stays one until somebody is moved out of it. */
+                  letters:
+                    mode === 'split' && modeOf(plan, cluster) === 'together'
+                      ? Object.fromEntries(cluster.rows.map((r) => [r.line, 0]))
+                      : lettersOf(cluster.key),
+                },
               },
             })
           }
@@ -131,20 +135,26 @@ function CompanyBlock({
 }) {
   const mode = modeOf(plan, cluster)
   const marks = groupMarks(cluster, plan)
-  const letters = LETTERS.slice(0, cluster.rows.length).map((letter, i) => ({
-    value: String(i),
-    label: `Lead ${letter}`,
-  }))
+  const leads = cluster.rows.map((_, i) => ({ value: String(i), label: `Lead ${i + 1}` }))
+  /* What the choice above produces, as a number the person can check. */
+  const leadCount =
+    cluster.rows.length - marks.size + new Set([...marks.values()].map((m) => m.group)).size
+  /* Two people can only be apart or together; a third is what makes a split. */
+  const modes = MODES.map((m) =>
+    m.value === 'split' ? { ...m, disabled: cluster.rows.length < 3 } : m,
+  )
 
   return (
     /* Law 8: a list of people sits on `.glass-b`. */
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="min-w-[160px] flex-1 truncate text-[12.5px] font-semibold">
-          {cluster.name}
-          <span className="text-muted-foreground font-normal">
-            {' · '}
-            <span className="font-num tnum">{cluster.rows.length}</span> người
+        <span className="flex min-w-[160px] flex-1 items-baseline gap-2 text-[12.5px]">
+          <span className="min-w-0 truncate font-semibold" title={cluster.name}>
+            {cluster.name}
+          </span>
+          <span className="text-muted-foreground shrink-0">
+            <span className="font-num tnum">{cluster.rows.length}</span> người →{' '}
+            <span className="font-num tnum">{leadCount}</span> lead
           </span>
         </span>
         {/* `quiet`: azure stays with the load button in the footer (law 3). */}
@@ -153,7 +163,7 @@ function CompanyBlock({
           hideLabel
           tone="quiet"
           value={mode}
-          options={MODES}
+          options={modes}
           onChange={(v) => onMode(v as GroupMode)}
         />
       </div>
@@ -165,7 +175,7 @@ function CompanyBlock({
           return (
             <li
               key={row.line}
-              className="bg-surface-ink/[3%] flex min-h-10 items-center gap-3 rounded-sm px-3 text-[11.5px]"
+              className="bg-surface-ink/[3%] flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 rounded-sm px-3 py-1 text-[11.5px] max-sm:py-2"
             >
               {/* The column is held open for the whole company once any of its
                   people is grouped, so names stay aligned down the block. */}
@@ -179,7 +189,7 @@ function CompanyBlock({
                       onClick={() => onMain(row.line)}
                       className="motion-std hover:bg-surface-ink/8 pointer-coarse:size-12 flex size-8 items-center justify-center rounded-full"
                     >
-                      <span className="bg-surface-ink/9 shadow-control flex size-4 items-center justify-center rounded-full">
+                      <span className="bg-surface-ink/24 shadow-control flex size-4 items-center justify-center rounded-full">
                         <span className={cn('size-2 rounded-full', mark.primary && 'bg-primary')} />
                       </span>
                     </button>
@@ -187,28 +197,35 @@ function CompanyBlock({
                 </span>
               )}
               <span className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="text-foreground truncate">{name}</span>
+                <span className="text-foreground truncate" title={name}>
+                  {name}
+                </span>
                 {mark?.primary && (
                   <span className="text-accent-foreground shrink-0 text-[11px]">Liên hệ chính</span>
                 )}
               </span>
-              <span className="text-glass-foreground min-w-0 flex-1 truncate">
-                {row.values[fields.email] ?? ''}
-              </span>
-              {mode === 'split' && (
-                <Select
-                  label={`Lead của ${name}`}
-                  hideLabel
-                  size="sm"
-                  value={String(letterOf(plan, cluster, row.line))}
-                  /* No letter is a "default" here, so none may light up as an
+              <span className="flex min-w-0 flex-1 items-center gap-3 max-sm:basis-full">
+                <span
+                  className="text-glass-foreground min-w-0 flex-1 truncate"
+                  title={row.values[fields.email]}
+                >
+                  {row.values[fields.email] ?? ''}
+                </span>
+                {mode === 'split' && (
+                  <Select
+                    label={`Lead của ${name}`}
+                    hideLabel
+                    size="lg"
+                    value={String(letterOf(plan, cluster, row.line))}
+                    /* No letter is a "default" here, so none may light up as an
                      active filter: the neutral value follows the chosen one. */
-                  neutralValue={String(letterOf(plan, cluster, row.line))}
-                  options={letters}
-                  onChange={(v) => onLetter(row.line, Number(v))}
-                  className="w-[104px] shrink-0"
-                />
-              )}
+                    neutralValue={String(letterOf(plan, cluster, row.line))}
+                    options={leads}
+                    onChange={(v) => onLetter(row.line, Number(v))}
+                    className="w-[120px] shrink-0"
+                  />
+                )}
+              </span>
             </li>
           )
         })}

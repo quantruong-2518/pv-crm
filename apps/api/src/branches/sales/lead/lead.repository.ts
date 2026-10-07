@@ -356,19 +356,20 @@ export class LeadRepository {
       .orderBy(asc(lead.code))
   }
 
-  /** Everybody at the live leads of the companies a file names — the candidates
-   *  the import door folds with `leadDupKey`. One per contact row, plus the
-   *  lead's own columns: a lead whose last contact was deleted has no row in
-   *  `sales.contact`. Matched on `lower(company)` only: the key itself strips
-   *  diacritics, which SQL here cannot do portably. */
+  /** Everybody on every live lead — the candidates the import door folds with
+   *  `leadDupKey`. One per contact row, plus the lead's own columns: a lead
+   *  whose last contact was deleted has no row in `sales.contact`.
+   *
+   *  The WHOLE live book, no company filter: any SQL filter here is stricter
+   *  than the fold ("Cty ABC." never fetched "Cty ABC"), and a missed
+   *  candidate is a lead written twice. Revisit with a persisted key column
+   *  when the book outgrows one read. */
   async importBook(
     who: Pick<Actor, 'id' | 'ownOnly'>,
-    companiesLower: readonly string[],
     db: Db = this.db,
   ): Promise<
     { code: string; company: string; contactName: string; phone: string | null; inScope: boolean }[]
   > {
-    if (companiesLower.length === 0) return []
     const scope = this.scopeOf(who, true)
     const found = await db
       .select({
@@ -381,12 +382,7 @@ export class LeadRepository {
       })
       .from(lead)
       .leftJoin(contact, eq(contact.leadCode, lead.code))
-      .where(
-        and(
-          notInArray(lead.state, [...LEAD_GONE_STATES]),
-          inArray(sql`lower(${lead.company})`, [...companiesLower]),
-        ),
-      )
+      .where(notInArray(lead.state, [...LEAD_GONE_STATES]))
       .orderBy(asc(lead.code), asc(contact.code))
     return found.flatMap(({ person, ...own }) => [
       own,

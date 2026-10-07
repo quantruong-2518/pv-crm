@@ -843,11 +843,6 @@ export class LeadWriteService {
    *  two different sentences about one file. The reads are identical too: the
    *  same staff book, the same live mailboxes, the same lookup. */
   private async check(handle: Db, body: LeadImportBody, who: Actor): Promise<ImportCheck> {
-    /* As `textInput` stores it (trimmed, single-spaced), lowered for the lookup. */
-    const companies = body.rows
-      .map((r) => r.values.company?.trim().replace(/\s+/g, ' ').toLowerCase())
-      .filter((c): c is string => c !== undefined && c !== '')
-
     /* The create door's motion rules, asked here so preview and commit agree.
        Batch-wide: one file is one motion, so one answer for every row. */
     const asks = await this.asksOf(handle, body.motion)
@@ -879,7 +874,7 @@ export class LeadWriteService {
     const [staff, book, live, origins] = await Promise.all([
       this.repo.staff(handle),
       /* The book's own scope verdict, so a duplicate never leaks a code the caller cannot open. */
-      this.leads.importBook(who, [...new Set(companies)], handle),
+      this.leads.importBook(who, handle),
       this.repo.campaignCodes(handle, campaigns),
       this.origins.index(),
     ])

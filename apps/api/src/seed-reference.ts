@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
+import { CONFIG_ENTRIES } from './seed-reference-config'
 import { MAIL_TEMPLATES } from './seed-reference-mail'
 
 /** Replants the reference rows migrations planted once: the six motion
  *  policies, the lead-origin catalogue with its motions and aliases
- *  (0036/0057/0059), and the MAS mail templates (0013/0019/0023).
+ *  (0036/0057/0059), the MAS mail templates (0013/0019/0023), and the
+ *  `config_entry` catalogues (reasons, step kinds, comm criteria).
  *
  *  Exists because a staff reset empties every `sales` table and no migration
  *  runs twice, which leaves every intake door with no motion to offer.
@@ -87,6 +89,7 @@ async function main(): Promise<void> {
         'lead_origin_motion',
         'lead_origin_alias',
         'mail_template',
+        'config_entry',
       ]
       /* One at a time: a transaction is one connection. */
       const countAll = async (): Promise<number[]> => {
@@ -130,10 +133,23 @@ async function main(): Promise<void> {
             ${t.bookingUrl}, ${doors}, ${t.milestone}, ${t.active})
           ON CONFLICT DO NOTHING`)
       }
-      /* Never backwards: ids minted since the reset must stay ahead. */
-      await tx.execute(sql`
-        SELECT setval('sales.lead_origin_code_seq',
-          GREATEST((SELECT last_value FROM sales.lead_origin_code_seq), ${ORIGINS.length}))`)
+      /* NOT EXISTS, not ON CONFLICT: this table's unique key is deferrable,
+         which Postgres refuses as a conflict arbiter. */
+      for (const c of CONFIG_ENTRIES) {
+        await tx.execute(sql`
+          INSERT INTO sales.config_entry
+            (id, list, name, ord, active, limit_days, kind, stage, do_not_contact, criterion_id)
+          SELECT ${c.id}, ${c.list}, ${c.name}, ${c.ord}::int, ${c.active}::boolean,
+            ${c.limitDays}::int, ${c.kind}, ${c.stage}, ${c.doNotContact}::boolean, ${c.criterionId}
+          WHERE NOT EXISTS (SELECT 1 FROM sales.config_entry WHERE id = ${c.id})`)
+      }
+      /* Never backwards: ids minted since the reset must stay ahead. Only on a
+         real run — `setval` ignores the rollback a preview ends with. */
+      if (APPLY) {
+        await tx.execute(sql`
+          SELECT setval('sales.lead_origin_code_seq',
+            GREATEST((SELECT last_value FROM sales.lead_origin_code_seq), ${ORIGINS.length}))`)
+      }
 
       const after = await countAll()
       tables.forEach((t, i) => say(`  ${t.padEnd(20)} ${before[i]} → ${after[i]}`))

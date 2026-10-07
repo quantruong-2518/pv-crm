@@ -46,7 +46,13 @@ import {
   type BatchExtra,
 } from '@/components/import-zone-bits'
 import { StepGroup } from '@/components/import-group-step'
-import { EMPTY_PLAN, applyPlan, clustersOf, type CompanyCluster } from '@/data/import-group'
+import {
+  EMPTY_PLAN,
+  applyPlan,
+  clustersOf,
+  repeatsCompany,
+  type CompanyCluster,
+} from '@/data/import-group'
 
 /** Luồng nạp tệp — MỘT component cho cả ba sổ.
  *
@@ -227,6 +233,9 @@ export function ImportZone({
     try {
       const read = await readSheet(file)
       setSheet(read)
+      /* A plan is keyed by line numbers: it means nothing on another file. */
+      setPlan(EMPTY_PLAN)
+      setHeld(undefined)
       /* Dòng dữ liệu đi cùng tiêu đề: khi nhiều cột cùng khớp một trường, bộ
          đoán lấy cột ĐẦY nhất thay vì cột đứng trước. Tệp Apollo là ca mẫu —
          'City' đứng trước 'Company State' mà rỗng ở phần lớn dòng. */
@@ -246,6 +255,9 @@ export function ImportZone({
     try {
       const read = sheetFromPaste(text)
       setSheet(read)
+      /* A plan is keyed by line numbers: it means nothing on another file. */
+      setPlan(EMPTY_PLAN)
+      setHeld(undefined)
       setMapping(guessMapping(read.headers, spec, read.rows))
       setPhase('map')
     } catch (e) {
@@ -257,6 +269,13 @@ export function ImportZone({
   const liveSpec = extra?.hideFields
     ? { ...spec, fields: spec.fields.filter((f) => !extra.hideFields?.includes(f.key)) }
     : spec
+  /* The button must not promise a load when the grouping step comes first. */
+  const groupsFirst =
+    phase === 'map' &&
+    liveSpec.groupBy !== undefined &&
+    sheet !== undefined &&
+    sheet !== null &&
+    repeatsCompany(sheet.rows, mapping[liveSpec.groupBy.company] ?? -1)
   /** Nguồn thật của lô: cố định thắng chọn, chọn thắng bỏ trống. */
   const effectiveScope = scope ?? (picked === '' ? undefined : picked)
 
@@ -369,12 +388,17 @@ export function ImportZone({
                   ? `Còn thiếu cột: ${missing.join(' · ')}`
                   : (extra?.missing ?? trust.blurb)}
             </span>
-            <div className="flex items-center gap-3">
-              <Button size="md" variant="ghost" onClick={close}>
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={close}>
                 {phase === 'done' ? 'Đóng' : 'Huỷ'}
               </Button>
               {phase === 'group' && (
-                <Button size="md" variant="ghost" onClick={() => setPhase('map')}>
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={() => setPhase('map')}
+                >
                   <Icon icon={ArrowLeft} size={16} />
                   Quay lại khớp cột
                 </Button>
@@ -382,10 +406,13 @@ export function ImportZone({
               {(phase === 'map' || phase === 'group') && (
                 <Button
                   size="md"
+                  className="pointer-coarse:h-12"
                   disabled={missing.length > 0 || extra?.missing !== undefined}
                   onClick={() => void (phase === 'map' ? run() : resume())}
                 >
-                  Nạp {sheet?.rows.length ?? 0} dòng
+                  {groupsFirst
+                    ? 'Tiếp tục'
+                    : `Nạp ${(phase === 'group' ? held?.built.rows.length : sheet?.rows.length) ?? 0} dòng`}
                 </Button>
               )}
             </div>

@@ -221,26 +221,33 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   const attached: LeadImportReport['attached'] = []
   const seen = new Set<string>()
   const survivors: Survivor[] = []
+  const wanted = wantedMains(input.rows)
+  /** Lines that did not survive, and the lead already holding one (if shown). */
+  const gone = new Map<number, string | undefined>()
 
   for (const row of input.rows) {
     const outcome = checkRow(row, input, staff, input.campaigns)
     if (!outcome.ok) {
       errors.push(outcome.error)
+      gone.set(row.line, undefined)
       continue
     }
 
     const { out, write } = outcome
     const first = firstOf(row, out.values)
-    const code = input.book.get(out.key)
+    /* An empty key means the row folds to nothing comparable: never a duplicate. */
+    const code = out.key === '' ? undefined : input.book.get(out.key)
 
     /* Already in the system: reported with the lead holding it, never written
        again — loading one file twice must not double the book. */
     if (code !== undefined) {
       dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
+      gone.set(row.line, code ?? undefined)
       continue
     }
-    if (seen.has(out.key)) {
+    if (out.key !== '' && seen.has(out.key)) {
       dupWithinFile.push({ line: row.line, first, key: out.key })
+      gone.set(row.line, undefined)
       continue
     }
     seen.add(out.key)
@@ -251,8 +258,13 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   for (const s of survivors) {
     const first = firstOf(s.row, s.out.values)
     const main = s.row.group === undefined ? undefined : mains.get(s.row.group)
+    const lost = s.row.group === undefined ? undefined : wanted.get(s.row.group)
     if (s.row.group !== undefined && mixed.has(s.row.group)) {
       errors.push({ line: s.row.line, first, field: 'company', reason: GROUP_MIXED })
+    } else if (lost !== undefined && gone.has(lost)) {
+      /* The chosen main contact stayed out: promoting somebody else would
+         build a second lead the person never asked for, so the rest wait. */
+      errors.push({ line: s.row.line, first, reason: mainGone(lost, gone.get(lost)) })
     } else if (main && main !== s) {
       /* Only the person is taken: the lead's own cells come from the main row. */
       const v = s.write.values
@@ -270,7 +282,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     }
   }
   /* Group refusals are found after the row pass; put them back in file order. */
-  if (mixed.size > 0) errors.sort((a, b) => a.line - b.line)
+  errors.sort((a, b) => a.line - b.line)
 
   return {
     writes,
@@ -291,6 +303,27 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
 type Survivor = { row: LeadImportRow; out: LeadImportRowOut; write: ImportCheck['writes'][number] }
 
 const GROUP_MIXED = 'Các dòng gộp chung một lead phải cùng công ty'
+
+const mainGone = (line: number, code: string | undefined): string =>
+  code
+    ? `Lead chung đã có trong hệ thống (${code}) — thêm người này trong hồ sơ lead đó`
+    : `Liên hệ chính của lead chung (dòng ${line}) không vào hệ thống — xử lý dòng đó rồi nạp lại`
+
+/** Group → the line the person meant as its main contact: the flagged row,
+ *  else the group's first row. Read off EVERY row, before any check, so a
+ *  main that is later refused is noticed rather than quietly replaced. */
+function wantedMains(rows: readonly LeadImportRow[]): Map<string, number> {
+  const wanted = new Map<string, number>()
+  const flagged = new Set<string>()
+  for (const row of rows) {
+    if (row.group === undefined) continue
+    if (row.primary && !flagged.has(row.group)) {
+      flagged.add(row.group)
+      wanted.set(row.group, row.line)
+    } else if (!wanted.has(row.group)) wanted.set(row.group, row.line)
+  }
+  return wanted
+}
 
 /** Per group with more than one surviving row: its main row, or membership in
  *  `mixed` when the rows name different companies. A group down to one row is

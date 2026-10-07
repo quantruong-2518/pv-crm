@@ -40,8 +40,11 @@ const KEEP = [
 const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 
 async function main(): Promise<void> {
-  const { db, close, kind } = await createDb(loadEnv().DATABASE_URL)
-  say(`[db] ${kind} · ${APPLY ? 'GHI THẬT — XOÁ DỮ LIỆU NGHIỆP VỤ' : 'xem trước'}`)
+  const url = loadEnv().DATABASE_URL
+  const { db, close, kind } = await createDb(url)
+  /* The host, never the credentials: the person must see WHICH database. */
+  const target = kind === 'pglite' ? url : new URL(url).host + new URL(url).pathname
+  say(`[db] ${kind} · ${target} · ${APPLY ? 'GHI THẬT — XOÁ DỮ LIỆU NGHIỆP VỤ' : 'xem trước'}`)
 
   try {
     const listed = (await db.execute(

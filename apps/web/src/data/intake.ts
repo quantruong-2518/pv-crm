@@ -37,6 +37,7 @@ import {
   LEAD_MAX,
   MAX_IMPORT_CELL,
   PHONE_MAX,
+  foldText,
   type IntakeTrust,
   type LeadImportReport,
 } from '@pv/contracts'
@@ -1057,7 +1058,11 @@ export async function buildRows(
       delete values[field.key]
       if (part === undefined) continue
       const head = values[field.mergeBefore]
-      values[field.mergeBefore] = head === undefined ? part : `${part} ${head}`
+      /* Exports often repeat the family name inside the full-name column, at
+         either end ("Tran Trung", "Vinh Le") — gluing it on again doubles it. */
+      const words = (head ?? '').split(/\s+/).map(foldText)
+      const repeated = [words[0], words[words.length - 1]].includes(foldText(part))
+      values[field.mergeBefore] = head === undefined ? part : repeated ? head : `${part} ${head}`
     }
 
     if (bad) {

@@ -155,7 +155,8 @@ export function RejectedRows({
   const rows = [
     ...errors.map((e) => {
       const column = labelOf(e.field)
-      return { line: e.line, first: e.first, why: column ? `${column}: ${e.reason}` : e.reason }
+      const why = column ? `${column}: ${e.reason}` : e.reason
+      return { line: e.line, first: e.first, why, broken: true }
     }),
     ...(withBook ?? []).map((d) => ({
       line: d.line,
@@ -179,7 +180,15 @@ export function RejectedRows({
         <tr key={`${r.line}-${r.why}`} className="bg-surface-ink/[3%]">
           <Line n={r.line} />
           <td className="max-w-[200px] truncate px-3 py-2">{r.first || '—'}</td>
-          <td className="text-destructive-foreground px-3 py-2 leading-[1.6]">{r.why}</td>
+          {/* Red is for a cell somebody must fix; a duplicate is a neutral fact. */}
+          <td
+            className={cn(
+              'px-3 py-2 leading-[1.6]',
+              'broken' in r && 'text-destructive-foreground',
+            )}
+          >
+            {r.why}
+          </td>
         </tr>
       ))}
     </ResultList>
@@ -260,7 +269,11 @@ export function StepRun({
             <Tally label="Đã có trong hệ thống" value={report.duplicates} />
             <Tally label="Trùng trong tệp" value={report.dupInFile} />
             <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
-            {attached.length > 0 && <Tally label="Gộp vào lead chung" value={attached.length} />}
+            {attached.length > 0 && (
+              <div className="max-lg:col-span-2">
+                <Tally label="Gộp vào lead chung" value={attached.length} />
+              </div>
+            )}
           </div>
 
           {report.origins && (

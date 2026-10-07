@@ -238,7 +238,7 @@ export const foldText = (text: string): string =>
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '')
+    .replace(/[^\p{L}\p{N}]/gu, '')
 
 /** What makes two leads THE SAME PERSON at the import door: same contact name,
  *  same company, same phone. Folded (case, diacritics, punctuation; phone to
@@ -250,8 +250,15 @@ export function leadDupKey(v: {
   phone?: string | null
 }): string {
   const fold = foldText
-  const digits = (v.phone ?? '').replace(/\D/g, '').replace(/^84/, '0')
-  return `lead:${fold(v.contactName)}|${fold(v.company)}|${digits}`
+  const name = fold(v.contactName)
+  const company = fold(v.company)
+  /* Nothing left to compare on either side: no key, so never a duplicate. */
+  if (name === '' || company === '') return ''
+  const digits = (v.phone ?? '')
+    .replace(/\D/g, '')
+    .replace(/^(00)?84/, '0')
+    .replace(/^0+/, '0')
+  return `lead:${name}|${company}|${digits}`
 }
 
 /** A row that collided with something.
