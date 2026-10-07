@@ -30,11 +30,14 @@ type Fields = NonNullable<ImportSpec['groupBy']>
 
 export function StepGroup({
   clusters,
+  filtered,
   plan,
   onPlan,
   fields,
 }: {
   clusters: readonly CompanyCluster[]
+  /** Rows already kept out as duplicates — none of them is listed below. */
+  filtered: number
   plan: GroupPlan
   onPlan: (plan: GroupPlan) => void
   fields: Fields
@@ -56,6 +59,12 @@ export function StepGroup({
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-glass-foreground min-w-[200px] flex-1 text-[12.5px]">
           <span className="font-num tnum">{clusters.length}</span> công ty có nhiều người liên hệ
+          {filtered > 0 && (
+            <>
+              {' · đã lọc '}
+              <span className="font-num tnum">{filtered}</span> dòng trùng
+            </>
+          )}
         </span>
         <Button
           size="md"

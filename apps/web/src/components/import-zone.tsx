@@ -141,6 +141,9 @@ export type ImportZoneProps = {
    *  cũng không biết dòng nào đã kịp vào sổ. Màn nào gọi mạng thì tự bắt lỗi
    *  của mình và trả về một báo cáo nói đúng những gì đã vào sổ. */
   onCommit: (input: ImportCommit & { scope?: string }) => void | Promise<ImportReport | void>
+  /** The lines the book would accept, asked BEFORE the grouping step so only
+   *  clean rows are grouped. Absent, or answering `undefined` = group them all. */
+  onPrecheck?: (input: ImportCommit & { scope?: string }) => Promise<readonly number[] | undefined>
   /** Sau khi nạp xong, đưa người dùng đi đâu. Bỏ trống = toast không có nút. */
   onSeeResult?: () => void
   buttonLabel?: string
@@ -181,6 +184,7 @@ export function ImportZone({
   scopeOptions,
   batchExtra,
   onCommit,
+  onPrecheck,
   onSeeResult,
   buttonLabel,
   className,
@@ -201,7 +205,12 @@ export function ImportZone({
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set())
   /** Rows built and held back while the person decides the grouping. The plan
    *  outlives a trip back to the mapping: it is keyed by company and line. */
-  const [held, setHeld] = useState<{ built: ImportReport; clusters: CompanyCluster[] }>()
+  const [held, setHeld] = useState<{
+    built: ImportReport
+    clusters: CompanyCluster[]
+    /** Rows the precheck kept out — still sent, so the result names them. */
+    filtered: number
+  }>()
   const [plan, setPlan] = useState(EMPTY_PLAN)
 
   const reset = () => {
@@ -288,9 +297,22 @@ export function ImportZone({
     setDone(0)
 
     const built = await buildRows(sheet, mapping, liveSpec, existingKeys, (n) => setDone(n))
-    const clusters = liveSpec.groupBy ? clustersOf(built.rows, liveSpec.groupBy.company) : []
+    /* Duplicates out first: grouping rows that will not be written is asking
+       the person to sort out people who are already in the book. */
+    let clean = built.rows
+    if (liveSpec.groupBy && onPrecheck && built.rows.length > 0) {
+      const kept = await onPrecheck({
+        rows: built.rows.map((row) => ({ ...row, first: firstCellOf(sheet, row.line) })),
+        motion,
+        fileName: sheet.fileName,
+        report: built,
+        scope: effectiveScope,
+      })
+      if (kept) clean = built.rows.filter((row) => kept.includes(row.line))
+    }
+    const clusters = liveSpec.groupBy ? clustersOf(clean, liveSpec.groupBy.company) : []
     if (clusters.length > 0) {
-      setHeld({ built, clusters })
+      setHeld({ built, clusters, filtered: built.rows.length - clean.length })
       setPhase('group')
       return
     }
@@ -412,7 +434,7 @@ export function ImportZone({
                 >
                   {groupsFirst
                     ? 'Tiếp tục'
-                    : `Nạp ${(phase === 'group' ? held?.built.rows.length : sheet?.rows.length) ?? 0} dòng`}
+                    : `Nạp ${(phase === 'group' && held ? held.built.rows.length - held.filtered : sheet?.rows.length) ?? 0} dòng`}
                 </Button>
               )}
             </div>
@@ -448,6 +470,7 @@ export function ImportZone({
             liveSpec.groupBy && (
               <StepGroup
                 clusters={held.clusters}
+                filtered={held.filtered}
                 plan={plan}
                 onPlan={setPlan}
                 fields={liveSpec.groupBy}

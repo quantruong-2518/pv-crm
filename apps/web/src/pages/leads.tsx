@@ -42,7 +42,7 @@ import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
-import { useLeadImport } from '@/data/lead-import'
+import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
@@ -555,6 +555,14 @@ export function LeadsPage() {
                 batchExtra={importBatch.extra}
                 buttonLabel="Nhập từ file"
                 onCommit={commitLeads}
+                onPrecheck={({ rows, motion, fileName, scope }) =>
+                  leadImportSurvivors({
+                    rows,
+                    motion,
+                    fileName,
+                    ...importBatch.wireOf(motion, scope),
+                  })
+                }
                 onSeeResult={() => {
                   setPinnedView(false)
                   clearFilters()

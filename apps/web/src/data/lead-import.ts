@@ -222,6 +222,36 @@ export async function runLeadImport(input: LeadImportInput): Promise<LeadImportR
   }
 }
 
+/** The dry run alone: the file lines the server would write, or `undefined`
+ *  when it could not be asked — the caller then goes on with every row, since
+ *  the commit checks again. What lets the panel group only rows that will
+ *  actually go in, instead of sorting duplicates into leads first. */
+export async function leadImportSurvivors(
+  input: LeadImportInput,
+): Promise<readonly number[] | undefined> {
+  const motion = WIRE_MOTION[input.motion]
+  if (motion === undefined) return undefined
+  const body = buildLeadImportBody(input.rows, {
+    fileName: input.fileName,
+    motion,
+    source: input.source,
+    origin: input.origin,
+    refCode: input.refCode,
+    campaignCode: input.campaignCode,
+  })
+  if (!body.success) return undefined
+  try {
+    const preview = await api.write<LeadImportPreviewResponse>(PREVIEW_PATH, {
+      body: body.data,
+      need: IMPORT_NEED,
+      signal: input.signal,
+    })
+    return preview.rows.map((row) => row.line)
+  } catch {
+    return undefined
+  }
+}
+
 /** `runLeadImport` plus the one thing a screen must not forget: refreshing the
  *  book it just wrote into.
  *
