@@ -53,6 +53,14 @@ export function useLang(): Lang {
   )
 }
 
+/** Non-React read for code outside the tree (head metadata in `routes.tsx`). */
+export const getLang = (): Lang => current
+
+export function onLangChange(listener: () => void) {
+  window.addEventListener(CHANGE_EVENT, listener)
+  return () => window.removeEventListener(CHANGE_EVENT, listener)
+}
+
 export function setLang(next: Lang) {
   current = next
   try {

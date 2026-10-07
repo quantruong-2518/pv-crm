@@ -10,6 +10,7 @@ import {
 import { AuroraField } from '@pv/ui'
 import type { Branch, Permission } from '@pv/engines'
 import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
+import { getLang, onLangChange, type Lang } from '@/app/i18n'
 import { isParked } from '@/app/parked'
 
 /** Bảng route của PV One.
@@ -62,7 +63,7 @@ type ScreenDef = {
 /** Sáu module Sales đều có màn thật — không còn mục nào trỏ vào màn "chưa
  *  dựng", nên `sales-pending` đã xoá cùng trường `blocked` của nav. */
 export const SCREENS: ScreenDef[] = [
-  { path: '/', name: 'Trang chủ · Tổng quan', load: () => import('@/pages/home') },
+  { path: '/', name: 'Tổng quan', load: () => import('@/pages/home') },
   {
     /** One Core · Quản trị — the `platform.actor` people book.
      *
@@ -79,7 +80,7 @@ export const SCREENS: ScreenDef[] = [
      *  no "read the people book" gate separate from "write the people book" —
      *  splitting them would build a door whose far side is the whole matrix. */
     path: '/admin/users',
-    name: 'One Core · Quản trị · Người dùng',
+    name: 'Người dùng',
     permission: 'user.manage',
     load: () => import('@/pages/users'),
   },
@@ -97,7 +98,7 @@ export const SCREENS: ScreenDef[] = [
      *  `approval.decide` gates the two BUTTONS, at the door that actually
      *  changes something, exactly where the server puts it. */
     path: '/approvals',
-    name: 'One Core · Hộp duyệt',
+    name: 'Hộp duyệt',
     load: () => import('@/pages/approvals'),
   },
   {
@@ -113,7 +114,7 @@ export const SCREENS: ScreenDef[] = [
      *  itself — whoever reaches this screen can grant themselves every other
      *  permission — so, again, there is no separate read gate. */
     path: '/admin/roles',
-    name: 'One Core · Quản trị · Vai trò',
+    name: 'Vai trò',
     permission: 'role.manage',
     load: () => import('@/pages/roles'),
   },
@@ -121,7 +122,7 @@ export const SCREENS: ScreenDef[] = [
     /** Admin · lead origins — the origin catalogue behind every lead, plus
      *  the per-motion policy. Sales data, so it carries the Sales licence. */
     path: '/admin/lead-origins',
-    name: 'Sales · Quản trị · Nguồn lead',
+    name: 'Nguồn lead',
     branch: 'Sales',
     permission: 'lead-origin.manage',
     load: () => import('@/pages/lead-origins'),
@@ -130,7 +131,7 @@ export const SCREENS: ScreenDef[] = [
     /** Admin · partner book — who sends us leads; its kind is the origin
      *  referred leads inherit, so it sits behind the same permission. */
     path: '/admin/partners',
-    name: 'Sales · Quản trị · Đối tác',
+    name: 'Đối tác',
     branch: 'Sales',
     permission: 'lead-origin.manage',
     load: () => import('@/pages/partners'),
@@ -146,7 +147,7 @@ export const SCREENS: ScreenDef[] = [
      *  ngóm đúng lúc người dùng đang đứng trên nó, hoặc phải đẻ module thứ 7
      *  cho một sổ vốn thuộc module 1. Xem `components/module1-books.tsx`. */
     path: '/sales/campaigns',
-    name: 'Kinh doanh · Module 1 · Sổ chiến dịch',
+    name: 'Sổ chiến dịch',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/campaigns'),
@@ -157,14 +158,14 @@ export const SCREENS: ScreenDef[] = [
      *  thật (`CP-nnnn`, đơn vị GỬI) theo quyết định D2 ngày 28/08. Hai bảng,
      *  hai định nghĩa đối lập, không hợp nhất được. */
     path: '/sales/campaigns/sources',
-    name: 'Kinh doanh · Module 1 · Nguồn dẫn',
+    name: 'Nguồn dẫn',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/sources'),
   },
   {
     path: '/sales/campaigns/sources/:code',
-    name: 'Kinh doanh · Module 1 · Hồ sơ nguồn dẫn',
+    name: 'Hồ sơ nguồn dẫn',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/source-detail'),
@@ -174,7 +175,7 @@ export const SCREENS: ScreenDef[] = [
      *  `campaign.view` để đọc, `campaign.broadcast` để dừng một lô; cửa thứ hai
      *  gác ở `data/mail-runs.ts`, không gác ở đây. */
     path: '/sales/campaigns/mail-runs',
-    name: 'Kinh doanh · Module 1 · Sổ lô gửi',
+    name: 'Sổ lô gửi',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/mail-runs'),
@@ -191,7 +192,7 @@ export const SCREENS: ScreenDef[] = [
      *  reading this screen is useful to a view-only role too, because it
      *  answers what our letters currently say. */
     path: '/sales/config/mail-templates',
-    name: 'Kinh doanh · Module 6 · Sổ mẫu thư',
+    name: 'Sổ mẫu thư',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/mail-templates'),
@@ -204,7 +205,7 @@ export const SCREENS: ScreenDef[] = [
      *  to land where that role can read, not on a 403; the Save button behind it
      *  is gated by `useCan` and the api layer, which is where it belongs. */
     path: '/sales/campaigns/:code/edit',
-    name: 'Kinh doanh · Module 1 · Sửa chiến dịch',
+    name: 'Sửa chiến dịch',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () =>
@@ -214,14 +215,14 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một chiến dịch. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì
      *  nó là một dòng của sổ, và nav vẫn sáng ở mục Chiến dịch. */
     path: '/sales/campaigns/:code',
-    name: 'Kinh doanh · Module 1 · Hồ sơ chiến dịch',
+    name: 'Hồ sơ chiến dịch',
     branch: 'Sales',
     permission: 'campaign.view',
     load: () => import('@/pages/campaign-detail'),
   },
   {
     path: '/sales/leads',
-    name: 'Kinh doanh · Module 2 · Sổ lead',
+    name: 'Sổ lead',
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/leads'),
@@ -232,7 +233,7 @@ export const SCREENS: ScreenDef[] = [
      *  specificity, the same reason `/sales/campaigns/sources` above wins
      *  over `:code`). */
     path: '/sales/leads/new',
-    name: 'Kinh doanh · Module 2 · Lead mới',
+    name: 'Lead mới',
     branch: 'Sales',
     /* Write permission, not read — same reason as campaign.edit above: this
        route only exists to write, so refuse at the door, not after 30 fields. */
@@ -242,7 +243,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /** Card photos and profile PDFs into leads. Static `scan` outranks `:code`. */
     path: '/sales/leads/scan',
-    name: 'Kinh doanh · Module 2 · Nạp lead từ ảnh',
+    name: 'Nạp lead từ ảnh',
     branch: 'Sales',
     permission: 'lead.edit',
     load: () => import('@/pages/lead-scan'),
@@ -250,7 +251,7 @@ export const SCREENS: ScreenDef[] = [
   {
     /* Same module: a batch survives reload and resumes at its step. */
     path: '/sales/leads/scan/:code',
-    name: 'Kinh doanh · Module 2 · Lô nạp từ ảnh',
+    name: 'Lô nạp từ ảnh',
     branch: 'Sales',
     permission: 'lead.edit',
     load: () => import('@/pages/lead-scan'),
@@ -259,7 +260,7 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một lead. Đường dẫn nằm DƯỚI sổ vì nó là một dòng của sổ — nav
      *  bên trái vẫn sáng ở mục Lead, không đẻ thêm mục thứ sáu cho nhánh. */
     path: '/sales/leads/:code',
-    name: 'Kinh doanh · Module 2 · Hồ sơ lead',
+    name: 'Hồ sơ lead',
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/lead-detail'),
@@ -277,14 +278,14 @@ export const SCREENS: ScreenDef[] = [
      *  The CONTACT book is the opposite, deliberately: it runs on the lead
      *  read/write pair, because a contact is part of ONE lead's profile. */
     path: '/sales/accounts',
-    name: 'Kinh doanh · Khách hàng · Sổ công ty',
+    name: 'Sổ công ty',
     branch: 'Sales',
     permission: 'account.view',
     load: () => import('@/pages/accounts'),
   },
   {
     path: '/sales/accounts/:code',
-    name: 'Kinh doanh · Khách hàng · Hồ sơ công ty',
+    name: 'Hồ sơ công ty',
     branch: 'Sales',
     permission: 'account.view',
     load: () => import('@/pages/account-detail'),
@@ -298,21 +299,21 @@ export const SCREENS: ScreenDef[] = [
      *  is a fact about ONE PERSON'S customer, so this book runs on the lead's
      *  permission and is cut by the lead's scope axis. */
     path: '/sales/contacts',
-    name: 'Kinh doanh · Khách hàng · Sổ người liên hệ',
+    name: 'Sổ người liên hệ',
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/contacts'),
   },
   {
     path: '/sales/contacts/:code',
-    name: 'Kinh doanh · Khách hàng · Hồ sơ người liên hệ',
+    name: 'Hồ sơ người liên hệ',
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/contact-detail'),
   },
   {
     path: '/sales/opportunities',
-    name: 'Kinh doanh · Module 3 · Sổ cơ hội',
+    name: 'Sổ cơ hội',
     branch: 'Sales',
     permission: 'opportunity.view',
     load: () => import('@/pages/opportunities'),
@@ -326,7 +327,7 @@ export const SCREENS: ScreenDef[] = [
      *  out of arrives as `?lead=`; without one the screen asks for it first,
      *  because `POST /sales/opportunities` carries a foreign key. */
     path: '/sales/opportunities/new',
-    name: 'Kinh doanh · Module 3 · Cơ hội mới',
+    name: 'Cơ hội mới',
     branch: 'Sales',
     permission: 'opportunity.create',
     load: () => import('@/pages/opportunity-new'),
@@ -335,35 +336,35 @@ export const SCREENS: ScreenDef[] = [
     /** Hồ sơ một cơ hội. Cùng hình với hồ sơ lead: đường dẫn nằm DƯỚI sổ vì nó
      *  là một dòng của sổ, và nav bên trái vẫn sáng ở mục Ops. */
     path: '/sales/opportunities/:code',
-    name: 'Kinh doanh · Module 3 · Hồ sơ cơ hội',
+    name: 'Hồ sơ cơ hội',
     branch: 'Sales',
     permission: 'opportunity.view',
     load: () => import('@/pages/opportunity-detail'),
   },
   {
     path: '/sales/workstreams',
-    name: 'Kinh doanh · Hành trình khách hàng · Sổ hành trình',
+    name: 'Sổ hành trình',
     branch: 'Sales',
     permission: 'workstream.view',
     load: () => import('@/pages/workstreams'),
   },
   {
     path: '/sales/workstreams/:code',
-    name: 'Kinh doanh · Hành trình khách hàng · Hồ sơ hành trình',
+    name: 'Hồ sơ hành trình',
     branch: 'Sales',
     permission: 'workstream.view',
     load: () => import('@/pages/workstream-detail'),
   },
   {
     path: '/sales/workstreams/:code/comms',
-    name: 'Kinh doanh · Hành trình khách hàng · Luồng liên hệ',
+    name: 'Luồng liên hệ',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/workstream-comms'),
   },
   {
     path: '/sales/contracts',
-    name: 'Kinh doanh · Module 4 · Hợp đồng',
+    name: 'Hợp đồng',
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/contracts'),
@@ -372,7 +373,7 @@ export const SCREENS: ScreenDef[] = [
     /* Same shape as the lead and opportunity books: a contract is a row of the
        book, so its path sits under it and the nav stays lit on the same entry. */
     path: '/sales/contracts/:code',
-    name: 'Kinh doanh · Module 4 · Hồ sơ hợp đồng',
+    name: 'Hồ sơ hợp đồng',
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/contract-detail'),
@@ -382,28 +383,28 @@ export const SCREENS: ScreenDef[] = [
        installment carries its own checklist, paperwork, chase log and notes, and
        none of that fits beside three sibling installments on one page. */
     path: '/sales/contracts/:code/installments/:no',
-    name: 'Kinh doanh · Module 4 · Đợt thanh toán',
+    name: 'Đợt thanh toán',
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/installment-detail'),
   },
   {
     path: '/sales/performance',
-    name: 'Kinh doanh · Module 4 · Performance',
+    name: 'Performance',
     branch: 'Sales',
     permission: 'performance.view',
     load: () => import('@/pages/performance'),
   },
   {
     path: '/sales/plan',
-    name: 'Kinh doanh · Module 5 · Số liệu & kế hoạch',
+    name: 'Số liệu & kế hoạch',
     branch: 'Sales',
     permission: 'plan.view',
     load: () => import('@/pages/plan'),
   },
   {
     path: '/sales/config',
-    name: 'Kinh doanh · Module 6 · Cấu hình',
+    name: 'Cấu hình',
     branch: 'Sales',
     permission: 'config.view',
     load: () => import('@/pages/sales-config'),
@@ -412,14 +413,14 @@ export const SCREENS: ScreenDef[] = [
    *  the Sales-gated vocabulary; the static `log` segment outranks `:id`. */
   {
     path: '/comms/log',
-    name: 'Liên hệ · Ghi liên hệ',
+    name: 'Ghi liên hệ',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-log'),
   },
   {
     path: '/comms/:id',
-    name: 'Liên hệ · Chi tiết liên hệ',
+    name: 'Chi tiết liên hệ',
     branch: 'Sales',
     permission: 'comm.view',
     load: () => import('@/pages/comm-record'),
@@ -538,14 +539,20 @@ const setMetaContent = (selector: string, content: string) => {
   document.querySelector(selector)?.setAttribute('content', content)
 }
 
+const HEAD_TAGLINE: Record<Lang, string> = {
+  vi: 'Hệ thống CRM của Pebble Vina.',
+  en: 'Pebble Vina CRM.',
+  ko: 'Pebble Vina CRM.',
+}
+
 const syncHeadMetadata = (pathname: string) => {
   const screen = SCREENS.find((s) => matchPath({ path: s.path, end: true }, pathname))
+  const tagline = HEAD_TAGLINE[getLang()]
   const title = screen ? `${screen.name} · PV One` : 'PV One · Pebble Vina'
-  const description = screen
-    ? `${screen.name} — PV One của Pebble Vina.`
-    : 'PV One của Pebble Vina.'
+  const description = screen ? `${screen.name} — ${tagline}` : tagline
 
   document.title = title
+  document.documentElement.lang = getLang()
   setMetaContent('meta[name="description"]', description)
   setMetaContent('meta[property="og:title"]', title)
   setMetaContent('meta[property="og:description"]', description)
@@ -554,3 +561,4 @@ const syncHeadMetadata = (pathname: string) => {
 }
 syncHeadMetadata(router.state.location.pathname)
 router.subscribe((state) => syncHeadMetadata(state.location.pathname))
+onLangChange(() => syncHeadMetadata(router.state.location.pathname))

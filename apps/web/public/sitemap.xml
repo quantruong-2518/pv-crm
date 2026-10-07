@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://crm.pebblevina.com/</loc></url>
+  <url><loc>https://crm.pebblevina.com/approvals</loc></url>
+  <url><loc>https://crm.pebblevina.com/admin/users</loc></url>
+  <url><loc>https://crm.pebblevina.com/admin/roles</loc></url>
+  <url><loc>https://crm.pebblevina.com/admin/partners</loc></url>
+  <url><loc>https://crm.pebblevina.com/admin/lead-origins</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/campaigns</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/campaigns/sources</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/campaigns/mail-runs</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/leads</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/leads/new</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/leads/scan</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/accounts</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/contacts</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/opportunities</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/opportunities/new</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/workstreams</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/contracts</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/performance</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/plan</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/config</loc></url>
+  <url><loc>https://crm.pebblevina.com/sales/config/mail-templates</loc></url>
+  <url><loc>https://crm.pebblevina.com/comms/log</loc></url>
+</urlset>
