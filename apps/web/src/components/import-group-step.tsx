@@ -14,17 +14,16 @@ import type { ImportSpec } from '@/data/intake'
  *  the file names one company on two or more valid rows.
  *
  *  The file cannot say whether three people at one company are three deals or
- *  one, so the person loading it does. Every company starts on `apart`, which
- *  is what the panel did before this step: pressing the load button without
- *  touching anything changes nothing about the batch.
+ *  one, so the person loading it does. Every company starts on `together`
+ *  (the owner's default: one account, one lead); the other two are opt-in.
  *
  *  Not an AI block (law 9 does not apply): nothing here is proposed, the
  *  clusters are an exact fold of the company cell. */
 
 const MODES: { value: GroupMode; label: string }[] = [
-  { value: 'apart', label: 'Tách riêng' },
-  { value: 'together', label: 'Gộp chung' },
-  { value: 'split', label: 'Tự chia' },
+  { value: 'together', label: 'Chung một lead' },
+  { value: 'apart', label: 'Mỗi người một lead' },
+  { value: 'split', label: 'Tự chia lead' },
 ]
 
 type Fields = NonNullable<ImportSpec['groupBy']>
@@ -62,17 +61,17 @@ export function StepGroup({
           size="md"
           variant="ghost"
           className="pointer-coarse:h-12"
-          onClick={() => setAll('apart')}
+          onClick={() => setAll('together')}
         >
-          Tất cả: tách riêng
+          Tất cả: chung một lead
         </Button>
         <Button
           size="md"
           variant="ghost"
           className="pointer-coarse:h-12"
-          onClick={() => setAll('together')}
+          onClick={() => setAll('apart')}
         >
-          Tất cả: gộp chung
+          Tất cả: mỗi người một lead
         </Button>
       </div>
 

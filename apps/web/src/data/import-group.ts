@@ -4,8 +4,9 @@ import type { BuiltRow } from '@/data/intake'
 /** The group-by-company decision, as data — pure, no React.
  *
  *  A plan only records what the person CHANGED: a company with no entry is
- *  `apart`, which is the panel's behaviour before this step existed. So an
- *  untouched plan sends exactly the rows `buildRows` produced. */
+ *  `together` — several people at one account are one deal far more often than
+ *  several, so the owner made that the default. An untouched plan therefore
+ *  groups every repeated company into one lead. */
 
 export type GroupMode = 'apart' | 'together' | 'split'
 
@@ -51,7 +52,7 @@ export function repeatsCompany(rows: readonly (readonly string[])[], at: number)
 }
 
 export const modeOf = (plan: GroupPlan, cluster: CompanyCluster): GroupMode =>
-  plan.companies[cluster.key]?.mode ?? 'apart'
+  plan.companies[cluster.key]?.mode ?? 'together'
 
 export const letterOf = (plan: GroupPlan, cluster: CompanyCluster, line: number): number =>
   plan.companies[cluster.key]?.letters[line] ?? cluster.rows.findIndex((r) => r.line === line)
