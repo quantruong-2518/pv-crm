@@ -31,6 +31,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { contact } from '../contact/contact.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
@@ -355,9 +356,11 @@ export class LeadRepository {
       .orderBy(asc(lead.code))
   }
 
-  /** Live leads at any of the companies a file names — the candidates the
-   *  import door folds with `leadDupKey`. Matched on `lower(company)` only: the
-   *  key itself strips diacritics, which SQL here cannot do portably. */
+  /** Everybody at the live leads of the companies a file names — the candidates
+   *  the import door folds with `leadDupKey`. One per contact row, plus the
+   *  lead's own columns: a lead whose last contact was deleted has no row in
+   *  `sales.contact`. Matched on `lower(company)` only: the key itself strips
+   *  diacritics, which SQL here cannot do portably. */
   async importBook(
     who: Pick<Actor, 'id' | 'ownOnly'>,
     companiesLower: readonly string[],
@@ -367,22 +370,28 @@ export class LeadRepository {
   > {
     if (companiesLower.length === 0) return []
     const scope = this.scopeOf(who, true)
-    return db
+    const found = await db
       .select({
         code: lead.code,
         company: lead.company,
         contactName: lead.contactName,
         phone: lead.phone,
         inScope: scope ? sql<boolean>`COALESCE(${scope}, false)` : sql<boolean>`true`,
+        person: { name: contact.name, phone: contact.phone },
       })
       .from(lead)
+      .leftJoin(contact, eq(contact.leadCode, lead.code))
       .where(
         and(
           notInArray(lead.state, [...LEAD_GONE_STATES]),
           inArray(sql`lower(${lead.company})`, [...companiesLower]),
         ),
       )
-      .orderBy(asc(lead.code))
+      .orderBy(asc(lead.code), asc(contact.code))
+    return found.flatMap(({ person, ...own }) => [
+      own,
+      ...(person ? [{ ...own, contactName: person.name, phone: person.phone }] : []),
+    ])
   }
 
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.

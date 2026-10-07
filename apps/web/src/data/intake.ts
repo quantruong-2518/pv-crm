@@ -32,7 +32,14 @@ import {
   type OriginKind,
   type QuestionKey,
 } from '@pv/engines/fixtures/das-vina'
-import { EMAIL_MAX, LEAD_MAX, MAX_IMPORT_CELL, PHONE_MAX, type IntakeTrust } from '@pv/contracts'
+import {
+  EMAIL_MAX,
+  LEAD_MAX,
+  MAX_IMPORT_CELL,
+  PHONE_MAX,
+  type IntakeTrust,
+  type LeadImportReport,
+} from '@pv/contracts'
 import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import { MAX_ROWS, type Sheet } from '@/data/intake-file'
@@ -294,6 +301,9 @@ export type ImportSpec = {
   /** What makes two rows the same thing. Absent = same COMPANY (`dedupeKeys`);
    *  the lead book overrides it, since two people at one company are two leads. */
   dedupe?: (values: Record<string, string>) => string[]
+  /** Turns on the group-by-company step: field keys naming the company rows
+   *  are clustered by, and the person shown on each line. Absent = no step. */
+  groupBy?: { company: string; person: string; email: string }
   /** Tên tệp mẫu tải về, không có đuôi. */
   sampleStem: string
 }
@@ -361,6 +371,7 @@ export const LEAD_SPEC: ImportSpec = {
   /* No browser pre-check: the server decides what a duplicate is and LISTS the
      rows it kept out, which a row dropped here would never reach. */
   dedupe: () => [],
+  groupBy: { company: 'company', person: 'contactName', email: 'email' },
   /* `importCell`'s ceiling in the contract. The columns with no `max` of their
      own — industry, campaign, tier, channel, headcount — still have to stay
      under it, because it is a ceiling on the BODY: one cell over it fails
@@ -839,6 +850,9 @@ export type BuiltRow = {
   values: Record<string, string>
   /** Khoá chống trùng. Rỗng = không đủ dữ liệu để so trùng. */
   key: string
+  /** Set by the grouping step only — see `LeadImportRow.group` / `.primary`. */
+  group?: string
+  primary?: boolean
 }
 
 export type RowError = {
@@ -923,6 +937,8 @@ export type ImportReport = {
    *  Absent on a browser-only report and on a preview — a row that went nowhere
    *  has no code, and inventing a blank column for it would suggest it does. */
   codes?: string[]
+  /** Lead book only: rows that went in as an extra contact of a grouped lead. */
+  attached?: LeadImportReport['attached']
   /** Lead book only: how the batch's origins resolved against the catalog. */
   origins?: { matched: number; created: string[] }
 }

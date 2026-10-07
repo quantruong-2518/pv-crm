@@ -639,6 +639,7 @@ export class LeadWriteService {
       row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
       ref: refOf(codes[i]!, write),
       origin: write.origin,
+      extras: write.extras,
     }))
 
     const batch = await this.repo.run(async (tx) => {
@@ -714,6 +715,10 @@ export class LeadWriteService {
            cost as `codes` above, bounded by `CHUNK` per pass. */
         for (const row of rows) {
           await this.contacts.seedPrimary(tx, row.code, mirrorOf(row), who)
+        }
+        /* A grouped lead's other people, after its primary so they stay extra. */
+        for (const p of slice) {
+          if (p.extras.length > 0) await this.contacts.attach(tx, p.row.code, p.extras, who)
         }
         /* One timeline row per lead, in the same chunk as the lead itself. The
            file name goes into the sentence rather than into a column, because

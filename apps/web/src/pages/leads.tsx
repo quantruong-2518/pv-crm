@@ -404,6 +404,9 @@ export function LeadsPage() {
     toast(run.failure ?? `${report.rows.length} lead đã vào sổ`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
+        report.attached &&
+          report.attached.length > 0 &&
+          `${report.attached.length} người gộp vào lead chung`,
         report.duplicates > 0 && `${report.duplicates} dòng đã có trong hệ thống, không nạp`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,

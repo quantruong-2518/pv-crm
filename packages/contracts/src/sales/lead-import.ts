@@ -118,6 +118,9 @@ export const MAX_IMPORT_ROWS = 5_000
  *  possible if it can read the number rather than guess it. */
 export const MAX_IMPORT_CELL = 1_000
 
+/** Ceiling for `LeadImportRow.group` — an id the panel mints, never content. */
+export const MAX_IMPORT_GROUP = 64
+
 const importCell = z
   .string()
   .max(MAX_IMPORT_CELL, `Ô dài quá ${MAX_IMPORT_CELL.toLocaleString('vi-VN')} ký tự`)
@@ -145,6 +148,15 @@ export const LeadImportRow = z.object({
    *  spreadsheet. When absent the server falls back to `values.company`. */
   first: textInputOptional(LEAD_MAX.company),
   values: z.partialRecord(LeadImportField, importCell),
+  /** Rows sharing a `group` become ONE lead with several contacts: the person
+   *  loading the file said these people are one deal. Opaque to the server
+   *  beyond equality; absent = this row is a lead of its own. Every row of a
+   *  group must name the same company (`foldText`), or each is refused. */
+  group: z.string().min(1).max(MAX_IMPORT_GROUP).optional(),
+  /** The group's main contact, whose row also supplies the LEAD's fields
+   *  (industry, pain, owner, origin). None flagged = the group's first row
+   *  that survives the checks. Ignored without `group`. */
+  primary: z.boolean().optional(),
 })
 
 /** The body of BOTH import endpoints. Same shape on purpose: preview and commit
@@ -217,6 +229,17 @@ export const LeadImportError = z.object({
   reason: z.string().min(1),
 })
 
+/** Case, diacritics, the barred d and punctuation folded away — how the import
+ *  door decides two spellings name one company or one person. Shared so the
+ *  panel groups rows by the same company the server will see. */
+export const foldText = (text: string): string =>
+  text
+    .replace(/đ/gi, 'd')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+
 /** What makes two leads THE SAME PERSON at the import door: same contact name,
  *  same company, same phone. Folded (case, diacritics, punctuation; phone to
  *  digits with `84` read as the leading `0`) so "Cty ABC" typed twice still
@@ -226,13 +249,7 @@ export function leadDupKey(v: {
   company: string
   phone?: string | null
 }): string {
-  const fold = (text: string): string =>
-    text
-      .replace(/đ/gi, 'd')
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '')
+  const fold = foldText
   const digits = (v.phone ?? '').replace(/\D/g, '').replace(/^84/, '0')
   return `lead:${fold(v.contactName)}|${fold(v.company)}|${digits}`
 }
@@ -290,6 +307,12 @@ export const LeadImportReport = z.object({
 
   dupWithBook: z.array(LeadImportDup),
   dupWithinFile: z.array(LeadImportDup),
+  /** Rows that went in as an EXTRA contact of a grouped lead rather than as a
+   *  lead of their own — in neither `rows` nor any refusal list. `into` is the
+   *  line of the group's main row (a lead code does not exist at preview). */
+  attached: z.array(
+    z.object({ line: z.number().int().min(2), first: z.string(), into: z.number().int().min(2) }),
+  ),
 
   /** Origins this batch touches. `matched` hit an existing catalog key;
    *  `created` names the NEW ones a commit would mint — a dry run has no ids

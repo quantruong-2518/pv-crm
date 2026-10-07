@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { CircleCheck, Download, TriangleAlert, Upload } from '@pv/ui'
+import { ArrowLeft, Download, Upload } from '@pv/ui'
 import {
   Badge,
   Button,
@@ -9,7 +9,6 @@ import {
   GlassCard,
   Icon,
   Kicker,
-  Progress,
   SectionTitle,
   Select,
   Stepper,
@@ -28,9 +27,7 @@ import {
 } from '@/data/intake-file'
 import {
   buildRows,
-  errorRows,
   guessMapping,
-  originTally,
   sampleRows,
   trustOf,
   unmappedRequired,
@@ -42,14 +39,14 @@ import {
 } from '@/data/intake'
 import {
   BatchAssign,
-  DoneRows,
-  RejectedRows,
   FileStrip,
   MojibakeNote,
-  Tally,
+  StepRun,
   WindowDropCatcher,
   type BatchExtra,
 } from '@/components/import-zone-bits'
+import { StepGroup } from '@/components/import-group-step'
+import { EMPTY_PLAN, applyPlan, clustersOf, type CompanyCluster } from '@/data/import-group'
 
 /** Luồng nạp tệp — MỘT component cho cả ba sổ.
  *
@@ -144,7 +141,7 @@ export type ImportZoneProps = {
   className?: string
 }
 
-type Phase = 'pick' | 'map' | 'run' | 'done'
+type Phase = 'pick' | 'map' | 'group' | 'run' | 'done'
 
 /** The two steps of the bar. `run` and `done` get NO step of their own — they
  *  grow under the mapping table, so the bar stays on step 2 while loading. */
@@ -196,6 +193,10 @@ export function ImportZone({
    *  match-more button was pressed, or the user touched that select. Once shown
    *  they stay: a select vanishing on being set back to skip cannot be undone. */
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set())
+  /** Rows built and held back while the person decides the grouping. The plan
+   *  outlives a trip back to the mapping: it is keyed by company and line. */
+  const [held, setHeld] = useState<{ built: ImportReport; clusters: CompanyCluster[] }>()
+  const [plan, setPlan] = useState(EMPTY_PLAN)
 
   const reset = () => {
     setPhase('pick')
@@ -207,6 +208,8 @@ export function ImportZone({
     setDone(0)
     setReport(undefined)
     setRevealed(new Set())
+    setHeld(undefined)
+    setPlan(EMPTY_PLAN)
   }
 
   const close = () => {
@@ -257,13 +260,27 @@ export function ImportZone({
   /** Nguồn thật của lô: cố định thắng chọn, chọn thắng bỏ trống. */
   const effectiveScope = scope ?? (picked === '' ? undefined : picked)
 
-  /** Chạy thật. */
+  /** Build the rows; a spec with `groupBy` stops here when the file names one
+   *  company on several valid rows, so nothing is sent before the person says
+   *  how those people become leads. */
   const run = async () => {
     if (!sheet) return
     setPhase('run')
     setDone(0)
 
     const built = await buildRows(sheet, mapping, liveSpec, existingKeys, (n) => setDone(n))
+    const clusters = liveSpec.groupBy ? clustersOf(built.rows, liveSpec.groupBy.company) : []
+    if (clusters.length > 0) {
+      setHeld({ built, clusters })
+      setPhase('group')
+      return
+    }
+    await commit(sheet, built)
+  }
+
+  /** Chạy thật. */
+  const commit = async (sheet: Sheet, built: ImportReport) => {
+    setPhase('run')
 
     /* Khối nạp đứng nguyên ở "Đang nạp" cho tới khi người ghi trả lời. Nhảy sang
        bảng kết quả trước đó là vẽ bốn con số chưa ai xác nhận, rồi sửa chúng
@@ -302,6 +319,12 @@ export function ImportZone({
 
     setReport(final)
     setPhase('done')
+  }
+
+  const resume = async () => {
+    if (!sheet || !held) return
+    const rows = applyPlan(held.built.rows, held.clusters, plan)
+    await commit(sheet, { ...held.built, rows })
   }
 
   const missing = sheet ? unmappedRequired(mapping, liveSpec) : []
@@ -350,11 +373,17 @@ export function ImportZone({
               <Button size="md" variant="ghost" onClick={close}>
                 {phase === 'done' ? 'Đóng' : 'Huỷ'}
               </Button>
-              {phase === 'map' && (
+              {phase === 'group' && (
+                <Button size="md" variant="ghost" onClick={() => setPhase('map')}>
+                  <Icon icon={ArrowLeft} size={16} />
+                  Quay lại khớp cột
+                </Button>
+              )}
+              {(phase === 'map' || phase === 'group') && (
                 <Button
                   size="md"
                   disabled={missing.length > 0 || extra?.missing !== undefined}
-                  onClick={() => void run()}
+                  onClick={() => void (phase === 'map' ? run() : resume())}
                 >
                   Nạp {sheet?.rows.length ?? 0} dòng
                 </Button>
@@ -387,6 +416,16 @@ export function ImportZone({
               onPick={(f) => void take(f)}
               onPasteText={takePaste}
             />
+          ) : phase === 'group' ? (
+            held &&
+            liveSpec.groupBy && (
+              <StepGroup
+                clusters={held.clusters}
+                plan={plan}
+                onPlan={setPlan}
+                fields={liveSpec.groupBy}
+              />
+            )
           ) : (
             sheet && (
               <StepMap
@@ -741,104 +780,6 @@ function StepMap({
           </table>
         </div>
       </GlassCard>
-    </section>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Bước 3 · Nạp
-// ---------------------------------------------------------------------------
-
-function StepRun({
-  done,
-  total,
-  report,
-  spec,
-  onSeeResult,
-  onClose,
-}: {
-  done: number
-  total: number
-  report?: ImportReport
-  spec: ImportSpec
-  onSeeResult?: () => void
-  onClose: () => void
-}) {
-  return (
-    <section className="flex flex-col gap-4">
-      {/* No 'Bước 3' kicker: the bar has two steps, and naming a third one here
-          would contradict it. */}
-      <SectionTitle size="lg">{report ? 'Đã nạp xong' : 'Đang nạp'}</SectionTitle>
-
-      {!report && (
-        <GlassCard variant="b" className="flex flex-col gap-3 p-4">
-          <Progress value={total === 0 ? 0 : done / total} label="Đang dựng dòng" />
-          <p className="text-glass-foreground tnum text-[11.5px]">
-            Dòng <span className="font-num">{done}</span> trên{' '}
-            <span className="font-num">{total}</span>
-          </p>
-        </GlassCard>
-      )}
-
-      {report && (
-        <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Tally label="Vào sổ" value={report.rows.length} tone="success" />
-            <Tally label="Đã có trong hệ thống" value={report.duplicates} />
-            <Tally label="Trùng trong tệp" value={report.dupInFile} />
-            <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
-          </div>
-
-          {report.origins && (
-            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-              {originTally(report.origins)}
-            </p>
-          )}
-
-          {report.errors.length > 0 && (
-            <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
-              <Icon icon={TriangleAlert} size={18} className="text-warning" />
-              <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
-                {report.errors.length} dòng không nạp được. Tải tệp lỗi về, mở cạnh tệp gốc, sửa
-                đúng những dòng đó rồi nạp lại — phần đã vào sổ sẽ bị bắt trùng, không vào hai lần.
-              </p>
-              <Button
-                size="md"
-                variant="ghost"
-                onClick={() =>
-                  downloadCsv(`${spec.sampleStem}-loi.csv`, errorRows(report.errors, spec))
-                }
-              >
-                <Icon icon={Download} size={16} />
-                Tải tệp lỗi
-              </Button>
-            </GlassCard>
-          )}
-
-          <DoneRows rows={report.rows} codes={report.codes} spec={spec} />
-          <RejectedRows
-            errors={report.errors}
-            withBook={report.dupWithBook}
-            withinFile={report.dupWithinFile}
-            spec={spec}
-          />
-
-          {report.rows.length > 0 && onSeeResult && (
-            <div>
-              <Button
-                size="md"
-                onClick={() => {
-                  onClose()
-                  onSeeResult()
-                }}
-              >
-                <Icon icon={CircleCheck} size={16} />
-                Xem {report.rows.length} dòng vừa vào sổ
-              </Button>
-            </div>
-          )}
-        </>
-      )}
     </section>
   )
 }

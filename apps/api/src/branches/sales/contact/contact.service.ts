@@ -40,7 +40,7 @@ import type { ContactRowDb } from './contact.schema'
  *  the contact really belongs to the lead on the path, and throws 404
  *  rather than 403 — the same reason `MeetingService.mine` does that, so it
  *  never reveals that the code exists under a different lead. */
-type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phone'>
+export type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phone' | 'channel'>
 
 @Injectable()
 export class ContactService {
@@ -183,19 +183,36 @@ export class ContactService {
       return name ? `n:${name}` : `p:${phone ?? ''}`
     }
     const known = new Set((await this.repo.byLead(leadCode, tx)).map(keyOf))
-    let added = 0
-    for (const person of people) {
-      if (known.has(keyOf(person))) continue
+    const fresh = people.filter((person) => {
+      if (known.has(keyOf(person))) return false
       known.add(keyOf(person))
+      return true
+    })
+    await this.attach(
+      tx,
+      leadCode,
+      fresh.map((person) => ({ ...person, name: person.name ?? unnamed })),
+      who,
+    )
+    return fresh.length
+  }
+
+  /** People onto a lead as NON-primary contacts, on the caller's `tx`, with no
+   *  "already here" test of its own: the caller has decided these are new —
+   *  `seedExtra` by its card key, the file import by `leadDupKey`. */
+  async attach(
+    tx: Db,
+    leadCode: string,
+    people: readonly ContactSeed[],
+    who: { id: string; name: string },
+  ): Promise<void> {
+    for (const person of people) {
       const code = await this.repo.nextCode(tx)
-      const body = { ...person, name: person.name ?? unnamed, isPrimary: false }
-      const values = fromCreate(leadCode, body, who, false)
+      const values = fromCreate(leadCode, { ...person, isPrimary: false }, who, false)
       await this.mirror.put(tx, refOf(code, leadCode, values))
       await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
       await this.repo.insert(tx, { ...values, code })
-      added += 1
     }
-    return added
   }
 
   /** Write a new person into a lead's book.

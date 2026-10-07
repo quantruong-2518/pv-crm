@@ -183,6 +183,8 @@ export function buildLeadImportBody(
       line: row.line,
       first: clip(row.first, LEAD_MAX.company),
       values: pickImportValues(row.values),
+      group: row.group,
+      primary: row.primary,
     })),
   }
 
@@ -214,6 +216,8 @@ export type LeadImportPanelReport = {
   dupWithinFile: LeadImportDup[]
   /** Codes minted for `rows`, in the same order — only after a commit. */
   codes?: string[]
+  /** Optional: a refusal built in the browser has no such list. */
+  attached?: LeadImportReport['attached']
   origins?: LeadImportReport['origins']
 }
 
@@ -244,6 +248,7 @@ export function toPanelReport(report: LeadImportReport): LeadImportPanelReport {
     total: report.total,
     dupWithBook: report.dupWithBook,
     dupWithinFile: report.dupWithinFile,
+    attached: report.attached,
     origins: report.origins,
   }
 }

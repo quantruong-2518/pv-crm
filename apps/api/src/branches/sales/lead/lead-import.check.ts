@@ -7,6 +7,7 @@ import {
   LeadTier,
   ORIGIN_NAME_MAX,
   email as emailField,
+  foldText,
   leadDupKey,
   originKey,
   phoneOptional,
@@ -22,6 +23,7 @@ import {
   type LeadMotion,
   type LeadOriginPick,
 } from '@pv/contracts'
+import type { ContactSeed } from '../contact/contact.service'
 import type { OriginIndex } from '../lead-origin/lead-origin.service'
 import { stateAtBirth, type LeadWrite } from './lead-write.mapper'
 
@@ -113,8 +115,9 @@ export type ImportCheckInput = {
 export type ImportCheck = {
   report: LeadImportReport
   /** One draft per entry of `report.rows`, in the same order. The commit path
-   *  mints a code for each and writes them; the preview path drops them. */
-  writes: LeadWrite[]
+   *  mints a code for each and writes them; the preview path drops them.
+   *  `extras` are the `report.attached` rows of that lead's group. */
+  writes: (LeadWrite & { extras: ContactSeed[] })[]
 }
 
 /** Column names as the person filling in the file sees them — the headers of
@@ -211,11 +214,13 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   const staff = indexStaff(input.staff)
 
   const rows: LeadImportRowOut[] = []
-  const writes: LeadWrite[] = []
+  const writes: ImportCheck['writes'] = []
   const errors: LeadImportError[] = []
   const dupWithBook: LeadImportDup[] = []
   const dupWithinFile: LeadImportDup[] = []
+  const attached: LeadImportReport['attached'] = []
   const seen = new Set<string>()
+  const survivors: Survivor[] = []
 
   for (const row of input.rows) {
     const outcome = checkRow(row, input, staff, input.campaigns)
@@ -239,9 +244,33 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
       continue
     }
     seen.add(out.key)
-    rows.push(out)
-    writes.push(write)
+    survivors.push({ row, out, write: { ...write, extras: [] } })
   }
+
+  const { mains, mixed } = groupsOf(survivors)
+  for (const s of survivors) {
+    const first = firstOf(s.row, s.out.values)
+    const main = s.row.group === undefined ? undefined : mains.get(s.row.group)
+    if (s.row.group !== undefined && mixed.has(s.row.group)) {
+      errors.push({ line: s.row.line, first, field: 'company', reason: GROUP_MIXED })
+    } else if (main && main !== s) {
+      /* Only the person is taken: the lead's own cells come from the main row. */
+      const v = s.write.values
+      main.write.extras.push({
+        name: v.contactName,
+        title: v.contactTitle ?? undefined,
+        email: v.email,
+        phone: v.phone ?? undefined,
+        channel: v.contactChannel ?? undefined,
+      })
+      attached.push({ line: s.row.line, first, into: main.row.line })
+    } else {
+      rows.push(s.out)
+      writes.push(s.write)
+    }
+  }
+  /* Group refusals are found after the row pass; put them back in file order. */
+  if (mixed.size > 0) errors.sort((a, b) => a.line - b.line)
 
   return {
     writes,
@@ -253,9 +282,38 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
       total: input.rows.length,
       dupWithBook,
       dupWithinFile,
+      attached,
       origins: originTally(writes, input.origins),
     },
   }
+}
+
+type Survivor = { row: LeadImportRow; out: LeadImportRowOut; write: ImportCheck['writes'][number] }
+
+const GROUP_MIXED = 'Các dòng gộp chung một lead phải cùng công ty'
+
+/** Per group with more than one surviving row: its main row, or membership in
+ *  `mixed` when the rows name different companies. A group down to one row is
+ *  in neither — it is an ordinary lead. */
+function groupsOf(survivors: readonly Survivor[]): {
+  mains: Map<string, Survivor>
+  mixed: Set<string>
+} {
+  const members = new Map<string, Survivor[]>()
+  for (const s of survivors) {
+    if (s.row.group === undefined) continue
+    const had = members.get(s.row.group)
+    if (had) had.push(s)
+    else members.set(s.row.group, [s])
+  }
+  const mains = new Map<string, Survivor>()
+  const mixed = new Set<string>()
+  for (const [group, list] of members) {
+    if (list.length < 2) continue
+    if (new Set(list.map((s) => foldText(s.write.values.company))).size > 1) mixed.add(group)
+    else mains.set(group, list.find((s) => s.row.primary) ?? list[0]!)
+  }
+  return { mains, mixed }
 }
 
 /** Distinct existing origins the accepted rows land on, and the names a

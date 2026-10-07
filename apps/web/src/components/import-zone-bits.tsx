@@ -1,22 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Button,
+  CircleCheck,
+  Download,
   FileSpreadsheet,
   FileUp,
   GlassCard,
   Icon,
   Kicker,
+  Progress,
+  SectionTitle,
   SegmentedControl,
   Select,
   TriangleAlert,
   cn,
 } from '@pv/ui'
 import type { LeadMotion } from '@pv/engines'
-import { ACCEPT, type Sheet } from '@/data/intake-file'
+import { ACCEPT, downloadCsv, type Sheet } from '@/data/intake-file'
 import {
   MOTION_FACE,
+  errorRows,
+  originTally,
   type BuiltRow,
   type DupRow,
+  type ImportReport,
   type ImportSpec,
   type RowError,
 } from '@/data/intake'
@@ -202,6 +209,125 @@ export function Tally({
       </span>
       <span className="text-muted-foreground text-[11.5px]">{label}</span>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// The load itself: progress, then the result
+// ---------------------------------------------------------------------------
+
+export function StepRun({
+  done,
+  total,
+  report,
+  spec,
+  onSeeResult,
+  onClose,
+}: {
+  done: number
+  total: number
+  report?: ImportReport
+  spec: ImportSpec
+  onSeeResult?: () => void
+  onClose: () => void
+}) {
+  /* An empty list draws nothing: the recipient door gets one from the server
+     too, and a zero there would be a tally about a step it never had. */
+  const attached = report?.attached ?? []
+
+  return (
+    <section className="flex flex-col gap-4">
+      {/* No 'step 3' kicker: the bar has two steps, and naming a third one here
+          would contradict it. */}
+      <SectionTitle size="lg">{report ? 'Đã nạp xong' : 'Đang nạp'}</SectionTitle>
+
+      {!report && (
+        <GlassCard variant="b" className="flex flex-col gap-3 p-4">
+          <Progress value={total === 0 ? 0 : done / total} label="Đang dựng dòng" />
+          <p className="text-glass-foreground tnum text-[11.5px]">
+            Dòng <span className="font-num">{done}</span> trên{' '}
+            <span className="font-num">{total}</span>
+          </p>
+        </GlassCard>
+      )}
+
+      {report && (
+        <>
+          <div
+            className={`grid grid-cols-2 gap-3 ${attached.length > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}
+          >
+            <Tally label="Vào sổ" value={report.rows.length} tone="success" />
+            <Tally label="Đã có trong hệ thống" value={report.duplicates} />
+            <Tally label="Trùng trong tệp" value={report.dupInFile} />
+            <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
+            {attached.length > 0 && <Tally label="Gộp vào lead chung" value={attached.length} />}
+          </div>
+
+          {report.origins && (
+            <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
+              {originTally(report.origins)}
+            </p>
+          )}
+
+          {report.errors.length > 0 && (
+            <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
+              <Icon icon={TriangleAlert} size={18} className="text-warning" />
+              <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
+                {report.errors.length} dòng không nạp được. Tải tệp lỗi về, mở cạnh tệp gốc, sửa
+                đúng những dòng đó rồi nạp lại — phần đã vào sổ sẽ bị bắt trùng, không vào hai lần.
+              </p>
+              <Button
+                size="md"
+                variant="ghost"
+                onClick={() =>
+                  downloadCsv(`${spec.sampleStem}-loi.csv`, errorRows(report.errors, spec))
+                }
+              >
+                <Icon icon={Download} size={16} />
+                Tải tệp lỗi
+              </Button>
+            </GlassCard>
+          )}
+
+          <DoneRows rows={report.rows} codes={report.codes} spec={spec} />
+          {/* Its own list, not a line of the refusals below: these rows went in. */}
+          <ResultList
+            kicker="Đã gộp vào lead chung"
+            head={['Dòng trong tệp', 'Ô đầu dòng', 'Vào lead của dòng']}
+            count={attached.length}
+          >
+            {attached.slice(0, LIST_CAP).map((a) => (
+              <tr key={a.line} className="bg-surface-ink/[3%]">
+                <Line n={a.line} />
+                <td className="max-w-[200px] truncate px-3 py-2">{a.first || '—'}</td>
+                <Line n={a.into} />
+              </tr>
+            ))}
+          </ResultList>
+          <RejectedRows
+            errors={report.errors}
+            withBook={report.dupWithBook}
+            withinFile={report.dupWithinFile}
+            spec={spec}
+          />
+
+          {report.rows.length > 0 && onSeeResult && (
+            <div>
+              <Button
+                size="md"
+                onClick={() => {
+                  onClose()
+                  onSeeResult()
+                }}
+              >
+                <Icon icon={CircleCheck} size={16} />
+                Xem {report.rows.length} dòng vừa vào sổ
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 
