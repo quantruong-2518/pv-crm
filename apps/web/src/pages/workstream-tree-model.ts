@@ -91,9 +91,11 @@ export const clampZoom = (z: number) =>
 
 /** Fit by WIDTH only — a tall tree scrolls, it never shrinks to fit. Never
  *  past 100%, and never under it on a touch screen or below `lg`: scaling
- *  would shrink the 48px targets under law 13, so the frame scrolls instead. */
+ *  would shrink the 48px targets under law 13, so the frame scrolls instead.
+ *  Floored, not rounded: a tree a few px wider than the frame raises a
+ *  scrollbar, which narrows the frame, which re-fits — an endless flicker. */
 export const fitZoom = (frame: { w: number; touch: boolean }) =>
-  frame.touch ? 1 : clampZoom(Math.min(1, frame.w / TREE_W))
+  frame.touch ? 1 : clampZoom(Math.min(1, Math.floor((frame.w / TREE_W) * 100) / 100))
 
 // ---------------------------------------------------------------------------
 // RUNGS

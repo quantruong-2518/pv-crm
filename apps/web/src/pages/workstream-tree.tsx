@@ -232,7 +232,7 @@ export function WorkstreamTree({ journey, ...track }: Track & { journey: Journey
   const layout = layoutTree(journey, (d) => d.outcome === 'open' || expanded.has(d.code), heights)
   const fit = fitZoom(frame)
   const zoom = zoomAsked ?? fit
-  const scaledH = Math.round(layout.contentH * zoom)
+  const scaledH = Math.ceil(layout.contentH * zoom)
 
   const toggle = (code: string) =>
     setExpanded((prev) => {
@@ -263,7 +263,7 @@ export function WorkstreamTree({ journey, ...track }: Track & { journey: Journey
             its overflow behind `scrollLeft: 0`. */}
         <div
           className="relative mx-auto"
-          style={{ width: Math.round(TREE_W * zoom), height: scaledH }}
+          style={{ width: Math.ceil(TREE_W * zoom), height: scaledH }}
         >
           <div
             ref={rootRef}
