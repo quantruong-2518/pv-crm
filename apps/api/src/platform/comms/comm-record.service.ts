@@ -1,19 +1,22 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import type { CommsChannel, ThreadChannel } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { StorageService } from '@api/platform/storage/storage.service'
 import { normaliseAddress, type NormalisedAddress } from './comms.mapper'
 import { DebriefRepository } from './debrief.repository'
 import { ThreadRepository } from './thread.repository'
 
 /** Opens a comm record — a thread, one empty logged turn and the owner's open
  *  debrief — for the call / Zalo / mail buttons, the mobile log and a meeting
- *  that ended (ADR 0075 §3). All rows and the audit line commit together.
+ *  the moment it is booked (ADR 0075 §3). All rows and the audit line commit
+ *  together. A booked meeting's record carries only the `booked` mark: its
+ *  slot and title stay on `sales.meeting` (0084), read through the hook.
  *
- *  No permission is asked here: the HTTP door asks reach before calling, and a
- *  job has no caller. Exported through `CommRecordModule`, so a branch job can
- *  inject it without mounting `CommsModule`'s controllers a second time. */
+ *  No permission is asked here: the calling door asks reach first. Exported
+ *  through `CommRecordModule`, so a branch can inject it without mounting
+ *  `CommsModule`'s controllers a second time. */
 
 /** Whom the comm was with, as the branch knows them (`CommDebriefHook.contactOf`):
  *  a contact, or a lead's own contact person, with the addresses on file.
@@ -41,8 +44,10 @@ export type CommRecordOpen = {
   sameLead?: readonly string[] | undefined
   /** Exactly on `'meeting'`: the thread's external id, one thread per meeting. */
   meetingId?: string | undefined
-  /** When the comm happened; defaults to now. A meeting passes its end. */
+  /** When the comm happened; defaults to now. A booked meeting passes its start. */
   at?: Date | undefined
+  /** A booked meeting: the record opens `scheduled` and stays off the queue. */
+  booked?: true | undefined
 }
 
 /** `created: false` = a meeting already had a record of this owner. */
@@ -54,10 +59,13 @@ type NewIdentity = Mint &
 
 @Injectable()
 export class CommRecordService {
+  private readonly log = new Logger('CommRecord')
+
   constructor(
     private readonly threads: ThreadRepository,
     private readonly debriefs: DebriefRepository,
     private readonly audit: AuditRepository,
+    private readonly storage: StorageService,
   ) {}
 
   /** Idempotent per (meeting, owner); every button press is a new record.
@@ -69,8 +77,8 @@ export class CommRecordService {
     if ((channel === 'meeting') !== (meetingId !== undefined)) {
       throw new Error('comms: a meeting record needs its meeting id, and only a meeting has one')
     }
-    /* A switched-off subject is absent (`objectByCode`): no caller — a door or
-       the meeting-end worker — may open a record on it. */
+    /* A switched-off subject is absent (`objectByCode`): no caller — a door,
+       a booking or the backfill script — may open a record on it. */
     if (!(await this.threads.objectByCode(subjectCode))) throw notFound('đối tượng', subjectCode)
     /* Pool reads before the transaction: PGlite holds one connection. */
     const guest = await this.guestOf(channel, {
@@ -115,6 +123,7 @@ export class CommRecordService {
         ownerId,
         messageId: turn.id,
         subjectCode,
+        booked: !!input.booked,
       })
       await this.audit.write(
         {
@@ -128,6 +137,64 @@ export class CommRecordService {
       await also?.(tx)
       return { debriefId, threadId, created: true }
     })
+  }
+
+  /** The meeting moved. Only comms' own copy of time follows: the booking
+   *  turn's `at` and the thread's span, because every timeline sorts by them.
+   *  No thread = a meeting booked before records were opened at booking. */
+  async reschedule(tx: Db, meetingId: string, at: Date): Promise<void> {
+    const threadId = await this.threads.meetingThreadOf(tx, meetingId)
+    if (threadId) await this.threads.moveBookingTurn(tx, threadId, at)
+  }
+
+  /** The booking was dropped before it happened. Its thread goes only while
+   *  it holds nothing but the booking: one turn and the owner's open booked
+   *  record — anything else is history and refuses (409). The record's files
+   *  go in the same transaction; their storage keys come back for `forgetFiles`. */
+  async dropBooked(
+    tx: Db,
+    meetingId: string,
+    by: { actorId: string; subjectCode: string; ownerId: string | null },
+  ): Promise<string[]> {
+    const threadId = await this.threads.meetingThreadOf(tx, meetingId)
+    const records = threadId ? await this.debriefs.onThread(tx, threadId) : []
+    const turns = threadId ? (await this.threads.messagesOf(threadId, tx)).length : 0
+    const [record, ...others] = records
+    const clean =
+      !threadId ||
+      (record !== undefined &&
+        others.length === 0 &&
+        turns === 1 &&
+        record.booked &&
+        record.closedAt === null &&
+        (by.ownerId === null || record.ownerId === by.ownerId))
+    if (!clean) {
+      throw conflict(
+        'Cuộc họp đã có trao đổi hoặc liên hệ khác ghi trên đó nên không xoá được — đổi lịch, hoặc chốt “Họp xong”.',
+      )
+    }
+    const keys = record ? await this.debriefs.dropFiles(tx, record.id) : []
+    if (threadId) await this.threads.deleteThread(tx, threadId)
+    await this.audit.write(
+      {
+        actorId: by.actorId,
+        action: 'edit',
+        code: by.subjectCode,
+        note: `sales.meeting ${meetingId} dropped${threadId ? ` · comms thread ${threadId} and debrief ${record?.id ?? ''} deleted · ${keys.length} file(s)` : ' · no comm record'}`,
+      },
+      tx,
+    )
+    return keys
+  }
+
+  /** After commit, never inside it (lead-scan's PGlite reason); a storage
+   *  failure leaves an orphan object, not a row pointing at nothing. */
+  async forgetFiles(keys: readonly string[]): Promise<void> {
+    for (const key of keys) {
+      await this.storage.remove(key).catch((error: unknown) => {
+        this.log.warn(`comm file: could not remove ${key} — ${String(error)}`)
+      })
+    }
   }
 
   /** The customer's identity for this turn, or the guest row to mint. Zalo

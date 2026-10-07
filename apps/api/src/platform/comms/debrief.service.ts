@@ -18,7 +18,13 @@ import type { ObjectRow } from '@api/platform/db/platform.schema'
 import { ACCESS } from '@api/platform/engines/tokens'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
-import { COMM_DEBRIEF_HOOK, unconfirmable, type CommDebriefHook } from './comm-debrief.hook'
+import {
+  COMM_DEBRIEF_HOOK,
+  closesMeetingFor,
+  unconfirmable,
+  type CommDebriefHook,
+  type MeetingSlot,
+} from './comm-debrief.hook'
 import { CommRecordService } from './comm-record.service'
 import { refuseNonSubject, toDebriefView, toObjectRef, toThread } from './comms.mapper'
 import { DebriefRepository, type DebriefRead } from './debrief.repository'
@@ -30,7 +36,8 @@ import { ThreadRepository } from './thread.repository'
  *
  *  Two fences. Reading a record takes the OWNER or reach on its subject: the
  *  owner was in the conversation, so a hand-over must not strand their record.
- *  Changing one — confirm, files — takes the owner alone (ADR 0074 §4).
+ *  Changing one — confirm, files — takes the owner (ADR 0074 §4), or on a
+ *  booked meeting an outranking closer too (`closable`).
  *
  *  Confirming is validated by the branch (`CommDebriefHook.prepare`) BEFORE
  *  the transaction, because the branch reads on the pool and PGlite has one
@@ -150,24 +157,41 @@ export class DebriefService {
   }
 
   async close(who: Actor, id: string, body: DebriefClose): Promise<DebriefView> {
+    const found = await this.owned(who, id, true)
+    if (found.row.booked) {
+      throw conflict('Đây là cuộc họp đã hẹn — dùng “Họp xong” để chốt cuộc họp.')
+    }
+    return this.confirm(who, found, body)
+  }
+
+  /** The confirm itself, shared by `close` and close-meeting: `also` is the
+   *  caller's consequence, inside the same transaction after the step. */
+  async confirm(
+    who: Actor,
+    found: DebriefRead,
+    body: DebriefClose,
+    also?: (tx: Db) => Promise<void>,
+  ): Promise<DebriefView> {
     const hook = this.hook
     /* Fail closed: the checks on answers, kind and subject live in the branch. */
     if (!hook) throw new Error('comms: COMM_DEBRIEF_HOOK is not bound; refusing to close unchecked')
 
-    const found = await this.owned(who, id, true)
+    const id = found.row.id
     const subjectCode = found.row.subjectCode
     const prepared = await hook.prepare(who, {
       subjectCode,
       answers: body.answers,
       step: body.step,
     })
+    const behalf = found.row.ownerId === who.id ? '' : ` · closed on behalf of ${found.row.ownerId}`
 
     await this.repo.run(async (tx) => {
       if (!(await this.repo.lockOpen(tx, id))) throw conflict(DONE)
 
       const step = prepared.step
       await this.repo.close(tx, id, {
-        title: body.title ?? null,
+        /* A booked record's title is the meeting's (`sales.meeting.title`). */
+        title: found.row.booked ? null : (body.title ?? null),
         summary: body.summary,
         nextKindId: step?.kind.id ?? null,
         nextKindName: step?.kind.name ?? null,
@@ -183,11 +207,12 @@ export class DebriefService {
           actorId: who.id,
           action: 'edit',
           code: subjectCode,
-          note: `comms.debrief ${id} confirmed · thread ${found.row.threadId} · ${prepared.answers.length} answer(s)${step ? ` · step ${step.kind.id}` : ''}`,
+          note: `comms.debrief ${id} confirmed · thread ${found.row.threadId} · ${prepared.answers.length} answer(s)${step ? ` · step ${step.kind.id}` : ''}${behalf}`,
         },
         tx,
       )
       await hook.apply(tx, who, prepared)
+      await also?.(tx)
     })
 
     return this.one(who, id)
@@ -198,6 +223,30 @@ export class DebriefService {
     const found = await this.repo.byId(id)
     if (!found) throw notFound('liên hệ', id)
     if (found.row.ownerId !== who.id) await this.inReach(who, found.row.subjectCode)
+    return found
+  }
+
+  /** Who may change an OPEN record — confirm it, attach or remove files: the
+   *  owner; on a booked meeting also an outranking closer who reaches the
+   *  subject and could confirm there (`closesMeetingFor`). */
+  async closable(who: Actor, id: string): Promise<DebriefRead> {
+    const found = await this.repo.byId(id)
+    if (!found) throw notFound('liên hệ', id)
+    if (found.row.ownerId !== who.id && found.row.booked) {
+      const subject = await this.inReach(who, found.row.subjectCode)
+      const confirmable = this.hook ? (await this.hook.slot(who, subject.code)).confirmable : false
+      if (
+        !closesMeetingFor(who, { id: found.row.ownerId, roleIds: found.ownerRoleIds }, confirmable)
+      ) {
+        throw denied(
+          'permission-denied',
+          `Chỉ ${found.ownerName} hoặc cấp trên của ${found.ownerName} mới chốt được cuộc họp này.`,
+        )
+      }
+    } else if (found.row.ownerId !== who.id) {
+      return this.owned(who, id, true)
+    }
+    if (found.row.closedAt) throw conflict(DONE)
     return found
   }
 
@@ -220,6 +269,8 @@ export class DebriefService {
   ): Promise<DebriefView[]> {
     const answers = await this.repo.answersOf(reads.map((r) => r.row.id))
     const targets = await this.targetsOf(who, reads)
+    const closable = await this.closableOf(who, reads)
+    const slots = await this.slotsOf(reads)
     const views = reads.map((r) =>
       DebriefView.parse({
         ...toDebriefView(
@@ -228,6 +279,8 @@ export class DebriefService {
           r,
           answers.get(r.row.id) ?? [],
           r.row.closedAt ? null : (targets.get(r.row.subjectCode) ?? null),
+          closable(r),
+          r.thread.externalId ? slots.get(r.thread.externalId) : undefined,
         ),
         ...(withSummary || r.row.summary === null ? {} : { summary: { state: 'hidden' } }),
       }),
@@ -244,6 +297,36 @@ export class DebriefService {
       })
     }
     return views
+  }
+
+  /** `closable`'s verdict per read, without its 403s: every read here is
+   *  already in the caller's reach, so only the slot is asked — once per
+   *  subject, and only for others' meetings the caller outranks on. */
+  private async closableOf(who: Actor, reads: readonly DebriefRead[]) {
+    const mine = (r: DebriefRead) => r.row.ownerId === who.id
+    const asked = reads.filter(
+      (r) =>
+        !r.row.closedAt &&
+        r.row.booked &&
+        !mine(r) &&
+        closesMeetingFor(who, { id: r.row.ownerId, roleIds: r.ownerRoleIds }, true),
+    )
+    const confirmable = new Map<string, boolean>()
+    for (const code of new Set(asked.map((r) => r.row.subjectCode))) {
+      confirmable.set(code, this.hook ? (await this.hook.slot(who, code)).confirmable : false)
+    }
+    return (r: DebriefRead): boolean =>
+      !r.row.closedAt && (mine(r) || (asked.includes(r) && !!confirmable.get(r.row.subjectCode)))
+  }
+
+  /** Sales' slot and title for the booked records, one call for the page. */
+  private async slotsOf(reads: readonly DebriefRead[]): Promise<Map<string, MeetingSlot>> {
+    const ids = reads.flatMap((r) =>
+      r.row.booked && r.thread.channel === 'meeting' && r.thread.externalId
+        ? [r.thread.externalId]
+        : [],
+    )
+    return this.hook && ids.length > 0 ? this.hook.meetingSlots([...new Set(ids)]) : new Map()
   }
 
   /** The branch's step slot per subject of the OPEN records; none without a hook. */

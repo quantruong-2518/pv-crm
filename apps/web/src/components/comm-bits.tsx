@@ -18,11 +18,13 @@ import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
  *  `COMM_RECORD_STATE_LABEL` in the contract (ADR 0075 §2). */
 
 /** Law 16: a state is a text pill. Red for "nothing typed yet" because it is
- *  the furthest from done; the three tones carry `--on-tint-*` ink (law 13). */
+ *  the furthest from done; a booked meeting reads as running, not as a debt.
+ *  Every tone carries its tint's own ink (law 13). */
 const STATE_TONE: Record<CommRecordState, BadgeProps['tone']> = {
   empty: 'danger',
   unconfirmed: 'warning',
   done: 'success',
+  scheduled: 'running',
 }
 
 export function CommStateBadge({ state }: { state: CommRecordState }) {
@@ -33,6 +35,12 @@ export function CommStateBadge({ state }: { state: CommRecordState }) {
 export function CommLateMark({ late }: { late: boolean }) {
   if (!late) return null
   return <MetaPill tone="warning">Quá {COMM_CONFIRM_WITHIN_HOURS} giờ chưa xác nhận</MetaPill>
+}
+
+/** A booked meeting past its end, not yet closed out (`meetingOverdue`). */
+export function CommOverdueMark({ overdue }: { overdue: boolean }) {
+  if (!overdue) return null
+  return <MetaPill tone="warning">Quá giờ · chờ Họp xong</MetaPill>
 }
 
 /** Tinted per channel so the eye finds the call among the mail; each channel

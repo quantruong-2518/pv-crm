@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gte, inArray, isNull, min, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, like, min, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { COMM_CONFIRM_WITHIN_HOURS, type CommRecordState } from '@pv/contracts'
+import type { RoleId } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { attachment } from '@api/platform/storage/attachment.schema'
@@ -23,6 +24,8 @@ export type DebriefRead = {
   thread: ThreadRowDb
   messageCount: number
   ownerName: string
+  /** For the on-behalf fence (`closesMeetingFor`), read with the name. */
+  ownerRoleIds: RoleId[]
   anchorAt: Date
   subjectLabel: string
   state: CommRecordState
@@ -35,17 +38,20 @@ export type DebriefCount = { ownerId: string; name: string; pending: number; old
 
 /** ADR 0075 §2, derived in SQL and never stored, so a turn or a file landing
  *  moves it with no second write. A covered turn is one written since the
- *  debrief opened — the same window `turnsCovered` counts. */
+ *  debrief opened — the same window `turnsCovered` counts. A booked meeting
+ *  stays `scheduled` until close-meeting, whatever lands on it meanwhile. */
 const STATE = sql<CommRecordState>`CASE
   WHEN ${debrief.closedAt} IS NOT NULL THEN 'done'
+  WHEN ${debrief.booked} THEN 'scheduled'
   WHEN EXISTS (SELECT 1 FROM ${message} m WHERE m.thread_id = ${debrief.threadId}
          AND m.created_at >= ${debrief.createdAt} AND m.body_text IS NOT NULL)
     OR EXISTS (SELECT 1 FROM ${attachment} a
          WHERE a.owner_kind = 'comm' AND a.owner_code = ${debrief.id}::text)
   THEN 'unconfirmed' ELSE 'empty' END`
 
-/** Late runs from creation, not the anchor: a reply must not reset the clock. */
-const LATE = sql<boolean>`(${debrief.closedAt} IS NULL
+/** Late runs from creation, not the anchor: a reply must not reset the clock.
+ *  Never on a booked meeting: an overdue one raises nothing (no badge). */
+const LATE = sql<boolean>`(${debrief.closedAt} IS NULL AND NOT ${debrief.booked}
   AND ${debrief.createdAt} < now() - make_interval(hours => ${COMM_CONFIRM_WITHIN_HOURS}::int))`
 
 /** SQL of the comm record book (ADR 0074, 0075). Decides nothing, checks no
@@ -67,7 +73,7 @@ export class DebriefRepository {
    *  Joining moves the anchor only: the subject stays the one set at opening. */
   async openOrJoin(
     tx: Db,
-    values: { threadId: string; ownerId: string; messageId: string; subjectCode: string },
+    values: Pick<DebriefValues, 'threadId' | 'ownerId' | 'messageId' | 'subjectCode' | 'booked'>,
   ): Promise<string> {
     const [row] = await tx
       .insert(debrief)
@@ -146,9 +152,11 @@ export class DebriefRepository {
     subjectCodes: readonly string[] | undefined,
     page: { page: number; size: number },
   ): Promise<{ rows: DebriefRead[]; total: number }> {
+    /* A booked meeting is not owed yet: off the queue, as off the badge. */
     const where = and(
       eq(debrief.ownerId, ownerId),
       isNull(debrief.closedAt),
+      eq(debrief.booked, false),
       subjectCodes ? inArray(debrief.subjectCode, [...subjectCodes]) : undefined,
     )
     /* Same live-subject join as `reads`, or the total outruns the rows. */
@@ -196,7 +204,13 @@ export class DebriefRepository {
       .from(debrief)
       .innerJoin(actor, eq(actor.id, debrief.ownerId))
       .innerJoin(objectRef, LIVE_SUBJECT)
-      .where(and(isNull(debrief.closedAt), ownerId ? eq(debrief.ownerId, ownerId) : undefined))
+      .where(
+        and(
+          isNull(debrief.closedAt),
+          eq(debrief.booked, false),
+          ownerId ? eq(debrief.ownerId, ownerId) : undefined,
+        ),
+      )
       .groupBy(debrief.ownerId, actor.name)
       .orderBy(asc(min(debrief.createdAt)), asc(debrief.ownerId))
   }
@@ -213,6 +227,38 @@ export class DebriefRepository {
       .update(debrief)
       .set({ ...values, closedAt: sql`now()` })
       .where(eq(debrief.id, id))
+  }
+
+  /** Every record on one thread, open or closed — what a dropped booking asks
+   *  before it may delete the thread. */
+  async onThread(tx: Db, threadId: string) {
+    return tx
+      .select({
+        id: debrief.id,
+        ownerId: debrief.ownerId,
+        closedAt: debrief.closedAt,
+        booked: debrief.booked,
+      })
+      .from(debrief)
+      .where(eq(debrief.threadId, threadId))
+  }
+
+  /** A record's files, uploaded or only declared (the key binds those), go;
+   *  the storage keys come back for removal after commit. */
+  async dropFiles(tx: Db, debriefId: string): Promise<string[]> {
+    const rows = await tx
+      .delete(attachment)
+      .where(
+        and(
+          eq(attachment.ownerKind, 'comm'),
+          or(
+            eq(attachment.ownerCode, debriefId),
+            like(attachment.storageKey, `comm/${debriefId}/%`),
+          ),
+        ),
+      )
+      .returning({ key: attachment.storageKey })
+    return rows.map((r) => r.key)
   }
 
   async insertAnswers(tx: Db, rows: readonly DebriefAnswerValues[]): Promise<void> {
@@ -245,6 +291,7 @@ export class DebriefRepository {
         thread,
         messageCount,
         ownerName: actor.name,
+        ownerRoleIds: actor.roleIds,
         anchorAt: message.at,
         subjectLabel: objectRef.label,
         state: STATE,

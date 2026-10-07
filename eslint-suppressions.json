@@ -368,7 +368,7 @@
   },
   "apps/api/src/branches/sales/meeting/meeting.constraints.ts": {
     "aurora/comments-in-english": {
-      "count": 3
+      "count": 2
     }
   },
   "apps/api/src/branches/sales/meeting/meeting.mapper.ts": {
@@ -379,14 +379,9 @@
       "count": 2
     }
   },
-  "apps/api/src/branches/sales/meeting/meeting.module.ts": {
-    "aurora/comments-in-english": {
-      "count": 1
-    }
-  },
   "apps/api/src/branches/sales/meeting/meeting.repository.ts": {
     "aurora/comments-in-english": {
-      "count": 8
+      "count": 7
     }
   },
   "apps/api/src/branches/sales/meeting/meeting.schema.ts": {
@@ -394,15 +389,7 @@
       "count": 3
     },
     "aurora/comments-in-english": {
-      "count": 9
-    }
-  },
-  "apps/api/src/branches/sales/meeting/meeting.service.ts": {
-    "aurora/comment-budget": {
-      "count": 5
-    },
-    "aurora/comments-in-english": {
-      "count": 9
+      "count": 7
     }
   },
   "apps/api/src/branches/sales/opportunity/opportunity-import.check.ts": {
@@ -1453,14 +1440,6 @@
       "count": 5
     }
   },
-  "apps/web/src/data/meetings.ts": {
-    "aurora/comment-budget": {
-      "count": 1
-    },
-    "aurora/comments-in-english": {
-      "count": 7
-    }
-  },
   "apps/web/src/data/opportunities-write.ts": {
     "aurora/comment-budget": {
       "count": 3
@@ -2022,7 +2001,7 @@
   },
   "packages/contracts/src/sales/meeting.ts": {
     "aurora/comment-budget": {
-      "count": 2
+      "count": 1
     }
   },
   "packages/contracts/src/sales/motion.ts": {

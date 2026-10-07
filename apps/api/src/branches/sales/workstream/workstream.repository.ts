@@ -694,7 +694,7 @@ const MAIL_IS_CUSTOMER_FACING = sql`d.aggregate_type = 'lead' AND d.accepted_at 
  *
  *  Four tables answer "have we talked to this customer", on four anchors:
  *  `comms.link.object_code` (polymorphic, one thread may hang on several
- *  objects), `sales.meeting.lead_code` (a real key, lead only),
+ *  objects), `sales.meeting.subject_code` (a real key, lead or deal),
  *  `platform.email_delivery` (see `MAIL_IS_CUSTOMER_FACING` above), and
  *  `sales.touch` — the one left out. Touch logs business EVENTS (`created`,
  *  `tier-raised`, `signed`), has no channel and no direction column, and a meeting
@@ -734,10 +734,10 @@ function FOOTPRINT(codes: readonly string[]): SQL {
       JOIN comms.message m ON m.thread_id = t.id
      GROUP BY o.ws, t.channel
     UNION ALL
-    SELECT l.ws AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
+    SELECT o.ws AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
       FROM sales.meeting mt
-      JOIN live l ON l.code = mt.lead_code
-     GROUP BY l.ws
+      JOIN obj o ON o.code = mt.subject_code
+     GROUP BY o.ws
     UNION ALL
     SELECT l.ws AS ws, 'mail' AS channel, count(*)::int AS n,
            max(COALESCE(d.delivered_at, d.accepted_at)) AS last_at

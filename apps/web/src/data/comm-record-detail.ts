@@ -144,17 +144,20 @@ export function useConfirmComm() {
         need: COMM_VIEW_NEED,
         schema: DebriefView,
       }),
-    onSuccess: (view, { id }) => {
-      client.setQueryData(commRecordQuery(id).queryKey, view)
-      recordsMoved(client)
-      /* The step landed on the subject through the sales hook, and a step
-         marked done wrote a touch there too. */
-      void client.invalidateQueries({ queryKey: nextStepKey(view.subject.code) })
-      void client.invalidateQueries({ queryKey: ['sales', 'lead-touches'] })
-      void client.invalidateQueries({ queryKey: ['sales', 'ops-touches'] })
-      void client.invalidateQueries({ queryKey: COMMS_KEY })
-    },
+    onSuccess: (view) => commClosed(client, view),
   })
+}
+
+/** After any close — this one or the meeting's (`data/meeting-today.ts`). */
+export function commClosed(client: QueryClient, view: DebriefView) {
+  client.setQueryData(commRecordQuery(view.id).queryKey, view)
+  recordsMoved(client)
+  /* The step landed on the subject through the sales hook, and a step
+     marked done wrote a touch there too. */
+  void client.invalidateQueries({ queryKey: nextStepKey(view.subject.code) })
+  void client.invalidateQueries({ queryKey: ['sales', 'lead-touches'] })
+  void client.invalidateQueries({ queryKey: ['sales', 'ops-touches'] })
+  void client.invalidateQueries({ queryKey: COMMS_KEY })
 }
 
 // ---------------------------------------------------------------------------
@@ -279,12 +282,28 @@ export const COMM_FOCUS =
   'focus-visible:outline-foreground focus-visible:outline-dashed focus-visible:outline-2 focus-visible:outline-offset-4'
 
 /** The dot of a comm state — one map, so the rail card and the axis agree
- *  with the pill's tone (`empty` is the furthest from done, hence `bad`). */
+ *  with the pill's tone (`empty` is the furthest from done, hence `bad`; a
+ *  booked meeting is still ahead, hence `next`). */
 export const COMM_STATE_DOT = {
   empty: 'bad',
   unconfirmed: 'warning',
   done: 'ok',
+  scheduled: 'next',
 } as const satisfies Record<CommRecordState, string>
+
+/** A booked meeting past its end and not closed out. Judged at render against
+ *  `useMinuteClock()` — required, so the mark turns over without a reload. A
+ *  mark only: no notification. */
+export function meetingOverdue(
+  record: { state: CommRecordState; meeting: { endsAt: string } | null },
+  now: number,
+): boolean {
+  return (
+    record.state === 'scheduled' &&
+    record.meeting !== null &&
+    now > Date.parse(record.meeting.endsAt)
+  )
+}
 
 const SUBJECT_KIND: Record<string, string> = { LD: 'Lead', OP: 'Cơ hội', HĐ: 'Hợp đồng' }
 
@@ -302,6 +321,13 @@ export const subjectPath = (code: string) => chainPath(code.split('-')[0] ?? '',
 export function summaryTextOf(summary: DebriefSummary): string {
   if (summary.state === 'visible') return summary.text
   return summary.state === 'hidden' ? 'Tóm tắt bị ẩn theo quyền của bạn.' : 'Chưa có tóm tắt.'
+}
+
+/** The line a comm row prints: a booked meeting has no summary yet, so its
+ *  title (the meeting's own) stands in; every other row prints the summary. */
+export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
+  if (row.state === 'scheduled' && row.title) return { title: row.title, titleMuted: false }
+  return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
 }
 
 /** The next-step part of a confirm, as typed. `previousDone` claims the step

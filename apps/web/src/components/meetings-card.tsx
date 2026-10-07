@@ -1,18 +1,61 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouteLink } from 'react-router-dom'
-import { FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
-import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
-import type { MeetingRow } from '@pv/contracts'
+import { CalendarClock, FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
+import {
+  Badge,
+  Button,
+  Drawer,
+  GlassCard,
+  Icon,
+  MetaPill,
+  SectionTitle,
+  Skeleton,
+  cn,
+} from '@pv/ui'
+import type { DebriefView, MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
-import { COMM_CARD_SURFACE } from '@/data/comm-record-detail'
+import { CommOverdueMark } from '@/components/comm-bits'
+import { COMM_CARD_SURFACE, meetingOverdue } from '@/data/comm-record-detail'
 import { commRecordPath, subjectCommIndexQuery } from '@/data/comm-records'
-import { objectThreadsQuery } from '@/data/comms'
 import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { MEETING_MODE_LABEL, meetingRowLabel } from '@/data/meeting-labels'
-import { meetingsQuery, useDropMeeting } from '@/data/meetings'
+import { meetingsQuery, useDropMeeting, type MeetingSubject } from '@/data/meetings'
+import { useMinuteClock } from '@/data/minute-clock'
+
+/** The meetings card of a lead or a deal profile — the body's working card.
+ *  One booking button, shown only to a reader who may book (`*.edit`, scoped).
+ *  Holds a list, so `.glass-b` (law 8). */
+export function MeetingsCard({ subject, canEdit }: { subject: MeetingSubject; canEdit: boolean }) {
+  /* A counter, not a flag: a second press must reopen a door just closed. */
+  const [asked, setAsked] = useState(0)
+
+  return (
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Lịch gặp">
+      <SectionTitle
+        size="detail"
+        actions={
+          canEdit && (
+            <Button
+              size="md"
+              variant="secondary"
+              className="pointer-coarse:h-12"
+              onClick={() => setAsked((n) => n + 1)}
+            >
+              <Icon icon={CalendarClock} size={16} />
+              Đặt lịch
+            </Button>
+          )
+        }
+      >
+        Lịch gặp
+      </SectionTitle>
+      <MeetingsPanel subject={subject} canEdit={canEdit} openSchedule={asked} />
+    </GlassCard>
+  )
+}
 
 /** The "Sắp tới" block of the activity card — the next meeting with this
  *  customer.
@@ -31,24 +74,25 @@ import { meetingsQuery, useDropMeeting } from '@/data/meetings'
  *
  *  A transcript opens in a drawer because a transcript is thousands of words. */
 export function MeetingsPanel({
-  code,
+  subject,
   canEdit,
   /** Bumped from outside to open the record-meeting door: both buttons that
    *  ask for it — the card head and the toolbar — live outside this block. */
   openSchedule = 0,
 }: {
-  code: string
+  subject: MeetingSubject
   canEdit: boolean
   openSchedule?: number
 }) {
-  const { data, isPending } = useQuery(meetingsQuery(code))
+  const { data, isPending } = useQuery(meetingsQuery(subject))
   const [recording, setRecording] = useState(false)
   const [reading, setReading] = useState<MeetingRow | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const records = useMeetingRecords(code)
+  const records = useMeetingRecords(subject.code)
+  const now = useMinuteClock()
 
   const rows = data?.rows ?? []
-  const next = upcomingOf(rows)
+  const next = upcomingOf(rows, now)
   const shown = expanded ? rows : next ? [next] : []
 
   /* `0` is the opening value, so this does not open the door on first paint. A
@@ -90,10 +134,11 @@ export function MeetingsPanel({
           {shown.map((row) => (
             <MeetingLine
               key={row.id}
-              code={code}
+              subject={subject}
               row={row}
               canEdit={canEdit}
-              recordId={records.get(row.id)}
+              record={records.get(row.id)}
+              now={now}
               onRead={() => setReading(row)}
             />
           ))}
@@ -103,7 +148,11 @@ export function MeetingsPanel({
       {/* Same permission the delete button asks for. Opening a whole booking
           form for somebody who cannot write ends at a 403 on the save. */}
       {canEdit && (
-        <MeetingScheduleDrawer code={code} open={recording} onClose={() => setRecording(false)} />
+        <MeetingScheduleDrawer
+          subject={subject}
+          open={recording}
+          onClose={() => setRecording(false)}
+        />
       )}
 
       <Drawer
@@ -127,16 +176,17 @@ export function MeetingsPanel({
   )
 }
 
-/** The EARLIEST meeting still ahead. The server answers with the whole list in
- *  its own order, so "next" is chosen here rather than taken off the top: the
- *  first row of a newest-first list is the meeting that just ended. */
-function upcomingOf(rows: readonly MeetingRow[]): MeetingRow | undefined {
-  const now = Date.now()
+/** The EARLIEST meeting not yet over and not closed out — an in-progress one
+ *  counts, the same cut as `GET /sales/meetings/today` (no length = over at its
+ *  start), so this card and the countdown bar agree. The server answers in its
+ *  own order, so "next" is chosen here rather than taken off the top. */
+function upcomingOf(rows: readonly MeetingRow[], now: number): MeetingRow | undefined {
   let best: MeetingRow | undefined
   let bestAt = Infinity
   for (const row of rows) {
     const at = Date.parse(row.at)
-    if (!Number.isFinite(at) || at < now || at >= bestAt) continue
+    const ends = at + (row.durationMinutes ?? 0) * 60_000
+    if (row.heldAt !== null || !Number.isFinite(at) || ends <= now || at >= bestAt) continue
     best = row
     bestAt = at
   }
@@ -145,20 +195,27 @@ function upcomingOf(rows: readonly MeetingRow[]): MeetingRow | undefined {
 
 /** Một lịch họp: thời gian → nội dung → người tham gia → thao tác. */
 function MeetingLine({
-  code,
+  subject,
   row,
   canEdit,
-  recordId,
+  record,
+  now,
   onRead,
 }: {
-  code: string
+  subject: MeetingSubject
   row: MeetingRow
   canEdit: boolean
-  /** The comm record the meeting's end created, once it exists. */
-  recordId?: string
+  /** The comm record the booking opened; absent on rows booked before it did. */
+  record?: DebriefView
+  /** The shared minute clock, so the overdue mark turns over without a reload. */
+  now: number
   onRead: () => void
 }) {
+  const recordId = record?.id
   const drop = useDropMeeting()
+  /* The record's closer fence (owner or an outranking superior) gates delete too;
+     a row with no record falls back to the subject's edit right alone. */
+  const droppable = canEdit && (record ? record.closableByMe : true) && Date.parse(row.at) > now
 
   return (
     <li className={cn('flex flex-col gap-3 rounded-md p-3', COMM_CARD_SURFACE)}>
@@ -174,6 +231,8 @@ function MeetingLine({
             Lần gặp đầu
           </Badge>
         )}
+        {row.heldAt !== null && <Badge tone="success">Đã họp</Badge>}
+        {record && <CommOverdueMark overdue={meetingOverdue(record, now)} />}
       </div>
 
       <p className="text-foreground text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
@@ -232,7 +291,7 @@ function MeetingLine({
             Xem transcript
           </button>
         )}
-        {canEdit && Number.isFinite(Date.parse(row.at)) && Date.parse(row.at) > Date.now() && (
+        {droppable && (
           <button
             type="button"
             aria-label={`Xoá lịch họp ${row.title}`}
@@ -243,7 +302,7 @@ function MeetingLine({
                  và ghi lại được, nên nút chịu trách nhiệm bằng cách nói rõ nó
                  làm gì, không bằng một câu hỏi lại. */
               drop.mutate(
-                { code, id: row.id },
+                { subject, id: row.id },
                 {
                   onSuccess: () => toast('Đã xoá buổi họp', { tone: 'success' }),
                   onError: (error) =>
@@ -267,21 +326,15 @@ function MeetingLine({
 const names = (people: readonly { name: string; role?: string }[]): string =>
   people.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join(', ')
 
-/** Meeting id → its comm record id. A meeting's thread carries the meeting id
- *  as `externalId` (ADR 0075 §3) and the record names its thread, so two
- *  existing doors answer it, the list read without summaries (no audit). */
-function useMeetingRecords(code: string): ReadonlyMap<string, string> {
+/** Meeting id → its comm record. The record names its meeting
+ *  (`DebriefView.meeting`), read from the list without summaries (no audit). */
+function useMeetingRecords(code: string): ReadonlyMap<string, DebriefView> {
   const canView = useCan('comm.view')
-  const threads = useQuery({ ...objectThreadsQuery(code), enabled: canView })
   const records = useQuery({ ...subjectCommIndexQuery(code), enabled: canView })
 
   return useMemo(() => {
-    const byThread = new Map((records.data?.rows ?? []).map((r) => [r.threadId, r.id]))
-    const out = new Map<string, string>()
-    for (const t of threads.data?.rows ?? []) {
-      const id = byThread.get(t.id)
-      if (t.channel === 'meeting' && t.externalId && id) out.set(t.externalId, id)
-    }
+    const out = new Map<string, DebriefView>()
+    for (const r of records.data?.rows ?? []) if (r.meeting) out.set(r.meeting.id, r)
     return out
-  }, [threads.data, records.data])
+  }, [records.data])
 }

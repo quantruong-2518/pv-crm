@@ -9,6 +9,7 @@ import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
+import { MeetingModule } from '../meeting/meeting.module'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityAccept } from './opportunity-accept.service'
@@ -85,6 +86,7 @@ import { OpportunityService } from './opportunity.service'
     TouchModule,
     WorkstreamModule,
     LeadStateModule,
+    MeetingModule,
     /* `RolePermissionRepository`, for the mail-sent hook's permission read. */
     RolesModule,
     /* The book's activity-freshness dials (`sales.activity.*`, ADR 0077 §4). */

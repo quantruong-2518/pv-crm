@@ -263,6 +263,7 @@ export function FileDrop({
           type="button"
           variant="ghost"
           size="md"
+          className="pointer-coarse:h-12"
           disabled={busy}
           onClick={(e) => {
             /* Nút nằm TRONG tấm bấm được: không chặn thì một cú bấm mở hộp chọn

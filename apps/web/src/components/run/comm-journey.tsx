@@ -16,7 +16,7 @@ import {
 import { MAIL_LETTER_STATE_LABEL, type MailSubjectTimelineRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { ChannelPill, CommLateMark, CommStateBadge } from '@/components/comm-bits'
+import { ChannelPill, CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
 import { LETTER_TONE } from '@/components/mail-letter/letter-model'
 import { COMM_FOCUS, COMM_STATE_DOT, subjectKindLabel } from '@/data/comm-record-detail'
@@ -204,7 +204,7 @@ export function CommJourney({
 
 /** One moment: when · channel · who and the pill of a row that still says
  *  something, then the content beneath (it opens the comm's screen or the letter). A
- *  scheduled letter carries its hour: it has not left yet. */
+ *  scheduled letter or a booked meeting carries its hour: it has not happened yet. */
 function itemOf(
   row: JourneyRow,
   {
@@ -217,7 +217,8 @@ function itemOf(
     letterActions: TimelineItem['actions']
   },
 ): TimelineItem {
-  const when = row.at && (row.letter?.state === 'SCHEDULED' ? dmhm(row.at) : dm(row.at))
+  const ahead = row.letter?.state === 'SCHEDULED' || row.commState === 'scheduled'
+  const when = row.at && (ahead ? dmhm(row.at) : dm(row.at))
   const content = (
     <span
       className={cn(
@@ -243,6 +244,7 @@ function itemOf(
         <span>{[row.owner, showCode && row.code].filter(Boolean).join(' · ')}</span>
         <RowPill row={row} />
         <CommLateMark late={row.late} />
+        <CommOverdueMark overdue={row.overdue} />
       </span>
     ),
     children: open ? (

@@ -3,7 +3,13 @@ import { Button, ChevronLeft, ChevronRight, Icon, StatusDot, cn } from '@pv/ui'
 import type { CommRecordState, DebriefStepCopy, ThreadChannel } from '@pv/contracts'
 import { dm } from '@/lib/date'
 import { COMM_CARD_SURFACE, COMM_FOCUS, COMM_STATE_DOT } from '@/data/comm-record-detail'
-import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-bits'
+import {
+  ChannelPill,
+  CommLateMark,
+  CommOverdueMark,
+  CommStateBadge,
+  StepCopyLine,
+} from './comm-bits'
 
 /** The one comm timeline — a horizontal axis, oldest left, cards alternating
  *  above and below (ADR 0075, canvas boards `History` and `V2Queue`). The
@@ -18,6 +24,8 @@ export type CommCardItem = {
   channel: ThreadChannel
   state: CommRecordState
   late: boolean
+  /** A booked meeting past its end, judged at render (`meetingOverdue`). */
+  overdue: boolean
   createdAt: string
   title: string
   /** The title is a placeholder sentence, not content. */
@@ -173,6 +181,7 @@ function CommCard({
         </span>
       )}
       <CommLateMark late={item.late} />
+      <CommOverdueMark overdue={item.overdue} />
       {item.step && <StepCopyLine step={item.step} />}
     </button>
   )

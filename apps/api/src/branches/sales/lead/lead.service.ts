@@ -303,7 +303,7 @@ export class LeadService {
 
   async meetingDrop(who: Actor, code: ObjectCode, id: string): Promise<void> {
     await this.guardEdit(who, code)
-    await this.meetings.drop(code, id)
+    await this.meetings.drop(who, code, id)
   }
 
   // ── Contacts · five doors, TWO shapes of path ───────────────────────────

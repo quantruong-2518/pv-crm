@@ -6,7 +6,7 @@ process.env.PV_ROLE = 'worker'
 
 import { Logger, Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
-import type { Job, JobWithMetadata, PgBoss } from 'pg-boss'
+import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
@@ -22,13 +22,6 @@ import { MasMailComposer } from './platform/mail/mas.composer'
 import { ENV, type Env } from './platform/config/env'
 import { EMAIL_QUEUE, type EmailJob } from './platform/mail/mail.contract'
 import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/queue.module'
-import {
-  MEETING_END_CONCURRENCY,
-  MEETING_END_HANDLER,
-  MEETING_END_QUEUE,
-  type MeetingEndHandler,
-  type MeetingEndJob,
-} from './platform/queue/meeting-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -192,16 +185,6 @@ async function bootstrap(): Promise<void> {
     { ...scanPoll, includeMetadata: true, localConcurrency: SCAN_COMMIT_CONCURRENCY },
     async ([job]: JobWithMetadata<ScanCommitJob>[]) => {
       if (job) await scan.commitBatch(job.data.code, attemptOf(job))
-    },
-  )
-
-  /* Sales provides the handler, like scan's; a stale job is dropped there. */
-  const meetingEnd = app.get<MeetingEndHandler>(MEETING_END_HANDLER)
-  await boss.work(
-    MEETING_END_QUEUE,
-    { ...scanPoll, localConcurrency: MEETING_END_CONCURRENCY },
-    async ([job]: Job<MeetingEndJob>[]) => {
-      if (job) await meetingEnd.handle(job.data)
     },
   )
 

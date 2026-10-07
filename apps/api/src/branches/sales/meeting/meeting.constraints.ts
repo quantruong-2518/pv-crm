@@ -33,11 +33,17 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
     message: 'Thời lượng họp phải chọn từ danh sách có sẵn trên màn đặt lịch.',
   },
 
-  /** Lead bị xoá đúng giữa lúc mở biểu mẫu và lúc bấm lưu. Hiếm, nhưng câu này
-   *  rẻ hơn một 500 không ai đọc được. */
-  meeting_lead_code_lead_code_fk: {
+  /** A code with no `platform.object` row — rare, since leads and deals are
+   *  never deleted, but cheaper than a 500 nobody can read. */
+  meeting_subject_code_object_code_fk: {
     kind: 'invalid',
-    message: 'Lead của buổi họp này không còn trong sổ.',
+    message: 'Lead hoặc cơ hội của buổi họp này không có trong sổ.',
+  },
+
+  /** zod gates the code first; a row breaking this came by another road. */
+  meeting_subject_known: {
+    kind: 'invalid',
+    message: 'Buổi họp chỉ gắn được vào một lead hoặc một cơ hội.',
   },
 
   meeting_attendee_side_known: {
@@ -53,7 +59,7 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
   },
 
   /** Somebody picked from the contact book, deleted between opening the form
-   *  and pressing save. As rare as `meeting_lead_code_lead_code_fk`, and worth
+   *  and pressing save. As rare as `meeting_subject_code_object_code_fk`, and worth
    *  its own sentence for the same reason. */
   meeting_attendee_contact_code_contact_code_fk: {
     kind: 'invalid',

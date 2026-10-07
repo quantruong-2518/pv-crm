@@ -5,6 +5,8 @@ import {
   unconfirmable,
   type CommDebriefHook,
   type CommDebriefInput,
+  type MeetingHeld,
+  type MeetingSlot,
   type PreparedDebrief,
 } from '@api/platform/comms/comm-debrief.hook'
 import type { CommContact } from '@api/platform/comms/comm-record.service'
@@ -12,6 +14,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
 import { SalesConfigService } from '../config/config.service'
+import { MeetingService } from '../meeting/meeting.service'
 import { OpportunityStepService, type DoerReach } from './next-step-opportunity.service'
 import { OpportunityStepRepository } from './next-step-opportunity.repository'
 import { NextStepRepository } from './next-step.repository'
@@ -35,6 +38,7 @@ export class NextStepDebriefHook implements CommDebriefHook {
     private readonly steps: NextStepRepository,
     private readonly deals: OpportunityStepRepository,
     private readonly config: SalesConfigService,
+    private readonly meetings: MeetingService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -83,6 +87,15 @@ export class NextStepDebriefHook implements CommDebriefHook {
     if (step.subject === 'lead')
       await this.leadSteps.write(tx, who, step.subjectCode, op, step.reach)
     else await this.dealSteps.write(tx, who, step.subjectCode, op, step.reach)
+  }
+
+  /** The fence was comms' (`closable`); the meeting book owns the rest. */
+  meetingHeld(tx: Db, who: Actor, held: MeetingHeld): Promise<void> {
+    return this.meetings.markHeld(tx, who, held)
+  }
+
+  meetingSlots(meetingIds: readonly string[]): Promise<Map<string, MeetingSlot>> {
+    return this.meetings.slots(meetingIds)
   }
 
   /** One answer per question of `commVocabulary` — active AND with an active

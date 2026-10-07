@@ -47,6 +47,8 @@ export type AppShellProps = {
   approvalsCount?: number
   /** mục BottomNav chưa có màn — nút tắt + ổ khoá thay vì bấm không ra gì */
   lockedNav?: BottomNavKey[]
+  /** Second layer under the header; it sticks together with the header. */
+  subBar?: ReactNode
   children: ReactNode
   /** Không truyền thì khung KHÔNG vẽ nút Trợ lý nổi — xem lý do ở chỗ render. */
   onOpenAssistant?: () => void
@@ -58,6 +60,7 @@ export function AppShell({
   activeNav,
   approvalsCount,
   lockedNav,
+  subBar,
   children,
   onOpenAssistant,
   onNavigate,
@@ -65,12 +68,16 @@ export function AppShell({
   return (
     <AuroraField>
       <div className="relative z-[1] flex min-h-screen flex-col">
-        <AppHeader
-          {...header}
-          onOpenAssistant={onOpenAssistant}
-          className={SHELL.stick}
-          frameClassName={SHELL.headerFrame}
-        />
+        <div className={SHELL.stick}>
+          <AppHeader
+            {...header}
+            onOpenAssistant={onOpenAssistant}
+            className="z-[1]"
+            frameClassName={SHELL.headerFrame}
+          />
+          {/* Header above the bar: its menus are z-50 but isolated inside it. */}
+          {subBar}
+        </div>
         <div className={cn('flex flex-1 flex-col', SHELL.pad, SHELL.bottomNavPad)}>
           <main className={cn(SHELL.frame, 'min-w-0 flex-1')}>{children}</main>
         </div>

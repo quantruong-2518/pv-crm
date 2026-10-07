@@ -3,9 +3,11 @@ import type {
   DebriefStepInput,
   DebriefStepTarget,
   DebriefTargetResponse,
+  MeetingAttendedGuest,
+  MeetingAttendedHost,
   NextStepKind,
 } from '@pv/contracts'
-import type { Actor } from '@pv/engines'
+import { canCloseMeetingOnBehalf, type Actor, type RoleId } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { denied } from '@api/platform/http/problem'
 import type { CommContact } from './comm-record.service'
@@ -42,6 +44,26 @@ export interface CommDebriefHook {
    *  subject that takes none. */
   prepare(who: Actor, input: CommDebriefInput): Promise<PreparedDebrief>
   apply(tx: Db, who: Actor, prepared: PreparedDebrief): Promise<void>
+  /** close-meeting: the meeting behind a closed record is marked held with its
+   *  attendance, inside the close's transaction. Refuses (409) a meeting not
+   *  started yet, one already held, or one on a deal that no longer takes edits. */
+  meetingHeld(tx: Db, who: Actor, held: MeetingHeld): Promise<void>
+  /** Slot and title of booked meetings as sales holds them — the one ledger
+   *  for when and what (0084). A meeting that no longer exists is absent. */
+  meetingSlots(meetingIds: readonly string[]): Promise<Map<string, MeetingSlot>>
+}
+
+export type MeetingSlot = { at: Date; endsAt: Date; title: string }
+
+/** `ownerId` is the record's owner — the one whose exchange it was, also when
+ *  a superior closes on their behalf. An absent list keeps that side's
+ *  attendees as they are (`MeetingDebriefClose`). */
+export type MeetingHeld = {
+  meetingId: string
+  subjectCode: string
+  ownerId: string
+  hosts: readonly MeetingAttendedHost[] | undefined
+  guests: readonly MeetingAttendedGuest[] | undefined
 }
 
 export type CommDebriefInput = {
@@ -68,3 +90,13 @@ export const unconfirmable = (subjectCode: string) =>
     'permission-denied',
     `Bạn không đặt được việc tiếp theo cho ${subjectCode} nên không xác nhận được liên hệ trên đó — nhờ người giữ ${subjectCode}.`,
   )
+
+/** THE fence on a booked meeting and its record, one copy for the comm doors
+ *  and the meeting doors: the owner, or an outranking closer (E2 rank) who
+ *  could confirm on the subject. Reach is the caller's to have asked first. */
+export const closesMeetingFor = (
+  who: Actor,
+  owner: { id: string; roleIds: readonly RoleId[] },
+  confirmable: boolean,
+): boolean =>
+  who.id === owner.id || (confirmable && canCloseMeetingOnBehalf(who.roleIds, owner.roleIds))

@@ -13,6 +13,7 @@ import { isApiError } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
+import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
 import { COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
@@ -29,7 +30,6 @@ import {
   useConfirmComm,
 } from '@/data/comm-record-detail'
 import { commCreateFailure, commRecordPath, useCreateCommRecord } from '@/data/comm-records'
-import { Evaluation } from './comm-record-parts'
 import {
   ContentFields,
   PickChannel,
@@ -227,7 +227,7 @@ function SaveStep({
     <StepCard no={4} title="Đánh giá và bước tiếp theo">
       {target.data?.confirmable && (
         <>
-          <Evaluation vocab={vocab} picked={picked} onPick={setPicked} />
+          <CommEvaluation vocab={vocab} picked={picked} onPick={setPicked} />
           {step ? (
             <>
               <span className="text-muted-foreground text-[11px]">

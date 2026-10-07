@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, Timer } from '@pv/ui'
 import {
@@ -20,6 +20,7 @@ import {
   type MeetingCreate,
   type MeetingDurationMinutes,
   type MeetingMode,
+  type MeetingRow,
 } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
@@ -30,6 +31,7 @@ import { leadContactsQuery } from '@/data/contacts'
 import { useDirectory } from '@/data/directory'
 import { isHttpUrl } from '@/data/http-url'
 import { leadProfileQuery } from '@/data/lead-profile'
+import { opportunityProfileQuery } from '@/data/opportunities'
 import {
   DEFAULT_MEETING_DURATION,
   DEFAULT_MEETING_MODE,
@@ -38,56 +40,75 @@ import {
   MEETING_MODE_ORDER,
   meetingSlotLabel,
   meetingSlotMoment,
+  meetingSlotOf,
 } from '@/data/meeting-labels'
-import { useAddMeeting } from '@/data/meetings'
+import { useAddMeeting, useEditMeeting, type MeetingSubject } from '@/data/meetings'
 
 /** Booking a meeting that has NOT happened yet — three groups, one panel.
  *
- *  The flat form this replaces asked for one `datetime-local` and then a stack
- *  of guest rows, each with its own select and two text boxes. Day, hour and
- *  length are three separate decisions and now read as three; attendees are a
- *  list of people and now look like one.
+ *  Day, hour and length are three separate decisions and read as three (not one
+ *  `datetime-local`); attendees are a list of people and look like one.
  *
  *  Two books, and the asymmetry is the server's rather than a shortcut: a host
  *  must name an `actorId` from `platform.actor`, a guest may carry a
  *  `contactCode` or simply be typed in — see the `MeetingAttendee` docblock.
  *
- *  No minutes box: a meeting that ends gets a comm record of its own, and its
- *  minutes and files go there (ADR 0075 §3) — the server no longer stores a
- *  transcript, so a box here would drop what was typed into it. */
+ *  No minutes box: booking opens the meeting's comm record at once
+ *  (`scheduled`); minutes, attendance and files go there at close-out — no
+ *  transcript is stored, so a box here would drop what was typed.
+ *  `editing` turns the panel into the reschedule door: seeded from the row,
+ *  saved by PATCH, whose arrays replace the old attendee lists whole. */
 export function MeetingScheduleDrawer({
-  code,
+  subject,
   open,
   onClose,
+  editing,
 }: {
-  code: string
+  subject: MeetingSubject
   open: boolean
   onClose: () => void
+  editing?: MeetingRow
 }) {
   const people = useDirectory()
-  /* Both reads are cache hits on the lead profile, the only screen this drawer
-     opens from; `enabled` keeps it honest anywhere else. */
-  const { data: profile } = useQuery({ ...leadProfileQuery(code), enabled: open })
-  const { data: book } = useQuery({ ...leadContactsQuery(code), enabled: open })
+  const { company, contacts } = useSubjectBook(subject, open)
   const add = useAddMeeting()
+  const edit = useEditMeeting()
+  const pending = add.isPending || edit.isPending
 
-  const form = useMeetingDraft(open)
+  const form = useMeetingDraft(open, editing)
   const [failure, setFailure] = useState('')
 
-  const company = profile?.company ?? 'lead này'
   const readback = meetingSlotLabel(form)
   const moment = meetingSlotMoment(form)
-  const past = moment !== '' && Date.parse(moment) < Date.now()
+  const past = !editing && moment !== '' && Date.parse(moment) < Date.now()
   const linkBroken = form.link.trim() !== '' && !isHttpUrl(form.link.trim())
   const blocker = blockerOf(form, linkBroken)
+  const onError = (error: unknown) =>
+    setFailure(
+      isApiError(error) ? userMessage(error) : 'Không lưu được buổi họp. Vui lòng thử lại.',
+    )
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    if (blocker || add.isPending) return
+    if (blocker || pending) return
     setFailure('')
+    const body = toMeetingBody(form, people, moment)
 
+    if (editing) {
+      edit.mutate(
+        { subject, id: editing.id, body },
+        {
+          onSuccess: () => {
+            toast('Đã dời lịch họp', { tone: 'success' })
+            onClose()
+          },
+          onError,
+        },
+      )
+      return
+    }
     add.mutate(
-      { code, body: toMeetingBody(form, people, moment) },
+      { subject, body },
       {
         onSuccess: (row) => {
           /* A slot in the past is a write-up of a meeting already held, which
@@ -100,10 +121,7 @@ export function MeetingScheduleDrawer({
           })
           onClose()
         },
-        onError: (error) =>
-          setFailure(
-            isApiError(error) ? userMessage(error) : 'Không lưu được buổi họp. Vui lòng thử lại.',
-          ),
+        onError,
       },
     )
   }
@@ -112,12 +130,12 @@ export function MeetingScheduleDrawer({
     <Drawer
       open={open}
       onClose={onClose}
-      title="Đặt lịch họp"
+      title={editing ? 'Dời lịch họp' : 'Đặt lịch họp'}
       subtitle={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate">{company}</span>
           <span aria-hidden="true">·</span>
-          <span className="font-mono">{code}</span>
+          <span className="font-mono">{subject.code}</span>
         </span>
       }
       width="md"
@@ -126,15 +144,15 @@ export function MeetingScheduleDrawer({
           message={failure || blocker || readback}
           warning={Boolean(failure || blocker)}
           blocked={Boolean(blocker)}
-          pending={add.isPending}
-          past={past}
+          pending={pending}
+          verb={editing ? 'Lưu lịch mới' : past ? 'Ghi lại buổi họp' : 'Đặt lịch'}
           onClose={onClose}
         />
       }
     >
       <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
         <BasicsGroup form={form} readback={readback} linkBroken={linkBroken} />
-        <AttendeesGroup form={form} people={people} company={company} contacts={book?.rows ?? []} />
+        <AttendeesGroup form={form} people={people} company={company} contacts={contacts} />
         <PrepareGroup form={form} />
       </form>
     </Drawer>
@@ -142,6 +160,34 @@ export function MeetingScheduleDrawer({
 }
 
 const FORM_ID = 'schedule-meeting'
+
+const NO_CONTACTS: LeadContact[] = []
+
+/** The customer's name and contact book, from the subject's own profile — a
+ *  cache hit on the screen that opened the drawer; `enabled` keeps it honest. */
+function useSubjectBook(subject: MeetingSubject, open: boolean) {
+  const lead = subject.kind === 'lead'
+  const { data: profile } = useQuery({ ...leadProfileQuery(subject.code), enabled: open && lead })
+  const { data: book } = useQuery({ ...leadContactsQuery(subject.code), enabled: open && lead })
+  const { data: deal } = useQuery({
+    ...opportunityProfileQuery(subject.code),
+    enabled: open && !lead,
+  })
+  const contacts = useMemo<LeadContact[]>(
+    () =>
+      lead
+        ? (book?.rows ?? NO_CONTACTS)
+        : (deal?.contacts.map((c) => ({
+            code: c.code,
+            name: c.name,
+            ...(c.title ? { title: c.title } : {}),
+            ...(c.email ? { email: c.email } : {}),
+          })) ?? NO_CONTACTS),
+    [lead, book, deal],
+  )
+  const company = (lead ? profile?.company : deal?.account) ?? (lead ? 'lead này' : 'cơ hội này')
+  return { company, contacts }
+}
 
 /** The same write has two names, decided by where the chosen moment sits. The
  *  server already draws that line on the lead timeline, so a screen announcing
@@ -198,16 +244,16 @@ function ScheduleFooter({
   warning,
   blocked,
   pending,
-  past,
+  verb,
   onClose,
 }: {
   message: string
   warning: boolean
   blocked: boolean
   pending: boolean
-  /** The chosen moment is already behind us, so this write is a note of a
-   *  meeting held rather than a booking — see `doneToast`. */
-  past: boolean
+  /** What the press does. A slot already behind us is a note of a meeting held
+   *  rather than a booking (`doneToast`); a reschedule saves a new slot. */
+  verb: string
   onClose: () => void
 }) {
   return (
@@ -231,7 +277,7 @@ function ScheduleFooter({
           {/* The button is read BEFORE the press, so of the three places that
               name this write it is the one that must not say "booking" over a
               meeting held last week. */}
-          {pending ? 'Đang lưu…' : past ? 'Ghi lại buổi họp' : 'Đặt lịch'}
+          {pending ? 'Đang lưu…' : verb}
         </Button>
       </div>
     </div>
@@ -272,6 +318,7 @@ function BasicsGroup({
         <Input
           value={form.link}
           invalid={linkBroken}
+          className="pointer-coarse:h-12"
           placeholder="https://meet.google.com/…"
           onChange={(event) => form.setLink(event.target.value)}
         />
@@ -296,6 +343,7 @@ function TitleField({ value, onChange }: { value: string; onChange: (next: strin
       <Input
         value={value}
         maxLength={MEETING_TITLE_MAX}
+        className="pointer-coarse:h-12"
         placeholder="Buổi này bàn gì?"
         onChange={(event) => onChange(event.target.value)}
       />
@@ -305,7 +353,7 @@ function TitleField({ value, onChange }: { value: string; onChange: (next: strin
             key={suggestion}
             type="button"
             onClick={() => onChange(suggestion)}
-            className="motion-std bg-surface-ink/9 hover:bg-surface-ink/16 text-glass-foreground hover:text-foreground pointer-coarse:h-12 h-8 rounded-sm px-3 text-[11.5px] font-medium"
+            className="motion-std bg-surface-ink/9 hover:bg-surface-ink/16 text-muted-foreground hover:text-foreground pointer-coarse:h-12 h-8 rounded-sm px-3 text-[11.5px] font-medium"
           >
             {suggestion}
           </button>
@@ -327,6 +375,7 @@ function WhenRow({ form, readback }: { form: MeetingDraft; readback: string }) {
         <Field label="Ngày" className="min-w-0">
           <Input
             type="date"
+            className="pointer-coarse:h-12"
             value={form.date}
             onChange={(event) => form.setDate(event.target.value)}
           />
@@ -334,6 +383,7 @@ function WhenRow({ form, readback }: { form: MeetingDraft; readback: string }) {
         <Field label="Bắt đầu" className="min-w-0">
           <Input
             type="time"
+            className="pointer-coarse:h-12"
             value={form.time}
             onChange={(event) => form.setTime(event.target.value)}
           />
@@ -342,7 +392,7 @@ function WhenRow({ form, readback }: { form: MeetingDraft; readback: string }) {
           <Select
             label="Thời lượng"
             hideLabel
-            className="w-full"
+            className="pointer-coarse:[&>button]:h-12 w-full"
             value={String(form.durationMinutes)}
             onChange={(value) => form.setDuration(Number(value) as MeetingDurationMinutes)}
             options={MEETING_DURATION_MINUTES.map((minutes) => ({
@@ -471,7 +521,7 @@ function PrepareGroup({ form }: { form: MeetingDraft }) {
         />
       </Field>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Biên bản và tệp của buổi họp ghi vào lượt liên hệ tạo khi buổi họp kết thúc.
+        Biên bản, người dự và tệp ghi vào lượt liên hệ của buổi họp, bằng nút Họp xong.
       </p>
     </section>
   )
@@ -484,14 +534,22 @@ type GuestPick = { id: string; name: string; role?: string; contactCode?: string
 
 type MeetingDraft = ReturnType<typeof useMeetingDraft>
 
-/** Every field of the draft, cleared on each open.
+const guestPickOf = (g: MeetingRow['guests'][number]): GuestPick => ({
+  id: g.contactCode ?? `typed:${g.name}`,
+  name: g.name,
+  ...(g.role ? { role: g.role } : {}),
+  ...(g.contactCode ? { contactCode: g.contactCode } : {}),
+})
+
+/** Every field of the draft, cleared on each open — or seeded from `seed`
+ *  when the panel reschedules an existing meeting.
  *
  *  Reopening is a NEW booking: a panel that comes back holding the previous
  *  meeting's attendees is one click away from booking the wrong room with the
  *  wrong people. Date and time start EMPTY rather than at "now", because this
  *  door is about a day two sides have agreed on, and a pre-filled today is a
  *  default nobody chose that still looks chosen. */
-function useMeetingDraft(open: boolean) {
+function useMeetingDraft(open: boolean, seed?: MeetingRow) {
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
@@ -502,18 +560,27 @@ function useMeetingDraft(open: boolean) {
   const [guests, setGuests] = useState<GuestPick[]>([])
   const [goal, setGoal] = useState('')
 
+  /* Seeded once per opening: a refetch mid-edit hands over a new row object,
+     and re-seeding then would wipe what the person is typing. */
+  const seedRef = useRef(seed)
+  seedRef.current = seed
+  const seedId = seed?.id
+
   useEffect(() => {
     if (!open) return
-    setTitle('')
-    setDate('')
-    setTime('')
-    setDuration(DEFAULT_MEETING_DURATION)
-    setMode(DEFAULT_MEETING_MODE)
-    setLink('')
-    setHostIds([])
-    setGuests([])
-    setGoal('')
-  }, [open])
+    const seed = seedRef.current
+    const slot = seed ? meetingSlotOf(seed.at) : { date: '', time: '' }
+    setTitle(seed?.title ?? '')
+    setDate(slot.date)
+    setTime(slot.time)
+    setDuration(seed?.durationMinutes ?? DEFAULT_MEETING_DURATION)
+    setMode(seed?.mode ?? DEFAULT_MEETING_MODE)
+    setLink(seed?.link ?? '')
+    /* A host row without an actor (pre-contract data) cannot be sent back. */
+    setHostIds(seed?.hosts.flatMap((h) => (h.actorId ? [h.actorId] : [])) ?? [])
+    setGuests(seed?.guests.map(guestPickOf) ?? [])
+    setGoal(seed?.goal ?? '')
+  }, [open, seedId])
 
   return {
     title,

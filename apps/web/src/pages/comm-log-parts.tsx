@@ -49,8 +49,8 @@ const PICK_LIMIT = 20
 
 export type PickedFile = { key: string; file: File; mime: CommAttachmentMime }
 
-/** The channels a person logs by hand. `meeting` is absent: a meeting's comm
- *  is created when the meeting ends (ADR 0075 §3) and is joined below. */
+/** The channels a person logs by hand. `meeting` is absent: booking a meeting
+ *  opens its comm at once (`scheduled`), closed out on its own record page. */
 const LOG_CHANNELS: CommActionChannel[] = ['phone', 'zalo-oa', 'email']
 
 /** One finished step, folded to a line with a way back. */

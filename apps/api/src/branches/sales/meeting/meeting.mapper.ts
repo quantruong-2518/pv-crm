@@ -30,13 +30,16 @@ export function toContract(
         ...(a.contactCode ? { contactCode: a.contactCode } : {}),
         name: a.name,
         ...(a.role ? { role: a.role } : {}),
+        /* NULL = not recorded (booked, or held before 0083): absent, not `false`. */
+        ...(a.attended === null ? {} : { attended: a.attended }),
       }))
 
   const duration = MEETING_DURATION_MINUTES.find((m) => m === row.durationMinutes)
 
   return {
     id: row.id,
-    leadCode: row.leadCode,
+    subjectCode: row.subjectCode,
+    heldAt: row.heldAt ? row.heldAt.toISOString() : null,
     at: row.at.toISOString(),
     title: row.title,
     ...(row.link ? { link: row.link } : {}),
@@ -76,4 +79,10 @@ function isEarlier(a: MeetingRowDb, b: MeetingRowDb): boolean {
   if (a.createdAt.getTime() !== b.createdAt.getTime())
     return a.createdAt.getTime() < b.createdAt.getTime()
   return a.id < b.id
+}
+
+/** `at + duration`; null for a row booked before durations were recorded. */
+export function meetingEndOf(row: { at: Date; durationMinutes: number | null }): Date | null {
+  if (row.durationMinutes === null) return null
+  return new Date(row.at.getTime() + row.durationMinutes * 60_000)
 }

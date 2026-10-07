@@ -3,47 +3,16 @@ import { ObjectCode, Moment, textInput, textInputOptional } from '../primitives'
 
 /** Meetings held with one lead — the record behind "we have met them before".
  *
- *      GET    /sales/leads/:code/meetings       permission `lead.view` · scoped
- *      POST   /sales/leads/:code/meetings       permission `lead.edit` · scoped
- *      PATCH  /sales/leads/:code/meetings/:id   permission `lead.edit` · scoped
- *      DELETE /sales/leads/:code/meetings/:id   permission `lead.edit` · scoped
+ *      GET    /sales/leads/:code/meetings       `lead.view` · scoped
+ *      POST   /sales/leads/:code/meetings       `lead.edit` · scoped
+ *      PATCH | DELETE  …/meetings/:id           `lead.edit` · scoped
  *
- *  All four hang off `:code` rather than a flat `/sales/meetings/:id`, because
- *  `@Need` is static metadata: a flat route would have to READ the meeting to
- *  learn whose lead it belongs to before the scope axis could cut anything —
- *  permission decided after the read. With the code on the path the axis is
- *  present first, and the only thing left to check is that the meeting really
- *  hangs off that lead.
- *
- *  ------------------------------------------------------------------
- *  WHY A TABLE OF ITS OWN AND NOT A `contacted` ROW
- *  ------------------------------------------------------------------
- *  `sales.touch` carries one Vietnamese sentence per event, which is exactly
- *  right for a timeline and cannot hold a joining link, a transcript, and two
- *  lists of people. Widening it would put four mostly-NULL columns on every
- *  row of the busiest table in the branch so that one kind of row could use
- *  them.
- *
- *  The two are not rivals: writing a meeting ALSO writes a touch row, so the
- *  activity feed still tells the whole story. That touch is `first-meeting` for
- *  a lead's first meeting and `contacted` for every later one — which is where the
- *  writer for `first-meeting` finally lives. It was in `TouchKind` from the
- *  start with the note "no door writes this yet".
- *
- *  ------------------------------------------------------------------
- *  `isFirst` IS COMPUTED, NEVER STORED, AND THAT WAS A DECISION
- *  ------------------------------------------------------------------
- *  The first meeting is the EARLIEST meeting of that lead, decided by the
- *  server on read. The alternative on the table was a manual toggle somebody
- *  flips after a call. Two sources for one fact drift, and the day they
- *  disagree the scorecard states a number nobody can trace: a lead with a
- *  meeting list and no toggle, or a toggle and no meetings.
- *
- *  A consequence worth stating rather than discovering: recording a meeting
- *  BACKDATED before the current first one moves the star. That is correct —
- *  the earliest meeting is the first meeting, whatever order the rows were
- *  typed in — but it means `isFirst` is a property of the SET, not of the row,
- *  and no client may cache it per row across a write. */
+ *  Same routes under `/sales/opportunities/:code/meetings` (`opportunity.*`).
+ *  They hang off `:code`, not a flat `/sales/meetings/:id`: `@Need` is static,
+ *  so a flat route would read the meeting before the scope axis could cut.
+ *  Own table, not a touch row; a write ALSO writes a touch for the feed.
+ *  `isFirst` is computed on read, never stored: two sources for one fact drift,
+ *  and a backdated meeting moves it, so no client may cache it per row. */
 
 /** How long a pasted transcript may be. Generous, because the input is a whole
  *  call and truncating one silently is worse than refusing it; bounded,
@@ -54,6 +23,8 @@ export const TRANSCRIPT_MAX = 100_000
 export const MEETING_MAX_HOSTS = 20
 export const MEETING_MAX_GUESTS = 50
 
+/** Also the web form's `maxLength`: one number, here. */
+export const MEETING_GUEST_NAME_MAX = 120
 export const MEETING_TITLE_MAX = 160
 export const MEETING_LINK_MAX = 500
 export const MEETING_GOAL_MAX = 500
@@ -128,6 +99,8 @@ export const MeetingAttendee = z.object({
   /** Job title, as written on the day. Optional — plenty of meetings happen
    *  with somebody whose title nobody wrote down. */
   role: textInputOptional(120),
+  /** Set when the meeting is closed out; absent while it is only booked. */
+  attended: z.boolean().optional(),
 })
 
 /** A joining link. Not `z.url()`: the value is pasted from Meet/Zoom/Teams and
@@ -141,9 +114,15 @@ const MeetingLink = z
   .max(MEETING_LINK_MAX, `Tối đa ${MEETING_LINK_MAX} ký tự`)
   .regex(/^https?:\/\/\S+$/, 'Link họp phải bắt đầu bằng http:// hoặc https://')
 
+/** The object a meeting hangs off: a lead or an opportunity, never a contract. */
+export const MeetingSubjectCode = ObjectCode.regex(/^(LD|OP)-/, 'Cuộc họp chỉ gắn lead hoặc cơ hội')
+
 export const MeetingRow = z.object({
   id: z.string().min(1),
-  leadCode: ObjectCode,
+  subjectCode: MeetingSubjectCode,
+  /** When the meeting was closed out as held; null while still scheduled. The
+   *  single fact: clients derive scheduled/held from it. */
+  heldAt: Moment.nullable(),
 
   /** When the meeting HAPPENED, not when the row was typed. The two differ
    *  every time somebody writes up yesterday's call, and the scorecard counts
@@ -199,7 +178,7 @@ export const MeetingHostInput = z.object({
 })
 
 export const MeetingGuestInput = z.object({
-  name: textInput(120),
+  name: textInput(MEETING_GUEST_NAME_MAX),
   role: textInputOptional(120),
   /** Optional link into `sales.contact` — see `MeetingAttendee`. Not required:
    *  requiring it would block recording a meeting with somebody not yet in that
@@ -242,6 +221,7 @@ export const MeetingCreate = z.object({
 export const MeetingPatch = MeetingCreate.partial()
 
 export type MeetingId = z.infer<typeof MeetingId>
+export type MeetingSubjectCode = z.infer<typeof MeetingSubjectCode>
 export type MeetingSide = z.infer<typeof MeetingSide>
 export type MeetingMode = z.infer<typeof MeetingMode>
 export type MeetingDurationMinutes = z.infer<typeof MeetingDurationMinutes>

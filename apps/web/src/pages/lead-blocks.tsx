@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CalendarClock, CircleAlert } from '@pv/ui'
-import { Button, GlassCard, Icon, SectionTitle, Skeleton } from '@pv/ui'
+import { CircleAlert } from '@pv/ui'
+import { Button, Icon, Skeleton } from '@pv/ui'
 import { campaignLabel, sourceKindLabel, type LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dmy } from '@/lib/date'
@@ -11,13 +10,13 @@ import { useMotionLabel } from '@/data/sales-motions'
 import { leadTouchesQuery, leadVectorQuery } from '@/data/touches'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { useRestoreLeads } from '@/components/lead-restore'
-import { MeetingsPanel } from '@/components/meetings-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { TodoCard } from '@/components/record/todo-card'
 import { NextStepCard } from '@/components/run/next-step'
 import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
 
-/** Module 2 · the header, todo card and meetings card of the lead profile.
+/** Module 2 · the header and todo card of the lead profile; the meetings card
+ *  is `MeetingsCard`, shared with the deal profile.
  *
  *  The header carries no code, state or run chip: the run strip and the todo
  *  card's rungs say those (ADR 0078 §1). Holder and origin live only in its
@@ -41,6 +40,33 @@ export function LeadHeader({ lead, readOnly }: { lead: LeadProfile; readOnly: bo
         readOnly && 'Bạn tham gia một cơ hội của lead này, không giữ lead — chỉ xem',
       ]}
     />
+  )
+}
+
+/** A switched-off lead says so once, above everything, with its one way back.
+ *  Only a `lead.disable` holder ever sees it: for anyone else the profile is
+ *  a 404. Same tinted block as the config screen's "nothing here yet" notice. */
+export function LeadDisabledNotice({ code, since }: { code: string; since: string }) {
+  const { pending, restore } = useRestoreLeads()
+
+  return (
+    <div
+      role="status"
+      className="bg-warning/12 flex flex-wrap items-center justify-between gap-3 rounded-md p-4"
+    >
+      <span className="flex min-w-0 items-center gap-3 text-[13px] font-semibold">
+        <Icon icon={CircleAlert} size={20} className="text-warning shrink-0" />
+        <span className="tnum">Lead đã vô hiệu hoá từ {momentText(since)}</span>
+      </span>
+      <Button
+        size="md"
+        className="pointer-coarse:h-12"
+        disabled={pending}
+        onClick={() => restore([code])}
+      >
+        Khôi phục
+      </Button>
+    </div>
   )
 }
 
@@ -82,63 +108,5 @@ export function LeadTodo({
         />
       }
     />
-  )
-}
-
-/** The meetings with this customer — the body's working card. One booking
- *  button, shown only to a reader who may book (`lead.edit`, scoped). */
-export function LeadMeetings({ code, canEdit }: { code: string; canEdit: boolean }) {
-  /* A counter, not a flag: a second press must reopen a door just closed. */
-  const [asked, setAsked] = useState(0)
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Lịch gặp">
-      <SectionTitle
-        size="detail"
-        actions={
-          canEdit && (
-            <Button
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              onClick={() => setAsked((n) => n + 1)}
-            >
-              <Icon icon={CalendarClock} size={16} />
-              Đặt lịch
-            </Button>
-          )
-        }
-      >
-        Lịch gặp
-      </SectionTitle>
-      <MeetingsPanel code={code} canEdit={canEdit} openSchedule={asked} />
-    </GlassCard>
-  )
-}
-
-/** A switched-off lead says so once, above everything, with its one way back.
- *  Only a `lead.disable` holder ever sees it: for anyone else the profile is
- *  a 404. Same tinted block as the config screen's "nothing here yet" notice. */
-export function LeadDisabledNotice({ code, since }: { code: string; since: string }) {
-  const { pending, restore } = useRestoreLeads()
-
-  return (
-    <div
-      role="status"
-      className="bg-warning/12 flex flex-wrap items-center justify-between gap-3 rounded-md p-4"
-    >
-      <span className="flex min-w-0 items-center gap-3 text-[13px] font-semibold">
-        <Icon icon={CircleAlert} size={20} className="text-warning shrink-0" />
-        <span className="tnum">Lead đã vô hiệu hoá từ {momentText(since)}</span>
-      </span>
-      <Button
-        size="md"
-        className="pointer-coarse:h-12"
-        disabled={pending}
-        onClick={() => restore([code])}
-      >
-        Khôi phục
-      </Button>
-    </div>
   )
 }

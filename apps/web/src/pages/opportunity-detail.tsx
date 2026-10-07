@@ -17,6 +17,7 @@ import { leadProfileQuery } from '@/data/lead-profile'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { FailLogCard, StopDrawer } from '@/components/opportunity-stop'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
+import { MeetingsCard } from '@/components/meetings-card'
 import { ActionBar } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
@@ -36,8 +37,8 @@ import { DealTodo } from './opportunity-status'
 
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
  *  record shell (ADR 0078): run strip, header, then the body — todo card,
- *  value, contracts, history, description — and the run rail — comms, people,
- *  files. The floating bar only reaches contacts; its more menu holds the rest.
+ *  meetings, value, contracts, history, description — and the run rail —
+ *  comms, people, files. The floating bar only reaches contacts; its more menu holds the rest.
  *
  *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
  *  so that every hook of the profile runs only once there IS a profile. */
@@ -94,6 +95,8 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
 
   const canAccept = useCan('opportunity.accept')
   const canClose = useCan('opportunity.close')
+  /* Nothing is booked on a lost deal, the same rule that drops its bar. */
+  const canMeet = useCan('opportunity.edit') && op.state !== 'lost'
   /* The history card's own gate; the sign request's door points into it. */
   const historyOpen = useCan('workstream.view') && op.workstream !== null
   /* The origin lead, for its source. A failure does not break the screen: a
@@ -126,6 +129,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         <>
           <DealTodo op={op} primary={primary} onSign={sign} onRecord={record} />
           {op.state === 'lost' && <FailLogCard op={op} />}
+          <MeetingsCard subject={subject} canEdit={canMeet} />
           <ValueStrip op={op} onEdit={() => edit('terms')} />
           <ContractsCard
             op={op}

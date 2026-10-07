@@ -1,0 +1,13 @@
+-- 0084 - a comm can belong to a booked meeting: `booked` on `comms.debrief`.
+--
+-- One marker, not a copy of the slot: the start, the length and the title live
+-- on `sales.meeting` alone, so a reschedule is one write and no two ledgers can
+-- disagree on when the meeting is. `true` = this record belongs to a booked
+-- meeting and stays true after close (`done` comes from closed_at). Every existing row and every comm logged after the
+-- fact takes the DEFAULT false. No CHECK: a boolean
+-- NOT NULL has no third value to fence. No index: the pending queue and the
+-- per-owner counts already narrow through the partial `closed_at IS NULL`
+-- indexes, and booked rows are the few among those. Additive only.
+--
+-- Hand-written for 0047's reason: `generate`'s baseline is still stuck at 0026.
+ALTER TABLE "comms"."debrief" ADD COLUMN "booked" boolean DEFAULT false NOT NULL;

@@ -1,7 +1,9 @@
-import { asc, count, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, count, desc, eq, exists, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contact } from '../contact/contact.schema'
+import { opportunity, type OpportunityRowDb } from '../opportunity/opportunity.schema'
+import { touch } from '../touch/touch.schema'
 import {
   meeting,
   meetingAttendee,
@@ -26,13 +28,42 @@ export class MeetingRepository {
     return this.db.transaction((tx) => work(tx))
   }
 
-  /** Các buổi của một lead, mới trước. Đúng thứ tự chỉ mục `meeting_lead_idx`. */
-  async byLead(code: string): Promise<MeetingRowDb[]> {
+  /** The meetings of one lead or deal, newest first — `meeting_subject_idx` order. */
+  async bySubject(code: string): Promise<MeetingRowDb[]> {
     return this.db
       .select()
       .from(meeting)
-      .where(eq(meeting.leadCode, code))
+      .where(eq(meeting.subjectCode, code))
       .orderBy(desc(meeting.at))
+  }
+
+  /** The actor's not-yet-held meetings starting in `[from, to)` and not over by
+   *  `now`, earliest first. Own = booked by them or hosted by them. */
+  async upcomingOf(actorId: string, from: Date, to: Date, now: Date): Promise<MeetingRowDb[]> {
+    const hosts = this.db
+      .select({ one: sql`1` })
+      .from(meetingAttendee)
+      .where(
+        and(
+          eq(meetingAttendee.meetingId, meeting.id),
+          eq(meetingAttendee.side, 'host'),
+          eq(meetingAttendee.actorId, actorId),
+        ),
+      )
+    return this.db
+      .select()
+      .from(meeting)
+      .where(
+        and(
+          isNull(meeting.heldAt),
+          gte(meeting.at, from),
+          lt(meeting.at, to),
+          /* A pre-0050 row has no duration: it is over the moment it starts. */
+          sql`${meeting.at} + make_interval(mins => COALESCE(${meeting.durationMinutes}, 0)) > ${now.toISOString()}::timestamptz`,
+          or(eq(meeting.createdBy, actorId), exists(hosts)),
+        ),
+      )
+      .orderBy(asc(meeting.at), asc(meeting.id))
   }
 
   /** Người dự của NHIỀU buổi trong một câu.
@@ -40,9 +71,9 @@ export class MeetingRepository {
    *  Một câu cho cả trang chứ không một câu mỗi buổi: mười buổi họp là mười
    *  vòng tới Neon, và Neon tính tiền theo lượt hỏi. `inArray` rỗng là một câu
    *  SQL hợp lệ nhưng vô nghĩa, nên chặn trước. */
-  async attendeesOf(ids: readonly string[]): Promise<MeetingAttendeeRowDb[]> {
+  async attendeesOf(ids: readonly string[], handle: Db = this.db): Promise<MeetingAttendeeRowDb[]> {
     if (ids.length === 0) return []
-    return this.db
+    return handle
       .select()
       .from(meetingAttendee)
       .where(inArray(meetingAttendee.meetingId, [...ids]))
@@ -53,6 +84,45 @@ export class MeetingRepository {
    *  trước khi cho sửa hay xoá. */
   async byId(id: string, handle: Db = this.db): Promise<MeetingRowDb | null> {
     const [row] = await handle.select().from(meeting).where(eq(meeting.id, id)).limit(1)
+    return row ?? null
+  }
+
+  /** The row under `FOR UPDATE`: a change and close-meeting on one meeting
+   *  take turns, so neither judges "not held yet" on a stale read. */
+  async lock(tx: Db, id: string): Promise<MeetingRowDb | null> {
+    const [row] = await tx.select().from(meeting).where(eq(meeting.id, id)).limit(1).for('update')
+    return row ?? null
+  }
+
+  async byIds(ids: readonly string[]): Promise<MeetingRowDb[]> {
+    if (ids.length === 0) return []
+    return this.db
+      .select()
+      .from(meeting)
+      .where(inArray(meeting.id, [...ids]))
+  }
+
+  /** Whether a meeting touch already sits at this exact moment — a write-up
+   *  booked before 0084 got its touch at booking, so close-meeting must not
+   *  write a second. Keyed on `at`: the booking set it to the meeting's start. */
+  async hasMeetingTouch(tx: Db, code: string, at: Date): Promise<boolean> {
+    const [row] = await tx
+      .select({ one: sql`1` })
+      .from(touch)
+      .where(
+        and(
+          eq(touch.subjectCode, code),
+          eq(touch.at, at),
+          inArray(touch.kind, ['first-meeting', 'contacted']),
+        ),
+      )
+      .limit(1)
+    return row !== undefined
+  }
+
+  /** The deal a meeting on an `OP-` hangs off, for its edit rule. */
+  async dealOf(code: string, handle: Db = this.db): Promise<OpportunityRowDb | null> {
+    const [row] = await handle.select().from(opportunity).where(eq(opportunity.code, code)).limit(1)
     return row ?? null
   }
 
@@ -88,11 +158,9 @@ export class MeetingRepository {
   /** Which lead each of these contact codes belongs to.
    *
    *  `sales.contact.lead_code` is `NOT NULL`, so one statement answers the whole
-   *  question and a code missing from the result simply is not in the book. Runs
-   *  on the caller's `tx` like every other statement here: the answer decides
-   *  whether the attendee rows may be written, so reading it outside the
-   *  transaction that writes them would be checking a book somebody else is
-   *  still editing.
+   *  question and a code missing from the result simply is not in the book.
+   *  Edits run it on their `tx`; a booking runs it on the pool BEFORE the
+   *  comm record's transaction, since a refusal must come before any write.
    *
    *  Lives in this repository rather than reaching for `ContactRepository`
    *  because it is one projection of one column — importing a sibling module's
@@ -100,23 +168,44 @@ export class MeetingRepository {
    *  nothing else. Same-branch table import, the rule `meeting.schema.ts`
    *  already follows for the foreign key itself. */
   async contactLeadsOf(
-    tx: Db,
     codes: readonly string[],
+    handle: Db = this.db,
   ): Promise<{ code: string; leadCode: string }[]> {
     if (codes.length === 0) return []
-    return tx
+    return handle
       .select({ code: contact.code, leadCode: contact.leadCode })
       .from(contact)
       .where(inArray(contact.code, [...codes]))
   }
 
-  /** Buổi họp SỚM NHẤT của lead đã có chưa — câu duy nhất cửa ghi cần để biết
+  /** The lead whose contact book serves a subject: itself for an `LD-`, its
+   *  `lead_code` for an `OP-` (a deal has no contact book of its own). */
+  async leadOfSubject(code: string, handle: Db = this.db): Promise<string | null> {
+    if (!code.startsWith('OP-')) return code
+    const [row] = await handle
+      .select({ leadCode: opportunity.leadCode })
+      .from(opportunity)
+      .where(eq(opportunity.code, code))
+      .limit(1)
+    return row?.leadCode ?? null
+  }
+
+  /** Buổi họp SỚM NHẤT của lead (hoặc cơ hội) đã có chưa — câu duy nhất cửa ghi cần để biết
    *  dòng `touch` sắp ghi là `first-meeting` hay `contacted`.
    *
    *  Đếm chứ không đọc dòng: câu hỏi là "đã có buổi nào chưa", và một `count`
-   *  không kéo transcript của buổi cũ về chỉ để bị vứt đi. */
-  async countOf(tx: Db, code: string): Promise<number> {
-    const [row] = await tx.select({ n: count() }).from(meeting).where(eq(meeting.leadCode, code))
+   *  không kéo transcript của buổi cũ về chỉ để bị vứt đi.
+   *  `createdBefore` asks what the book held when a given row was typed. */
+  async countOf(tx: Db, code: string, createdBefore?: Date): Promise<number> {
+    const [row] = await tx
+      .select({ n: count() })
+      .from(meeting)
+      .where(
+        and(
+          eq(meeting.subjectCode, code),
+          createdBefore ? lt(meeting.createdAt, createdBefore) : undefined,
+        ),
+      )
     return row?.n ?? 0
   }
 }

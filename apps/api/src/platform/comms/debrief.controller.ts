@@ -6,12 +6,14 @@ import {
   DebriefId,
   DebriefListQuery,
   DebriefTargetQuery,
+  MeetingDebriefClose,
   PendingDebriefQuery,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { DebriefService } from './debrief.service'
+import { MeetingDebriefService } from './meeting-debrief.service'
 
 /** Comm record doors (ADR 0074, 0075), all on `comm.view` for the reason
  *  `ThreadController` gives: `comm.view-content` cuts a field, not a request.
@@ -20,7 +22,10 @@ import { DebriefService } from './debrief.service'
  *  `target`, `pending` and `counts` come before `:id` so they are not read as ids. */
 @Controller('comms/debriefs')
 export class DebriefController {
-  constructor(private readonly debriefs: DebriefService) {}
+  constructor(
+    private readonly debriefs: DebriefService,
+    private readonly meetings: MeetingDebriefService,
+  ) {}
 
   @Post()
   @Need({ permission: 'comm.view' })
@@ -68,5 +73,18 @@ export class DebriefController {
     @Body(zod(DebriefClose)) body: DebriefClose,
   ) {
     return this.debriefs.close(who, id, body)
+  }
+
+  /** The "meeting held" close on a booked meeting's record; same gate, the fence is in the
+   *  service (owner, or an outranking closer). 200 for `close`'s reason. */
+  @Post(':id/close-meeting')
+  @HttpCode(200)
+  @Need({ permission: 'comm.view' })
+  closeMeeting(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(DebriefId)) id: string,
+    @Body(zod(MeetingDebriefClose)) body: MeetingDebriefClose,
+  ) {
+    return this.meetings.close(who, id, body)
   }
 }

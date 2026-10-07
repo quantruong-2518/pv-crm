@@ -1,18 +1,19 @@
-import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { useMemo, useState, type ReactNode } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Button,
+  CalendarClock,
   Check,
   Eye,
   GlassCard,
   Icon,
   Input,
+  Link,
   Modal,
   Save,
   SectionTitle,
   Skeleton,
   Textarea,
-  cn,
 } from '@pv/ui'
 import {
   DEBRIEF_SUMMARY_MAX,
@@ -20,18 +21,21 @@ import {
   type CommVocabularyResponse,
   type DebriefClose,
   type DebriefView,
+  type MeetingRow,
 } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy } from '@/lib/date'
 import { RecordShell } from '@/components/record/record-shell'
+import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommFileDrop, CommFileList } from '@/components/comm-files'
-import { ChoiceChip } from '@/components/comm-bits'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
 import { Field } from '@/components/field-bits'
+import { MeetingHeldForm } from '@/components/meeting-held-form'
+import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import {
-  COMM_CARD_SURFACE,
   EMPTY_STEP_DRAFT,
   type StepDraft,
   evaluationBlockerOf,
@@ -40,10 +44,13 @@ import {
   subjectKindLabel,
   useConfirmComm,
 } from '@/data/comm-record-detail'
+import { MEETING_MODE_LABEL, meetingRowLabel, meetingSlotOf } from '@/data/meeting-labels'
+import { meetingSubjectOf, meetingsQuery } from '@/data/meetings'
+import { useMinuteClock } from '@/data/minute-clock'
 
-/** The confirm form of an open comm, and the evaluation block the mobile log
- *  shares (ADR 0074 §2, 0075 §2). The read view of a done comm is
- *  `CommRecordRead` in `components/comm-record-bits.tsx`.
+/** The confirm form of an open comm, and the booked-meeting view with its
+ *  close-out and reschedule doors (ADR 0074 §2, 0075 §2). The read view of a done
+ *  comm is `CommRecordRead` in `components/comm-record-bits.tsx`.
  *
  *  Filled by hand this turn — AI pre-fill is deferred (ADR 0075 §6), so there
  *  is no AI block here and nothing is proposed on the reader's behalf.
@@ -217,7 +224,7 @@ export function ConfirmWorkspace({
             <CommFileList id={record.id} canDelete />
           </GlassCard>
           <GlassCard className="p-5" aria-label="Đánh giá">
-            <Evaluation vocab={vocab} picked={picked} onPick={setPicked} />
+            <CommEvaluation vocab={vocab} picked={picked} onPick={setPicked} />
           </GlassCard>
           <GlassCard className="flex flex-col gap-3 p-5" aria-label="Bước tiếp theo">
             {target ? (
@@ -319,57 +326,182 @@ function PreviewRow({ label, children }: { label: string; children: ReactNode })
   )
 }
 
-/** One fieldset per active question; the answers are the admin's words. */
-export function Evaluation({
-  vocab,
-  picked,
-  onPick,
+// ---------------------------------------------------------------------------
+// A BOOKED MEETING — `scheduled`
+// ---------------------------------------------------------------------------
+
+const HELD_REASON_ID = 'meeting-held-reason'
+
+/** A booked meeting's record: the booking, read-only, and for a closer the two
+ *  verbs — held (the close-out form) and reschedule (the booking drawer in
+ *  edit mode). Anybody else sees whose it is and no button. */
+export function ScheduledMeeting({
+  record,
+  strip,
+  header,
 }: {
-  vocab: UseQueryResult<CommVocabularyResponse>
-  picked: Record<string, string>
-  onPick: Dispatch<SetStateAction<Record<string, string>>>
+  record: DebriefView
+  strip: ReactNode
+  header: ReactNode
 }) {
-  const criteria = vocab.data?.criteria ?? []
+  const subject = meetingSubjectOf(record.subject.code)
+  const deal = subject?.kind === 'opportunity'
+  const canRead = useCan(deal ? 'opportunity.view' : 'lead.view')
+  const canMove = useCan(deal ? 'opportunity.edit' : 'lead.edit')
+  const list = useQuery({
+    ...meetingsQuery(subject ?? { kind: 'lead', code: record.subject.code }),
+    enabled: subject !== null && canRead,
+  })
+  const meeting = list.data?.rows.find((row) => row.id === record.meeting?.id)
+  const [holding, setHolding] = useState(false)
+  const [moving, setMoving] = useState(false)
+  /* Rescheduling rewrites the booking, so it needs the booking in hand. */
+  const movable = record.closableByMe && subject !== null && meeting !== undefined && canMove
+  const now = useMinuteClock()
+  const startsAt = record.meeting?.at
+  const started = !startsAt || now >= Date.parse(startsAt)
+  /* The close-out sends who attended; without the booked list it would guess. */
+  const listMissing = !canRead
+    ? `Cần quyền xem ${subjectKindLabel(record.subject.code).toLowerCase()} để đọc danh sách người dự trước khi ghi kết quả.`
+    : list.isLoading
+      ? 'Đang đọc danh sách người dự…'
+      : list.error
+        ? `Không đọc được danh sách người dự. ${isApiError(list.error) ? userMessage(list.error) : 'Vui lòng thử lại.'}`
+        : meeting === undefined
+          ? 'Không tìm thấy lịch họp này trong danh sách người dự.'
+          : null
+
   return (
-    <div className="flex flex-col gap-3">
-      <span className="text-muted-foreground text-[11px]">Đánh giá</span>
-      {vocab.isPending ? (
-        <Skeleton className="h-24 w-full" />
-      ) : vocab.error ? (
-        <p role="alert" className="text-warning text-[12px]">
-          Không tải được bộ câu hỏi.{' '}
-          {isApiError(vocab.error) ? userMessage(vocab.error) : 'Tải lại trang.'}
-        </p>
-      ) : criteria.length === 0 ? (
-        <p className="text-muted-foreground text-[12px] leading-[1.6]">
-          Chưa có câu hỏi đánh giá nào đang bật — phần này để trống.
-        </p>
-      ) : (
-        criteria.map((c) => (
-          <fieldset
-            key={c.id}
-            className={cn('flex flex-col gap-2 rounded-md p-3', COMM_CARD_SURFACE)}
-          >
-            <legend className="sr-only">{c.name}</legend>
-            <span aria-hidden className="text-[12.5px] font-medium">
-              {c.name}
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {c.answers.map((a) => (
-                <ChoiceChip
-                  key={a.id}
-                  className="h-8 gap-1 px-2 text-[11.5px]"
-                  pressed={picked[c.id] === a.id}
-                  icon={picked[c.id] === a.id ? Check : undefined}
-                  onClick={() => onPick((p) => ({ ...p, [c.id]: a.id }))}
+    <RecordShell
+      strip={strip}
+      header={header}
+      main={<MeetingFacts record={record} meeting={meeting} pending={list.isLoading} />}
+      rail={
+        <GlassCard className="flex flex-col gap-3 p-5 lg:p-6" aria-label="Thao tác buổi họp">
+          {record.closableByMe ? (
+            <>
+              {started && (
+                <Button
+                  size="lg"
+                  className="w-full"
+                  disabled={listMissing !== null}
+                  aria-describedby={listMissing ? HELD_REASON_ID : undefined}
+                  onClick={() => setHolding(true)}
                 >
-                  {a.name}
-                </ChoiceChip>
-              ))}
-            </div>
-          </fieldset>
-        ))
+                  <Icon icon={Check} size={16} />
+                  Họp xong
+                </Button>
+              )}
+              {(!started || listMissing) && (
+                <p
+                  id={HELD_REASON_ID}
+                  className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]"
+                >
+                  {started
+                    ? listMissing
+                    : `Nút Họp xong hiện khi buổi họp bắt đầu, lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`}
+                </p>
+              )}
+              {movable && (
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => setMoving(true)}
+                >
+                  <Icon icon={CalendarClock} size={16} />
+                  Dời lịch
+                </Button>
+              )}
+            </>
+          ) : (
+            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+              Chỉ {record.owner.name}, người đặt lịch, hoặc cấp trên của người này ghi được kết quả
+              buổi họp.
+            </p>
+          )}
+        </GlassCard>
+      }
+      railLabel="Thao tác buổi họp"
+    >
+      {record.closableByMe && (
+        <MeetingHeldForm
+          record={record}
+          meeting={meeting}
+          open={holding}
+          onClose={() => setHolding(false)}
+        />
       )}
-    </div>
+      {movable && (
+        <MeetingScheduleDrawer
+          subject={subject}
+          editing={meeting}
+          open={moving}
+          onClose={() => setMoving(false)}
+        />
+      )}
+    </RecordShell>
   )
 }
+
+/** The booking as written. Without the meeting list (no read right on the
+ *  subject) only the record's own slot is known, so only that is printed. */
+function MeetingFacts({
+  record,
+  meeting,
+  pending,
+}: {
+  record: DebriefView
+  meeting: MeetingRow | undefined
+  pending: boolean
+}) {
+  const slot = record.meeting
+  const when = meeting
+    ? meetingRowLabel(meeting.at, meeting.durationMinutes)
+    : slot && `${meetingRowLabel(slot.at)}–${meetingSlotOf(slot.endsAt).time}`
+
+  return (
+    <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lịch họp">
+      <SectionTitle size="detail">Lịch họp</SectionTitle>
+      {pending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <dl className="m-0 grid gap-x-3 gap-y-3 text-[12.5px] leading-[1.6] sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
+          {when && <Fact label="Thời gian (giờ Việt Nam)">{when}</Fact>}
+          {meeting?.mode && <Fact label="Hình thức">{MEETING_MODE_LABEL[meeting.mode]}</Fact>}
+          {meeting?.link && (
+            <Fact label="Link họp">
+              {/* Pasted by a person: `noreferrer` keeps the target off `window.opener`. */}
+              <a
+                href={meeting.link}
+                target="_blank"
+                rel="noreferrer"
+                className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 break-all"
+              >
+                <Icon icon={Link} size={14} className="shrink-0" />
+                {meeting.link}
+              </a>
+            </Fact>
+          )}
+          {meeting?.goal && <Fact label="Mục tiêu">{meeting.goal}</Fact>}
+          {meeting && <Fact label="Bên mình">{namesOf(meeting.hosts)}</Fact>}
+          {meeting && meeting.guests.length > 0 && (
+            <Fact label="Khách">{namesOf(meeting.guests)}</Fact>
+          )}
+        </dl>
+      )}
+    </GlassCard>
+  )
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="m-0 min-w-0 break-words">{children}</dd>
+    </>
+  )
+}
+
+const namesOf = (people: readonly { name: string; role?: string }[]) =>
+  people.map((p) => (p.role ? `${p.name} (${p.role})` : p.name)).join(', ')

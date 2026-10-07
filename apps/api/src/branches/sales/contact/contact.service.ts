@@ -38,7 +38,7 @@ import type { ContactRowDb } from './contact.schema'
  *
  *  The `mine()` function below is NOT a permission check: it only confirms
  *  the contact really belongs to the lead on the path, and throws 404
- *  rather than 403 — the same reason `MeetingService.mine` does that, so it
+ *  rather than 403 — the same reason `MeetingService.changeable` does that, so it
  *  never reveals that the code exists under a different lead. */
 export type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phone' | 'channel'>
 

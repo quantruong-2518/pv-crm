@@ -31,6 +31,10 @@ import {
   type OpportunityFacetsQuery,
   type OpportunityImportBody,
   type OpportunityUpdate,
+  type MeetingCreate,
+  type MeetingListResponse,
+  type MeetingPatch,
+  type MeetingRow,
   type TouchTimelineResponse,
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
@@ -46,6 +50,7 @@ import { ContractRepository, type ContractRead } from '../contract/contract.repo
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { MeetingService } from '../meeting/meeting.service'
 import {
   editDetailsVerdict,
   editTermsVerdict,
@@ -141,6 +146,7 @@ export class OpportunityService {
     private readonly facts: OpportunityFacts,
     private readonly acts: OpportunityActs,
     private readonly facetsRepo: OpportunityFacetsRepository,
+    private readonly meetings: MeetingService,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -598,6 +604,33 @@ export class OpportunityService {
     if (!found || !found.inScope) throw notFound('cơ hội', code)
 
     return this.touch.timeline(code)
+  }
+
+  // ── meetings · four doors under `:code`, `touches`' fence (404 out of scope) ──
+
+  async meetingList(who: Actor, code: ObjectCode): Promise<MeetingListResponse> {
+    await this.inScope(who, code)
+    return this.meetings.timeline(code)
+  }
+
+  async meetingAdd(who: Actor, code: ObjectCode, body: MeetingCreate): Promise<MeetingRow> {
+    await this.inScope(who, code)
+    return this.meetings.record(who, code, body)
+  }
+
+  async meetingEdit(who: Actor, code: ObjectCode, id: string, body: MeetingPatch) {
+    await this.inScope(who, code)
+    return this.meetings.amend(who, code, id, body)
+  }
+
+  async meetingDrop(who: Actor, code: ObjectCode, id: string): Promise<void> {
+    await this.inScope(who, code)
+    await this.meetings.drop(who, code, id)
+  }
+
+  private async inScope(who: Actor, code: ObjectCode): Promise<void> {
+    const found = await this.repo.byCode(who, code)
+    if (!found || !found.inScope) throw notFound('cơ hội', code)
   }
 
   // ── nạp từ tệp ───────────────────────────────────────────────────────────

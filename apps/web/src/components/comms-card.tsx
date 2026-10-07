@@ -4,8 +4,9 @@ import { Skeleton } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmhm } from '@/lib/date'
-import { subjectKindLabel, summaryTextOf } from '@/data/comm-record-detail'
+import { meetingOverdue, subjectKindLabel, titleOf } from '@/data/comm-record-detail'
 import { workstreamCommRecordsQuery } from '@/data/comm-records'
+import { useMinuteClock } from '@/data/minute-clock'
 import { CommRecordRead } from './comm-record-bits'
 import { CommTimelineTrack, type CommCardItem } from './comm-timeline'
 
@@ -13,21 +14,23 @@ import { CommTimelineTrack, type CommCardItem } from './comm-timeline'
  *  and contract on the shared axis, each card naming its object, the chosen
  *  one's read view underneath (ADR 0075, canvas `History`). No glass of its own: it draws inside a `.glass-b` card (law 8). */
 
-const itemOf = (row: DebriefView): CommCardItem => ({
+const itemOf = (row: DebriefView, now: number): CommCardItem => ({
   id: row.id,
   channel: row.channel,
   state: row.state,
   late: row.late,
+  overdue: meetingOverdue(row, now),
   createdAt: row.createdAt,
-  title: summaryTextOf(row.summary),
-  titleMuted: row.summary.state !== 'visible',
-  meta: `${dmhm(row.createdAt)} · ${row.owner.name}`,
+  ...titleOf(row),
+  /* A meeting's own hour is the time worth reading; the axis keeps the booking day. */
+  meta: `${row.meeting ? `Họp ${dmhm(row.meeting.at)}` : dmhm(row.createdAt)} · ${row.owner.name}`,
   subject: { code: row.subject.code, label: subjectKindLabel(row.subject.code) },
   step: row.step,
 })
 
 export function WorkstreamComms({ workstreamCode }: { workstreamCode: string }) {
   const { data, isPending, error } = useQuery(workstreamCommRecordsQuery(workstreamCode))
+  const now = useMinuteClock()
   /* Sorted here because the axis IS the order and the contract promises none. */
   const rows = useMemo(
     () => [...(data?.rows ?? [])].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt)),
@@ -67,7 +70,7 @@ export function WorkstreamComms({ workstreamCode }: { workstreamCode: string }) 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <CommTimelineTrack
-        items={rows.map(itemOf)}
+        items={rows.map((row) => itemOf(row, now))}
         selectedId={selected?.id ?? null}
         onSelect={setPicked}
         caption={caption}

@@ -1,10 +1,9 @@
-import { check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { MeetingMode, MeetingSide } from '@pv/contracts'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { contact } from '../contact/contact.schema'
-import { lead } from '../lead/lead.schema'
 
 /** Cuộc họp với một lead — sổ các lần đã gặp, và chỗ ở của transcript.
  *
@@ -46,19 +45,23 @@ export const meeting = sales.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    /** Khoá ngoại THẬT, khác `touch.subject_code`: cuộc họp chỉ treo vào lead,
-     *  không đa hình, nên không có lý do gì để bỏ hàng rào. Không
-     *  `ON DELETE CASCADE` — `lead.schema.ts` viết rõ lead rời phễu bằng
-     *  `exit_reason` chứ không bị xoá, nên một CASCADE ở đây là hàng rào cho
-     *  một việc không được phép xảy ra. */
-    leadCode: text('lead_code')
+    /** The lead or opportunity the meeting is on. A REAL key into
+     *  `platform.object`, as `debrief.subject_code`: since 0042 every LD and OP
+     *  has its mirror row before a meeting can be booked on it. No CASCADE —
+     *  leads and deals leave the funnel by a reason, never by a delete. */
+    subjectCode: text('subject_code')
       .notNull()
-      .references(() => lead.code),
+      .references(() => objectRef.code),
 
     /** Lúc CUỘC HỌP diễn ra. Không mặc định `now()`: ghi bù là đường đi bình
      *  thường của bảng này, và một mặc định lặng lẽ biến buổi hôm qua thành
      *  buổi hôm nay ở đúng cột mà thẻ điểm đếm. */
     at: timestamp('at', { withTimezone: true }).notNull(),
+
+    /** NULL = booked, not held yet. A mark rather than a status column, the
+     *  `closed_at` convention: "held since when" is the question, and a status
+     *  beside it would be a second source for the same fact. */
+    heldAt: timestamp('held_at', { withTimezone: true }),
 
     title: text('title').notNull(),
     link: text('link'),
@@ -94,11 +97,13 @@ export const meeting = sales.table(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    /** Câu hỏi duy nhất bảng này trả lời: "các buổi họp của lead X, mới trước".
-     *  Hai cột đúng thứ tự đó nên câu đọc không cần lượt sort nào — và cùng chỉ
-     *  mục đó phục vụ luôn `MIN(at)` của phép tính lần gặp đầu. */
-    index('meeting_lead_idx').on(t.leadCode, t.at.desc()),
-    check('meeting_no_blank', sql`"title" <> '' AND "by" <> '' AND "lead_code" <> ''`),
+    /** "The meetings on lead or deal X, newest first" — the read needs no sort,
+     *  and the same index serves the `MIN(at)` of the first-meeting rule. */
+    index('meeting_subject_idx').on(t.subjectCode, t.at.desc()),
+    check('meeting_no_blank', sql`"title" <> '' AND "by" <> '' AND "subject_code" <> ''`),
+    /** Only leads and deals carry meetings. Copied from `next_step_subject_known`
+     *  by hand; `{4,}` because `%04d` pads, never truncates. */
+    check('meeting_subject_known', sql`"subject_code" ~ '^(LD|OP)-[0-9]{4,}$'`),
     /** Link đi thẳng vào `href` của màn. Một giá trị `javascript:` ở đó là một
      *  cú XSS lưu trữ, nên lược đồ từ chối nó chứ không chỉ zod ở cửa vào:
      *  bảng này còn nhận dữ liệu từ migration và từ tay người, không chỉ từ
@@ -132,7 +137,7 @@ export const meetingAttendee = sales.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    /** CASCADE ở đây thì đúng, khác hẳn `lead_code` bên trên: người dự không
+    /** CASCADE ở đây thì đúng, khác hẳn `subject_code` bên trên: người dự không
      *  tồn tại độc lập với buổi họp, và xoá một buổi họp phải mang họ theo —
      *  ngược lại là những dòng mồ côi không câu truy vấn nào còn tìm ra. */
     meetingId: uuid('meeting_id')
@@ -162,6 +167,10 @@ export const meetingAttendee = sales.table(
 
     name: text('name').notNull(),
     role: text('role'),
+
+    /** NULL = attendance not recorded yet — every row before 0083, and every
+     *  meeting not yet held. Not `false`: "absent" is a fact somebody saw. */
+    attended: boolean('attended'),
   },
   (t) => [
     index('meeting_attendee_meeting_idx').on(t.meetingId),

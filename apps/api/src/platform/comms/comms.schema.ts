@@ -1,4 +1,5 @@
 import {
+  boolean,
   check,
   date,
   index,
@@ -274,7 +275,7 @@ export const message = comms.table(
     /** The one identity treated as the primary sender. No CASCADE, and that is
      *  the OTHER half of the pair: an identity is a person's address, and
      *  deleting an address must not take the history of what was said through
-     *  it — the same call `meeting.lead_code` makes against `meeting_attendee`.
+     *  it — the same call `meeting.subject_code` makes against `meeting_attendee`.
      *  A merge of two identities is an UPDATE here, not a delete.
      *
      *  NOT NULL because a turn with no sender is not a turn: an address that
@@ -473,6 +474,12 @@ export const debrief = comms.table(
     nextKindName: text('next_kind_name'),
     nextText: text('next_text'),
     nextDue: date('next_due'),
+
+    /** true = this record belongs to a booked meeting; stays true after close
+     *  (`done` comes from `closed_at`). A marker,
+     *  not the slot: start, length and title live on `sales.meeting` alone, so
+     *  no second ledger can drift on when the meeting is (0084). */
+    booked: boolean('booked').notNull().default(false),
   },
   (t) => [
     /** The fence "at most one OPEN debrief per (thread, owner)", and the lookup

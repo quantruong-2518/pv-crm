@@ -1,35 +1,25 @@
 import { Module } from '@nestjs/common'
 import { CommRecordModule } from '@api/platform/comms/comm-record.module'
-import { MeetingEndQueueModule } from '@api/platform/queue/meeting-enqueue'
-import { MEETING_END_HANDLER } from '@api/platform/queue/meeting-jobs'
 import { SessionModule } from '@api/platform/session/session.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
-import { MeetingEndJobs } from './meeting-end.handler'
+import { MeetingTodayController } from './meeting-today.controller'
 import { MeetingRepository } from './meeting.repository'
 import { MeetingService } from './meeting.service'
 
-/** Sổ cuộc họp — facility của nhánh Sales, không phải module màn.
+/** The meeting book — a Sales facility, not a screen module.
  *
- *  KHÔNG có controller, cùng lý do với `TouchModule`: bốn đường của nó sống
- *  trên `LeadController` dưới `/sales/leads/:code/meetings`, nơi trục phạm vi
- *  đã có mặt trên chính đường dẫn. Một `@Controller('sales/meetings')` sẽ phải
- *  đọc dữ liệu rồi mới biết cắt theo phạm vi của ai, tức quyền được quyết định
- *  sau khi đã đọc — đúng thứ tự ngược.
+ *  Its four per-subject doors live on `LeadController` and
+ *  `OpportunityController` under `:code/meetings`, where the scope axis is on
+ *  the path. The one controller here, `GET /sales/meetings/today`, reads only
+ *  the caller's own meetings, so it needs no subject on its path.
  *
- *  `imports: [TouchModule]` vì ghi một buổi họp là ghi kèm một dòng thời gian,
- *  và `exports` chỉ có service: `LeadModule` được hỏi "ghi giúp tôi một buổi
- *  họp", không được với thẳng vào hai bảng. */
+ *  `CommRecordModule` because booking opens the meeting's comm record in the
+ *  same transaction; `SessionModule` for the booker's roles (the change fence). */
 @Module({
-  /* The `meeting.end` job: scheduled on write, run by `worker.ts` through
-     `MEETING_END_HANDLER` — `platform/` cannot name this branch. */
-  imports: [TouchModule, LeadStateModule, MeetingEndQueueModule, CommRecordModule, SessionModule],
-  providers: [
-    MeetingService,
-    MeetingRepository,
-    MeetingEndJobs,
-    { provide: MEETING_END_HANDLER, useExisting: MeetingEndJobs },
-  ],
-  exports: [MeetingService, MEETING_END_HANDLER],
+  imports: [TouchModule, LeadStateModule, CommRecordModule, SessionModule],
+  controllers: [MeetingTodayController],
+  providers: [MeetingService, MeetingRepository],
+  exports: [MeetingService],
 })
 export class MeetingModule {}

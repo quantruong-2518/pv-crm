@@ -406,7 +406,7 @@ function plantMeeting(
   const id = randomUUID()
   out.meetings.push({
     id,
-    leadCode: ld,
+    subjectCode: ld,
     at,
     title,
     mode,

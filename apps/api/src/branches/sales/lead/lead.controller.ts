@@ -185,7 +185,7 @@ export class LeadController {
   // riêng, và lý do là trục phạm vi: `@Need` là metadata TĨNH, nên một cửa
   // `/sales/meetings/:id` phải đọc dữ liệu rồi mới biết cắt theo phạm vi của
   // ai — tức quyền quyết định sau khi đã đọc. Có `:code` trên đường thì trục ấy
-  // có mặt trước, và `MeetingService.mine()` chỉ còn phải xác nhận buổi họp
+  // có mặt trước, và `MeetingService.changeable()` chỉ còn phải xác nhận buổi họp
   // đúng là của lead đó (404 nếu không, không phải 403: người gọi không được
   // biết buổi họp ấy có tồn tại ở lead nào khác hay không).
   //

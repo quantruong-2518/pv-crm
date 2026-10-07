@@ -23,6 +23,7 @@ import { ExitDialog } from '@/components/exit-dialog'
 import { DisableLeadsDialog } from '@/components/lead-disable'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
+import { MeetingsCard } from '@/components/meetings-card'
 import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
@@ -30,7 +31,7 @@ import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunFiles } from '@/components/run/run-files'
-import { LeadDisabledNotice, LeadHeader, LeadMeetings, LeadTodo } from './lead-blocks'
+import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
 import { leadMoreChoices } from './lead-model'
 import { LeadForm } from './lead-parts'
 
@@ -156,7 +157,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       main={
         <>
           <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
-          <LeadMeetings code={lead.code} canEdit={canWrite} />
+          <MeetingsCard subject={{ kind: 'lead', code: lead.code }} canEdit={canWrite} />
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
       }

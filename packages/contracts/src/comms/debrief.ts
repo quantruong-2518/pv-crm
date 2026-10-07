@@ -2,6 +2,13 @@ import { z } from 'zod'
 import { PageQuery, paged } from '../pagination'
 import { Day, Moment, ObjectCode, textInput, textInputOptional } from '../primitives'
 import { ConfigCode } from '../sales/config'
+import {
+  MEETING_MAX_GUESTS,
+  MEETING_MAX_HOSTS,
+  MeetingGuestInput,
+  MeetingHostInput,
+  MeetingId,
+} from '../sales/meeting'
 import { NextStepDoneBody, NextStepKind, NextStepSetBody } from '../sales/next-step'
 import { TouchSubject } from '../sales/touch'
 import { CommsChannel, LinkableCode } from './identity'
@@ -16,6 +23,7 @@ import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadR
  *      GET  /comms/debriefs/counts           `comm.view` · pending per owner (`ownOnly` → own row)
  *      GET  /comms/debriefs/:id              `comm.view` + reach · one record
  *      POST /comms/debriefs/:id/close        `comm.view` · owner only (the confirm button)
+ *      POST /comms/debriefs/:id/close-meeting  same gate, plus per-person attendance
  *
  *  `POST /comms/messages` opens or joins a debrief too (`MessageCreateResponse.debriefId`).
  *  Config ids are stored with name copies, so renaming an entry never rewrites a
@@ -68,6 +76,22 @@ export const DebriefClose = z.object({
       message: 'Mỗi câu hỏi chỉ chọn một câu trả lời',
     }),
   step: DebriefStepInput.optional(),
+})
+
+// ---------------------------------------------------------------------------
+// POST /comms/debriefs/:id/close-meeting
+// ---------------------------------------------------------------------------
+
+/** The meeting's `outcome` is `DebriefClose.answers`; attendance rides beside it. */
+export const MeetingAttendedHost = MeetingHostInput.extend({ attended: z.boolean() })
+export const MeetingAttendedGuest = MeetingGuestInput.extend({ attended: z.boolean() })
+
+/** Absent `hosts`/`guests` = no attendance list sent: the server keeps the
+ *  existing attendees and writes only `attended`. A present list replaces them;
+ *  an empty array is never a way to say "keep" or "wipe". */
+export const MeetingDebriefClose = DebriefClose.omit({ title: true }).extend({
+  hosts: z.array(MeetingAttendedHost).max(MEETING_MAX_HOSTS).optional(),
+  guests: z.array(MeetingAttendedGuest).max(MEETING_MAX_GUESTS).optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -131,6 +155,12 @@ export const DebriefView = z.object({
   summary: DebriefSummary,
   answers: z.array(DebriefAnswer),
   step: DebriefStepCopy.nullable(),
+  /** The booked meeting behind a `meeting` channel record; null for any other. */
+  meeting: z
+    .object({ id: MeetingId, at: Moment, endsAt: Moment, title: z.string().min(1) })
+    .nullable(),
+  /** The server decides (owner, or an outranking superior); the web never recomputes rank. */
+  closableByMe: z.boolean(),
 })
 
 /** `summary=none`: a visible summary arrives as `hidden` and no read is audited —
@@ -162,7 +192,7 @@ export const PendingDebriefRow = z.object({
   anchorAt: Moment,
   createdAt: Moment,
   turnsCovered: z.number().int().positive(),
-  state: CommRecordState.exclude(['done']),
+  state: CommRecordState.exclude(['done', 'scheduled']),
   late: z.boolean(),
   subject: DebriefSubject,
   stepTarget: DebriefStepTarget.nullable(),
@@ -191,6 +221,9 @@ export type CommRecordCreateResponse = z.infer<typeof CommRecordCreateResponse>
 export type DebriefAnswerInput = z.infer<typeof DebriefAnswerInput>
 export type DebriefStepInput = z.infer<typeof DebriefStepInput>
 export type DebriefClose = z.infer<typeof DebriefClose>
+export type MeetingAttendedHost = z.infer<typeof MeetingAttendedHost>
+export type MeetingAttendedGuest = z.infer<typeof MeetingAttendedGuest>
+export type MeetingDebriefClose = z.infer<typeof MeetingDebriefClose>
 export type DebriefSummary = z.infer<typeof DebriefSummary>
 export type DebriefAnswer = z.infer<typeof DebriefAnswer>
 export type DebriefStepCopy = z.infer<typeof DebriefStepCopy>

@@ -27,6 +27,8 @@ import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { commCountsQuery } from '@/data/comm-record-detail'
+import { meetingTodayQuery } from '@/data/meeting-today'
+import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -347,12 +349,15 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
+  const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
   /* My own row of the counts, not the 200-row queue: the badge needs one number. */
   const { data: pendingComms } = useQuery({
     ...commCountsQuery,
-    enabled: access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok,
+    enabled: canComm,
     select: (counts) => counts.rows.find((row) => row.ownerId === actor?.id)?.pending ?? 0,
   })
+  /* The one read behind the countdown bar; every screen shares its key. */
+  const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
 
   /** Two axes, two different answers.
    *
@@ -488,6 +493,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     activeNav,
     lockedNav: LOCKED_NAV,
     onNavigate,
+    subBar: <MeetingCountdownBar today={meetingToday} />,
   }
 
   return { shell }

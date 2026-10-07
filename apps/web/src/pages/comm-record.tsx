@@ -6,21 +6,28 @@ import { isApiError, userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dmhm } from '@/lib/date'
-import { ChannelPill, CommLateMark, CommStateBadge } from '@/components/comm-bits'
+import { ChannelPill, CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
 import { CommFileList } from '@/components/comm-files'
 import { threadMessagesQuery } from '@/data/comms'
-import { COMM_CARD_SURFACE, commRecordQuery, subjectPath } from '@/data/comm-record-detail'
+import {
+  COMM_CARD_SURFACE,
+  commRecordQuery,
+  meetingOverdue,
+  subjectPath,
+} from '@/data/comm-record-detail'
+import { useMinuteClock } from '@/data/minute-clock'
 import { CommRecordRead } from '@/components/comm-record-bits'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { ContextStrip } from '@/components/record/run-strip'
-import { ConfirmWorkspace } from './comm-record-parts'
+import { ConfirmWorkspace, ScheduledMeeting } from './comm-record-parts'
 
 /** One comm record — `/comms/:id` (ADR 0075).
  *
  *  On the record shell. The owner of an open comm gets the working screen
  *  (`ConfirmWorkspace`); once done it is the read view, and anybody else sees a
  *  line saying whose it is — only the creator confirms (ADR 0075 §1 + 0074).
+ *  A booked meeting (`scheduled`) has its own view, `ScheduledMeeting`.
  *
  *  The subject is fixed at creation, so it is printed, never picked. A record
  *  mints no object code, so the strip carries the subject alone (law 10). */
@@ -55,6 +62,7 @@ export default CommRecordPage
 function RecordBody({ record }: { record: DebriefView }) {
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
+  const now = useMinuteClock()
   const mine = me?.id === record.owner.id
   const open = record.state !== 'done'
   const path = subjectPath(record.subject.code)
@@ -76,6 +84,7 @@ function RecordBody({ record }: { record: DebriefView }) {
       meta={[
         <CommStateBadge key="state" state={record.state} />,
         record.late && open && <CommLateMark key="late" late />,
+        meetingOverdue(record, now) && <CommOverdueMark key="overdue" overdue />,
         <ChannelPill key="channel" channel={record.channel} />,
         <span key="at" className="tnum">
           Tạo {dmhm(record.createdAt)}
@@ -86,6 +95,9 @@ function RecordBody({ record }: { record: DebriefView }) {
   )
   const turns = <Turns threadId={record.threadId} />
 
+  if (record.state === 'scheduled') {
+    return <ScheduledMeeting key={record.id} record={record} strip={strip} header={header} />
+  }
   if (open && mine) {
     return (
       <ConfirmWorkspace

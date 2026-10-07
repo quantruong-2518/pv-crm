@@ -14,6 +14,7 @@ import {
 import { invalid } from '@api/platform/http/problem'
 import type { ObjectRow } from '@api/platform/db/platform.schema'
 import type { CommAttachmentRead } from './comm-attachment.repository'
+import type { MeetingSlot } from './comm-debrief.hook'
 import type { DebriefPointer, DebriefRead } from './debrief.repository'
 import type {
   DebriefAnswerRowDb,
@@ -229,8 +230,21 @@ export function toDebriefView(
   read: DebriefRead,
   answers: readonly DebriefAnswerRowDb[],
   stepTarget: DebriefStepTarget | null,
+  closableByMe: boolean,
+  slot: MeetingSlot | undefined,
 ): DebriefView {
   const { row } = read
+  const meetingId = read.thread.channel === 'meeting' ? read.thread.externalId : null
+  /* Booked records only: one opened by the retired end-of-meeting job shows none. */
+  const meeting =
+    row.booked && meetingId && slot
+      ? {
+          id: meetingId,
+          at: slot.at.toISOString(),
+          endsAt: slot.endsAt.toISOString(),
+          title: slot.title,
+        }
+      : null
   const step =
     row.nextKindId && row.nextKindName && row.nextText && row.nextDue
       ? {
@@ -260,6 +274,8 @@ export function toDebriefView(
       answerName: a.answerName,
     })),
     step,
+    meeting,
+    closableByMe,
   }
 }
 

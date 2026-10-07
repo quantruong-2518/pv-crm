@@ -887,7 +887,8 @@ export class MasRepository {
   /** G6 — which pending letters of a gated wave to withhold: the subject
    *  replied to any letter filed on it, or its lead logged a meeting, since the
    *  chain's earlier waves first left (the first accepted letter, else the first
-   *  earlier run's creation). A deal's meetings are its lead's. Inside `tx` so
+   *  earlier run's creation). A lead's meetings count with those on any of its
+   *  deals, and the other way round. Inside `tx` so
    *  the verdict and the release see the same ledger. */
   async gateHolds(tx: Db, runId: string): Promise<GateHold[]> {
     const r = (await tx.execute(sql`
@@ -922,8 +923,10 @@ export class MasRepository {
                ) AS replied,
                EXISTS (
                  SELECT 1 FROM "sales"."meeting" m
-                  WHERE m."lead_code" = CASE WHEN d."aggregate_type" = 'lead'
-                                             THEN d."aggregate_id" ELSE o."lead_code" END
+                   LEFT JOIN "sales"."opportunity" mo ON mo."code" = m."subject_code"
+                  WHERE COALESCE(mo."lead_code", m."subject_code")
+                          = CASE WHEN d."aggregate_type" = 'lead'
+                                 THEN d."aggregate_id" ELSE o."lead_code" END
                     AND m."created_at" >= c.at
                ) AS met
           FROM "platform"."email_delivery" d

@@ -1,7 +1,21 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
+  MeetingCreate,
+  MeetingId,
+  MeetingPatch,
   ObjectCode,
   OpportunityAcceptBody,
   OpportunityBookQuery,
@@ -173,6 +187,47 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
   touches(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.ops.touches(who, code)
+  }
+
+  /** A deal's meetings — the lead doors' four, on `opportunity.*` for
+   *  `touches`' reason (`@Need` is static; one route, one permission). */
+  @Get(':code/meetings')
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
+  meetings(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.ops.meetingList(who, code)
+  }
+
+  @Post(':code/meetings')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  meetingAdd(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(MeetingCreate)) body: MeetingCreate,
+  ) {
+    return this.ops.meetingAdd(who, code, body)
+  }
+
+  @Patch(':code/meetings/:id')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  meetingEdit(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Param('id', zod(MeetingId)) id: MeetingId,
+    @Body(zod(MeetingPatch)) body: MeetingPatch,
+  ) {
+    return this.ops.meetingEdit(who, code, id, body)
+  }
+
+  /** 204: nothing is left to return. */
+  @Delete(':code/meetings/:id')
+  @HttpCode(204)
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  meetingDrop(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Param('id', zod(MeetingId)) id: MeetingId,
+  ) {
+    return this.ops.meetingDrop(who, code, id)
   }
 
   /** Đổi một lead thành cơ hội. 201 kèm nguyên dòng sổ — màn chèn được ngay,

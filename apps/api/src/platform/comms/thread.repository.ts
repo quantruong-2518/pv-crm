@@ -220,6 +220,39 @@ export class ThreadRepository {
     return row.id
   }
 
+  /** The meeting's thread, if one was ever opened; never creates one. Locked:
+   *  a drop judges "nothing but the booking" and must not race a turn landing. */
+  async meetingThreadOf(tx: Db, meetingId: string): Promise<string | null> {
+    const [row] = await tx
+      .select({ id: thread.id })
+      .from(thread)
+      .where(and(eq(thread.channel, 'meeting'), eq(thread.externalId, meetingId)))
+      .limit(1)
+      .for('update')
+    return row?.id ?? null
+  }
+
+  /** A reschedule: the booking turn (the thread's first-written one) moves to
+   *  the new start, then the span is re-read from the turns themselves, so a
+   *  minutes turn already logged keeps `last_at` honest. */
+  async moveBookingTurn(tx: Db, threadId: string, at: Date): Promise<void> {
+    await tx.execute(sql`
+      UPDATE ${message} SET "at" = ${at.toISOString()}::timestamptz
+       WHERE "id" = (SELECT m."id" FROM ${message} m WHERE m."thread_id" = ${threadId}::uuid
+                      ORDER BY m."created_at", m."id" LIMIT 1)`)
+    await tx.execute(sql`
+      UPDATE ${thread} t
+         SET "started_at" = s.lo, "last_at" = s.hi
+        FROM (SELECT min("at") AS lo, max("at") AS hi FROM ${message}
+               WHERE "thread_id" = ${threadId}::uuid) s
+       WHERE t."id" = ${threadId}::uuid`)
+  }
+
+  /** Turns, parties, links and debriefs go with it (`ON DELETE CASCADE`). */
+  async deleteThread(tx: Db, threadId: string): Promise<void> {
+    await tx.delete(thread).where(eq(thread.id, threadId))
+  }
+
   async objectByCode(code: string, tx: Db = this.db): Promise<ObjectRow | null> {
     /* Switched off = not there: no thread opens on it, none is listed under it. */
     const [row] = await tx

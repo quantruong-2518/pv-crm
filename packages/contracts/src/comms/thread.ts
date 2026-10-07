@@ -72,14 +72,16 @@ export type ThreadChannel = z.infer<typeof ThreadChannel>
 export const DebriefId = z.uuid('Mã phiên chốt phải là UUID')
 
 /** A comm record's state (ADR 0075 §2), always server-derived: `empty` is an
- *  open debrief whose turn has neither text nor a file, `done` a closed one. */
-export const CommRecordState = z.enum(['empty', 'unconfirmed', 'done'])
+ *  open debrief whose turn has neither text nor a file, `done` a closed one,
+ *  `scheduled` a meeting booked but not yet held. */
+export const CommRecordState = z.enum(['empty', 'unconfirmed', 'done', 'scheduled'])
 export type CommRecordState = z.infer<typeof CommRecordState>
 
 export const COMM_RECORD_STATE_LABEL: Record<CommRecordState, string> = {
   empty: 'Chưa điền nội dung',
   unconfirmed: 'Chưa xác nhận',
   done: 'Đã hoàn thiện',
+  scheduled: 'Đã hẹn',
 }
 
 /** Past this many hours from creation an unconfirmed record is `late`; the

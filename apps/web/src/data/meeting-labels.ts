@@ -102,13 +102,25 @@ export function meetingRowLabel(iso: string, durationMinutes?: MeetingDurationMi
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return iso
 
-  const part: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {}
-  for (const piece of VN_PARTS.formatToParts(at)) part[piece.type] = piece.value
-
-  const date = `${part.year ?? ''}-${part.month ?? ''}-${part.day ?? ''}`
-  const time = `${part.hour ?? ''}:${part.minute ?? ''}`
+  const { date, time } = vnParts(at)
   const written = writtenSlot(date, time, durationMinutes)
   return written === '' ? iso : written
+}
+
+/** A stored moment back into the drawer's day and start boxes, in VN time —
+ *  the inverse of `meetingSlotMoment`, for rescheduling. */
+export function meetingSlotOf(iso: string): { date: string; time: string } {
+  const at = new Date(iso)
+  return Number.isNaN(at.getTime()) ? { date: '', time: '' } : vnParts(at)
+}
+
+function vnParts(at: Date): { date: string; time: string } {
+  const part: Partial<Record<Intl.DateTimeFormatPartTypes, string>> = {}
+  for (const piece of VN_PARTS.formatToParts(at)) part[piece.type] = piece.value
+  return {
+    date: `${part.year ?? ''}-${part.month ?? ''}-${part.day ?? ''}`,
+    time: `${part.hour ?? ''}:${part.minute ?? ''}`,
+  }
 }
 
 /** Shared body of the two above. Without a length it stops at the start time. */

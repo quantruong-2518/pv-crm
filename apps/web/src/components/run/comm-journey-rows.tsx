@@ -9,9 +9,10 @@ import type {
 } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { summaryTextOf } from '@/data/comm-record-detail'
+import { meetingOverdue, titleOf } from '@/data/comm-record-detail'
 import { workstreamCommRecordsQuery } from '@/data/comm-records'
 import { subjectLettersQuery } from '@/data/mail-letters'
+import { useMinuteClock } from '@/data/minute-clock'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 
 /** The rows of `CommJourney`: the run's comms and the letters filed on its
@@ -38,21 +39,24 @@ export type JourneyRow = {
   commId: string | null
   commState: CommRecordState | null
   late: boolean
+  /** A booked meeting past its end, judged when the rows are built (render). */
+  overdue: boolean
   letter: MailSubjectTimelineRow | null
   /** Who holds the comm, or who wrote the letter. */
   owner?: string
 }
 
-const commRow = (row: DebriefView): JourneyRow => ({
+const commRow = (row: DebriefView, now: number): JourneyRow => ({
   key: `comm:${row.id}`,
   channel: row.channel,
   code: row.subject.code,
-  at: row.createdAt,
-  title: summaryTextOf(row.summary),
-  titleMuted: row.summary.state !== 'visible',
+  /* A meeting sits at its own hour, so a booking lands above today's rows. */
+  at: row.meeting?.at ?? row.createdAt,
+  ...titleOf(row),
   commId: row.id,
   commState: row.state,
   late: row.late,
+  overdue: meetingOverdue(row, now),
   letter: null,
   owner: row.owner.name,
 })
@@ -67,6 +71,7 @@ const letterRow = (code: string, row: MailSubjectTimelineRow): JourneyRow => ({
   commId: null,
   commState: null,
   late: false,
+  overdue: false,
   letter: row,
   owner: row.createdBy.name,
 })
@@ -93,6 +98,7 @@ const outOfReach = (error: unknown) =>
 
 export function useJourneyRows(workstreamCode: string | null, subject?: JourneySubject) {
   const canComms = useCan('comm.view')
+  const now = useMinuteClock()
   const canJourney = useCan('workstream.view')
   const canRead: Record<MailSubjectKind, boolean> = {
     lead: useCan('lead.view'),
@@ -119,7 +125,7 @@ export function useJourneyRows(workstreamCode: string | null, subject?: JourneyS
     own?.error ?? letters.find((q) => q.error && !outOfReach(q.error))?.error ?? null
 
   const rows = [
-    ...(comms.data?.rows ?? []).map(commRow),
+    ...(comms.data?.rows ?? []).map((row) => commRow(row, now)),
     ...targets.flatMap((t, i) =>
       (letters[i]?.data?.rows ?? []).map((row) => letterRow(t.code, row)),
     ),

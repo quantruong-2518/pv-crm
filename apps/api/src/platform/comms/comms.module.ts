@@ -19,6 +19,7 @@ import { DebriefService } from './debrief.service'
 import { IdentityController } from './identity.controller'
 import { IdentityRepository } from './identity.repository'
 import { IdentityService } from './identity.service'
+import { MeetingDebriefService } from './meeting-debrief.service'
 import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.hook'
 import { ThreadController } from './thread.controller'
 import { ThreadService } from './thread.service'
@@ -62,6 +63,7 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     IdentityRepository,
     ThreadService,
     DebriefService,
+    MeetingDebriefService,
     CommAttachmentService,
     CommAttachmentRepository,
   ],

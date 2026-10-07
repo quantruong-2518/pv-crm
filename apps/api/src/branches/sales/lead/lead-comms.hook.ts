@@ -31,7 +31,7 @@ export class LeadCommsHook implements MessageLoggedHook {
       if (event.subjectKind !== 'LD') {
         throw invalid({ meetingId: ['Biên bản họp chỉ ghi được trên một lead.'] })
       }
-      await this.meetings.assertOnLead(tx, event.subjectCode, event.meetingId)
+      await this.meetings.assertOnSubject(tx, event.subjectCode, event.meetingId)
     }
     if (!this.access.allows(event.actor, 'lead.edit')) return
     await this.state.exchanged(tx, [event.subjectCode], event.actor.id)
