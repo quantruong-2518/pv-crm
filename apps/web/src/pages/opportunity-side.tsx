@@ -23,7 +23,7 @@ export function DescriptionPanel({
             size="sm"
             variant="ghost"
             className="pointer-coarse:h-12"
-            aria-label="Sửa mô tả và tệp"
+            aria-label="Sửa tên, mô tả và tệp"
             onClick={onEdit}
           >
             <Icon icon={Pencil} size={16} />

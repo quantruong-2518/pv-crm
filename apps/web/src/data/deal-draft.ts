@@ -140,7 +140,12 @@ export function useDealDraft({ saved, op, part }: UseDealDraftArgs): DealDraft {
   const dirty = useMemo(() => changedFields(saved, work), [saved, work])
   /* Only the terms drawer owns the required boxes; the others echo them. */
   const body = part === 'terms' ? updateBodyOf(work) : echoBodyOf(op, work)
-  const missing = part === 'terms' ? missingOf(work) : []
+  const missing =
+    part === 'terms'
+      ? missingOf(work)
+      : part === 'details' && !work.name.trim()
+        ? ['tên cơ hội']
+        : []
   const busy = save.isPending
   const error = save.error
 

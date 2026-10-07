@@ -16,6 +16,7 @@ import { useCan } from '@/app/auth'
 import { chainPath } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import type { RunSubject } from '@/components/run/run-subject'
+import { MenuButton } from './menu-button'
 
 /** The run strip — the same bar on every record of a run (ADR 0078 §1):
  *  company · run code · the five journey steps (`WORKSTREAM_JOURNEY_STEPS`),
@@ -32,13 +33,15 @@ type StepKey = (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']
 
 const STEPS = WORKSTREAM_JOURNEY_STEPS.filter((step) => step.key !== 'dropped')
 
-const codesOf = (journey: Journey, key: StepKey): string[] =>
+/** A deal's name rides along as the picker's hint: two codes alone do not tell
+ *  a person which deal is which. */
+const itemsOf = (journey: Journey, key: StepKey): { code: string; hint?: string }[] =>
   key === 'lead'
-    ? [journey.lead.code]
+    ? [{ code: journey.lead.code }]
     : key === 'opportunity'
-      ? journey.deals.map((deal) => deal.code)
+      ? journey.deals.map((deal) => ({ code: deal.code, hint: deal.name }))
       : key === 'contract'
-        ? journey.contracts.map((contract) => contract.code)
+        ? journey.contracts.map((contract) => ({ code: contract.code }))
         : []
 
 export function RunStrip({
@@ -113,7 +116,8 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
         className="m-0 flex min-w-0 flex-1 list-none flex-wrap items-center gap-1 p-0"
       >
         {STEPS.map((step, i) => {
-          const codes = codesOf(journey, step.key)
+          const items = itemsOf(journey, step.key)
+          const codes = items.map((item) => item.code)
           /* Only when the open record is in the run: a stale journey paints nothing. */
           const here = step.key === current.kind && codes.includes(current.code)
           const focus = here ? current.code : codes.at(-1)
@@ -146,10 +150,22 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                   {step.label}
                 </span>
                 {chip && <ContextRail objects={[chip]} />}
-                {codes.length > 1 && (
-                  <span className="text-muted-foreground tnum text-[12px]">
-                    +{codes.length - 1}
-                  </span>
+                {items.length > 1 && (
+                  <MenuButton
+                    size="sm"
+                    label={`+${items.length - 1}`}
+                    ariaLabel={`Chọn trong ${items.length} ${step.label.toLowerCase()}`}
+                    className="pointer-coarse:h-12 tnum text-[12px]"
+                    choices={items.map(({ code, hint }) => ({
+                      key: code,
+                      label: <span className="font-mono">{code}</span>,
+                      hint: code === current.code && step.key === current.kind ? 'đang mở' : hint,
+                      onSelect: () => {
+                        const to = pathOf(step.key, code)
+                        if (to) navigate(to)
+                      },
+                    }))}
+                  />
                 )}
               </span>
             </li>

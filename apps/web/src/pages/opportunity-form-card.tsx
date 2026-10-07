@@ -22,9 +22,9 @@ import {
 
 /** Module 3 · the deal form, behind three drawers of the profile (ADR 0077 §5–6).
  *
- *  The value strip's edit button opens the terms — name, close date, value, win
+ *  The value strip's edit button opens the terms — close date, value, win
  *  probability, products — under `acts.editTerms`; the description card's opens
- *  description and files, and the floating bar's more menu the BD lane, both
+ *  name, description and files, and the floating bar's more menu the BD lane, both
  *  under `acts.editDetails`. The seller is read-only here: past `new` only the
  *  assign act changes it (ADR 0071).
  *
@@ -33,7 +33,7 @@ import {
 
 const TITLE: Record<DealEditPart, string> = {
   terms: 'Sửa phiếu cơ hội',
-  details: 'Sửa mô tả và tệp',
+  details: 'Sửa tên, mô tả và tệp',
   owners: 'Sửa người chịu trách nhiệm',
 }
 
@@ -135,18 +135,6 @@ function TermsFields({ draft }: { draft: DealDraft }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      <Field label="Tên cơ hội" required errors={errors.name}>
-        <Input
-          value={work.name}
-          aria-label="Tên cơ hội"
-          aria-required
-          maxLength={OPPORTUNITY_NAME_MAX}
-          invalid={Boolean(errors.name)}
-          className="pointer-coarse:h-12"
-          onChange={(e) => set('name', e.target.value)}
-        />
-      </Field>
-
       <section className="grid gap-4 sm:grid-cols-2">
         {/* An empty required box says so here, not only in the footer. */}
         <Field
@@ -202,6 +190,18 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
+      <Field label="Tên cơ hội" required errors={errors.name}>
+        <Input
+          value={work.name}
+          aria-label="Tên cơ hội"
+          aria-required
+          maxLength={OPPORTUNITY_NAME_MAX}
+          invalid={Boolean(errors.name)}
+          className="pointer-coarse:h-12"
+          onChange={(e) => set('name', e.target.value)}
+        />
+      </Field>
+
       <Field label="Mô tả" errors={errors.description}>
         <Textarea
           rows={6}

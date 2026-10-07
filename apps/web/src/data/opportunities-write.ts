@@ -172,10 +172,10 @@ export function updateBodyOf(draft: OpportunityDraft): OpportunityUpdate {
  *  A legacy deal with no money or close date echoes its nulls as they are. */
 export function echoBodyOf(
   op: OpportunityRow,
-  draft: Pick<OpportunityDraft, 'description' | 'attachments' | 'bdOwners'>,
+  draft: Pick<OpportunityDraft, 'name' | 'description' | 'attachments' | 'bdOwners'>,
 ): OpportunityUpdate {
   return {
-    name: op.name,
+    name: draft.name,
     expectedClose: op.expectedClose,
     amount: op.amount,
     currency: op.currency,
