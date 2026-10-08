@@ -109,7 +109,7 @@ export const LEAD_STATE_LABEL: Record<LeadState, string> = {
   verifying: 'Tạo chiến lược chăm sóc',
   working: 'Tình trạng chăm sóc',
   nurturing: 'Nhóm chờ chăm sóc',
-  converted: 'Đổi thành Opp',
+  converted: 'Thành cơ hội',
   disqualified: 'Ngừng chăm sóc',
 }
 

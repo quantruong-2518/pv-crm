@@ -66,7 +66,9 @@ export type LeadBookPage = {
  *
  *  The holder keeps the bare `actor` name so `book()` and `byCode()` spell that
  *  join identically. */
+const listOf = (csv: string) => csv.split(',').filter(Boolean)
 const bdOwner = alias(actor, 'bd_owner')
+const creator = alias(actor, 'creator')
 const marketingOwner = alias(actor, 'marketing_owner')
 /** The other live leads on one mailbox, for `duplicateOf` (ADR 0070). */
 const twin = alias(lead, 'twin')
@@ -167,7 +169,12 @@ export class LeadRepository {
        counted as `hidden`. The disabled view spans every state. */
     const filters = onlyDisabled
       ? [...this.filtersOf(q), isNotNull(lead.disabledAt)]
-      : [...this.filtersOf(q), this.stateFilter(q.state), leadLive]
+      : [
+          ...this.filtersOf(q),
+          this.stateFilter(q.state),
+          q.states ? inArray(lead.state, listOf(q.states) as LeadState[]) : undefined,
+          leadLive,
+        ]
 
     const scope = this.scopeOf(who, scoped)
 
@@ -184,6 +191,7 @@ export class LeadRepository {
         row: lead,
         ownerName: actor.name,
         ownerEmail: actor.email,
+        createdByName: creator.name,
         campaignName: configEntry.name,
         originName: leadOrigin.name,
         partnerName: partner.name,
@@ -193,6 +201,7 @@ export class LeadRepository {
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
+      .leftJoin(creator, eq(creator.id, lead.createdBy))
       .leftJoin(configEntry, CAMPAIGN_ON)
       .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
       .leftJoin(partner, eq(partner.code, lead.partnerCode))
@@ -318,6 +327,7 @@ export class LeadRepository {
         row: lead,
         ownerName: actor.name,
         ownerEmail: actor.email,
+        createdByName: creator.name,
         bdOwnerName: bdOwner.name,
         bdOwnerEmail: bdOwner.email,
         marketingOwnerName: marketingOwner.name,
@@ -333,6 +343,7 @@ export class LeadRepository {
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
+      .leftJoin(creator, eq(creator.id, lead.createdBy))
       .leftJoin(bdOwner, eq(bdOwner.id, lead.bdOwnerId))
       .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
@@ -648,6 +659,19 @@ export class LeadRepository {
     return [dir(primary), dir(lead.code)]
   }
 
+  /** A comma list of actor ids on `column`; `OWNER_NONE` among them also
+   *  matches the rows where the column is empty. */
+  private byActor(
+    column: typeof lead.ownerId | typeof lead.createdBy,
+    csv: string,
+  ): SQL | undefined {
+    const ids = listOf(csv)
+    const named = ids.filter((id) => id !== OWNER_NONE)
+    return ids.includes(OWNER_NONE)
+      ? or(isNull(column), named.length ? inArray(column, named) : undefined)
+      : inArray(column, named)
+  }
+
   /** Every filter but `state` — the half `stateFacets` shares with `book()`. */
   private filtersOf(q: LeadFacetsQuery): (SQL | undefined)[] {
     return [
@@ -660,10 +684,13 @@ export class LeadRepository {
          other filter, and independent of the scope axis: for an `ownOnly`
          reader scope has already narrowed the book to them, which makes this a
          no-op, while for a head of sales it is the whole question. */
-      q.owner
-        ? q.owner === OWNER_NONE
-          ? isNull(lead.ownerId)
-          : eq(lead.ownerId, q.owner)
+      q.owner ? this.byActor(lead.ownerId, q.owner) : undefined,
+      q.createdBy ? this.byActor(lead.createdBy, q.createdBy) : undefined,
+      q.createdFrom
+        ? sql`${lead.createdAt} >= (${q.createdFrom}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`
+        : undefined,
+      q.createdTo
+        ? sql`${lead.createdAt} < ((${q.createdTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
         : undefined,
       q.campaign ? eq(lead.campaignId, q.campaign) : undefined,
       /* `sourceKind` là nửa "không chiến dịch" của ô lọc Nguồn — đọc docblock
@@ -675,7 +702,7 @@ export class LeadRepository {
          landing" ở đâu cả. */
       q.sourceKind ? and(isNull(lead.campaignId), eq(lead.sourceKind, q.sourceKind)) : undefined,
       q.motion ? eq(lead.motion, q.motion) : undefined,
-      q.origin ? eq(lead.originId, q.origin) : undefined,
+      q.origin ? inArray(lead.originId, listOf(q.origin)) : undefined,
       /* Ô tìm hứa "tên công ty hoặc mã lead" (placeholder ở `pages/leads.tsx`)
          nên phải hỏi CẢ HAI cột, không riêng company — trước bản sửa này gõ
          `LD-0235` trả về rỗng dù dòng đó tồn tại, đúng nghĩa "search chưa gọi

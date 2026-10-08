@@ -140,6 +140,9 @@ export const LeadRow = z.object({
    *  real `platform.actor` table that derivation is a guess, and a wrong guess
    *  here is a mail sent to an address that does not exist. */
   ownerEmail: z.string().min(1).optional(),
+  /** Display name of whoever created the lead. Absent for leads that predate
+   *  the column. */
+  createdByName: z.string().min(1).optional(),
 
   /** See `LeadState`. Required: every row is in exactly one state. */
   state: LeadState,
@@ -285,9 +288,10 @@ export const LeadBookQuery = PageQuery.extend({
    *  written before this feature — same reason `sourceKind` can be absent. */
   motion: LeadMotion.optional(),
   /** Level 2 — the catalog pick, by id. */
-  origin: LeadOriginId.optional(),
+  origin: z.string().min(1).max(512).optional(),
 
-  /** Lead PIC, exact `actor.id`. Absent = every owner, including none.
+  /** Lead PIC: one `actor.id`, or several joined by commas (`OWNER_NONE`
+   *  allowed among them). Absent = every owner, including none.
    *
    *  The docblock above has promised this param since the filter row moved to
    *  the server; it was the one of the three named there that never landed.
@@ -295,7 +299,27 @@ export const LeadBookQuery = PageQuery.extend({
    *  express that through the scope axis — scope already narrows their book to
    *  themselves, so for them this param is a no-op, while for a head of sales
    *  it is the whole question. */
-  owner: z.string().min(1).max(64).optional(),
+  owner: z.string().min(1).max(512).optional(),
+  /** Who created the lead, same comma-list rules as `owner`; `OWNER_NONE`
+   *  matches leads with no recorded creator. */
+  createdBy: z.string().min(1).max(512).optional(),
+  /** Several states at once, comma-separated, ANDed with `state` (the tab). */
+  states: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((s) => LeadState.safeParse(s).success))
+    .optional(),
+
+  /** Entry date range on `createdAt`, inclusive both ends, as a Vietnam
+   *  calendar day (`YYYY-MM-DD`) - the day the entry-date column prints. */
+  createdFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  createdTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 
   q: z.string().trim().min(1).max(120).optional(),
 
@@ -320,6 +344,7 @@ export const LeadBookResponse = paged(LeadRow)
  *  shrink to the one value already picked. */
 export const LeadFacetsQuery = LeadBookQuery.omit({
   state: true,
+  states: true,
   page: true,
   size: true,
   sort: true,

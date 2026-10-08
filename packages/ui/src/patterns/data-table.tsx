@@ -30,6 +30,9 @@ export type TableColumn = {
   align?: 'left' | 'right'
   /** có khoá này thì header thành nút sắp xếp — khoá đi ra ở `onSort(key)` */
   sortKey?: string
+  /** A `ColumnFilter` (icon-only) beside the sort button, for a column that
+   *  both sorts and filters; its click must not reach the sort button. */
+  filter?: ReactNode
 }
 
 export type TableRowModel = {
@@ -126,7 +129,10 @@ export function DataTable({
                       : 'descending'
                     : 'none'
               }
-              className={cn('flex min-w-0 items-center', col.align === 'right' && 'justify-end')}
+              className={cn(
+                'flex min-w-0 items-center gap-1',
+                col.align === 'right' && 'justify-end',
+              )}
             >
               {sortable ? (
                 <button
@@ -145,6 +151,7 @@ export function DataTable({
               ) : (
                 col.header
               )}
+              {col.filter}
             </span>
           )
         })}

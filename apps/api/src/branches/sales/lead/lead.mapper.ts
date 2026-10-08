@@ -89,6 +89,8 @@ export type LeadRead = {
   daysHere: number
   ownerName: string | null
   ownerEmail: string | null
+  /** Name of the actor in `created_by`; null for leads that predate it. */
+  createdByName: string | null
   /** Name of the campaign `campaign_id` points at, or `null` when the lead has
    *  no campaign OR the campaign row was turned off underneath it. The two
    *  cases are told apart by whether `row.campaignId` is set — see `sourceOf`. */
@@ -166,6 +168,7 @@ export function toContract(read: LeadRead): LeadRow {
     ...(row.ownerId ? { ownerId: row.ownerId } : {}),
     ...(ownerName ? { ownerName } : {}),
     ...(ownerEmail ? { ownerEmail } : {}),
+    ...(read.createdByName ? { createdByName: read.createdByName } : {}),
     state: row.state,
     stateSince: row.stateSince.toISOString(),
     daysHere,

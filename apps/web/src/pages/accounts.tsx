@@ -9,11 +9,12 @@ import {
   Icon,
   ScreenLayout,
   SearchField,
-  Select,
+  ColumnFilter,
+  ColumnFilterList,
   billions,
   type TableSort,
 } from '@pv/ui'
-import { AccountSortKey, LeadCategory, type AccountBookQuery } from '@pv/contracts'
+import { AccountSortKey, type AccountBookQuery } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
@@ -21,12 +22,11 @@ import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
 import {
   accountBookQuery,
   accountBookQueryToParams,
-  CATEGORY_LABEL,
   DEFAULT_ACCOUNT_BOOK_QUERY,
   parseAccountBookQuery,
 } from '@/data/accounts'
 import { BookCount, BookPage } from '@/components/book-page'
-import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { TableFooter } from '@/components/table-bits'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
 /** The customer company book — `/sales/accounts`.
@@ -64,12 +64,6 @@ import { AccountCreateDialog } from '@/components/account-create-dialog'
 
 const PAGE_SIZE = DEFAULT_ACCOUNT_BOOK_QUERY.size
 
-const CUSTOMER_OPTIONS = [
-  { value: '', label: 'Tất cả khách' },
-  { value: '1', label: 'Đã mua' },
-  { value: '0', label: 'Chưa mua' },
-]
-
 export default function AccountsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm công ty, mã số thuế…' })
   const navigate = useNavigate()
@@ -100,11 +94,43 @@ export default function AccountsPage() {
     query.province !== undefined ||
     query.category !== undefined ||
     query.customer !== undefined
-  /* Only the axes the popover holds — the search box is in plain sight, so
-     counting it would print a badge for a filter the reader can already see. */
-  const activeFilters = [query.province, query.category, query.customer].filter(
-    (v) => v !== undefined,
-  ).length
+  /* The province list is built from the CURRENT PAGE, plus whatever is already
+     picked so a choice never vanishes from its own list. A list of all 63
+     provinces needs its own facet door, and nobody has asked for that yet. */
+  const picked = query.province?.split(',') ?? []
+  const provinceOptions = [
+    ...new Set([...picked, ...rows.map((r) => r.province).filter((p) => p !== undefined)]),
+  ].map((p) => ({ value: p, label: p }))
+  const signedOptions = [
+    { value: '1', label: 'Đã mua' },
+    { value: '0', label: 'Chưa mua' },
+  ]
+  const provinceFilter = (
+    <ColumnFilter iconOnly label="Tỉnh/thành" active={picked.length > 0}>
+      {(close) => (
+        <ColumnFilterList
+          options={provinceOptions}
+          selected={picked}
+          close={close}
+          onApply={(v) => patch({ province: v.length ? v.join(',') : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  /* Both ticked is the same question as none ticked: everyone. */
+  const signedFilter = (
+    <ColumnFilter iconOnly label="Đã ký" active={query.customer !== undefined}>
+      {(close) => (
+        <ColumnFilterList
+          options={signedOptions}
+          selected={query.customer === undefined ? [] : [String(query.customer)]}
+          close={close}
+          searchable={false}
+          onApply={(v) => patch({ customer: v.length === 1 ? (Number(v[0]) as 0 | 1) : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
 
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
 
@@ -140,55 +166,11 @@ export default function AccountsPage() {
                 onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-              <FilterMenu label="Bộ lọc sổ công ty" active={activeFilters}>
-                <Select
-                  label="Tỉnh/thành"
-                  value={query.province ?? ''}
-                  neutralValue=""
-                  onChange={(v) => patch({ province: v === '' ? undefined : v })}
-                  /* A native select grows to its longest option and would burst
-                     the popover — clamp it to the panel. */
-                  className="w-full max-w-none"
-                  options={[
-                    { value: '', label: 'Mọi tỉnh/thành' },
-                    /* The province list is built from the CURRENT PAGE being
-                       viewed, not from a province table. That is a real limit and
-                       it is spelled out in the label: filtering by province can
-                       only pick provinces present on this page. A select with all
-                       63 provinces needs its own facet door, and nobody has asked
-                       for that yet. */
-                    ...[...new Set(rows.map((r) => r.province).filter((p) => p !== undefined))].map(
-                      (p) => ({ value: p, label: p }),
-                    ),
-                  ]}
-                />
-                <Select
-                  label="Ngành"
-                  value={query.category ?? ''}
-                  neutralValue=""
-                  onChange={(v) =>
-                    patch({ category: v === '' ? undefined : (v as AccountBookQuery['category']) })
-                  }
-                  className="w-full max-w-none"
-                  options={[
-                    { value: '', label: 'Mọi ngành' },
-                    ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
-                  ]}
-                />
-                <Select
-                  label="Đã mua chưa"
-                  value={query.customer === undefined ? '' : String(query.customer)}
-                  neutralValue=""
-                  onChange={(v) => patch({ customer: v === '' ? undefined : (Number(v) as 0 | 1) })}
-                  className="w-full max-w-none"
-                  options={CUSTOMER_OPTIONS}
-                />
-                {dirty && (
-                  <Button size="md" variant="ghost" onClick={clearAll}>
-                    Bỏ hết bộ lọc
-                  </Button>
-                )}
-              </FilterMenu>
+              {dirty && (
+                <Button size="md" variant="ghost" onClick={clearAll}>
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
             </>
           }
           pending={isPending}
@@ -222,10 +204,16 @@ export default function AccountsPage() {
               { header: 'Mã', width: '0.8fr' },
               { header: 'Công ty', width: '2.2fr', sortKey: 'name' },
               { header: 'MST', width: '1.1fr' },
-              { header: 'Tỉnh/thành', width: '1fr', sortKey: 'province' },
+              { header: 'Tỉnh/thành', width: '1fr', sortKey: 'province', filter: provinceFilter },
               { header: 'Lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
               { header: 'Đơn mở', width: '0.7fr', align: 'right', sortKey: 'openDeals' },
-              { header: 'Đã ký', width: '0.7fr', align: 'right', sortKey: 'signedDeals' },
+              {
+                header: 'Đã ký',
+                width: '0.7fr',
+                align: 'right',
+                sortKey: 'signedDeals',
+                filter: signedFilter,
+              },
               { header: 'Doanh số', width: '1.1fr', align: 'right', sortKey: 'signedAmountVnd' },
             ],
             rows: rows.map((a) => ({

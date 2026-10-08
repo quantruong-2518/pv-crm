@@ -208,11 +208,12 @@ export class LeadWriteRepository {
   async insertLeads(
     tx: Db,
     rows: readonly (LeadValues & { code: string })[],
+    createdBy: string | null,
   ): Promise<LeadRowDb[]> {
     if (rows.length === 0) return []
     return tx
       .insert(lead)
-      .values([...rows])
+      .values(rows.map((r) => ({ ...r, createdBy })))
       .returning()
   }
 

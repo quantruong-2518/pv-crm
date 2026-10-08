@@ -140,6 +140,8 @@ export const lead = sales.table(
       .primaryKey()
       .references(() => objectRef.code),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Who created the row; NULL for leads that predate the column. */
+    createdBy: text('created_by').references(() => actor.id, { onDelete: 'set null' }),
 
     // ── info · khách là ai ─────────────────────────── ô 1 · 2 · 3 ─────────
     /** The company this enquiry belongs to, once one has been written down.

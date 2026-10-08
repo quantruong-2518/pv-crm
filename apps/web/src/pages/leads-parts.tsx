@@ -60,15 +60,15 @@ export function ScoreStrip() {
       icon: Users,
       label: 'Tổng lead',
       value: count(data?.leads),
-      hint: 'Toàn bộ sổ lead',
+      hint: 'Tổng số khách hàng tiềm năng',
       warn: zero(data?.leads),
     },
     {
       icon: CalendarCheck,
-      label: 'Đã gặp mặt',
+      label: 'Đã liên hệ',
       value: count(data?.firstMeetings),
       hint: zero(data?.firstMeetings)
-        ? 'Chưa ghi nhận cuộc gặp nào'
+        ? 'Chưa có liên hệ'
         : `${per(data?.firstMeetings ?? 0)} số lead`,
       warn: zero(data?.firstMeetings),
     },
@@ -236,6 +236,12 @@ const ENTRY_TIME = new Intl.DateTimeFormat('vi-VN', {
  *  Vietnam time so two machines in two zones print the same day. */
 export function EnteredCell({ lead }: { lead: LeadRow }) {
   return <MomentCell iso={lead.createdAt} />
+}
+
+/** Who created the lead; blank for leads that predate the column. */
+export function CreatedByCell({ lead }: { lead: LeadRow }) {
+  if (!lead.createdByName) return <span className="text-muted-foreground">—</span>
+  return <span className="truncate text-[13px]">{lead.createdByName}</span>
 }
 
 /** When the lead was switched off — only rows of the switched-off tab carry it. */

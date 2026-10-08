@@ -38,6 +38,8 @@ import {
   RichTextView,
   ScanField,
   SearchField,
+  ColumnFilter,
+  ColumnFilterList,
   Combobox,
   StageTrack,
   StatCard,
@@ -302,6 +304,23 @@ function StepperDemo() {
   )
 }
 
+function ColumnFilterDemo() {
+  const [picked, setPicked] = useState<string[]>(['Apollo', 'Zalo OA'])
+  const options = ['Apollo', 'LinkedIn', 'Facebook', 'Zalo OA'].map((l) => ({
+    value: l,
+    label: l,
+  }))
+  return (
+    <div className="text-muted-foreground font-mono text-[10px] font-semibold uppercase tracking-[.1em]">
+      <ColumnFilter label="Nguồn" active={picked.length > 0}>
+        {(close) => (
+          <ColumnFilterList options={options} selected={picked} onApply={setPicked} close={close} />
+        )}
+      </ColumnFilter>
+    </div>
+  )
+}
+
 function ComboboxDemo() {
   const all = ['Apollo', 'LinkedIn', 'Facebook', 'Zalo OA'].map((l) => ({ value: l, label: l }))
   const [query, setQuery] = useState('')
@@ -423,6 +442,16 @@ export function ZoneMolecules() {
           footer="người gọi tự tìm · nhóm “Có phải …?” · dòng “+ Tạo …” cho tên mới"
         >
           <ComboboxDemo />
+        </SpecCard>
+
+        {/* M-19 */}
+        <SpecCard
+          code="M-19"
+          name="ColumnFilter"
+          bodyClassName="px-4 py-4"
+          footer="tiêu đề cột là nút lọc · chọn nhiều giá trị · chấm azure khi đang lọc"
+        >
+          <ColumnFilterDemo />
         </SpecCard>
 
         {/* M-05 */}

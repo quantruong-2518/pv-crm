@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { CURRENCIES, type AccountBookQuery } from '@pv/contracts'
@@ -362,7 +362,8 @@ export class AccountRepository {
       if (hit) parts.push(hit)
     }
 
-    if (q.province !== undefined) parts.push(eq(account.province, q.province))
+    if (q.province !== undefined)
+      parts.push(inArray(account.province, q.province.split(',').filter(Boolean)))
     if (q.category !== undefined) parts.push(eq(account.category, q.category))
 
     /* "Already bought" and "not yet bought" are the two frozen scenarios of

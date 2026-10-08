@@ -168,7 +168,8 @@ export const AccountBookQuery = PageQuery.extend({
   /** Name, legal name or tax code — one box, because a person looking for a
    *  company types whichever of the three they happen to remember. */
   q: z.string().trim().min(1).max(120).optional(),
-  province: z.string().trim().min(1).max(120).optional(),
+  /** One province, or several joined by commas. */
+  province: z.string().trim().min(1).max(1200).optional(),
   category: LeadCategory.optional(),
 
   /** `1` = only companies that have signed something; `0` = only those that

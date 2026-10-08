@@ -222,6 +222,7 @@ export class LeadWriteService {
         daysHere: 0,
         ownerName: owner?.name ?? null,
         ownerEmail: owner?.email ?? null,
+        createdByName: who.name,
         campaignName,
         originName: row.originName,
         partnerName: referrer?.name ?? null,
@@ -259,9 +260,11 @@ export class LeadWriteService {
        `edge.to_code` is a foreign key into it. */
     await this.mirror.link(tx, { from: code, to: accountCode, kind: 'belongs-to' })
     await this.runs.insertOpened(tx, [{ code: run, accountCode, openedAt: new Date() }])
-    const [written] = await this.repo.insertLeads(tx, [
-      { ...write.values, ...b.extra, accountCode, code, workstreamCode: run },
-    ])
+    const [written] = await this.repo.insertLeads(
+      tx,
+      [{ ...write.values, ...b.extra, accountCode, code, workstreamCode: run }],
+      who?.id ?? null,
+    )
     if (!written) throw new Error(`sales.lead: INSERT ${code} không trả về dòng nào`)
 
     /* Same transaction as the lead row — see `ContactService.seedPrimary`. */
@@ -703,7 +706,7 @@ export class LeadWriteService {
 
         await this.mirror.linkMany(tx, links)
         await this.runs.insertOpened(tx, opened)
-        await this.repo.insertLeads(tx, rows)
+        await this.repo.insertLeads(tx, rows, who.id)
         if (body.campaignCode) {
           await this.campaigns.enrol(
             tx,

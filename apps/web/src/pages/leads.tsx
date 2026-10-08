@@ -6,21 +6,20 @@ import {
   AppShell,
   Button,
   Checkbox,
+  ColumnFilter,
+  ColumnFilterList,
+  ColumnFilterRange,
   Icon,
   ScreenLayout,
   SearchField,
   SegmentedControl,
-  Select,
 } from '@pv/ui'
 import {
   LEAD_OPEN_STATES,
   LeadState,
-  SOURCE_KIND_LABEL,
-  type ConfigEntry,
+  OWNER_NONE,
   type LeadBookQuery,
-  type LeadMotion,
   type LeadRow,
-  type LeadSourceKind,
   type LeadStateFilter,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
@@ -36,11 +35,9 @@ import {
 } from '@/app/url'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { salesCatalogQuery } from '@/data/sales-config'
-import { useMotionLabel } from '@/data/sales-motions'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
-import { useDirectory } from '@/data/directory'
+import { useDirectory, useSalesPeople } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
@@ -48,10 +45,11 @@ import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { LeadDisableAction } from '@/components/lead-disable'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { useBookSelection } from '@/components/book-selection'
-import { BookSelectionBar, FilterMenu, SelectionCell, TableFooter } from '@/components/table-bits'
+import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   CompanyCell,
   DisabledAtCell,
+  CreatedByCell,
   EnteredCell,
   LeadPicCell,
   PinCell,
@@ -78,16 +76,11 @@ import {
  *  `size` đi kèm mọi lời gọi. */
 const PAGE_SIZE = 10
 
-/** "Any source" for the Nguồn select. On the wire that is an ABSENT field, but a
- *  native `<select>` carries strings only, so it needs a stand-in value. */
-const ANY = 'all'
-
 /** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
  *  chiến dịch — xem docblock `sourceFilterOptions` cho lý do một ô cần phân biệt hai
  *  loại giá trị. An toàn vì hai bảng mã không bao giờ đụng nhau: id chiến dịch
  *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
  *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
-const KIND_PREFIX = 'kind:'
 
 /** Chờ bao lâu sau phím cuối rồi mới ghi ô tìm lên địa chỉ.
  *
@@ -107,7 +100,7 @@ const SEARCH_DELAY_MS = 300
 type StateTab = 'open' | 'converted' | 'disqualified' | 'all'
 
 const STATE_TABS: { key: StateTab; label: string }[] = [
-  { key: 'open', label: 'Đang chạy' },
+  { key: 'open', label: 'Đang hoạt động' },
   { key: 'converted', label: LEAD_STATE_FACE.converted.label },
   { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
   { key: 'all', label: 'Tất cả' },
@@ -118,10 +111,6 @@ const PINNED = 'pinned'
 
 /** The switched-off tab's value — `disabled=true` on the URL, not a state. */
 const DISABLED = 'disabled'
-
-/** Mảng rỗng dùng chung — một `?? []` viết thẳng trong thân component đẻ ra
- *  một mảng MỚI mỗi lượt vẽ, và mọi `useMemo` phụ thuộc vào nó mất tác dụng. */
-const NO_SOURCES: ConfigEntry[] = []
 
 /** Panel nạp tệp KHÔNG chống trùng trong trình duyệt nữa — tập rỗng là một
  *  quyết định, không phải một chỗ chưa nối.
@@ -186,24 +175,10 @@ export function LeadsPage() {
   } = useQuery(leadFacetQuery)
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
-  /* Sổ nguồn THẬT — chỉ danh mục `SOURCE`. Năm danh mục kia (bậc · hạng ·
-     ngành · lý do rơi · kênh) chưa nối được: `LeadRow` còn chở khoá chữ thường
-     cũ chứ chưa phải ID cấu hình, nên nhãn của chúng vẫn đọc từ fixture. */
-  const { data: catalog } = useQuery(salesCatalogQuery)
-  const sourceCatalog = catalog?.SOURCE ?? NO_SOURCES
-
   /* Bảng tra mã → tên ĐÃ BỎ. Nó tồn tại vì dòng sổ chỉ chở một mã trần và màn
      phải tự đi tìm tên; nay `source.campaignName` về cùng dòng, nên không còn
      gì để tra. Cũng mất theo là cả một lớp lỗi: một nguồn vừa bị tắt không còn
      làm ô Nguồn của lead cũ thành "không rõ", vì tên nó đã ở trên dây rồi. */
-
-  /* Ô CHỌN thì ngược lại — chỉ dòng còn bật. Đây là toàn bộ hình thức "xoá" mà
-     danh mục có (`config.ts`, luật 3): tắt một nguồn nghĩa là không ai gắn nó
-     cho lead mới nữa, nên nó cũng không được đứng trong ô lọc. */
-  const sourceOptions = useMemo(
-    () => sourceCatalog.filter((entry) => entry.active),
-    [sourceCatalog],
-  )
 
   const me = useSession((s) => s.actor)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
@@ -288,50 +263,6 @@ export function LeadsPage() {
     else if (value !== PINNED) patch({ state: value as LeadStateFilter, disabled: undefined })
   }
 
-  /* The state select: every open state, or one of them. */
-  const stateFilterOptions = [
-    { value: 'open', label: 'Mọi trạng thái đang chạy' },
-    ...LEAD_OPEN_STATES.map((state) => ({
-      value: state,
-      label:
-        byState === undefined
-          ? LEAD_STATE_FACE[state].label
-          : `${LEAD_STATE_FACE[state].label} · ${byState[state] ?? 0}`,
-    })),
-  ]
-
-  /* Một ô, hai trục hợp đồng (`campaign` và `sourceKind`) — xem docblock
-     `sourceKind` trong `LeadBookQuery` cho lý do hai trục không gộp làm một
-     tham số. `value` mã hoá bằng tiền tố `KIND_PREFIX` để `<Select>` phân biệt
-     được "SR-09" (một id chiến dịch) với "LANDING_PAGE" (một kind) mà không
-     cần đi tra lại — hai bảng mã không bao giờ đụng nhau (chiến dịch luôn có
-     tiền tố `SR-`, kind luôn viết hoa không dấu gạch), nên ghép an toàn. */
-  const sourceFilterOptions = useMemo(
-    () => [
-      ...sourceOptions.map((entry) => ({ value: entry.id, label: entry.name })),
-      ...(counts?.sourceKinds ?? []).map((kind) => ({
-        value: `${KIND_PREFIX}${kind}`,
-        label: SOURCE_KIND_LABEL[kind],
-      })),
-    ],
-    [sourceOptions, counts],
-  )
-
-  const sourceFilterValue = query.sourceKind
-    ? `${KIND_PREFIX}${query.sourceKind}`
-    : (query.campaign ?? ANY)
-
-  const patchSourceFilter = (value: string) => {
-    if (value === ANY) return patch({ campaign: undefined, sourceKind: undefined })
-    if (value.startsWith(KIND_PREFIX)) {
-      return patch({
-        sourceKind: value.slice(KIND_PREFIX.length) as LeadSourceKind,
-        campaign: undefined,
-      })
-    }
-    return patch({ campaign: value, sourceKind: undefined })
-  }
-
   /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
      ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
   const dirty =
@@ -340,6 +271,11 @@ export function LeadsPage() {
     query.sourceKind !== undefined ||
     query.motion !== undefined ||
     query.origin !== undefined ||
+    query.createdBy !== undefined ||
+    query.states !== undefined ||
+    query.owner !== undefined ||
+    query.createdFrom !== undefined ||
+    query.createdTo !== undefined ||
     query.state !== DEFAULT_LEAD_BOOK_QUERY.state
 
   const clearFilters = () =>
@@ -349,20 +285,62 @@ export function LeadsPage() {
       sourceKind: undefined,
       motion: undefined,
       origin: undefined,
+      createdBy: undefined,
+      states: undefined,
+      owner: undefined,
+      createdFrom: undefined,
+      createdTo: undefined,
       state: DEFAULT_LEAD_BOOK_QUERY.state,
     })
 
-  /* Level 1 and 2 of the origin, each its own contract axis. Options come from
-     the facets, so a filter never offers a value no lead carries. */
-  const motionLabel = useMotionLabel()
-  const motionFilterOptions = [
-    { value: ANY, label: 'Mọi phương án' },
-    ...(counts?.motions ?? []).map((m) => ({ value: m, label: motionLabel(m) })),
+  /* Options come from the facets, so a filter never offers a value no lead
+     carries. The column filters send several values as one comma list. */
+  const salesPeople = useSalesPeople()
+  const ownerOptions = [
+    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
+    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
-  const originFilterOptions = [
-    { value: ANY, label: 'Mọi nguồn' },
-    ...(counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name })),
+  const creatorOptions = [
+    { value: OWNER_NONE, label: 'Chưa ghi nhận' },
+    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
+  const originOptions = (counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name }))
+  const csvOf = (v?: string) => (v ? v.split(',') : [])
+  const listFilter = (
+    label: string,
+    key: 'owner' | 'createdBy' | 'origin' | 'states',
+    options: { value: string; label: string }[],
+  ) => (
+    <ColumnFilter label={label} active={Boolean(query[key])}>
+      {(close) => (
+        <ColumnFilterList
+          options={options}
+          selected={csvOf(query[key])}
+          close={close}
+          onApply={(v) => patch({ [key]: v.length ? v.join(',') : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const stateOptions = LEAD_OPEN_STATES.map((state) => ({
+    value: state,
+    label:
+      byState === undefined
+        ? LEAD_STATE_FACE[state].label
+        : `${LEAD_STATE_FACE[state].label} · ${byState[state] ?? 0}`,
+  }))
+  const dateFilter = (
+    <ColumnFilter label="Ngày vào" active={Boolean(query.createdFrom || query.createdTo)}>
+      {(close) => (
+        <ColumnFilterRange
+          from={query.createdFrom}
+          to={query.createdTo}
+          close={close}
+          onApply={({ from, to }) => patch({ createdFrom: from, createdTo: to })}
+        />
+      )}
+    </ColumnFilter>
+  )
 
   const canEmail = useCan('lead.send-email')
 
@@ -476,15 +454,26 @@ export function LeadsPage() {
         width: '32px',
       },
       { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
-      { header: 'Nguồn', width: 'minmax(0,1.3fr)' },
-      { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
-      { header: 'Ngày vào', width: 'minmax(0,0.8fr)' },
+      { header: listFilter('Nguồn', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
+      {
+        header:
+          tabValue === 'open' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
+        width: 'minmax(0,1.2fr)',
+      },
+      { header: dateFilter, width: 'minmax(0,0.8fr)' },
       /* A switched-off lead takes no hand-over and no pin: the two action
          columns give way to the one fact that tab adds. */
       ...(disabledView
         ? [{ header: 'Ngày vô hiệu', width: 'minmax(0,1.1fr)' }]
         : [
-            { header: 'Lead PIC', width: 'minmax(0,1.1fr)' },
+            {
+              header: listFilter('Người tạo', 'createdBy', creatorOptions),
+              width: 'minmax(0,1fr)',
+            },
+            {
+              header: listFilter('Người phụ trách', 'owner', ownerOptions),
+              width: 'minmax(0,1.1fr)',
+            },
             { header: <span className="sr-only">Ghim</span>, width: '48px' },
           ]),
     ],
@@ -520,6 +509,7 @@ export function LeadsPage() {
         ...(disabledView
           ? [<DisabledAtCell key="x" lead={l} />]
           : [
+              <CreatedByCell key="b" lead={l} />,
               <LeadPicCell key="o" lead={l} />,
               <PinCell
                 key="p"
@@ -570,13 +560,11 @@ export function LeadsPage() {
         }
       : undefined
 
-  const sourceFiltered = query.campaign !== undefined || query.sourceKind !== undefined
-
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Sổ lead"
+          title="Khách hàng tiềm năng"
           actions={
             <>
               <ImportZone
@@ -606,7 +594,7 @@ export function LeadsPage() {
                   className="pointer-coarse:h-12 max-sm:flex-1"
                 >
                   <Icon icon={ImagePlus} size={16} />
-                  Nạp từ ảnh
+                  Scan ảnh
                 </Button>
               )}
               {/* Typing a lead by hand is a PAGE now (`/sales/leads/new`), not a
@@ -619,7 +607,7 @@ export function LeadsPage() {
                   className="max-sm:flex-1"
                 >
                   <Icon icon={Plus} size={16} />
-                  Tạo lead
+                  Tạo Lead
                 </Button>
               )}
             </>
@@ -645,56 +633,11 @@ export function LeadsPage() {
                   onChange={setText}
                   className="min-w-0 flex-1 sm:max-w-[320px]"
                 />
-                <FilterMenu
-                  label="Bộ lọc sổ lead"
-                  active={
-                    (sourceFiltered ? 1 : 0) +
-                    (oneOpenState ? 1 : 0) +
-                    (query.motion ? 1 : 0) +
-                    (query.origin ? 1 : 0)
-                  }
-                >
-                  {tabValue === 'open' && (
-                    <Select
-                      label="Trạng thái"
-                      value={query.state}
-                      onChange={(value) => patch({ state: value as LeadStateFilter })}
-                      className="w-full max-w-none"
-                      options={stateFilterOptions}
-                    />
-                  )}
-                  <Select
-                    label="Phương án tiếp cận"
-                    value={query.motion ?? ANY}
-                    onChange={(v) => patch({ motion: v === ANY ? undefined : (v as LeadMotion) })}
-                    className="w-full max-w-none"
-                    options={motionFilterOptions}
-                  />
-                  <Select
-                    label="Nguồn"
-                    value={query.origin ?? ANY}
-                    onChange={(v) => patch({ origin: v === ANY ? undefined : v })}
-                    className="w-full max-w-none"
-                    options={originFilterOptions}
-                  />
-                  <Select
-                    label="Chiến dịch hoặc cửa vào"
-                    value={sourceFilterValue}
-                    onChange={patchSourceFilter}
-                    /* Campaign names run to 40 characters and a native select
-                       grows to its longest option — clamp it to the panel. */
-                    className="w-full max-w-none"
-                    options={[
-                      { value: ANY, label: 'Mọi chiến dịch và cửa vào' },
-                      ...sourceFilterOptions,
-                    ]}
-                  />
-                  {dirty && (
-                    <Button size="md" variant="ghost" onClick={clearFilters}>
-                      Bỏ hết bộ lọc
-                    </Button>
-                  )}
-                </FilterMenu>
+                {dirty && (
+                  <Button size="md" variant="ghost" onClick={clearFilters}>
+                    Bỏ hết bộ lọc
+                  </Button>
+                )}
               </>
             )
           }
