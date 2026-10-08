@@ -10,12 +10,15 @@ import {
   DOCUMENT_MAX_BYTES,
   documentMimeOf,
   useDeleteDocument,
+  useRefreshDocuments,
   useUploadDocument,
   useWorkstreamDocuments,
 } from '@/data/workstream-documents'
 import { RunBlock } from './run-block'
 
 const NEWEST = 5
+/* One drop is a handful of files; the rest is dropped again. */
+const MAX_PER_DROP = 10
 
 /** The run's documents block, the same on the lead, the deal and the contract:
  *  a drop zone, the five newest, and the rest behind a "see more" drawer.
@@ -118,6 +121,7 @@ function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }) {
  *  names its own file instead of sinking the rest. */
 function DropZone({ code }: { code: string }) {
   const upload = useUploadDocument(code)
+  const refresh = useRefreshDocuments(code)
   const picker = useRef<HTMLInputElement>(null)
   const depth = useRef(0)
   const [over, setOver] = useState(false)
@@ -125,10 +129,16 @@ function DropZone({ code }: { code: string }) {
   const [busy, setBusy] = useState(false)
 
   const take = async (list: FileList | null) => {
-    const files = Array.from(list ?? [])
+    const picked = Array.from(list ?? [])
+    const files = picked.slice(0, MAX_PER_DROP)
     if (files.length === 0 || busy) return
     setBusy(true)
-    const failed: string[] = []
+    const failed: string[] =
+      picked.length > files.length
+        ? [
+            `Mỗi lần tối đa ${MAX_PER_DROP} tệp — ${picked.length - files.length} tệp còn lại chưa tải.`,
+          ]
+        : []
     for (const file of files) {
       if (!documentMimeOf(file)) failed.push(`“${file.name}”: loại tệp không nhận.`)
       else if (file.size > DOCUMENT_MAX_BYTES) {
@@ -139,6 +149,7 @@ function DropZone({ code }: { code: string }) {
         })
       }
     }
+    await refresh()
     setProblems(failed)
     setBusy(false)
   }

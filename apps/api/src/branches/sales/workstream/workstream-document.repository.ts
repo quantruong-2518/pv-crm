@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, count, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -58,8 +58,28 @@ export class WorkstreamDocumentRepository {
     return row ?? null
   }
 
-  /** Newest first: the uploads on the run plus the scan sources of its leads. */
-  async listOf(code: string) {
+  /** Uploads on the run, and this actor's declared-but-unconfirmed ones. */
+  async load(code: string, actorId: string): Promise<{ kept: number; pending: number }> {
+    const [kept] = await this.db
+      .select({ n: count() })
+      .from(attachment)
+      .where(and(eq(attachment.ownerKind, 'workstream'), eq(attachment.ownerCode, code)))
+    const [pending] = await this.db
+      .select({ n: count() })
+      .from(attachment)
+      .where(
+        and(
+          eq(attachment.ownerKind, 'workstream'),
+          isNull(attachment.ownerCode),
+          eq(attachment.createdBy, actorId),
+        ),
+      )
+    return { kept: kept?.n ?? 0, pending: pending?.n ?? 0 }
+  }
+
+  /** Newest first: the uploads on the run, plus the scan sources of its leads
+   *  when `withScans` (they hold a card photo's PII, a lead read of their own). */
+  async listOf(code: string, withScans: boolean) {
     const leads = this.db
       .select({ code: lead.code })
       .from(lead)
@@ -72,7 +92,9 @@ export class WorkstreamDocumentRepository {
       .where(
         or(
           and(eq(attachment.ownerKind, 'workstream'), eq(attachment.ownerCode, code)),
-          and(eq(attachment.ownerKind, 'lead'), inArray(attachment.ownerCode, leads)),
+          withScans
+            ? and(eq(attachment.ownerKind, 'lead'), inArray(attachment.ownerCode, leads))
+            : undefined,
         ),
       )
       .orderBy(desc(attachment.createdAt), desc(attachment.id))

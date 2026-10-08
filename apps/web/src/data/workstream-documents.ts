@@ -57,8 +57,6 @@ export const useWorkstreamDocuments = (code: string) => useQuery(workstreamDocum
 /** `uploaded` is called only after the PUT landed, so a PUT that failed leaves
  *  an unlinked row for the sweeper rather than a document with no bytes. */
 export function useUploadDocument(code: string) {
-  const client = useQueryClient()
-
   return useMutation<void, ApiError, File>({
     mutationFn: async (file) => {
       const mime = documentMimeOf(file)
@@ -73,8 +71,12 @@ export function useUploadDocument(code: string) {
         need: NEED,
       })
     },
-    onSettled: () => client.invalidateQueries({ queryKey: keyOf(code) }),
   })
+}
+
+export const useRefreshDocuments = (code: string) => {
+  const client = useQueryClient()
+  return () => client.invalidateQueries({ queryKey: keyOf(code) })
 }
 
 export function useDeleteDocument(code: string) {
