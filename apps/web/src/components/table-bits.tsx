@@ -123,9 +123,9 @@ export function TableFooter({
  *  tên trùng được, hòm thư thì không — vẫn đúng, nhưng nó là lý do để KHOÁ
  *  theo hòm thư chứ không phải để IN nó. Người quét cột này đang hỏi "ai đang
  *  giữ", và `huydq@pebblevina.com` bắt mắt tự dịch lại thành "Đỗ Quang Huy" ở
- *  từng dòng một. Sổ cơ hội in tên ở hai cột người của nó (`PersonCell` trong
- *  `pages/opportunities.tsx`), nên in hòm thư ở đây còn làm hai sổ của cùng
- *  một phòng đọc ra hai kiểu.
+ *  từng dòng một. Hai cột người của sổ lead và sổ cơ hội nay chỉ in avatar
+ *  (`AvatarCell` bên dưới, tên ở tooltip); ô này giữ cho bố cục danh sách một
+ *  dòng, nơi tên vẫn đứng cạnh avatar.
  *
  *  Hòm thư KHÔNG mất, nó lui về `title` — đúng chỗ của thứ chỉ cần khi đối
  *  chiếu với thư hoặc bảng hoa hồng.
@@ -176,6 +176,12 @@ export function PicCell({
     </span>
   )
 }
+
+/** The icon-only action of a book row: transparent, muted, round, and 48px
+ *  under a finger (law 13). A class string, not a component, because it rides
+ *  on three different buttons; disabled ones fade so they read as shut. */
+export const ROW_ICON =
+  'text-muted-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 size-8 shrink-0 rounded-full bg-transparent px-0 shadow-none disabled:opacity-45'
 
 /** A person as a bare avatar; the name and mailbox stay in the tooltip. */
 export function AvatarCell({
@@ -360,7 +366,7 @@ export function BookSelectionBar({
           {meta && <span className="text-muted-foreground text-[11.5px]">{meta}</span>}
         </span>
       </div>
-      <div className="flex flex-1 justify-end gap-2 max-sm:w-full">
+      <div className="flex flex-1 flex-wrap justify-end gap-2 max-sm:w-full">
         <Button size="lg" variant="ghost" onClick={onClear}>
           Bỏ chọn hết
         </Button>

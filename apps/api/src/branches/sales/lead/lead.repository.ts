@@ -30,6 +30,7 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
+import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
@@ -167,10 +168,13 @@ export class LeadRepository {
   ): Promise<LeadBookPage> {
     /* `leadLive` is a FILTER, never scope: a disabled lead inside scope would be
        counted as `hidden`. The disabled view spans every state. */
+    /* `pinned` here, not in `filtersOf`: the facets share that list and omit it. */
+    const pinned = q.pinned ? pinnedBy(who.id, 'lead', lead.code) : undefined
     const filters = onlyDisabled
-      ? [...this.filtersOf(q), isNotNull(lead.disabledAt)]
+      ? [...this.filtersOf(q), pinned, isNotNull(lead.disabledAt)]
       : [
           ...this.filtersOf(q),
+          pinned,
           this.stateFilter(q.state),
           q.states ? inArray(lead.state, listOf(q.states) as LeadState[]) : undefined,
           leadLive,

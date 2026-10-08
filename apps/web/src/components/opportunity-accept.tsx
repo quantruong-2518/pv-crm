@@ -24,14 +24,21 @@ export function AcceptDealButton({
   code,
   show = true,
   size = 'md',
+  variant = 'default',
   className,
+  iconOnly = false,
   returnFocus,
   onAccepted,
 }: {
   code: string
   show?: boolean
   size?: 'sm' | 'md' | 'lg'
+  /** `ghost` for a book row: `default` paints a gradient image that a
+   *  `bg-transparent` class cannot clear. */
+  variant?: 'default' | 'ghost'
   className?: string
+  /** The glyph alone, the words in `aria-label`/`title` — a book row's cell. */
+  iconOnly?: boolean
   returnFocus?: () => HTMLElement | null | undefined
   /** Runs once the accept landed, before focus moves (the drawer re-picks). */
   onAccepted?: () => void
@@ -61,9 +68,17 @@ export function AcceptDealButton({
   return (
     <>
       {show && (
-        <Button ref={trigger} size={size} className={className} onClick={() => setOpen(true)}>
+        <Button
+          ref={trigger}
+          size={size}
+          variant={variant}
+          className={className}
+          aria-label={iconOnly ? 'Nhận PIC' : undefined}
+          title={iconOnly ? 'Nhận PIC' : undefined}
+          onClick={() => setOpen(true)}
+        >
           <Icon icon={UserPlus} size={16} />
-          Nhận PIC
+          {!iconOnly && 'Nhận PIC'}
         </Button>
       )}
 

@@ -8,7 +8,6 @@ import {
   Handshake,
   Icon,
   Inbox,
-  Pin,
   RefreshCw,
   Send,
   StatCard,
@@ -16,7 +15,6 @@ import {
   TriangleAlert,
   UserRoundPlus,
   Users,
-  cn,
   percent,
 } from '@pv/ui'
 import { sourceKindLabel, type LeadMotion, type LeadRow } from '@pv/contracts'
@@ -348,38 +346,5 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
     >
       <Icon icon={UserRoundPlus} size={16} />
     </Button>
-  )
-}
-
-/** Pins are per person (`app/desk.ts`). Off, the button shows on row hover
- *  only — always on where there is no hover to reveal it. It stops the click
- *  from reaching the row, or pinning would also open the lead. */
-export function PinCell({
-  on,
-  company,
-  onToggle,
-}: {
-  on: boolean
-  company: string
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      aria-label={on ? `Bỏ ghim ${company}` : `Ghim ${company}`}
-      onClick={(e) => {
-        e.stopPropagation()
-        onToggle()
-      }}
-      className={cn(
-        'motion-std pointer-coarse:size-12 flex size-8 items-center justify-center rounded-md',
-        on
-          ? 'text-accent-foreground bg-primary/24'
-          : 'text-muted-foreground hover:bg-surface-ink/9 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
-      )}
-    >
-      <Icon icon={Pin} size={16} />
-    </button>
   )
 }

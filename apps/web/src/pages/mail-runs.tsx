@@ -37,7 +37,7 @@ import {
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { RunWhen } from '@/components/run-when'
-import { TableFooter } from '@/components/table-bits'
+import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
 import { RunActions, RunAudience, RunLabel, RunSent } from './mail-runs-parts'
 
@@ -339,7 +339,11 @@ export function MailRunsPage() {
                 width: '2fr',
               },
               { header: 'Trạng thái', width: '1fr' },
-              { header: listFilter('Người tạo', 'createdBy', creatorOptions), width: '1.1fr' },
+              {
+                header: listFilter('Người tạo', 'createdBy', creatorOptions),
+                width: '140px',
+                align: 'center',
+              },
               { header: 'Ngày tạo', width: '1fr', sortKey: 'createdAt', filter: dateFilter },
               { header: 'Thời gian gửi', width: '1.1fr' },
               { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'audienceCount' },
@@ -347,7 +351,11 @@ export function MailRunsPage() {
               { header: 'Đã đến', width: '0.8fr', align: 'right' },
               { header: 'Đã mở', width: '0.7fr', align: 'right' },
               { header: 'Bị trả lại', width: '0.8fr', align: 'right' },
-              { header: '', width: '1.4fr' },
+              {
+                header: <span className="sr-only">Thao tác</span>,
+                width: '112px',
+                align: 'center',
+              },
             ],
             rows: rows.map((r) => ({
               id: r.id,
@@ -356,24 +364,37 @@ export function MailRunsPage() {
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
                   {MAIL_RUN_STATE_LABEL[r.state]}
                 </Badge>,
-                <span key="by" className="block truncate" title={r.createdBy.name}>
-                  {r.createdBy.name}
-                  {r.mine ? ' (bạn)' : ''}
+                <AvatarCell key="by" name={r.createdBy.name} empty="Chưa ghi nhận người tạo" />,
+                <span key="at" className="tnum font-num">
+                  {dmhm(r.createdAt)}
                 </span>,
-                <span key="at">{dmhm(r.createdAt)}</span>,
                 <RunWhen key="w" run={r} />,
                 <RunAudience key="a" run={r} />,
                 <RunSent key="sent" run={r} />,
-                <span key="d">{r.delivered.toLocaleString('vi-VN')}</span>,
+                <span key="d" className="tnum font-num">
+                  {r.delivered.toLocaleString('vi-VN')}
+                </span>,
                 /* A group letter records no open (owner decision), so 0 would
                    read as "nobody opened it". */
-                <span key="o">{r.kind === 'group' ? '—' : r.opened.toLocaleString('vi-VN')}</span>,
+                r.kind === 'group' ? (
+                  <span
+                    key="o"
+                    className="text-muted-foreground"
+                    title="Thư nhóm không ghi lượt mở"
+                  >
+                    —
+                  </span>
+                ) : (
+                  <span key="o" className="tnum font-num">
+                    {r.opened.toLocaleString('vi-VN')}
+                  </span>
+                ),
                 /* Bounce tô cảnh báo NGAY TỪ MỘT dòng khi lô đủ mẫu, không
                    đợi chạm 4%: cầu dao ở máy chủ mới là thứ dừng lô, còn ô
                    này chỉ để người nhìn thấy trước khi nó dừng. */
                 <span
                   key="b"
-                  className={r.bounced > 0 ? 'text-warning' : undefined}
+                  className={r.bounced > 0 ? 'tnum font-num text-warning' : 'tnum font-num'}
                   title={r.sent > 0 ? percent(r.bounced / r.sent) : undefined}
                 >
                   {r.bounced.toLocaleString('vi-VN')}

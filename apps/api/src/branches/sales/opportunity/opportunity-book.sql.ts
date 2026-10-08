@@ -1,6 +1,8 @@
 import { sql, type SQL } from 'drizzle-orm'
 import type { StageKey } from '@pv/contracts'
+import type { Actor } from '@pv/engines'
 import type { StageConfig } from '../ladder'
+import { dealStoodBy } from '../open-deal'
 import { opportunity } from './opportunity.schema'
 
 /** The book's one clock for "late in its column", built from limits ALREADY
@@ -36,4 +38,11 @@ export function overdueIn(config: Map<StageKey, StageConfig>): SQL {
   const days = limitOf(config)
   if (days === null) return sql`false`
   return sql`${DAYS_IN_STAGE} > ${days}`
+}
+
+/** THE deal book's scope axis: an `ownOnly` reader sees the deals they stand
+ *  on. Outside `OpportunityRepository` so the pin reach asks this predicate
+ *  rather than spelling the `ownOnly` rule a second time. */
+export function dealScope(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean): SQL | undefined {
+  return scoped && who.ownOnly ? dealStoodBy(opportunity.code, who.id) : undefined
 }

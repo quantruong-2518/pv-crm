@@ -470,30 +470,39 @@ export const OpportunityBookQuery = PageQuery.extend({
    *  no column spells it. */
   state: OpportunityStatus.optional(),
   /** The column a deal stands in — `new` is the head of sales' accept queue
-   *  (ADR 0071), counted by the histogram's same bucket. */
-  stage: StageKey.optional(),
+   *  (ADR 0071), counted by the histogram's same bucket. One key, or several
+   *  joined by commas. */
+  stage: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((s) => StageKey.safeParse(s).success))
+    .optional(),
   /** Open deals past `new` — the head's "no seller yet" queue pairs this with
    *  `sale=OWNER_NONE`, which means no seller-role owner (ADR 0071 §4). */
   accepted: Bool.optional(),
   /** `true` = open deals past their current column's configured limit
    *  (`position.overdueBy > 0`); a column with no limit is never overdue. */
   overdue: Bool.optional(),
+  /** `true` = ONLY the deals the caller has pinned (`PinSetBody`). */
+  pinned: Bool.optional(),
 
-  /** Actor id of a Sale on the deal, or `OWNER_NONE` for "nobody is closing it
-   *  yet". Two fields rather than one `owner`, unlike the lead book: the two
+  /** Actor ids of a Sale on the deal joined by commas (one id is a list of
+   *  one), `OWNER_NONE` allowed among them for "nobody is closing it yet".
+   *  Two fields rather than one `owner`, unlike the lead book: the two
    *  roles are two selects on screen because commission splits along that seam,
    *  and a single owner filter could not answer "which deals has this BD opened
    *  that somebody else is now closing" — the question the split exists for. */
-  sale: z.string().min(1).max(64).optional(),
-  /** Actor id of a BD on the deal, or `OWNER_NONE` for "no BD recorded". */
-  bd: z.string().min(1).max(64).optional(),
+  sale: z.string().min(1).max(512).optional(),
+  /** Same comma-list rules for a BD; `OWNER_NONE` means "no BD recorded". */
+  bd: z.string().min(1).max(512).optional(),
 
-  /** Account filter — exact company name, from the "Account" select. Distinct
+  /** Account filter — exact company names joined by commas, from the "Account"
+   *  select (a name holding a comma cannot be picked). Distinct
    *  from `q`: `q` is a substring the user types, this is a pick from a closed
    *  list. Matching on the NAME carries the same known weakness `LeadBookQuery`
    *  records, and it is paid off in the same sweep — the day accounts are rows
    *  with codes of their own. */
-  account: z.string().min(1).max(200).optional(),
+  account: z.string().min(1).max(1200).optional(),
 
   /** Free text, matched against the deal name, the deal code and the customer.
    *  Three fields rather than one because the box above the book is one box and
@@ -562,6 +571,7 @@ export const OpportunityBookResponse = paged(OpportunityBookRow)
  *  paging, scoped like the book. Replaces the web's `size=200` facet read,
  *  which silently dropped choices past deal 200. */
 export const OpportunityFacetsQuery = OpportunityBookQuery.omit({
+  pinned: true,
   state: true,
   page: true,
   size: true,

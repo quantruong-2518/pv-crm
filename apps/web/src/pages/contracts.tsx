@@ -33,8 +33,9 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { BookCount, BookPage } from '@/components/book-page'
-import { TableFooter } from '@/components/table-bits'
+import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { MoneySplit } from '@/components/contract-bits'
+import { MoneyCell } from '@/components/money-cell'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
  *  installment. This screen answers one question and refuses the others: which
@@ -53,14 +54,12 @@ const STATUS_TABS: { value: ContractStatusFilter; label: string }[] = [
 
 function NextCell({ next }: { next: InstallmentView | null }) {
   if (!next) {
-    return <span className="text-success text-[11.5px]">Đã thu đủ</span>
+    return <span className="text-success block text-right text-[11.5px]">Đã thu đủ</span>
   }
   return (
-    <span className="flex min-w-0 flex-col gap-1">
-      <span className="tnum font-num text-[12.5px] font-semibold">
-        {vnd(next.installment.amount)}
-      </span>
-      <span className="text-muted-foreground tnum font-mono text-[10.5px]">
+    <span className="flex min-w-0 flex-col items-end gap-1">
+      <MoneyCell amount={next.installment.amount} missing="Đợt chưa nhập số tiền" />
+      <span className="text-muted-foreground tnum font-num truncate text-[11.5px]">
         đợt {next.installment.no} · {dm(next.installment.due)} · {daysPhrase(next.daysLeft)}
       </span>
     </span>
@@ -79,18 +78,14 @@ function rowCells(row: ContractBookRow) {
     <span key="code" className="text-accent-foreground font-mono text-[11.5px]">
       {row.contract.code}
     </span>,
-    <span key="customer" className="truncate text-[12.5px]">
+    <span key="customer" className="block truncate text-[12.5px]">
       {row.contract.customer}
     </span>,
-    <span key="signed" className="tnum font-mono text-[11.5px]">
+    <span key="signed" className="tnum font-num text-[11.5px]">
       {dm(row.contract.signedAt)}
     </span>,
-    <span key="owner" className="truncate text-[12.5px]">
-      {row.contract.ownerName ?? 'Chưa có người phụ trách'}
-    </span>,
-    <span key="value" className="tnum font-num text-right text-[13px] font-semibold">
-      {vnd(amount)}
-    </span>,
+    <AvatarCell key="owner" name={row.contract.ownerName} empty="Chưa có người phụ trách" />,
+    <MoneyCell key="value" amount={row.contract.amount} missing="Hợp đồng chưa nhập giá trị" />,
     <span key="collected" className="flex min-w-0 flex-col gap-1">
       <MoneySplit
         collected={row.collected}
@@ -98,9 +93,11 @@ function rowCells(row: ContractBookRow) {
         ahead={row.remaining - atRisk}
         className="h-1.5"
       />
-      <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-        {millions(row.collected, 0)} ·{' '}
-        {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
+      <span className="flex min-w-0 items-baseline justify-end gap-2">
+        <span className="text-muted-foreground tnum font-num shrink-0 text-[11.5px]">
+          {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
+        </span>
+        <MoneyCell amount={row.collected} missing="" muted={row.collected === 0} />
       </span>
     </span>,
     <NextCell key="next" next={row.next} />,
@@ -349,10 +346,20 @@ export function ContractsPage() {
               { header: 'Mã', width: '104px' },
               { header: 'Khách hàng', width: 'minmax(0, 1fr)' },
               { header: signedFilter, width: '104px' },
-              { header: ownerFilter, width: '168px' },
-              { header: 'Giá trị hợp đồng', width: '148px', align: 'right', sortKey: 'amount' },
-              { header: 'Tiến độ thu', width: '184px' },
-              { header: 'Đợt thu tiếp theo', width: '176px', sortKey: 'nextDue' },
+              { header: ownerFilter, width: '140px', align: 'center' },
+              {
+                header: 'Giá trị hợp đồng (₫)',
+                width: '176px',
+                align: 'right',
+                sortKey: 'amount',
+              },
+              { header: 'Tiến độ thu (₫)', width: '184px', align: 'right' },
+              {
+                header: 'Đợt thu tiếp theo (₫)',
+                width: '184px',
+                align: 'right',
+                sortKey: 'nextDue',
+              },
             ],
             rows: tableRows,
           }}

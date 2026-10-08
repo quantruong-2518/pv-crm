@@ -14,7 +14,7 @@ import { MasMailComposerHost } from '@/components/mas-mail-composer-host'
  *  Mỗi lần gọi tạo `QueryClient` MỚI — dùng chung một client giữa các ca test
  *  thì cache của ca trước rò sang ca sau và test đỏ theo thứ tự chạy. Cùng lý
  *  do, bàn làm việc (`app/desk.ts`) bị dọn: nó `persist` vào localStorage nên
- *  ghim của ca trước sẽ hiện lại ở ca sau. */
+ *  ghi chú của ca trước sẽ hiện lại ở ca sau. */
 type Opts = {
   actorId?: string
   route?: string

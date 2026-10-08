@@ -1,6 +1,6 @@
 import { useRef, type ReactNode, type SyntheticEvent } from 'react'
 import { Timer, TriangleAlert } from '@pv/ui'
-import { AvatarGroup, Badge, Icon, billions, cn, type IconGlyph } from '@pv/ui'
+import { AvatarGroup, Badge, Icon, cn, type IconGlyph } from '@pv/ui'
 import {
   OPPORTUNITY_STAGE_LABEL,
   type ActivityFreshnessLevel,
@@ -16,13 +16,15 @@ import {
   isLateClose,
   namesOf,
   OVERDUE_WORD,
+  saleOwnersOf,
   stageClockOf,
   standingLabel,
   STATE_TONE,
 } from '@/data/opportunities'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
-import { PicCell } from '@/components/table-bits'
+import { MoneyCell } from '@/components/money-cell'
+import { AvatarCell, ROW_ICON } from '@/components/table-bits'
 
 /** Module 3 · the deal book's cells, one per column (ADR 0077 §3–4), split out
  *  of `opportunities.tsx`. Every verdict here is the server's — overdue in
@@ -90,9 +92,11 @@ export function DealCell({ op, onEmail }: { op: OpportunityBookRow; onEmail?: ()
                   onEmail()
                 }}
                 onKeyDown={stop}
-                className="hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-4 pointer-coarse:after:content-[''] relative truncate underline-offset-2 hover:underline"
+                /* The hit area grows downward only: upward it would cover the
+                   deal name, and `truncate` here would clip it. */
+                className="hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-0 pointer-coarse:after:-bottom-4 pointer-coarse:after:content-[''] relative min-w-0 underline-offset-2 hover:underline"
               >
-                {contact.email}
+                <span className="block truncate">{contact.email}</span>
               </button>
             ) : (
               <span className="truncate">{contact.email}</span>
@@ -133,24 +137,20 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
   )
 }
 
-/** Right-aligned and mono so thousands line up down the column; a foreign
- *  currency keeps its own figure in `title`. */
+/** The deal's figure in VND, full digits; a foreign currency keeps its own
+ *  figure in `title`. */
 export function AmountCell({ op }: { op: OpportunityBookRow }) {
   const amountVnd = amountVndOf(op)
-  if (op.amount === null || amountVnd === null) {
-    return <Dash title="Chưa có giá trị dự kiến" />
-  }
   return (
-    <span
-      className="tnum block truncate font-mono text-[11.5px]"
+    <MoneyCell
+      amount={amountVnd}
+      missing="Chưa có giá trị dự kiến"
       title={
-        op.currency === 'VND'
+        amountVnd === null || op.amount === null || op.currency === 'VND'
           ? undefined
           : `${op.amount.toLocaleString('vi-VN')} ${op.currency} quy ra đồng`
       }
-    >
-      {billions(amountVnd)}
-    </span>
+    />
   )
 }
 
@@ -180,12 +180,43 @@ export function CloseCell({ op }: { op: OpportunityBookRow }) {
   )
 }
 
-/** One person reads by name; two or more as avatars, names in the group's tooltip. */
+/** Avatars only, as the lead book's person columns; names live in the tooltip. */
 export function PeopleCell({ owners, missing }: { owners: OpportunityOwner[]; missing: string }) {
-  if (owners.length === 0) return <Dash title={missing} />
-  const [only] = owners
-  if (owners.length === 1 && only) return <PicCell name={only.name} empty={missing} avatar />
-  return <AvatarGroup names={namesOf(owners)} max={2} />
+  const [first] = owners
+  if (owners.length > 1) return <AvatarGroup names={namesOf(owners)} max={2} />
+  return <AvatarCell name={first?.name} empty={missing} />
+}
+
+/** The Sale lane's avatars, then the act that fills it — the lead book's
+ *  `LeadPicCell`: accept on a `new` deal, assign on one with no seller (ADR
+ *  0071). The assign verdict is the server's (`canAssign`). */
+export function SaleCell({ op, canAccept }: { op: OpportunityBookRow; canAccept: boolean }) {
+  const owners = saleOwnersOf(op)
+  /* Mounted for every open row so the modal outlives the accept that moves it. */
+  const accept = canAccept && op.state === 'open'
+  const accepting = accept && op.stage === 'new'
+  const assigning = op.canAssign && !op.hasSeller
+
+  return (
+    <span className="flex items-center justify-center gap-2">
+      {(owners.length > 0 || (!accepting && !assigning)) && (
+        <PeopleCell owners={owners} missing="Chưa có Sale phụ trách" />
+      )}
+      {accept && <RowAccept code={op.code} show={accepting} />}
+      {assigning && (
+        <RowAct>
+          <AssignSaleButton
+            op={op}
+            hasSeller={false}
+            size="sm"
+            variant="ghost"
+            iconOnly
+            className={ROW_ICON}
+          />
+        </RowAct>
+      )}
+    </span>
+  )
 }
 
 /** Open deals: days since the last customer-facing activity, inked by the
@@ -219,31 +250,9 @@ export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
   )
 }
 
-/** The last column. A row that waits on a head shows the act instead of the
- *  step (ADR 0071): accept on a `new` deal, assign on one with no seller. The
- *  assign verdict is the server's (`canAssign`); "no seller" picks the rows. */
-export function NextStepCell({ op, canAccept }: { op: OpportunityBookRow; canAccept: boolean }) {
-  const open = op.state === 'open'
-  /* Mounted for every open row so the modal outlives the accept that moves it. */
-  const accept = canAccept && open
-  const accepting = accept && op.stage === 'new'
-  const assigning = op.canAssign && !op.hasSeller
-
-  return (
-    <div className="flex min-w-0 items-center gap-2">
-      {!accepting && !assigning && <StepText op={op} />}
-      {accept && <RowAccept code={op.code} show={accepting} />}
-      {assigning && (
-        <RowAct>
-          <AssignSaleButton op={op} hasSeller={false} size="sm" className="pointer-coarse:h-12" />
-        </RowAct>
-      )}
-    </div>
-  )
-}
-
-/** "title · due" on one line: the title truncates, the due day never does. */
-function StepText({ op }: { op: OpportunityBookRow }) {
+/** The last column, "title · due" on one line: the title truncates, the due
+ *  day never does. The accept and assign acts sit in the Sale column. */
+export function NextStepCell({ op }: { op: OpportunityBookRow }) {
   const step = op.nextStep
   if (!step) return <Dash title="Chưa đặt việc tiếp theo" />
   const late = lateLevel(step.dueLevel)
@@ -289,13 +298,17 @@ function RowAccept({ code, show }: { code: string; show: boolean }) {
     return row
   }
   return (
-    <span ref={box} className="flex shrink-0">
+    /* `hidden`, not dropped: the stop wrapper must outlive the open modal, and
+       a hidden box is no flex item, so the cell's gap skips it. */
+    <span ref={box} className={show ? 'flex shrink-0' : 'hidden'}>
       <RowAct>
         <AcceptDealButton
           code={code}
           show={show}
           size="sm"
-          className="pointer-coarse:h-12"
+          variant="ghost"
+          iconOnly
+          className={ROW_ICON}
           onAccepted={() => (next.current = nextRow())}
           returnFocus={() => (next.current?.isConnected ? next.current : null)}
         />

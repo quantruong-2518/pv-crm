@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ImagePlus, Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -19,25 +19,25 @@ import {
   LeadBookQuery,
   LeadState,
   OWNER_NONE,
-  type LeadRow,
   type LeadStateFilter,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
-import { pinsOf, useLeadDesk } from '@/app/desk'
-import { useCan, useSession } from '@/app/auth'
+import { useCan } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { toast, toastDone } from '@/app/toast'
+import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory, useSalesPeople } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
+import { usePins } from '@/data/pins'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { LeadDisableAction } from '@/components/lead-disable'
+import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
@@ -47,7 +47,6 @@ import {
   CreatedByCell,
   EnteredCell,
   LeadPicCell,
-  PinCell,
   ScoreStrip,
   SourceCell,
   StatusCell,
@@ -60,9 +59,8 @@ import {
  *
  *  The book is server-side: `GET /sales/leads` returns one filtered, sorted page
  *  plus `total`, and every filter lives in the URL (`app/book-query.ts`) so F5, shared
- *  links and the back button keep it. Tab counts come from `facets.byState`.
- *  The pinned tab is the exception: pins are per person (`app/desk.ts`), so it
- *  lists them out of `leadFacetQuery`, whose limits are written there.
+ *  links and the back button keep it. Tab counts come from `facets.byState`;
+ *  the pinned tab is the server's `pinned` filter, counted off `data/pins.ts`.
  *
  *  No ContextRail (law 10 debt): a chain built from a hard-coded anchor would
  *  describe a lead nobody picked. It returns once it can follow the chosen row. */
@@ -107,9 +105,10 @@ const FILTER_KEYS = [
   'createdFrom',
   'createdTo',
   'state',
+  'pinned',
 ] as const
 
-/** The pinned tab's value — not a `LeadStateFilter`, so it never reaches the URL. */
+/** The pinned tab's value — `pinned=true` on the URL across every state, not a state. */
 const PINNED = 'pinned'
 
 /** The switched-off tab's value — `disabled=true` on the URL, not a state. */
@@ -167,13 +166,8 @@ export function LeadsPage() {
   const total = bookPage?.total ?? 0
 
   /* The WHOLE book, read once — a patch whose limits are in `leadFacetQuery`'s
-     docblock. The pinned tab and the mail modal need rows beyond this page. */
-  const {
-    data: facets,
-    isPending: facetsPending,
-    error: facetsError,
-    refetch: refetchFacets,
-  } = useQuery(leadFacetQuery)
+     docblock. The mail modal needs rows beyond this page. */
+  const { data: facets } = useQuery(leadFacetQuery)
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
   /* Bảng tra mã → tên ĐÃ BỎ. Nó tồn tại vì dòng sổ chỉ chở một mã trần và màn
@@ -181,26 +175,14 @@ export function LeadsPage() {
      gì để tra. Cũng mất theo là cả một lớp lỗi: một nguồn vừa bị tắt không còn
      làm ô Nguồn của lead cũ thành "không rõ", vì tên nó đã ở trên dây rồi. */
 
-  const me = useSession((s) => s.actor)
-  const pins = useLeadDesk((s) => pinsOf(s, me?.id))
-  const togglePin = useLeadDesk((s) => s.togglePin)
-  const setPins = useLeadDesk((s) => s.setPins)
+  const pinCount = usePins('lead').codes.length
 
   const open = (code: string) => navigate(`/sales/leads/${code}`)
 
   const { pageIndex } = useBookPageClamp(book, bookPage?.total)
 
-  const pinned = useMemo(
-    () =>
-      pins
-        .map((code) => wholeBook.find((l) => l.code === code))
-        .filter((l): l is LeadRow => Boolean(l)),
-    [pins, wholeBook],
-  )
-
-  const [pinnedView, setPinnedView] = useState(false)
-  const shown = pinnedView ? pinned : rows
-  const disabledView = !pinnedView && query.disabled === true
+  const pinnedView = query.pinned === true
+  const disabledView = query.disabled === true
 
   /* One read answers every tab — `byState` under the current search and source
      filter; `open` and `all` are sums the screen takes — and feeds the
@@ -220,25 +202,38 @@ export function LeadsPage() {
         : byState?.[key]
   const tabs = [
     ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: countOf(t.key) })),
-    { value: PINNED, label: 'Đã ghim', count: pinned.length },
+    { value: PINNED, label: 'Đã ghim', count: pinCount },
     ...(canDisable ? [{ value: DISABLED, label: 'Đã vô hiệu', count: counts?.disabled }] : []),
   ]
   /* One open state picked in the filter menu still lights the `open` tab. */
   const oneOpenState = isOpenState(query.state)
-  const tabValue = query.disabled ? DISABLED : oneOpenState ? 'open' : query.state
+  const tabValue = pinnedView
+    ? PINNED
+    : query.disabled
+      ? DISABLED
+      : oneOpenState
+        ? 'open'
+        : query.state
   const onTab = (value: string) => {
     /* A selection never crosses the switched-off tab's edge: its action flips. */
     if ((value === DISABLED) !== disabledView) clearSelection()
-    setPinnedView(value === PINNED)
-    /* The switched-off tab REPLACES the state filter — it lists every state. */
-    if (value === DISABLED)
-      patch({ disabled: true, state: DEFAULT_LEAD_BOOK_QUERY.state, states: undefined })
-    /* The state-list filter is hidden off the open tab but would still filter: drop it. */
-    else if (value !== PINNED)
+    /* The pinned and switched-off tabs REPLACE the state filter: pins span every
+       state. Off the open tab the state-list filter is hidden, so it is dropped. */
+    if (value === PINNED)
+      patch({ pinned: true, state: 'all', states: undefined, disabled: undefined })
+    else if (value === DISABLED)
+      patch({
+        disabled: true,
+        state: DEFAULT_LEAD_BOOK_QUERY.state,
+        states: undefined,
+        pinned: undefined,
+      })
+    else
       patch({
         state: value as LeadStateFilter,
         states: value === 'open' ? query.states : undefined,
         disabled: undefined,
+        pinned: undefined,
       })
   }
 
@@ -304,13 +299,12 @@ export function LeadsPage() {
     paintSelection,
     selectPage,
     clearSelection,
-  } = useBookSelection(shown)
+  } = useBookSelection(rows)
 
   const selectedLeads = useMemo(
     () => wholeBook.filter((lead) => selectedCodes.has(lead.code)),
     [wholeBook, selectedCodes],
   )
-  const allSelectedPinned = [...selectedCodes].every((code) => pins.includes(code))
   const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
 
   /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
@@ -369,26 +363,21 @@ export function LeadsPage() {
 
   const onPage = book.goPage
 
-  /* The pinned list does not read the URL, so it gets no sort control at all. */
-  const sortable = !pinnedView
-
   const table: BookTable = {
     minWidth: 'min-w-[960px]',
     /* The arrow lights only while the book sorts by this column; the default
        order (`createdAt desc`) is no column on the table. */
-    sort: sortable && query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined,
-    onSort: sortable
-      ? (key) => {
-          /* The only sortable column; any other key would die at the server's
-             zod gate as a 400. */
-          if (key !== 'company') return
-          patch(
-            query.sort === 'company'
-              ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-              : { sort: 'company', dir: 'asc' },
-          )
-        }
-      : undefined,
+    sort: query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined,
+    onSort: (key) => {
+      /* The only sortable column; any other key would die at the server's
+         zod gate as a 400. */
+      if (key !== 'company') return
+      patch(
+        query.sort === 'company'
+          ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+          : { sort: 'company', dir: 'asc' },
+      )
+    },
     columns: [
       {
         header: (
@@ -428,7 +417,7 @@ export function LeadsPage() {
             { header: <span className="sr-only">Ghim</span>, width: '48px' },
           ]),
     ],
-    rows: shown.map((l) => ({
+    rows: rows.map((l) => ({
       id: l.code,
       state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
       onOpen: () => open(l.code),
@@ -462,65 +451,46 @@ export function LeadsPage() {
           : [
               <CreatedByCell key="b" lead={l} />,
               <LeadPicCell key="o" lead={l} />,
-              <PinCell
-                key="p"
-                on={pins.includes(l.code)}
-                company={l.company}
-                onToggle={() => me && togglePin(me.id, l.code)}
-              />,
+              <PinCell key="p" subject="lead" code={l.code} label={l.company} />,
             ]),
       ],
     })),
   }
 
-  /* Two bodies, one card: the pinned tab answers out of `leadFacetQuery`, the
-     book out of `leadBookQuery`, so every draw state picks its own source. */
-  const pending = pinnedView ? facetsPending : isPending
-
   /* A failed read says so and offers a retry, not "clear filters": the filters
      are not what broke. `userMessage` keeps the server's own words. */
-  const failure = pinnedView
-    ? facetsError
-      ? {
-          message: `Không tải được danh sách lead đã ghim. ${
-            isApiError(facetsError) ? userMessage(facetsError) : 'Vui lòng thử lại.'
-          }`,
-          onRetry: () => void refetchFacets(),
-        }
-      : undefined
-    : bookError
-      ? {
-          message: `Không tải được danh sách lead. ${
-            isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
-          }`,
-          onRetry: () => void refetchBook(),
-        }
-      : undefined
+  const failure = bookError
+    ? {
+        message: `Không tải được danh sách lead. ${
+          isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+        }`,
+        onRetry: () => void refetchBook(),
+      }
+    : undefined
 
-  const empty = pinnedView
-    ? pinned.length === 0
-      ? {
-          message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây.',
-          action: { label: 'Xem tất cả lead', onClick: () => setPinnedView(false) },
-        }
-      : undefined
-    : rows.length === 0
-      ? dirty
+  const empty =
+    rows.length === 0
+      ? pinnedView && pinCount === 0
         ? {
-            message: 'Không có lead nào phù hợp với bộ lọc hiện tại.',
-            action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
+            message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây.',
+            action: { label: 'Xem tất cả lead', onClick: clearFilters },
           }
-        : disabledView
+        : dirty
           ? {
-              message: 'Chưa có lead nào bị vô hiệu hoá.',
-              action: { label: 'Tải lại', onClick: () => void refetchBook() },
+              message: 'Không có lead nào phù hợp với bộ lọc hiện tại.',
+              action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
             }
-          : {
-              message: 'Chưa có lead nào. Hãy thêm lead đầu tiên để bắt đầu theo dõi.',
-              action: canWrite
-                ? { label: 'Thêm lead', onClick: () => navigate('/sales/leads/new') }
-                : { label: 'Tải lại', onClick: () => void refetchBook() },
-            }
+          : disabledView
+            ? {
+                message: 'Chưa có lead nào bị vô hiệu hoá.',
+                action: { label: 'Tải lại', onClick: () => void refetchBook() },
+              }
+            : {
+                message: 'Chưa có lead nào. Hãy thêm lead đầu tiên để bắt đầu theo dõi.',
+                action: canWrite
+                  ? { label: 'Thêm lead', onClick: () => navigate('/sales/leads/new') }
+                  : { label: 'Tải lại', onClick: () => void refetchBook() },
+              }
       : undefined
 
   return (
@@ -544,10 +514,7 @@ export function LeadsPage() {
                     ...importBatch.wireOf(motion, scope),
                   })
                 }
-                onSeeResult={() => {
-                  setPinnedView(false)
-                  clearFilters()
-                }}
+                onSeeResult={clearFilters}
               />
               {canWrite && (
                 <Button
@@ -581,51 +548,38 @@ export function LeadsPage() {
               label="Nhóm lead"
               hideLabel
               tone="quiet"
-              value={pinnedView ? PINNED : tabValue}
+              value={tabValue}
               options={tabs}
               onChange={onTab}
             />
           }
-          count={<BookCount total={pinnedView ? pinned.length : total} noun="lead" />}
+          count={<BookCount total={total} noun="lead" />}
           tools={
-            !pinnedView && (
-              <>
-                <SearchField
-                  placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
-                  value={text}
-                  onChange={setText}
-                  className="min-w-0 flex-1 sm:max-w-[320px]"
-                />
-                {dirty && (
-                  <Button
-                    size="md"
-                    variant="ghost"
-                    onClick={clearFilters}
-                    className="pointer-coarse:h-12"
-                  >
-                    Bỏ hết bộ lọc
-                  </Button>
-                )}
-              </>
-            )
+            <>
+              <SearchField
+                placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
+                value={text}
+                onChange={setText}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              {dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={clearFilters}
+                  className="pointer-coarse:h-12"
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
+            </>
           }
-          pending={pending}
+          pending={isPending}
           failure={failure}
           empty={empty}
           table={table}
           footer={
-            pinnedView ? (
-              /* The pinned list is one page by definition — it is as long as the
-                 person's own pins, so there is nothing to page through. */
-              <TableFooter
-                page={0}
-                pageSize={pinned.length}
-                total={pinned.length}
-                onPage={onPage}
-              />
-            ) : (
-              <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
-            )
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
           }
         />
 
@@ -656,20 +610,13 @@ export function LeadsPage() {
             }
             actions={
               <>
-                {me && !disabledView && (
-                  <Button
-                    size="lg"
-                    variant="ghost"
-                    onClick={() => {
-                      setPins(me.id, [...selectedCodes], !allSelectedPinned)
-                      toastDone(
-                        `Đã ${allSelectedPinned ? 'bỏ ghim' : 'ghim'} ${selectedCodes.size} lead`,
-                      )
-                      clearSelection()
-                    }}
-                  >
-                    {allSelectedPinned ? 'Bỏ ghim' : 'Ghim'}
-                  </Button>
+                {!disabledView && (
+                  <PinSelectionAction
+                    subject="lead"
+                    codes={[...selectedCodes]}
+                    noun="lead"
+                    onDone={clearSelection}
+                  />
                 )}
                 {canDisable && (
                   <LeadDisableAction

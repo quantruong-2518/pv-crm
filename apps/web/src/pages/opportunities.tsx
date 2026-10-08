@@ -14,17 +14,19 @@ import {
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   opportunityBookQuery,
-  saleOwnersOf,
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
+import { usePins } from '@/data/pins'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
 import { BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
+import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import {
-  BOOK_COLUMNS,
+  bookColumns,
+  emptyOf,
   FILTER_KEYS,
   mailTally,
   PAGE_SIZE,
@@ -34,6 +36,7 @@ import {
   useMailable,
 } from './opportunities-model'
 import { BookTabs, BookTools, ScoreCards } from './opportunities-parts'
+import { useOpportunityFilters } from './opportunities-filters'
 import {
   AmountCell,
   CloseCell,
@@ -41,6 +44,7 @@ import {
   LastActivityCell,
   NextStepCell,
   PeopleCell,
+  SaleCell,
   StageCell,
 } from './opportunities-cells'
 
@@ -48,8 +52,8 @@ import {
  *  paged by the server; the filter lives in the address (`app/book-query.ts`).
  *
  *  The screen hands CONTENT to `BookPage`, the shape every book shares. Eight
- *  columns in the order ADR 0077 set (`BOOK_COLUMNS`); every verdict a cell
- *  prints — overdue, activity freshness — is the server's.
+ *  columns in the order ADR 0077 set (`bookColumns`), then the row's pin; every
+ *  verdict a cell prints — overdue, activity freshness — is the server's.
  *
  *  LAW 10 DEBT, on purpose: no ContextRail. A book has no OPEN object, and a
  *  rail seeded from a fixed row would show a chain the user never picked. Pay
@@ -74,6 +78,7 @@ export function OpportunitiesPage() {
   const total = data?.total ?? 0
   const { pageIndex } = useBookPageClamp(book, data?.total)
 
+  const pinCount = usePins('opportunity').codes.length
   const mailable = useMailable(data?.rows)
   const recipients = useMemo(() => [...mailable.values()], [mailable])
 
@@ -90,6 +95,7 @@ export function OpportunitiesPage() {
   const canCreate = useCan('opportunity.create')
   const canAccept = useCan('opportunity.accept')
 
+  const filters = useOpportunityFilters(query, patch)
   const selection = useBookSelection(rows)
   const { selectedCodes, pageSelected, allPageSelected, clearSelection } = selection
 
@@ -107,16 +113,7 @@ export function OpportunitiesPage() {
           tabs={
             <BookTabs query={urlQuery} total={total} hidden={data?.hidden ?? 0} onPatch={patch} />
           }
-          tools={
-            <BookTools
-              query={urlQuery}
-              text={text}
-              onText={setText}
-              onPatch={patch}
-              dirty={dirty}
-              onClear={clearFilters}
-            />
-          }
+          tools={<BookTools text={text} onText={setText} dirty={dirty} onClear={clearFilters} />}
           pending={isPending}
           failure={
             bookError
@@ -130,14 +127,12 @@ export function OpportunitiesPage() {
           }
           empty={
             rows.length === 0
-              ? {
-                  message: dirty
-                    ? 'Không có cơ hội nào phù hợp với bộ lọc hiện tại.'
-                    : 'Chưa có cơ hội nào. Hãy mở cơ hội từ một lead tiềm năng.',
-                  action: dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
-                }
+              ? emptyOf({
+                  pinnedView: query.pinned === true && pinCount === 0,
+                  dirty,
+                  onClear: clearFilters,
+                  onSeeLeads: () => navigate('/sales/leads'),
+                })
               : undefined
           }
           table={{
@@ -160,7 +155,8 @@ export function OpportunitiesPage() {
                 ),
                 width: '32px',
               },
-              ...BOOK_COLUMNS,
+              ...bookColumns(filters),
+              { header: <span className="sr-only">Ghim</span>, width: '48px' },
             ],
             rows: rows.map((o) => ({
               id: o.code,
@@ -178,6 +174,7 @@ export function OpportunitiesPage() {
                 ...bookCells(o, canAccept, () =>
                   openMasMail({ recipients, initialCodes: [o.code], subjectType: 'opportunity' }),
                 ),
+                <PinCell key="pin" subject="opportunity" code={o.code} label={o.name} />,
               ],
             })),
           }}
@@ -213,6 +210,14 @@ export function OpportunitiesPage() {
                 subjectType: 'opportunity',
                 onQueued: clearSelection,
               })
+            }
+            actions={
+              <PinSelectionAction
+                subject="opportunity"
+                codes={[...selectedCodes]}
+                noun="cơ hội"
+                onDone={clearSelection}
+              />
             }
           />
         )}
@@ -264,7 +269,7 @@ function useCommitOps() {
   }
 }
 
-/** One row's eight cells, in `BOOK_COLUMNS` order. A lost deal is not mailed. */
+/** One row's eight cells, in `bookColumns` order. A lost deal is not mailed. */
 function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void) {
   return [
     <DealCell key="deal" op={op} onEmail={op.state === 'lost' ? undefined : mail} />,
@@ -272,9 +277,9 @@ function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void)
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,
     <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa có BD phụ trách" />,
-    <PeopleCell key="sale" owners={saleOwnersOf(op)} missing="Chưa có Sale phụ trách" />,
+    <SaleCell key="sale" op={op} canAccept={canAccept} />,
     <LastActivityCell key="activity" op={op} />,
-    <NextStepCell key="next" op={op} canAccept={canAccept} />,
+    <NextStepCell key="next" op={op} />,
   ]
 }
 

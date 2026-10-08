@@ -176,6 +176,8 @@ export function leadMoreChoices(
   /** The hand-over drawer's own door (`assignDoorOf`), so the row reads its words. */
   assign: AssignDoor,
   pinned: boolean,
+  /** Deal reach only (ADR 0071): the server pins for the lead's holder alone. */
+  dealReach: boolean,
   liveDeal: OpportunityLiveDeal,
   doors: {
     onResume: () => void
@@ -206,7 +208,9 @@ export function leadMoreChoices(
   if (!assign.shut) {
     choices.push({ key: 'assign', label: assign.label, onSelect: doors.onAssign })
   }
-  choices.push({ key: 'pin', label: pinned ? 'Bỏ ghim' : 'Ghim lead', onSelect: doors.onPin })
+  if (lead.disabledAt === undefined && !dealReach) {
+    choices.push({ key: 'pin', label: pinned ? 'Bỏ ghim' : 'Ghim lead', onSelect: doors.onPin })
+  }
   if (can.disqualify && lead.state === 'disqualified') {
     choices.push({ key: 'reopen', label: 'Mở lại lead', onSelect: doors.onReopen })
   } else if (can.disqualify && droppable) {

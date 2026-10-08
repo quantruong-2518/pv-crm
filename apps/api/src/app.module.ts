@@ -17,6 +17,8 @@ import { DbModule } from './platform/db/db.module'
 import { EnginesModule } from './platform/engines/engines.module'
 import { GeoModule } from './platform/geo/geo.module'
 import { GoogleModule } from './platform/google/google.module'
+import { PinModule } from './platform/pin/pin.module'
+import { SalesPinReach } from './branches/sales/pin-reach'
 import { HealthModule } from './platform/health/health.module'
 import { MailModule } from './platform/mail/mail.module'
 import { CrossSiteGuard } from './platform/http/cross-site.guard'
@@ -87,6 +89,7 @@ import { RolesModule } from './platform/roles/roles.module'
     GeoModule,
     /* Carries `/me/google`; listed here so the list shows every door. */
     GoogleModule,
+    PinModule.withReach({ reach: SalesPinReach }),
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
        là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;
        và nó mang ba controller — cửa webhook của Resend, `/healthz/email` và

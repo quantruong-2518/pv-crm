@@ -34,7 +34,7 @@ import {
   workstreamBookQueryToParams,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
-import { PersonCell, TableFooter } from '@/components/table-bits'
+import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { CloseBadge, ObjectChip, OverdueNote } from '@/components/workstream-bits'
 import { WorkstreamsBoard } from './workstreams-board'
 import { ViewSwitch } from './workstreams-board-parts'
@@ -62,8 +62,8 @@ const COLUMNS: TableColumn[] = [
   { header: 'Khách hàng', width: '2fr', sortKey: 'customer' },
   { header: 'Giai đoạn hiện tại', width: '2.2fr' },
   { header: 'Tình trạng', width: '1.4fr' },
-  { header: 'Sale phụ trách', width: '1.1fr' },
-  { header: 'BD phụ trách', width: '1.1fr' },
+  { header: 'Sale phụ trách', width: '140px', align: 'center' },
+  { header: 'BD phụ trách', width: '140px', align: 'center' },
   { header: 'Lịch sử liên hệ', width: '1fr' },
   { header: 'Ngày bắt đầu', width: '96px', sortKey: 'openedAt' },
   { header: 'Mã hành trình', width: '88px' },
@@ -127,8 +127,8 @@ function rowCells(row: WorkstreamRow, go: Go) {
       </span>
     </span>,
     <StatusCell key="status" row={row} />,
-    <PersonCell key="sale" value={row.saleHolder?.name} missing="Chưa có Sale phụ trách" />,
-    <PersonCell key="bd" value={row.bdHolder?.name} missing="Chưa có BD phụ trách" />,
+    <AvatarCell key="sale" name={row.saleHolder?.name} empty="Chưa có Sale phụ trách" />,
+    <AvatarCell key="bd" name={row.bdHolder?.name} empty="Chưa có BD phụ trách" />,
     <ContactCell key="contact" row={row} />,
     <span key="opened" className="tnum font-num">
       {dmy(row.openedAt)}

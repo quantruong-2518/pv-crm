@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Avatar,
   Button,
   ChannelTag,
   ColumnFilter,
@@ -50,6 +49,7 @@ import { RECIPIENT_SPEC, normalise } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { BookCount, BookPage } from '@/components/book-page'
+import { AvatarCell } from '@/components/table-bits'
 import { Module1Books } from '@/components/module1-books'
 import { CampaignForm } from './source-parts'
 import { SourceStatsBlock } from './source-stats-parts'
@@ -114,7 +114,7 @@ const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 /** Ten columns, five of them numeric. Below this the source name truncates to a
  *  single word and the ratio columns lose their digits, so the card scrolls
  *  sideways instead of squeezing. */
-const TABLE_MIN_WIDTH = 'min-w-[1100px]'
+const TABLE_MIN_WIDTH = 'min-w-[1240px]'
 
 /** Address keys of this book. Module-level so the hook's memo key is stable. */
 const SOURCE_FILTERS = {
@@ -456,18 +456,42 @@ export function SourcesPage() {
             columns: [
               { header: 'Nguồn dẫn', width: '2.4fr' },
               /* A one-choice filter filters nothing, so the plain title stays. */
-              { header: owners.length > 1 ? ownerFilter : 'Người phụ trách', width: '1fr' },
+              {
+                header: owners.length > 1 ? ownerFilter : 'Người phụ trách',
+                width: '140px',
+                align: 'center',
+              },
               { header: channels.length > 1 ? channelFilter : 'Kênh gửi', width: '0.8fr' },
-              { header: 'Bắt đầu', width: '0.75fr', sortKey: 'start', filter: startFilter },
+              {
+                header: 'Bắt đầu',
+                width: 'minmax(88px,0.75fr)',
+                sortKey: 'start',
+                filter: startFilter,
+              },
               { header: 'Kết thúc', width: '0.75fr', sortKey: 'end' },
               { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'recipients' },
               /* The three ratio columns each divide by THAT source's own
                  recipient count, which is why a source run off a social post
                  reads low on all three — the channel column says why. */
               { header: 'Tỷ lệ mở', width: '0.7fr', align: 'right', sortKey: 'opens' },
-              { header: 'Tỷ lệ nhấp', width: '0.7fr', align: 'right', sortKey: 'clicks' },
-              { header: 'Tỷ lệ trả lại', width: '0.75fr', align: 'right', sortKey: 'bounces' },
-              { header: 'Cơ hội tạo ra', width: '0.7fr', align: 'right', sortKey: 'ops' },
+              {
+                header: 'Tỷ lệ nhấp',
+                width: 'minmax(88px,0.7fr)',
+                align: 'right',
+                sortKey: 'clicks',
+              },
+              {
+                header: 'Tỷ lệ trả lại',
+                width: 'minmax(104px,0.75fr)',
+                align: 'right',
+                sortKey: 'bounces',
+              },
+              {
+                header: 'Cơ hội tạo ra',
+                width: 'minmax(104px,0.7fr)',
+                align: 'right',
+                sortKey: 'ops',
+              },
             ],
             rows: visible.map((s) => {
               const chans = channelsOf(s)
@@ -490,10 +514,9 @@ export function SourcesPage() {
                       {s.code}
                     </span>
                   </span>,
-                  <span key="p" className="flex min-w-0 items-center gap-2">
-                    <Avatar name={s.owner} size="sm" />
-                    <span className="truncate text-[11.5px]">{s.owner}</span>
-                  </span>,
+                  /* `owner` already holds the "nobody" sentence when unowned; it
+                     goes to the dash's tooltip, not onto an avatar. */
+                  <AvatarCell key="p" name={s.ownerId ? s.owner : undefined} empty={s.owner} />,
                   <span key="ch" className="flex items-center gap-1">
                     {chans.length === 0 ? <span className="text-muted-foreground">—</span> : null}
                     {chans.slice(0, MAX_CHANNEL_TAGS).map((c) => (

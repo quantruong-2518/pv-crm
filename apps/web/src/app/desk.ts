@@ -2,20 +2,18 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { Opportunity } from '@pv/engines/fixtures/das-vina'
 
-/** Bàn làm việc của một người trên sổ lead — ghim, và mọi thứ người dùng GÕ
+/** Bàn làm việc của một người trên sổ lead — mọi thứ người dùng GÕ
  *  VÀO một hồ sơ lead mà chưa có bảng nào giữ (ghi chú).
  *
  *  ------------------------------------------------------------------
  *  VÌ SAO NẰM Ở ĐÂY CHỨ KHÔNG NẰM TRONG MÀN
  *  ------------------------------------------------------------------
- *  Những thứ này sống lâu hơn một lần mở màn và đi qua NHIỀU màn: ghim ở bảng
- *  thì màn chi tiết phải thấy, và ngược lại. Bộ lọc và trang thì ngược lại —
+ *  Những thứ này sống lâu hơn một lần mở màn và đi qua NHIỀU màn: ghi chú ở
+ *  bảng thì màn chi tiết phải thấy, và ngược lại. Bộ lọc và trang thì ngược lại —
  *  chúng chết cùng lần mở màn nên vẫn nằm trong `useState` của màn (xem
  *  `app/auth/session.ts`).
  *
- *  **Ghim theo NGƯỜI, không theo sổ.** `pins` khoá bằng `actorId`: hai người
- *  cùng mở sổ thấy hai bộ ghim khác nhau. Ghim chung là ghim của người bấm cuối
- *  cùng — vô dụng với mọi người còn lại.
+ *  Pins left for the server on 08/10 (`data/pins.ts`); see `legacyPinsOf` below.
  *
  *  **Giao lead KHÔNG còn ở đây.** Nó là một phép ghi thật lên `lead.owner_id`
  *  (`data/lead-owner.ts`), không phải một đề nghị nằm trong trình duyệt — lý do
@@ -41,7 +39,7 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
  *  đọc nó nữa), không lớn (một object rỗng ở gần như mọi máy, vì `convert` đã
  *  ngừng ghi từ trước), và đánh số `version: 1` để dọn nó thì mọi bản lưu cũ
  *  phải đi qua một `migrate` — mà một `migrate` viết sai sẽ thổi bay cả ghim
- *  và ghi chú của người dùng, thứ chưa có endpoint nào để dựng lại.
+ *  cũ chưa kịp chuyển và ghi chú của người dùng, thứ chưa có endpoint nào để dựng lại.
  *  Ngày store này thật sự cần đổi hình dữ liệu (không phải bỏ bớt một khoá chết)
  *  thì `version`+`migrate` vào cùng lượt đó, và dọn luôn khoá này. */
 
@@ -63,8 +61,6 @@ import type { Opportunity } from '@pv/engines/fixtures/das-vina'
    Their keys stay orphaned in old saves exactly like `deals`/`assigns` above. */
 
 type DeskState = {
-  /** actorId → mã lead đã ghim. */
-  pins: Record<string, string[]>
   /** mã lead → next action đã bấm trong phiên này.
    *
    *  Giữ ở đây chứ không trong màn vì cùng một việc bấm ở bảng phải hiện "đã đề
@@ -100,14 +96,11 @@ type DeskState = {
    *  một dòng sổ cơ hội sửa được, mà nó chưa chắc đã có lead nào đứng sau. */
   ops: Record<string, Partial<Opportunity>>
 
-  togglePin: (actorId: string, code: string) => void
-  /** Bulk form of `togglePin`: set every code to the same state, so a mixed selection ends uniform. */
-  setPins: (actorId: string, codes: readonly string[], on: boolean) => void
   act: (code: string, actionKey: string) => void
   setNote: (code: string, html: string) => void
   patchOp: (code: string, patch: Partial<Opportunity>) => void
   resetOp: (code: string) => void
-  /** Dọn sạch — dùng ở test và ở nút "bỏ hết ghim". */
+  /** Dọn sạch — dùng ở test. */
   reset: () => void
 }
 
@@ -118,26 +111,9 @@ const NONE: string[] = []
 export const useLeadDesk = create<DeskState>()(
   persist(
     (set) => ({
-      pins: {},
       acted: {},
       notes: {},
       ops: {},
-
-      togglePin: (actorId, code) =>
-        set((s) => {
-          const mine = s.pins[actorId] ?? NONE
-          const next = mine.includes(code) ? mine.filter((c) => c !== code) : [...mine, code]
-          return { pins: { ...s.pins, [actorId]: next } }
-        }),
-
-      setPins: (actorId, codes, on) =>
-        set((s) => {
-          const mine = s.pins[actorId] ?? NONE
-          const next = on
-            ? [...mine, ...codes.filter((c) => !mine.includes(c))]
-            : mine.filter((c) => !codes.includes(c))
-          return { pins: { ...s.pins, [actorId]: next } }
-        }),
 
       act: (code, actionKey) =>
         set((s) => {
@@ -160,7 +136,6 @@ export const useLeadDesk = create<DeskState>()(
 
       reset: () =>
         set({
-          pins: {},
           acted: {},
           notes: {},
           ops: {},
@@ -170,9 +145,19 @@ export const useLeadDesk = create<DeskState>()(
   ),
 )
 
-/** Lead một người đã ghim. Tách ra thành hàm để mọi màn đọc cùng một cách và
- *  cùng nhận lại mảng rỗng dùng chung. */
-export function pinsOf(state: DeskState, actorId: string | undefined): string[] {
-  if (!actorId) return NONE
-  return state.pins[actorId] ?? NONE
+/** Old saves still carry `pins` (actorId → lead codes), orphaned the way `deals`
+ *  is above. Read once by `data/pins.ts` to move them to the server, then the
+ *  codes sent are dropped from the actor's entry; the emptied key itself stays, as harmless as `deals`. */
+type LegacyPins = { pins?: Record<string, string[]> }
+
+export function legacyPinsOf(actorId: string): string[] {
+  return (useLeadDesk.getState() as LegacyPins).pins?.[actorId] ?? NONE
+}
+
+export function dropLegacyPins(actorId: string, sent: readonly string[]): void {
+  useLeadDesk.setState((s) => {
+    const { [actorId]: mine = NONE, ...rest } = (s as LegacyPins).pins ?? {}
+    const left = mine.filter((code) => !sent.includes(code))
+    return { ...s, pins: left.length ? { ...rest, [actorId]: left } : rest } as DeskState
+  })
 }

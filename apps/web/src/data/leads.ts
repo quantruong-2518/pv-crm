@@ -192,8 +192,8 @@ export const FACET_SIZE = 200
  *  không phải filter thật, nó là trúng-trật tuỳ owner/account đó có lọt vào
  *  200 dòng may mắn được kéo về hay không).
  *
- *  Ba việc còn sống nhờ lượt gọi này, cả ba cần CẢ SỔ chứ không phải một
- *  trang mười dòng: "Ghim của tôi", khoá chống trùng của panel nạp tệp, và
+ *  Hai việc còn sống nhờ lượt gọi này, cả hai cần CẢ SỔ chứ không phải một
+ *  trang mười dòng (ghim đã sang `data/pins.ts`): khoá chống trùng của panel nạp tệp, và
  *  (18/09) `pages/opportunities.tsx` ghép `leadCode` sang đây lấy hòm thư cho
  *  mail hàng loạt vì `OpportunityRow` không tự mang hòm thư. Vẫn gãy ở lead
  *  thứ 201 — với sổ cơ hội, gãy nghĩa là một cơ hội lặng lẽ rơi khỏi danh

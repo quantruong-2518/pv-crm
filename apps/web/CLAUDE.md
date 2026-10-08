@@ -4,7 +4,7 @@
   into blocks, `*-model.ts` if it has calculation logic separate from render).
   Register it in `routes.tsx` — no route means the screen doesn't exist, no
   matter how much of the file is written.
-- `app/` — state that lives ACROSS screens: `desk.ts` (pins/assignments/drafts,
+- `app/` — state that lives ACROSS screens: `desk.ts` (assignments/drafts,
   per user), `chrome.tsx` (nav shell, reads paths from here — don't hardcode
   them in a screen). State that dies with the screen stays in that screen's own
   `useState` — except server-paged books: their filters, search text and page

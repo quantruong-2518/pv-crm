@@ -131,7 +131,8 @@ export function DataTable({
               }
               className={cn(
                 'flex min-w-0 items-center gap-1',
-                col.align === 'right' && 'justify-end',
+                /* Right-aligned: arrow and filter sit BEFORE the text so the label ends on the figures' edge. */
+                col.align === 'right' && 'flex-row-reverse',
                 col.align === 'center' && 'justify-center',
               )}
             >
@@ -143,11 +144,12 @@ export function DataTable({
                     // rounded-md: đây là CONTROL (bấm được, có focus ring), mà
                     // control bo 4 — `rounded-sm` 3px là cấp tag (luật 5).
                     'motion-std hover:text-foreground pointer-coarse:min-h-12 -m-1 inline-flex items-center gap-1 rounded-md p-1',
+                    col.align === 'right' && 'flex-row-reverse',
                     active && 'text-accent-foreground font-semibold',
                   )}
                 >
                   {col.header}
-                  <Icon icon={glyph} size={14} className={cn(!active && 'opacity-45')} />
+                  <Icon icon={glyph} size={14} className={cn(!active && 'opacity-70')} />
                 </button>
               ) : (
                 col.header

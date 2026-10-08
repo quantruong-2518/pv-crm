@@ -6,7 +6,6 @@ import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { pinsOf, useLeadDesk } from '@/app/desk'
 import { toastDone, toastFail } from '@/app/toast'
 import { leadContactOf } from '@/data/comm-records'
 import { leadContactsQuery } from '@/data/contacts'
@@ -24,6 +23,7 @@ import { DisableLeadsDialog } from '@/components/lead-disable'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { MeetingsCard } from '@/components/meetings-card'
+import { usePinToggle } from '@/data/pins'
 import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
@@ -88,8 +88,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const canSendEmail = useCan('lead.send-email')
   const canConvert = useCan('opportunity.create') && lead.canEdit
   const canAssign = useCan('lead.assign')
-  const pinned = useLeadDesk((s) => pinsOf(s, me?.id)).includes(lead.code)
-  const togglePin = useLeadDesk((s) => s.togglePin)
+  const pin = usePinToggle('lead', lead.code)
   const liveDeal = useQuery(opportunitiesOfLeadQuery(lead.code)).data ?? EMPTY_LIVE_DEAL
   const contacts = useQuery(leadContactsQuery(lead.code)).data?.rows
   const resume = useResumeLead(lead.code)
@@ -119,7 +118,8 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
     lead,
     { write: canWrite, disqualify: canDisqualify, disable: useCan('lead.disable') },
     assignDoor,
-    pinned,
+    pin.pinned,
+    dealReach,
     liveDeal,
     {
       onResume: () =>
@@ -130,7 +130,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
         }),
       onNurture: () => setNurturing(true),
       onAssign: () => setAssigning(true),
-      onPin: () => me && togglePin(me.id, lead.code),
+      onPin: pin.toggle,
       onExit: () => setExiting(true),
       onReopen: () =>
         reopen.mutate(undefined, {

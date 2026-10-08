@@ -28,6 +28,7 @@ export function AssignSaleButton({
   size = 'md',
   variant = 'secondary',
   className,
+  iconOnly = false,
   open: openProp,
   onClose,
 }: {
@@ -35,9 +36,12 @@ export function AssignSaleButton({
   hasSeller: boolean
   id?: string
   size?: 'sm' | 'md' | 'lg'
-  /** `default` is Button's primary look, for when "Giao Sale" is the deal's one stage action. */
-  variant?: 'default' | 'secondary'
+  /** `default` is Button's primary look, for when "Giao Sale" is the deal's one
+   *  stage action; `ghost` is a book row's, where `ROW_ICON` clears its tint. */
+  variant?: 'default' | 'secondary' | 'ghost'
   className?: string
+  /** The glyph alone, the words in `aria-label`/`title` — a book row's cell. */
+  iconOnly?: boolean
   /** Set = controlled: the modal follows it and no button is drawn. */
   open?: boolean
   onClose?: () => void
@@ -80,10 +84,12 @@ export function AssignSaleButton({
           size={size}
           variant={variant}
           className={className}
+          aria-label={iconOnly ? label : undefined}
+          title={iconOnly ? label : undefined}
           onClick={() => setOwnOpen(true)}
         >
           <Icon icon={UserRoundPlus} size={16} />
-          {label}
+          {!iconOnly && label}
         </Button>
       )}
 

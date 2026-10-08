@@ -266,6 +266,8 @@ export const LeadBookQuery = PageQuery.extend({
    *  may switch them back. Silently ignored without `lead.disable` — the
    *  partner book's `includeInactive` rule — so the flag is never an oracle. */
   disabled: Bool.optional(),
+  /** `true` = ONLY the leads the caller has pinned (`PinSetBody`). */
+  pinned: Bool.optional(),
 
   /** Campaign id, exact match. Absent = every campaign, including none.
    *
@@ -343,6 +345,7 @@ export const LeadBookResponse = paged(LeadRow)
  *  them and stays over the whole scoped book, or the source dropdown would
  *  shrink to the one value already picked. */
 export const LeadFacetsQuery = LeadBookQuery.omit({
+  pinned: true,
   state: true,
   states: true,
   page: true,

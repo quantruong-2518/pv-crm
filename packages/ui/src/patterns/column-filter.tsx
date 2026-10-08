@@ -76,6 +76,7 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
         type="button"
         aria-haspopup="dialog"
         aria-expanded={open}
+        title={iconOnly ? `Lọc ${label}` : undefined}
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'motion-std hover:text-foreground pointer-coarse:min-h-12 -mx-1 inline-flex min-w-0 items-center gap-1 rounded-sm px-1',

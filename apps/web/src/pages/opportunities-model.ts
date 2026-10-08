@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   OpportunitySortKey,
   type OpportunityBookQuery,
@@ -21,21 +21,27 @@ export const PAGE_SIZE = 10
 /** The "no filter on this axis" value of a native select, `undefined` on the wire. */
 export const ANY = 'all'
 
-/** The eight columns after the select box. Only the server's sort keys
+/** The eight columns after the select box, filters in their headers
+ *  (`opportunities-filters.tsx`). Only the server's sort keys
  *  (`OpportunitySortKey`) get an arrow; a header that sorts nothing is a lie. */
-export const BOOK_COLUMNS: TableColumn[] = [
-  { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name' },
-  { header: 'Giai đoạn', width: '1.4fr' },
-  { header: 'Giá trị dự kiến', width: '0.8fr', align: 'right', sortKey: 'amount' },
-  { header: 'Dự kiến chốt', width: '0.8fr', sortKey: 'expectedClose' },
-  { header: 'BD phụ trách', width: '1fr' },
-  { header: 'Sale phụ trách', width: '1fr' },
-  { header: 'Tương tác gần nhất', width: '1fr' },
+export const bookColumns = (
+  filters: Record<'account' | 'stage' | 'bd' | 'sale', ReactNode>,
+): TableColumn[] => [
+  { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name', filter: filters.account },
+  { header: filters.stage, width: 'minmax(96px,1.4fr)' },
+  /* Fixed tracks: full digits up to tens of billions, and the lead book's person width. */
+  { header: 'Giá trị (₫)', width: '144px', align: 'right', sortKey: 'amount' },
+  { header: 'Dự kiến chốt', width: 'minmax(96px,0.8fr)', sortKey: 'expectedClose' },
+  { header: filters.bd, width: '140px', align: 'center' },
+  { header: filters.sale, width: '140px', align: 'center' },
+  { header: 'Tương tác gần nhất', width: 'minmax(120px,1fr)' },
   { header: 'Việc cần làm tiếp', width: '1.6fr' },
 ]
 
-/** Narrower than this the eight tracks crush, so the card scrolls sideways. */
-export const TABLE_MIN_WIDTH = 'min-w-[1200px]'
+/** Narrower than this the eight tracks crush, so the card scrolls sideways.
+ *  Sized so the floored headers above stay on one line and the last column
+ *  still has room for "title · due". */
+export const TABLE_MIN_WIDTH = 'min-w-[1360px]'
 
 /** The deal column stays put while the book scrolls sideways to the row acts.
  *  Its cell reaches over the gap after it, and paints the panel's own `--card`
@@ -85,11 +91,39 @@ export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefi
   ]
 }
 
+/** The values of a comma-list filter, `[]` while the filter is off. */
+export const csvOf = (csv?: string) => (csv ? csv.split(',') : [])
+
 /** A person filter's choices, sorted by name so entries do not jump around. */
 export const peopleOptions = (people: readonly WorkstreamHolder[]) =>
   people
     .map((p) => ({ value: p.id, label: p.name }))
     .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
+
+/** What an empty page says. The pinned tab with nothing pinned gets its own
+ *  sentence, and no "clear filters": there is no filter to blame. */
+export function emptyOf(opts: {
+  pinnedView: boolean
+  dirty: boolean
+  onClear: () => void
+  onSeeLeads: () => void
+}) {
+  if (opts.pinnedView) {
+    return {
+      message: 'Chưa ghim cơ hội nào. Ghim từ cột cuối của sổ.',
+      action: { label: 'Xem tất cả cơ hội', onClick: opts.onClear },
+    }
+  }
+  return opts.dirty
+    ? {
+        message: 'Không có cơ hội nào phù hợp với bộ lọc hiện tại.',
+        action: { label: 'Bỏ hết bộ lọc', onClick: opts.onClear },
+      }
+    : {
+        message: 'Chưa có cơ hội nào. Hãy mở cơ hội từ một lead tiềm năng.',
+        action: { label: 'Xem sổ lead', onClick: opts.onSeeLeads },
+      }
+}
 
 /** The axes `useBookQuery` counts as filters — the keys its `clear` resets. */
 export const FILTER_KEYS = [
@@ -100,6 +134,7 @@ export const FILTER_KEYS = [
   'sale',
   'bd',
   'account',
+  'pinned',
 ] as const satisfies readonly (keyof OpportunityBookQuery)[]
 
 /** A header press: the same column flips direction, a new one starts ascending.

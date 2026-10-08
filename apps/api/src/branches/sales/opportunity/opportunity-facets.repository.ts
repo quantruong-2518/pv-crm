@@ -21,7 +21,7 @@ export class OpportunityFacetsRepository {
 
   async facets(who: Actor, q: OpportunityFacetsQuery) {
     const scope = this.deals.scopeOf(who, true)
-    const where = and(...(await this.deals.filtersOf(q)), scope)
+    const where = and(...(await this.deals.filtersOf(q, who.id)), scope)
     const signed = this.deals.signed()
     const [saleOwners, bdOwners, accounts, [states]] = await Promise.all([
       this.lane(where, 'SALE'),

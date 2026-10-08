@@ -42,7 +42,7 @@ import {
 } from '@/data/campaign-book'
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
-import { TableFooter } from '@/components/table-bits'
+import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { CampaignCreateModal } from './campaign-profile-parts'
 
 /** Module 1 · Sổ chiến dịch — `GET /sales/campaigns`.
@@ -70,7 +70,7 @@ import { CampaignCreateModal } from './campaign-profile-parts'
  *  hơn hàng cơ hội — có tên dài và hai con số. */
 const PAGE_SIZE = 10
 
-const TABLE_MIN_WIDTH = 'min-w-[980px]'
+const TABLE_MIN_WIDTH = 'min-w-[1040px]'
 
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
 
@@ -358,10 +358,19 @@ export function CampaignsPage() {
                  paying for a column of its own. The slack went to the name. */
               { header: 'Chiến dịch', width: '3fr', sortKey: 'name' },
               { header: 'Trạng thái', width: '1fr' },
-              { header: listFilter('Người phụ trách', 'owner', ownerOptions), width: '1.2fr' },
+              {
+                header: listFilter('Người phụ trách', 'owner', ownerOptions),
+                width: '140px',
+                align: 'center',
+              },
               { header: listFilter('Nguồn dẫn', 'source', sourceOptions), width: '1.2fr' },
               { header: 'Người nhận', width: '0.9fr', align: 'right', sortKey: 'audienceCount' },
-              { header: 'Số đợt gửi', width: '0.6fr', align: 'right', sortKey: 'waveCount' },
+              {
+                header: 'Số đợt gửi',
+                width: 'minmax(88px,0.6fr)',
+                align: 'right',
+                sortKey: 'waveCount',
+              },
               { header: 'Ngày tạo', width: '0.9fr', sortKey: 'createdAt', filter: dateFilter },
             ],
             rows: rows.map((c) => ({
@@ -377,15 +386,24 @@ export function CampaignsPage() {
                 <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
                   {CAMPAIGN_STATE_LABEL[c.state]}
                 </Badge>,
-                <span key="o" className="block truncate">
-                  {c.ownerName ?? '—'}
-                </span>,
+                <AvatarCell
+                  key="o"
+                  name={c.ownerName}
+                  email={c.ownerEmail}
+                  empty="Chưa có người phụ trách"
+                />,
                 <span key="src" className="block truncate">
                   {c.sourceName ?? '—'}
                 </span>,
-                <span key="a">{c.audienceCount.toLocaleString('vi-VN')}</span>,
-                <span key="w">{c.waveCount}</span>,
-                <span key="t">{dm(c.createdAt)}</span>,
+                <span key="a" className="tnum font-num">
+                  {c.audienceCount.toLocaleString('vi-VN')}
+                </span>,
+                <span key="w" className="tnum font-num">
+                  {c.waveCount}
+                </span>,
+                <span key="t" className="tnum font-num">
+                  {dm(c.createdAt)}
+                </span>,
               ],
             })),
           }}

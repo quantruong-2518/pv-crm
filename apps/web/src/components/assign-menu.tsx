@@ -7,6 +7,7 @@ import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { assignDoorOf } from '@/components/assign-door'
 import { HandoverDeals } from '@/components/handover-deals'
+import { ROW_ICON } from '@/components/table-bits'
 import { useDirectory } from '@/data/directory'
 import { useHandoverChoice, useSetLeadOwner } from '@/data/lead-owner'
 import { isOpenState } from '@/data/lead-state'
@@ -201,11 +202,7 @@ export function AssignMenu({
           title={blocked ? blockedWhy : iconOnly ? triggerLabel : undefined}
           aria-label={iconOnly ? triggerLabel : undefined}
           aria-expanded={open}
-          className={
-            iconOnly
-              ? 'text-muted-foreground hover:bg-surface-ink/9 size-8 shrink-0 bg-transparent px-0 shadow-none'
-              : undefined
-          }
+          className={iconOnly ? ROW_ICON : undefined}
         >
           <Icon icon={triggerIcon} size={16} />
           {!iconOnly && triggerLabel}

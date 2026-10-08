@@ -1,6 +1,5 @@
 import {
   and,
-  arrayOverlaps,
   asc,
   count,
   desc,
@@ -20,8 +19,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   CURRENCIES,
-  OWNER_NONE,
-  SELLER_ROLES,
   StageKey,
   type OpportunityBookQuery,
   type OpportunityFacetsQuery,
@@ -32,14 +29,16 @@ import {
   type TouchKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { csvOf } from '@api/platform/db/book-filter'
 import { contains } from '@api/platform/db/like'
 import { actor, audit } from '@api/platform/db/platform.schema'
+import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
-import { dealOpen, dealSignWaiting, dealStoodBy, leadDealsAllLost } from '../open-deal'
+import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import {
   opportunity,
@@ -50,7 +49,8 @@ import {
   type OpportunityStageEventRowDb,
 } from './opportunity.schema'
 import { stageConfigOf } from '../ladder'
-import { DAYS_IN_STAGE, overdueIn } from './opportunity-book.sql'
+import { DAYS_IN_STAGE, dealScope, overdueIn } from './opportunity-book.sql'
+import { ownerFilter, stagesOf } from './opportunity-filter.sql'
 import type { ActorLite } from './opportunity-import.check'
 import {
   peopleOf,
@@ -140,7 +140,7 @@ const AMOUNT_VND = sql<number | null>`CASE ${opportunity.currency} ${sql.join(
 )} END`
 
 /** The book's filters without paging — what the book and its facets share. */
-export type BookFilters = OpportunityFacetsQuery & Pick<OpportunityBookQuery, 'state'>
+export type BookFilters = OpportunityFacetsQuery & Pick<OpportunityBookQuery, 'state' | 'pinned'>
 
 export type OpportunityBookPage = {
   rows: OpportunityRead[]
@@ -210,7 +210,7 @@ export class OpportunityRepository {
        theo lead sẽ đọc ra "số đơn cả sổ bạn không thấy", tức một con số đúng
        cho câu không ai hỏi. Tính chất đó không đổi khi bộ lọc mọc từ một ô lên
        sáu — `filtersOf` trả về một MẢNG, và trục phạm vi vẫn đứng ngoài nó. */
-    const filters = await this.filtersOf(q)
+    const filters = await this.filtersOf(q, who.id)
     const where = and(...filters, scope)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
@@ -869,7 +869,7 @@ export class OpportunityRepository {
    *  `EXISTS` chứ không `JOIN`: một đơn có ba người thì join nhân dòng đó lên
    *  ba, và `COUNT` sau đó đếm ba. */
   scopeOf(who: Actor, scoped: boolean): SQL | undefined {
-    return scoped && who.ownOnly ? dealStoodBy(opportunity.code, who.id) : undefined
+    return dealScope(who, scoped)
   }
 
   /** Cùng vị từ, nhưng ĐƯỢC CHỌN RA thay vì đem đi lọc — xem `byCode`. */
@@ -939,27 +939,28 @@ export class OpportunityRepository {
    *
    *  Mỗi ô vắng mặt trả `undefined`, và `and()` của Drizzle bỏ qua chúng: "ô
    *  trống nghĩa là không lọc" là quy ước của cả hai sổ, và nó nằm ở đúng một
-   *  chỗ thay vì một `if` mỗi ô. */
-  async filtersOf(q: BookFilters): Promise<(SQL | undefined)[]> {
+   *  chỗ thay vì một `if` mỗi ô. `actorId` is the reader, for `pinned` alone. */
+  async filtersOf(q: BookFilters, actorId: string): Promise<(SQL | undefined)[]> {
     const ladder = q.overdue ? stageConfigOf(await this.stageRows()) : null
     return [
       /* Not a user filter, and here on purpose: a deal on a switched-off lead is
          absent, so it must leave BOTH counts `hidden` is the difference of. */
       leadLive,
       ladder ? overdueIn(ladder) : undefined,
+      q.pinned ? pinnedBy(actorId, 'opportunity', opportunity.code) : undefined,
       q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
       this.stateFilter(q.state),
       /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
-      q.stage ? eq(opportunity.stage, q.stage) : undefined,
+      q.stage ? inArray(opportunity.stage, stagesOf(q.stage)) : undefined,
       /* Accepted = past `new` on the board (ADR 0071); `false` = the `new` queue. */
       q.accepted === undefined
         ? undefined
         : q.accepted
           ? and(isNotNull(opportunity.stage), ne(opportunity.stage, 'new'))
           : eq(opportunity.stage, 'new'),
-      this.ownerFilter('SALE', q.sale),
-      this.ownerFilter('BD', q.bd),
-      q.account ? eq(lead.company, q.account) : undefined,
+      ownerFilter(this.db, 'SALE', q.sale),
+      ownerFilter(this.db, 'BD', q.bd),
+      q.account ? inArray(lead.company, csvOf(q.account)) : undefined,
       /* Một ô gõ, ba cột. Người ta dán vào đây một mã đơn lấy từ email, nửa cái
          tên công ty, hoặc một chữ trong tên đơn — hỏi cả ba là cách duy nhất ô
          đó trả lời được cả ba mà không bắt người dùng chọn trước mình đang tìm
@@ -990,38 +991,6 @@ export class OpportunityRepository {
     if (!state) return undefined
     if (state === 'won') return this.signed()
     return and(eq(opportunity.state, state), not(this.signed()))
-  }
-
-  /** Lọc theo người đứng đơn, MỘT vai mỗi lượt.
-   *
-   *  `OWNER_NONE` là cách dây nói "chưa ai" (docblock của hằng đó ở
-   *  `@pv/contracts`). Nó không mang id của ai nên nó thành `NOT EXISTS` chứ
-   *  không thành một phép so bằng — "đơn chưa có Sale nào đứng" là vắng một
-   *  dòng trong bảng nối, không phải một dòng mang giá trị đặc biệt.
-   *
-   *  `EXISTS` chứ không `JOIN`, cùng lý do `scopeOf` ghi: một đơn ba người thì
-   *  join nhân dòng đó lên ba, và `COUNT` sau đó đếm ba. */
-  private ownerFilter(role: 'SALE' | 'BD', id: string | undefined): SQL | undefined {
-    if (!id) return undefined
-
-    const held = (extra?: SQL) =>
-      exists(
-        this.db
-          .select({ one: sql`1` })
-          .from(opportunityOwner)
-          .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
-          .where(
-            and(
-              eq(opportunityOwner.opportunityCode, opportunity.code),
-              eq(opportunityOwner.role, role),
-              extra,
-            ),
-          ),
-      )
-
-    if (id !== OWNER_NONE) return held(eq(opportunityOwner.actorId, id))
-    /* No SALE owner means no SELLER there (ADR 0071 §4): a head left on the lane is not one. */
-    return not(held(role === 'SALE' ? arrayOverlaps(actor.roleIds, [...SELLER_ROLES]) : undefined))
   }
 
   /** Sáu con số của thẻ điểm, MỘT lượt đi tới database.

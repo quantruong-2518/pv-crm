@@ -160,7 +160,7 @@ export default function ContactsPage() {
               },
               {
                 header: filters.owner,
-                width: '120px',
+                width: '140px',
                 align: 'center',
               },
             ],
@@ -191,7 +191,7 @@ export default function ContactsPage() {
                 <span key="p" className="tnum font-num block truncate">
                   {c.phone ?? '—'}
                 </span>,
-                <span key="d" className="block truncate">
+                <span key="d" className="tnum font-num block truncate">
                   {DAY.format(new Date(c.createdAt))}
                 </span>,
                 <AvatarCell

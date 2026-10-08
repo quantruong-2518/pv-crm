@@ -12,7 +12,6 @@ import {
   SegmentedControl,
   ColumnFilter,
   ColumnFilterList,
-  billions,
   type TableSort,
 } from '@pv/ui'
 import { AccountBookQuery, AccountSortKey, type LeadCategory } from '@pv/contracts'
@@ -23,6 +22,7 @@ import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { accountBookQuery, accountFacetsQuery, CATEGORY_LABEL } from '@/data/accounts'
 import { BookCount, BookPage } from '@/components/book-page'
 import { TableFooter } from '@/components/table-bits'
+import { MoneyCell } from '@/components/money-cell'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
 /** The customer company book — `/sales/accounts`.
@@ -257,23 +257,25 @@ export default function AccountsPage() {
                 filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
               },
               { header: listFilter('Ngành', 'category', categoryOptions), width: '0.8fr' },
-              { header: 'Số lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
+              { header: 'Số lead', width: 'minmax(72px,0.6fr)', align: 'right', sortKey: 'leads' },
               {
                 header: 'Cơ hội đang mở',
-                width: '0.7fr',
+                /* Floors keep a header and its icons on one line at the table's min width. */
+                width: 'minmax(128px,0.7fr)',
                 align: 'right',
                 sortKey: 'openDeals',
                 filter: openDealsFilter,
               },
               {
                 header: 'Hợp đồng đã ký',
-                width: '0.7fr',
+                width: 'minmax(112px,0.7fr)',
                 align: 'right',
                 sortKey: 'signedDeals',
               },
               {
-                header: 'Giá trị đã ký',
-                width: '1.1fr',
+                header: 'Giá trị đã ký (₫)',
+                /* The deal book's money track: full digits up to tens of billions. */
+                width: '144px',
                 align: 'right',
                 sortKey: 'signedAmountVnd',
               },
@@ -309,9 +311,11 @@ export default function AccountsPage() {
                 >
                   {a.signedDeals}
                 </span>,
-                <span key="m" className="tnum font-num">
-                  {a.signedAmountVnd > 0 ? billions(a.signedAmountVnd) : '—'}
-                </span>,
+                <MoneyCell
+                  key="m"
+                  amount={a.signedAmountVnd > 0 ? a.signedAmountVnd : null}
+                  missing="Chưa có giá trị hợp đồng đã ký"
+                />,
               ],
             })),
           }}
