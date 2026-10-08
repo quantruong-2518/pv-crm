@@ -36,8 +36,12 @@ const walk = (dir) =>
 
 const referenced = new Map()
 for (const file of [join(ROOT, 'packages'), join(ROOT, 'apps')].flatMap(walk)) {
-  for (const m of readFileSync(file, 'utf8').matchAll(/var\(\s*(--[\w-]+)/g)) {
-    if (!referenced.has(m[1])) referenced.set(m[1], relative(ROOT, file))
+  const text = readFileSync(file, 'utf8')
+  /* A property the same file sets inline (`style={{ '--w': … }}`) is the
+     component's own, not a missing token. */
+  const local = new Set([...text.matchAll(/['"`]?(--[\w-]+)['"`]?\s*:/g)].map((m) => m[1]))
+  for (const m of text.matchAll(/var\(\s*(--[\w-]+)/g)) {
+    if (!local.has(m[1]) && !referenced.has(m[1])) referenced.set(m[1], relative(ROOT, file))
   }
 }
 
