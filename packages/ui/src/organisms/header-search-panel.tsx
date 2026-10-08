@@ -24,8 +24,8 @@ type PanelProps = {
   open: boolean
   groups: SearchGroup[]
   active: number
-  empty: string
-  busy?: boolean
+  /** One line under the rows: still searching, nothing found, what to type. */
+  status?: string
   scopes?: SearchScope[]
   scope?: string | null
   onScopeChange?: (id: string | null) => void
@@ -39,8 +39,7 @@ export function HeaderSearchPanel({
   open,
   groups,
   active,
-  empty,
-  busy,
+  status,
   scopes,
   scope = null,
   onScopeChange,
@@ -62,16 +61,15 @@ export function HeaderSearchPanel({
       )}
     >
       {scopes?.length ? (
-        <div className="flex flex-wrap gap-2 px-1 pb-2 pt-1">
+        <div role="group" aria-label="Phạm vi tìm" className="flex flex-wrap gap-2 px-1 pb-2 pt-1">
           {[{ id: null, label: 'Tất cả' }, ...scopes].map((chip) => (
             <button
               key={chip.id ?? 'all'}
               type="button"
-              tabIndex={-1}
               aria-pressed={chip.id === scope}
               onClick={() => onScopeChange?.(chip.id)}
               className={cn(
-                'motion-std h-12 rounded-full px-3 text-[12px] font-medium lg:h-8',
+                'motion-std pointer-coarse:h-12 h-8 rounded-md px-3 text-[12px] font-medium outline-none focus-visible:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_60%,transparent)]',
                 chip.id === scope
                   ? 'bg-primary/15 text-on-tint-primary'
                   : 'bg-surface-ink/10 text-muted-foreground',
@@ -86,7 +84,10 @@ export function HeaderSearchPanel({
       <div id="header-search-list" role="listbox" className="max-h-[60vh] overflow-y-auto">
         {groups.map((group, g) => (
           <div key={group.id} role="group" aria-label={group.label}>
-            <div className="text-muted-foreground px-3 pb-1 pt-2 text-[11px] font-semibold tracking-[0.08em]">
+            <div
+              aria-hidden
+              className="text-muted-foreground px-3 pb-1 pt-2 text-[11px] font-semibold"
+            >
               {group.label}
             </div>
             {group.rows.map((row, r) => {
@@ -118,17 +119,14 @@ export function HeaderSearchPanel({
             })}
           </div>
         ))}
-        {busy || !groups.length ? (
-          <div className="text-muted-foreground px-3 py-3 text-[13px]">
-            {busy ? 'Đang tìm…' : empty}
-          </div>
-        ) : null}
+      </div>
+      <div role="status" className="text-muted-foreground px-3 text-[13px] empty:hidden">
+        {status ? <div className="py-3">{status}</div> : null}
       </div>
 
-      <div className="text-muted-foreground flex gap-4 px-3 pb-1 pt-3 text-[12px]">
+      <div className="text-muted-foreground pointer-coarse:hidden flex gap-4 px-3 pb-1 pt-3 text-[12px]">
         <span>↑↓ chọn</span>
         <span>↵ mở</span>
-        <span>esc đóng</span>
       </div>
     </div>
   )

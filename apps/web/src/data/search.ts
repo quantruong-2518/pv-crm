@@ -123,7 +123,11 @@ export function useHeaderSearch(): SearchRecords | undefined {
   ): SearchGroup => ({
     id,
     label,
-    rows: hits.map((hit) => hitRow(hit, (picked) => open(picked, log))),
+    // Two contacts of one lead share kind + code, so the position joins the id.
+    rows: hits.map((hit, i) => ({
+      ...hitRow(hit, (picked) => open(picked, log)),
+      id: `${id}:${i}`,
+    })),
   })
 
   let groups: SearchGroup[] = []
@@ -131,25 +135,33 @@ export function useHeaderSearch(): SearchRecords | undefined {
     const hits = (recent.data?.items ?? []).flatMap((item) =>
       item.type === 'record' ? [item.hit] : [],
     )
-    groups = [toGroup('recent', 'GẦN ĐÂY', hits, { q: '', resultCount: hits.length })]
+    groups = [toGroup('recent', 'Đã mở gần đây', hits, { q: '', resultCount: hits.length })]
   } else if (searching && found.data) {
     const resultCount = found.data.groups.reduce((n, g) => n + g.hits.length, 0)
     const log = { q: settled.q, ...(kind ? { kinds: [kind] } : {}), resultCount }
     groups = found.data.groups.map((g) => {
       const facts = SEARCH_KIND_FACTS[g.kind]
-      const group = toGroup(g.kind, facts.label.toLocaleUpperCase('vi'), g.hits, log)
+      const group = toGroup(g.kind, facts.label, g.hits, log)
       if (g.more) {
         const href = `${facts.book}?q=${encodeURIComponent(settled.q)}`
         group.rows.push({
           id: `${g.kind}:all`,
           icon: ArrowRight,
-          label: 'Xem tất cả',
+          label: `Xem tất cả trong sổ ${facts.label}`,
           onClick: () => navigate(href),
         })
       }
       return group
     })
   }
+
+  const pending = found.isFetching || current.q !== settled.q
+  let status: string | undefined
+  if (typed === '') status = undefined
+  else if (current.q.length < MIN_CHARS) status = `Gõ ít nhất ${MIN_CHARS} ký tự để tìm bản ghi.`
+  else if (pending) status = 'Đang tìm…'
+  else if (found.isError) status = 'Không tìm được bản ghi. Thử lại sau.'
+  else if (!groups.length) status = `Không có bản ghi nào khớp “${current.q}”.`
 
   return {
     scopes: SEARCH_KINDS.filter((k) => allowed[k]).map((k) => ({
@@ -165,9 +177,6 @@ export function useHeaderSearch(): SearchRecords | undefined {
     query: text,
     onQueryChange: setText,
     groups,
-    loading:
-      current.q.length >= MIN_CHARS &&
-      found.data === undefined &&
-      (found.isFetching || current.q !== settled.q),
+    status,
   }
 }

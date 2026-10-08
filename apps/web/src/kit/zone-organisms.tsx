@@ -16,7 +16,9 @@ import {
   SquareCheckBig,
   Target,
   Users,
+  type SearchRecords,
 } from '@pv/ui'
+import { useState } from 'react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -73,7 +75,31 @@ const CHAIN = [
   { label: 'Kế toán Mai', state: 'next' as const },
 ]
 
+/* The record half of the header search, frozen: the kit has no API, so the
+   groups do not follow the typed text — only the chips and the box do. */
+const SEARCH_GROUPS: SearchRecords['groups'] = [
+  {
+    id: 'account',
+    label: 'Công ty',
+    rows: [{ id: 'a1', icon: Building, label: 'DAS Vina', note: 'Mã số thuế: 0312345678' }],
+  },
+  {
+    id: 'contact',
+    label: 'Liên hệ',
+    rows: [
+      { id: 'c1', icon: Contact, label: 'Trần Minh Khoa', note: 'DAS Vina' },
+      { id: 'c2', icon: Contact, label: 'Lê Thu Hà', note: 'Email: ha.le@dasvina.vn' },
+    ],
+  },
+]
+const SEARCH_SCOPES = [
+  { id: 'account', label: 'Công ty' },
+  { id: 'contact', label: 'Liên hệ' },
+]
+
 export function ZoneOrganisms() {
+  const [query, setQuery] = useState('')
+  const [scope, setScope] = useState<string | null>(null)
   return (
     <section id="zone-03" className="pb-2 pt-12">
       <div className="border-t-white/12 border-t pt-10">
@@ -164,7 +190,17 @@ export function ZoneOrganisms() {
               accountActions={HEADER_ACCOUNT}
               user={{ name: 'Nguyễn Văn Thắng' }}
               unread
-              search={{ placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' }}
+              search={{
+                placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+                records: {
+                  scopes: SEARCH_SCOPES,
+                  scope,
+                  onScopeChange: setScope,
+                  query,
+                  onQueryChange: setQuery,
+                  groups: SEARCH_GROUPS.filter((g) => !scope || g.id === scope),
+                },
+              }}
             />
           </SpecCard>
 

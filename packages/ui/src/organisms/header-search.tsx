@@ -38,7 +38,8 @@ export type SearchRecords = {
   onQueryChange: (query: string) => void
   /** Hits for the typed text — or recent ones while the box is empty. */
   groups: SearchGroup[]
-  loading?: boolean
+  /** One line under the rows — the app knows why there is nothing to list. */
+  status?: string
 }
 
 type HeaderSearchProps = {
@@ -64,7 +65,7 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
   const typed = text.trim()
   const screens: SearchGroup = {
     id: 'screens',
-    label: 'ĐI TỚI',
+    label: 'Màn hình',
     rows: targets
       .filter((t) => !t.locked && fold(t.label).includes(fold(typed)))
       .map((t) => ({
@@ -77,8 +78,9 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
   }
   const found = records?.groups ?? []
   // Typing narrows the screens to a few, so they lead; an empty box leads with
-  // the recent records instead of the whole map.
-  const groups = (typed ? [screens, ...found] : [...found, screens]).filter((g) => g.rows.length)
+  // the recent records. A chosen kind is a record search: no screens at all.
+  const mixed = typed ? [screens, ...found] : [...found, screens]
+  const groups = (records?.scope ? found : mixed).filter((g) => g.rows.length)
   const rows = groups.flatMap((g) => g.rows)
   const active = Math.min(index, rows.length - 1)
 
@@ -114,10 +116,6 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  useEffect(() => {
-    if (open) document.getElementById(rowId(active))?.scrollIntoView({ block: 'nearest' })
-  }, [open, active])
-
   const pick = (row: SearchRow | undefined) => {
     if (!row) return
     inputRef.current?.blur()
@@ -130,7 +128,9 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const step = e.key === 'ArrowDown' ? 1 : -1
-      setIndex(rows.length ? (active + step + rows.length) % rows.length : 0)
+      const next = rows.length ? (active + step + rows.length) % rows.length : 0
+      setIndex(next)
+      document.getElementById(rowId(next))?.scrollIntoView({ block: 'nearest' })
     }
   }
 
@@ -162,7 +162,7 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
             role="combobox"
             aria-expanded={open}
             aria-controls="header-search-list"
-            aria-activedescendant={rows.length ? rowId(active) : undefined}
+            aria-activedescendant={open && rows.length ? rowId(active) : undefined}
             value={text}
             placeholder={placeholder}
             onChange={(e) => type(e.target.value)}
@@ -179,8 +179,13 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
           open={open}
           groups={groups}
           active={active}
-          empty={`${records ? 'Không có kết quả cho' : 'Không có màn nào tên'} “${typed}”.`}
-          busy={records?.loading}
+          status={
+            records
+              ? records.status
+              : groups.length
+                ? undefined
+                : `Không có màn hình nào tên “${typed}”.`
+          }
           scopes={records?.scopes}
           scope={records?.scope}
           onScopeChange={records?.onScopeChange}

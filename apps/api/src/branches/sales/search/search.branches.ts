@@ -43,10 +43,16 @@ const lit = (s: string): SQL => sql.raw(`'${s}'::text`)
 /** The query, folded in SQL by the same function the indexes are built on. */
 const needle = (q: string): SQL => sql`sales.fold(${q}::text)`
 
-/** Substring OR trigram word-similarity. `<%` with the needle on the left is
- *  the form the GIN trigram index on `sales.fold(col)` answers. */
-const hit = (e: SQLWrapper, q: string): SQL =>
-  sql`(${folded(e)} LIKE sales.fold(${contains(q)}::text) OR ${needle(q)} <% ${folded(e)})`
+/** Only names forgive a typo. A code, tax code, phone or email is an
+ *  identifier: `LD-1003` must not bring back `LD-1002` because it looks alike. */
+const isName = (field: SearchMatchField): boolean => field === 'title' || field === 'contact'
+
+/** Substring, plus trigram word-similarity for names. `<%` with the needle on
+ *  the left is the form the GIN trigram index on `sales.fold(col)` answers. */
+const hit = (e: SQLWrapper, q: string, fuzzy: boolean): SQL =>
+  fuzzy
+    ? sql`(${folded(e)} LIKE sales.fold(${contains(q)}::text) OR ${needle(q)} <% ${folded(e)})`
+    : sql`${folded(e)} LIKE sales.fold(${contains(q)}::text)`
 
 const anyOf = (parts: SQL[]): SQL => sql`(${sql.join(parts, sql` OR `)})`
 
@@ -134,7 +140,7 @@ function opportunityBranch(who: Scope, liveScoped: SQL | undefined, q?: string):
     FROM sales.opportunity_contact oc
     JOIN sales.contact cc ON cc.code = oc.contact_code
     JOIN sales.lead ON lead.code = cc.lead_code
-    WHERE ${q === undefined ? sql`true` : hit(sql`cc.name`, q)} AND ${liveScoped ?? sql`true`} ${tail}`
+    WHERE ${q === undefined ? sql`true` : hit(sql`cc.name`, q, true)} AND ${liveScoped ?? sql`true`} ${tail}`
   const byContact = sql`LEFT JOIN LATERAL (${viaContact(
     sql`cc.name AS name`,
     sql`AND oc.opportunity_code = ${opportunity.code} ORDER BY word_similarity(${needle(q ?? '')}, ${folded(sql`cc.name`)}) DESC LIMIT 1`,
@@ -165,12 +171,12 @@ export function searchBranch(kind: SearchKind, who: Scope, q: string, limit: num
   const n = needle(q)
   const values = b.cols.map(
     (c) =>
-      sql`(${lit(c.field)}, ${c.expr}::text, ${folded(c.expr)}, ${sql.raw(c.code ? 'true' : 'false')})`,
+      sql`(${lit(c.field)}, ${c.expr}::text, ${folded(c.expr)}, ${sql.raw(String(!!c.code))}, ${sql.raw(String(isName(c.field)))})`,
   )
   if (kind === 'opportunity') {
-    values.push(sql`('contact'::text, hc.name, ${folded(sql`hc.name`)}, false)`)
+    values.push(sql`('contact'::text, hc.name, ${folded(sql`hc.name`)}, false, true)`)
   }
-  const arms = b.cols.map((c) => hit(c.expr, q))
+  const arms = b.cols.map((c) => hit(c.expr, q, isName(c.field)))
   if (b.also) arms.push(b.also)
   return sql`(SELECT ${SELECT_HEAD(kind, b)}, m.field, m.txt AS text, m.score
     FROM ${b.from}
@@ -178,8 +184,8 @@ export function searchBranch(kind: SearchKind, who: Scope, q: string, limit: num
       SELECT v.field, v.txt,
         (CASE WHEN v.is_code AND v.f = ${n} THEN 3 WHEN starts_with(v.f, ${n}) THEN 2
               ELSE word_similarity(${n}, v.f) END)::float8 AS score
-      FROM (VALUES ${sql.join(values, sql`, `)}) AS v(field, txt, f, is_code)
-      WHERE v.f LIKE sales.fold(${contains(q)}::text) OR ${n} <% v.f
+      FROM (VALUES ${sql.join(values, sql`, `)}) AS v(field, txt, f, is_code, is_name)
+      WHERE v.f LIKE sales.fold(${contains(q)}::text) OR (v.is_name AND ${n} <% v.f)
       ORDER BY score DESC LIMIT 1
     ) m
     WHERE ${anyOf(arms)} AND ${b.fence ?? sql`true`}

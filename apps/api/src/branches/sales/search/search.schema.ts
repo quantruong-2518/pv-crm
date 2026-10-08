@@ -16,7 +16,7 @@ import { sales } from '../sales.schema'
  *  `picked_code` has NO foreign key, for `touch.subject_code`'s reason: it
  *  points at five different tables. The read re-resolves kind + code through
  *  the search repository, so a deleted, disabled or no-longer-visible record
- *  just drops out of the list. Trimming to the newest 20 is the service's job. */
+ *  just drops out of the list. The service says how many rows to keep; the write trims to that. */
 export const searchRecent = sales.table(
   'search_recent',
   {

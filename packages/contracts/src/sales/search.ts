@@ -24,9 +24,15 @@ export const SearchKind = z.enum(SEARCH_KINDS)
 export type SearchKind = z.infer<typeof SearchKind>
 
 /** `kinds` is a comma-separated string, like `states` on the lead book: a query
- *  string has no arrays, and each part is checked here so a typo is a 400. */
+ *  string has no arrays, and each part is checked here so a typo is a 400.
+ *  `q` is composed to NFC: the SQL fold only knows precomposed letters. */
 export const SearchQuery = z.object({
-  q: z.string().trim().min(2).max(120),
+  q: z
+    .string()
+    .trim()
+    .min(2)
+    .max(120)
+    .transform((q) => q.normalize('NFC')),
   kinds: z
     .string()
     .max(200)
@@ -60,9 +66,9 @@ export type SearchResult = z.infer<typeof SearchResult>
  *  zero-result search is logged on close to be audited later. */
 export const SearchRecentWrite = z.object({
   q: z.string().trim().max(120),
-  kinds: z.array(SearchKind).optional(),
-  picked: z.object({ kind: SearchKind, code: z.string().min(1) }).optional(),
-  resultCount: z.number().int().nonnegative(),
+  kinds: z.array(SearchKind).max(SEARCH_KINDS.length).optional(),
+  picked: z.object({ kind: SearchKind, code: z.string().min(1).max(64) }).optional(),
+  resultCount: z.number().int().nonnegative().max(1000),
 })
 export type SearchRecentWrite = z.infer<typeof SearchRecentWrite>
 

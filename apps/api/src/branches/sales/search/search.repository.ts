@@ -5,9 +5,10 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { resolveBranch, searchBranch, type Scope } from './search.branches'
 import { searchRecent, type SearchRecentRowDb } from './search.schema'
 
-/** pg_trgm's default 0.6 drops a one-letter slip in a short word ("nguyn" vs
- *  "nguyen" scores about 0.44); 0.4 keeps those and still rejects unrelated text. */
-const WORD_SIMILARITY_FLOOR = '0.4'
+/** Between two failures seen on seeded data: 0.4 let "ban dan" bring back the
+ *  contact "Dang Minh Tri" (0.43); pg_trgm's default 0.6 drops most typos. A
+ *  slip in a multi-word query scores about 0.67 and passes. */
+const WORD_SIMILARITY_FLOOR = '0.5'
 
 export type SearchRow = {
   kind: SearchKind

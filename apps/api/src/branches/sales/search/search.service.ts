@@ -45,7 +45,7 @@ export class SearchService {
   ) {}
 
   async search(who: Actor, q: SearchQuery): Promise<SearchResult> {
-    const asked = q.kinds ? (csvOf(q.kinds) as SearchKind[]) : [...SEARCH_KINDS]
+    const asked = q.kinds ? ([...new Set(csvOf(q.kinds))] as SearchKind[]) : [...SEARCH_KINDS]
     const kinds = this.viewable(who, asked)
     if (kinds.length === 0) return { groups: [] }
 

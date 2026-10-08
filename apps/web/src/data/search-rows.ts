@@ -48,21 +48,23 @@ export const SEARCH_KIND_FACTS: Record<SearchKind, KindFacts> = {
 const fold = (text: string) =>
   text.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase()
 
-const PREFIXES: Record<string, SearchKind> = {
-  lead: 'lead',
-  'cong ty': 'account',
-  'lien he': 'contact',
-  'co hoi': 'opportunity',
-  'chien dich': 'campaign',
-  'hop dong': 'contract',
-}
+/* A Map, not an object: the key is typed text, and `constructor:` must not
+   find something on a prototype. */
+const PREFIXES = new Map<string, SearchKind>([
+  ['lead', 'lead'],
+  ['cong ty', 'account'],
+  ['lien he', 'contact'],
+  ['co hoi', 'opportunity'],
+  ['chien dich', 'campaign'],
+  ['hop dong', 'contract'],
+])
 
 /** `co hoi: abc` → the opportunity kind and `abc`. The head is folded alone and
  *  the remainder sliced from the raw text, so folding never shifts the cut. */
 export function splitPrefix(text: string): { kind: SearchKind | null; q: string } {
   const colon = text.indexOf(':')
   const kind =
-    colon < 0 ? undefined : PREFIXES[fold(text.slice(0, colon)).trim().replace(/\s+/g, ' ')]
+    colon < 0 ? undefined : PREFIXES.get(fold(text.slice(0, colon)).trim().replace(/\s+/g, ' '))
   return kind ? { kind, q: text.slice(colon + 1).trim() } : { kind: null, q: text.trim() }
 }
 
@@ -77,8 +79,8 @@ export const pickedKind = (kind: SearchKind): SearchKind => (kind === 'contact' 
 const MATCH_LABEL = {
   contact: 'Liên hệ',
   email: 'Email',
-  phone: 'SĐT',
-  taxCode: 'MST',
+  phone: 'Điện thoại',
+  taxCode: 'Mã số thuế',
   code: 'Mã',
 } as const
 
@@ -91,9 +93,8 @@ function hitNote(hit: SearchHit): string | undefined {
 }
 
 export function hitRow(hit: SearchHit, onPick: (hit: SearchHit) => void): SearchRow {
-  const contactText = hit.kind === 'contact' ? `:${hit.matched.text}` : ''
   return {
-    id: `${hit.kind}:${hit.code}${contactText}`,
+    id: `${hit.kind}:${hit.code}`,
     icon: SEARCH_KIND_FACTS[hit.kind].icon,
     label: hit.title,
     note: hitNote(hit),
