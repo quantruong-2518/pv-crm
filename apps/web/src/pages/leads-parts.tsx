@@ -24,7 +24,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { AssignMenu } from '@/components/assign-menu'
-import { PicCell } from '@/components/table-bits'
+import { AvatarCell } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
@@ -240,8 +240,7 @@ export function EnteredCell({ lead }: { lead: LeadRow }) {
 
 /** Who created the lead; blank for leads that predate the column. */
 export function CreatedByCell({ lead }: { lead: LeadRow }) {
-  if (!lead.createdByName) return <span className="text-muted-foreground">—</span>
-  return <span className="truncate text-[13px]">{lead.createdByName}</span>
+  return <AvatarCell name={lead.createdByName} empty="Chưa ghi nhận người tạo" />
 }
 
 /** When the lead was switched off — only rows of the switched-off tab carry it. */
@@ -287,7 +286,7 @@ export function StatusCell({ lead }: { lead: LeadRow }) {
  *  `AssignMenu` right in the row — same component as the lead's own page, so
  *  a manager can hand a lead to a specific report without opening it first.
  *  Everyone else keeps the plain one-click claim: unheld gets a button that
- *  always claims for self, held gets the bare `PicCell`. Both paths write
+ *  always claims for self, held gets the bare avatar. Both paths write
  *  through `PATCH /sales/leads/:code/owner` (`useSetLeadOwner`); no separate
  *  claim or assign endpoint. Stops the click from reaching the row, or
  *  claiming/assigning would also open the lead. */
@@ -299,23 +298,20 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
 
   if (me && mayAssign) {
     return (
-      <span onClick={(event) => event.stopPropagation()} className="flex items-center gap-2">
+      <span
+        onClick={(event) => event.stopPropagation()}
+        className="flex items-center justify-center gap-2"
+      >
         {held && (
-          <PicCell avatar email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
+          <AvatarCell email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
         )}
-        <AssignMenu
-          lead={lead}
-          profile={lead}
-          size="sm"
-          buttonVariant={held ? 'ghost' : 'default'}
-          iconOnly={held}
-        />
+        <AssignMenu lead={lead} profile={lead} size="sm" buttonVariant="ghost" iconOnly />
       </span>
     )
   }
 
   if (held || !me) {
-    return <PicCell avatar email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
+    return <AvatarCell email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
   }
 
   return (
@@ -323,6 +319,8 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
       size="sm"
       variant="ghost"
       disabled={setOwner.isPending}
+      aria-label="Nhận lead"
+      title="Nhận lead"
       onClick={(event) => {
         event.stopPropagation()
         setOwner.mutate(
@@ -342,7 +340,6 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
       }}
     >
       <Icon icon={UserRoundPlus} size={16} />
-      {setOwner.isPending ? 'Đang nhận…' : 'Nhận lead'}
     </Button>
   )
 }

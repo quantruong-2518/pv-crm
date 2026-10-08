@@ -15,6 +15,7 @@ import {
   Chip,
   CostBand,
   type CostBandProps,
+  InfoTip,
   Input,
   Kicker,
   MetaPill,
@@ -667,6 +668,25 @@ export function ZoneAtoms() {
           footer="Enter hoặc dấu phẩy chốt mục · Backspace trên ô trống lấy lại mục cuối · rời ô cũng chốt và báo onLeave một lần · trùng bị bỏ qua · max khoá ô khi đủ · suggestions lọc theo chữ đang gõ"
         >
           <TagInputDemo />
+        </SpecCard>
+        {/* A-24 */}
+        <SpecCard
+          code="A-24"
+          name="InfoTip"
+          note="hover"
+          bodyClassName="flex h-32 items-center justify-center px-4 py-5"
+          footer="mở khi rê chuột hoặc focus · mũi tên chỉ vào điểm gọi · lật xuống dưới khi hết chỗ phía trên"
+        >
+          <InfoTip
+            content={
+              <>
+                <span className="font-semibold">Nguyễn Văn Nam</span>
+                <span className="text-muted-foreground">nam@pebblevina.com</span>
+              </>
+            }
+          >
+            <Avatar name="Nguyễn Văn Nam" size="sm" />
+          </InfoTip>
         </SpecCard>
       </ZoneBody>
     </section>

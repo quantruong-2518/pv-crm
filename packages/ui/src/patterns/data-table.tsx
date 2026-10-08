@@ -27,7 +27,7 @@ export type TableColumn = {
   header: ReactNode
   /** phần của grid-template-columns, ví dụ '1.4fr' */
   width: string
-  align?: 'left' | 'right'
+  align?: 'left' | 'right' | 'center'
   /** có khoá này thì header thành nút sắp xếp — khoá đi ra ở `onSort(key)` */
   sortKey?: string
   /** A `ColumnFilter` (icon-only) beside the sort button, for a column that
@@ -132,6 +132,7 @@ export function DataTable({
               className={cn(
                 'flex min-w-0 items-center gap-1',
                 col.align === 'right' && 'justify-end',
+                col.align === 'center' && 'justify-center',
               )}
             >
               {sortable ? (
@@ -220,7 +221,11 @@ export function DataTable({
               <span
                 key={c}
                 role="cell"
-                className={cn('min-w-0', columns[c]?.align === 'right' && 'text-right')}
+                className={cn(
+                  'min-w-0',
+                  columns[c]?.align === 'right' && 'text-right',
+                  columns[c]?.align === 'center' && 'flex justify-center',
+                )}
               >
                 {cell}
               </span>

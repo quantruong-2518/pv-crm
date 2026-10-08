@@ -468,11 +468,13 @@ export function LeadsPage() {
         : [
             {
               header: listFilter('Người tạo', 'createdBy', creatorOptions),
-              width: 'minmax(0,1fr)',
+              width: '140px',
+              align: 'center' as const,
             },
             {
               header: listFilter('Người phụ trách', 'owner', ownerOptions),
-              width: 'minmax(0,1.1fr)',
+              width: '140px',
+              align: 'center' as const,
             },
             { header: <span className="sr-only">Ghim</span>, width: '48px' },
           ]),

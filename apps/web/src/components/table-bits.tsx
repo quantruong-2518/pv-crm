@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Filter, Mail } from '@pv/ui'
-import { Avatar, Button, Checkbox, Icon, cn } from '@pv/ui'
+import { Avatar, Button, Checkbox, Icon, InfoTip, cn } from '@pv/ui'
 
 /** Những mảnh dùng chung của MỌI SỔ — lead · cơ hội · chiến dịch.
  *
@@ -174,6 +174,38 @@ export function PicCell({
       <Avatar name={shown} size="sm" />
       {text}
     </span>
+  )
+}
+
+/** A person as a bare avatar; the name and mailbox stay in the tooltip. */
+export function AvatarCell({
+  name,
+  email,
+  empty,
+}: {
+  name?: string
+  email?: string
+  empty: string
+}) {
+  const shown = name ?? email
+  if (!shown) {
+    return (
+      <span className="text-muted-foreground" title={empty}>
+        —
+      </span>
+    )
+  }
+  return (
+    <InfoTip
+      content={
+        <>
+          <span className="font-semibold">{shown}</span>
+          {name && email && <span className="text-muted-foreground break-all">{email}</span>}
+        </>
+      }
+    >
+      <Avatar name={shown} size="sm" />
+    </InfoTip>
   )
 }
 
