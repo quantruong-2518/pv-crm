@@ -2,7 +2,9 @@ import { Logger, type OnApplicationBootstrap } from '@nestjs/common'
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   NoSuchKey,
+  NotFound,
   PutBucketCorsCommand,
   PutObjectCommand,
   S3Client,
@@ -78,6 +80,16 @@ export class S3Storage extends StorageService implements OnApplicationBootstrap 
       })
     if (!out.Body) throw new Error(`storage: empty body for ${key}`)
     return Buffer.from(await out.Body.transformToByteArray())
+  }
+
+  async size(key: string): Promise<number | null> {
+    const out = await this.client
+      .send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }))
+      .catch((error: unknown) => {
+        if (error instanceof NotFound || error instanceof NoSuchKey) return null
+        throw error
+      })
+    return out?.ContentLength ?? null
   }
 
   async remove(key: string): Promise<void> {

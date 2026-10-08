@@ -72,6 +72,11 @@ export class WorkstreamDocumentService {
   /** Trusts the caller that the PUT landed, as lead-scan's `start` does. */
   async uploaded(who: Actor, code: ObjectCode, id: string): Promise<void> {
     await this.fence(who, code)
+    /* The PUT was signed for this exact length, so a different size means the
+       bytes are not the ones declared. Absent: the PUT never landed. */
+    const held = await this.storage.size(keyOf(code, id))
+    const declared = await this.repo.bytesOf(keyOf(code, id), code)
+    if (held === null || declared === null || held !== declared) throw notFound('tệp', id)
     await this.repo.run(async (tx) => {
       const row = await this.repo.attach(tx, keyOf(code, id), code)
       if (!row) throw notFound('tệp', id)

@@ -37,6 +37,21 @@ export class WorkstreamDocumentRepository {
     return row ?? null
   }
 
+  /** Declared size of a not-yet-removed upload of this run. */
+  async bytesOf(storageKey: string, code: string): Promise<number | null> {
+    const [row] = await this.db
+      .select({ bytes: attachment.bytes })
+      .from(attachment)
+      .where(
+        and(
+          eq(attachment.storageKey, storageKey),
+          eq(attachment.ownerKind, 'workstream'),
+          or(isNull(attachment.ownerCode), eq(attachment.ownerCode, code)),
+        ),
+      )
+    return row?.bytes ?? null
+  }
+
   /** Only the uploader's own file goes. */
   async remove(
     tx: Db,

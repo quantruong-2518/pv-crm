@@ -13,6 +13,8 @@ export abstract class StorageService {
   abstract presignPut(key: string, mime: string, bytes: number): Promise<string>
   abstract presignGet(key: string, ttlSeconds?: number): Promise<string>
   abstract read(key: string): Promise<Buffer>
+  /** Bytes held at `key`, or null when nothing is there — metadata only, no download. */
+  abstract size(key: string): Promise<number | null>
   /** Absent is success: removing twice must not fail the second sweep. */
   abstract remove(key: string): Promise<void>
 }

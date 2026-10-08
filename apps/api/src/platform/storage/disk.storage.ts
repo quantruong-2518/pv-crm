@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, resolve, sep } from 'node:path'
 import type { Env } from '../config/env'
 import {
@@ -45,6 +45,13 @@ export class DiskStorage extends StorageService {
     return readFile(this.pathOf(key)).catch((error: NodeJS.ErrnoException) => {
       throw error.code === 'ENOENT' ? new StorageObjectMissingError(key) : error
     })
+  }
+
+  async size(key: string): Promise<number | null> {
+    return stat(this.pathOf(key)).then(
+      (s) => s.size,
+      () => null,
+    )
   }
 
   async remove(key: string): Promise<void> {
