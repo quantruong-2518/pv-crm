@@ -3,16 +3,19 @@ import { normalisePhone, type Actor } from '@pv/engines'
 import {
   ContactBookResponse,
   ContactBookRow,
+  ContactFacetsResponse,
   ContactListResponse,
   ContactRow,
   type ContactBookQuery,
   type ContactCreate,
+  type ContactFacetsQuery,
   type ContactPatch,
   type ObjectCode,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, notFound } from '@api/platform/http/problem'
+import { ContactFacetsRepository } from './contact-facets.repository'
 import { ContactRepository, type LeadContactMirror } from './contact.repository'
 import {
   fromCreate,
@@ -46,6 +49,7 @@ export type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phon
 export class ContactService {
   constructor(
     private readonly repo: ContactRepository,
+    private readonly facetsRepo: ContactFacetsRepository,
     private readonly mirror: ObjectMirror,
   ) {}
 
@@ -56,14 +60,10 @@ export class ContactService {
 
   /** The whole book, not just one lead — `GET /sales/contacts`.
    *
-   *  This is the ONLY endpoint in this module that checks scope itself, and
-   *  it has to: the other five endpoints go through
-   *  `LeadService.guard`/`guardByContact` because they already have a code
-   *  on the path to guard against, while this one has no code at all — it
-   *  asks for the whole book. The scope axis therefore lives inside the
-   *  query itself (`ContactRepository.book`), cut by lead rather than by
-   *  person: a contact is the CUSTOMER's person, belonging to no
-   *  salesperson.
+   *  Like `facets` and `profile`, this checks scope itself: it has no code on the path for
+   *  `LeadService.guard` to guard, so the cut lives inside the query
+   *  (`ContactRepository.book`), by lead rather than by person: a contact
+   *  is the CUSTOMER's person, belonging to no salesperson.
    *
    *  `hidden` is NOT counted here, and that is one place this differs from
    *  the lead book: the `paged()` envelope demands that field, but counting
@@ -80,10 +80,18 @@ export class ContactService {
         ...(r.accountCode ? { accountCode: r.accountCode } : {}),
         ...(r.accountName ? { accountName: r.accountName } : {}),
         company: r.company,
+        ...(r.ownerName ? { ownerName: r.ownerName } : {}),
+        ...(r.ownerEmail ? { ownerEmail: r.ownerEmail } : {}),
       })),
       total: page.total,
       hidden: 0,
     })
+  }
+
+  /** Company choices for the book's filter, cut by the same lead scope as
+   *  `book`. Nothing is counted outside that cut, so `hidden` stays 0. */
+  async facets(who: Actor, q: ContactFacetsQuery): Promise<ContactFacetsResponse> {
+    return ContactFacetsResponse.parse({ accounts: await this.facetsRepo.accounts(who, q) })
   }
 
   /** One contact with its company context, for the profile screen.
@@ -106,6 +114,8 @@ export class ContactService {
       ...(found.accountCode ? { accountCode: found.accountCode } : {}),
       ...(found.accountName ? { accountName: found.accountName } : {}),
       company: found.company,
+      ...(found.ownerName ? { ownerName: found.ownerName } : {}),
+      ...(found.ownerEmail ? { ownerEmail: found.ownerEmail } : {}),
     })
   }
 

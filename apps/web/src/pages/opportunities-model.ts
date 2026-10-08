@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
 import {
-  OPPORTUNITY_STATE_LABEL,
   OpportunitySortKey,
   type OpportunityBookQuery,
   type OpportunityBookRow,
@@ -10,12 +8,6 @@ import {
   type WorkstreamHolder,
 } from '@pv/contracts'
 import type { TableColumn } from '@pv/ui'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
-import {
-  DEFAULT_OPPORTUNITY_BOOK_QUERY,
-  opportunityBookQueryToParams,
-  parseOpportunityBookQuery,
-} from '@/data/opportunities'
 import type { MasRecipient } from '@/data/mas-mail-draft'
 
 /** Module 3 · the deal book's logic without JSX: the address as the filter's
@@ -29,19 +21,17 @@ export const PAGE_SIZE = 10
 /** The "no filter on this axis" value of a native select, `undefined` on the wire. */
 export const ANY = 'all'
 
-const SEARCH_DELAY_MS = 300
-
 /** The eight columns after the select box. Only the server's sort keys
  *  (`OpportunitySortKey`) get an arrow; a header that sorts nothing is a lie. */
 export const BOOK_COLUMNS: TableColumn[] = [
   { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name' },
-  { header: 'Giai đoạn', width: '1.3fr' },
-  { header: 'Giá trị', width: '0.8fr', align: 'right', sortKey: 'amount' },
-  { header: 'Ngày chốt', width: '0.7fr', sortKey: 'expectedClose' },
-  { header: 'BD Lead', width: '0.6fr' },
-  { header: 'Sale', width: '0.6fr' },
-  { header: 'Hoạt động cuối', width: '0.9fr' },
-  { header: 'Việc tiếp theo', width: '1.8fr' },
+  { header: 'Giai đoạn', width: '1.4fr' },
+  { header: 'Giá trị dự kiến', width: '0.8fr', align: 'right', sortKey: 'amount' },
+  { header: 'Dự kiến chốt', width: '0.8fr', sortKey: 'expectedClose' },
+  { header: 'BD phụ trách', width: '1fr' },
+  { header: 'Sale phụ trách', width: '1fr' },
+  { header: 'Tương tác gần nhất', width: '1fr' },
+  { header: 'Việc cần làm tiếp', width: '1.6fr' },
 ]
 
 /** Narrower than this the eight tracks crush, so the card scrolls sideways. */
@@ -58,6 +48,12 @@ export const STICKY_LEAD = [
   '[&>[role=row]>:nth-child(2)]:-mr-3',
   '[&>[role=row]>:nth-child(2)]:pr-3',
   '[&>[role=row]>:nth-child(2)]:bg-card',
+  /* The cell's tint must fade in step with the row's own (`.motion-std`). */
+  '[&>[role=row]>:nth-child(2)]:transition-colors',
+  '[&>[role=row]>:nth-child(2)]:duration-[var(--motion-duration)]',
+  '[&>[role=row]>:nth-child(2)]:ease-[var(--motion-ease)]',
+  /* No hover lift here: the neighbours' opaque lead cells would cut its shadow. */
+  '[&>[role=row]:not([aria-current=true]):hover]:shadow-none',
   '[&>[role=row]>[role=cell]:nth-child(2)]:flex',
   '[&>[role=row]>[role=cell]:nth-child(2)]:flex-col',
   '[&>[role=row]>[role=cell]:nth-child(2)]:justify-center',
@@ -70,6 +66,11 @@ export const STICKY_LEAD = [
 
 /** A deal's life in reading order — the enum puts `lost` before `won`. */
 const TAB_ORDER: readonly OpportunityStatus[] = ['open', 'won', 'lost']
+const TAB_LABEL: Record<OpportunityStatus, string> = {
+  open: 'Đang theo đuổi',
+  won: 'Đã ký hợp đồng',
+  lost: 'Đã dừng',
+}
 
 /** Tabs with counts; "all" is the sum of `byState` under the same filters. */
 export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefined) {
@@ -78,7 +79,7 @@ export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefi
     { value: ANY, label: 'Tất cả', count: all },
     ...TAB_ORDER.map((state) => ({
       value: state as string,
-      label: OPPORTUNITY_STATE_LABEL[state],
+      label: TAB_LABEL[state],
       count: byState?.[state],
     })),
   ]
@@ -90,23 +91,16 @@ export const peopleOptions = (people: readonly WorkstreamHolder[]) =>
     .map((p) => ({ value: p.id, label: p.name }))
     .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
-/** Every filter axis but search, all `undefined` — the "clear all" patch. */
-export const CLEARED_FILTERS = {
-  state: undefined,
-  stage: undefined,
-  accepted: undefined,
-  overdue: undefined,
-  sale: undefined,
-  bd: undefined,
-  account: undefined,
-} satisfies Partial<OpportunityBookQuery>
-
-/** Reads the typed `text`, not `query.q`: the reset shows from the first key. */
-export const isDirty = (query: OpportunityBookQuery, text: string) =>
-  text.trim() !== '' ||
-  Object.keys(CLEARED_FILTERS).some(
-    (axis) => query[axis as keyof OpportunityBookQuery] !== undefined,
-  )
+/** The axes `useBookQuery` counts as filters — the keys its `clear` resets. */
+export const FILTER_KEYS = [
+  'state',
+  'stage',
+  'accepted',
+  'overdue',
+  'sale',
+  'bd',
+  'account',
+] as const satisfies readonly (keyof OpportunityBookQuery)[]
 
 /** A header press: the same column flips direction, a new one starts ascending.
  *  A key the server does not sort by is dropped here rather than sent as a 400. */
@@ -162,71 +156,6 @@ export function mailTally(
 ): string {
   const sending = [...selected].filter((code) => Boolean(recipients.get(code)?.email)).length
   const skipped = selected.size - sending
-  const head = `${sending} đơn sẽ nhận email`
-  return skipped === 0 ? head : `${head} · ${skipped} đơn chưa có email`
-}
-
-/** The address is the filter's source of truth: Back returns to the book just
- *  left, and a shared link opens the book the sender saw. Search text lives in
- *  state and trickles to the address with `replace`, so Back is not undo. */
-export function useBookAddress() {
-  const [params, setParams] = useSearchParams()
-  const urlQuery = useMemo(() => parseOpportunityBookQuery(params), [params])
-  const query = useMemo<OpportunityBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
-  const [text, setText] = useState(urlQuery.q ?? '')
-
-  /* The address changed from outside (Back, F5, a link): the box follows. */
-  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
-
-  useEffect(() => {
-    const wanted = text.trim() === '' ? undefined : text.trim()
-    if (wanted === urlQuery.q) return
-    const timer = setTimeout(
-      () =>
-        setParams(
-          opportunityBookQueryToParams({
-            ...urlQuery,
-            q: wanted,
-            page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-          }),
-          { replace: true },
-        ),
-      SEARCH_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [text, urlQuery, setParams])
-
-  /* A filter change always returns to page 1: page 3 of a narrower book is empty. */
-  const patch = (next: Partial<OpportunityBookQuery>) =>
-    setParams(
-      opportunityBookQueryToParams({
-        ...urlQuery,
-        ...next,
-        page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page,
-      }),
-    )
-
-  const goPage = (index: number) =>
-    setParams(opportunityBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
-
-  return { urlQuery, query, text, setText, patch, goPage, setParams }
-}
-
-/** A page past the end (a stale `?page=3` link) is fixed in the ADDRESS, not
- *  only clamped for the footer — else the server keeps answering an empty
- *  page. Waits for data: before it, `total` is 0 and would bounce everyone. */
-export function usePageClamp(
-  { urlQuery, query, setParams }: ReturnType<typeof useBookAddress>,
-  total: number | undefined,
-) {
-  const pageCount = Math.max(1, Math.ceil((total ?? 0) / PAGE_SIZE))
-  useEffect(() => {
-    if (total === undefined) return
-    if (pageIndexFromQueryPage(query.page) <= pageCount - 1) return
-    setParams(
-      opportunityBookQueryToParams({ ...urlQuery, page: DEFAULT_OPPORTUNITY_BOOK_QUERY.page }),
-      { replace: true },
-    )
-  }, [total, query.page, pageCount, urlQuery, setParams])
-  return { pageCount, pageIndex: Math.min(pageIndexFromQueryPage(query.page), pageCount - 1) }
+  const head = `Sẽ gửi ${sending} email`
+  return skipped === 0 ? head : `${head} · bỏ qua ${skipped} cơ hội chưa có địa chỉ email`
 }

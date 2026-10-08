@@ -44,11 +44,11 @@ const INDENT = ['', 'pl-4', 'pl-8', 'pl-12']
 const ROW_PX = 56
 
 const NUMBER_COLUMNS: { header: string; key: keyof Funnel }[] = [
-  { header: 'Lead', key: 'leads' },
-  { header: 'MQL', key: 'mql' },
-  { header: 'SQL', key: 'sql' },
+  { header: 'Tổng lead', key: 'leads' },
+  { header: 'Marketing duyệt (MQL)', key: 'mql' },
+  { header: 'Sales duyệt (SQL)', key: 'sql' },
   { header: 'Cơ hội', key: 'deals' },
-  { header: 'Ký', key: 'won' },
+  { header: 'Hợp đồng', key: 'won' },
 ]
 
 function numberCells(funnel: Funnel) {
@@ -118,11 +118,11 @@ export function SourceStatsBlock() {
   return (
     <GlassCard variant="b" aria-label="Hiệu quả theo nguồn lead">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <SectionTitle hint="Bấm một dòng để mở tầng dưới · tỉ lệ là lead → ký">
+        <SectionTitle hint="Chọn một dòng để xem chi tiết theo từng cấp · Tỷ lệ = Hợp đồng / Tổng lead">
           Hiệu quả theo nguồn lead
         </SectionTitle>
         <Select
-          label="Thời gian"
+          label="Khoảng thời gian"
           size="lg"
           value={span}
           neutralValue="all"
@@ -139,7 +139,7 @@ export function SourceStatsBlock() {
         ) : error ? (
           <EmptyState
             icon={TriangleAlert}
-            message={`Không đọc được số theo nguồn. ${
+            message={`Không tải được số liệu hiệu quả theo nguồn lead. ${
               isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
             }`}
             action={{ label: 'Thử lại', onClick: () => void refetch() }}
@@ -149,15 +149,15 @@ export function SourceStatsBlock() {
           <DataTable
             flush
             rowHeight="h-14"
-            className="min-w-[880px]"
+            className="min-w-[1120px]"
             columns={[
-              { header: 'Phía · phương án · nguồn · chiến dịch', width: 'minmax(0,2.6fr)' },
+              { header: 'Phân nhóm nguồn', width: 'minmax(0,2.6fr)' },
               ...NUMBER_COLUMNS.map((c) => ({
                 header: c.header,
                 width: '0.7fr',
                 align: 'right' as const,
               })),
-              { header: 'Lead → ký', width: '0.8fr', align: 'right' },
+              { header: 'Tỷ lệ thành hợp đồng', width: '1fr', align: 'right' },
             ]}
             rows={rows}
           />

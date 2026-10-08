@@ -4,8 +4,8 @@ import {
   ContractBookResponse,
   ContractDetailResponse,
   ContractSummary,
+  type ContractBookQuery,
   type ContractCode,
-  type PageQuery,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { notFound } from '@api/platform/http/problem'
@@ -26,7 +26,7 @@ export class ContractService {
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
-  async book(who: Actor, q: PageQuery): Promise<ContractBookResponse> {
+  async book(who: Actor, q: ContractBookQuery): Promise<ContractBookResponse> {
     const page = await this.repo.book(who, q, true)
 
     /* Second net. SQL already cut by scope, so normally E2 cuts nothing more —

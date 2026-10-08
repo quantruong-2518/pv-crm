@@ -54,6 +54,7 @@ export const SettingKey = z.enum([
   'content.share.expires-days',
   'sales.activity.warn-days',
   'sales.activity.alert-days',
+  'auth.session.remembered-days',
 ])
 
 export type SettingKey = z.infer<typeof SettingKey>
@@ -151,6 +152,14 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     max: 90,
     description: 'Cơ hội không có hoạt động bao nhiêu ngày thì báo động.',
   },
+  'auth.session.remembered-days': {
+    unit: 'days',
+    defaultValue: 15,
+    min: 1,
+    max: 90,
+    description:
+      'Phiên đăng nhập có tick Ghi nhớ sống bao nhiêu ngày. Chỉ áp cho phiên mở sau khi đổi.',
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +247,10 @@ export const SettingPatch = z.discriminatedUnion('key', [
   z.object({
     key: z.literal('content.share.expires-days'),
     value: boundedValue('content.share.expires-days'),
+  }),
+  z.object({
+    key: z.literal('auth.session.remembered-days'),
+    value: boundedValue('auth.session.remembered-days'),
   }),
 ])
 

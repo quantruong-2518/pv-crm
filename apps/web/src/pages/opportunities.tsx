@@ -3,9 +3,10 @@ import { Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, Checkbox, Icon, ScreenLayout, type TableSort } from '@pv/ui'
-import type { OpportunityBookRow } from '@pv/contracts'
+import { OpportunityBookQuery, type OpportunityBookRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -24,16 +25,13 @@ import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import {
   BOOK_COLUMNS,
-  CLEARED_FILTERS,
-  isDirty,
+  FILTER_KEYS,
   mailTally,
   PAGE_SIZE,
   sortPatch,
   STICKY_LEAD,
   TABLE_MIN_WIDTH,
-  useBookAddress,
   useMailable,
-  usePageClamp,
 } from './opportunities-model'
 import { BookTabs, BookTools, ScoreCards } from './opportunities-parts'
 import {
@@ -47,7 +45,7 @@ import {
 } from './opportunities-cells'
 
 /** Module 3 · the deal book — `GET /sales/opportunities`, filtered, sorted and
- *  paged by the server; the filter lives in the address (`opportunities-model`).
+ *  paged by the server; the filter lives in the address (`app/book-query.ts`).
  *
  *  The screen hands CONTENT to `BookPage`, the shape every book shares. Eight
  *  columns in the order ADR 0077 set (`BOOK_COLUMNS`); every verdict a cell
@@ -67,22 +65,19 @@ const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 export function OpportunitiesPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
-  const address = useBookAddress()
-  const { urlQuery, query, text, setText, patch, goPage } = address
+  const book = useBookQuery(OpportunityBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const { urlQuery, query, text, setText, patch, goPage, clear: clearFilters, dirty } = book
 
   /* `error` is read: a dead server must not read as "no deal matches". */
   const { data, isPending, error: bookError, refetch } = useQuery(opportunityBookQuery(query))
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
-  const { pageIndex } = usePageClamp(address, data?.total)
+  const { pageIndex } = useBookPageClamp(book, data?.total)
 
   const mailable = useMailable(data?.rows)
   const recipients = useMemo(() => [...mailable.values()], [mailable])
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
-
-  const dirty = isDirty(query, text)
-  const clearFilters = () => patch({ q: undefined, ...CLEARED_FILTERS })
 
   /* The default order (`createdAt`) is no column, so no arrow lights then. */
   const tableSort: TableSort | undefined =
@@ -126,7 +121,7 @@ export function OpportunitiesPage() {
           failure={
             bookError
               ? {
-                  message: `Không lấy được sổ cơ hội. ${
+                  message: `Không tải được danh sách cơ hội. ${
                     isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -137,11 +132,11 @@ export function OpportunitiesPage() {
             rows.length === 0
               ? {
                   message: dirty
-                    ? 'Không có cơ hội nào khớp bộ lọc đang chọn.'
-                    : 'Sổ cơ hội chưa có đơn nào. Đổi một lead thành cơ hội từ hồ sơ lead.',
+                    ? 'Không có cơ hội nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có cơ hội nào. Hãy mở cơ hội từ một lead tiềm năng.',
                   action: dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
-                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
+                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
                 }
               : undefined
           }
@@ -235,7 +230,7 @@ function CreateDoors({ onCreate, onSeeResult }: { onCreate: () => void; onSeeRes
       <ImportZone
         spec={OP_SPEC}
         existingKeys={NO_LOCAL_KEYS}
-        buttonLabel="Nạp cơ hội từ tệp"
+        buttonLabel="Nhập cơ hội từ tệp"
         onCommit={commitOps}
         onSeeResult={onSeeResult}
       />
@@ -255,10 +250,10 @@ function useCommitOps() {
   return async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
     const run = await loadFile({ rows, fileName })
     const { report } = run
-    toast(run.failure ?? `${report.rows.length} cơ hội đã vào sổ`, {
+    toast(run.failure ?? `${report.rows.length} cơ hội đã được thêm`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
-        report.duplicates > 0 && `${report.duplicates} khách đã có đơn đang mở, bỏ qua`,
+        report.duplicates > 0 && `${report.duplicates} lead đã có cơ hội đang mở, bỏ qua`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]
@@ -276,8 +271,8 @@ function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void)
     <StageCell key="stage" op={op} />,
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,
-    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa ghi BD mở cửa" />,
-    <PeopleCell key="sale" owners={saleOwnersOf(op)} missing="Chưa có Sale đứng đơn" />,
+    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa có BD phụ trách" />,
+    <PeopleCell key="sale" owners={saleOwnersOf(op)} missing="Chưa có Sale phụ trách" />,
     <LastActivityCell key="activity" op={op} />,
     <NextStepCell key="next" op={op} canAccept={canAccept} />,
   ]

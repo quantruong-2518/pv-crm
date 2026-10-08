@@ -61,10 +61,16 @@ export function useSelectionGesture(
 
 /** Selection behaviour shared by books that offer bulk actions.
  *
- * Codes deliberately outlive the current page. Mouse/pen users can paint a
- * selection across rows; touch keeps native scrolling and toggles by click. */
+ * Selection lives on the rows currently shown: paging, filtering or leaving the
+ * screen clears it. Mouse/pen users can paint a selection across rows; touch
+ * keeps native scrolling and toggles by click. */
 export function useBookSelection<Row extends { code: string }>(pageRows: readonly Row[]) {
   const [selectedCodes, setSelectedCodes] = useState<ReadonlySet<string>>(NO_SELECTED_CODES)
+
+  const pageKey = pageRows.map((row) => row.code).join('|')
+  useEffect(() => {
+    setSelectedCodes(NO_SELECTED_CODES)
+  }, [pageKey])
 
   const pageSelected = pageRows.filter((row) => selectedCodes.has(row.code)).length
   const allPageSelected = pageRows.length > 0 && pageSelected === pageRows.length

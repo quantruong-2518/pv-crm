@@ -124,7 +124,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           fallback={railOf(op.chain, op.code, navigate)}
         />
       }
-      header={<DealHeader op={op} lead={lead} />}
+      header={<DealHeader op={op} lead={lead} onRename={() => edit('details')} />}
       main={
         <>
           <DealTodo op={op} primary={primary} onSign={sign} onRecord={record} />

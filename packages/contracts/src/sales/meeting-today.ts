@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { Moment, textInput } from '../primitives'
-import { MEETING_TITLE_MAX, MeetingSubjectCode } from './meeting'
+import {
+  MEETING_TITLE_MAX,
+  MeetingEventUrl,
+  MeetingLink,
+  MeetingMode,
+  MeetingSubjectCode,
+} from './meeting'
 
 /** The actor's next meeting today — the home-screen nudge.
  *
@@ -17,6 +23,10 @@ export const MeetingTodayResponse = z.object({
       title: textInput(MEETING_TITLE_MAX),
       at: Moment,
       endsAt: Moment,
+      /** Feed the countdown bar's Join / Open-in-Calendar buttons. */
+      mode: MeetingMode.optional(),
+      link: MeetingLink.optional(),
+      eventUrl: MeetingEventUrl.nullish(),
     })
     .nullable(),
   remaining: z.number().int().nonnegative(),

@@ -32,8 +32,8 @@ export { CLOSE_REASON_LABEL } from '@pv/contracts'
 /** One name per status, so the table's tab and the board's filter chip cannot
  *  call the same filter two different things. */
 export const WORKSTREAM_STATUS_LABEL: Record<WorkstreamStatus, string> = {
-  open: 'Đang chạy',
-  closed: 'Đã đóng',
+  open: 'Đang hoạt động',
+  closed: 'Đã kết thúc',
   all: 'Tất cả',
 }
 

@@ -15,6 +15,7 @@ import { AttemptThrottle } from './attempt-throttle'
 import type { SessionRow } from './auth.schema'
 import { toActor, toSessionView, toWindow } from './auth.mapper'
 import { RolePermissionRepository } from '../roles/role-permission.repository'
+import { SettingService } from '../setting/setting.service'
 import { AuthRepository } from './auth.repository'
 import { DEFAULT_PASSWORD, dummyPasswordHash, hashPassword, verifyPassword } from './password'
 import { RESET_MAILER, resetLink, type ResetMailer } from './reset-mailer'
@@ -114,6 +115,7 @@ export class AuthService {
      *  Injected here rather than resolved inside the mapper because the mapper
      *  is pure — it turns rows into shapes and asks nothing. */
     private readonly grants: RolePermissionRepository,
+    private readonly settings: SettingService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -165,13 +167,18 @@ export class AuthService {
 
     const now = Date.now()
     const token = newToken()
+    /* Remember-me length is an operator dial, so it is read per sign-in and
+       stamped into the row; changing it never shortens a session already open. */
+    const rememberedMs = remember
+      ? (await this.settings.value('auth.session.remembered-days')).value * 86_400_000
+      : 0
     const session = await this.repo.createSession({
       actorId: row.id,
       /* The raw token is never written anywhere — only its hash reaches the
          table, and the plain value leaves this method exactly once, as the
          cookie the controller sets. */
       tokenHash: hashToken(token),
-      expiresAt: new Date(now + (remember ? SESSION_LIMITS.remembered : SESSION_LIMITS.absolute)),
+      expiresAt: new Date(now + (remember ? rememberedMs : SESSION_LIMITS.absolute)),
       /* The remember-me tick turns the sitting-still axis OFF rather than
          lengthening it. Both halves of that are what it means — see
          `SignInBody`. */

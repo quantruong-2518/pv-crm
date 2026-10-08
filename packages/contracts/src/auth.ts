@@ -260,14 +260,13 @@ export const SessionView = z.object({
  *  The values follow how an office actually uses an ERP, not any library's
  *  default: 30 minutes idle is long enough for a short meeting and short enough
  *  that a laptop left in a meeting room stops showing the whole team's lead
- *  book. 12 hours absolute is one working shift. 7 days is what ticking "Ghi
- *  nhớ đăng nhập" buys, and it turns the idle axis OFF entirely — a person who ticks that
+ *  book. 12 hours absolute is one working shift. Ticking "Ghi
+ *  nhớ đăng nhập" buys the `auth.session.remembered-days` dial, and it turns the idle axis OFF entirely — a person who ticks that
  *  box is saying this machine is theirs, and keeping the idle mark for them
  *  means the box remembers nothing by the next morning. */
 export const SESSION_LIMITS = {
   idle: 30 * 60_000,
   absolute: 12 * 60 * 60_000,
-  remembered: 7 * 24 * 60 * 60_000,
   warnBefore: 2 * 60_000,
 } as const
 

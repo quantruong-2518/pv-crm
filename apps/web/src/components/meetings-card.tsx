@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouteLink } from 'react-router-dom'
-import { CalendarClock, FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
+import {
+  CalendarCheck,
+  CalendarClock,
+  FileText,
+  Handshake,
+  Link,
+  MessageSquare,
+  Target,
+  Trash2,
+} from '@pv/ui'
 import {
   Badge,
   Button,
@@ -270,6 +279,17 @@ function MeetingLine({
           >
             <Icon icon={Link} size={14} />
             Mở link họp
+          </a>
+        )}
+        {row.eventUrl && (
+          <a
+            href={row.eventUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+          >
+            <Icon icon={CalendarCheck} size={14} />
+            Mở trên Google Calendar
           </a>
         )}
         {recordId && (

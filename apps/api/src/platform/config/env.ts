@@ -395,7 +395,42 @@ const Env = z
      *  tokens_out: reaching it refuses new batches and added or replaced files, while reads
      *  already in flight finish. 0 = no cap. */
     SCAN_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(3_000_000),
+
+    // GOOGLE — per-employee Calendar sync (`platform/google`)
+    /** All four empty = feature off: no connect button, every meeting answers
+     *  `calendar: 'off'`. A "Web application" OAuth client in Google Cloud. */
+    GOOGLE_CLIENT_ID: z.string().default(''),
+    GOOGLE_CLIENT_SECRET: z.string().default(''),
+    /** `<API origin>/me/google/callback` — the API host, not the web app. */
+    GOOGLE_REDIRECT_URI: z.string().default(''),
+    /** base64 of 32 random bytes (`openssl rand -base64 32`), the AES-256-GCM
+     *  key sealing refresh tokens. Rotating it disconnects everybody. */
+    GOOGLE_TOKEN_KEY: z.string().default(''),
   })
+  /* Half a Google config reads as "off" with no error anywhere. */
+  .refine(
+    (e) => {
+      const keys = [
+        e.GOOGLE_CLIENT_ID,
+        e.GOOGLE_CLIENT_SECRET,
+        e.GOOGLE_REDIRECT_URI,
+        e.GOOGLE_TOKEN_KEY,
+      ]
+      return keys.every((v) => v.length === 0) || keys.every((v) => v.length > 0)
+    },
+    {
+      message: 'Bốn biến GOOGLE_* phải khai đủ cả bốn hoặc bỏ trống cả bốn.',
+      path: ['GOOGLE_CLIENT_ID'],
+    },
+  )
+  .refine(
+    (e) => e.GOOGLE_TOKEN_KEY === '' || Buffer.from(e.GOOGLE_TOKEN_KEY, 'base64').length === 32,
+    {
+      message:
+        'GOOGLE_TOKEN_KEY phải là base64 của đúng 32 byte — tạo bằng openssl rand -base64 32.',
+      path: ['GOOGLE_TOKEN_KEY'],
+    },
+  )
   /** PGlite nhận một kết nối tại một thời điểm và không có đủ extension. Nó là
    *  công cụ phát triển; để nó lọt vào production là một sự cố chờ sẵn. */
   .refine((e) => !(e.NODE_ENV === 'production' && e.DATABASE_URL.startsWith('pglite://')), {

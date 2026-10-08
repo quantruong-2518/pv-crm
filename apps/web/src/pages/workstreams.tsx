@@ -60,22 +60,28 @@ const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamS
    stands, whether it needs action, who holds it, then the history. */
 const COLUMNS: TableColumn[] = [
   { header: 'Khách hàng', width: '2fr', sortKey: 'customer' },
-  { header: 'Đang ở', width: '2.2fr' },
+  { header: 'Giai đoạn hiện tại', width: '2.2fr' },
   { header: 'Tình trạng', width: '1.4fr' },
-  { header: 'Sale', width: '1.1fr' },
-  { header: 'BD', width: '1.1fr' },
-  { header: 'Liên lạc', width: '1fr' },
-  { header: 'Ngày mở', width: '0.9fr', sortKey: 'openedAt' },
-  { header: 'Mã', width: '0.9fr' },
+  { header: 'Sale phụ trách', width: '1.1fr' },
+  { header: 'BD phụ trách', width: '1.1fr' },
+  { header: 'Lịch sử liên hệ', width: '1fr' },
+  { header: 'Ngày bắt đầu', width: '96px', sortKey: 'openedAt' },
+  { header: 'Mã hành trình', width: '88px' },
 ]
+
+/* Every code is `XX-0000` in mono, so one fixed slot holds any chip: the text
+   beside it then starts at the same x on every row. */
+const CODE_SLOT = 'flex w-18 shrink-0'
 
 function CustomerCell({ row, go }: { row: WorkstreamRow; go: Go }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="min-w-0 truncate" title={row.customer}>
+      <span className="min-w-0 flex-1 truncate" title={row.customer}>
         {row.customer}
       </span>
-      {row.accountCode !== null && <ObjectChip kind="AC" code={row.accountCode} go={go} />}
+      <span className={CODE_SLOT}>
+        {row.accountCode !== null && <ObjectChip kind="AC" code={row.accountCode} go={go} />}
+      </span>
     </span>
   )
 }
@@ -84,7 +90,7 @@ function ContactCell({ row }: { row: WorkstreamRow }) {
   const last = row.footprint.lastContactedAt
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="tnum font-num">{footprintTotal(row.footprint)}</span>
+      <span className="tnum font-num w-6 shrink-0 text-right">{footprintTotal(row.footprint)}</span>
       {last === null ? (
         <span className="text-muted-foreground truncate">Chưa liên lạc</span>
       ) : (
@@ -113,18 +119,16 @@ function rowCells(row: WorkstreamRow, go: Go) {
   return [
     <CustomerCell key="customer" row={row} go={go} />,
     <span key="stand" className="flex min-w-0 items-center gap-2">
-      <ObjectChip kind={row.stand.kind} code={row.stand.code} go={go} />
+      <span className={CODE_SLOT}>
+        <ObjectChip kind={row.stand.kind} code={row.stand.code} go={go} />
+      </span>
       <span className="min-w-0 truncate" title={row.stand.phaseLabel}>
         {row.stand.phaseLabel}
       </span>
     </span>,
     <StatusCell key="status" row={row} />,
-    <PersonCell
-      key="sale"
-      value={row.saleHolder?.name}
-      missing="Chưa có Sale giữ hành trình này"
-    />,
-    <PersonCell key="bd" value={row.bdHolder?.name} missing="Chưa có BD giữ hành trình này" />,
+    <PersonCell key="sale" value={row.saleHolder?.name} missing="Chưa có Sale phụ trách" />,
+    <PersonCell key="bd" value={row.bdHolder?.name} missing="Chưa có BD phụ trách" />,
     <ContactCell key="contact" row={row} />,
     <span key="opened" className="tnum font-num">
       {dmy(row.openedAt)}
@@ -200,7 +204,7 @@ function WorkstreamsBook() {
                   so echoing the parsed value would eat the space between two words
                   while the user is still typing. */}
               <SearchField
-                placeholder="Mã hành trình, tên lead, tên công ty"
+                placeholder="Tìm theo mã hành trình, tên lead hoặc công ty…"
                 value={params.get('q') ?? ''}
                 onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -229,7 +233,7 @@ function WorkstreamsBook() {
           failure={
             error
               ? {
-                  message: `Không lấy được sổ hành trình. ${
+                  message: `Không tải được danh sách hành trình. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -240,13 +244,13 @@ function WorkstreamsBook() {
             rows.length === 0
               ? {
                   message: dirty
-                    ? 'Không có hành trình nào khớp bộ lọc đang chọn.'
+                    ? 'Không có hành trình nào phù hợp với bộ lọc hiện tại.'
                     : hidden > 0
                       ? `${hidden} hành trình nằm ngoài phạm vi của bạn nên không hiện ở đây.`
-                      : 'Sổ này chỉ có hành trình của các lead đã có sẵn — lead vừa tạo hiện chưa tự mở hành trình nào.',
+                      : 'Chưa có hành trình nào. Hành trình sẽ xuất hiện khi lead bắt đầu được theo dõi.',
                   action: dirty
-                    ? { label: 'Xoá bộ lọc', onClick: clearAll }
-                    : { label: 'Mở sổ lead', onClick: () => navigate('/sales/leads') },
+                    ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
+                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
                 }
               : undefined
           }

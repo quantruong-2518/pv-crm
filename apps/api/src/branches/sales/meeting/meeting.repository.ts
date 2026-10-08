@@ -1,7 +1,9 @@
 import { and, asc, count, desc, eq, exists, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { actor } from '@api/platform/db/platform.schema'
 import { contact } from '../contact/contact.schema'
+import { lead } from '../lead/lead.schema'
 import { opportunity, type OpportunityRowDb } from '../opportunity/opportunity.schema'
 import { touch } from '../touch/touch.schema'
 import {
@@ -139,6 +141,57 @@ export class MeetingRepository {
       .update(meeting)
       .set({ ...values, updatedAt: new Date() })
       .where(eq(meeting.id, id))
+  }
+
+  /** The calendar mirror, written on the pool AFTER the booking committed.
+   *  The Meet URL fills `link` only while it is still empty, in SQL: a link
+   *  pasted meanwhile wins, with no read-then-write window. */
+  async setEvent(
+    id: string,
+    event: { eventId: string; eventUrl: string | null; ownerId: string },
+    meetUrl: string | null,
+  ): Promise<void> {
+    await this.db
+      .update(meeting)
+      .set({
+        googleEventId: event.eventId,
+        googleEventUrl: event.eventUrl,
+        googleOwnerId: event.ownerId,
+        ...(meetUrl ? { link: sql`COALESCE(${meeting.link}, ${meetUrl})` } : {}),
+      })
+      .where(eq(meeting.id, id))
+  }
+
+  /** Work emails of the hosts, for the calendar invite. */
+  async actorEmails(ids: readonly string[]): Promise<string[]> {
+    if (ids.length === 0) return []
+    const rows = await this.db
+      .select({ email: actor.email })
+      .from(actor)
+      .where(inArray(actor.id, [...ids]))
+    return rows.map((r) => r.email)
+  }
+
+  /** Emails of guests picked from the contact book; typed-in guests have none. */
+  async contactEmails(codes: readonly string[]): Promise<string[]> {
+    if (codes.length === 0) return []
+    const rows = await this.db
+      .select({ email: contact.email })
+      .from(contact)
+      .where(inArray(contact.code, [...codes]))
+    return rows.flatMap((r) => (r.email ? [r.email] : []))
+  }
+
+  /** The customer's address — where an `onsite` meeting happens. */
+  async siteOf(subjectCode: string): Promise<string | null> {
+    const leadCode = await this.leadOfSubject(subjectCode)
+    if (!leadCode) return null
+    const [row] = await this.db
+      .select({ address: lead.address })
+      .from(lead)
+      .where(eq(lead.code, leadCode))
+      .limit(1)
+    return row?.address ?? null
   }
 
   async setAttendees(tx: Db, id: string, rows: readonly MeetingAttendeeValues[]): Promise<void> {

@@ -28,6 +28,7 @@ import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { commCountsQuery } from '@/data/comm-record-detail'
 import { meetingTodayQuery } from '@/data/meeting-today'
+import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 
 /** Khung app dùng chung cho MỌI màn.
@@ -358,6 +359,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   })
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
+  const records = useHeaderSearch()
 
   /** Two axes, two different answers.
    *
@@ -436,6 +438,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
+      records,
     },
     accountActions: [
       {

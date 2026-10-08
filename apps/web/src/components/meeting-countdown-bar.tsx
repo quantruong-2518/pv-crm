@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Button, CalendarClock, Icon, Timer } from '@pv/ui'
+import { ArrowRight, Button, CalendarCheck, CalendarClock, Icon, Link, Timer } from '@pv/ui'
 import type { MeetingTodayResponse } from '@pv/contracts'
 import { subjectKindLabel, subjectPath } from '@/data/comm-record-detail'
 import { meetingSlotOf } from '@/data/meeting-labels'
@@ -72,6 +72,30 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
             còn {remaining} buổi khác hôm nay
           </span>
         )}
+        {next.link && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="pointer-coarse:h-12 pointer-coarse:max-sm:w-12 shrink-0"
+            aria-label="Vào họp"
+            onClick={() => openTab(next.link)}
+          >
+            <Icon icon={Link} size={16} />
+            <span className="hidden sm:inline">Vào họp</span>
+          </Button>
+        )}
+        {next.eventUrl && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="pointer-coarse:h-12 shrink-0 max-sm:hidden"
+            aria-label="Mở buổi họp trên Google Calendar"
+            onClick={() => openTab(next.eventUrl)}
+          >
+            <Icon icon={CalendarCheck} size={16} />
+            <span>Mở Google Calendar</span>
+          </Button>
+        )}
         {path && (
           <Button
             size="sm"
@@ -88,6 +112,11 @@ export function MeetingCountdownBar({ today }: { today: MeetingTodayResponse | u
     </section>
   )
 }
+
+/** A button, not an anchor: `Button` has no anchor form, and `noopener` keeps
+ *  the pasted meeting link away from `window.opener`. */
+const openTab = (url: string | null | undefined) =>
+  window.open(url ?? '', '_blank', 'noopener,noreferrer')
 
 /** "01:05" — whole minutes rounded up, so a meeting never reads "00:00" while
  *  it is still ahead. */

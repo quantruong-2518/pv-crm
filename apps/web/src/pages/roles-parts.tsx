@@ -75,7 +75,7 @@ export function RoleMatrix({ grants, onToggle, meRoleIds, saving = false }: Matr
     <DataTable
       className="min-w-[1180px]"
       columns={[
-        { header: 'Quyền', width: 'minmax(260px,1.7fr)' },
+        { header: 'Quyền truy cập', width: 'minmax(260px,1.7fr)' },
         /* `ROLE_COLUMN_LABEL`, not `ROLE_LABEL`: a column is 104px and
            `DataTable` renders headers at the inherited 16px, so the longest
            role name wraps to three lines and shoves every row down. The full
@@ -151,7 +151,7 @@ export function RoleSheet({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <Kicker>Chọn vai</Kicker>
+        <Kicker>Chọn vai trò</Kicker>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {ROLE_IDS.map((id) => (
             <Button

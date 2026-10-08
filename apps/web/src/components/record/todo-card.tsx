@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { Check, Minus, Octagon } from '@pv/ui'
-import { Badge, GlassCard, Icon, Separator, StatusDot, cn } from '@pv/ui'
+import { GlassCard, Icon, Separator, StatusDot, cn } from '@pv/ui'
 
 /** The todo card — the first and heaviest card of every profile body (ADR
  *  0078 §1): the record's rungs, each with its date or clock, then one foot
@@ -48,9 +48,9 @@ export function TodoCard({
     <GlassCard
       role="region"
       aria-labelledby={titleId}
-      className="@container flex flex-col gap-5 p-4 sm:p-6"
+      className="@container flex flex-col gap-3 p-4 sm:p-5"
     >
-      <h2 id={titleId} className="font-display m-0 text-[20px] font-semibold leading-[1.4]">
+      <h2 id={titleId} className="font-display m-0 text-[16px] font-semibold leading-[1.4]">
         {title}
       </h2>
       {/* `list-none` strips the list role in Safari; say it back. */}
@@ -62,7 +62,7 @@ export function TodoCard({
       {(next || primary) && (
         <>
           <Separator />
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {next && <div className="min-w-0 flex-1 basis-80">{next}</div>}
             {primary && <div className="flex flex-wrap items-center gap-2">{primary}</div>}
           </div>
@@ -72,50 +72,49 @@ export function TodoCard({
   )
 }
 
-/** Only the current rung wears the accent; a waiting one stays muted and its
- *  warning dot says so. */
+/** Done reads green, current azure, everything else grey; a stop or a late
+ *  caption stays red. Tint colours carry the state, so no pill is needed. */
 function RungCell({ rung }: { rung: TodoRung }) {
-  const current = rung.mark === 'current'
-  const ahead = rung.mark === 'future'
+  const { mark } = rung
+  const done = mark === 'done'
+  const current = mark === 'current'
+  const tone = done
+    ? 'text-on-tint-success-strong'
+    : current
+      ? 'text-accent-foreground'
+      : mark === 'future'
+        ? 'text-muted-foreground'
+        : 'text-foreground'
 
   return (
     <li
       aria-current={current ? 'step' : undefined}
       className={cn(
-        'flex min-w-0 max-w-full grow items-start gap-3 rounded-md px-3 py-2',
-        current ? 'bg-accent' : 'bg-muted',
+        'flex min-w-0 max-w-full grow items-start gap-2 rounded-md px-2 py-1',
+        done ? 'bg-success/20' : current ? 'bg-accent' : 'bg-muted',
       )}
     >
       <span className="flex h-5 w-4 shrink-0 items-center justify-center">
-        <RungMarker mark={rung.mark} />
+        <RungMarker mark={mark} />
       </span>
-      <span className="flex min-w-0 flex-col items-start gap-1">
-        {current ? (
-          <Badge tone="running" className="whitespace-normal">
-            {rung.label}
-          </Badge>
-        ) : (
-          <span
-            className={cn(
-              'text-[14px] font-medium leading-[1.5]',
-              ahead ? 'text-muted-foreground' : 'text-foreground',
-            )}
-          >
-            {rung.label}
-          </span>
-        )}
+      <span className="flex min-w-0 flex-col items-start">
+        <span
+          className={cn(
+            'text-[13px] leading-[1.5]',
+            current || done ? 'font-semibold' : 'font-medium',
+            tone,
+          )}
+        >
+          {rung.label}
+        </span>
         <span
           aria-hidden={rung.caption === null || undefined}
           className={cn(
-            'tnum text-[12px] leading-[1.5]',
-            rung.late || rung.mark === 'stopped'
-              ? 'text-destructive-foreground'
-              : current
-                ? 'text-accent-foreground'
-                : 'text-muted-foreground',
+            'tnum text-[11px] leading-[1.4] opacity-80',
+            rung.late || mark === 'stopped' ? 'text-destructive-foreground' : tone,
           )}
         >
-          {rung.caption ?? CAPTION_FALLBACK[rung.mark]}
+          {rung.caption ?? CAPTION_FALLBACK[mark]}
         </span>
       </span>
     </li>

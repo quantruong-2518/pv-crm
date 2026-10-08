@@ -1,4 +1,9 @@
-import { MEETING_DURATION_MINUTES, type MeetingAttendee, type MeetingRow } from '@pv/contracts'
+import {
+  MEETING_DURATION_MINUTES,
+  type MeetingAttendee,
+  type MeetingCalendarState,
+  type MeetingRow,
+} from '@pv/contracts'
 import type { MeetingAttendeeRowDb, MeetingRowDb } from './meeting.schema'
 
 /** Bảng ↔ dây. Không đọc gì, không quyết định gì trừ đúng một phép so sánh.
@@ -16,6 +21,8 @@ export function toContract(
   row: MeetingRowDb,
   attendees: readonly MeetingAttendeeRowDb[],
   isFirst: boolean,
+  /* 'off' on a plain read: `calendar` reports a sync attempt, and a read makes none. */
+  calendar: MeetingCalendarState = 'off',
 ): MeetingRow {
   const of = (side: 'host' | 'guest'): MeetingAttendee[] =>
     attendees
@@ -53,6 +60,8 @@ export function toContract(
     hosts: of('host'),
     guests: of('guest'),
     isFirst,
+    ...(row.googleEventUrl ? { eventUrl: row.googleEventUrl } : {}),
+    calendar,
     by: row.by,
     createdAt: row.createdAt.toISOString(),
   }

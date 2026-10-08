@@ -24,8 +24,9 @@ import {
 } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
-import { toast } from '@/app/toast'
 import { Field } from '@/components/field-bits'
+import { GoogleLinkLine } from '@/components/google-link-line'
+import { toastSaved } from '@/components/meeting-saved-toast'
 import { PersonTokenField, type TokenPerson } from '@/components/person-token-field'
 import { leadContactsQuery } from '@/data/contacts'
 import { useDirectory } from '@/data/directory'
@@ -98,8 +99,8 @@ export function MeetingScheduleDrawer({
       edit.mutate(
         { subject, id: editing.id, body },
         {
-          onSuccess: () => {
-            toast('Đã dời lịch họp', { tone: 'success' })
+          onSuccess: (row) => {
+            toastSaved('Đã dời lịch họp', row)
             onClose()
           },
           onError,
@@ -113,12 +114,11 @@ export function MeetingScheduleDrawer({
         onSuccess: (row) => {
           /* A slot in the past is a write-up of a meeting already held, which
              is what the server's own timeline line calls it too. */
-          toast(doneToast(past, row.isFirst), {
-            tone: 'success',
-            ...(row.isFirst
-              ? { detail: 'Dòng thời gian của lead có thêm một mốc "gặp lần đầu".' }
-              : {}),
-          })
+          toastSaved(
+            doneToast(past, row.isFirst),
+            row,
+            row.isFirst ? 'Dòng thời gian của lead có thêm một mốc "gặp lần đầu".' : undefined,
+          )
           onClose()
         },
         onError,
@@ -154,6 +154,7 @@ export function MeetingScheduleDrawer({
         <BasicsGroup form={form} readback={readback} linkBroken={linkBroken} />
         <AttendeesGroup form={form} people={people} company={company} contacts={contacts} />
         <PrepareGroup form={form} />
+        <GoogleLinkLine />
       </form>
     </Drawer>
   )

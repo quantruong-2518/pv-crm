@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
-import { paged } from '../pagination'
+import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
+import { PageQuery, SortDir, paged } from '../pagination'
 import { ContractKind, CurrencyCode } from './enums'
 import { OpportunityRow } from './opportunity'
 
@@ -269,6 +269,35 @@ export const ContractDetailRow = ContractRow.extend({
   installments: z.array(InstallmentRow),
 })
 
+/** What a contract book row is judged by. A contract stores no state: all three
+ *  are read off its installments, so the server derives them in SQL.
+ *
+ *   · `open` — not fully collected (includes a contract with no schedule yet)
+ *   · `overdue` — an unpaid installment is already past its date
+ *   · `collected` — a schedule exists and every installment is paid */
+export const ContractStatusFilter = z.enum(['all', 'open', 'overdue', 'collected'])
+
+/** Sortable columns. Blank amounts and a missing next installment sort LAST in
+ *  both directions: an unpriced contract is not the cheapest one. */
+export const ContractSortKey = z.enum(['nextDue', 'amount'])
+
+/** `GET /sales/contracts` — paging, filtering and sorting, all on the server.
+ *
+ *  Absent = no filter. `owner` is a comma list of actor ids (`OWNER_NONE` =
+ *  nobody holds the commission). The default order is the soonest unpaid
+ *  installment first, which is the urgency order the screen used to apply to
+ *  one page in the browser. `code` breaks every tie so paging stays stable. */
+export const ContractBookQuery = PageQuery.extend({
+  status: ContractStatusFilter.default('all'),
+  owner: z.string().min(1).max(512).optional(),
+  signedFrom: Day.optional(),
+  signedTo: Day.optional(),
+  /** Substring of the contract code or the customer's company name. */
+  q: z.string().trim().min(1).max(120).optional(),
+  sort: ContractSortKey.default('nextDue'),
+  dir: SortDir.default('asc'),
+})
+
 /** `GET /sales/contracts` — the book. */
 export const ContractBookResponse = paged(ContractRow)
 
@@ -310,6 +339,8 @@ export type InstallmentRow = z.infer<typeof InstallmentRow>
 export type InstallmentSummaryRow = z.infer<typeof InstallmentSummaryRow>
 export type ContractRow = z.infer<typeof ContractRow>
 export type ContractDetailRow = z.infer<typeof ContractDetailRow>
+export type ContractStatusFilter = z.infer<typeof ContractStatusFilter>
+export type ContractBookQuery = z.infer<typeof ContractBookQuery>
 export type ContractBookResponse = z.infer<typeof ContractBookResponse>
 export type ContractDetailResponse = z.infer<typeof ContractDetailResponse>
 

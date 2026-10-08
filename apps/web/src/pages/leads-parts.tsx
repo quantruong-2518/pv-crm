@@ -65,25 +65,32 @@ export function ScoreStrip() {
     },
     {
       icon: CalendarCheck,
-      label: 'Đã liên hệ',
+      label: 'Đã liên hệ lần đầu',
       value: count(data?.firstMeetings),
-      hint: zero(data?.firstMeetings)
-        ? 'Chưa có liên hệ'
-        : `${per(data?.firstMeetings ?? 0)} số lead`,
+      hint:
+        total === 0
+          ? 'Chưa có lead để tính tỷ lệ'
+          : `${count(data?.firstMeetings)}/${total} lead đã có buổi liên hệ đầu tiên`,
       warn: zero(data?.firstMeetings),
     },
     {
       icon: Target,
       label: 'Thành cơ hội',
       value: per(data?.opportunities ?? 0),
-      hint: `${count(data?.opportunities)} cơ hội`,
+      hint:
+        total === 0
+          ? 'Chưa có lead để tính tỷ lệ'
+          : `${count(data?.opportunities)}/${total} lead đã tạo cơ hội`,
       warn: zero(data?.opportunities),
     },
     {
       icon: FileCheck,
-      label: 'Thành hợp đồng',
+      label: 'Đã ký hợp đồng',
       value: per(data?.contracts ?? 0),
-      hint: `${count(data?.contracts)} hợp đồng`,
+      hint:
+        total === 0
+          ? 'Chưa có lead để tính tỷ lệ'
+          : `${count(data?.contracts)}/${total} lead đã ký hợp đồng`,
       warn: zero(data?.contracts),
     },
   ]

@@ -1,8 +1,14 @@
-import { and, asc, count, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
-import type { ContractMonthPoint, ContractSummary, PageQuery } from '@pv/contracts'
+import {
+  OWNER_NONE,
+  type ContractBookQuery,
+  type ContractMonthPoint,
+  type ContractSummary,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
@@ -92,6 +98,17 @@ const TREND_MONTHS = 12
  *  through here and cuts on `leadLive` — a contract is off when its lead is. */
 const ON_LEAD = eq(lead.code, contract.leadCode)
 
+/** `EXISTS` over one contract's installments, optionally narrowed. A contract
+ *  stores no state, so every status and the next-installment sort read these. */
+const installmentExists = (narrow?: SQL) =>
+  sql`EXISTS (SELECT 1 FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code}${narrow ? sql` AND ${narrow}` : sql``})`
+const UNPAID = sql`ci.paid_at IS NULL`
+
+/** Date of the earliest unpaid installment; NULL once everything is collected. */
+const NEXT_DUE = sql`(SELECT min(ci.due) FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code} AND ci.paid_at IS NULL)`
+
+const listOf = (csv: string) => csv.split(',').filter(Boolean)
+
 /** Chỗ DUY NHẤT có SQL của module hợp đồng — cả đường ghi lẫn đường đọc.
  *
  *  ------------------------------------------------------------------
@@ -171,16 +188,17 @@ export class ContractRepository {
    *  to Neon, which bills for time awake; one `IN` over the page rides the
    *  installment primary key. The four child tables are NOT touched here —
    *  that is the whole difference between this door and the profile. */
-  async book(who: Actor, q: PageQuery, scoped: boolean): Promise<ContractBookPage> {
+  async book(who: Actor, q: ContractBookQuery, scoped: boolean): Promise<ContractBookPage> {
     const scope = this.scopeOf(who, scoped)
+    const filters = and(...this.filtersOf(q))
 
     /* Count a second time only when the scope axis is actually cutting: for
        someone who sees the whole book `hidden` is always 0, and a full COUNT
        to print a zero is paying for a question nobody asked. Same trade the
        other two books took. */
     const [scopedTotal, all] = await Promise.all([
-      this.count(scope),
-      scope ? this.count(undefined) : Promise.resolve(null),
+      this.count(and(scope, filters)),
+      scope ? this.count(filters) : Promise.resolve(null),
     ])
 
     const rows = await this.db
@@ -188,10 +206,8 @@ export class ContractRepository {
       .from(contract)
       .innerJoin(lead, ON_LEAD)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
-      .where(and(scope, leadLive))
-      /* Newest signature first, then the code — a book with no tie-break lets
-         Postgres return one row on both page 1 and page 2, or on neither. */
-      .orderBy(desc(contract.signedAt), asc(contract.code))
+      .where(and(scope, filters, leadLive))
+      .orderBy(...this.orderBy(q))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
 
@@ -415,6 +431,45 @@ export class ContractRepository {
       else by.set(r.contractCode, [r])
     }
     return by
+  }
+
+  /** The chosen column first, then newest signature and the code — a book with
+   *  no tie-break lets Postgres return one row on both page 1 and page 2, or on
+   *  neither. `NULLS LAST` both ways: a blank is not the smallest value. */
+  private orderBy(q: ContractBookQuery): SQL[] {
+    const primary = q.sort === 'amount' ? CONTRACT_VND : NEXT_DUE
+    const dir = q.dir === 'asc' ? sql`ASC` : sql`DESC`
+    return [sql`${primary} ${dir} NULLS LAST`, desc(contract.signedAt), asc(contract.code)]
+  }
+
+  /** Every book filter, ANDed. Independent of the scope axis. */
+  private filtersOf(q: ContractBookQuery): (SQL | undefined)[] {
+    return [
+      q.status === 'overdue' ? installmentExists(sql`${UNPAID} AND ci.due < now()`) : undefined,
+      q.status === 'collected'
+        ? and(installmentExists(), sql`NOT ${installmentExists(UNPAID)}`)
+        : undefined,
+      q.status === 'open'
+        ? sql`NOT (${installmentExists()} AND NOT ${installmentExists(UNPAID)})`
+        : undefined,
+      q.owner ? this.byOwner(q.owner) : undefined,
+      q.signedFrom
+        ? sql`${contract.signedAt} >= (${q.signedFrom}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`
+        : undefined,
+      q.signedTo
+        ? sql`${contract.signedAt} < ((${q.signedTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
+        : undefined,
+      q.q ? or(ilike(lead.company, contains(q.q)), ilike(contract.code, contains(q.q))) : undefined,
+    ]
+  }
+
+  /** `OWNER_NONE` among the ids also matches contracts nobody holds. */
+  private byOwner(csv: string): SQL | undefined {
+    const ids = listOf(csv)
+    const named = ids.filter((id) => id !== OWNER_NONE)
+    return ids.includes(OWNER_NONE)
+      ? or(isNull(contract.ownerId), named.length ? inArray(contract.ownerId, named) : undefined)
+      : inArray(contract.ownerId, named)
   }
 
   /** E2 axis 3 on this book: someone marked `ownOnly` sees only the contracts

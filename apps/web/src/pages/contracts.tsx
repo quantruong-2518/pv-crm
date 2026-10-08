@@ -1,19 +1,28 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
+  Button,
+  ColumnFilter,
+  ColumnFilterList,
+  ColumnFilterRange,
   FileCheck,
   Icon,
   Lock,
   ScreenLayout,
+  SearchField,
+  SegmentedControl,
   StatCard,
   billions,
   vnd,
   millions,
 } from '@pv/ui'
+import { ContractBookQuery, OWNER_NONE, type ContractStatusFilter } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
+import { useSalesPeople } from '@/data/directory'
 import { dm } from '@/lib/date'
 import {
   bookRowsOf,
@@ -24,6 +33,7 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { BookCount, BookPage } from '@/components/book-page'
+import { TableFooter } from '@/components/table-bits'
 import { MoneySplit } from '@/components/contract-bits'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
@@ -31,12 +41,14 @@ import { MoneySplit } from '@/components/contract-bits'
  *  of my contracts wants something from me today. Drawn on `BookPage`, like
  *  every other book. */
 
-const COLUMNS = [
-  { header: 'Mã', width: '104px' },
-  { header: 'Khách hàng', width: 'minmax(0, 1fr)' },
-  { header: 'Giá trị', width: '148px', align: 'right' as const },
-  { header: 'Đã thu', width: '184px' },
-  { header: 'Đợt kế tiếp', width: '176px' },
+/** Rows per page — the screen decides, the server pages. */
+const PAGE_SIZE = 10
+
+const STATUS_TABS: { value: ContractStatusFilter; label: string }[] = [
+  { value: 'all', label: 'Tất cả' },
+  { value: 'open', label: 'Đang thu' },
+  { value: 'overdue', label: 'Quá hạn' },
+  { value: 'collected', label: 'Đã thu đủ' },
 ]
 
 function NextCell({ next }: { next: InstallmentView | null }) {
@@ -67,11 +79,14 @@ function rowCells(row: ContractBookRow) {
     <span key="code" className="text-accent-foreground font-mono text-[11.5px]">
       {row.contract.code}
     </span>,
-    <span key="customer" className="flex min-w-0 flex-col gap-1">
-      <span className="truncate text-[12.5px]">{row.contract.customer}</span>
-      <span className="text-muted-foreground text-[10.5px]">
-        {row.contract.ownerName ?? 'chưa gán người'} · ký {dm(row.contract.signedAt)}
-      </span>
+    <span key="customer" className="truncate text-[12.5px]">
+      {row.contract.customer}
+    </span>,
+    <span key="signed" className="tnum font-mono text-[11.5px]">
+      {dm(row.contract.signedAt)}
+    </span>,
+    <span key="owner" className="truncate text-[12.5px]">
+      {row.contract.ownerName ?? 'Chưa có người phụ trách'}
     </span>,
     <span key="value" className="tnum font-num text-right text-[13px] font-semibold">
       {vnd(amount)}
@@ -114,14 +129,14 @@ function ContractScore() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
-        Số của cả sổ · không theo phạm vi của bạn
+        Số liệu của toàn bộ hợp đồng, không giới hạn theo phạm vi dữ liệu của bạn
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           size="compact"
           icon={FileCheck}
-          label="Giá trị đang chạy"
+          label="Tổng giá trị hợp đồng"
           value={billions(signed)}
           /* Contracts carrying no amount are reported beside the sum rather than
              counted as zero: a total that quietly swallows them reads smaller
@@ -129,28 +144,30 @@ function ContractScore() {
           source={
             blank === 0
               ? `${signedCount} hợp đồng · ${vnd(signed)}`
-              : `${signedCount} hợp đồng · ${blank} chưa có tiền, không cộng vào`
+              : `${signedCount} hợp đồng · ${blank} chưa nhập giá trị`
           }
         />
         <StatCard
           size="compact"
-          label="Đã thu"
+          label="Đã thu tiền"
           value={millions(collected, 0)}
           /* Denominator is the SCHEDULE, not the signed value: collected money
              is summed from installments, so that is the only apples-to-apples
              ratio. */
           source={
             scheduled === 0
-              ? 'chưa đợt nào lên lịch'
-              : `${Math.round((collected / scheduled) * 100)}% tiền đã lên lịch`
+              ? 'Chưa có đợt thanh toán nào'
+              : `${Math.round((collected / scheduled) * 100)}% số tiền đã lên lịch thu`
           }
         />
         <StatCard
           size="compact"
-          label="Quá hạn thu"
+          label="Tiền quá hạn"
           value={millions(overdue, 0)}
           source={
-            overdueCount > 0 ? `${overdueCount} đợt · phải gọi hôm nay` : 'không có đồng nào trễ'
+            overdueCount > 0
+              ? `${overdueCount} đợt thanh toán cần xử lý`
+              : 'Không có khoản thu quá hạn'
           }
           delta={
             overdueCount > 0 ? { direction: 'down', text: 'đang trễ', tone: 'danger' } : undefined
@@ -158,15 +175,15 @@ function ContractScore() {
         />
         <StatCard
           size="compact"
-          label="Việc đang trễ"
+          label="Điều kiện quá hạn"
           value={String(lateOurs + lateTheirs)}
           /* Counts CONDITIONS, not contracts — two late conditions on one
              contract are two phone calls. Kept split by side because one side
              is a call to the customer and the other is a call down the hall. */
           source={
             lateOurs + lateTheirs === 0
-              ? 'không việc nào tắc'
-              : `${lateTheirs} bên khách · ${lateOurs} bên ta`
+              ? 'Không có điều kiện nào quá hạn'
+              : `${lateTheirs} từ khách hàng · ${lateOurs} từ nội bộ`
           }
         />
       </div>
@@ -174,16 +191,84 @@ function ContractScore() {
   )
 }
 
+type Book = ReturnType<typeof useBookQuery<ContractBookQuery>>
+
+/** The header filters and the sort handler — kept off the page body so it stays
+ *  under the function-length cap. */
+function useColumnTools(book: Book) {
+  const { query } = book
+  const salesPeople = useSalesPeople()
+  const ownerOptions = [
+    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
+    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
+  ]
+  const ownerFilter = (
+    <ColumnFilter label="Người phụ trách" active={Boolean(query.owner)}>
+      {(close) => (
+        <ColumnFilterList
+          options={ownerOptions}
+          selected={query.owner ? query.owner.split(',') : []}
+          close={close}
+          onApply={(v) => book.patch({ owner: v.length ? v.join(',') : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const signedFilter = (
+    <ColumnFilter label="Ngày ký" active={Boolean(query.signedFrom || query.signedTo)}>
+      {(close) => (
+        <ColumnFilterRange
+          from={query.signedFrom}
+          to={query.signedTo}
+          close={close}
+          onApply={({ from, to }) => book.patch({ signedFrom: from, signedTo: to })}
+        />
+      )}
+    </ColumnFilter>
+  )
+
+  /* The arrow always lights: the default order (`nextDue asc`) is a column here. */
+  const onSort = (key: string) => {
+    if (key !== 'amount' && key !== 'nextDue') return
+    book.patch(
+      query.sort === key
+        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+        : { sort: key, dir: key === 'amount' ? 'desc' : 'asc' },
+    )
+  }
+
+  return { ownerFilter, signedFilter, onSort }
+}
+
 export function ContractsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
   const navigate = useNavigate()
 
+  /* The address is the filter state (Back, F5 and shared links keep it). */
+  const book = useBookQuery(ContractBookQuery, {
+    size: PAGE_SIZE,
+    filterKeys: ['status', 'owner', 'signedFrom', 'signedTo'],
+  })
+  const { query } = book
+
   /* `error` is read, not dropped. Without it a dead server renders as the empty
      book, and the reader goes off looking for a deal to sign. */
-  const { data, isPending, error, refetch } = useQuery(contractBookQuery())
+  const { data, isPending, error, refetch } = useQuery(contractBookQuery(query))
+  const { pageIndex } = useBookPageClamp(book, data?.total)
 
   const rows = useMemo(() => (data ? bookRowsOf(data) : []), [data])
   const hidden = data?.hidden ?? 0
+
+  const { ownerFilter, signedFilter, onSort } = useColumnTools(book)
+
+  /* One `size=1` read per tab: `total` is the count under the OTHER filters in
+     force, and no other endpoint answers that. */
+  const tabCounts = useQueries({
+    queries: STATUS_TABS.map((tab) =>
+      contractBookQuery({ ...book.urlQuery, status: tab.value, page: 1, size: 1 }),
+    ),
+  })
+  const tabs = STATUS_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
   const tableRows = rows.map((row) => ({
     id: row.contract.code,
@@ -197,12 +282,42 @@ export function ContractsPage() {
         <BookPage
           title="Hợp đồng"
           score={<ContractScore />}
+          tabs={
+            <SegmentedControl
+              label="Tình trạng thu"
+              hideLabel
+              tone="quiet"
+              value={query.status}
+              options={tabs}
+              onChange={(status) => book.patch({ status: status as ContractStatusFilter })}
+            />
+          }
           count={data && <BookCount total={data.total} noun="hợp đồng" />}
+          tools={
+            <>
+              <SearchField
+                placeholder="Tìm theo mã hợp đồng hoặc tên khách hàng…"
+                value={book.text}
+                onChange={book.setText}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
+              />
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={book.clear}
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
+            </>
+          }
           pending={isPending}
           failure={
             error
               ? {
-                  message: `Không lấy được sổ hợp đồng. ${
+                  message: `Không tải được danh sách hợp đồng. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -211,17 +326,44 @@ export function ContractsPage() {
           }
           empty={
             tableRows.length === 0
-              ? {
-                  message:
-                    'Chưa có hợp đồng nào đứng tên bạn — một cơ hội chốt thắng sẽ sinh ra hợp đồng và nó xuất hiện ở đây.',
-                  action: {
-                    label: 'Mở sổ cơ hội',
-                    onClick: () => navigate('/sales/opportunities'),
-                  },
-                }
+              ? book.dirty
+                ? {
+                    message: 'Không có hợp đồng nào phù hợp với bộ lọc hiện tại.',
+                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                  }
+                : {
+                    message:
+                      'Chưa có hợp đồng nào trong phạm vi của bạn. Hợp đồng sẽ được tạo khi một cơ hội ký thành công.',
+                    action: {
+                      label: 'Xem sổ cơ hội',
+                      onClick: () => navigate('/sales/opportunities'),
+                    },
+                  }
               : undefined
           }
-          table={{ minWidth: 'min-w-[880px]', columns: COLUMNS, rows: tableRows }}
+          table={{
+            minWidth: 'min-w-[1080px]',
+            sort: { key: query.sort, dir: query.dir },
+            onSort,
+            columns: [
+              { header: 'Mã', width: '104px' },
+              { header: 'Khách hàng', width: 'minmax(0, 1fr)' },
+              { header: signedFilter, width: '104px' },
+              { header: ownerFilter, width: '168px' },
+              { header: 'Giá trị hợp đồng', width: '148px', align: 'right', sortKey: 'amount' },
+              { header: 'Tiến độ thu', width: '184px' },
+              { header: 'Đợt thu tiếp theo', width: '176px', sortKey: 'nextDue' },
+            ],
+            rows: tableRows,
+          }}
+          footer={
+            <TableFooter
+              page={pageIndex}
+              pageSize={PAGE_SIZE}
+              total={data?.total ?? 0}
+              onPage={book.goPage}
+            />
+          }
         />
 
         {/* `hidden` is the server's receipt for the scope cut, so the screen can
@@ -231,11 +373,8 @@ export function ContractsPage() {
           <div className="text-muted-foreground flex items-center gap-3 text-[11.5px]">
             <Icon icon={Lock} size={16} />
             <span>
-              {hidden} hợp đồng của phòng không hiện ở đây —{' '}
-              <strong className="text-glass-foreground font-semibold">
-                chúng không đứng tên bạn
-              </strong>
-              . Đây là phạm vi, không phải vai: xin quyền rộng hơn cũng không mở, đổi chủ thì mới.
+              {hidden} hợp đồng không hiển thị vì nằm ngoài phạm vi dữ liệu của bạn. Muốn xem các
+              hợp đồng này, cần thay đổi người phụ trách.
             </span>
           </div>
         )}

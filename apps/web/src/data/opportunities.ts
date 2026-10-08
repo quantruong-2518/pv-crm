@@ -64,10 +64,9 @@ import { api, type ApiNeed } from '@/app/api'
  *   · `opportunityScorecardQuery`   — bốn con số của CẢ sổ, đếm bằng SQL;
  *   · `opportunityFacetQuery`       — filter choices and tab counts, from `/facets`.
  *
- *  Hai hàm dịch địa chỉ (`opportunityBookQueryToParams` /
- *  `parseOpportunityBookQuery`) ở ngay đây chứ không ở `app/url.ts`: file đó là
- *  của sổ lead, và một trục lọc chỉ có ở sổ này thì không có lý do gì phải đi
- *  vòng qua một module dùng chung. */
+ *  Hàm dịch câu hỏi thành tham số (`opportunityBookQueryToParams`) ở ngay đây
+ *  chứ không ở `app/url.ts`: file đó là của sổ lead. Đọc địa chỉ là việc của
+ *  `useBookQuery` (`app/book-query.ts`). */
 
 export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
 
@@ -92,7 +91,7 @@ export const OPPORTUNITY_BOOK_KEY = ['sales', 'ops-book'] as const
 const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'opportunity.view', scoped: true }
 
 /** Mọi tên trường `OpportunityBookQuery` nhận, đọc thẳng từ chính schema chứ
- *  không chép tay: ngày hợp đồng mọc thêm một trục lọc, hai hàm dịch bên dưới
+ *  không chép tay: ngày hợp đồng mọc thêm một trục lọc, hàm dịch bên dưới
  *  đi theo mà không ai phải nhớ sửa. Cùng nước đi `app/url.ts` đã làm cho sổ
  *  lead, và cùng lý do — một danh sách tên viết tay là chỗ đầu tiên hai đầu
  *  lệch nhau. */
@@ -100,26 +99,15 @@ const OPPORTUNITY_BOOK_QUERY_KEYS = Object.keys(
   OpportunityBookQuery.shape,
 ) as (keyof OpportunityBookQuery)[]
 
-/** Câu hỏi sổ khi CHƯA ai chạm vào bộ lọc.
- *
- *  Dựng bằng `.parse` chứ không `.safeParse`: một object rỗng mà hỏng ở đây
- *  nghĩa là hợp đồng vừa mọc thêm một trường bắt buộc không có mặc định — thứ
- *  phải đổ ngay lúc nạp module, không phải lặng lẽ rơi về một giá trị bịa.
- *
- *  Xuất ra vì màn cần đúng bộ mặc định mà `opportunityBookQueryToParams` sẽ BỎ
- *  khỏi địa chỉ: "bỏ hết bộ lọc" phải đặt mọi trục về đúng giá trị bị bỏ đó, và
- *  gõ lại chúng lần thứ hai trong `pages/opportunities.tsx` là cách một bộ lọc
- *  đã xoá vẫn để lại `?state=nego` trên thanh địa chỉ. */
+/** The book's question with no filter touched. `.parse`, not `.safeParse`: an
+ *  empty object failing means the contract gained a required field without a
+ *  default, which must fail at import. Exported because callers spread it to
+ *  ask the server a fixed question (home, lead owner) and clear-all resets to it. */
 export const DEFAULT_OPPORTUNITY_BOOK_QUERY: OpportunityBookQuery = OpportunityBookQuery.parse({})
 
-/** `OpportunityBookQuery` → tham số URL, BỎ mọi trường còn bằng mặc định.
- *
- *  Màn ghi địa chỉ bằng CHÍNH hàm này, nên câu hỏi gửi máy chủ và câu hỏi nằm
- *  trên thanh địa chỉ không thể lệch nhau — một link gửi cho đồng nghiệp mở ra
- *  đúng cái sổ người gửi đang nhìn. Phép bỏ mặc định là phần bắt buộc chứ không
- *  phải làm đẹp: không bỏ thì vừa mở màn đã thấy
- *  `?page=1&size=50&sort=createdAt&dir=desc` — bốn tham số không ai chọn, và là
- *  bốn thứ người dùng sẽ chép nguyên vào link chia sẻ. */
+/** `OpportunityBookQuery` → request params for the server, dropping every
+ *  field still at its default (the server re-applies them). The ADDRESS bar is
+ *  written by `useBookQuery`, not by this function. */
 export function opportunityBookQueryToParams(query: OpportunityBookQuery): URLSearchParams {
   const params = new URLSearchParams()
   for (const key of OPPORTUNITY_BOOK_QUERY_KEYS) {
@@ -129,24 +117,6 @@ export function opportunityBookQueryToParams(query: OpportunityBookQuery): URLSe
     params.set(key, String(value))
   }
   return params
-}
-
-/** Địa chỉ → `OpportunityBookQuery`, kiểm bằng chính schema của hợp đồng.
- *
- *  KHÔNG BAO GIỜ ném. Người ta sửa tay được thanh địa chỉ (`?state=nope`,
- *  `?page=abc`), và một màn trắng vì một ký tự thừa thì tệ hơn mọi cách hỏng
- *  khác. Rơi về mặc định là rơi CẢ câu hỏi chứ không từng trường một:
- *  `OpportunityBookQuery` mới là thứ định nghĩa tổ hợp nào hợp lệ, và nhặt lại
- *  "mấy trường còn tốt" từ một lượt parse hỏng là chép tay lại đúng phán đoán
- *  mà zod vừa làm hộ. */
-export function parseOpportunityBookQuery(params: URLSearchParams): OpportunityBookQuery {
-  const raw: Record<string, string> = {}
-  for (const key of OPPORTUNITY_BOOK_QUERY_KEYS) {
-    const value = params.get(key)
-    if (value !== null) raw[key] = value
-  }
-  const parsed = OpportunityBookQuery.safeParse(raw)
-  return parsed.success ? parsed.data : DEFAULT_OPPORTUNITY_BOOK_QUERY
 }
 
 /** Sổ, MỘT trang một lần — `{ rows, total, hidden }`, hình của `paged()`.

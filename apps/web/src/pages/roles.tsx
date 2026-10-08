@@ -123,20 +123,20 @@ export function RolesPage() {
            thing the reader does is redo work the server already accepted. */
         const said = isApiError(refusal)
           ? userMessage(refusal)
-          : 'Không ghi được bảng quyền. Thử lại.'
-        setFailure(saved > 0 ? `Đã lưu ${saved} vai. ${said}` : said)
+          : 'Không lưu được bảng phân quyền. Vui lòng thử lại.'
+        setFailure(saved > 0 ? `Đã lưu ${saved} vai trò. ${said}` : said)
         return
       }
     }
 
     setEdited(null)
-    toastDone('Đã lưu bảng quyền', 'Người đang đăng nhập nhận quyền mới ở lần gọi kế tiếp.')
+    toastDone('Đã lưu bảng phân quyền', 'Quyền mới được áp dụng từ thao tác tiếp theo.')
   }
 
   const summary = isPending
-    ? 'Đang đọc bảng quyền…'
+    ? 'Đang tải bảng phân quyền…'
     : error || !grants
-      ? 'Chưa đọc được bảng quyền.'
+      ? 'Không tải được bảng phân quyền.'
       : matrixLine(grants)
 
   return (
@@ -163,7 +163,7 @@ export function RolesPage() {
                 ) : null}
                 {dirty.length > 0 ? (
                   <MetaPill tone="warning">
-                    Chưa lưu: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
+                    Chưa lưu thay đổi cho: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
                   </MetaPill>
                 ) : null}
               </span>
@@ -195,7 +195,7 @@ export function RolesPage() {
                 onClick={() => void saveDirty()}
               >
                 <Icon icon={Save} size={16} />
-                {save.isPending ? 'Đang ghi…' : 'Lưu'}
+                {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
               </Button>
             </>
           }
@@ -217,7 +217,7 @@ export function RolesPage() {
                  answer and only a failed read lands here. */
               <EmptyState
                 icon={TriangleAlert}
-                message={`Không lấy được bảng quyền. ${
+                message={`Không tải được bảng phân quyền. ${
                   isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                 }`}
                 action={{ label: 'Thử lại', onClick: () => void refetch() }}

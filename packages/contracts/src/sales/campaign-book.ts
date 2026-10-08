@@ -70,11 +70,20 @@ export const CampaignBookRow = z.object({
   updatedAt: Moment,
 })
 
-export const CampaignBookSortKey = z.enum(['name', 'createdAt'])
+/** `audienceCount` and `waveCount` are computed per row, never NULL, so they
+ *  order a paged list without dropping rows — the rule `MailRunSortKey` states. */
+export const CampaignBookSortKey = z.enum(['name', 'createdAt', 'audienceCount', 'waveCount'])
 
 export const CampaignBookQuery = PageQuery.extend({
   state: CampaignState.optional(),
-  owner: z.string().min(1).max(64).optional(),
+  /** Owner `actor.id`s joined by commas; `OWNER_NONE` among them also matches
+   *  campaigns nobody owns yet. Absent = every owner. */
+  owner: z.string().min(1).max(512).optional(),
+  /** Attributed sources (`config_entry.id` of a `SOURCE`), joined by commas. */
+  source: z.string().min(1).max(512).optional(),
+  /** Creation date range, inclusive both ends, as a Vietnam calendar day. */
+  createdFrom: Day.optional(),
+  createdTo: Day.optional(),
   q: z.string().trim().min(1).max(120).optional(),
   sort: CampaignBookSortKey.default('createdAt'),
   dir: SortDir.default('desc'),

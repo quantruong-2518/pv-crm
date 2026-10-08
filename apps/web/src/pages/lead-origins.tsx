@@ -119,14 +119,14 @@ export function LeadOriginsPage() {
           actions={
             <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
               <Icon icon={Plus} size={16} />
-              Thêm nguồn
+              Thêm nguồn lead
             </Button>
           }
-          count={<BookCount total={rows.length} noun="nguồn" />}
+          count={<BookCount total={rows.length} noun="nguồn lead" />}
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên hoặc tên gọi khác…"
+                placeholder="Tìm theo tên nguồn hoặc tên gọi khác…"
                 value={text}
                 onChange={setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -142,11 +142,15 @@ export function LeadOriginsPage() {
                   onChange={(v) => setMotion(v === ANY ? undefined : (v as LeadMotion))}
                   className="w-full max-w-none"
                   options={[
-                    { value: ANY, label: 'Mọi phương án' },
+                    { value: ANY, label: 'Tất cả phương án' },
                     ...LeadMotion.options.map((m) => ({ value: m, label: motionLabel(m) })),
                   ]}
                 />
-                <Checkbox checked={showHidden} onChange={setShowHidden} label="Hiện nguồn đã ẩn" />
+                <Checkbox
+                  checked={showHidden}
+                  onChange={setShowHidden}
+                  label="Hiển thị nguồn đã ẩn"
+                />
               </FilterMenu>
             </>
           }
@@ -154,7 +158,7 @@ export function LeadOriginsPage() {
           failure={
             error
               ? {
-                  message: `Không đọc được danh sách nguồn. ${
+                  message: `Không tải được danh sách nguồn lead. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -165,19 +169,19 @@ export function LeadOriginsPage() {
             rows.length === 0
               ? filtering
                 ? {
-                    message: 'Không có nguồn nào khớp.',
-                    action: { label: 'Bỏ lọc', onClick: clear },
+                    message: 'Không có nguồn lead nào phù hợp với bộ lọc hiện tại.',
+                    action: { label: 'Bỏ hết bộ lọc', onClick: clear },
                   }
                 : {
-                    message: 'Chưa có nguồn nào.',
-                    action: { label: 'Thêm nguồn', onClick: openAdd },
+                    message: 'Chưa có nguồn lead nào.',
+                    action: { label: 'Thêm nguồn lead', onClick: openAdd },
                   }
               : undefined
           }
           table={{
             minWidth: 'min-w-[880px]',
             columns: [
-              { header: 'Nguồn', width: 'minmax(0,1.6fr)' },
+              { header: 'Tên nguồn', width: 'minmax(0,1.6fr)' },
               { header: 'Phương án tiếp cận', width: 'minmax(0,1.6fr)' },
               { header: 'Tên gọi khác', width: 'minmax(0,1.2fr)' },
               { header: 'Số lead', width: '0.6fr', align: 'right' },

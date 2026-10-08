@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { EmptyState, GlassCard, Inbox, Lock, ScreenLayout, Skeleton, TriangleAlert } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
+import { DetailSidePanel } from '@/components/detail-side-panel'
 
 /** ONE shape for every profile screen — lead, deal, contract, installment,
  *  workstream, campaign, company, contact (ADR 0078 §1).
@@ -50,6 +51,9 @@ export type RecordShellProps = {
    It splits at `xl`: 1024px is the tablet, which stacks (devices.md). */
 const GRID = 'grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_400px] xl:gap-6'
 const COLUMN = 'flex min-w-0 flex-col gap-4'
+/** The floating bar's band (24px off the bottom + 64px tall) plus a 16px gap,
+ *  so a pinned tall rail ends above it. */
+const ACTION_BAR_INSET = 104
 
 export function RecordShell({
   pending = false,
@@ -74,8 +78,12 @@ export function RecordShell({
       <div className={rail ? GRID : COLUMN}>
         <div className={COLUMN}>{main}</div>
         {rail && (
-          <aside className={COLUMN} aria-label={railLabel}>
-            {rail}
+          /* Stretched to the row so the panel inside has room to stick while
+             the main column scrolls past. */
+          <aside className="min-w-0 xl:self-stretch" aria-label={railLabel}>
+            <DetailSidePanel bottomInset={actionBar ? ACTION_BAR_INSET : undefined}>
+              <div className={COLUMN}>{rail}</div>
+            </DetailSidePanel>
           </aside>
         )}
       </div>

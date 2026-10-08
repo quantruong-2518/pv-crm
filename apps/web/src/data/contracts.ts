@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
   PageQuery,
+  type ContractBookQuery,
   type ConditionSide,
   ContractBookResponse,
   ContractDetailResponse,
@@ -12,6 +13,7 @@ import {
 } from '@pv/contracts'
 import { daysUntil, dueLevelOf, needsAttention, systemClock, type DueLevel } from '@pv/engines'
 import { api, type ApiNeed } from '@/app/api'
+import { bookQueryParams } from '@/app/book-query'
 
 /** Read side of the contract book — on the server, no fixture left.
  *
@@ -128,18 +130,11 @@ export function rowOf(contract: ContractRow, now = today()): ContractBookRow {
   }
 }
 
-/** One page of the book, derived and sorted by urgency rather than by signing
- *  date — a book sorted by date makes the reader scan for red, a book sorted by
- *  urgency has already scanned for them.
- *
- *  The sort stays on this side because `GET /sales/contracts` takes no sort key
- *  and urgency is a derived level the server never ships. It therefore orders
- *  the PAGE, not the book; the day the book outgrows one page, the sort has to
- *  move into SQL along with the level. */
+/** One page of the book, derived. The ORDER is the server's (`sort`/`dir` on
+ *  `ContractBookQuery`) — re-sorting the page here would fight the column the
+ *  reader just clicked. */
 export function bookRowsOf(page: ContractBookResponse, now = today()): ContractBookRow[] {
-  return page.rows
-    .map((c) => rowOf(c, now))
-    .sort((a, b) => Number(b.urgent) - Number(a.urgent) || b.overdue - a.overdue)
+  return page.rows.map((c) => rowOf(c, now))
 }
 
 export function installmentOf(contract: Contract, no: number): Installment | null {
@@ -162,18 +157,23 @@ const BOOK_NEED: ApiNeed = { branch: 'Sales', permission: 'contract.view', scope
  *  module load instead of falling back to something invented. */
 export const DEFAULT_CONTRACT_PAGE: PageQuery = PageQuery.parse({})
 
-/** The book, one page at a time — `{ rows, total, hidden }`, the shape of
- *  `paged()`. Takes the page so `queryKey` carries it; without that, TanStack
- *  hands page 1's cache to page 2. */
-export const contractBookQuery = (page: PageQuery = DEFAULT_CONTRACT_PAGE) =>
+/** The book, one filtered page at a time — `{ rows, total, hidden }`, the shape
+ *  of `paged()`. The whole query rides the `queryKey`; without it TanStack
+ *  hands page 1's cache to page 2 and an old filter's rows to a new one. Callers
+ *  that only page (the home scan) pass `{ page, size }` and take the defaults. */
+export const contractBookQuery = (
+  query: PageQuery & Partial<ContractBookQuery> = DEFAULT_CONTRACT_PAGE,
+) =>
   queryOptions({
-    queryKey: [...CONTRACT_BOOK_KEY, 'page', page] as const,
-    queryFn: ({ signal }) =>
-      api.read<ContractBookResponse>(`/sales/contracts?page=${page.page}&size=${page.size}`, {
+    queryKey: [...CONTRACT_BOOK_KEY, 'page', query] as const,
+    queryFn: ({ signal }) => {
+      const params = bookQueryParams(query)
+      return api.read<ContractBookResponse>(`/sales/contracts?${params}`, {
         need: BOOK_NEED,
         schema: ContractBookResponse,
         signal,
-      }),
+      })
+    },
   })
 
 /** One contract, fully nested. `encodeURIComponent` is not decoration: a

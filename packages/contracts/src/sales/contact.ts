@@ -7,6 +7,7 @@ import {
   phoneOptional,
   textInput,
   textInputOptional,
+  Day,
 } from '../primitives'
 import { ContactChannel } from './enums'
 
@@ -288,6 +289,10 @@ export const ContactBookRow = ContactRow.extend({
   /** The lead's company column, which is always present — the fallback the row
    *  prints when `accountName` is not there yet. */
   company: textInput(200),
+  /** The lead's PIC (not the contact's — a person has no owner), so the book
+   *  can show and filter by who holds the customer. Absent = nobody yet. */
+  ownerName: z.string().min(1).optional(),
+  ownerEmail: z.string().min(1).optional(),
 })
 
 export const ContactBookResponse = paged(ContactBookRow)
@@ -303,11 +308,45 @@ export const ContactBookQuery = PageQuery.extend({
   /** Only the primary contact of each lead. The switch a person flips when the
    *  question is "who do I call at each customer" rather than "who do we know". */
   primary: z.enum(['1']).optional(),
-  /** Everyone at one company, by account code. */
-  account: ObjectCode.optional(),
+  /** Everyone at these companies: one account code, or several joined by
+   *  commas. */
+  account: z.string().min(1).max(1200).optional(),
+  /** Lead PIC: one `actor.id`, or several joined by commas (`OWNER_NONE`
+   *  allowed). For an `ownOnly` actor the scope cut already makes it a no-op. */
+  owner: z.string().min(1).max(512).optional(),
+  /** `1` = only people with a mailbox, `0` = only those without. */
+  hasEmail: z.enum(['1', '0']).optional(),
+  hasPhone: z.enum(['1', '0']).optional(),
+  /** Entry date range on `createdAt`, inclusive, as a Vietnam calendar day —
+   *  the same wire shape as `LeadBookQuery`. */
+  createdFrom: Day.optional(),
+  createdTo: Day.optional(),
+})
+
+/** `GET /sales/contacts/facets` — the book's filters without paging or sort.
+ *  `account` stays in the shape but the server ignores it (a pick keeps its siblings). */
+export const ContactFacetsQuery = ContactBookQuery.omit({
+  page: true,
+  size: true,
+  sort: true,
+  dir: true,
+})
+
+/** Companies that actually hold a contact the reader can see, counted under
+ *  every filter EXCEPT `account`, so a picked company never hides its siblings. */
+export const ContactFacetsResponse = z.object({
+  accounts: z.array(
+    z.object({
+      value: ObjectCode,
+      label: z.string(),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
 })
 
 export type ContactBookRow = z.infer<typeof ContactBookRow>
 export type ContactBookResponse = z.infer<typeof ContactBookResponse>
 export type ContactBookQuery = z.infer<typeof ContactBookQuery>
 export type ContactSortKey = z.infer<typeof ContactSortKey>
+export type ContactFacetsQuery = z.infer<typeof ContactFacetsQuery>
+export type ContactFacetsResponse = z.infer<typeof ContactFacetsResponse>

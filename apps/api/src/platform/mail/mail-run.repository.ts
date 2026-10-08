@@ -6,6 +6,7 @@ import type {
   MailRunState,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { createdWithin, csvOf } from '@api/platform/db/book-filter'
 import { contains } from '@api/platform/db/like'
 import { MAIL_STATE_RANK, MAIL_STATES, type MailState } from './mail.contract'
 import { mailRun, type MailRunRow } from './mail-run.schema'
@@ -343,6 +344,8 @@ export class MailRunRepository {
 
     const where = and(
       query.state ? eq(mailRun.state, query.state) : undefined,
+      query.createdBy ? inArray(mailRun.createdBy, csvOf(query.createdBy)) : undefined,
+      ...createdWithin(mailRun.createdAt, query.createdFrom, query.createdTo),
       query.q
         ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
         : undefined,

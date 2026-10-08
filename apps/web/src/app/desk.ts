@@ -101,6 +101,8 @@ type DeskState = {
   ops: Record<string, Partial<Opportunity>>
 
   togglePin: (actorId: string, code: string) => void
+  /** Bulk form of `togglePin`: set every code to the same state, so a mixed selection ends uniform. */
+  setPins: (actorId: string, codes: readonly string[], on: boolean) => void
   act: (code: string, actionKey: string) => void
   setNote: (code: string, html: string) => void
   patchOp: (code: string, patch: Partial<Opportunity>) => void
@@ -125,6 +127,15 @@ export const useLeadDesk = create<DeskState>()(
         set((s) => {
           const mine = s.pins[actorId] ?? NONE
           const next = mine.includes(code) ? mine.filter((c) => c !== code) : [...mine, code]
+          return { pins: { ...s.pins, [actorId]: next } }
+        }),
+
+      setPins: (actorId, codes, on) =>
+        set((s) => {
+          const mine = s.pins[actorId] ?? NONE
+          const next = on
+            ? [...mine, ...codes.filter((c) => !mine.includes(c))]
+            : mine.filter((c) => !codes.includes(c))
           return { pins: { ...s.pins, [actorId]: next } }
         }),
 

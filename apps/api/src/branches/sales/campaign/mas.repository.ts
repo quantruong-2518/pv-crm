@@ -26,6 +26,7 @@ import type {
   MasAudience,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { createdWithin, csvOf } from '@api/platform/db/book-filter'
 import { contains } from '@api/platform/db/like'
 import { actor, audit, type ActorRow } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
@@ -698,7 +699,7 @@ export class MasRepository {
     return new Map(rows.map((r) => [r.id, r.name]))
   }
 
-  /** Which batches belong to one campaign.
+  /** Which batches belong to these campaigns.
    *
    *  This is the half `MailRunRepository.list()` refuses to do for itself: the
    *  answer lives in `sales.mail_sequence_run` and `platform/` may not read it,
@@ -709,14 +710,14 @@ export class MasRepository {
    *  `subject_type = 'campaign'` is load-bearing since 0053: the table now also
    *  holds lead and opportunity chains, and a lead whose code happened to match
    *  would otherwise hand this campaign somebody else's batch. */
-  async runIdsOfCampaign(campaignCode: string): Promise<string[]> {
+  async runIdsOfCampaign(campaignCodes: readonly string[]): Promise<string[]> {
     const rows = await this.db
       .select({ id: mailSequenceRun.mailRunId })
       .from(mailSequenceRun)
       .where(
         and(
           eq(mailSequenceRun.subjectType, 'campaign'),
-          eq(mailSequenceRun.subjectCode, campaignCode),
+          inArray(mailSequenceRun.subjectCode, [...campaignCodes]),
         ),
       )
 
@@ -1020,6 +1021,8 @@ export class MasRepository {
   ): SQL | undefined {
     return and(
       query.state ? eq(mailRun.state, query.state) : undefined,
+      query.createdBy ? inArray(mailRun.createdBy, csvOf(query.createdBy)) : undefined,
+      ...createdWithin(mailRun.createdAt, query.createdFrom, query.createdTo),
       query.q
         ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
         : undefined,

@@ -170,7 +170,12 @@ export const AccountBookQuery = PageQuery.extend({
   q: z.string().trim().min(1).max(120).optional(),
   /** One province, or several joined by commas. */
   province: z.string().trim().min(1).max(1200).optional(),
-  category: LeadCategory.optional(),
+  /** One category, or several joined by commas. */
+  category: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((c) => LeadCategory.safeParse(c).success))
+    .optional(),
 
   /** `1` = only companies that have signed something; `0` = only those that
    *  have not. Absent = both.
@@ -180,6 +185,27 @@ export const AccountBookQuery = PageQuery.extend({
    *  between them is switching between two customer books, not toggling a
    *  filter off and on. */
   customer: intFromQuery.pipe(z.union([z.literal(0), z.literal(1)])).optional(),
+  /** `1` = only companies with a deal still open; `0` = only those without. */
+  openDeals: intFromQuery.pipe(z.union([z.literal(0), z.literal(1)])).optional(),
+})
+
+/** `GET /sales/accounts/facets` — the book's filters without paging or sort. */
+export const AccountFacetsQuery = AccountBookQuery.omit({
+  page: true,
+  size: true,
+  sort: true,
+  dir: true,
+})
+
+const FacetCount = z.number().int().nonnegative()
+
+/** Choices over ALL companies, not one page. Each list is counted under every
+ *  filter EXCEPT its own, so a picked value never hides its siblings. */
+export const AccountFacetsResponse = z.object({
+  provinces: z.array(z.object({ value: z.string(), count: FacetCount })),
+  categories: z.array(z.object({ value: LeadCategory, count: FacetCount })),
+  /** The customer tabs: companies that have signed, and those that have not. */
+  byCustomer: z.object({ signed: FacetCount, unsigned: FacetCount }),
 })
 
 // ---------------------------------------------------------------------------
@@ -245,6 +271,8 @@ export type AccountRow = z.infer<typeof AccountRow>
 export type AccountProfile = z.infer<typeof AccountProfile>
 export type AccountBookResponse = z.infer<typeof AccountBookResponse>
 export type AccountBookQuery = z.infer<typeof AccountBookQuery>
+export type AccountFacetsQuery = z.infer<typeof AccountFacetsQuery>
+export type AccountFacetsResponse = z.infer<typeof AccountFacetsResponse>
 export type AccountSortKey = z.infer<typeof AccountSortKey>
 export type AccountCreate = z.infer<typeof AccountCreate>
 export type AccountUpdate = z.infer<typeof AccountUpdate>

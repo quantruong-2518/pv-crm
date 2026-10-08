@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
 import { highestRank, roleRank, type Actor } from '@pv/engines'
 import {
@@ -7,6 +7,7 @@ import {
   MeetingRow,
   MeetingTodayResponse,
   type MeetingAttendedGuest,
+  type MeetingCalendarState,
   type MeetingAttendedHost,
   type MeetingCreate,
   type MeetingPatch,
@@ -26,6 +27,7 @@ import { ActorRepository } from '@api/platform/session/actor.repository'
 import { LeadStateWriter } from '../lead/lead-state'
 import { editDetailsVerdict } from '../opportunity/opportunity-acts'
 import { TouchService, byOf } from '../touch/touch.service'
+import { MeetingCalendar } from './meeting-calendar'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, meetingEndOf, toContract } from './meeting.mapper'
 import type { MeetingAttendeeRowDb, MeetingAttendeeValues, MeetingRowDb } from './meeting.schema'
@@ -45,6 +47,8 @@ import type { MeetingAttendeeRowDb, MeetingAttendeeValues, MeetingRowDb } from '
  *  on a deal every write also takes the deal's "editable until lost" rule. */
 @Injectable()
 export class MeetingService {
+  private readonly log = new Logger('meeting')
+
   constructor(
     private readonly repo: MeetingRepository,
     private readonly touch: TouchService,
@@ -52,6 +56,7 @@ export class MeetingService {
     private readonly states: LeadStateWriter,
     private readonly records: CommRecordService,
     private readonly actors: ActorRepository,
+    private readonly calendar: MeetingCalendar,
     /* The debrief hook is reached by token at call time: its module imports
        this one (and `LeadModule`), so a constructor injection is a cycle. */
     private readonly modules: ModuleRef,
@@ -109,7 +114,8 @@ export class MeetingService {
       await this.moveLead(tx, code, who.id, at)
       await this.writeTouch(tx, who, { subjectCode: code, at, title: body.title }, already)
     })
-    return this.one(code, id)
+    /* After the commit, never inside it: Google cannot fail or hold the booking. */
+    return this.one(code, id, await this.calendar.push(id))
   }
 
   /** Edit a booking. No touch row: fixing a title is not something that
@@ -164,7 +170,8 @@ export class MeetingService {
       if (current.createdBy) await this.moveLead(tx, code, current.createdBy, at)
       await this.records.reschedule(tx, id, at)
     })
-    return this.one(code, id)
+    /* Every patchable field shows on the event (`link` as its location). */
+    return this.one(code, id, await this.calendar.push(id))
   }
 
   /** Only a meeting still ahead and not held may go, and only while its comm
@@ -185,7 +192,19 @@ export class MeetingService {
       await this.repo.remove(tx, id)
       return keys
     })
-    await this.records.forgetFiles(files)
+    /* The event first: it mails the guests, so a storage hiccup must not
+       leave a cancelled meeting on their calendars. */
+    await this.afterDrop('calendar', row.id, () => this.calendar.forget(row))
+    await this.afterDrop('files', row.id, () => this.records.forgetFiles(files))
+  }
+
+  /** The row is already gone: a cleanup that fails is logged, never the caller's 500. */
+  private async afterDrop(step: string, id: string, run: () => Promise<void>): Promise<void> {
+    try {
+      await run()
+    } catch (error) {
+      this.log.warn(`drop ${id}: ${step} cleanup failed — ${(error as Error).message}`)
+    }
   }
 
   /** close-meeting, inside the record's close transaction (`CommDebriefHook.meetingHeld`):
@@ -251,6 +270,9 @@ export class MeetingService {
             title: next.title,
             at: next.at.toISOString(),
             endsAt: (meetingEndOf(next) ?? next.at).toISOString(),
+            ...(next.mode ? { mode: next.mode } : {}),
+            ...(next.link ? { link: next.link } : {}),
+            ...(next.googleEventUrl ? { eventUrl: next.googleEventUrl } : {}),
           }
         : null,
       remaining: rest.length,
@@ -429,11 +451,11 @@ export class MeetingService {
     )
   }
 
-  private async one(code: string, id: string): Promise<MeetingRow> {
+  private async one(code: string, id: string, calendar: MeetingCalendarState): Promise<MeetingRow> {
     const list = await this.timeline(code)
     const row = list.rows.find((r) => r.id === id)
     if (!row) throw notFound('cuộc họp', id)
-    return MeetingRow.parse(row)
+    return MeetingRow.parse({ ...row, calendar })
   }
 }
 

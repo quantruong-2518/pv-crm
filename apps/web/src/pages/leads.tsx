@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ImagePlus, Plus } from '@pv/ui'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -16,9 +16,9 @@ import {
 } from '@pv/ui'
 import {
   LEAD_OPEN_STATES,
+  LeadBookQuery,
   LeadState,
   OWNER_NONE,
-  type LeadBookQuery,
   type LeadRow,
   type LeadStateFilter,
 } from '@pv/contracts'
@@ -26,16 +26,11 @@ import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { pinsOf, useLeadDesk } from '@/app/desk'
 import { useCan, useSession } from '@/app/auth'
-import {
-  DEFAULT_LEAD_BOOK_QUERY,
-  leadBookQueryToParams,
-  pageIndexFromQueryPage,
-  parseLeadBookQuery,
-  queryPageFromPageIndex,
-} from '@/app/url'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
+import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { toast } from '@/app/toast'
+import { toast, toastDone } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory, useSalesPeople } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
@@ -64,7 +59,7 @@ import {
  *  only hands it content. Cells and blocks live in `leads-parts.tsx`.
  *
  *  The book is server-side: `GET /sales/leads` returns one filtered, sorted page
- *  plus `total`, and every filter lives in the URL (`app/url.ts`) so F5, shared
+ *  plus `total`, and every filter lives in the URL (`app/book-query.ts`) so F5, shared
  *  links and the back button keep it. Tab counts come from `facets.byState`.
  *  The pinned tab is the exception: pins are per person (`app/desk.ts`), so it
  *  lists them out of `leadFacetQuery`, whose limits are written there.
@@ -82,13 +77,6 @@ const PAGE_SIZE = 10
  *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
  *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
 
-/** Chờ bao lâu sau phím cuối rồi mới ghi ô tìm lên địa chỉ.
- *
- *  Ô tìm nay là một trục LỌC CỦA MÁY CHỦ, nên mỗi lần ghi là một vòng mạng và
- *  một mục cache mới. Ghi thẳng từng phím thì gõ "Coreline" là tám lần gọi cho
- *  một câu hỏi. Chữ trong ô vẫn đổi ngay từng phím — chỉ có địa chỉ là đợi. */
-const SEARCH_DELAY_MS = 300
-
 /** The state tabs (ADR 0058). `open` is the default because the book is a work
  *  list; a dropped lead is still one tab away, since that is where "why did we
  *  lose it" is answered. Each key is a `LeadStateFilter` value, so it goes onto
@@ -105,6 +93,21 @@ const STATE_TABS: { key: StateTab; label: string }[] = [
   { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
   { key: 'all', label: 'Tất cả' },
 ]
+
+/** Filter axes that count as "dirty" and that "clear all" resets — the schema's
+ *  own keys; `disabled`, sort and tier/category are not among them. */
+const FILTER_KEYS = [
+  'campaign',
+  'sourceKind',
+  'motion',
+  'origin',
+  'createdBy',
+  'states',
+  'owner',
+  'createdFrom',
+  'createdTo',
+  'state',
+] as const
 
 /** The pinned tab's value — not a `LeadStateFilter`, so it never reaches the URL. */
 const PINNED = 'pinned'
@@ -131,24 +134,22 @@ const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 export function LeadsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
   /* Hides rather than greys out — same call the create route's own gate makes
      (`routes.tsx`, `permission: 'lead.edit'`), so the button and the fence
      never disagree. Precedent: `campaigns.tsx`'s `canWrite`. */
   const canWrite = useCan('lead.edit')
   const canDisable = useCan('lead.disable')
 
-  /* ĐỊA CHỈ là nguồn sự thật của bộ lọc — dịch hai chiều ở `app/url.ts`.
-     `size` thì màn áp đè: `PAGE_SIZE` là số dòng bảng này vẽ, còn mặc định của
-     hợp đồng là 50 cho mọi sổ. Áp đè ở đây chứ không ghi lên địa chỉ, để một
-     link chia sẻ không mang theo một con số không ai chọn. */
-  const urlQuery = useMemo(() => {
-    const parsed = parseLeadBookQuery(params)
-    /* A hand-typed `?disabled=true` without the permission is dropped here, as
-       the server drops it: the reader gets the ordinary book. */
-    return canDisable ? parsed : { ...parsed, disabled: undefined }
-  }, [params, canDisable])
-  const query = useMemo<LeadBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
+  /* The address is the source of truth; the hook owns patch, the debounced
+     search box, the page reset and "clear all". `size` is PAGE_SIZE, kept off it. */
+  const book = useBookQuery(LeadBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const { urlQuery, text, setText, patch, dirty, clear: clearFilters } = book
+  /* A hand-typed `?disabled=true` without the permission is dropped here, as
+     the server drops it: the reader gets the ordinary book. */
+  const query = useMemo(
+    () => (canDisable ? book.query : { ...book.query, disabled: undefined }),
+    [book.query, canDisable],
+  )
 
   /* `error` đọc ra, KHÔNG bỏ.
      Bỏ nó đi thì một máy chủ chết hiện ra thành "Không có lead nào khớp bộ lọc
@@ -183,40 +184,11 @@ export function LeadsPage() {
   const me = useSession((s) => s.actor)
   const pins = useLeadDesk((s) => pinsOf(s, me?.id))
   const togglePin = useLeadDesk((s) => s.togglePin)
+  const setPins = useLeadDesk((s) => s.setPins)
 
   const open = (code: string) => navigate(`/sales/leads/${code}`)
 
-  /* Ghi một phần bộ lọc lên địa chỉ. Đổi bộ lọc thì LUÔN về trang đầu — đứng ở
-     trang 7 rồi đổi trạng thái thì máy chủ trả một trang rỗng, và người dùng
-     đọc nó thành "không có kết quả". */
-  const patch = (next: Partial<LeadBookQuery>) =>
-    setParams(leadBookQueryToParams({ ...urlQuery, ...next, page: DEFAULT_LEAD_BOOK_QUERY.page }))
-
-  /* Ô tìm giữ chữ trong state để gõ tới đâu thấy tới đó, rồi mới nhỏ giọt lên
-     địa chỉ (`SEARCH_DELAY_MS`). `replace` chứ không đẩy thêm mục lịch sử: một
-     câu tìm tám ký tự mà đẩy tám mục thì nút back thành nút xoá từng chữ. */
-  const [text, setText] = useState(urlQuery.q ?? '')
-
-  /* Địa chỉ đổi từ BÊN NGOÀI — nút back, F5, một link ai đó gửi tới — thì ô tìm
-     phải đi theo, nếu không chữ trong ô nói một đằng còn bảng lọc một nẻo. */
-  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
-
-  useEffect(() => {
-    const wanted = text.trim() === '' ? undefined : text.trim()
-    if (wanted === urlQuery.q) return
-    const timer = setTimeout(
-      () =>
-        setParams(
-          leadBookQueryToParams({ ...urlQuery, q: wanted, page: DEFAULT_LEAD_BOOK_QUERY.page }),
-          { replace: true },
-        ),
-      SEARCH_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [text, urlQuery, setParams])
-
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
+  const { pageIndex } = useBookPageClamp(book, bookPage?.total)
 
   const pinned = useMemo(
     () =>
@@ -259,39 +231,16 @@ export function LeadsPage() {
     if ((value === DISABLED) !== disabledView) clearSelection()
     setPinnedView(value === PINNED)
     /* The switched-off tab REPLACES the state filter — it lists every state. */
-    if (value === DISABLED) patch({ disabled: true, state: DEFAULT_LEAD_BOOK_QUERY.state })
-    else if (value !== PINNED) patch({ state: value as LeadStateFilter, disabled: undefined })
+    if (value === DISABLED)
+      patch({ disabled: true, state: DEFAULT_LEAD_BOOK_QUERY.state, states: undefined })
+    /* The state-list filter is hidden off the open tab but would still filter: drop it. */
+    else if (value !== PINNED)
+      patch({
+        state: value as LeadStateFilter,
+        states: value === 'open' ? query.states : undefined,
+        disabled: undefined,
+      })
   }
-
-  /* Ô tìm đọc `text` chứ không đọc `query.q`: nút "Bỏ hết bộ lọc" phải hiện ra
-     ngay từ phím đầu tiên, không đợi hết nhịp chờ 300ms. */
-  const dirty =
-    text.trim() !== '' ||
-    query.campaign !== undefined ||
-    query.sourceKind !== undefined ||
-    query.motion !== undefined ||
-    query.origin !== undefined ||
-    query.createdBy !== undefined ||
-    query.states !== undefined ||
-    query.owner !== undefined ||
-    query.createdFrom !== undefined ||
-    query.createdTo !== undefined ||
-    query.state !== DEFAULT_LEAD_BOOK_QUERY.state
-
-  const clearFilters = () =>
-    patch({
-      q: undefined,
-      campaign: undefined,
-      sourceKind: undefined,
-      motion: undefined,
-      origin: undefined,
-      createdBy: undefined,
-      states: undefined,
-      owner: undefined,
-      createdFrom: undefined,
-      createdTo: undefined,
-      state: DEFAULT_LEAD_BOOK_QUERY.state,
-    })
 
   /* Options come from the facets, so a filter never offers a value no lead
      carries. The column filters send several values as one comma list. */
@@ -330,7 +279,7 @@ export function LeadsPage() {
         : `${LEAD_STATE_FACE[state].label} · ${byState[state] ?? 0}`,
   }))
   const dateFilter = (
-    <ColumnFilter label="Ngày vào" active={Boolean(query.createdFrom || query.createdTo)}>
+    <ColumnFilter label="Ngày tạo" active={Boolean(query.createdFrom || query.createdTo)}>
       {(close) => (
         <ColumnFilterRange
           from={query.createdFrom}
@@ -361,6 +310,7 @@ export function LeadsPage() {
     () => wholeBook.filter((lead) => selectedCodes.has(lead.code)),
     [wholeBook, selectedCodes],
   )
+  const allSelectedPinned = [...selectedCodes].every((code) => pins.includes(code))
   const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
 
   /* Bản vẽ nạp tệp + sổ người của máy chủ. Ô "Lead PIC" là danh sách đóng, và
@@ -399,7 +349,7 @@ export function LeadsPage() {
        stays absent, and the panel then draws no code column at all. */
     const report = { ...run.report, ...(run.codes.length > 0 ? { codes: run.codes } : {}) }
 
-    toast(run.failure ?? `${report.rows.length} lead đã vào sổ`, {
+    toast(run.failure ?? `${report.rows.length} lead đã được thêm`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         report.attached &&
@@ -417,8 +367,7 @@ export function LeadsPage() {
     return report
   }
 
-  const onPage = (i: number) =>
-    setParams(leadBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(i) }))
+  const onPage = book.goPage
 
   /* The pinned list does not read the URL, so it gets no sort control at all. */
   const sortable = !pinnedView
@@ -453,8 +402,8 @@ export function LeadsPage() {
         ),
         width: '32px',
       },
-      { header: 'Công ty · Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
-      { header: listFilter('Nguồn', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
+      { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
+      { header: listFilter('Nguồn lead', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
       {
         header:
           tabValue === 'open' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
@@ -464,7 +413,7 @@ export function LeadsPage() {
       /* A switched-off lead takes no hand-over and no pin: the two action
          columns give way to the one fact that tab adds. */
       ...(disabledView
-        ? [{ header: 'Ngày vô hiệu', width: 'minmax(0,1.1fr)' }]
+        ? [{ header: 'Ngày vô hiệu hóa', width: 'minmax(0,1.1fr)' }]
         : [
             {
               header: listFilter('Người tạo', 'createdBy', creatorOptions),
@@ -533,7 +482,7 @@ export function LeadsPage() {
   const failure = pinnedView
     ? facetsError
       ? {
-          message: `Không lấy được danh sách ghim. ${
+          message: `Không tải được danh sách lead đã ghim. ${
             isApiError(facetsError) ? userMessage(facetsError) : 'Vui lòng thử lại.'
           }`,
           onRetry: () => void refetchFacets(),
@@ -541,7 +490,7 @@ export function LeadsPage() {
       : undefined
     : bookError
       ? {
-          message: `Không lấy được sổ lead. ${
+          message: `Không tải được danh sách lead. ${
             isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
           }`,
           onRetry: () => void refetchBook(),
@@ -552,14 +501,26 @@ export function LeadsPage() {
     ? pinned.length === 0
       ? {
           message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây.',
-          action: { label: 'Về sổ lead', onClick: () => setPinnedView(false) },
+          action: { label: 'Xem tất cả lead', onClick: () => setPinnedView(false) },
         }
       : undefined
     : rows.length === 0
-      ? {
-          message: 'Không có lead nào khớp bộ lọc đang chọn.',
-          action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
-        }
+      ? dirty
+        ? {
+            message: 'Không có lead nào phù hợp với bộ lọc hiện tại.',
+            action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
+          }
+        : disabledView
+          ? {
+              message: 'Chưa có lead nào bị vô hiệu hoá.',
+              action: { label: 'Tải lại', onClick: () => void refetchBook() },
+            }
+          : {
+              message: 'Chưa có lead nào. Hãy thêm lead đầu tiên để bắt đầu theo dõi.',
+              action: canWrite
+                ? { label: 'Thêm lead', onClick: () => navigate('/sales/leads/new') }
+                : { label: 'Tải lại', onClick: () => void refetchBook() },
+            }
       : undefined
 
   return (
@@ -573,7 +534,7 @@ export function LeadsPage() {
                 spec={leadSpec}
                 existingKeys={NO_LOCAL_KEYS}
                 batchExtra={importBatch.extra}
-                buttonLabel="Nhập từ file"
+                buttonLabel="Nhập từ tệp"
                 onCommit={commitLeads}
                 onPrecheck={({ rows, motion, fileName, scope }) =>
                   leadImportSurvivors({
@@ -596,7 +557,7 @@ export function LeadsPage() {
                   className="pointer-coarse:h-12 max-sm:flex-1"
                 >
                   <Icon icon={ImagePlus} size={16} />
-                  Scan ảnh
+                  Nhập từ ảnh
                 </Button>
               )}
               {/* Typing a lead by hand is a PAGE now (`/sales/leads/new`), not a
@@ -606,10 +567,10 @@ export function LeadsPage() {
                 <Button
                   size="md"
                   onClick={() => navigate('/sales/leads/new')}
-                  className="max-sm:flex-1"
+                  className="pointer-coarse:h-12 max-sm:flex-1"
                 >
                   <Icon icon={Plus} size={16} />
-                  Tạo Lead
+                  Thêm lead
                 </Button>
               )}
             </>
@@ -630,13 +591,18 @@ export function LeadsPage() {
             !pinnedView && (
               <>
                 <SearchField
-                  placeholder="Tìm theo tên công ty hoặc mã lead…"
+                  placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
                   value={text}
                   onChange={setText}
                   className="min-w-0 flex-1 sm:max-w-[320px]"
                 />
                 {dirty && (
-                  <Button size="md" variant="ghost" onClick={clearFilters}>
+                  <Button
+                    size="md"
+                    variant="ghost"
+                    onClick={clearFilters}
+                    className="pointer-coarse:h-12"
+                  >
                     Bỏ hết bộ lọc
                   </Button>
                 )}
@@ -668,7 +634,15 @@ export function LeadsPage() {
           <BookSelectionBar
             count={selectedCodes.size}
             noun="lead"
-            meta={disabledView ? undefined : `${selectedEmailCount} địa chỉ email`}
+            meta={
+              disabledView
+                ? undefined
+                : `Sẽ gửi ${selectedEmailCount} email${
+                    selectedEmailCount < selectedCodes.size
+                      ? ` · bỏ qua ${selectedCodes.size - selectedEmailCount} lead chưa có địa chỉ email`
+                      : ''
+                  }`
+            }
             onClear={clearSelection}
             onSend={
               disabledView
@@ -681,13 +655,30 @@ export function LeadsPage() {
                     })
             }
             actions={
-              canDisable && (
-                <LeadDisableAction
-                  codes={[...selectedCodes]}
-                  restoring={disabledView}
-                  onDone={clearSelection}
-                />
-              )
+              <>
+                {me && !disabledView && (
+                  <Button
+                    size="lg"
+                    variant="ghost"
+                    onClick={() => {
+                      setPins(me.id, [...selectedCodes], !allSelectedPinned)
+                      toastDone(
+                        `Đã ${allSelectedPinned ? 'bỏ ghim' : 'ghim'} ${selectedCodes.size} lead`,
+                      )
+                      clearSelection()
+                    }}
+                  >
+                    {allSelectedPinned ? 'Bỏ ghim' : 'Ghim'}
+                  </Button>
+                )}
+                {canDisable && (
+                  <LeadDisableAction
+                    codes={[...selectedCodes]}
+                    restoring={disabledView}
+                    onDone={clearSelection}
+                  />
+                )}
+              </>
             }
           />
         )}

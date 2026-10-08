@@ -4,12 +4,14 @@ import {
   type ContactBookResponse,
   type ContactBookRow,
   type ContactCreate,
+  type ContactFacetsResponse,
   type ContactListResponse,
   type ContactPatch,
   type ContactRow,
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { bookQueryParams } from '@/app/book-query'
 
 /** Contacts — TWO path shapes, and both are real.
  *
@@ -47,28 +49,25 @@ const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: 
 
 export const DEFAULT_CONTACT_BOOK_QUERY: ContactBookQuery = ContactBookQuery.parse({})
 
-export function contactBookQueryToParams(q: ContactBookQuery): string {
-  const p = new URLSearchParams()
-  if (q.page !== DEFAULT_CONTACT_BOOK_QUERY.page) p.set('page', String(q.page))
-  if (q.size !== DEFAULT_CONTACT_BOOK_QUERY.size) p.set('size', String(q.size))
-  if (q.sort !== DEFAULT_CONTACT_BOOK_QUERY.sort) p.set('sort', q.sort)
-  if (q.dir !== DEFAULT_CONTACT_BOOK_QUERY.dir) p.set('dir', q.dir)
-  if (q.q !== undefined) p.set('q', q.q)
-  if (q.primary !== undefined) p.set('primary', q.primary)
-  if (q.account !== undefined) p.set('account', q.account)
-  return p.toString()
-}
-
-export function parseContactBookQuery(params: URLSearchParams): ContactBookQuery {
-  const parsed = ContactBookQuery.safeParse(Object.fromEntries(params))
-  return parsed.success ? parsed.data : DEFAULT_CONTACT_BOOK_QUERY
-}
-
 export function contactBookQuery(q: ContactBookQuery) {
   return queryOptions({
     queryKey: [...CONTACT_BOOK_KEY, 'page', q] as const,
     queryFn: ({ signal }) =>
-      api.read<ContactBookResponse>(`${BOOK_PATH}?${contactBookQueryToParams(q)}`, {
+      api.read<ContactBookResponse>(`${BOOK_PATH}?${bookQueryParams(q)}`, {
+        need: READ_NEED,
+        signal,
+      }),
+  })
+}
+
+/** `GET /sales/contacts/facets` — company choices for the book's filter. Paging,
+ *  sort and `account` itself are left out of the key: none of them moves a count. */
+export function contactFacetsQuery(q: ContactBookQuery) {
+  const { page: _page, size: _size, sort: _sort, dir: _dir, account: _account, ...filters } = q
+  return queryOptions({
+    queryKey: [...CONTACT_BOOK_KEY, 'facets', filters] as const,
+    queryFn: ({ signal }) =>
+      api.read<ContactFacetsResponse>(`${BOOK_PATH}/facets?${bookQueryParams(filters)}`, {
         need: READ_NEED,
         signal,
       }),

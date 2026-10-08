@@ -7,10 +7,13 @@ import {
   Avatar,
   Button,
   ChannelTag,
+  ColumnFilter,
+  ColumnFilterList,
+  ColumnFilterRange,
   Icon,
   ScreenLayout,
   ScreenScoreGrid,
-  Select,
+  SearchField,
   SegmentedControl,
   Skeleton,
   StatCard,
@@ -19,33 +22,35 @@ import {
   type TableSort,
 } from '@pv/ui'
 import { useAppChrome } from '@/app/chrome'
+import {
+  dayField,
+  listField,
+  oneOf,
+  useClientBookFilter,
+  type BookFilters,
+} from '@/app/client-book-filter'
 import { dm } from '@/lib/date'
 import {
   CAMPAIGN_STATUS,
-  NO_FILTER,
   SOURCE_SORTS,
   STATUS_DOT,
   STATUS_LABEL,
-  TIME_WINDOWS,
   campaignTotalsQuery,
   channelsInUse,
-  filterSources,
   ownersOf,
   rate,
   sourcesQuery,
-  type CampaignFilter,
-  type CampaignStatus,
+  type SourceRow,
   type SourceSortKey,
-  type TimeWindowKey,
 } from '@/data/campaigns'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
-import { RECIPIENT_SPEC } from '@/data/intake'
+import { RECIPIENT_SPEC, normalise } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
-import { FilterMenu } from '@/components/table-bits'
 import { CampaignForm } from './source-parts'
 import { SourceStatsBlock } from './source-stats-parts'
 import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from './source-model'
@@ -60,7 +65,7 @@ import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from '.
  *  ngày 28/08: SOURCE là nơi lead SINH RA, `sales.campaign` là đơn vị GỬI —
  *  hai định nghĩa đối lập, không gộp được thành một bảng mà không phá một
  *  trong hai. Đổi ở đây là copy và path, cấu trúc màn không động tới; tên biến
- *  và tên hàm bên trong (`CampaignForm`, `CAMPAIGN_ICON`, `filterSources`) giữ
+ *  và tên hàm bên trong (`CampaignForm`, `CAMPAIGN_ICON`) giữ
  *  nguyên vì đổi chúng là một lượt sửa xuyên bốn file cho không thêm sự thật
  *  nào — `SourceRow` vẫn là kiểu dữ liệu thật sự chạy qua đây.
  *
@@ -83,9 +88,10 @@ import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from '.
  *  Giá trị đơn mở) đã bỏ: chúng là số của module 2 và module 3, và một con số
  *  cùng tên hiện ở ba màn là ba chỗ để lệch nhau.
  *
- *  BỐN BỘ LỌC dựng từ chính dữ liệu đang có (`ownersOf`, `channelsInUse`) — một
+ *  BỘ LỌC dựng từ chính dữ liệu đang có (`ownersOf`, `channelsInUse`) — một
  *  mục lọc không dòng nào khớp đọc y hệt một bộ lọc hỏng. Trạng thái ở hàng
- *  tab, ba ô còn lại trong `FilterMenu`: hình chung của mọi sổ (`BookPage`).
+ *  tab, ô tìm ở thanh công cụ, còn lại nằm trên tiêu đề cột (`ColumnFilter`);
+ *  tất cả ghi lên địa chỉ qua `useClientBookFilter`.
  *
  *  KHÔNG có ContextRail ở màn này (bỏ 23/08). Luật 10 buộc rail đi kèm việc MỞ
  *  một object; sổ không mở object nào, và bốn chip đứng cạnh nút "Chiến dịch
@@ -95,9 +101,9 @@ import { CAMPAIGN_ICON, MAX_CHANNEL_TAGS, channelsOf, draftOf, grouped } from '.
  *  KHÔNG có khối AI (bỏ 23/08 theo yêu cầu). Không có khối AI thì luật 9 không
  *  có gì để cưỡng chế ở đây — nó cấm AI tự chạy, không đòi mọi màn phải có AI.
  *
- *  Màn KHÔNG tự cộng số nghiệp vụ. Mọi tổng, mọi tỉ lệ, mọi phép lọc nằm ở
- *  `data/campaigns.ts` — một phép chia viết trong JSX là một phép chia không ai
- *  test được.
+ *  Màn KHÔNG tự cộng số nghiệp vụ. Mọi tổng, mọi tỉ lệ nằm ở `data/campaigns.ts`
+ *  — một phép chia viết trong JSX là một phép chia không ai test được. Bộ lọc
+ *  sống trên địa chỉ qua `useClientBookFilter` (xem `SOURCE_FILTERS` bên dưới).
  *
  *  Kịch bản 2 · DAS Vina, đóng băng 17/08 · 09:10. */
 /** Panel nạp KHÔNG loại dòng nào trước khi máy chủ nhìn thấy lô — lý do đầy đủ
@@ -110,17 +116,46 @@ const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
  *  sideways instead of squeezing. */
 const TABLE_MIN_WIDTH = 'min-w-[1100px]'
 
+/** Address keys of this book. Module-level so the hook's memo key is stable. */
+const SOURCE_FILTERS = {
+  status: oneOf(
+    CAMPAIGN_STATUS.map((s) => s.key),
+    undefined,
+  ),
+  owner: listField(),
+  channel: listField(),
+  from: dayField(),
+  to: dayField(),
+}
+
+type SourceFilters = BookFilters<typeof SOURCE_FILTERS>
+
+/** Pure: the search covers name and code; channel matches ANY wave of the source;
+ *  the date range is on the start day. */
+function filterSourceBook(rows: SourceRow[], f: SourceFilters): SourceRow[] {
+  const needle = normalise(f.q)
+  return rows.filter((r) => {
+    if (needle && !normalise(`${r.label} ${r.code}`).includes(needle)) return false
+    if (f.status && r.status !== f.status) return false
+    if (f.owner.length > 0 && !f.owner.includes(r.owner)) return false
+    if (f.channel.length > 0 && !r.waves.some((w) => f.channel.includes(w.channel))) return false
+    const day = r.startISO.slice(0, 10)
+    return (!f.from || day >= f.from) && (!f.to || day <= f.to)
+  })
+}
+
 export function SourcesPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm nguồn dẫn, đợt gửi…' })
   const navigate = useNavigate()
 
-  const { data: sources = [], isPending } = useQuery(sourcesQuery)
+  const { data: sources = [], isPending, error, refetch } = useQuery(sourcesQuery)
   const { data: totals } = useQuery(campaignTotalsQuery)
 
   const loadFile = useLeadImport()
 
   const [mode, setMode] = useState<'list' | 'create'>('list')
-  const [filter, setFilter] = useState<CampaignFilter>(NO_FILTER)
+  const book = useClientBookFilter(SOURCE_FILTERS)
+  const { filters, patch } = book
   /* Thứ tự bảng là state của MÀN, không phải của `DataTable` — bảng chỉ vẽ mũi
      tên và báo người dùng vừa bấm cột nào. Mặc định mới nhất lên trước. */
   const [sort, setSort] = useState<{ key: SourceSortKey; dir: TableSort['dir'] }>({
@@ -143,22 +178,22 @@ export function SourcesPage() {
     [sources],
   )
 
-  /* Số đếm trên bộ chọn trạng thái tính trên tập ĐÃ LỌC BA CHIỀU KIA. Đếm trên
-     cả sáu dòng thì lọc kênh email xong vẫn thấy "Đang chạy · 1" trong khi bảng
+  /* Số đếm trên bộ chọn trạng thái tính trên tập ĐÃ LỌC CÁC CHIỀU KIA. Đếm trên
+     cả sổ thì lọc kênh email xong vẫn thấy "Đang chạy · 1" trong khi bảng
      rỗng, và người dùng kết luận bảng hỏng. */
   const beforeStatus = useMemo(
-    () => filterSources(sources, { ...filter, status: null }),
-    [sources, filter],
+    () => filterSourceBook(sources, { ...filters, status: undefined }),
+    [sources, filters],
   )
 
   const visible = useMemo(() => {
-    const list = filterSources(sources, filter)
+    const list = filterSourceBook(sources, filters)
     const compare = SOURCE_SORTS.find((s) => s.key === sort.key)?.compare
     if (!compare) return list
     /* `compare` của tầng data LUÔN tăng dần — hướng là việc của màn. */
     const asc = [...list].sort(compare)
     return sort.dir === 'asc' ? asc : asc.reverse()
-  }, [sources, filter, sort])
+  }, [sources, filters, sort])
 
   const toggleSort = (key: string) => {
     const found = SOURCE_SORTS.find((s) => s.key === key)
@@ -170,20 +205,43 @@ export function SourcesPage() {
     )
   }
 
-  /* So với BỘ LỌC RỖNG, không so số dòng. Một bộ lọc đang bật mà tình cờ khớp
-     cả sáu dòng vẫn là một bộ lọc đang bật — giấu nút "Xoá lọc" ở đó là nhốt
-     người dùng trong một phép lọc họ không thấy. */
-  const filtering =
-    filter.owner !== null ||
-    filter.channel !== null ||
-    filter.status !== null ||
-    filter.window !== NO_FILTER.window
-
-  /* The number printed on the filter button. Status is NOT counted: the tab row
-     above already shows it, and counting it twice says one thing twice. */
-  const activeFilters =
-    [filter.owner, filter.channel].filter((v) => v !== null).length +
-    (filter.window === NO_FILTER.window ? 0 : 1)
+  const ownerFilter = (
+    <ColumnFilter label="Người phụ trách" active={filters.owner.length > 0}>
+      {(close) => (
+        <ColumnFilterList
+          options={owners.map((o) => ({ value: o, label: o }))}
+          selected={filters.owner}
+          close={close}
+          onApply={(owner) => patch({ owner })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const channelFilter = (
+    <ColumnFilter label="Kênh gửi" active={filters.channel.length > 0}>
+      {(close) => (
+        <ColumnFilterList
+          options={channels.map((c) => ({ value: c, label: CHANNEL_LABEL[c] }))}
+          selected={filters.channel}
+          close={close}
+          searchable={false}
+          onApply={(channel) => patch({ channel })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const startFilter = (
+    <ColumnFilter iconOnly label="Bắt đầu" active={Boolean(filters.from || filters.to)}>
+      {(close) => (
+        <ColumnFilterRange
+          from={filters.from}
+          to={filters.to}
+          close={close}
+          onApply={({ from, to }) => patch({ from, to })}
+        />
+      )}
+    </ColumnFilter>
+  )
 
   /* Lô nạp GHI THẲNG lên máy chủ, cùng hai cửa sổ lead đang dùng
      (`data/lead-import.ts`). Trước 31/08 chỗ này ghi vào `useIntakeDesk` — một
@@ -205,17 +263,18 @@ export function SourcesPage() {
     const run = await loadFile({ rows, motion, fileName, source: scope })
     const { report } = run
 
-    toast(run.failure ?? `${report.rows.length} người nhận đã vào sổ lead`, {
+    toast(run.failure ?? `${report.rows.length} người nhận đã được thêm vào sổ lead`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
-        scope && `Gắn vào nguồn ${scope}`,
-        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
+        scope && `Gắn với nguồn dẫn ${scope}`,
+        report.duplicates > 0 &&
+          `${report.duplicates} dòng đã có trong hệ thống, vẫn nhập và đánh dấu`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]
         .filter(Boolean)
         .join(' · '),
-      action: { label: 'Mở sổ lead', onClick: () => navigate('/sales/leads') },
+      action: { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
     })
 
     return report
@@ -252,13 +311,13 @@ export function SourcesPage() {
                   value: s.code,
                   label: `${s.code} · ${s.label}`,
                 }))}
-                buttonLabel="Nạp danh sách"
+                buttonLabel="Nhập người nhận từ tệp"
                 onCommit={commitRecipients}
                 onSeeResult={() => navigate('/sales/leads')}
               />
               <Button size="md" onClick={() => setMode('create')}>
                 <Icon icon={Plus} size={16} />
-                Nguồn dẫn mới
+                Thêm nguồn dẫn
               </Button>
             </>
           }
@@ -274,36 +333,36 @@ export function SourcesPage() {
                     size="compact"
                     icon={CheckCircle2}
                     value={String(byStatus.done)}
-                    label="Nguồn dẫn đã hoàn thành"
-                    hint={`trên ${totals.sources} nguồn dẫn của kỳ`}
+                    label="Đã hoàn thành"
+                    hint={`${byStatus.done}/${totals.sources} nguồn dẫn`}
                   />
                   <StatCard
                     size="compact"
                     icon={Zap}
                     value={String(byStatus.running)}
-                    label="Nguồn dẫn đang chạy"
-                    hint="đợt cuối còn trong 14 ngày — trả lời vẫn về"
+                    label="Đang hoạt động"
+                    hint="Có đợt gửi trong 14 ngày gần nhất"
                   />
                   <StatCard
                     size="compact"
                     icon={Mail}
                     value={grouped(totals.sent)}
-                    label="Số mail đã gửi"
-                    hint={`${totals.waves} đợt · ${grouped(totals.audience)} thư lô đã nợ khi mở`}
+                    label="Email đã gửi"
+                    hint={`${totals.waves} đợt gửi · ${grouped(totals.audience)} lượt người nhận dự kiến`}
                   />
                   <StatCard
                     size="compact"
                     icon={MailOpen}
                     value={percent(rate(totals.opened, totals.sent))}
-                    label="Tỉ lệ mở mail"
-                    hint={`${grouped(totals.opened)} người mở`}
+                    label="Tỷ lệ mở email"
+                    hint={`${grouped(totals.opened)}/${grouped(totals.sent)} email đã được mở`}
                   />
                   <StatCard
                     size="compact"
                     icon={Reply}
                     value={percent(rate(totals.clicked, totals.sent))}
-                    label="Tỉ lệ bấm vào thư"
-                    hint={`${grouped(totals.clicked)} người bấm`}
+                    label="Tỷ lệ nhấp liên kết"
+                    hint={`${grouped(totals.clicked)}/${grouped(totals.sent)} email có lượt nhấp`}
                   />
                 </ScreenScoreGrid>
 
@@ -311,12 +370,12 @@ export function SourcesPage() {
                     không đi được, nguồn tự nhiên đứng ngoài sổ này, và phần cơ hội
                     không chiến dịch nào được ghi công. */}
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Hai tỉ lệ trên chia cho cùng một mẫu số là {grouped(totals.sent)} thư đã gửi; các
-                  lô nợ {grouped(totals.audience)} thư khi mở, chỗ chênh là thư không rời được máy
-                  (bị chặn, dội, hoặc hết lượt thử). {totals.natural.count} nguồn tự nhiên (
-                  {totals.natural.leads} lead, không ai chạy đợt nào) không nằm trong sổ này; chúng
-                  ở Sổ lead. {totals.ops}/{totals.opsBook} cơ hội của kỳ đến từ những chiến dịch
-                  dưới đây.
+                  Hai tỷ lệ trên đều được tính trên {grouped(totals.sent)} email đã gửi. Chênh lệch
+                  so với {grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả
+                  lại hoặc gửi không thành công. {totals.natural.count} nguồn tự nhiên với{' '}
+                  {totals.natural.leads} lead được thống kê tại Sổ lead. {totals.ops}/
+                  {totals.opsBook}
+                  cơ hội trong kỳ đến từ các nguồn dẫn bên dưới.
                 </p>
               </div>
             ) : (
@@ -328,13 +387,8 @@ export function SourcesPage() {
               label="Trạng thái"
               hideLabel
               tone="quiet"
-              value={filter.status ?? 'all'}
-              onChange={(v) =>
-                setFilter((f) => ({
-                  ...f,
-                  status: v === 'all' ? null : (v as CampaignStatus),
-                }))
-              }
+              value={filters.status ?? 'all'}
+              onChange={(v) => patch({ status: CAMPAIGN_STATUS.find((s) => s.key === v)?.key })}
               options={[
                 { value: 'all', label: 'Tất cả', count: beforeStatus.length },
                 /* Chỉ hiện trạng thái CÓ dòng. "Nháp · 0" hôm nay luôn rỗng
@@ -352,67 +406,47 @@ export function SourcesPage() {
           }
           count={<BookCount total={visible.length} noun="nguồn dẫn" />}
           tools={
-            <FilterMenu label="Bộ lọc nguồn dẫn" active={activeFilters}>
-              <Select
-                label="Kênh"
-                value={filter.channel ?? 'all'}
-                neutralValue="all"
-                onChange={(v) =>
-                  setFilter((f) => ({
-                    ...f,
-                    channel: v === 'all' ? null : (v as (typeof channels)[number]),
-                  }))
-                }
-                /* A native select grows to its longest option and would burst the
-                   popover — clamp it to the panel. */
-                className="w-full max-w-none"
-                options={[
-                  { value: 'all', label: 'Mọi kênh' },
-                  ...channels.map((c) => ({ value: c, label: CHANNEL_LABEL[c] })),
-                ]}
+            <>
+              <SearchField
+                placeholder="Tìm theo tên hoặc mã nguồn dẫn…"
+                value={book.text}
+                onChange={book.setText}
+                className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-
-              <Select
-                label="Thời gian"
-                value={filter.window}
-                neutralValue="all"
-                onChange={(v) => setFilter((f) => ({ ...f, window: v as TimeWindowKey }))}
-                className="w-full max-w-none"
-                options={TIME_WINDOWS.map((w) => ({ value: w.key, label: w.label }))}
-              />
-
-              {/* Ô lọc PIC chỉ có mặt khi có từ hai người trở lên. Cả kỳ này
-                  một mình Marketing chạy sáu chiến dịch, nên hôm nay nó vắng
-                  — và câu dưới sổ nói ra chuyện đó. Một hộp lọc một lựa
-                  chọn là một hộp không lọc được gì. */}
-              {owners.length > 1 ? (
-                <Select
-                  label="PIC"
-                  value={filter.owner ?? 'all'}
-                  neutralValue="all"
-                  onChange={(v) => setFilter((f) => ({ ...f, owner: v === 'all' ? null : v }))}
-                  className="w-full max-w-none"
-                  options={[
-                    { value: 'all', label: 'Mọi PIC' },
-                    ...owners.map((o) => ({ value: o, label: o })),
-                  ]}
-                />
-              ) : null}
-
-              {filtering ? (
-                <Button size="md" variant="ghost" onClick={() => setFilter(NO_FILTER)}>
-                  Xoá lọc
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={book.clear}
+                  className="pointer-coarse:h-12"
+                >
+                  Bỏ hết bộ lọc
                 </Button>
-              ) : null}
-            </FilterMenu>
+              )}
+            </>
           }
           pending={isPending}
+          failure={
+            error
+              ? {
+                  message: `Không tải được danh sách nguồn dẫn. ${
+                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  }`,
+                  onRetry: () => void refetch(),
+                }
+              : undefined
+          }
           empty={
             visible.length === 0
-              ? {
-                  message: 'Không có chiến dịch nào khớp bộ lọc đang bật.',
-                  action: { label: 'Xoá lọc', onClick: () => setFilter(NO_FILTER) },
-                }
+              ? book.dirty
+                ? {
+                    message: 'Không có nguồn dẫn nào phù hợp với bộ lọc hiện tại.',
+                    action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
+                  }
+                : {
+                    message: 'Chưa có nguồn dẫn nào. Hãy thêm nguồn dẫn đầu tiên.',
+                    action: { label: 'Thêm nguồn dẫn', onClick: () => setMode('create') },
+                  }
               : undefined
           }
           table={{
@@ -421,18 +455,19 @@ export function SourcesPage() {
             onSort: toggleSort,
             columns: [
               { header: 'Nguồn dẫn', width: '2.4fr' },
-              { header: 'PIC', width: '1fr' },
-              { header: 'Kênh bắn', width: '0.8fr' },
-              { header: 'Bắt đầu', width: '0.75fr', sortKey: 'start' },
+              /* A one-choice filter filters nothing, so the plain title stays. */
+              { header: owners.length > 1 ? ownerFilter : 'Người phụ trách', width: '1fr' },
+              { header: channels.length > 1 ? channelFilter : 'Kênh gửi', width: '0.8fr' },
+              { header: 'Bắt đầu', width: '0.75fr', sortKey: 'start', filter: startFilter },
               { header: 'Kết thúc', width: '0.75fr', sortKey: 'end' },
               { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'recipients' },
               /* The three ratio columns each divide by THAT source's own
                  recipient count, which is why a source run off a social post
                  reads low on all three — the channel column says why. */
-              { header: 'Mở mail', width: '0.7fr', align: 'right', sortKey: 'opens' },
-              { header: 'Bấm', width: '0.7fr', align: 'right', sortKey: 'clicks' },
-              { header: 'Mail hỏng', width: '0.75fr', align: 'right', sortKey: 'bounces' },
-              { header: '→ Ops', width: '0.7fr', align: 'right', sortKey: 'ops' },
+              { header: 'Tỷ lệ mở', width: '0.7fr', align: 'right', sortKey: 'opens' },
+              { header: 'Tỷ lệ nhấp', width: '0.7fr', align: 'right', sortKey: 'clicks' },
+              { header: 'Tỷ lệ trả lại', width: '0.75fr', align: 'right', sortKey: 'bounces' },
+              { header: 'Cơ hội tạo ra', width: '0.7fr', align: 'right', sortKey: 'ops' },
             ],
             rows: visible.map((s) => {
               const chans = channelsOf(s)

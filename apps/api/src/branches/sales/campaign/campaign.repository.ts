@@ -1,8 +1,27 @@
-import { and, asc, count, desc, eq, ilike, inArray, not, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  not,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { CampaignBookQuery, CampaignMemberQuery, CampaignState } from '@pv/contracts'
+import {
+  OWNER_NONE,
+  type CampaignBookQuery,
+  type CampaignMemberQuery,
+  type CampaignState,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { csvOf, createdWithin } from '@api/platform/db/book-filter'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
@@ -440,16 +459,33 @@ export class CampaignRepository {
     return r?.n ?? 0
   }
 
+  /** Both counts are SELECT-list subqueries, so they order by the same
+   *  expression; `code` closes every order so ties cannot reshuffle pages. */
   private orderBy(q: CampaignBookQuery): SQL[] {
     const dir = q.dir === 'asc' ? asc : desc
-    const primary = q.sort === 'name' ? campaign.name : campaign.createdAt
+    const primary = {
+      name: campaign.name,
+      createdAt: campaign.createdAt,
+      audienceCount: AUDIENCE_COUNT,
+      waveCount: WAVE_COUNT,
+    }[q.sort]
     return [dir(primary), dir(campaign.code)]
+  }
+
+  /** `OWNER_NONE` among the ids also matches campaigns nobody owns. */
+  private byOwner(csv: string): SQL | undefined {
+    const ids = csvOf(csv)
+    const named = ids.filter((id) => id !== OWNER_NONE)
+    const namedMatch = named.length ? inArray(campaign.ownerId, named) : undefined
+    return ids.includes(OWNER_NONE) ? or(isNull(campaign.ownerId), namedMatch) : namedMatch
   }
 
   private filtersOf(q: CampaignBookQuery): (SQL | undefined)[] {
     return [
       q.state ? eq(campaign.state, q.state) : undefined,
-      q.owner ? eq(campaign.ownerId, q.owner) : undefined,
+      q.owner ? this.byOwner(q.owner) : undefined,
+      q.source ? inArray(campaign.sourceId, csvOf(q.source)) : undefined,
+      ...createdWithin(campaign.createdAt, q.createdFrom, q.createdTo),
       /* Code as well as name — the search box on the book offers both, and
          typing `CP-0001` into a name-only ilike returns nothing. */
       q.q

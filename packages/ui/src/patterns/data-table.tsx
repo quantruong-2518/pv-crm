@@ -142,7 +142,7 @@ export function DataTable({
                   className={cn(
                     // rounded-md: đây là CONTROL (bấm được, có focus ring), mà
                     // control bo 4 — `rounded-sm` 3px là cấp tag (luật 5).
-                    'motion-std hover:text-foreground -m-1 inline-flex items-center gap-1 rounded-md p-1',
+                    'motion-std hover:text-foreground pointer-coarse:min-h-12 -m-1 inline-flex items-center gap-1 rounded-md p-1',
                     active && 'text-accent-foreground font-semibold',
                   )}
                 >

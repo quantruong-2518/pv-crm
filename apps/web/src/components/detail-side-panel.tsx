@@ -31,7 +31,14 @@ const TOP_BAR_OFFSET = 112 + 16
 /** Chừa lại một mẩu dưới đáy khi phải kéo cột lên, để thẻ cuối không dán mép. */
 const BOTTOM_GAP = 16
 
-export function DetailSidePanel({ children }: { children: ReactNode }) {
+export function DetailSidePanel({
+  children,
+  bottomInset = BOTTOM_GAP,
+}: {
+  children: ReactNode
+  /** Room kept under a pinned tall panel — more when a floating bar sits there. */
+  bottomInset?: number
+}) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [stickyTop, setStickyTop] = useState(TOP_BAR_OFFSET)
 
@@ -40,7 +47,7 @@ export function DetailSidePanel({ children }: { children: ReactNode }) {
     if (!panel) return
 
     const syncStickyTop = () => {
-      const top = Math.min(TOP_BAR_OFFSET, window.innerHeight - panel.offsetHeight - BOTTOM_GAP)
+      const top = Math.min(TOP_BAR_OFFSET, window.innerHeight - panel.offsetHeight - bottomInset)
       setStickyTop(top)
     }
     const observer = new ResizeObserver(syncStickyTop)
@@ -52,7 +59,7 @@ export function DetailSidePanel({ children }: { children: ReactNode }) {
       observer.disconnect()
       window.removeEventListener('resize', syncStickyTop)
     }
-  }, [])
+  }, [bottomInset])
 
   return (
     <div

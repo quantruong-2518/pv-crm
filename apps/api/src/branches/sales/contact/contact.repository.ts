@@ -1,9 +1,22 @@
-import { and, asc, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { ContactBookQuery } from '@pv/contracts'
+import { OWNER_NONE, type ContactBookQuery, type ContactFacetsQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
+import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
@@ -17,7 +30,12 @@ export type ContactBookRead = {
   company: string
   accountCode: string | null
   accountName: string | null
+  ownerName: string | null
+  ownerEmail: string | null
 }
+
+const presence = (column: typeof contact.email | typeof contact.phone, flag: '1' | '0') =>
+  flag === '1' ? isNotNull(column) : isNull(column)
 
 const NEXT_CODE = sql`SELECT 'CT-' || lpad(nextval('sales.contact_code_seq')::text, 4, '0') AS code`
 
@@ -136,10 +154,13 @@ export class ContactRepository {
         company: lead.company,
         accountCode: lead.accountCode,
         accountName: account.name,
+        ownerName: actor.name,
+        ownerEmail: actor.email,
       })
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
       .leftJoin(account, eq(account.code, lead.accountCode))
+      .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(where)
       .orderBy(...this.orderBy(q))
       .limit(q.size)
@@ -173,17 +194,20 @@ export class ContactRepository {
         company: lead.company,
         accountCode: lead.accountCode,
         accountName: account.name,
+        ownerName: actor.name,
+        ownerEmail: actor.email,
       })
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
       .leftJoin(account, eq(account.code, lead.accountCode))
+      .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(and(eq(contact.code, code), leadLive, scope))
       .limit(1)
 
     return found ?? null
   }
 
-  private filtersOf(q: ContactBookQuery): SQL[] {
+  filtersOf(q: ContactFacetsQuery): SQL[] {
     const parts: SQL[] = []
 
     if (q.q !== undefined) {
@@ -197,9 +221,31 @@ export class ContactRepository {
     }
 
     if (q.primary === '1') parts.push(eq(contact.isPrimary, true))
-    if (q.account !== undefined) parts.push(eq(lead.accountCode, q.account))
+    if (q.account !== undefined) parts.push(inArray(lead.accountCode, q.account.split(',')))
+    if (q.owner !== undefined) parts.push(...this.byOwner(q.owner))
+    if (q.hasEmail !== undefined) parts.push(presence(contact.email, q.hasEmail))
+    if (q.hasPhone !== undefined) parts.push(presence(contact.phone, q.hasPhone))
+    /* A Vietnam calendar day, same cut as the lead book's entry date. */
+    if (q.createdFrom)
+      parts.push(
+        sql`${contact.createdAt} >= (${q.createdFrom}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`,
+      )
+    if (q.createdTo)
+      parts.push(
+        sql`${contact.createdAt} < ((${q.createdTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`,
+      )
 
     return parts
+  }
+
+  /** The lead's PIC, as a comma list; `OWNER_NONE` also matches an unowned lead. */
+  private byOwner(csv: string): SQL[] {
+    const ids = csv.split(',').filter((id) => id !== '')
+    const named = ids.filter((id) => id !== OWNER_NONE)
+    const hit = ids.includes(OWNER_NONE)
+      ? or(isNull(lead.ownerId), named.length ? inArray(lead.ownerId, named) : undefined)
+      : inArray(lead.ownerId, named)
+    return hit ? [hit] : []
   }
 
   private orderBy(q: ContactBookQuery): SQL[] {

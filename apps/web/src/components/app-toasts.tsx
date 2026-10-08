@@ -1,5 +1,8 @@
 import { ToastHost } from '@pv/ui'
 import { useToasts } from '@/app/toast'
+import { consumeGoogleReturn } from '@/components/google-return'
+
+consumeGoogleReturn()
 
 /** Hàng thông báo, gắn MỘT lần cho cả app.
  *

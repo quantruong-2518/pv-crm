@@ -18,6 +18,7 @@ import { NextStepModule } from './next-step/next-step.module'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
 import { PartnerModule } from './partner/partner.module'
+import { SearchModule } from './search/search.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
 import { WorkstreamModule } from './workstream/workstream.module'
 
@@ -78,6 +79,7 @@ registerConstraints(CONFIG_CONSTRAINTS)
        module boundary to read it. */
     WorkstreamModule,
     NextStepModule,
+    SearchModule,
   ],
   exports: [
     LeadModule,

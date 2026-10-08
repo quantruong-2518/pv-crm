@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -9,22 +9,18 @@ import {
   Icon,
   ScreenLayout,
   SearchField,
+  SegmentedControl,
   ColumnFilter,
   ColumnFilterList,
   billions,
   type TableSort,
 } from '@pv/ui'
-import { AccountSortKey, type AccountBookQuery } from '@pv/contracts'
+import { AccountBookQuery, AccountSortKey, type LeadCategory } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
-import {
-  accountBookQuery,
-  accountBookQueryToParams,
-  DEFAULT_ACCOUNT_BOOK_QUERY,
-  parseAccountBookQuery,
-} from '@/data/accounts'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
+import { accountBookQuery, accountFacetsQuery, CATEGORY_LABEL } from '@/data/accounts'
 import { BookCount, BookPage } from '@/components/book-page'
 import { TableFooter } from '@/components/table-bits'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
@@ -53,7 +49,7 @@ import { AccountCreateDialog } from '@/components/account-create-dialog'
  *  always comes back 0.
  *
  *  ------------------------------------------------------------------
- *  THE "BOUGHT / NOT BOUGHT" FILTER IS THIS REPO'S TWO SCENARIOS, ASKED OF
+ *  THE "BOUGHT / NOT BOUGHT" TABS ARE THIS REPO'S TWO SCENARIOS, ASKED OF
  *  THE REAL BOOK
  *  ------------------------------------------------------------------
  *  One frozen scenario is a customer who has bought and the other is one who
@@ -62,82 +58,117 @@ import { AccountCreateDialog } from '@/components/account-create-dialog'
  *  NOT mix the two scenarios (the `no-scenario-mix` rule); it just reuses the
  *  same split the whole product already thinks in. */
 
-const PAGE_SIZE = DEFAULT_ACCOUNT_BOOK_QUERY.size
+const PAGE_SIZE = 50
+
+const CUSTOMER_TABS = [
+  { value: 'all', label: 'Tất cả' },
+  { value: '1', label: 'Đã ký hợp đồng' },
+  { value: '0', label: 'Chưa ký hợp đồng' },
+]
+
+const OPEN_DEALS_OPTIONS = [
+  { value: '1', label: 'Có cơ hội đang mở' },
+  { value: '0', label: 'Không có cơ hội đang mở' },
+]
+
+const csvOf = (v?: string) => (v ? v.split(',') : [])
+
+type Facet = { value: string; count: number }
+
+/** Facet choices with their counts, plus any picked value the facet no longer
+ *  returns, so a pick never vanishes from its own list. */
+function facetOptions(facets: Facet[], picked: string[], labelOf: (v: string) => string) {
+  const known = new Set(facets.map((f) => f.value))
+  return [
+    ...facets.map((f) => ({ value: f.value, label: `${labelOf(f.value)} · ${f.count}` })),
+    ...picked.filter((v) => !known.has(v)).map((v) => ({ value: v, label: labelOf(v) })),
+  ]
+}
 
 export default function AccountsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm công ty, mã số thuế…' })
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
   const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
 
-  const query = useMemo(() => parseAccountBookQuery(params), [params])
-
-  /* The filters live in the URL, not in `useState` — same rule as the lead
-     book and the deal book: a filtered book page must be pasteable for
-     someone else, and the browser's Back button must undo exactly one filter
-     step. */
-  const patch = (next: Partial<AccountBookQuery>) => {
-    const merged = { ...query, ...next, page: next.page ?? 1 }
-    setParams(new URLSearchParams(accountBookQueryToParams(merged)), { replace: true })
-  }
-  const clearAll = () => setParams(new URLSearchParams(), { replace: true })
+  /* The address is the source of truth; the hook owns patch, the debounced
+     search box, the page reset and "clear all". */
+  const book = useBookQuery(AccountBookQuery, {
+    size: PAGE_SIZE,
+    filterKeys: ['province', 'category', 'customer', 'openDeals'],
+  })
+  const { query } = book
 
   const { data, isPending, error, refetch } = useQuery(accountBookQuery(query))
+  const { data: facets } = useQuery(accountFacetsQuery(query))
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
-  const pageIndex = pageIndexFromQueryPage(query.page)
+  const { pageIndex } = useBookPageClamp(book, data?.total)
 
-  const dirty =
-    query.q !== undefined ||
-    query.province !== undefined ||
-    query.category !== undefined ||
-    query.customer !== undefined
-  /* The province list is built from the CURRENT PAGE, plus whatever is already
-     picked so a choice never vanishes from its own list. A list of all 63
-     provinces needs its own facet door, and nobody has asked for that yet. */
-  const picked = query.province?.split(',') ?? []
-  const provinceOptions = [
-    ...new Set([...picked, ...rows.map((r) => r.province).filter((p) => p !== undefined)]),
-  ].map((p) => ({ value: p, label: p }))
-  const signedOptions = [
-    { value: '1', label: 'Đã mua' },
-    { value: '0', label: 'Chưa mua' },
-  ]
-  const provinceFilter = (
-    <ColumnFilter iconOnly label="Tỉnh/thành" active={picked.length > 0}>
+  const provincePicked = csvOf(query.province)
+  const categoryPicked = csvOf(query.category)
+  const provinceOptions = facetOptions(facets?.provinces ?? [], provincePicked, (v) => v)
+  const categoryOptions = facetOptions(
+    facets?.categories ?? [],
+    categoryPicked,
+    (v) => CATEGORY_LABEL[v as LeadCategory] ?? v,
+  )
+
+  const listFilter = (
+    label: string,
+    key: 'province' | 'category',
+    options: { value: string; label: string }[],
+    iconOnly?: boolean,
+  ) => (
+    <ColumnFilter iconOnly={iconOnly} label={label} active={query[key] !== undefined}>
       {(close) => (
         <ColumnFilterList
-          options={provinceOptions}
-          selected={picked}
+          options={options}
+          selected={csvOf(query[key])}
           close={close}
-          onApply={(v) => patch({ province: v.length ? v.join(',') : undefined })}
+          onApply={(v) => book.patch({ [key]: v.length ? v.join(',') : undefined })}
         />
       )}
     </ColumnFilter>
   )
-  /* Both ticked is the same question as none ticked: everyone. */
-  const signedFilter = (
-    <ColumnFilter iconOnly label="Đã ký" active={query.customer !== undefined}>
+  const openDealsFilter = (
+    <ColumnFilter iconOnly label="Cơ hội đang mở" active={query.openDeals !== undefined}>
       {(close) => (
         <ColumnFilterList
-          options={signedOptions}
-          selected={query.customer === undefined ? [] : [String(query.customer)]}
+          options={OPEN_DEALS_OPTIONS}
+          selected={query.openDeals === undefined ? [] : [String(query.openDeals)]}
           close={close}
           searchable={false}
-          onApply={(v) => patch({ customer: v.length === 1 ? (Number(v[0]) as 0 | 1) : undefined })}
+          onApply={(v) =>
+            book.patch({ openDeals: v.length === 1 ? (Number(v[0]) as 0 | 1) : undefined })
+          }
         />
       )}
     </ColumnFilter>
   )
+
+  /* The tab counts come from the facets, which ignore the tab's own filter. */
+  const signed = facets?.byCustomer.signed
+  const unsigned = facets?.byCustomer.unsigned
+  const tabCounts = {
+    all: signed === undefined || unsigned === undefined ? undefined : signed + unsigned,
+    '1': signed,
+    '0': unsigned,
+  }
+  const tabs = CUSTOMER_TABS.map((t) => ({
+    ...t,
+    count: tabCounts[t.value as keyof typeof tabCounts],
+  }))
+  const onTab = (value: string) =>
+    book.patch({ customer: value === 'all' ? undefined : (Number(value) as 0 | 1) })
 
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
 
   const onSort = (key: string) => {
     const parsed = AccountSortKey.safeParse(key)
     if (!parsed.success) return
-    patch(
+    book.patch(
       query.sort === parsed.data
         ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
         : { sort: parsed.data, dir: 'asc' },
@@ -151,23 +182,38 @@ export default function AccountsPage() {
           title="Sổ công ty"
           actions={
             canWrite ? (
-              <Button size="md" onClick={() => setCreating(true)}>
+              <Button size="md" className="pointer-coarse:h-12" onClick={() => setCreating(true)}>
                 <Icon icon={Factory} size={16} />
-                Mở công ty mới
+                Thêm công ty
               </Button>
             ) : undefined
+          }
+          tabs={
+            <SegmentedControl
+              label="Nhóm công ty"
+              hideLabel
+              tone="quiet"
+              value={query.customer === undefined ? 'all' : String(query.customer)}
+              options={tabs}
+              onChange={onTab}
+            />
           }
           count={<BookCount total={total} noun="công ty" />}
           tools={
             <>
               <SearchField
-                placeholder="Tên, tên trên giấy tờ, mã số thuế"
-                value={query.q ?? ''}
-                onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
+                placeholder="Tìm theo tên công ty hoặc mã số thuế…"
+                value={book.text}
+                onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-              {dirty && (
-                <Button size="md" variant="ghost" onClick={clearAll}>
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={book.clear}
+                >
                   Bỏ hết bộ lọc
                 </Button>
               )}
@@ -177,7 +223,7 @@ export default function AccountsPage() {
           failure={
             error
               ? {
-                  message: `Không lấy được sổ công ty. ${
+                  message: `Không tải được danh sách công ty. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -187,34 +233,50 @@ export default function AccountsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: dirty
-                    ? 'Không có công ty nào khớp bộ lọc đang chọn.'
-                    : 'Sổ công ty chưa có dòng nào. Mỗi lead vào sổ tự mở hoặc nối vào một công ty, nên sổ này thường không rỗng lâu.',
-                  action: dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
-                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
+                  message: book.dirty
+                    ? 'Không có công ty nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có công ty nào. Công ty sẽ được tạo tự động khi bạn thêm lead.',
+                  action: book.dirty
+                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
+                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
                 }
               : undefined
           }
           table={{
-            minWidth: 'min-w-[1100px]',
+            minWidth: 'min-w-[1200px]',
             sort: tableSort,
             onSort,
             columns: [
               { header: 'Mã', width: '0.8fr' },
-              { header: 'Công ty', width: '2.2fr', sortKey: 'name' },
-              { header: 'MST', width: '1.1fr' },
-              { header: 'Tỉnh/thành', width: '1fr', sortKey: 'province', filter: provinceFilter },
-              { header: 'Lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
-              { header: 'Đơn mở', width: '0.7fr', align: 'right', sortKey: 'openDeals' },
+              { header: 'Tên công ty', width: '2.2fr', sortKey: 'name' },
+              { header: 'Mã số thuế', width: '1.1fr' },
               {
-                header: 'Đã ký',
+                header: 'Tỉnh/thành',
+                width: '1fr',
+                sortKey: 'province',
+                filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
+              },
+              { header: listFilter('Ngành', 'category', categoryOptions), width: '0.8fr' },
+              { header: 'Số lead', width: '0.6fr', align: 'right', sortKey: 'leads' },
+              {
+                header: 'Cơ hội đang mở',
+                width: '0.7fr',
+                align: 'right',
+                sortKey: 'openDeals',
+                filter: openDealsFilter,
+              },
+              {
+                header: 'Hợp đồng đã ký',
                 width: '0.7fr',
                 align: 'right',
                 sortKey: 'signedDeals',
-                filter: signedFilter,
               },
-              { header: 'Doanh số', width: '1.1fr', align: 'right', sortKey: 'signedAmountVnd' },
+              {
+                header: 'Giá trị đã ký',
+                width: '1.1fr',
+                align: 'right',
+                sortKey: 'signedAmountVnd',
+              },
             ],
             rows: rows.map((a) => ({
               id: a.code,
@@ -229,6 +291,9 @@ export default function AccountsPage() {
                 </span>,
                 <span key="p" className="block truncate">
                   {a.province ?? '—'}
+                </span>,
+                <span key="g" className="block truncate">
+                  {a.category ? CATEGORY_LABEL[a.category] : '—'}
                 </span>,
                 <span key="l" className="tnum font-num">
                   {a.leads}
@@ -251,12 +316,7 @@ export default function AccountsPage() {
             })),
           }}
           footer={
-            <TableFooter
-              page={pageIndex}
-              pageSize={PAGE_SIZE}
-              total={total}
-              onPage={(p) => patch({ page: queryPageFromPageIndex(p) })}
-            />
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
           }
         />
 

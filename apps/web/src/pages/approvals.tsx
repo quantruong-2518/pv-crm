@@ -62,10 +62,10 @@ export default function ApprovalInboxScreen() {
         <ScreenHeader
           kicker="One Core"
           title="Hộp duyệt"
-          description="Việc đang chờ bạn gật. Gật xong thì thay đổi được ghi ngay trong cùng một lượt."
+          description="Các yêu cầu đang chờ bạn phê duyệt. Sau khi duyệt, thay đổi được áp dụng ngay."
           meta={
             rows && rows.length > 0 ? (
-              <MetaPill tone="warning">{rows.length} việc đang chờ</MetaPill>
+              <MetaPill tone="warning">{rows.length} yêu cầu đang chờ</MetaPill>
             ) : null
           }
         />
@@ -78,7 +78,7 @@ export default function ApprovalInboxScreen() {
         ) : error || !rows ? (
           <EmptyState
             icon={TriangleAlert}
-            message={`Không lấy được hộp duyệt. ${
+            message={`Không tải được danh sách yêu cầu phê duyệt. ${
               isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
             }`}
             action={{ label: 'Thử lại', onClick: () => void refetch() }}
@@ -89,7 +89,7 @@ export default function ApprovalInboxScreen() {
              it means rather than offering something to create. */
           <EmptyState
             icon={Inbox}
-            message="Không có việc nào đang chờ bạn gật."
+            message="Không có yêu cầu nào đang chờ bạn phê duyệt."
             /* The one next step an inbox has: look again. It fills from other
                people's screens, so a reader who expected something has nothing
                to create here — only a reason to re-ask. */
@@ -111,7 +111,7 @@ export default function ApprovalInboxScreen() {
 /** The kind as a reader says it. Keyed by the contract's enum, so a new kind
  *  fails to compile here instead of printing its wire key. */
 const KIND_LABEL: Record<ApprovalKind, string> = {
-  'config-change': 'Đổi cấu hình',
+  'config-change': 'Thay đổi cấu hình',
   'contract-sign': 'Ký hợp đồng',
 }
 
@@ -152,17 +152,19 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
           <Kicker tone="muted">{KIND_LABEL[request.kind]}</Kicker>
           <p className="font-display text-[15px] font-semibold">{request.consequence}</p>
           <p className="text-muted-foreground text-[11.5px]">
-            {request.raisedBy} đề nghị · {dmhm(request.raisedAt)}
+            {request.raisedBy} gửi yêu cầu · {dmhm(request.raisedAt)}
           </p>
         </div>
 
         {/* Rule 9 on screen: a proposal from the assistant says so, and says on
             what grounds, before anybody presses anything. */}
-        {request.fromAi ? <Badge tone="running">Trợ lý AI đề xuất</Badge> : null}
+        {request.fromAi ? <Badge tone="running">Do trợ lý AI đề xuất</Badge> : null}
       </div>
 
       {request.fromAi && request.basis ? (
-        <p className="text-glass-foreground text-[12px] leading-[1.7]">Căn cứ: {request.basis}</p>
+        <p className="text-glass-foreground text-[12px] leading-[1.7]">
+          Cơ sở đề xuất: {request.basis}
+        </p>
       ) : null}
 
       {request.links.length > 0 ? (
@@ -188,19 +190,21 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Vì sao từ chối? Câu này là thứ người đề nghị đọc."
+            placeholder="Nhập lý do từ chối để người gửi yêu cầu hiểu quyết định."
             rows={3}
           />
           <div className="flex flex-wrap gap-2">
             <Button
               variant="destructive"
               disabled={reason.trim() === '' || decide.isPending}
-              onClick={() => send({ decision: 'rejected', reason: reason.trim() }, 'Đã từ chối.')}
+              onClick={() =>
+                send({ decision: 'rejected', reason: reason.trim() }, 'Đã từ chối yêu cầu.')
+              }
             >
-              Gửi từ chối
+              Xác nhận từ chối
             </Button>
             <Button variant="ghost" onClick={() => setRefusing(false)}>
-              Thôi
+              Hủy
             </Button>
           </div>
         </div>
@@ -208,9 +212,11 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={decide.isPending}
-            onClick={() => send({ decision: 'approved' }, 'Đã duyệt. Thay đổi đã được ghi.')}
+            onClick={() =>
+              send({ decision: 'approved' }, 'Đã phê duyệt. Thay đổi đã được áp dụng.')
+            }
           >
-            Duyệt
+            Phê duyệt
           </Button>
           <Button variant="ghost" disabled={decide.isPending} onClick={() => setRefusing(true)}>
             Từ chối

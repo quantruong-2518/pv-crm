@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
   Chip,
+  ColumnFilter,
+  ColumnFilterList,
+  ColumnFilterRange,
   Icon,
   Inbox,
   Megaphone,
@@ -13,31 +16,33 @@ import {
   Zap,
   SearchField,
   SegmentedControl,
-  Select,
   ScreenLayout,
   StatCard,
   type TableSort,
 } from '@pv/ui'
-import { CampaignBookSortKey, type CampaignBookQuery, type CampaignState } from '@pv/contracts'
+import {
+  CampaignBookQuery,
+  CampaignBookSortKey,
+  OWNER_NONE,
+  type CampaignBookRow,
+  type CampaignState,
+} from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { dm } from '@/lib/date'
 import {
   CAMPAIGN_STATE_LABEL,
   CAMPAIGN_STATE_TONE,
-  DEFAULT_CAMPAIGN_BOOK_QUERY,
   campaignBookQuery,
-  campaignBookQueryToParams,
   campaignFacetQuery,
-  parseCampaignBookQuery,
 } from '@/data/campaign-book'
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
-import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { TableFooter } from '@/components/table-bits'
 import { CampaignCreateModal } from './campaign-profile-parts'
 
 /** Module 1 · Sổ chiến dịch — `GET /sales/campaigns`.
@@ -58,20 +63,14 @@ import { CampaignCreateModal } from './campaign-profile-parts'
  *  cột. Bộ lọc nằm trên ĐỊA CHỈ, nên một trang đã lọc chép cho người khác được.
  *
  *  Ít thứ hơn vì sổ này trả lời ít câu hơn: không có nút nạp tệp (thành viên
- *  vào chiến dịch từ Sổ lead, không từ một tệp rời), trạng thái là hàng tab, và
- *  trong `FilterMenu` chỉ còn một ô Chủ. Ba ô lọc của sổ cơ hội trả lời những
- *  câu mà sổ vài chục dòng này chưa ai hỏi. */
+ *  vào chiến dịch từ Sổ lead, không từ một tệp rời). Trạng thái là hàng tab; Người phụ trách,
+ *  Nguồn dẫn và Tạo lúc lọc ngay trên tiêu đề cột (`ColumnFilter`) như Sổ lead. */
 
 /** Số dòng bảng vẽ. Nhỏ hơn mặc định 50 của hợp đồng vì hàng chiến dịch cao
  *  hơn hàng cơ hội — có tên dài và hai con số. */
 const PAGE_SIZE = 10
 
 const TABLE_MIN_WIDTH = 'min-w-[980px]'
-
-/** How long after the last keystroke the search box writes to the address. Same
- *  value as the opportunity book because it is the same box: typing stays
- *  instant in local state, only the URL waits. */
-const SEARCH_DELAY_MS = 300
 
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
 
@@ -91,7 +90,6 @@ const STATE_TABS: { value: string; label: string }[] = [
 export function CampaignsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm chiến dịch, đợt gửi…' })
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
 
   /* HIDDEN, not greyed out — same call `opportunity-detail` makes for its sign
      button. A greyed button promises "you could do this, just not now", and for
@@ -110,8 +108,11 @@ export function CampaignsPage() {
   const { data: catalog } = useQuery({ ...salesCatalogQuery, enabled: canWrite })
   const sources = useMemo(() => catalog?.SOURCE ?? [], [catalog])
 
-  const urlQuery = useMemo(() => parseCampaignBookQuery(params), [params])
-  const query = useMemo<CampaignBookQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
+  const book = useBookQuery(CampaignBookQuery, {
+    size: PAGE_SIZE,
+    filterKeys: ['state', 'owner', 'source', 'createdFrom', 'createdTo'],
+  })
+  const { query, urlQuery } = book
 
   const {
     data,
@@ -140,63 +141,59 @@ export function CampaignsPage() {
     [wholeBook],
   )
 
-  /* Danh sách chủ dựng TỪ CẢ SỔ, khoá theo id và nhãn là tên máy chủ đã gửi —
-     không tra ngược id sang tên bằng fixture, vì dữ liệu thật không nằm trong
-     một kịch bản đóng băng. */
-  const owners = useMemo(() => {
-    const seen = new Map<string, string>()
+  /* Options are built from the whole book, keyed by id with the server's own
+     name and a count; a value no campaign carries is never offered. */
+  const optionsOf = (
+    pick: (c: CampaignBookRow) => [id?: string, name?: string],
+    none: { value: string; label: string } | null,
+  ) => {
+    const seen = new Map<string, { label: string; n: number }>()
+    let unset = 0
     for (const c of wholeBook) {
-      if (c.ownerId && !seen.has(c.ownerId)) seen.set(c.ownerId, c.ownerName ?? c.ownerId)
+      const [id, name] = pick(c)
+      if (!id) unset += 1
+      else seen.set(id, { label: name ?? id, n: (seen.get(id)?.n ?? 0) + 1 })
     }
-    return [...seen].map(([value, label]) => ({ value, label }))
-  }, [wholeBook])
-
-  const patch = (next: Partial<CampaignBookQuery>) =>
-    setParams(
-      campaignBookQueryToParams({
-        ...urlQuery,
-        ...next,
-        page: DEFAULT_CAMPAIGN_BOOK_QUERY.page,
-      }),
-    )
-
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
-  const goPage = (index: number) =>
-    setParams(campaignBookQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
-
-  /* The box keeps the text in state so typing shows up at once, then drips onto
-     the address after `SEARCH_DELAY_MS` with `replace`: one eight-letter query
-     pushing eight history entries turns Back into a backspace key. */
-  const [text, setText] = useState(urlQuery.q ?? '')
-
-  /* Address changed from OUTSIDE — Back, F5, a link someone sent — so the box
-     has to follow, or the text says one thing while the table filters another. */
-  useEffect(() => setText(urlQuery.q ?? ''), [urlQuery.q])
-
-  useEffect(() => {
-    const wanted = text.trim() === '' ? undefined : text.trim()
-    if (wanted === urlQuery.q) return
-    const timer = setTimeout(
-      () =>
-        setParams(
-          campaignBookQueryToParams({
-            ...urlQuery,
-            q: wanted,
-            page: DEFAULT_CAMPAIGN_BOOK_QUERY.page,
-          }),
-          { replace: true },
-        ),
-      SEARCH_DELAY_MS,
-    )
-    return () => clearTimeout(timer)
-  }, [text, urlQuery, setParams])
-
-  const dirty = text.trim() !== '' || query.state !== undefined || query.owner !== undefined
-  const clearFilters = () => {
-    setText('')
-    patch({ q: undefined, state: undefined, owner: undefined })
+    return [
+      ...(none && unset > 0 ? [{ value: none.value, label: `${none.label} · ${unset}` }] : []),
+      ...[...seen].map(([value, v]) => ({ value, label: `${v.label} · ${v.n}` })),
+    ]
   }
+  const ownerOptions = optionsOf((c) => [c.ownerId, c.ownerName], {
+    value: OWNER_NONE,
+    label: 'Chưa có người phụ trách',
+  })
+  const sourceOptions = optionsOf((c) => [c.sourceId, c.sourceName], null)
+
+  const csvOf = (v?: string) => (v ? v.split(',') : [])
+  const listFilter = (
+    label: string,
+    key: 'owner' | 'source',
+    options: { value: string; label: string }[],
+  ) => (
+    <ColumnFilter label={label} active={Boolean(query[key])}>
+      {(close) => (
+        <ColumnFilterList
+          options={options}
+          selected={csvOf(query[key])}
+          close={close}
+          onApply={(v) => book.patch({ [key]: v.length ? v.join(',') : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const dateFilter = (
+    <ColumnFilter label="Ngày tạo" iconOnly active={Boolean(query.createdFrom || query.createdTo)}>
+      {(close) => (
+        <ColumnFilterRange
+          from={query.createdFrom}
+          to={query.createdTo}
+          close={close}
+          onApply={({ from, to }) => book.patch({ createdFrom: from, createdTo: to })}
+        />
+      )}
+    </ColumnFilter>
+  )
 
   /* One `size=1` read per tab, the move both other books make: `total` is the
      count under the OTHER filters in force, and no other endpoint answers that. */
@@ -205,7 +202,7 @@ export function CampaignsPage() {
       campaignBookQuery({
         ...urlQuery,
         state: tab.value === ANY ? undefined : (tab.value as CampaignState),
-        page: DEFAULT_CAMPAIGN_BOOK_QUERY.page,
+        page: 1,
         size: 1,
       }),
     ),
@@ -220,31 +217,29 @@ export function CampaignsPage() {
   const scoreItems = [
     {
       icon: Megaphone,
-      label: 'Nháp chờ bắn',
+      label: 'Bản nháp',
       value: String(score.drafts),
-      hint: 'đã dựng xong nhưng chưa gửi',
+      hint: 'Chiến dịch chưa bắt đầu gửi email',
       warn: zero(score.drafts),
     },
     {
       icon: Zap,
       label: 'Đang chạy',
       value: String(score.running),
-      hint: 'còn ít nhất một đợt chưa gửi xong',
+      hint: 'Còn ít nhất một đợt gửi chưa hoàn tất',
       warn: zero(score.running),
     },
     {
       icon: Inbox,
-      label: 'Lượt gửi đã gom',
+      label: 'Tổng lượt người nhận',
       value: score.audience.toLocaleString('vi-VN'),
-      hint: 'cộng dồn, không trừ trùng',
+      hint: 'Một người có thể được tính ở nhiều chiến dịch',
       warn: zero(score.audience),
     },
   ]
 
-  const tableSort: TableSort | undefined =
-    query.sort === DEFAULT_CAMPAIGN_BOOK_QUERY.sort
-      ? undefined
-      : { key: query.sort, dir: query.dir }
+  const { pageIndex } = useBookPageClamp(book, data?.total)
+  const tableSort: TableSort = { key: query.sort, dir: query.dir }
 
   return (
     <AppShell {...chrome.shell}>
@@ -255,7 +250,7 @@ export function CampaignsPage() {
             canWrite && (
               <Button size="md" className="pointer-coarse:h-12" onClick={() => setCreating(true)}>
                 <Icon icon={Plus} size={16} />
-                Chiến dịch mới
+                Tạo chiến dịch
               </Button>
             )
           }
@@ -287,7 +282,7 @@ export function CampaignsPage() {
               value={query.state ?? ANY}
               options={tabs}
               onChange={(value) =>
-                patch({ state: value === ANY ? undefined : (value as CampaignState) })
+                book.patch({ state: value === ANY ? undefined : (value as CampaignState) })
               }
             />
           }
@@ -296,33 +291,27 @@ export function CampaignsPage() {
             <>
               <SearchField
                 placeholder="Tìm theo tên hoặc mã chiến dịch…"
-                value={text}
-                onChange={setText}
+                value={book.text}
+                onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-              <FilterMenu label="Bộ lọc sổ chiến dịch" active={query.owner === undefined ? 0 : 1}>
-                <Select
-                  label="Chủ"
-                  value={query.owner ?? ANY}
-                  onChange={(value) => patch({ owner: value === ANY ? undefined : value })}
-                  /* A native select grows to its longest option — clamp it to
-                     the panel. */
-                  className="w-full max-w-none"
-                  options={[{ value: ANY, label: 'Mọi chủ' }, ...owners]}
-                />
-                {dirty && (
-                  <Button size="md" variant="ghost" onClick={clearFilters}>
-                    Bỏ hết bộ lọc
-                  </Button>
-                )}
-              </FilterMenu>
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={book.clear}
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
             </>
           }
           pending={isPending}
           failure={
             bookError
               ? {
-                  message: `Không lấy được sổ chiến dịch. ${
+                  message: `Không tải được danh sách chiến dịch. ${
                     isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetchBook(),
@@ -332,17 +321,17 @@ export function CampaignsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: dirty
-                    ? 'Không có chiến dịch nào khớp bộ lọc đang chọn.'
+                  message: book.dirty
+                    ? 'Không có chiến dịch nào phù hợp với bộ lọc hiện tại.'
                     : canWrite
-                      ? 'Sổ chiến dịch chưa có gì. Tạo một chiến dịch rồi gom người nhận từ Sổ lead.'
-                      : 'Sổ chiến dịch chưa có gì mở cho bạn. Chiến dịch do Marketing hoặc quản lý tạo.',
-                  action: dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearFilters }
+                      ? 'Chưa có chiến dịch nào. Hãy tạo chiến dịch rồi thêm người nhận từ sổ lead.'
+                      : 'Chưa có chiến dịch nào trong phạm vi của bạn.',
+                  action: book.dirty
+                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : canWrite
-                      ? { label: 'Chiến dịch mới', onClick: () => setCreating(true) }
+                      ? { label: 'Tạo chiến dịch', onClick: () => setCreating(true) }
                       : {
-                          label: 'Xem Sổ lô gửi',
+                          label: 'Xem sổ lô gửi',
                           onClick: () => navigate('/sales/campaigns/mail-runs'),
                         },
                 }
@@ -352,15 +341,15 @@ export function CampaignsPage() {
             minWidth: TABLE_MIN_WIDTH,
             sort: tableSort,
             onSort: (key) => {
-              /* Máy chủ chỉ nhận hai khoá (`CampaignBookSortKey`). Cột nào không
+              /* Máy chủ chỉ nhận các khoá của `CampaignBookSortKey`. Cột nào không
                  có `sortKey` bên dưới thì không vẽ mũi tên, nên nhánh này chỉ
                  chặn một đường vòng — nhưng rẻ hơn một lượt 400 từ cổng zod. */
               const parsed = CampaignBookSortKey.safeParse(key)
               if (!parsed.success) return
-              patch(
+              book.patch(
                 query.sort === parsed.data
                   ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-                  : { sort: parsed.data, dir: 'asc' },
+                  : { sort: parsed.data, dir: parsed.data === 'name' ? 'asc' : 'desc' },
               )
             },
             columns: [
@@ -369,11 +358,11 @@ export function CampaignsPage() {
                  paying for a column of its own. The slack went to the name. */
               { header: 'Chiến dịch', width: '3fr', sortKey: 'name' },
               { header: 'Trạng thái', width: '1fr' },
-              { header: 'Chủ', width: '1.2fr' },
-              { header: 'Nguồn dẫn', width: '1.2fr' },
-              { header: 'Người nhận', width: '0.9fr', align: 'right' },
-              { header: 'Đợt', width: '0.6fr', align: 'right' },
-              { header: 'Tạo lúc', width: '0.9fr', sortKey: 'createdAt' },
+              { header: listFilter('Người phụ trách', 'owner', ownerOptions), width: '1.2fr' },
+              { header: listFilter('Nguồn dẫn', 'source', sourceOptions), width: '1.2fr' },
+              { header: 'Người nhận', width: '0.9fr', align: 'right', sortKey: 'audienceCount' },
+              { header: 'Số đợt gửi', width: '0.6fr', align: 'right', sortKey: 'waveCount' },
+              { header: 'Ngày tạo', width: '0.9fr', sortKey: 'createdAt', filter: dateFilter },
             ],
             rows: rows.map((c) => ({
               id: c.code,
@@ -401,7 +390,7 @@ export function CampaignsPage() {
             })),
           }}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
           }
         />
 

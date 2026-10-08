@@ -1,19 +1,14 @@
-import { useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, Badge, Chip, ScreenLayout, SearchField, Select, type TableSort } from '@pv/ui'
-import { ContactSortKey, type ContactBookQuery } from '@pv/contracts'
+import { AppShell, Badge, Button, Chip, ScreenLayout, SearchField, type TableSort } from '@pv/ui'
+import { ContactBookQuery, ContactSortKey } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
-import {
-  contactBookQuery,
-  contactBookQueryToParams,
-  DEFAULT_CONTACT_BOOK_QUERY,
-  parseContactBookQuery,
-} from '@/data/contacts'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
+import { contactBookQuery } from '@/data/contacts'
 import { BookCount, BookPage } from '@/components/book-page'
-import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { AvatarCell, TableFooter } from '@/components/table-bits'
+import { useContactFilters } from './contacts-filters'
 
 /** The contact book — `/sales/contacts`.
  *
@@ -43,26 +38,35 @@ import { FilterMenu, TableFooter } from '@/components/table-bits'
  *  directory that number is itself a leak. Full reasoning is in
  *  `ContactService.book`. */
 
-const PAGE_SIZE = DEFAULT_CONTACT_BOOK_QUERY.size
+const PAGE_SIZE = ContactBookQuery.parse({}).size
+const FILTER_KEYS = [
+  'primary',
+  'account',
+  'owner',
+  'hasEmail',
+  'hasPhone',
+  'createdFrom',
+  'createdTo',
+] as const
+
+const DAY = new Intl.DateTimeFormat('vi-VN', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
 
 export default function ContactsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm người liên hệ…' })
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
-
-  const query = useMemo(() => parseContactBookQuery(params), [params])
-
-  const patch = (next: Partial<ContactBookQuery>) => {
-    const merged = { ...query, ...next, page: next.page ?? 1 }
-    setParams(new URLSearchParams(contactBookQueryToParams(merged)), { replace: true })
-  }
-  const clearAll = () => setParams(new URLSearchParams(), { replace: true })
+  const book = useBookQuery(ContactBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const { query, patch } = book
 
   const { data, isPending, error, refetch } = useQuery(contactBookQuery(query))
+  const { pageIndex } = useBookPageClamp(book, data?.total)
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
-  const dirty = query.q !== undefined || query.primary !== undefined || query.account !== undefined
 
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
 
@@ -76,45 +80,39 @@ export default function ContactsPage() {
     )
   }
 
+  const filters = useContactFilters(book)
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
           title="Sổ người liên hệ"
-          count={<BookCount total={total} noun="người" />}
+          count={<BookCount total={total} noun="người liên hệ" />}
           tools={
             <>
               <SearchField
-                placeholder="Tên, email, số điện thoại"
-                value={query.q ?? ''}
-                onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
+                placeholder="Tìm theo tên, email hoặc số điện thoại…"
+                value={book.text}
+                onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-              <FilterMenu
-                label="Bộ lọc sổ người liên hệ"
-                active={query.primary === undefined ? 0 : 1}
-              >
-                <Select
-                  label="Lọc"
-                  value={query.primary ?? ''}
-                  neutralValue=""
-                  onChange={(v) => patch({ primary: v === '1' ? '1' : undefined })}
-                  /* A native select grows to its longest option and would burst
-                     the popover — clamp it to the panel. */
-                  className="w-full max-w-none"
-                  options={[
-                    { value: '', label: 'Tất cả mọi người' },
-                    { value: '1', label: 'Chỉ người liên hệ chính' },
-                  ]}
-                />
-              </FilterMenu>
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={book.clear}
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
             </>
           }
           pending={isPending}
           failure={
             error
               ? {
-                  message: `Không lấy được sổ người liên hệ. ${
+                  message: `Không tải được danh sách người liên hệ. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -124,26 +122,47 @@ export default function ContactsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: dirty
-                    ? 'Không có ai khớp bộ lọc đang chọn.'
-                    : 'Chưa ghi được người liên hệ nào. Thêm người ở hồ sơ lead — thẻ "Người liên hệ".',
-                  action: dirty
-                    ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
-                    : { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
+                  message: book.dirty
+                    ? 'Không có người liên hệ nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có người liên hệ nào. Hãy thêm người liên hệ từ hồ sơ lead.',
+                  action: book.dirty
+                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
+                    : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
                 }
               : undefined
           }
           table={{
-            minWidth: 'min-w-[900px]',
+            minWidth: 'min-w-[1100px]',
             sort: tableSort,
             onSort,
             columns: [
               { header: 'Mã', width: '0.8fr' },
-              { header: 'Tên', width: '1.6fr', sortKey: 'name' },
+              {
+                header: 'Họ và tên',
+                width: '1.6fr',
+                sortKey: 'name',
+                filter: filters.primaryFilter,
+              },
               { header: 'Chức danh', width: '1.2fr' },
-              { header: 'Công ty', width: '1.6fr', sortKey: 'company' },
-              { header: 'Email', width: '1.6fr' },
-              { header: 'Điện thoại', width: '1fr' },
+              {
+                header: 'Công ty',
+                width: '1.6fr',
+                sortKey: 'company',
+                filter: filters.account,
+              },
+              { header: filters.email, width: '1.6fr' },
+              { header: filters.phone, width: '1fr' },
+              {
+                header: 'Ngày tạo',
+                width: '0.9fr',
+                sortKey: 'createdAt',
+                filter: filters.dateFilter,
+              },
+              {
+                header: filters.owner,
+                width: '120px',
+                align: 'center',
+              },
             ],
             rows: rows.map((c) => ({
               id: c.code,
@@ -152,7 +171,7 @@ export default function ContactsPage() {
                 <Chip key="c">{c.code}</Chip>,
                 <span key="n" className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{c.name}</span>
-                  {c.isPrimary && <Badge tone="success">Chính</Badge>}
+                  {c.isPrimary && <Badge tone="success">Liên hệ chính</Badge>}
                 </span>,
                 <span key="t" className="block truncate">
                   {c.title ?? '—'}
@@ -172,16 +191,20 @@ export default function ContactsPage() {
                 <span key="p" className="tnum font-num block truncate">
                   {c.phone ?? '—'}
                 </span>,
+                <span key="d" className="block truncate">
+                  {DAY.format(new Date(c.createdAt))}
+                </span>,
+                <AvatarCell
+                  key="o"
+                  name={c.ownerName}
+                  email={c.ownerEmail}
+                  empty="Chưa có người phụ trách"
+                />,
               ],
             })),
           }}
           footer={
-            <TableFooter
-              page={pageIndexFromQueryPage(query.page)}
-              pageSize={PAGE_SIZE}
-              total={total}
-              onPage={(p) => patch({ page: queryPageFromPageIndex(p) })}
-            />
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
           }
         />
       </ScreenLayout>

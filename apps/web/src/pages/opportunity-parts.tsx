@@ -18,10 +18,12 @@ import { customerTagOf } from './opportunity-model'
 export function DealHeader({
   op,
   lead,
+  onRename,
 }: {
   op: OpportunityProfileResponse
   /** The origin lead; `null` while unread or out of the reader's scope. */
   lead: LeadProfile | null
+  onRename: () => void
 }) {
   const bd = namesOf(bdOwnersOf(op))
   const sellers = namesOf(saleOwnersOf(op))
@@ -30,6 +32,7 @@ export function DealHeader({
   return (
     <RecordHeader
       title={op.name}
+      onRename={op.acts.editDetails.ok ? onRename : undefined}
       meta={[
         bd.length > 0 && `BD ${bd.join(', ')}`,
         pic && `PIC ${pic}`,

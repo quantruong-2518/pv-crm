@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { AccountController } from './account.controller'
+import { AccountFacetsRepository } from './account-facets.repository'
 import { AccountRepository } from './account.repository'
 import { AccountService } from './account.service'
 
@@ -20,7 +21,7 @@ import { AccountService } from './account.service'
 @Module({
   imports: [GraphModule],
   controllers: [AccountController],
-  providers: [AccountService, AccountRepository],
+  providers: [AccountService, AccountRepository, AccountFacetsRepository],
   exports: [AccountService],
 })
 export class AccountModule {}

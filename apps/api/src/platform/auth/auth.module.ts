@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { MailModule } from '../mail/mail.module'
 import { RolesModule } from '../roles/roles.module'
+import { SettingModule } from '../setting/setting.module'
 import { AuthController } from './auth.controller'
 import { AuthRepository } from './auth.repository'
 import { AuthService } from './auth.service'
@@ -66,7 +67,7 @@ import { SessionSweeper } from './session.sweeper'
  *  `password-reset.mailer.ts`. Read it before moving this letter onto the
  *  queue. */
 @Module({
-  imports: [MailModule, RolesModule],
+  imports: [MailModule, RolesModule, SettingModule],
   controllers: [AuthController],
   providers: [
     AuthRepository,

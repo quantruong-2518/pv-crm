@@ -7,7 +7,10 @@ import { markBlue, markLight, wordmarkBlue, wordmarkLight } from '../assets'
 import { useThemeMode } from '../ui/theme-switch'
 import { AccountMenu } from './account-menu'
 import { AppNav } from './app-nav'
-import { HeaderSearch } from './header-search'
+import { HeaderSearch, type SearchRecords } from './header-search'
+
+export type { SearchRecords } from './header-search'
+export type { SearchGroup, SearchRow, SearchScope } from './header-search-panel'
 
 /** O-06 · AppHeader — the whole nav in ONE row from `lg`, replacing the two tiers.
  *
@@ -61,7 +64,8 @@ export type AppHeaderProps = {
   user: { name: string; role?: string }
   unread?: boolean
   assistantLabel?: string
-  search?: Pick<SearchFieldProps, 'placeholder' | 'meta'>
+  /** `records` turns the box into a record search; without it it lists screens. */
+  search?: Pick<SearchFieldProps, 'placeholder' | 'meta'> & { records?: SearchRecords }
   /** Account rows at the bottom of the avatar menu, below the theme row. Data,
    *  not a ReactNode, so every row keeps the menu's one shape. */
   accountActions?: HeaderAction[]
@@ -214,6 +218,7 @@ export function AppHeader({
           <HeaderSearch
             placeholder={search?.placeholder}
             targets={targets}
+            records={search?.records}
             onOpenChange={setSearchOpen}
           />
           <Hairline className={cn('max-lg:hidden', dim)} />

@@ -93,17 +93,17 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
           : undefined
 
   return (
-    <GlassCard className="flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-5">
+    <GlassCard className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-4">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         {account ? (
           <Link
             to={account}
-            className="pointer-coarse:min-h-12 inline-flex items-center text-[14px] font-semibold leading-[1.5]"
+            className="pointer-coarse:min-h-12 inline-flex items-center text-[13px] font-semibold leading-[1.5]"
           >
             {journey.customer}
           </Link>
         ) : (
-          <span className="text-foreground text-[14px] font-semibold leading-[1.5]">
+          <span className="text-foreground text-[13px] font-semibold leading-[1.5]">
             {journey.customer}
           </span>
         )}
@@ -128,10 +128,10 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
 
           return (
             <li key={step.key} className="flex items-center gap-1">
-              {i > 0 && <Icon icon={ChevronRight} size={16} className="text-glass-foreground" />}
+              {i > 0 && <Icon icon={ChevronRight} size={16} className="text-muted-foreground" />}
               <span
                 aria-current={here ? 'step' : undefined}
-                className={cn('flex items-center gap-2 rounded-md px-3 py-2', here && 'bg-accent')}
+                className={cn('flex items-center gap-2 rounded-md px-2 py-1', here && 'bg-accent')}
               >
                 <StatusDot
                   state={here ? 'current' : focus ? 'ok' : 'next'}
@@ -139,7 +139,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                 />
                 <span
                   className={cn(
-                    'text-[14px] leading-[1.5]',
+                    'text-[13px] leading-[1.5]',
                     here
                       ? 'text-accent-foreground font-semibold'
                       : focus
@@ -175,8 +175,8 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
 
       {current.kind !== 'workstream' && (
         <Button
-          size="md"
-          variant="secondary"
+          size="sm"
+          variant="ghost"
           className="pointer-coarse:h-12"
           onClick={() => navigate(`/sales/workstreams/${encodeURIComponent(journey.code)}`)}
         >

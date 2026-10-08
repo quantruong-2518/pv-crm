@@ -120,7 +120,9 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
       /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
       className={cn('min-w-0 max-w-full', !overdue && op.state === 'lost' && BADGE_INK)}
       title={
-        stage && clock ? `Cột "${stage}" · ${clock.label}` : 'Đã đóng sổ — đơn ra khỏi bốn cột'
+        stage && clock
+          ? `Giai đoạn "${stage}" · ${clock.label}`
+          : 'Cơ hội đã kết thúc — không còn trong quy trình đang theo đuổi'
       }
     >
       <span className="min-w-0 truncate">
@@ -136,7 +138,7 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
 export function AmountCell({ op }: { op: OpportunityBookRow }) {
   const amountVnd = amountVndOf(op)
   if (op.amount === null || amountVnd === null) {
-    return <Dash title="Chưa có giá trị đơn" />
+    return <Dash title="Chưa có giá trị dự kiến" />
   }
   return (
     <span
@@ -158,7 +160,7 @@ export function CloseCell({ op }: { op: OpportunityBookRow }) {
   const closed = op.stage === null
   const day = closed ? op.closedAt : op.expectedClose
   if (day === null) {
-    return <Dash title={closed ? 'Chưa ghi ngày đóng' : 'Chưa đặt ngày đóng dự kiến'} />
+    return <Dash title={closed ? 'Chưa ghi ngày kết thúc' : 'Chưa đặt ngày dự kiến chốt'} />
   }
   const late = isLateClose(op)
   return (
@@ -166,10 +168,10 @@ export function CloseCell({ op }: { op: OpportunityBookRow }) {
       className={cn('tnum font-num flex items-center gap-1', late && 'text-warning')}
       title={
         closed
-          ? 'Ngày đóng thật'
+          ? 'Ngày kết thúc thực tế'
           : late
-            ? 'Ngày dự kiến đã trôi qua — đơn này đáng lẽ đóng rồi'
-            : 'Ngày dự kiến'
+            ? 'Cơ hội đã quá ngày dự kiến chốt'
+            : 'Ngày dự kiến chốt'
       }
     >
       {late && <Flag icon={TriangleAlert} word={OVERDUE_WORD} />}
@@ -190,9 +192,9 @@ export function PeopleCell({ owners, missing }: { owners: OpportunityOwner[]; mi
  *  server's verdict. Closed deals: the day they closed. */
 export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
   if (op.state !== 'open') {
-    if (op.closedAt === null) return <Dash title="Chưa ghi ngày đóng" />
+    if (op.closedAt === null) return <Dash title="Chưa ghi ngày kết thúc" />
     return (
-      <span className="text-muted-foreground tnum font-num" title="Ngày đóng đơn">
+      <span className="text-muted-foreground tnum font-num" title="Ngày kết thúc cơ hội">
         {dm(op.closedAt)}
       </span>
     )

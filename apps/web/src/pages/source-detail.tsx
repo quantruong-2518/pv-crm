@@ -156,7 +156,7 @@ export function SourceDetailPage() {
         .join(' · '),
       action: {
         label: 'Mở sổ lead',
-        onClick: () => navigate(`/sales/leads?source=${source.code}`),
+        onClick: () => navigate(`/sales/leads?campaign=${source.code}`),
       },
     })
 
@@ -510,7 +510,7 @@ export function SourceDetailPage() {
                 scopeLabel={`${source.code} · ${source.label}`}
                 buttonLabel="Nạp danh sách từ tệp"
                 onCommit={commitRecipients}
-                onSeeResult={() => navigate(`/sales/leads?source=${source.code}`)}
+                onSeeResult={() => navigate(`/sales/leads?campaign=${source.code}`)}
               />
             </div>
 
@@ -538,7 +538,7 @@ export function SourceDetailPage() {
                 <Button
                   size="md"
                   variant="ghost"
-                  onClick={() => navigate(`/sales/leads?source=${source.code}`)}
+                  onClick={() => navigate(`/sales/leads?campaign=${source.code}`)}
                 >
                   <Icon icon={ArrowRight} size={16} />
                   Mở Sổ lead

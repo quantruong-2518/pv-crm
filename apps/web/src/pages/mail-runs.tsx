@@ -1,30 +1,35 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
-import { useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
+  ColumnFilter,
+  ColumnFilterList,
+  ColumnFilterRange,
   SearchField,
-  Select,
+  SegmentedControl,
   ScreenLayout,
   ScreenScoreGrid,
   StatCard,
   percent,
+  type TableSort,
 } from '@pv/ui'
-import type { MailRunListQuery, MailRunRow, MailRunState } from '@pv/contracts'
+import { MailRunListQuery, MailRunSortKey, type MailRunRow, type MailRunState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { toast } from '@/app/toast'
+import { dmhm } from '@/lib/date'
+import { useSalesPeople } from '@/data/directory'
+import { campaignFacetQuery } from '@/data/campaign-book'
 import {
-  DEFAULT_MAIL_RUN_QUERY,
   MAIL_RUN_STATE_LABEL,
   MAIL_RUN_STATE_TONE,
   mailRunListQuery,
-  mailRunQueryToParams,
   mailRunRoute,
   useMailRunCancel,
   type MailRunRoute,
@@ -32,7 +37,7 @@ import {
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
 import { RunWhen } from '@/components/run-when'
-import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { TableFooter } from '@/components/table-bits'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
 import { RunActions, RunAudience, RunLabel, RunSent } from './mail-runs-parts'
 
@@ -77,42 +82,30 @@ import { RunActions, RunAudience, RunLabel, RunSent } from './mail-runs-parts'
 
 const PAGE_SIZE = 10
 
-const TABLE_MIN_WIDTH = 'min-w-[1180px]'
+const TABLE_MIN_WIDTH = 'min-w-[1380px]'
 
 const STATES: MailRunState[] = ['DRAFT', 'SCHEDULED', 'SENDING', 'SENT', 'CANCELLED']
 
-/** Địa chỉ → `MailRunListQuery`. Cùng nghi thức, cùng lý do không-bao-giờ-ném
- *  như `parseCampaignBookQuery`. Để ở màn chứ không ở tầng data vì chỉ màn này
- *  đọc địa chỉ — sổ lô gửi không có màn thứ hai. */
-const QUERY_KEYS = ['page', 'size', 'sort', 'dir', 'state', 'campaign', 'q'] as const
+/** "Every state" for the tab row: on the wire an ABSENT field, but a segmented
+ *  control carries strings only, so it needs a stand-in value. */
+const ANY = 'all'
 
-function parseQuery(params: URLSearchParams): MailRunListQuery {
-  const raw: Partial<Record<(typeof QUERY_KEYS)[number], string>> = {}
-  for (const key of QUERY_KEYS) {
-    const value = params.get(key)
-    if (value !== null) raw[key] = value
-  }
-
-  const state = STATES.find((s) => s === raw.state)
-  const page = Number(raw.page)
-
-  return {
-    ...DEFAULT_MAIL_RUN_QUERY,
-    page: Number.isInteger(page) && page > 0 ? page : DEFAULT_MAIL_RUN_QUERY.page,
-    ...(state ? { state } : {}),
-    ...(raw.campaign ? { campaign: raw.campaign } : {}),
-    ...(raw.q ? { q: raw.q } : {}),
-  }
-}
+const STATE_TABS: { value: string; label: string }[] = [
+  { value: ANY, label: 'Tất cả' },
+  ...STATES.map((state) => ({ value: state as string, label: MAIL_RUN_STATE_LABEL[state] })),
+]
 
 export function MailRunsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm lô gửi, chiến dịch…' })
-  const [params, setParams] = useSearchParams()
-
-  const urlQuery = useMemo(() => parseQuery(params), [params])
-  const query = useMemo<MailRunListQuery>(() => ({ ...urlQuery, size: PAGE_SIZE }), [urlQuery])
+  const navigate = useNavigate()
+  const book = useBookQuery(MailRunListQuery, {
+    size: PAGE_SIZE,
+    filterKeys: ['state', 'campaign', 'createdBy', 'createdFrom', 'createdTo'],
+  })
+  const { query, urlQuery } = book
 
   const { data, isPending, error, refetch } = useQuery(mailRunListQuery(query))
+  const { pageIndex } = useBookPageClamp(book, data?.total)
   const cancel = useMailRunCancel()
   const can = { send: useCan('lead.send-email'), broadcast: useCan('campaign.broadcast') }
 
@@ -139,30 +132,73 @@ export function MailRunsPage() {
     }
   }, [rows])
 
-  const patch = (next: Partial<MailRunListQuery>) =>
-    setParams(
-      mailRunQueryToParams({
+  /* One `size=1` read per tab: `total` is the count under the OTHER filters in
+     force, and no other endpoint answers that. */
+  const tabCounts = useQueries({
+    queries: STATE_TABS.map((tab) =>
+      mailRunListQuery({
         ...urlQuery,
-        ...next,
-        page: DEFAULT_MAIL_RUN_QUERY.page,
-      }) as URLSearchParams,
-    )
+        state: tab.value === ANY ? undefined : (tab.value as MailRunState),
+        page: 1,
+        size: 1,
+      }),
+    ),
+  })
+  const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
-  const pageIndex = Math.min(pageIndexFromQueryPage(query.page), pageCount - 1)
-  const goPage = (index: number) =>
-    setParams(mailRunQueryToParams({ ...urlQuery, page: queryPageFromPageIndex(index) }))
+  /* Campaign options come from the campaign book's own whole-book read, people
+     from the directory — the lead book's creator filter does the same. */
+  const { data: campaigns } = useQuery(campaignFacetQuery)
+  const campaignOptions = (campaigns?.rows ?? []).map((c) => ({
+    value: c.code,
+    label: `${c.name} · ${c.code}`,
+  }))
+  const creatorOptions = useSalesPeople().map((a) => ({ value: a.id, label: a.name }))
+
+  const csvOf = (v?: string) => (v ? v.split(',') : [])
+  const listFilter = (
+    label: string,
+    key: 'campaign' | 'createdBy',
+    options: { value: string; label: string }[],
+  ) => (
+    <ColumnFilter label={label} active={Boolean(query[key])}>
+      {(close) => (
+        <ColumnFilterList
+          options={options}
+          selected={csvOf(query[key])}
+          close={close}
+          onApply={(v) => book.patch({ [key]: v.length ? v.join(',') : undefined })}
+        />
+      )}
+    </ColumnFilter>
+  )
+  const dateFilter = (
+    <ColumnFilter label="Ngày tạo" iconOnly active={Boolean(query.createdFrom || query.createdTo)}>
+      {(close) => (
+        <ColumnFilterRange
+          from={query.createdFrom}
+          to={query.createdTo}
+          close={close}
+          onApply={({ from, to }) => book.patch({ createdFrom: from, createdTo: to })}
+        />
+      )}
+    </ColumnFilter>
+  )
+
+  const tableSort: TableSort = { key: query.sort, dir: query.dir }
+  const onSort = (key: string) => {
+    const parsed = MailRunSortKey.safeParse(key)
+    if (!parsed.success) return
+    book.patch(
+      query.sort === parsed.data
+        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
+        : { sort: parsed.data, dir: 'desc' },
+    )
+  }
 
   /* Which batch the edit panel is holding. The panel stays mounted on `null`
      so it can animate out with the batch still drawn in it. */
   const [editing, setEditing] = useState<{ id: string; viaContent: boolean } | null>(null)
-
-  const [text, setText] = useState(urlQuery.q ?? '')
-  const dirty = text.trim() !== '' || query.state !== undefined || query.campaign !== undefined
-  const clearFilters = () => {
-    setText('')
-    patch({ q: undefined, state: undefined, campaign: undefined })
-  }
 
   const stop = (run: MailRunRow, route: MailRunRoute) => {
     cancel.mutate(
@@ -171,7 +207,7 @@ export function MailRunsPage() {
         onSuccess: (res) => {
           toast(`Đã dừng lô "${run.label}"`, {
             tone: 'success',
-            detail: `${res.held} thư chưa gửi đã được giữ lại.`,
+            detail: `${res.held} email chưa gửi đã được giữ lại.`,
           })
         },
         onError: (err) => {
@@ -196,70 +232,82 @@ export function MailRunsPage() {
                 size="compact"
                 icon={Send}
                 value={page.sent.toLocaleString('vi-VN')}
-                label="Thư đã rời máy"
-                hint="cộng trên trang đang mở"
+                label="Email đã gửi"
+                hint={`Tổng của ${rows.length} lô gửi trên trang này`}
               />
               <StatCard
                 size="compact"
                 icon={Mail}
                 value={page.delivered.toLocaleString('vi-VN')}
-                label="Tới hộp thư"
-                hint={page.sent > 0 ? percent(page.delivered / page.sent) : '—'}
+                label="Đã đến hộp thư"
+                hint={
+                  page.sent > 0
+                    ? `${percent(page.delivered / page.sent)} email đã gửi · trang này`
+                    : 'Chưa có email đã gửi trên trang này'
+                }
               />
               <StatCard
                 size="compact"
                 icon={MailOpen}
                 value={page.opened.toLocaleString('vi-VN')}
-                label="Có người mở"
-                hint={page.delivered > 0 ? percent(page.opened / page.delivered) : '—'}
+                label="Email đã mở"
+                hint={
+                  page.delivered > 0
+                    ? `${percent(page.opened / page.delivered)} email đã đến hộp thư · trang này`
+                    : 'Chưa có email nào đến hộp thư trên trang này'
+                }
               />
               <StatCard
                 size="compact"
                 icon={CircleAlert}
                 value={page.bounced.toLocaleString('vi-VN')}
-                label="Bounce"
-                hint={page.sent > 0 ? `${percent(page.bounced / page.sent)} · trần 4%` : 'trần 4%'}
+                label="Email bị trả lại"
+                hint={
+                  page.sent > 0
+                    ? `${percent(page.bounced / page.sent)} email đã gửi · ngưỡng 4%`
+                    : 'Ngưỡng cảnh báo 4%'
+                }
               />
             </ScreenScoreGrid>
           }
-          count={<BookCount total={total} noun="lô" hidden={hidden} />}
+          tabs={
+            <SegmentedControl
+              label="Trạng thái lô"
+              hideLabel
+              tone="quiet"
+              value={query.state ?? ANY}
+              options={tabs}
+              onChange={(value) =>
+                book.patch({ state: value === ANY ? undefined : (value as MailRunState) })
+              }
+            />
+          }
+          count={<BookCount total={total} noun="lô gửi" hidden={hidden} />}
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo tên lô hoặc tiêu đề thư…"
-                value={text}
-                onChange={(v) => {
-                  setText(v)
-                  patch({ q: v.trim() === '' ? undefined : v.trim() })
-                }}
+                placeholder="Tìm theo tên lô hoặc tiêu đề email…"
+                value={book.text}
+                onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
-              <FilterMenu label="Bộ lọc sổ lô gửi" active={query.state === undefined ? 0 : 1}>
-                <Select
-                  label="Trạng thái"
-                  value={query.state ?? ''}
-                  onChange={(v) => patch({ state: v === '' ? undefined : (v as MailRunState) })}
-                  /* A native select grows to its longest option and would burst
-                     the popover — clamp it to the panel. */
-                  className="w-full max-w-none"
-                  options={[
-                    { value: '', label: 'Mọi trạng thái' },
-                    ...STATES.map((s) => ({ value: s, label: MAIL_RUN_STATE_LABEL[s] })),
-                  ]}
-                />
-                {dirty && (
-                  <Button size="md" variant="ghost" onClick={clearFilters}>
-                    Bỏ hết bộ lọc
-                  </Button>
-                )}
-              </FilterMenu>
+              {book.dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={book.clear}
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
             </>
           }
           pending={isPending}
           failure={
             error
               ? {
-                  message: `Không lấy được sổ lô gửi. ${
+                  message: `Không tải được danh sách lô gửi. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -269,24 +317,36 @@ export function MailRunsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: dirty
-                    ? 'Không có lô nào khớp bộ lọc đang chọn.'
-                    : 'Chưa lô thư nào được gửi. Lô đầu tiên sinh ra khi bạn gửi mail từ Sổ lead hoặc bắt đầu một chiến dịch.',
-                  action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
+                  message: book.dirty
+                    ? 'Không có lô gửi nào phù hợp với bộ lọc hiện tại.'
+                    : 'Chưa có lô gửi nào. Lô gửi sẽ được tạo khi bạn gửi email từ sổ lead hoặc bắt đầu một chiến dịch.',
+                  action: book.dirty
+                    ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
+                    : {
+                        label: 'Xem sổ chiến dịch',
+                        onClick: () => navigate('/sales/campaigns'),
+                      },
                 }
               : undefined
           }
           table={{
             minWidth: TABLE_MIN_WIDTH,
+            sort: tableSort,
+            onSort,
             columns: [
-              { header: 'Lô', width: '2fr' },
+              {
+                header: listFilter('Chiến dịch', 'campaign', campaignOptions),
+                width: '2fr',
+              },
               { header: 'Trạng thái', width: '1fr' },
-              { header: 'Lúc', width: '1.1fr' },
-              { header: 'Tệp', width: '0.8fr', align: 'right' },
+              { header: listFilter('Người tạo', 'createdBy', creatorOptions), width: '1.1fr' },
+              { header: 'Ngày tạo', width: '1fr', sortKey: 'createdAt', filter: dateFilter },
+              { header: 'Thời gian gửi', width: '1.1fr' },
+              { header: 'Người nhận', width: '0.8fr', align: 'right', sortKey: 'audienceCount' },
               { header: 'Đã gửi', width: '0.8fr', align: 'right' },
-              { header: 'Tới nơi', width: '0.8fr', align: 'right' },
-              { header: 'Mở', width: '0.7fr', align: 'right' },
-              { header: 'Bounce', width: '0.8fr', align: 'right' },
+              { header: 'Đã đến', width: '0.8fr', align: 'right' },
+              { header: 'Đã mở', width: '0.7fr', align: 'right' },
+              { header: 'Bị trả lại', width: '0.8fr', align: 'right' },
               { header: '', width: '1.4fr' },
             ],
             rows: rows.map((r) => ({
@@ -296,6 +356,11 @@ export function MailRunsPage() {
                 <Badge key="s" tone={MAIL_RUN_STATE_TONE[r.state]}>
                   {MAIL_RUN_STATE_LABEL[r.state]}
                 </Badge>,
+                <span key="by" className="block truncate" title={r.createdBy.name}>
+                  {r.createdBy.name}
+                  {r.mine ? ' (bạn)' : ''}
+                </span>,
+                <span key="at">{dmhm(r.createdAt)}</span>,
                 <RunWhen key="w" run={r} />,
                 <RunAudience key="a" run={r} />,
                 <RunSent key="sent" run={r} />,
@@ -326,7 +391,12 @@ export function MailRunsPage() {
           }}
           footer={
             <>
-              <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+              <TableFooter
+                page={pageIndex}
+                pageSize={PAGE_SIZE}
+                total={total}
+                onPage={book.goPage}
+              />
               <p className="text-muted-foreground m-0 px-5 pb-4 text-[11.5px] leading-[1.5]">
                 Sửa chỉ khi lô còn Hẹn giờ; Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Người tạo lô tự
                 Sửa, Dừng lô của mình; người có quyền phát chiến dịch Sửa, Dừng được mọi lô. Nút

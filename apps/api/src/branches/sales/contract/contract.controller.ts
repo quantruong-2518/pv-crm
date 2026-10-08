@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ContractCode, PageQuery } from '@pv/contracts'
+import { ContractBookQuery, ContractCode } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -26,18 +26,17 @@ import { ContractService } from './contract.service'
  *  would happen the day a contract screen existed.
  *
  *  ------------------------------------------------------------------
- *  NO FILTER QUERY, ON PURPOSE
+ *  THE BOOK QUERY
  *  ------------------------------------------------------------------
- *  The book takes plain `PageQuery` and nothing else. No screen has asked for
- *  a filter yet, and a parameter with no column behind it is a shape the
- *  clients will start relying on before it means anything. */
+ *  Paging, status, owner, signed-date range, search and sort all arrive as
+ *  `ContractBookQuery`, so a filter can never act on one page only. */
 @Controller('sales/contracts')
 export class ContractController {
   constructor(private readonly contracts: ContractService) {}
 
   @Get()
   @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
-  book(@CurrentActor() who: Actor, @Query(zod(PageQuery)) q: PageQuery) {
+  book(@CurrentActor() who: Actor, @Query(zod(ContractBookQuery)) q: ContractBookQuery) {
     return this.contracts.book(who, q)
   }
 

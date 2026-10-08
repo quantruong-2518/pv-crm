@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ObjectCode, Moment, textInput } from '../primitives'
+import { Day, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, paged, SortDir } from '../pagination'
 import { MailDoor, MailDoorSet, MAIL_DOOR_LEGACY } from './mail-door'
 import { OpportunityMilestoneKind } from './opportunity'
@@ -865,9 +865,18 @@ export const MailRunSortKey = z.enum(['createdAt', 'audienceCount'])
 /** Filters of the run list. */
 export const MailRunListQuery = PageQuery.extend({
   state: MailRunState.optional(),
-  /** Runs of ONE campaign. Absent = every run, including the campaign-less
-   *  Quick MAS ones — which are the majority today. */
-  campaign: ObjectCode.optional(),
+  /** Runs of these campaigns, codes joined by commas. Absent = every run,
+   *  including the campaign-less Quick MAS ones — the majority today. */
+  campaign: z
+    .string()
+    .max(512)
+    .refine((v) => v.split(',').every((c) => ObjectCode.safeParse(c).success))
+    .optional(),
+  /** Creator `actor.id`s joined by commas. */
+  createdBy: z.string().min(1).max(512).optional(),
+  /** Creation date range, inclusive both ends, as a Vietnam calendar day. */
+  createdFrom: Day.optional(),
+  createdTo: Day.optional(),
   /** Substring search over the run's `label` and `subject`. */
   q: z.string().trim().min(1).max(120).optional(),
   sort: MailRunSortKey.default('createdAt'),

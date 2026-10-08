@@ -25,7 +25,7 @@ export default defineConfig({
     // Only Vite connects to the local API; the browser needs one exposed port.
     proxy: {
       '/api': {
-        target: 'http://localhost:4123',
+        target: process.env.API_PROXY_TARGET ?? 'http://localhost:4123',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api(?=\/|$)/, ''),
       },

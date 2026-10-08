@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common
 import {
   AccountBookQuery,
   AccountCreate,
+  AccountFacetsQuery,
   AccountUpdate,
   ObjectCode,
   type AccountBookQuery as AccountBookQueryType,
@@ -31,6 +32,13 @@ export class AccountController {
   @Need({ branch: 'Sales', permission: 'account.view' })
   book(@Query(zod(AccountBookQuery)) q: AccountBookQueryType) {
     return this.accounts.book(q)
+  }
+
+  /** Before `@Get(':code')`, or "facets" is read as a company code. */
+  @Get('facets')
+  @Need({ branch: 'Sales', permission: 'account.view' })
+  facets(@Query(zod(AccountFacetsQuery)) q: AccountFacetsQuery) {
+    return this.accounts.facets(q)
   }
 
   @Get(':code')

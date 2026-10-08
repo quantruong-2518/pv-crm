@@ -25,6 +25,7 @@ import {
   type MasSendRequest,
 } from '@pv/contracts'
 import { brandAssetUrl, ENV, type Env } from '@api/platform/config/env'
+import { csvOf } from '@api/platform/db/book-filter'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
@@ -541,7 +542,7 @@ export class MasService {
    *  this line already carries it. */
   async list(who: Actor, query: MailRunListQuery): Promise<MailRunListResponse> {
     const campaignIds = query.campaign
-      ? await this.repo.runIdsOfCampaign(query.campaign)
+      ? await this.repo.runIdsOfCampaign(csvOf(query.campaign))
       : undefined
 
     const scope = await this.repo.visibleRuns(who, query, campaignIds)

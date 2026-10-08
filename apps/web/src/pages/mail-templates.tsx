@@ -39,7 +39,7 @@ import { MailTemplateDrawer } from './mail-templates-parts'
 const NO_ROWS: MailTemplateRow[] = []
 
 const EMPTY_MESSAGE =
-  'Chưa có mẫu thư nào. Mẫu là chỗ bắt đầu của một lá thư — người soạn vẫn sửa được trước khi gửi.'
+  'Chưa có mẫu thư nào. Hãy tạo mẫu để người soạn có nội dung khởi đầu và vẫn có thể chỉnh sửa trước khi gửi.'
 
 /** Where a template is listed (G4), a default door marked on its own tag —
  *  the one fact the book must show, since only one template holds each door.
@@ -89,9 +89,9 @@ export function MailTemplatesPage() {
 
   const live = rows.filter((row) => row.active).length
   const summary = isPending
-    ? 'Đang đọc sổ mẫu thư…'
+    ? 'Đang tải danh sách mẫu thư…'
     : error
-      ? 'Chưa đọc được sổ mẫu thư.'
+      ? 'Không tải được danh sách mẫu thư.'
       : `${rows.length} mẫu · ${live} đang dùng`
 
   return (
@@ -105,7 +105,7 @@ export function MailTemplatesPage() {
             canWrite ? (
               <Button size="md" onClick={openCreate} className="max-sm:flex-1">
                 <Icon icon={Plus} size={16} />
-                Thêm mẫu
+                Thêm mẫu thư
               </Button>
             ) : undefined
           }
@@ -117,7 +117,7 @@ export function MailTemplatesPage() {
           failure={
             error
               ? {
-                  message: `Không lấy được sổ mẫu thư. ${
+                  message: `Không tải được danh sách mẫu thư. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -133,7 +133,7 @@ export function MailTemplatesPage() {
               ? {
                   message: EMPTY_MESSAGE,
                   action: canWrite
-                    ? { label: 'Thêm mẫu', onClick: openCreate }
+                    ? { label: 'Thêm mẫu thư', onClick: openCreate }
                     : { label: 'Tải lại', onClick: () => void refetch() },
                 }
               : undefined
@@ -144,8 +144,8 @@ export function MailTemplatesPage() {
               { header: 'Mã', width: '1fr' },
               { header: 'Tên mẫu', width: '1.4fr' },
               { header: 'Tiêu đề email', width: '1.9fr' },
-              { header: 'Nút', width: '160px' },
-              { header: 'Dùng ở', width: '1.4fr' },
+              { header: 'Nút trong email', width: '160px' },
+              { header: 'Dùng khi', width: '1.4fr' },
               { header: 'Trạng thái', width: '128px' },
             ],
             rows: rows.map((row) => ({

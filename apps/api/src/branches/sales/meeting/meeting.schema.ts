@@ -87,6 +87,18 @@ export const meeting = sales.table(
      *  only place the table disagreed with the contract about a limit. */
     goal: text('goal'),
 
+    /** The Google Calendar event mirroring this meeting; all three NULL = not
+     *  synced (never linked, sync failed, or booked before 0086).
+     *
+     *  `google_owner_id` is whose calendar holds the event: the refresh token
+     *  that can update or delete it belongs to that person, who is not always
+     *  the current booker. SET NULL, not CASCADE — the meeting is business
+     *  history and must survive the person; the event is then orphaned on
+     *  Google's side, which is why no CHECK demands an owner beside an event id. */
+    googleEventId: text('google_event_id'),
+    googleEventUrl: text('google_event_url'),
+    googleOwnerId: text('google_owner_id').references(() => actor.id, { onDelete: 'set null' }),
+
     /** Người GÕ dòng này, chụp lại tên như `touch.by` — hồ sơ một buổi họp là
      *  hồ sơ của lúc ĐÓ, nên join `actor` lúc đọc sẽ khiến buổi cũ mang tên
      *  mới của người ta, và không vẽ được gì cho người đã rời công ty. */
@@ -109,6 +121,12 @@ export const meeting = sales.table(
      *  bảng này còn nhận dữ liệu từ migration và từ tay người, không chỉ từ
      *  HTTP. */
     check('meeting_link_is_web', sql`"link" IS NULL OR "link" ~ '^https?://'`),
+    /** The event URL becomes an `href` like `link`, but Google only serves
+     *  https — so the fence is tighter than `meeting_link_is_web`. */
+    check(
+      'meeting_google_event_url_is_https',
+      sql`"google_event_url" IS NULL OR "google_event_url" ~ '^https://'`,
+    ),
     /** Three values of `MeetingMode`, copied out rather than generated: the day
      *  a fourth one is offered, that has to be a migration somebody reads. */
     check('meeting_mode_known', sql`"mode" IS NULL OR "mode" IN ('online', 'onsite', 'office')`),

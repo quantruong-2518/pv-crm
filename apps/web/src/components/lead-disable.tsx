@@ -3,7 +3,7 @@ import { Button, Modal } from '@pv/ui'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { useDisableLeads } from '@/data/lead-disable'
-import { useRestoreLeads } from './lead-restore'
+import { appliedMessage, useRestoreLeads } from './lead-restore'
 
 /** Switching leads off and back on (`lead.disable`) — the confirm, the restore
  *  and the selection bar's action. The lead book and the lead profile both
@@ -59,7 +59,7 @@ export function DisableLeadsDialog({
                   { codes, disabled: true },
                   {
                     onSuccess: ({ changed }) => {
-                      toastDone(`Đã vô hiệu hoá ${changed.length} lead`)
+                      toastDone(appliedMessage('vô hiệu hoá', changed.length, codes.length))
                       onClose()
                       onDone?.()
                     },

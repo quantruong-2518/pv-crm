@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CampaignBookQuery, MAS_MAX_RECIPIENTS } from '@pv/contracts'
+import { MAS_MAX_RECIPIENTS } from '@pv/contracts'
 import type {
+  CampaignBookQuery,
   CampaignBookResponse,
   CampaignCreate,
   CampaignCreateResponse,
@@ -19,6 +20,7 @@ import type {
   CampaignWaveAddResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { bookQueryParams } from '@/app/book-query'
 
 /** SỔ CHIẾN DỊCH THẬT — `sales.campaign`, mã `CP-nnnn`. ĐỌC TỪ MÁY CHỦ.
  *
@@ -76,7 +78,7 @@ export const CAMPAIGN_STATE_LABEL: Record<CampaignState, string> = {
   DRAFT: 'Nháp',
   RUNNING: 'Đang chạy',
   STOPPED: 'Đã dừng',
-  DONE: 'Xong',
+  DONE: 'Đã hoàn tất',
 }
 
 /** Tông `Badge` của bốn trạng thái — cùng bảng màu sổ cơ hội dùng.
@@ -94,53 +96,6 @@ export const CAMPAIGN_STATE_TONE: Record<
   RUNNING: 'running',
   STOPPED: 'warning',
   DONE: 'success',
-}
-
-/** Mặc định của `CampaignBookQuery` như zod ở máy chủ hiểu nó. Trường nào
- *  BẰNG mặc định thì không lên thanh địa chỉ — cùng nghi thức
- *  `opportunityBookQueryToParams`, và cùng lý do: một URL chở `?sort=createdAt
- *  &dir=desc&page=1` cho trạng thái mặc định là một URL không ai chép cho ai. */
-export const DEFAULT_CAMPAIGN_BOOK_QUERY: CampaignBookQuery = {
-  page: 1,
-  size: 20,
-  sort: 'createdAt',
-  dir: 'desc',
-}
-
-const CAMPAIGN_BOOK_QUERY_KEYS = [
-  'page',
-  'size',
-  'sort',
-  'dir',
-  'state',
-  'owner',
-  'q',
-] as const satisfies readonly (keyof CampaignBookQuery)[]
-
-export function campaignBookQueryToParams(query: CampaignBookQuery): URLSearchParams {
-  const params = new URLSearchParams()
-  for (const key of CAMPAIGN_BOOK_QUERY_KEYS) {
-    const value = query[key]
-    if (value === undefined) continue
-    if (value === DEFAULT_CAMPAIGN_BOOK_QUERY[key]) continue
-    params.set(key, String(value))
-  }
-  return params
-}
-
-/** Địa chỉ → `CampaignBookQuery`, kiểm bằng chính schema của hợp đồng.
- *
- *  KHÔNG BAO GIỜ ném, cùng lý do `parseOpportunityBookQuery` không ném: thanh
- *  địa chỉ sửa tay được, và một màn trắng vì một ký tự thừa tệ hơn mọi cách
- *  hỏng khác. Rơi về mặc định là rơi CẢ câu hỏi chứ không từng trường một. */
-export function parseCampaignBookQuery(params: URLSearchParams): CampaignBookQuery {
-  const raw: Record<string, string> = {}
-  for (const key of CAMPAIGN_BOOK_QUERY_KEYS) {
-    const value = params.get(key)
-    if (value !== null) raw[key] = value
-  }
-  const parsed = CampaignBookQuery.safeParse(raw)
-  return parsed.success ? parsed.data : DEFAULT_CAMPAIGN_BOOK_QUERY
 }
 
 /** Trần `size` của hợp đồng (`PageQuery.size.max(200)`) — con số làm cho
@@ -184,7 +139,7 @@ export const campaignBookQuery = (query: CampaignBookQuery) =>
   queryOptions({
     queryKey: [...CAMPAIGN_BOOK_KEY, 'page', query] as const,
     queryFn: ({ signal }) =>
-      api.read<CampaignBookResponse>(`/sales/campaigns?${campaignBookQueryToParams(query)}`, {
+      api.read<CampaignBookResponse>(`/sales/campaigns?${bookQueryParams(query)}`, {
         need: READ_NEED,
         signal,
       }),

@@ -3,9 +3,8 @@ import { Button, Icon } from '@pv/ui'
 import type { MailRunRow } from '@pv/contracts'
 import { CANCELLABLE, EDITABLE, SKIPPED_MAIL_LABEL, type MailRunRoute } from '@/data/mail-runs'
 
-/** Cells of the run book (G-Runs) that need more than one line of logic: who
- *  filed the run, what a group letter shows instead of a head count, and the
- *  two buttons G8 gates by state AND by who is asking. */
+/** Cells of the run book (G-Runs) that need more than one line of logic: what
+ *  a group letter shows instead of a head count, and the two buttons G8 gates by state AND by who is asking. */
 
 const num = (n: number) => n.toLocaleString('vi-VN')
 
@@ -24,10 +23,6 @@ export function RunLabel({ run }: { run: MailRunRow }) {
       >
         {run.waveNo ? `Đợt ${run.waveNo} · ` : ''}
         {run.phase ?? run.label} · {run.subject}
-      </span>
-      <span className="text-muted-foreground block truncate text-[11px]">
-        Tạo bởi {run.createdBy.name}
-        {run.mine ? ' (bạn)' : ''}
       </span>
     </div>
   )

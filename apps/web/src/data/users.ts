@@ -253,8 +253,8 @@ export const BRANCH_OPTIONS = Branch.options
  *  do is worse than no control. */
 export const CORE_BRANCH = 'One' as const satisfies Branch
 
-export const SCOPE_ALL = 'Cả sổ'
-export const SCOPE_OWN = 'Chỉ của mình'
+export const SCOPE_ALL = 'Toàn bộ dữ liệu'
+export const SCOPE_OWN = 'Chỉ dữ liệu phụ trách'
 
 /** Axis 3 of E2, in the two words the table column has room for. `ownOnly`
  *  cuts a person down to the rows standing in their own name — it is not a
@@ -301,7 +301,7 @@ export function userTally(rows: readonly UserRow[]): UserTally {
  *  them ever finished setting up, and how many are shut out right now. A single
  *  "7 tài khoản" hides both of the states that need somebody to do something. */
 export const tallyLine = (t: UserTally): string =>
-  `${t.total} tài khoản · ${t.passworded} đã đặt mật khẩu · ${t.locked} đang khoá`
+  `${t.total} người dùng · ${t.passworded} đã đặt mật khẩu · ${t.locked} đang bị khoá`
 
 /** What the panel holds while somebody is typing — the editable half of a row.
  *

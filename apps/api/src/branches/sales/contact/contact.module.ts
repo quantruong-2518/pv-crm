@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { GraphModule } from '@api/platform/graph/graph.module'
+import { ContactFacetsRepository } from './contact-facets.repository'
 import { ContactRepository } from './contact.repository'
 import { ContactService } from './contact.service'
 
@@ -18,7 +19,7 @@ import { ContactService } from './contact.service'
  *  not), so this module needs `ObjectMirror`. */
 @Module({
   imports: [GraphModule],
-  providers: [ContactService, ContactRepository],
+  providers: [ContactService, ContactRepository, ContactFacetsRepository],
   exports: [ContactService],
 })
 export class ContactModule {}

@@ -55,7 +55,7 @@ export function BookTabs({
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <SegmentedControl
-        label="Trạng thái đơn"
+        label="Trạng thái cơ hội"
         hideLabel
         tone="quiet"
         value={query.state ?? ANY}
@@ -89,7 +89,7 @@ export function BookTools({
   return (
     <>
       <SearchField
-        placeholder="Tìm theo tên cơ hội, mã hoặc account…"
+        placeholder="Tìm theo tên, mã cơ hội hoặc khách hàng…"
         value={text}
         onChange={onText}
         className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -99,10 +99,10 @@ export function BookTools({
           variant="ghost"
           size="md"
           className="pointer-coarse:h-12"
-          aria-label={`Bỏ lọc cột ${OPPORTUNITY_STAGE_LABEL[query.stage]}`}
+          aria-label={`Bỏ lọc giai đoạn ${OPPORTUNITY_STAGE_LABEL[query.stage]}`}
           onClick={() => onPatch({ stage: undefined })}
         >
-          Cột: {OPPORTUNITY_STAGE_LABEL[query.stage]}
+          Giai đoạn: {OPPORTUNITY_STAGE_LABEL[query.stage]}
           <Icon icon={X} size={16} />
         </Button>
       )}
@@ -137,44 +137,44 @@ function BookFilters({
   const pick = (value: string) => (value === ANY ? undefined : value)
 
   return (
-    <FilterMenu label="Bộ lọc sổ cơ hội" active={active}>
+    <FilterMenu label="Bộ lọc cơ hội" active={active}>
       <Select
-        label="Sale đứng đơn"
+        label="Sale phụ trách"
         value={query.sale ?? ANY}
         onChange={(value) => onPatch({ sale: pick(value) })}
         /* Account names run long; clamp the native select to the panel. */
         className="w-full max-w-none"
         options={[
-          { value: ANY, label: 'Mọi Sale' },
+          { value: ANY, label: 'Tất cả Sale' },
           { value: OWNER_NONE, label: 'Chưa có Sale' },
           ...saleOptions,
         ]}
       />
       <Select
-        label="BD mở cửa"
+        label="BD phụ trách"
         value={query.bd ?? ANY}
         onChange={(value) => onPatch({ bd: pick(value) })}
         className="w-full max-w-none"
         options={[
-          { value: ANY, label: 'Mọi BD' },
+          { value: ANY, label: 'Tất cả BD' },
           { value: OWNER_NONE, label: 'Chưa ghi BD' },
           ...bdOptions,
         ]}
       />
       <Select
-        label="Account"
+        label="Khách hàng"
         value={query.account ?? ANY}
         onChange={(value) => onPatch({ account: pick(value) })}
         className="w-full max-w-none"
         options={[
-          { value: ANY, label: 'Mọi account' },
+          { value: ANY, label: 'Tất cả khách hàng' },
           ...accounts.map((a) => ({ value: a, label: a })),
         ]}
       />
       <Checkbox
         checked={query.overdue === true}
         onChange={(on) => onPatch({ overdue: on || undefined })}
-        label="Quá hạn cột hiện tại"
+        label="Quá hạn ở giai đoạn hiện tại"
       />
       {dirty && (
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClear}>
@@ -205,34 +205,37 @@ export function ScoreCards() {
   const items = [
     {
       icon: Target,
-      label: 'Tổng số cơ hội',
+      label: 'Tổng cơ hội',
       value: String(total),
       tone: total === 0 ? ('warning' as const) : ('default' as const),
-      hint: 'đơn đang có trong sổ',
+      hint: 'Gồm đang theo đuổi, đã ký và đã dừng',
     },
     {
       icon: Wallet,
-      label: 'Đang mở',
+      label: 'Giá trị đang theo đuổi',
       value: billions(openAmount),
       tone: openAmount === 0 ? ('warning' as const) : ('default' as const),
       /* The server sums in dong and skips unpriced deals — then says how many. */
       hint:
         openBlank === 0
-          ? `${openCount} đơn còn trong bốn cột`
-          : `${openCount} đơn còn trong bốn cột · ${openBlank} đơn chưa có tiền, không cộng vào`,
+          ? `Tổng giá trị dự kiến của ${openCount} cơ hội đang mở`
+          : `Tổng giá trị dự kiến của ${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
     },
     {
       icon: FileCheck,
-      label: 'Thành hợp đồng',
+      label: 'Đã ký hợp đồng',
       value: per(won),
       tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
-      hint: `${won} đơn đã ký trên ${total} cơ hội`,
+      hint: total === 0 ? 'Chưa có cơ hội để tính tỷ lệ' : `${won}/${total} cơ hội đã ký hợp đồng`,
     },
     {
       icon: CircleX,
       label: OPPORTUNITY_STATE_LABEL.lost,
       value: per(lost),
-      hint: `${lost} đơn đã dừng trên ${total} cơ hội`,
+      hint:
+        total === 0
+          ? 'Chưa có cơ hội để tính tỷ lệ'
+          : `${lost}/${total} cơ hội không tiếp tục theo đuổi`,
     },
   ]
 

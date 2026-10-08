@@ -100,7 +100,7 @@ export const dayAfterToday = (n: number): string =>
 export const CAMPAIGN_STATUS = [
   { key: 'draft', label: 'Nháp', tone: 'draft' },
   { key: 'running', label: 'Đang chạy', tone: 'running' },
-  { key: 'done', label: 'Đã xong', tone: 'success' },
+  { key: 'done', label: 'Đã hoàn tất', tone: 'success' },
 ] as const satisfies readonly {
   key: string
   label: string
@@ -586,39 +586,6 @@ export const TIME_WINDOWS = [
 ] as const satisfies readonly { key: string; label: string; days: number | null }[]
 
 export type TimeWindowKey = (typeof TIME_WINDOWS)[number]['key']
-
-/** Bộ lọc đang bật — một hình cho cả bốn, để màn truyền đúng một object. */
-export type CampaignFilter = {
-  owner: string | null
-  channel: WaveChannel | null
-  window: TimeWindowKey
-  status: CampaignStatus | null
-}
-
-export const NO_FILTER: CampaignFilter = {
-  owner: null,
-  channel: null,
-  window: 'all',
-  status: null,
-}
-
-/** Lọc sáu dòng theo bộ lọc đang bật. Ở tầng data chứ không ở JSX vì đây là
- *  bốn phép so nghiệp vụ, và câu "kênh" phải hỏi trên MỌI đợt của chiến dịch —
- *  một chuỗi ba đợt email + một đợt Zalo phải lọt cả hai bộ lọc kênh. */
-export function filterSources(rows: SourceRow[], f: CampaignFilter): SourceRow[] {
-  const win = TIME_WINDOWS.find((w) => w.key === f.window)?.days ?? null
-
-  return rows.filter((r) => {
-    if (f.owner && r.owner !== f.owner) return false
-    if (f.channel && !r.waves.some((w) => w.channel === f.channel)) return false
-    if (f.status && r.status !== f.status) return false
-    /* Khoảng cách tính từ HÔM NAY THẬT tới ngày mở nguồn, không từ mốc đóng
-       băng của một kịch bản. `daysFrom` cắt cả hai mốc về nửa đêm trước khi
-       trừ, nên một nguồn mở sáng nay không rơi ra ngoài cửa sổ "30 ngày". */
-    if (win !== null && daysFrom(r.startISO, TODAY) > win) return false
-    return true
-  })
-}
 
 /** PIC có mặt trong sổ, theo thứ tự chữ cái.
  *

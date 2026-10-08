@@ -1,7 +1,12 @@
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import { CURRENCIES, type AccountBookQuery } from '@pv/contracts'
+import {
+  CURRENCIES,
+  type AccountBookQuery,
+  type AccountFacetsQuery,
+  type LeadCategory,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
@@ -106,6 +111,21 @@ const SIGNED_AMOUNT_VND = sql<number>`(
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
+)`
+
+/** EXISTS twins of `SIGNED_DEALS` and `OPEN_DEALS`, so a filter stops at the
+ *  first row instead of counting all. `at()` for the reason documented there. */
+export const HAS_SIGNED = sql`EXISTS (
+  SELECT 1 FROM ${contract}
+  JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
+)`
+
+const HAS_OPEN_DEALS = sql`EXISTS (
+  SELECT 1 FROM ${opportunity}
+  JOIN ${lead} ON ${at(lead.code)} = ${at(opportunity.leadCode)}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${at(opportunity.closedAt)} IS NULL
+    AND ${LIVE}
 )`
 
 /** The identity expression `account_identity_uniq` indexes, written a second
@@ -349,7 +369,8 @@ export class AccountRepository {
 
   // ── filters and ordering ────────────────────────────────────────────────
 
-  private filtersOf(q: AccountBookQuery): SQL | undefined {
+  /** Shared with the facets repository, which drops one key at a time. */
+  filtersOf(q: AccountFacetsQuery): SQL | undefined {
     const parts: SQL[] = []
 
     if (q.q !== undefined) {
@@ -364,25 +385,14 @@ export class AccountRepository {
 
     if (q.province !== undefined)
       parts.push(inArray(account.province, q.province.split(',').filter(Boolean)))
-    if (q.category !== undefined) parts.push(eq(account.category, q.category))
+    if (q.category !== undefined)
+      parts.push(inArray(account.category, q.category.split(',') as LeadCategory[]))
 
-    /* "Already bought" and "not yet bought" are the two frozen scenarios of
-       this repo, asked of the live book: a company is a customer exactly when
-       a contract exists under one of its leads. Written as EXISTS rather than
-       as `SIGNED_DEALS > 0` so Postgres can stop at the first row instead of
-       counting them all. */
-    if (q.customer !== undefined) {
-      /* `at()` here too, and for the same reason as the four counters at the
-         top of this file: this fragment also lands in a `where()` beside a
-         projection, and an unqualified `code` is ambiguous across three
-         tables. */
-      const signed = sql`EXISTS (
-        SELECT 1 FROM ${contract}
-        JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-        WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
-      )`
-      parts.push(q.customer === 1 ? signed : sql`NOT ${signed}`)
-    }
+    /* A company is a customer exactly when a contract exists under one of its
+       leads — the two frozen scenarios, asked of the live book. */
+    if (q.customer !== undefined) parts.push(q.customer === 1 ? HAS_SIGNED : sql`NOT ${HAS_SIGNED}`)
+    if (q.openDeals !== undefined)
+      parts.push(q.openDeals === 1 ? HAS_OPEN_DEALS : sql`NOT ${HAS_OPEN_DEALS}`)
 
     return parts.length > 0 ? and(...parts) : undefined
   }

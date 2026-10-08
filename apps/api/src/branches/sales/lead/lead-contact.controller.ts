@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ContactBookQuery, ContactPatch, ObjectCode } from '@pv/contracts'
+import { ContactBookQuery, ContactFacetsQuery, ContactPatch, ObjectCode } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -39,11 +39,9 @@ import { LeadService } from './lead.service'
 export class LeadContactController {
   constructor(
     private readonly leads: LeadService,
-    /* The two READ endpoints call ContactService directly, not routed
-       through LeadService: they have no lead code on the path to guard
-       against, so there is nothing for `guard` to do — the scope axis lives
-       inside the query itself. The three WRITE endpoints are the opposite,
-       and still go through `LeadService.guardByContact`. */
+    /* The three READ endpoints (book, facets, profile) call ContactService
+       directly: no lead code on the path for `guard`, so scope lives in the
+       query. The three WRITE endpoints go through `LeadService.guardByContact`. */
     private readonly contacts: ContactService,
   ) {}
 
@@ -60,6 +58,13 @@ export class LeadContactController {
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
   book(@CurrentActor() who: Actor, @Query(zod(ContactBookQuery)) q: ContactBookQuery) {
     return this.contacts.book(who, q)
+  }
+
+  /** Before `@Get(':code')`, or "facets" is read as a contact code. */
+  @Get('facets')
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
+  facets(@CurrentActor() who: Actor, @Query(zod(ContactFacetsQuery)) q: ContactFacetsQuery) {
+    return this.contacts.facets(who, q)
   }
 
   @Get(':code')

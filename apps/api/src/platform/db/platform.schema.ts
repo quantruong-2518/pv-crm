@@ -277,7 +277,7 @@ export const setting = platform.table(
      *  `sales.activity.*` keys joined in 0076. */
     check(
       'setting_key_known',
-      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days')`,
+      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days')`,
     ),
     /** True of every key today and of any added later: a non-positive constant
      *  is one the reading code cannot act on. The per-key ceiling is zod's. */

@@ -10,6 +10,7 @@ import type {
   MailRunState,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { bookQueryParams } from '@/app/book-query'
 import { LEAD_MAIL_KEY, LETTERS_KEY } from '@/data/mas'
 
 /** SỔ LÔ GỬI — `platform.mail_run`, mọi lô thư đã rời hoặc sắp rời máy.
@@ -57,38 +58,10 @@ const patchDoor = (id: string, route: MailRunRoute) => ({
 
 export const MAIL_RUN_KEY = ['sales', 'mail-runs'] as const
 
-export const DEFAULT_MAIL_RUN_QUERY: MailRunListQuery = {
-  page: 1,
-  size: 20,
-  sort: 'createdAt',
-  dir: 'desc',
-}
-
-const MAIL_RUN_QUERY_KEYS = [
-  'page',
-  'size',
-  'sort',
-  'dir',
-  'state',
-  'campaign',
-  'q',
-] as const satisfies readonly (keyof MailRunListQuery)[]
-
-export function mailRunQueryToParams(query: MailRunListQuery): URLSearchParams {
-  const params = new URLSearchParams()
-  for (const key of MAIL_RUN_QUERY_KEYS) {
-    const value = query[key]
-    if (value === undefined) continue
-    if (value === DEFAULT_MAIL_RUN_QUERY[key]) continue
-    params.set(key, String(value))
-  }
-  return params
-}
-
 /** Nhãn tiếng Việt của năm trạng thái lô. */
 export const MAIL_RUN_STATE_LABEL: Record<MailRunState, string> = {
   DRAFT: 'Nháp',
-  SCHEDULED: 'Hẹn giờ',
+  SCHEDULED: 'Đã hẹn giờ',
   SENDING: 'Đang gửi',
   SENT: 'Đã gửi',
   CANCELLED: 'Đã huỷ',
@@ -129,7 +102,7 @@ export const mailRunListQuery = (query: MailRunListQuery) =>
   queryOptions({
     queryKey: [...MAIL_RUN_KEY, 'page', query] as const,
     queryFn: ({ signal }) =>
-      api.read<MailRunListResponse>(`/sales/mail/runs?${mailRunQueryToParams(query)}`, {
+      api.read<MailRunListResponse>(`/sales/mail/runs?${bookQueryParams(query)}`, {
         need: READ_NEED,
         signal,
       }),

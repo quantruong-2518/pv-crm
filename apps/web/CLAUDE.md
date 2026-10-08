@@ -6,8 +6,14 @@
   matter how much of the file is written.
 - `app/` — state that lives ACROSS screens: `desk.ts` (pins/assignments/drafts,
   per user), `chrome.tsx` (nav shell, reads paths from here — don't hardcode
-  them in a screen). State that dies with the screen (filters, page number)
-  stays in that screen's own `useState`.
+  them in a screen). State that dies with the screen stays in that screen's own
+  `useState` — except server-paged books: their filters, search text and page
+  live in the ADDRESS.
+  - `app/book-query.ts` — `useBookQuery` keeps a book's filters, search text and
+    page in the URL; `useBookPageClamp` pulls the page back when the result
+    shrinks. Used by every server-paged book (leads, opportunities, accounts,
+    contacts, campaigns, mail-runs, contracts). Client-side books use
+    `app/client-book-filter.ts`, the same idea without paging.
   - `app/auth/` — the whole auth flow: session state machine, ticket expiry,
     multi-tab sync, the screen gate (`RequireAccess`) and the button gate
     (`useCan`). Import from `@/app/auth`, never from a file inside it. Read its

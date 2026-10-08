@@ -115,9 +115,9 @@ export function UsersPage() {
      is a count. Printing `tallyLine` while the book is still in flight would
      say "0 tài khoản" about a company that has seven. */
   const summary = isPending
-    ? 'Đang đọc sổ tài khoản…'
+    ? 'Đang tải danh sách người dùng…'
     : error
-      ? 'Chưa đọc được sổ tài khoản.'
+      ? 'Không tải được danh sách người dùng.'
       : tallyLine(tally)
 
   return (
@@ -128,7 +128,7 @@ export function UsersPage() {
           actions={
             <Button size="md" onClick={openCreate} className="max-sm:flex-1">
               <Icon icon={UserPlus} size={16} />
-              Thêm người
+              Thêm người dùng
             </Button>
           }
           /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
@@ -143,7 +143,7 @@ export function UsersPage() {
                      the user more than no button at all. `userMessage` prints the
                      server's own sentence when it wrote one, so "mất mạng" and
                      "phiên hết hạn" read differently. */
-                  message: `Không lấy được sổ tài khoản. ${
+                  message: `Không tải được danh sách người dùng. ${
                     isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
                   }`,
                   onRetry: () => void refetch(),
@@ -154,19 +154,19 @@ export function UsersPage() {
             rows.length === 0
               ? {
                   message:
-                    'Sổ tài khoản đang trống. Mở tài khoản đầu tiên cho người trong phòng — họ tự đặt mật khẩu qua thư mời.',
-                  action: { label: 'Thêm người', onClick: openCreate },
+                    'Chưa có người dùng nào. Hãy thêm người dùng đầu tiên; họ sẽ tự đặt mật khẩu qua email mời.',
+                  action: { label: 'Thêm người dùng', onClick: openCreate },
                 }
               : undefined
           }
           table={{
             minWidth: TABLE_MIN_WIDTH,
             columns: [
-              { header: 'Người', width: '1.4fr' },
+              { header: 'Họ và tên', width: '1.4fr' },
               { header: 'Email', width: '1.7fr' },
-              { header: 'Vai', width: '1.5fr' },
-              { header: 'Nhánh', width: '1.2fr' },
-              { header: 'Phạm vi', width: '124px' },
+              { header: 'Vai trò', width: '1.5fr' },
+              { header: 'Nhánh sản phẩm', width: '1.2fr' },
+              { header: 'Phạm vi dữ liệu', width: '124px' },
               { header: 'Trạng thái', width: '168px' },
             ],
             rows: rows.map((user) => ({

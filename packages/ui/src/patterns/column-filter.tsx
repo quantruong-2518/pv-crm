@@ -79,6 +79,7 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
         onClick={() => setOpen((o) => !o)}
         className={cn(
           'motion-std hover:text-foreground pointer-coarse:min-h-12 -mx-1 inline-flex min-w-0 items-center gap-1 rounded-sm px-1',
+          iconOnly && 'pointer-coarse:min-w-12 pointer-coarse:justify-center',
           active ? 'text-on-tint-primary' : 'text-inherit',
           className,
         )}
@@ -219,11 +220,11 @@ function PanelActions({ onClear, onApply }: { onClear?: () => void; onApply: () 
         type="button"
         onClick={onClear}
         disabled={!onClear}
-        className="text-on-tint-primary text-[12px] font-semibold disabled:opacity-40"
+        className="text-on-tint-primary pointer-coarse:min-h-12 pointer-coarse:px-2 text-[12px] font-semibold disabled:opacity-40"
       >
         Bỏ chọn
       </button>
-      <Button size="md" onClick={onApply}>
+      <Button size="md" className="pointer-coarse:h-12" onClick={onApply}>
         Áp dụng
       </Button>
     </div>

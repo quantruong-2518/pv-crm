@@ -1,8 +1,10 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  AccountBookQuery,
+  type AccountBookQuery,
   type AccountBookResponse,
   type AccountCreate,
+  type AccountFacetsQuery,
+  type AccountFacetsResponse,
   type AccountProfile,
   type AccountRow,
   type AccountUpdate,
@@ -10,6 +12,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { bookQueryParams } from '@/app/book-query'
 
 /** The stored key is English; every account screen prints this name instead. */
 export const CATEGORY_LABEL: Record<LeadCategory, string> = {
@@ -50,39 +53,31 @@ export const ACCOUNT_BOOK_KEY = ['sales', 'accounts'] as const
 const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'account.view' }
 const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'account.edit' }
 
-export const DEFAULT_ACCOUNT_BOOK_QUERY: AccountBookQuery = AccountBookQuery.parse({})
-
-/** Only fields that DIFFER from the default make it into the URL.
- *
- *  Same rule as the lead book and the deal book: an address carrying all ten
- *  default parameters is an address nobody can paste for someone else to
- *  read, and it also makes `queryKey` change over something that never
- *  changed. */
-export function accountBookQueryToParams(q: AccountBookQuery): string {
-  const p = new URLSearchParams()
-  if (q.page !== DEFAULT_ACCOUNT_BOOK_QUERY.page) p.set('page', String(q.page))
-  if (q.size !== DEFAULT_ACCOUNT_BOOK_QUERY.size) p.set('size', String(q.size))
-  if (q.sort !== DEFAULT_ACCOUNT_BOOK_QUERY.sort) p.set('sort', q.sort)
-  if (q.dir !== DEFAULT_ACCOUNT_BOOK_QUERY.dir) p.set('dir', q.dir)
-  if (q.q !== undefined) p.set('q', q.q)
-  if (q.province !== undefined) p.set('province', q.province)
-  if (q.category !== undefined) p.set('category', q.category)
-  if (q.customer !== undefined) p.set('customer', String(q.customer))
-  return p.toString()
-}
-
-/** URL → query. NEVER throws: an address someone edited by hand in the
- *  address bar must still open a book, not a blank screen. */
-export function parseAccountBookQuery(params: URLSearchParams): AccountBookQuery {
-  const parsed = AccountBookQuery.safeParse(Object.fromEntries(params))
-  return parsed.success ? parsed.data : DEFAULT_ACCOUNT_BOOK_QUERY
-}
-
 export function accountBookQuery(q: AccountBookQuery) {
   return queryOptions({
     queryKey: [...ACCOUNT_BOOK_KEY, 'page', q] as const,
     queryFn: ({ signal }) =>
-      api.read<AccountBookResponse>(`${BOOK_PATH}?${accountBookQueryToParams(q)}`, {
+      api.read<AccountBookResponse>(`${BOOK_PATH}?${bookQueryParams(q)}`, {
+        need: READ_NEED,
+        signal,
+      }),
+  })
+}
+
+/** `GET /sales/accounts/facets` — filter choices and tab counts over the whole
+ *  book. Paging and sort are cut here so the key only moves when a count could. */
+export function accountFacetsQuery(q: AccountBookQuery) {
+  const filters: AccountFacetsQuery = {
+    q: q.q,
+    province: q.province,
+    category: q.category,
+    customer: q.customer,
+    openDeals: q.openDeals,
+  }
+  return queryOptions({
+    queryKey: [...ACCOUNT_BOOK_KEY, 'facets', filters] as const,
+    queryFn: ({ signal }) =>
+      api.read<AccountFacetsResponse>(`${BOOK_PATH}/facets?${bookQueryParams(filters)}`, {
         need: READ_NEED,
         signal,
       }),

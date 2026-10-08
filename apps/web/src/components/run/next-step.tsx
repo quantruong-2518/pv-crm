@@ -164,20 +164,19 @@ function StepBody({
 
 type ViewProps = { step: NextStep; canEdit: boolean; onEdit: () => void; onFinish: () => void }
 
-/** The embedded step as the todo card shows it: label, the step itself, then
- *  due and doer on one line; change and a secondary done beside it. */
+/** The embedded step as the todo card shows it: kind pill and step on one
+ *  line, due and doer under it; a quiet change and a secondary done beside. */
 function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-      <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1">
-        <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px] font-medium leading-[1.5]">
-          Bước tiếp theo
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div className="flex min-w-0 flex-1 basis-64 flex-col">
+        <span className="flex flex-wrap items-center gap-2">
           {step.kind && <MetaPill>{step.kind.name}</MetaPill>}
+          <span className="text-foreground break-words text-[14px] font-semibold leading-[1.5]">
+            {step.text}
+          </span>
         </span>
-        <span className="text-foreground break-words text-[16px] font-semibold leading-[1.5]">
-          {step.text}
-        </span>
-        <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[13px] tabular-nums leading-[1.5]">
+        <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[11px] tabular-nums leading-[1.5]">
           Hạn {dmy(step.due)}
           <DueBadge level={step.dueLevel} />
           <span className="min-w-0 break-words">· {step.doer.name}</span>
@@ -185,11 +184,11 @@ function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
       </div>
       {canEdit && (
         <div className="flex flex-wrap gap-2">
-          <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onEdit}>
+          <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
             <Icon icon={Pencil} size={16} />
-            Đổi bước
+            Đổi
           </Button>
-          <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onFinish}>
+          <Button size="sm" variant="secondary" className="pointer-coarse:h-12" onClick={onFinish}>
             <Icon icon={Check} size={16} />
             Xong
           </Button>

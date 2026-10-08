@@ -1,16 +1,19 @@
 import { Injectable } from '@nestjs/common'
 import {
   AccountBookResponse,
+  AccountFacetsResponse,
   AccountProfile,
   AccountRow,
   type AccountBookQuery,
   type AccountCreate,
+  type AccountFacetsQuery,
   type AccountUpdate,
   type ObjectCode,
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { notFound } from '@api/platform/http/problem'
 import type { Db } from '@api/platform/db/db.module'
+import { AccountFacetsRepository } from './account-facets.repository'
 import { AccountRepository } from './account.repository'
 import {
   fromForm,
@@ -42,6 +45,7 @@ import {
 export class AccountService {
   constructor(
     private readonly repo: AccountRepository,
+    private readonly facetsRepo: AccountFacetsRepository,
     private readonly mirror: ObjectMirror,
   ) {}
 
@@ -52,6 +56,11 @@ export class AccountService {
       total: page.total,
       hidden: 0,
     })
+  }
+
+  /** The book's filter choices over every company, not one page. */
+  async facets(q: AccountFacetsQuery): Promise<AccountFacetsResponse> {
+    return AccountFacetsResponse.parse(await this.facetsRepo.facets(q))
   }
 
   async profile(code: ObjectCode): Promise<AccountProfile> {

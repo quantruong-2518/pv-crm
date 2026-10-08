@@ -108,11 +108,24 @@ export const MeetingAttendee = z.object({
  *  can put behind an anchor. A scheme check says exactly that and refuses
  *  `javascript:` — which a bare string field would happily carry into an
  *  `href`. */
-const MeetingLink = z
+export const MeetingLink = z
   .string()
   .trim()
   .max(MEETING_LINK_MAX, `Tối đa ${MEETING_LINK_MAX} ký tự`)
   .regex(/^https?:\/\/\S+$/, 'Link họp phải bắt đầu bằng http:// hoặc https://')
+
+/** Event page in the booker's Google Calendar. https only: Google always serves
+ *  it over TLS, and the value is read-only output that ends up behind an anchor. */
+export const MeetingEventUrl = z
+  .string()
+  .max(MEETING_LINK_MAX)
+  .regex(/^https:\/\/\S+$/)
+
+/** Outcome of the Google Calendar sync attempt made while building THIS response.
+ *  `off` = the server has no Google client configured; `not_connected` = the
+ *  booker has not linked an account; `failed` = Google was reached or tried and
+ *  the call did not succeed. */
+export const MeetingCalendarState = z.enum(['synced', 'not_connected', 'failed', 'off'])
 
 /** The object a meeting hangs off: a lead or an opportunity, never a contract. */
 export const MeetingSubjectCode = ObjectCode.regex(/^(LD|OP)-/, 'Cuộc họp chỉ gắn lead hoặc cơ hội')
@@ -155,6 +168,12 @@ export const MeetingRow = z.object({
   /** Earliest meeting of this lead — see the file docblock. Computed per read
    *  over the whole set; never persisted. */
   isFirst: z.boolean(),
+
+  /** Google Calendar event page; null or absent when the meeting is not synced. */
+  eventUrl: MeetingEventUrl.nullish(),
+  /** Result of the sync attempt for THIS response only: computed, never stored,
+   *  so a later read cannot replay a stale "failed". */
+  calendar: MeetingCalendarState,
 
   /** Who wrote the row down, snapshotted like `TouchRow.by`. */
   by: textInput(120),
@@ -225,6 +244,7 @@ export type MeetingSubjectCode = z.infer<typeof MeetingSubjectCode>
 export type MeetingSide = z.infer<typeof MeetingSide>
 export type MeetingMode = z.infer<typeof MeetingMode>
 export type MeetingDurationMinutes = z.infer<typeof MeetingDurationMinutes>
+export type MeetingCalendarState = z.infer<typeof MeetingCalendarState>
 export type MeetingAttendee = z.infer<typeof MeetingAttendee>
 export type MeetingRow = z.infer<typeof MeetingRow>
 export type MeetingListResponse = z.infer<typeof MeetingListResponse>
