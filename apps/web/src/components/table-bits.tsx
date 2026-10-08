@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, Filter, Mail } from '@pv/ui'
-import { Avatar, Button, Checkbox, Icon, InfoTip, cn } from '@pv/ui'
+import { Avatar, Button, Checkbox, Icon, cn } from '@pv/ui'
 
 /** Những mảnh dùng chung của MỌI SỔ — lead · cơ hội · chiến dịch.
  *
@@ -171,7 +171,7 @@ export function PicCell({
   if (!avatar) return text
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <Avatar name={shown} size="sm" />
+      <Avatar name={shown} email={name ? email : undefined} size="sm" />
       {text}
     </span>
   )
@@ -195,18 +195,7 @@ export function AvatarCell({
       </span>
     )
   }
-  return (
-    <InfoTip
-      content={
-        <>
-          <span className="font-semibold">{shown}</span>
-          {name && email && <span className="text-muted-foreground break-all">{email}</span>}
-        </>
-      }
-    >
-      <Avatar name={shown} size="sm" />
-    </InfoTip>
-  )
+  return <Avatar name={shown} email={name ? email : undefined} size="sm" />
 }
 
 /** Một ô người bên KHÁCH: tên, hoặc "—" kèm lý do ở `title`.

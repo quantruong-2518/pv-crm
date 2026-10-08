@@ -515,7 +515,7 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
           </span>
         ) : (
           <>
-            <Avatar size="sm" name={picLabel} initials={initialsOf(sale.name)} />
+            <Avatar size="sm" name={picLabel} />
             <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]">
               <span className="text-glass-foreground">PIC: </span>
               {sale.name}

@@ -201,11 +201,11 @@ export function ZoneAtoms() {
         >
           <Avatar name="Nguyễn Văn Thắng" size="lg" />
           <Avatar name="Trần Thu Hà" size="md" />
-          <Avatar name="Lê Minh Đức" initials="LĐ" size="sm" />
+          <Avatar name="Lê Minh Đức" size="sm" />
           <div className="text-muted-foreground ml-1 text-[11.5px] leading-[1.6]">
             38 · 30 · 24
             <br />
-            viết tắt tên, không ảnh
+            glass theo tên, sinh cục bộ
           </div>
         </SpecCard>
 

@@ -58,7 +58,7 @@ export type AppHeaderProps = {
   core: HeaderAction[]
   /** Tier 2, in groups — a hairline separates each group from the next. */
   apps: HeaderApp[][]
-  user: { name: string; initials?: string; role?: string }
+  user: { name: string; role?: string }
   unread?: boolean
   assistantLabel?: string
   search?: Pick<SearchFieldProps, 'placeholder' | 'meta'>

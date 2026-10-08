@@ -72,7 +72,7 @@ function PersonRow({
         disabled ? 'opacity-60' : selected ? 'bg-primary/16' : 'hover:bg-surface-ink/6',
       )}
     >
-      <Avatar name={person.name} size="md" />
+      <Avatar name={person.name} size="md" card={false} />
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-[13px] font-semibold">
           {person.name}

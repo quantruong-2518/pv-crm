@@ -373,11 +373,7 @@ export function DealCard({
         {/* Its own column, never wrapped under the code: the 48px target would
             land on the code pill's hit area. */}
         <div className="flex shrink-0 items-center gap-2">
-          {deal.holder && (
-            <span title={deal.holder.name} className="flex">
-              <Avatar name={deal.holder.name} size="sm" />
-            </span>
-          )}
+          {deal.holder && <Avatar name={deal.holder.name} size="sm" />}
           {finished && (
             <span className="-my-3 -mr-2 flex">
               <Expander code={deal.code} open onToggle={onToggle} />

@@ -8,10 +8,8 @@ import { cn } from '../lib/cn'
  *  vỡ ngay ở người thứ hai; xếp thành cụm avatar thì ô rộng bằng nhau ở mọi
  *  dòng và mắt quét được theo cột.
  *
- *  Tên hiện khi rê chuột — đây là chỗ duy nhất trong hệ có tooltip tự dựng, vì
- *  `title` gốc của trình duyệt trễ nửa giây và không đọc được trên nền tối. Chữ
- *  vẫn giữ trong `aria-label` của từng Avatar cho trình đọc màn hình, nên
- *  tooltip là phần THÊM chứ không phải chỗ duy nhất chứa tên.
+ *  Mỗi Avatar tự mang thẻ người khi rê chuột; chỉ ô `+N` còn dùng tooltip riêng
+ *  vì không phải một người. Tên vẫn nằm trong `aria-label` cho trình đọc màn hình.
  *
  *  Tràn thì gộp thành ô `+N`, và tooltip của ô đó liệt kê nốt phần bị gộp —
  *  không ai phải đoán "+2 là ai". */
@@ -60,7 +58,6 @@ export function AvatarGroup({
       {shown.map((name, i) => (
         <span key={name} className={cn('group/av relative', i > 0 && '-ml-2')}>
           <Avatar name={name} size={size} className="shadow-control" />
-          <Tip>{name}</Tip>
         </span>
       ))}
 

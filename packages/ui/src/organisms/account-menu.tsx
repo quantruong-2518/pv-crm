@@ -15,7 +15,7 @@ import type { HeaderAction } from './app-header'
  *  decides how a row looks. */
 
 type AccountMenuProps = {
-  user: { name: string; initials?: string; role?: string }
+  user: { name: string; role?: string }
   org: string
   /** Core entries reached from here instead of from the top bar. */
   destinations: HeaderAction[]
@@ -137,14 +137,9 @@ export function AccountMenu({
           open ? 'bg-surface-ink/10' : 'hover:bg-surface-ink/10',
         )}
       >
-        {/* Initials only: the one-row header has no width for a name, and the
+        {/* Avatar only, no hover card (the button owns hover): the one-row header has no width for a name, and the
             open menu prints name and role in full. */}
-        <Avatar
-          name={user.name}
-          initials={user.initials}
-          size="md"
-          className="bg-primary bg-none"
-        />
+        <Avatar name={user.name} size="md" card={false} />
         <Icon
           icon={ChevronDown}
           size={14}
@@ -160,7 +155,7 @@ export function AccountMenu({
           className="glass-overlay absolute right-0 top-[calc(100%+12px)] z-50 flex max-h-[min(640px,calc(100vh-88px))] w-[min(272px,calc(100vw-32px))] flex-col overflow-y-auto rounded-lg p-2"
         >
           <div className="flex items-center gap-3 px-3 py-2">
-            <Avatar name={user.name} initials={user.initials} />
+            <Avatar name={user.name} card={false} />
             <div className="min-w-0">
               <div className="text-foreground truncate text-[13px] font-semibold">{user.name}</div>
               <div className="text-muted-foreground truncate text-[11.5px]">

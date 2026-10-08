@@ -11,13 +11,15 @@ import { cn } from '../lib/cn'
 export type InfoTipProps = {
   content: ReactNode
   children: ReactNode
+  /** Box width in px; the default fits a one-line label, a person card needs more. */
+  width?: number
   className?: string
 }
 
 const GAP = 10
 const BOX_WIDTH = 224
 
-export function InfoTip({ content, children, className }: InfoTipProps) {
+export function InfoTip({ content, children, width = BOX_WIDTH, className }: InfoTipProps) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ style: CSSProperties; below: boolean; arrowX: number } | null>(
     null,
@@ -32,13 +34,13 @@ export function InfoTip({ content, children, className }: InfoTipProps) {
     const h = box.current?.offsetHeight ?? 0
     const below = r.top < h + GAP + 8
     const center = r.left + r.width / 2
-    const left = Math.max(8, Math.min(center - BOX_WIDTH / 2, window.innerWidth - BOX_WIDTH - 8))
+    const left = Math.max(8, Math.min(center - width / 2, window.innerWidth - width - 8))
     setPos({
       below,
       arrowX: center - left,
-      style: { left, width: BOX_WIDTH, top: below ? r.bottom + GAP : r.top - GAP - h },
+      style: { left, width, top: below ? r.bottom + GAP : r.top - GAP - h },
     })
-  }, [open, content])
+  }, [open, content, width])
 
   const show = () => setOpen(true)
   const hide = () => {
@@ -63,7 +65,7 @@ export function InfoTip({ content, children, className }: InfoTipProps) {
             ref={box}
             id={id}
             role="tooltip"
-            style={pos?.style ?? { visibility: 'hidden', width: BOX_WIDTH }}
+            style={pos?.style ?? { visibility: 'hidden', width }}
             className="glass-overlay shadow-panel pointer-events-none fixed z-[100] flex flex-col gap-1 rounded-lg px-3 py-2 text-[12px]"
           >
             {content}
