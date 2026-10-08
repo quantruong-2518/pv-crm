@@ -37,8 +37,8 @@ export const attachment = platform.table(
     height: integer('height'),
     pages: integer('pages'),
 
-    ownerKind: text('owner_kind').$type<'lead' | 'comm'>().notNull(),
-    /** Lead code for 'lead', debrief id for 'comm'. */
+    ownerKind: text('owner_kind').$type<'lead' | 'comm' | 'workstream'>().notNull(),
+    /** Lead code for 'lead', debrief id for 'comm', WS- code for 'workstream'. */
     ownerCode: text('owner_code'),
 
     /** A real key: only a signed-in actor can open an upload, so the row exists. */
@@ -56,6 +56,8 @@ export const attachment = platform.table(
     check(
       'attachment_mime_known',
       sql`("owner_kind" = 'lead' AND "mime" IN ('image/webp', 'image/jpeg', 'application/pdf'))
+          OR ("owner_kind" = 'workstream' AND "mime" IN ('image/webp', 'image/jpeg', 'image/png', 'application/pdf',
+           'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'))
           OR ("owner_kind" = 'comm' AND "mime" IN ('audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg',
            'image/png', 'image/jpeg', 'image/webp', 'application/pdf',
            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'))`,
@@ -67,8 +69,8 @@ export const attachment = platform.table(
       sql`"owner_kind" <> 'comm'
           OR "bytes" <= CASE WHEN "mime" LIKE 'audio/%' THEN 52428800 ELSE 15728640 END`,
     ),
-    /** 'comm' since 0075; the next kind is a migration somebody reads. */
-    check('attachment_owner_kind_known', sql`"owner_kind" IN ('lead', 'comm')`),
+    /** 'comm' since 0075, 'workstream' since 0090; the next kind is a migration somebody reads. */
+    check('attachment_owner_kind_known', sql`"owner_kind" IN ('lead', 'comm', 'workstream')`),
     check('attachment_sha256_hex', sql`"sha256" ~ '^[0-9a-f]{64}$'`),
     check('attachment_bytes_positive', sql`"bytes" > 0`),
     check(

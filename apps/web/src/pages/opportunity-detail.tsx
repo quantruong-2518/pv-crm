@@ -24,7 +24,7 @@ import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
-import { RunFiles } from '@/components/run/run-files'
+import { RunDocuments } from '@/components/run/run-documents'
 import { SignDrawer } from '@/components/sign-drawer'
 import { DealEventModal } from './opportunity-events'
 import { DealHistoryCard } from './opportunity-history'
@@ -139,7 +139,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
         </>
       }
-      railLabel="Liên hệ, người liên hệ và tệp của cơ hội"
+      railLabel="Liên hệ, người liên hệ và tài liệu của cơ hội"
       rail={
         <>
           <RunOwners
@@ -157,7 +157,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           />
           <CommJourney workstreamCode={op.workstream?.code ?? null} subject={subject} />
           <RunContacts subject={subject} />
-          <RunFiles subject={subject} />
+          <RunDocuments workstreamCode={op.workstream?.code ?? null} />
         </>
       }
       /* A lost deal has no bar: nothing is recorded on it, nobody is contacted

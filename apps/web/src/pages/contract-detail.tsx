@@ -24,6 +24,7 @@ import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordCard } from '@/components/record/record-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
+import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
@@ -147,12 +148,13 @@ function ContractScreen({ contract }: { contract: Contract }) {
           )}
         </>
       }
-      railLabel="Liên hệ và người liên hệ của hợp đồng"
+      railLabel="Liên hệ, người liên hệ và tài liệu của hợp đồng"
       rail={
         <>
           <RunOwners workstreamCode={run.workstreamCode} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
+          <RunDocuments workstreamCode={run.workstreamCode} />
         </>
       }
       actionBar={

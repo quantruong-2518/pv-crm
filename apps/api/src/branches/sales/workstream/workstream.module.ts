@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
+import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { StorageModule } from '@api/platform/storage/storage.module'
 import { NextStepRepository } from '../next-step/next-step.repository'
+import { WorkstreamDocumentController } from './workstream-document.controller'
+import { WorkstreamDocumentRepository } from './workstream-document.repository'
+import { WorkstreamDocumentService } from './workstream-document.service'
 import { WorkstreamLanesRepository } from './workstream-lanes.repository'
 import { WorkstreamController } from './workstream.controller'
 import { WorkstreamRepository } from './workstream.repository'
@@ -29,12 +34,14 @@ import { WorkstreamService } from './workstream.service'
  *  `exports` carries the repository for that reason only. This module must never
  *  import `LeadModule`, which imports it. */
 @Module({
-  imports: [ApprovalModule, EnginesModule],
-  controllers: [WorkstreamController],
+  imports: [ApprovalModule, AuditModule, EnginesModule, StorageModule],
+  controllers: [WorkstreamController, WorkstreamDocumentController],
   providers: [
     WorkstreamService,
     WorkstreamRepository,
     WorkstreamLanesRepository,
+    WorkstreamDocumentService,
+    WorkstreamDocumentRepository,
     NextStepRepository,
   ],
   exports: [WorkstreamService, WorkstreamRepository],

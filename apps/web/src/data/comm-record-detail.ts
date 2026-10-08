@@ -218,7 +218,7 @@ export function checkCommFile(file: File): { mime: CommAttachmentMime } | { prob
   return { mime }
 }
 
-async function sha256Of(file: File): Promise<string> {
+export async function sha256Of(file: File): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }

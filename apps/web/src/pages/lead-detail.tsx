@@ -30,7 +30,7 @@ import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
-import { RunFiles } from '@/components/run/run-files'
+import { RunDocuments } from '@/components/run/run-documents'
 import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
 import { leadMoreChoices } from './lead-model'
 import { LeadForm } from './lead-parts'
@@ -161,7 +161,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
       }
-      railLabel="Liên hệ, người liên hệ và tệp của lead"
+      railLabel="Liên hệ, người liên hệ và tài liệu của lead"
       rail={
         <>
           <RunOwners
@@ -181,7 +181,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             />
           )}
           <RunContacts subject={{ kind: 'lead', code: lead.code }} />
-          <RunFiles subject={{ kind: 'lead', code: lead.code }} />
+          <RunDocuments workstreamCode={lead.workstreamCode} />
         </>
       }
       actionBar={
