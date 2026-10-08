@@ -13,12 +13,11 @@ import {
 /** The header's search, private to AppHeader.
  *
  *  Collapsed it is a 232px slot in the row; on focus (or ⌘K) it grows from that
- *  slot to the centre of the header while the rest of the row blurs. The panel
- *  always lists the screens the app can open, filtered here as you type.
+ *  slot to the centre of the header while the rest of the row blurs.
  *
  *  Records are the app's business: with `records` the typed text is handed out
- *  and the groups that come back are drawn beside the screens. Without it there
- *  is no record search, and the box does not pretend otherwise. */
+ *  and the groups that come back are all the panel lists. Without it there is
+ *  no record search, and the box falls back to the screens the app can open. */
 
 export type SearchTarget = {
   icon: IconGlyph
@@ -76,11 +75,7 @@ export function HeaderSearch({ placeholder, targets, records, onOpenChange }: He
         onClick: t.onClick,
       })),
   }
-  const found = records?.groups ?? []
-  // Typing narrows the screens to a few, so they lead; an empty box leads with
-  // the recent records. A chosen kind is a record search: no screens at all.
-  const mixed = typed ? [screens, ...found] : [...found, screens]
-  const groups = (records?.scope ? found : mixed).filter((g) => g.rows.length)
+  const groups = (records ? records.groups : [screens]).filter((g) => g.rows.length)
   const rows = groups.flatMap((g) => g.rows)
   const active = Math.min(index, rows.length - 1)
 
