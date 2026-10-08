@@ -8,6 +8,7 @@ import type {
   ScanOutcome,
 } from '@pv/contracts'
 import type { RailObject } from '@pv/ui'
+import { normalise } from '@/data/intake'
 import type { ReplaceJob } from '@/data/lead-scan-replace'
 import type { LocalFile, ScanRun } from '@/data/lead-scan-run'
 
@@ -155,6 +156,23 @@ export const outcomeText = (group: ScanGroup) =>
   group.outcome === 'NEW_LEAD'
     ? `${OUTCOME_FACE.NEW_LEAD.text} · ${group.people.length} contact`
     : OUTCOME_FACE[group.outcome].text
+
+/** Step 3's view filter: outcomes picked in the column header, plus free text
+ *  over company, province, people and the lead a group merges into. A view
+ *  only — the commit button still applies the whole batch. */
+export function filterGroups(
+  groups: readonly ScanGroup[],
+  f: { q: string; outcome: readonly string[] },
+): ScanGroup[] {
+  const needle = normalise(f.q)
+  return groups.filter((g) => {
+    if (f.outcome.length > 0 && !f.outcome.includes(g.outcome)) return false
+    if (!needle) return true
+    const people = g.people.flatMap((p) => [p.name, p.title ?? '', p.email ?? ''])
+    const code = g.outcome === 'MERGE_INTO_LEAD' ? g.leadCode : ''
+    return normalise([g.company, g.meta, code, ...people].join(' ')).includes(needle)
+  })
+}
 
 export const CONFIDENCE_FACE: Record<ScanConfidence, { tone: BadgeTone; text: string }> = {
   SURE: { tone: 'success', text: 'Chắc' },

@@ -165,7 +165,7 @@ export function CloseCell({ op }: { op: OpportunityBookRow }) {
   const late = isLateClose(op)
   return (
     <span
-      className={cn('tnum font-num flex items-center gap-1', late && 'text-warning')}
+      className={cn('tnum font-num flex items-center justify-center gap-1', late && 'text-warning')}
       title={
         closed
           ? 'Ngày kết thúc thực tế'

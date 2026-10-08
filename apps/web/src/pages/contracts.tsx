@@ -97,7 +97,7 @@ function rowCells(row: ContractBookRow) {
         <span className="text-muted-foreground tnum font-num shrink-0 text-[11.5px]">
           {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
         </span>
-        <MoneyCell amount={row.collected} missing="" muted={row.collected === 0} />
+        <MoneyCell amount={row.collected} muted={row.collected === 0} />
       </span>
     </span>,
     <NextCell key="next" next={row.next} />,

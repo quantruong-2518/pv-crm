@@ -28,13 +28,13 @@ export const bookColumns = (
   filters: Record<'account' | 'stage' | 'bd' | 'sale', ReactNode>,
 ): TableColumn[] => [
   { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name', filter: filters.account },
-  { header: filters.stage, width: 'minmax(96px,1.4fr)' },
+  { header: filters.stage, width: 'minmax(112px,1fr)' },
   /* Fixed tracks: full digits up to tens of billions, and the lead book's person width. */
   { header: 'Giá trị (₫)', width: '144px', align: 'right', sortKey: 'amount' },
-  { header: 'Dự kiến chốt', width: 'minmax(96px,0.8fr)', sortKey: 'expectedClose' },
+  { header: 'Dự kiến chốt', width: '128px', align: 'center', sortKey: 'expectedClose' },
   { header: filters.bd, width: '140px', align: 'center' },
   { header: filters.sale, width: '140px', align: 'center' },
-  { header: 'Tương tác gần nhất', width: 'minmax(120px,1fr)' },
+  { header: 'Tương tác gần nhất', width: 'minmax(144px,1fr)' },
   { header: 'Việc cần làm tiếp', width: '1.6fr' },
 ]
 

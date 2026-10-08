@@ -28,7 +28,6 @@ import {
   GlassCard,
   Icon,
   MetaPill,
-  Money,
   ScreenDetailGrid,
   ScreenHeader,
   ScreenLayout,
@@ -50,6 +49,7 @@ import { RECIPIENT_SPEC } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
+import { MoneyCell } from '@/components/money-cell'
 import { CampaignForm, NotDoing } from './source-parts'
 import { CAMPAIGN_ICON, draftOf, duplicateOf, grouped, sendsViaE4 } from './source-model'
 
@@ -417,14 +417,14 @@ export function SourceDetailPage() {
                   <DataTable
                     columns={[
                       { header: 'Loại chi', width: '1.4fr' },
-                      { header: 'Số tiền', width: '1fr', align: 'right' },
+                      { header: 'Số tiền (₫)', width: 'minmax(max-content,1fr)', align: 'right' },
                       { header: 'Tỉ trọng', width: '0.7fr', align: 'right' },
                     ]}
                     rows={source.costByKind.rows.map((r) => ({
                       id: r.kind,
                       cells: [
                         <span key="k">{r.label}</span>,
-                        <Money key="a" value={r.amount} scale="table" />,
+                        <MoneyCell key="a" amount={r.amount} />,
                         <span key="s" className="tnum font-num">
                           {percent(r.share)}
                         </span>,

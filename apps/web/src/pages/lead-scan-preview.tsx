@@ -6,18 +6,27 @@ import {
   ChevronDown,
   ChevronRight,
   Chip,
+  ColumnFilter,
+  ColumnFilterList,
   DataTable,
+  EmptyState,
   FileText,
   GlassCard,
   Icon,
+  Inbox,
   MetaPill,
+  SearchField,
   cn,
 } from '@pv/ui'
-import type { LeadScanResponse, ScanGroup } from '@pv/contracts'
+import { ScanOutcome, type LeadScanResponse, type ScanGroup } from '@pv/contracts'
+import { listField, useClientBookFilter } from '@/app/client-book-filter'
 import { useScanReplaces } from '@/data/lead-scan-replace'
+import { BookCount } from '@/components/book-page'
+import { ROW_ICON } from '@/components/table-bits'
 import {
   CONFIDENCE_FACE,
   OUTCOME_FACE,
+  filterGroups,
   mergeCount,
   notCreatedPills,
   outcomeText,
@@ -30,18 +39,19 @@ import { FailedFiles, ScanHeader, type CancelProps } from './lead-scan-parts'
  *  No actions on the group rows, on purpose (product decision): which group becomes a
  *  lead, joins one or waits is the server's rule, and the one button below
  *  applies all of it. A row only opens to show where each value came from.
- *  Nothing is written until the button — the page says so in its subtitle. */
+ *  Nothing is written until the button — the page says so in its subtitle.
+ *
+ *  The search and the outcome filter live in the ADDRESS: this is a routed page
+ *  (`/sales/leads/scan/:code`), so F5 and Back keep them. They narrow the view
+ *  only; the button below still applies the whole batch. */
 
-const GROUP_COLUMNS = [
-  { header: 'Công ty', width: 'minmax(0,1.3fr)' },
-  { header: 'Người liên hệ', width: 'minmax(0,1.6fr)' },
-  { header: 'Khi bấm tạo', width: 'minmax(0,1.3fr)' },
-]
+/** Module-level: it keys the memo `useClientBookFilter` parses the address with. */
+const SCAN_FILTERS = { outcome: listField() }
 
 const FIELD_COLUMNS = [
   { header: 'Trường', width: 'minmax(0,1fr)' },
   { header: 'Giá trị', width: 'minmax(0,1.6fr)' },
-  { header: 'Nguồn', width: '56px' },
+  { header: 'Nguồn', width: '56px', align: 'center' as const },
   { header: 'Độ chắc', width: 'minmax(0,.8fr)' },
 ]
 
@@ -64,6 +74,34 @@ export function PreviewStep({
   const nothing = totals.leadsToCreate === 0 && merges === 0
   /* A replace in flight is about to reopen the batch; committing now would race it. */
   const replacing = useScanReplaces((s) => batch.files.some((f) => f.id in s.jobs))
+  const { filters, text, setText, patch, clear, dirty } = useClientBookFilter(SCAN_FILTERS)
+  const groups = preview?.groups ?? []
+  const shown = filterGroups(groups, filters)
+  /* Only outcomes this batch carries, so the filter never offers an empty pick. */
+  const outcomeOptions = ScanOutcome.options
+    .map((o) => ({ o, n: groups.filter((g) => g.outcome === o).length }))
+    .filter(({ n }) => n > 0)
+    .map(({ o, n }) => ({ value: o, label: `${OUTCOME_FACE[o].text} · ${n}` }))
+  const columns = [
+    { header: 'Công ty', width: 'minmax(0,1.3fr)' },
+    { header: 'Người liên hệ', width: 'minmax(0,1.6fr)' },
+    {
+      header: (
+        <ColumnFilter label="Khi bấm tạo" active={filters.outcome.length > 0}>
+          {(close) => (
+            <ColumnFilterList
+              options={outcomeOptions}
+              selected={filters.outcome}
+              close={close}
+              searchable={false}
+              onApply={(outcome) => patch({ outcome })}
+            />
+          )}
+        </ColumnFilter>
+      ),
+      width: 'minmax(0,1.3fr)',
+    },
+  ]
 
   return (
     <>
@@ -94,23 +132,46 @@ export function PreviewStep({
       <FailedFiles batch={batch} />
 
       <GlassCard variant="b" className="overflow-hidden">
-        <DataTable
-          flush
-          columns={GROUP_COLUMNS}
-          rowHeight="min-h-16 py-3"
-          rows={(preview?.groups ?? []).map((group) => ({
-            id: group.key,
-            state: open === group.key ? 'selected' : 'default',
-            onOpen: () => setOpen((key) => (key === group.key ? null : group.key)),
-            cells: [
-              <CompanyCell key="co" group={group} open={open === group.key} />,
-              <PeopleCell key="people" group={group} />,
-              <OutcomeCell key="outcome" group={group} />,
-            ],
-            details:
-              open === group.key ? <FieldTable group={group} files={batch.files} /> : undefined,
-          }))}
-        />
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
+          <SearchField
+            placeholder="Tìm theo công ty, người liên hệ, email hoặc mã lead…"
+            value={text}
+            onChange={setText}
+            className="min-w-0 flex-1 sm:max-w-[320px]"
+          />
+          <BookCount total={shown.length} noun="công ty" />
+          {dirty && (
+            <Button size="md" variant="ghost" onClick={clear} className="pointer-coarse:h-12">
+              Bỏ hết bộ lọc
+            </Button>
+          )}
+        </div>
+        {shown.length === 0 && groups.length > 0 ? (
+          <EmptyState
+            icon={Inbox}
+            message="Không có công ty nào phù hợp với bộ lọc hiện tại."
+            action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
+            className="px-5 py-8"
+          />
+        ) : (
+          <DataTable
+            flush
+            columns={columns}
+            rowHeight="min-h-16 py-3"
+            rows={shown.map((group) => ({
+              id: group.key,
+              state: open === group.key ? 'selected' : 'default',
+              onOpen: () => setOpen((key) => (key === group.key ? null : group.key)),
+              cells: [
+                <CompanyCell key="co" group={group} open={open === group.key} />,
+                <PeopleCell key="people" group={group} />,
+                <OutcomeCell key="outcome" group={group} />,
+              ],
+              details:
+                open === group.key ? <FieldTable group={group} files={batch.files} /> : undefined,
+            }))}
+          />
+        )}
       </GlassCard>
 
       <div className="flex flex-col items-start gap-3">
@@ -226,11 +287,16 @@ function FieldTable({ group, files }: { group: ScanGroup; files: LeadScanRespons
 }
 
 function SourceButton({ name, url }: { name: string; url: string | undefined }) {
-  const face =
-    'text-muted-foreground inline-flex size-8 items-center justify-center rounded-sm pointer-coarse:size-12'
+  /* The book's round icon action (`ROW_ICON`), so a source reads like every other row icon. */
+  const face = cn(ROW_ICON, 'inline-flex items-center justify-center')
   if (!url) {
     return (
-      <span className={face} title={name} aria-label={`Nguồn: ${name}`}>
+      <span
+        role="img"
+        className={cn(face, 'hover:bg-transparent')}
+        title={name}
+        aria-label={`Nguồn: ${name}`}
+      >
         <Icon icon={FileText} size={16} />
       </span>
     )
@@ -242,7 +308,7 @@ function SourceButton({ name, url }: { name: string; url: string | undefined }) 
       rel="noopener noreferrer"
       title={name}
       aria-label={`Mở tệp nguồn: ${name}`}
-      className={cn(face, 'motion-std hover:bg-surface-ink/8 hover:text-foreground')}
+      className={cn(face, 'motion-std hover:text-foreground')}
     >
       <Icon icon={FileText} size={16} />
     </a>

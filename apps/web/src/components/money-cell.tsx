@@ -11,8 +11,9 @@ export function MoneyCell({
   muted = false,
 }: {
   amount: number | null | undefined
-  /** Why there is no figure — shown as the tooltip of the dash. */
-  missing: string
+  /** Why there is no figure — shown as the tooltip of the dash. Omit it where
+   *  the figure is never absent. */
+  missing?: string
   /** Extra tooltip for a figure, e.g. the original currency. */
   title?: string
   /** A zero or secondary figure that should not compete with the main one. */
@@ -25,10 +26,12 @@ export function MoneyCell({
       </span>
     )
   }
+  /* No `truncate`: a cut figure reads as a different number, so the column's
+     track must be wide enough instead. */
   return (
     <span
       className={cn(
-        'tnum font-num block truncate text-right text-[13px]',
+        'tnum font-num block text-right text-[13px]',
         muted ? 'text-muted-foreground' : 'font-semibold',
       )}
       title={title}

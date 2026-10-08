@@ -153,7 +153,7 @@ export function OpportunitiesPage() {
                     className="w-full justify-center gap-0 p-0"
                   />
                 ),
-                width: '32px',
+                width: '48px',
               },
               ...bookColumns(filters),
               { header: <span className="sr-only">Ghim</span>, width: '48px' },

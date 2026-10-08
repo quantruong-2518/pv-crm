@@ -41,8 +41,8 @@ import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
+import { CompanyCell } from '@/components/lead-cells'
 import {
-  CompanyCell,
   DisabledAtCell,
   CreatedByCell,
   EnteredCell,
@@ -389,7 +389,7 @@ export function LeadsPage() {
             className="w-full justify-center gap-0 p-0"
           />
         ),
-        width: '32px',
+        width: '48px',
       },
       { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
       { header: listFilter('Nguồn lead', 'origin', originOptions), width: 'minmax(0,1.3fr)' },

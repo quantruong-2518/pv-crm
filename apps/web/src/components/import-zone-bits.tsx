@@ -2,24 +2,32 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   Button,
   CircleCheck,
+  ColumnFilter,
+  ColumnFilterList,
+  DataTable,
   Download,
+  EmptyState,
   FileSpreadsheet,
   FileUp,
   GlassCard,
   Icon,
+  Inbox,
   Kicker,
   Progress,
+  SearchField,
   SectionTitle,
   SegmentedControl,
   Select,
   TriangleAlert,
   cn,
+  type TableColumn,
 } from '@pv/ui'
 import type { LeadMotion } from '@pv/engines'
 import { ACCEPT, downloadCsv, type Sheet } from '@/data/intake-file'
 import {
   MOTION_FACE,
   errorRows,
+  normalise,
   originTally,
   type BuiltRow,
   type DupRow,
@@ -27,6 +35,7 @@ import {
   type ImportSpec,
   type RowError,
 } from '@/data/intake'
+import { BookCount } from '@/components/book-page'
 
 /** THE EDGES OF THE IMPORT PANEL — the file strip and encoding warning above
  *  the mapping, the batch-wide card, the result lists after a load, and the
@@ -49,53 +58,127 @@ import {
  *  Each list stops here and prints how many it is not showing. */
 const LIST_CAP = 50
 
+/** One row of a result list: its cells, the text the search runs over, and —
+ *  on the refused list — the reason kind its column filter picks by. */
+type ResultItem = { id: string; cells: ReactNode[]; haystack: string; kind?: string }
+
+/** Search and reason filter on LOCAL state, not the address: the list lives in a
+ *  drawer that is not a route, and a closed drawer must not leave `?q=` behind.
+ *  Filtering runs before the cap, so a match past row 50 is still reachable. */
 function ResultList({
   kicker,
-  head,
-  count,
-  children,
+  columns,
+  items,
+  kinds,
 }: {
   kicker: string
-  head: string[]
-  count: number
-  children: ReactNode
+  columns: TableColumn[]
+  items: ResultItem[]
+  /** Reason kinds for a `ColumnFilter` on the LAST column; absent = search only. */
+  kinds?: { value: string; label: string }[]
 }) {
-  if (count === 0) return null
+  const [q, setQ] = useState('')
+  const [picked, setPicked] = useState<string[]>([])
+  if (items.length === 0) return null
+
+  const needle = normalise(q)
+  const shown = items.filter(
+    (item) =>
+      (picked.length === 0 || (item.kind !== undefined && picked.includes(item.kind))) &&
+      (!needle || normalise(item.haystack).includes(needle)),
+  )
+  const dirty = q.trim() !== '' || picked.length > 0
+  const clear = () => {
+    setQ('')
+    setPicked([])
+  }
+  const last = columns.length - 1
+  const heads = kinds
+    ? columns.map((col, i) =>
+        i !== last
+          ? col
+          : {
+              ...col,
+              header: (
+                <ColumnFilter label={String(col.header)} active={picked.length > 0}>
+                  {(close) => (
+                    <ColumnFilterList
+                      options={kinds}
+                      selected={picked}
+                      close={close}
+                      searchable={false}
+                      onApply={setPicked}
+                    />
+                  )}
+                </ColumnFilter>
+              ),
+            },
+      )
+    : columns
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
       <Kicker>
-        {kicker} · {count}
+        {kicker} · {items.length}
       </Kicker>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[480px] text-left text-[11.5px]">
-          <thead>
-            <tr className="text-muted-foreground">
-              {head.map((h) => (
-                <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-glass-foreground">{children}</tbody>
-        </table>
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchField
+          placeholder="Tìm theo số dòng hoặc nội dung…"
+          value={q}
+          onChange={setQ}
+          className="min-w-0 flex-1 sm:max-w-[320px]"
+        />
+        {dirty && (
+          <>
+            <BookCount total={shown.length} noun="dòng" />
+            <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={clear}>
+              Bỏ hết bộ lọc
+            </Button>
+          </>
+        )}
       </div>
-      {count > LIST_CAP && (
+      {shown.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          message="Không có dòng nào phù hợp với bộ lọc hiện tại."
+          action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
+          className="py-6"
+        />
+      ) : (
+        <div className="overflow-x-auto">
+          <DataTable
+            className="min-w-[480px]"
+            columns={heads}
+            rowHeight="min-h-10 py-2"
+            rows={shown.slice(0, LIST_CAP).map((item) => ({ id: item.id, cells: item.cells }))}
+          />
+        </div>
+      )}
+      {shown.length > LIST_CAP && (
         <p className="text-muted-foreground text-[11px] leading-[1.6]">
-          Đang hiện {LIST_CAP} dòng đầu trên tổng số {count}.
+          Đang hiện {LIST_CAP} dòng đầu trên tổng số {shown.length}.
         </p>
       )}
     </GlassCard>
   )
 }
 
-/** Line number, in the file's own numbering. Mono because it is read digit by
- *  digit against the left margin of a spreadsheet, and `text-glass-foreground`
- *  like every other cell — this is the column somebody copies out to go and
- *  find the row, so it is not the one to mute (rule 13). */
+/** Line number, in the file's own numbering: right-aligned under its header
+ *  (`LINE_COLUMN`) and mono so digits line up, `text-glass-foreground` like every
+ *  other cell — this is the column somebody copies out to find the row (rule 13). */
 function Line({ n }: { n: number }) {
-  return <td className="text-glass-foreground w-[92px] px-3 py-2 font-mono">{n}</td>
+  return <span className="text-glass-foreground font-mono">{n}</span>
+}
+
+const LINE_COLUMN: TableColumn = { header: 'Dòng trong tệp', width: '92px', align: 'right' }
+
+/** A text cell that truncates and keeps the whole value in its tooltip. */
+function Text({ value }: { value: string }) {
+  return (
+    <span className="block truncate" title={value}>
+      {value}
+    </span>
+  )
 }
 
 export function DoneRows({
@@ -114,22 +197,45 @@ export function DoneRows({
   /* The code column only appears after a real write. On a run that never
      committed there is no code, and an empty column would read as "this row
      went in and lost its code" rather than "nothing was written". */
-  const head = ['Dòng trong tệp', id?.label ?? '', ...(codes ? ['Mã lead'] : [])]
+  const columns: TableColumn[] = [
+    LINE_COLUMN,
+    { header: id?.label ?? '', width: 'minmax(0,1fr)' },
+    ...(codes ? [{ header: 'Mã lead', width: '120px' }] : []),
+  ]
 
   return (
-    <ResultList kicker="Đã vào sổ" head={head} count={rows.length}>
-      {rows.slice(0, LIST_CAP).map((row, i) => (
-        <tr key={row.line} className="bg-surface-ink/[3%]">
-          <Line n={row.line} />
-          <td className="max-w-[280px] truncate px-3 py-2">
-            {(id ? row.values[id.key] : undefined) ?? '—'}
-          </td>
-          {codes && <td className="w-[120px] px-3 py-2 font-mono">{codes[i] ?? '—'}</td>}
-        </tr>
-      ))}
-    </ResultList>
+    <ResultList
+      kicker="Đã vào sổ"
+      columns={columns}
+      items={rows.map((row, i) => {
+        const first = (id ? row.values[id.key] : undefined) ?? '—'
+        const code = codes?.[i] ?? '—'
+        return {
+          id: String(row.line),
+          haystack: `${row.line} ${first} ${codes ? code : ''}`,
+          cells: [
+            <Line key="l" n={row.line} />,
+            <Text key="f" value={first} />,
+            ...(codes
+              ? [
+                  <span key="c" className="font-mono">
+                    {code}
+                  </span>,
+                ]
+              : []),
+          ],
+        }
+      })}
+    />
   )
 }
+
+/** Reason kinds of the refused list, in the order its filter offers them. */
+const REJECT_KINDS = [
+  { value: 'broken', label: 'Dòng lỗi' },
+  { value: 'book', label: 'Đã có trong hệ thống' },
+  { value: 'file', label: 'Trùng trong tệp' },
+]
 
 /** Every row that stayed out, in ONE table with the reason beside it: broken
  *  cells, rows the system already holds, repeats inside the file. One list
@@ -156,42 +262,56 @@ export function RejectedRows({
     ...errors.map((e) => {
       const column = labelOf(e.field)
       const why = column ? `${column}: ${e.reason}` : e.reason
-      return { line: e.line, first: e.first, why, broken: true }
+      return { line: e.line, first: e.first, why, kind: 'broken' }
     }),
     ...(withBook ?? []).map((d) => ({
       line: d.line,
       first: d.first,
       why: d.code ? `Đã có trong hệ thống (${d.code})` : 'Đã có trong hệ thống',
+      kind: 'book',
     })),
     ...(withinFile ?? []).map((d) => ({
       line: d.line,
       first: d.first,
       why: 'Trùng một dòng khác trong tệp',
+      kind: 'file',
     })),
   ].sort((a, b) => a.line - b.line)
+  /* Only the kinds this run produced, so the filter never offers an empty pick. */
+  const kinds = REJECT_KINDS.filter((k) => rows.some((r) => r.kind === k.value)).map((k) => ({
+    value: k.value,
+    label: `${k.label} · ${rows.filter((r) => r.kind === k.value).length}`,
+  }))
 
   return (
     <ResultList
       kicker="Không vào hệ thống"
-      head={['Dòng trong tệp', 'Ô đầu dòng', 'Vấn đề']}
-      count={rows.length}
-    >
-      {rows.slice(0, LIST_CAP).map((r) => (
-        <tr key={`${r.line}-${r.why}`} className="bg-surface-ink/[3%]">
-          <Line n={r.line} />
-          <td className="max-w-[200px] truncate px-3 py-2">{r.first || '—'}</td>
-          {/* Red is for a cell somebody must fix; a duplicate is a neutral fact. */}
-          <td
+      columns={[
+        LINE_COLUMN,
+        { header: 'Ô đầu dòng', width: 'minmax(0,1fr)' },
+        { header: 'Vấn đề', width: 'minmax(0,1.6fr)' },
+      ]}
+      kinds={kinds}
+      items={rows.map((r) => ({
+        id: `${r.line}-${r.why}`,
+        kind: r.kind,
+        haystack: `${r.line} ${r.first} ${r.why}`,
+        cells: [
+          <Line key="l" n={r.line} />,
+          <Text key="f" value={r.first || '—'} />,
+          /* Red is for a cell somebody must fix; a duplicate is a neutral fact. */
+          <span
+            key="w"
             className={cn(
-              'px-3 py-2 leading-[1.6]',
-              'broken' in r && 'text-destructive-foreground',
+              'block leading-[1.6]',
+              r.kind === 'broken' && 'text-destructive-foreground',
             )}
           >
             {r.why}
-          </td>
-        </tr>
-      ))}
-    </ResultList>
+          </span>,
+        ],
+      }))}
+    />
   )
 }
 
@@ -306,17 +426,21 @@ export function StepRun({
           {/* Its own list, not a line of the refusals below: these rows went in. */}
           <ResultList
             kicker="Đã gộp vào lead chung"
-            head={['Dòng trong tệp', 'Ô đầu dòng', 'Vào lead của dòng']}
-            count={attached.length}
-          >
-            {attached.slice(0, LIST_CAP).map((a) => (
-              <tr key={a.line} className="bg-surface-ink/[3%]">
-                <Line n={a.line} />
-                <td className="max-w-[200px] truncate px-3 py-2">{a.first || '—'}</td>
-                <Line n={a.into} />
-              </tr>
-            ))}
-          </ResultList>
+            columns={[
+              LINE_COLUMN,
+              { header: 'Ô đầu dòng', width: 'minmax(0,1fr)' },
+              { header: 'Vào lead của dòng', width: '132px', align: 'right' },
+            ]}
+            items={attached.map((a) => ({
+              id: String(a.line),
+              haystack: `${a.line} ${a.first} ${a.into}`,
+              cells: [
+                <Line key="l" n={a.line} />,
+                <Text key="f" value={a.first || '—'} />,
+                <Line key="i" n={a.into} />,
+              ],
+            }))}
+          />
           <RejectedRows
             errors={report.errors}
             withBook={report.dupWithBook}

@@ -12,6 +12,7 @@ import { cn } from '../lib/cn'
 import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
 import { Icon } from '../ui/icon'
+import { useOverlayLayer } from '../layout/overlay-stack'
 
 /** M-19 · ColumnFilter — a table header that opens its own filter.
  *
@@ -37,6 +38,8 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
   const [style, setStyle] = useState<CSSProperties | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
+  /* Escape closes the top layer only, so inside a drawer it closes this panel, not the drawer. */
+  const isTop = useOverlayLayer(open)
 
   useEffect(() => {
     if (!open) return
@@ -44,14 +47,19 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
       const target = e.target as Node
       if (!trigger.current?.contains(target) && !panel.current?.contains(target)) setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !isTop()) return
+      setOpen(false)
+      /* Focus back on the trigger, or it falls to <body> outside an aria-modal drawer. */
+      trigger.current?.focus()
+    }
     document.addEventListener('pointerdown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, isTop])
 
   useLayoutEffect(() => {
     if (!open || !trigger.current) return
@@ -79,8 +87,8 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
         title={iconOnly ? `Lọc ${label}` : undefined}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'motion-std hover:text-foreground pointer-coarse:min-h-12 -mx-1 inline-flex min-w-0 items-center gap-1 rounded-sm px-1',
-          iconOnly && 'pointer-coarse:min-w-12 pointer-coarse:justify-center',
+          'motion-std hover:text-foreground pointer-coarse:min-h-12 pointer-coarse:min-w-12 -mx-1 inline-flex min-w-0 items-center gap-1 rounded-md px-1',
+          iconOnly && 'pointer-coarse:justify-center',
           active ? 'text-on-tint-primary' : 'text-inherit',
           className,
         )}
