@@ -1,200 +1,234 @@
-import { useNavigate } from 'react-router-dom'
+import { useRef, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
-  AiAction,
   AppShell,
-  ContextRail,
-  EmptyState,
-  Inbox,
-  Kicker,
+  Button,
+  ChevronLeft,
+  ChevronRight,
+  Icon,
   ScreenHeader,
   ScreenLayout,
-  SectionTitle,
+  SegmentedControl,
 } from '@pv/ui'
-import { systemClock } from '@pv/engines'
-import { useSession } from '@/app/auth'
+import { isApiError, userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { DeskBento, DeskSkeleton } from '@/components/home-bento'
-import { deskStory, labelsOf, limitsOf, money, useDesk, useMyWork } from '@/data/home'
-import { dmy } from '@/lib/date'
-import { PeopleBoard, WorkQueue } from './home-parts'
+import { CHARTS_FROZEN_AT } from '@/data/home-charts'
+import { performanceQuery } from '@/data/performance'
+import { resolvePeriod } from '@/data/period'
+import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
+import { dm } from '@/lib/date'
+import { ExitsTile, MonthsTile } from './home-charts'
+import { PriorityList } from './home-list'
+import {
+  DEFAULT_PICK,
+  choiceOf,
+  listQueryOf,
+  stepPick,
+  type HomeGrain,
+  type ListFilter,
+  type PeriodPick,
+} from './home-model'
+import {
+  ChartsFailed,
+  FunnelTile,
+  OpenValueTile,
+  OverdueTile,
+  SignedTile,
+  TileSkeleton,
+  WinRateTile,
+} from './home-tiles'
 
-/** Màn 01 · Trang chủ — the desk, then your own work on it.
+/** Screen 01 · Overview — a bento of sales figures over a short live list.
  *
- *  Nothing here is hand-typed: every number arrives from a server aggregate, or
- *  is derived from returned rows by `@pv/engines`.
+ *  TWO SOURCES, AND THE SCREEN SAYS WHICH IS WHICH. The charts are the frozen
+ *  DAS Vina scenario (`performanceQuery`, still `load:`); the Overdue tile and the list are live workstream reads. The two
+ *  halves disagree by design until the charts are cut over.
  *
- *  TWO TIERS, AND THE HEADINGS HAVE TO SAY WHICH IS WHICH. The top half is the
- *  department, unscoped — a bento, because its blocks are not equal in weight.
- *  The bottom half is the signed-in person's own late work, and it is a plain
- *  column: a queue is read top to bottom, not scanned. Stacked rather than
- *  merged because "pipeline" means two different things in the two halves.
+ *  `/` has no route permission, so each half is gated on its own permission
+ *  and a half the reader may not open is dropped and named, not drawn empty.
  *
- *  Blocks a role may not read are dropped and NAMED, not hidden — the gating
- *  itself is explained at the top of `data/home.ts`. */
+ *  A tile filters the list and never the other tiles; the period picker moves
+ *  the period-scoped tiles and never the list.
+ *
+ *  No ContextRail (law 10 debt): a chain anchored on the list's first row
+ *  would describe a run nobody picked. It returns once a row can be chosen. */
 
-/** Time of day, from the same clock the work queue measures lateness with. */
-function greeting(iso: string): string {
-  const hour = new Date(iso).getHours()
-  if (hour < 11) return 'Chào buổi sáng'
-  if (hour < 14) return 'Chào buổi trưa'
-  if (hour < 18) return 'Chào buổi chiều'
-  return 'Chào buổi tối'
-}
+/* Row two is three-up only from `xl`; below that the funnel and the months
+   chart pair up and the donut takes the full row, so no cell is left empty.
+   One floor height for the row, skeletons included, so nothing grows on load. */
+const BENTO = 'grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12'
+const SIGNED = 'md:col-span-6 xl:col-span-5'
+const PAIRED = 'min-h-72 md:col-span-3 xl:col-span-4'
+const WIDE = 'md:col-span-6 xl:col-span-4 xl:min-h-72'
 
-/** The books this actor may not open, named. Empty = they see everything. */
-function closedDoors(can: {
-  ops: boolean
-  lead: boolean
-  contract: boolean
-  people: boolean
-}): string[] {
-  const out: string[] = []
-  if (!can.ops) out.push('cơ hội')
-  if (!can.contract) out.push('hợp đồng')
-  if (!can.lead) out.push('lead')
-  if (!can.people) out.push('nhân sự')
-  return out
+const GRAINS: { value: HomeGrain; label: string }[] = [
+  { value: 'month', label: 'Tháng' },
+  { value: 'quarter', label: 'Quý' },
+]
+
+function PeriodPicker({ pick, onPick }: { pick: PeriodPick; onPick: (next: PeriodPick) => void }) {
+  const earlier = stepPick(pick, -1)
+  const later = stepPick(pick, 1)
+  const step = 'pointer-coarse:h-12 pointer-coarse:w-12 w-8 px-0'
+
+  return (
+    <>
+      <SegmentedControl
+        label="Độ dài kỳ"
+        hideLabel
+        tone="quiet"
+        value={pick.grain}
+        options={GRAINS}
+        onChange={(grain) => onPick({ ...pick, grain: grain === 'month' ? 'month' : 'quarter' })}
+      />
+      <div role="group" aria-label="Chọn kỳ" className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={step}
+          aria-label="Kỳ trước"
+          disabled={earlier === null}
+          onClick={() => earlier && onPick(earlier)}
+        >
+          <Icon icon={ChevronLeft} size={16} />
+        </Button>
+        <span aria-live="polite" className="tnum min-w-32 text-center text-[12.5px] font-semibold">
+          {resolvePeriod(choiceOf(pick)).label}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={step}
+          aria-label="Kỳ sau"
+          disabled={later === null}
+          onClick={() => later && onPick(later)}
+        >
+          <Icon icon={ChevronRight} size={16} />
+        </Button>
+      </div>
+    </>
+  )
 }
 
 export function HomePage() {
-  const chrome = useAppChrome({
-    searchPlaceholder: 'Tìm khách hàng, lead, cơ hội, hợp đồng…',
+  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, lead, cơ hội, hợp đồng…' })
+  const canCharts = useCan('performance.view')
+  const canRuns = useCan('workstream.view')
+
+  const [pick, setPick] = useState(DEFAULT_PICK)
+  const [filter, setFilter] = useState<ListFilter | null>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  /* Previous data stays on screen across a period or filter change, so marks
+     slide to their new size instead of dropping to a skeleton and back. */
+  const charts = useQuery({
+    ...performanceQuery(choiceOf(pick)),
+    enabled: canCharts,
+    placeholderData: keepPreviousData,
   })
-  const navigate = useNavigate()
-  const actor = useSession((s) => s.actor)
+  const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
+  const list = useQuery({
+    ...workstreamBookQuery(listQueryOf(filter)),
+    enabled: canRuns,
+    placeholderData: keepPreviousData,
+  })
 
-  const desk = useDesk()
-  const limits = limitsOf(desk.histogram?.buckets)
-  const labelOf = labelsOf(desk.histogram?.buckets)
-  const work = useMyWork(limits, labelOf)
+  /* The list sits under the whole bento, so a tile press brings it into view
+     or the press would look like it did nothing. */
+  const applyFilter = (next: ListFilter | null) => {
+    setFilter(next)
+    if (next === null) return
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    listRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' })
+  }
 
-  const today = systemClock()
-  const name = actor?.name ?? 'bạn'
-  const top = work.items[0]
+  const frozenDay = dm(CHARTS_FROZEN_AT)
+  /* Without the Overdue tile the two beside it widen to close the row; the
+     skeletons take the same spans so nothing shifts when the figures land. */
+  const openSpan = canRuns ? 'md:col-span-2 xl:col-span-3' : 'md:col-span-3 xl:col-span-4'
+  const winSpan = canRuns ? 'md:col-span-2' : 'md:col-span-3'
+  const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
 
-  /* Luật 10 · the rail is built by E1 from rows the server just sent, never from
-     a hand-written chip list. Anchored on the most urgent thing on this desk,
-     because that is the story the person opened the screen to find. */
-  const rail = deskStory(top, work.contractRows, navigate)
-
-  /* `can.X` on but the query's data still undefined (permission aside) means
-     the request failed — that is not the same fact as "this book reads 0",
-     so the sum below may only be called complete when both sources answered. */
-  const contractsKnown = !desk.can.contract || desk.contracts !== undefined
-  const opsKnown = !desk.can.ops || desk.histogram !== undefined
-  const attentionKnown = contractsKnown && opsKnown
-
-  const overdueCount = desk.contracts?.overdueCount ?? 0
-  const overdueAmount = desk.contracts?.overdueVnd ?? 0
-  const rotting = (desk.histogram?.buckets ?? []).reduce((n, b) => n + b.rotting, 0)
-  const attention = overdueCount + rotting
-  const hidden = closedDoors(desk.can)
-
-  const quiet =
-    !desk.isPending &&
-    desk.error === null &&
-    attentionKnown &&
-    attention === 0 &&
-    work.items.length === 0
-
-  /* Each clause names its own book, and a book that never answered drops out
-     of the sentence instead of contributing a false "0" to it. */
-  const basis = [
-    contractsKnown ? `${overdueCount} đợt thu quá hạn` : null,
-    opsKnown ? `${rotting} đơn quá hạn cột` : null,
-    `${work.items.length} việc trên bàn của bạn`,
-  ]
-    .filter((part): part is string => part !== null)
-    .join(' · ')
+  const overdue = canRuns && (
+    <OverdueTile
+      score={score.data}
+      failed={score.error !== null}
+      onRetry={() => void score.refetch()}
+      scoped={(list.data?.hidden ?? 0) > 0}
+      active={filter?.by === 'overdue'}
+      onToggle={() => applyFilter(filter?.by === 'overdue' ? null : { by: 'overdue' })}
+      className="md:col-span-2"
+    />
+  )
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          kicker="One Core · Tổng quan"
-          title={`${greeting(today)}, ${name}`}
+          title="Tổng quan"
           description={
-            <>
-              {dmy(today)} · Kinh doanh ·{' '}
-              {desk.isPending
-                ? 'đang đọc sổ…'
-                : desk.error !== null
-                  ? 'không đọc được số liệu của phòng'
-                  : !attentionKnown
-                    ? `ít nhất ${attention} việc quá hạn · còn sổ chưa đọc được`
-                    : attention === 0
-                      ? 'không có việc quá hạn'
-                      : `${attention} việc quá hạn`}
-            </>
+            canCharts ? (
+              <>
+                Biểu đồ là số của kịch bản DAS Vina đóng băng lúc{' '}
+                <span className="tnum font-num">{CHARTS_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
+                <span className="tnum font-num">{frozenDay}</span>; sau mốc đó không có số đo nào.
+                {canRuns && ' Ô Quá hạn và danh sách Cần xử lý trước đọc số thật.'}
+              </>
+            ) : undefined
           }
-          context={rail.length === 0 ? undefined : <ContextRail objects={rail} />}
+          actions={canCharts ? <PeriodPicker pick={pick} onPick={setPick} /> : undefined}
         />
 
-        {/* ---------------- TẦNG 1 · PHÒNG ---------------- */}
+        <div className={BENTO}>
+          {!canCharts ? (
+            overdue
+          ) : charts.error ? (
+            <>
+              <ChartsFailed
+                detail={isApiError(charts.error) ? userMessage(charts.error) : 'Vui lòng thử lại.'}
+                onRetry={() => void charts.refetch()}
+                className={canRuns ? 'md:col-span-4 xl:col-span-10' : 'col-span-full'}
+              />
+              {overdue}
+            </>
+          ) : charts.data ? (
+            <>
+              <SignedTile data={charts.data} className={SIGNED} />
+              <OpenValueTile data={charts.data} frozenDay={frozenDay} className={openSpan} />
+              <WinRateTile data={charts.data} className={winSpan} />
+              {overdue}
+              <FunnelTile data={charts.data} className={PAIRED} />
+              <MonthsTile data={charts.data} className={PAIRED} />
+              <ExitsTile data={charts.data} className={WIDE} />
+            </>
+          ) : (
+            <>
+              <TileSkeleton className={SIGNED} />
+              <TileSkeleton className={openSpan} />
+              <TileSkeleton className={winSpan} />
+              {overdue}
+              <TileSkeleton className={PAIRED} />
+              <TileSkeleton className={PAIRED} />
+              <TileSkeleton className={WIDE} />
+            </>
+          )}
+        </div>
 
-        {desk.error !== null ? (
-          <EmptyState
-            icon={Inbox}
-            message="Không đọc được số liệu của phòng. Thử tải lại trang."
-            action={{ label: 'Tải lại', onClick: () => navigate(0) }}
-          />
-        ) : desk.isPending ? (
-          <DeskSkeleton />
-        ) : (
-          <DeskBento desk={desk} />
+        {canRuns && (
+          <div ref={listRef}>
+            <PriorityList
+              data={list.data}
+              error={list.error}
+              onRetry={() => void list.refetch()}
+              filter={filter}
+              onClear={() => setFilter(null)}
+            />
+          </div>
         )}
 
-        {desk.can.people ? <PeopleBoard rows={desk.people} /> : null}
-
-        {/* ---------------- TẦNG 2 · VIỆC CỦA TÔI ---------------- */}
-
-        <section className="flex flex-col gap-3">
-          <SectionTitle
-            kicker="Chỉ của bạn · đã cắt theo người đang đăng nhập"
-            hint="hợp đồng và cơ hội chung một hàng, xếp theo mức trễ"
-            actions={
-              work.items.length === 0 ? undefined : <Kicker>{work.items.length} việc</Kicker>
-            }
-          >
-            Việc của {name}
-          </SectionTitle>
-
-          {/* Luật 9 · the assistant proposes and waits for a button. It creates
-              nothing — it points at work that already exists — so it deliberately
-              does NOT go through `E3.proposeFromAi`: that door mints an approval
-              request, and minting one for "go and read this row" would drop a
-              phantom into the approval box that nobody can ever approve. It sits
-              above the queue because its whole proposal is which row to open
-              first. */}
-          {quiet ? (
-            <EmptyState
-              icon={Inbox}
-              message="Không có gì quá hạn trên bàn của bạn hay của phòng hôm nay."
-              action={{ label: 'Mở sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
-            />
-          ) : top === undefined ? null : (
-            <AiAction
-              suggestion={
-                contractsKnown && overdueCount > 0
-                  ? `Gọi thu ${money(overdueAmount)} quá hạn trước khi mở việc mới — bắt đầu ở ${top.code}, trễ ${top.daysLate} ngày.`
-                  : `Mở ${top.code} trước — trễ ${top.daysLate} ngày, lâu nhất trên bàn của bạn.`
-              }
-              basis={`${basis}.`}
-              empty={
-                contractsKnown
-                  ? `Chưa bấm thì ${top.code} vẫn trễ ${top.daysLate} ngày và ${overdueCount} đợt thu quá hạn chưa ai gọi.`
-                  : `Chưa bấm thì ${top.code} vẫn trễ ${top.daysLate} ngày.`
-              }
-              confirmLabel="Mở việc này"
-              onConfirm={() => navigate(top.href)}
-            />
-          )}
-
-          <WorkQueue items={work.items} isPending={work.isPending} />
-        </section>
-
-        {hidden.length === 0 ? null : (
-          <p className="text-muted-foreground text-[11px] leading-[1.5]">
+        {hidden.length > 0 && (
+          <p className="text-muted-foreground text-[12px] leading-4">
             Bị ẩn theo quyền của bạn: {hidden.join(' · ')}.
           </p>
         )}

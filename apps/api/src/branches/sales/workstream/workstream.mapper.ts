@@ -9,6 +9,7 @@ import {
   type WorkstreamCloseReason,
   type WorkstreamFootprint,
   type WorkstreamHolder,
+  type WorkstreamScorecard,
   type WorkstreamRow,
   type WorkstreamStand,
   type WorkstreamStandKind,
@@ -218,6 +219,33 @@ export function toContract(input: WorkstreamAssembled): WorkstreamRow {
   }
 }
 
+/** The rungs a run can stand on while open, in ladder order: the lead's
+ *  backbone, then the deal ladder. Shared by the board and the scorecard so the
+ *  two never list different ladders. */
+const STAND_RUNGS: { kind: WorkstreamStandKind; key: string }[] = [
+  ...LEAD_LANE_BACKBONE.map((key) => ({ kind: 'LD' as const, key })),
+  ...StageKey.options.map((key) => ({ kind: 'OP' as const, key })),
+]
+
+/** The scorecard's `stages`: every open rung in ladder order, zeros included.
+ *  A rung outside the ladder (the signature while a signed run is still open)
+ *  is appended only when it holds a run, so the counts always sum to the open
+ *  runs. */
+export function scorecardStages(
+  totals: readonly StandTotal[],
+  stage: Map<StageKey, PhaseConfig>,
+): WorkstreamScorecard['stages'] {
+  const same = (a: { kind: string; key: string }, b: { kind: string; key: string }) =>
+    a.kind === b.kind && a.key === b.key
+  const extra = totals
+    .filter((t) => t.n > 0 && !STAND_RUNGS.some((r) => same(r, t)))
+    .sort((a, b) => a.kind.localeCompare(b.kind) || a.key.localeCompare(b.key))
+  return [
+    ...STAND_RUNGS.map((r) => ({ ...r, n: totals.find((t) => same(t, r))?.n ?? 0 })),
+    ...extra,
+  ].map(({ kind, key, n }) => ({ kind, key, label: labelOf(kind, key, stage), count: n }))
+}
+
 /** The board's column catalogue, in ladder order: the lead's backbone, then
  *  the deal ladder, then the signature, then the two ways a run fell out.
  *
@@ -249,8 +277,7 @@ export function boardColumns(
   })
 
   return [
-    ...LEAD_LANE_BACKBONE.map((key) => stand('LD', key, LEAD_STATE_LABEL[key])),
-    ...StageKey.options.map((key) => stand('OP', key, stage.get(key)?.label ?? key)),
+    ...STAND_RUNGS.map(({ kind, key }) => stand(kind, key, labelOf(kind, key, stage))),
     /* Counted under `status: 'closed'`, never the view's own — signing a run
        closes it, so this column reads zero for ever under `open`. */
     {

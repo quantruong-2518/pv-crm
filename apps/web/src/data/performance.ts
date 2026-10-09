@@ -231,6 +231,8 @@ export type MonthPoint = {
   key: string
   short: string
   leads: number
+  /** Leads that entered the book this month and have reached SQL by the cut. */
+  sql: number
   signed: number
   selected: boolean
 }
@@ -274,7 +276,7 @@ export type Performance = {
   period: Period
   overview: Overview
   /** Kỳ liền trước cùng loại; `null` khi nó nằm ngoài khoảng kịch bản. */
-  previous: { label: string; overview: Overview } | null
+  previous: { label: string; overview: Overview; funnel: FunnelStep[] } | null
   funnel: FunnelStep[]
   months: MonthPoint[]
   exits: ExitRow[]
@@ -352,6 +354,7 @@ function buildMonths(p: Period): MonthPoint[] {
     key: m.key,
     short: m.short,
     leads: BOOK.filter((r) => inPeriod(r.at.created, m)).length,
+    sql: BOOK.filter((r) => inPeriod(r.at.created, m) && r.at.sql).length,
     signed: BOOK.filter((r) => inPeriod(r.at.signed, m)).length,
     /* Tháng nào nằm trong kỳ đang xem thì sáng lên — thanh thời gian vừa là đồ
        thị vừa là chỗ nhìn ra kỳ hiện tại phủ những tháng nào. */
@@ -922,13 +925,17 @@ export const BD_NAME = BD
 async function fetchPerformance(period: Period): Promise<Performance> {
   const overview = buildOverview(period)
   const prev = previousPeriod(period)
+  const prevOverview = prev ? buildOverview(prev) : null
   const { exits, total } = buildExits(period)
   const people = buildPeople(period, overview)
 
   return {
     period,
     overview,
-    previous: prev ? { label: prev.label, overview: buildOverview(prev) } : null,
+    previous:
+      prev && prevOverview
+        ? { label: prev.label, overview: prevOverview, funnel: buildFunnel(prevOverview) }
+        : null,
     funnel: buildFunnel(overview),
     months: buildMonths(period),
     exits,

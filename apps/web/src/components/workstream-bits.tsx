@@ -10,14 +10,15 @@ import { CLOSE_REASON_LABEL } from '@/data/workstreams'
  *  (which rung has a deadline, what a close reason means). */
 
 /* The class override lifts the badge text to 4.5:1 on a hovered row, where
-   the default success/danger text falls short (law 13). */
+   the default success/danger text falls short (law 13). CHURNED is neutral,
+   not warning: warning already means "overdue" in the same book. */
 const CLOSE_BADGE: Record<
   WorkstreamCloseReason,
-  { tone: 'success' | 'danger' | 'warning'; className?: string }
+  { tone: 'success' | 'danger' | 'draft'; className?: string }
 > = {
   WON: { tone: 'success', className: 'text-on-tint-success-strong' },
   LOST: { tone: 'danger', className: 'text-on-tint-destructive' },
-  CHURNED: { tone: 'warning' },
+  CHURNED: { tone: 'draft', className: 'text-foreground' },
 }
 
 /** A chip inside a clickable row: without stopping the event the row would

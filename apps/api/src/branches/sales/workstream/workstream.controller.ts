@@ -10,7 +10,7 @@ import { WorkstreamService } from './workstream.service'
 /** `/sales/workstreams` — the journey book. Read only in this turn: no door
  *  here opens, edits or closes a run. */
 
-/** ALL THREE DOORS ASK FOR `workstream.view`, ITS OWN KEY.
+/** ALL FOUR DOORS ASK FOR `workstream.view`, ITS OWN KEY.
  *
  *  Not `lead.view`: a journey row prints the deal and contract codes of its
  *  run, and `marketing` holds `lead.view` WITHOUT `opportunity.view` — one
@@ -21,9 +21,9 @@ import { WorkstreamService } from './workstream.service'
  *  the scope axis cuts on that lead's `owner_id`, so the SQL fence and the E2
  *  grid ask one question, not two that can drift.
  *
- *  `scoped: true` on all three: a seller marked `ownOnly` reads the runs their
- *  own leads opened. The book thins out and reports `hidden`; the board counts
- *  the same thinned book; the profile refuses. */
+ *  `scoped: true` on all four: a seller marked `ownOnly` reads the runs their
+ *  own leads opened. The book thins out and reports `hidden`; the board and the
+ *  scorecard count the same thinned book; the profile refuses. */
 /** The board asks the book's question MINUS paging and sorting, and it is cut
  *  out of the book's own schema rather than written again: a filter the two
  *  doors spell differently is a header counting a book the cards below it are
@@ -42,7 +42,7 @@ export class WorkstreamController {
   /** REFUSES `sort=lastContactedAt` instead of answering in another order.
    *
    *  The contract declares the key — the ladder names that rung — but the book
-   *  has no column to sort it on (`RUNG_SQL`), and quietly serving `openedAt`
+   *  has no column to sort it on (`rungSql`), and quietly serving `openedAt`
    *  is a page in the wrong order that nobody can see is wrong. The fence is
    *  here rather than in the contract because it is this DOOR's reach that is
    *  short, not the vocabulary that is wrong. */
@@ -66,6 +66,14 @@ export class WorkstreamController {
   @Need({ branch: 'Sales', permission: 'workstream.view', scoped: true })
   board(@CurrentActor() who: Actor, @Query(zod(WorkstreamBoardQuery)) q: WorkstreamBoardQuery) {
     return this.runs.board(who, q)
+  }
+
+  /** The four cards above the book. DECLARED BEFORE `@Get(':code')` for
+   *  `board`'s reason: `scorecard` would otherwise die as a malformed code. */
+  @Get('scorecard')
+  @Need({ branch: 'Sales', permission: 'workstream.view', scoped: true })
+  scorecard(@CurrentActor() who: Actor) {
+    return this.runs.scorecard(who)
   }
 
   /** One journey: its lead, the deals this reader may open, their contracts

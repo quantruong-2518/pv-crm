@@ -14,6 +14,7 @@ import {
   WorkstreamBoardResponse,
   WorkstreamBookResponse,
   WorkstreamJourneyResponse,
+  WorkstreamScorecard,
   type ObjectCode,
   type OpportunityOwner,
   type WorkstreamBookQuery,
@@ -39,6 +40,7 @@ import {
   liveCodeOf,
   liveOf,
   opensStand,
+  scorecardStages,
   standOf,
   toContract,
   type WorkstreamLive,
@@ -99,6 +101,24 @@ export class WorkstreamService {
 
     return WorkstreamBoardResponse.parse({
       columns: boardColumns(totals, q.status, stageConfigOf(ladders.stage)),
+    })
+  }
+
+  /** The cards — `GET /sales/workstreams/scorecard`.
+   *
+   *  Counted by SQL under the book's scope axis, so E2's second grid is NOT
+   *  applied: it cuts one ref at a time and this door reads no row. Today it
+   *  cuts nothing the axis has not (every role holding `workstream.view` holds
+   *  `lead.view`), but a role granted the first without the second sees an
+   *  empty book under a non-zero card. */
+  async scorecard(who: Actor): Promise<WorkstreamScorecard> {
+    const [totals, ladders] = await Promise.all([
+      this.repo.scorecard(who, true),
+      this.repo.ladderRows(),
+    ])
+    return WorkstreamScorecard.parse({
+      ...totals,
+      stages: scorecardStages(totals.stages, stageConfigOf(ladders.stage)),
     })
   }
 
@@ -199,7 +219,8 @@ export class WorkstreamService {
       toContract({
         read: w.read,
         stand: standOf(w.read, w.kept, stage),
-        overdueBy: overdueOf(w.read.row.standDueAt, now),
+        /* A folded row prints the lead's rung, so it prints no deadline of the deal. */
+        overdueBy: w.kept ? overdueOf(w.read.row.standDueAt, now) : null,
         position: positionOf(
           w.read,
           w.live,

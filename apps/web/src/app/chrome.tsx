@@ -26,7 +26,6 @@ import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
-import { commCountsQuery } from '@/data/comm-record-detail'
 import { meetingTodayQuery } from '@/data/meeting-today'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
@@ -37,7 +36,7 @@ import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
  *  NAVBAR LÀ BẢN ĐỒ CÔNG VIỆC CỦA SẢN PHẨM
  *  ------------------------------------------------------------------
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
- *  Tiến trình · Lead · Cơ hội · Hợp đồng · Chiến dịch là năm lối vào trực
+ *  Lead · Cơ hội · Hợp đồng · Chiến dịch là bốn lối vào trực
  *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng và
  *  Hiệu suất gom vào một menu "Thêm" vì ít cần mở hơn. Chúng không nấp
  *  dưới một mục "Kinh doanh" và
@@ -201,18 +200,8 @@ type NavGroup = 'primary' | 'customer' | 'manage' | 'setup'
  *  Trường `blocked` đã bỏ cùng màn `sales-pending`: cả sáu module giờ đều có
  *  màn thật, không còn mục nào cần chỗ để nói "đang vướng gì". */
 export const SALES_MODULES: SalesModule[] = [
-  {
-    /* A run spans Lead → Opportunity → Contract and answers the broadest daily
-       question: where is this customer, who holds it, and what is late? It is
-       therefore the first direct entry, not a child of the customer directory. */
-    no: 0,
-    icon: Route,
-    label: 'Tiến trình',
-    path: '/sales/workstreams',
-    permission: 'workstream.view',
-    question: 'Mỗi lượt đi của một khách — đang ở bậc nào, ai giữ, liên lạc lần cuối khi nào',
-    group: 'primary',
-  },
+  /* The run book has no nav entry: the overview at `/` carries its work list
+     and links to `/sales/workstreams` for the full book. */
   {
     no: 2,
     icon: Users,
@@ -354,12 +343,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     refetchOnWindowFocus: true,
   })
   const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
-  /* My own row of the counts, not the 200-row queue: the badge needs one number. */
-  const { data: pendingComms } = useQuery({
-    ...commCountsQuery,
-    enabled: canComm,
-    select: (counts) => counts.rows.find((row) => row.ownerId === actor?.id)?.pending ?? 0,
-  })
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
   const records = useHeaderSearch()
@@ -397,12 +380,10 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     label: module.label,
     description: module.question,
     active: inModule(module.path),
-    count: module.path === '/sales/workstreams' ? pendingComms : undefined,
     onClick: () => navigate(module.path),
   })
 
-  /* The two customer reference books share a dropdown. The journey is daily
-     operational work and therefore remains a direct entry. */
+  /* The two customer reference books share a dropdown. */
   const appsIn = (group: NavGroup) =>
     SALES_MODULES.filter(
       (m) =>

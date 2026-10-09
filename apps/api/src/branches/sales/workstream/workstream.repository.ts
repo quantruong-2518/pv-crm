@@ -139,7 +139,8 @@ export class WorkstreamRepository {
 
   async book(who: Actor, q: WorkstreamBookQuery, scoped: boolean): Promise<WorkstreamBookPage> {
     const scope = this.scopeOf(who, scoped)
-    const filters = this.filtersOf(q, this.standPair(who, scoped))
+    const stand = this.standPair(who, scoped)
+    const filters = this.filtersOf(q, stand)
 
     /* Count a SECOND time only while the scope axis is actually cutting: for a
        reader who sees the whole book `hidden` is always 0, and a full count to
@@ -149,7 +150,7 @@ export class WorkstreamRepository {
       scope ? this.count(and(...filters)) : Promise.resolve(null),
     ])
 
-    const rows = await this.page(and(...filters, scope), q)
+    const rows = await this.page(and(...filters, scope), q, stand)
 
     return { rows, total: scopedTotal, hidden: all === null ? 0 : all - scopedTotal }
   }
@@ -328,7 +329,11 @@ export class WorkstreamRepository {
     return { stage: of('STAGE'), tier: of('TIER') }
   }
 
-  private page(where: SQL | undefined, q: WorkstreamBookQuery): Promise<WorkstreamRead[]> {
+  private page(
+    where: SQL | undefined,
+    q: WorkstreamBookQuery,
+    stand: StandPair,
+  ): Promise<WorkstreamRead[]> {
     return this.db
       .select(READ_COLUMNS)
       .from(workstream)
@@ -338,7 +343,7 @@ export class WorkstreamRepository {
       .leftJoin(BD_ACTOR, eq(BD_ACTOR.id, lead.bdOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
       .where(where)
-      .orderBy(...this.orderBy(q))
+      .orderBy(...this.orderBy(q, stand))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
       .then((rows) => rows.map(toRead))
@@ -383,15 +388,17 @@ export class WorkstreamRepository {
    *  both on the same axis — so that card falls back to the lead's own rung,
    *  the column 0056 materialized for exactly this, never a third fold.
    *
-   *  The pair is TWO expressions, so the reader's fence is planned twice: two
-   *  hashed SubPlans instead of one. A single `CASE` returning a record would
-   *  halve that and cost the board its `GROUP BY` — Postgres cannot take the
-   *  components back out of one. Correctness over a hash build. */
+   *  The deadline rides the same fence: a folded row must not keep the deadline
+   *  of the deal it no longer shows, or card, filter and sort would count a
+   *  colleague's late deal under a lead pill. Three expressions mean three
+   *  hashed SubPlans; one record-returning `CASE` would cost the board its
+   *  `GROUP BY`. Correctness over a hash build. */
   private standPair(who: Actor, scoped: boolean): StandPair {
     if (!scoped || !who.ownOnly) {
       return {
         kind: sql<WorkstreamStandKind>`${workstream.standKind}`,
         key: sql<string>`${workstream.standKey}`,
+        due: sql`${workstream.standDueAt}`,
       }
     }
 
@@ -401,6 +408,7 @@ export class WorkstreamRepository {
     return {
       kind: sql<WorkstreamStandKind>`CASE WHEN ${keep} THEN ${workstream.standKind} ELSE 'LD' END`,
       key: sql<string>`CASE WHEN ${keep} THEN ${workstream.standKey} ELSE ${workstream.standLeadKey} END`,
+      due: sql`CASE WHEN ${keep} THEN ${workstream.standDueAt} END`,
     }
   }
 
@@ -419,7 +427,10 @@ export class WorkstreamRepository {
   /** THE USER's filters. The scope axis stands outside them — see `book()`.
    *  `leadLive` rides here, not in scope: a run whose lead is switched off is
    *  absent from every count, `hidden` included. */
-  private filtersOf(q: WorkstreamFilters, stand: StandPair): (SQL | undefined)[] {
+  private filtersOf(
+    q: WorkstreamFilters & Pick<WorkstreamBookQuery, 'overdue'>,
+    stand: StandPair,
+  ): (SQL | undefined)[] {
     return [
       leadLive,
       q.status === 'open'
@@ -443,6 +454,9 @@ export class WorkstreamRepository {
          each answers on its own rather than waiting for the other. */
       q.standKind ? sql`${stand.kind} = ${q.standKind}` : undefined,
       q.standKey ? sql`${stand.key} = ${q.standKey}` : undefined,
+      /* `false` does not filter: "not overdue" is not a card, and the contract
+         only promises the set the overdue card counts. */
+      q.overdue === true ? overdueOpen(stand.due) : undefined,
     ]
   }
 
@@ -456,13 +470,45 @@ export class WorkstreamRepository {
    *  the engine declares which way each rung reads, and a URL must not be able
    *  to invert half a ladder. `lastContactedAt` never reaches here: the door
    *  refuses a key the book cannot sort on rather than answer in some other
-   *  order — see the book door, and `RUNG_SQL` for which rungs are missing. */
-  private orderBy(q: WorkstreamBookQuery): SQL[] {
-    if (q.sort === 'priority') return [...PRIORITY_ORDER, sql`${workstream.code} desc`]
+   *  order — see the book door, and `rungSql` for which rungs are missing. */
+  private orderBy(q: WorkstreamBookQuery, stand: StandPair): SQL[] {
+    if (q.sort === 'priority') return [...priorityOrder(stand), sql`${workstream.code} desc`]
 
     const dir = q.dir === 'asc' ? 'asc' : 'desc'
     const primary = q.sort === 'customer' ? CUSTOMER : OPENED_AT
     return [sql`${primary} ${sql.raw(dir)}`, sql`${workstream.code} ${sql.raw(dir)}`]
+  }
+
+  /** The three cards and the per-rung counts above the book, over the reader's
+   *  whole book.
+   *
+   *  Same `leadLive` and `scopeOf` fence as `book()` and NO user filter, so the
+   *  cards equal the book's totals under `status` open / closed. Overdue is
+   *  `overdueOpen` on the reader's own deadline, the very fragment the book's
+   *  `overdue` filter uses.
+   *
+   *  `stages` is a second statement because a `GROUP BY` cannot share the
+   *  single-row pass; it rides the same fence and the reader's `standPair`, so
+   *  a count opens exactly the rows the `standKind`/`standKey` filter returns. */
+  async scorecard(who: Actor, scoped: boolean): Promise<WorkstreamScorecardTotals> {
+    const closedWith = (...reasons: WorkstreamCloseReason[]) =>
+      sql<number>`count(*) FILTER (WHERE ${inArray(workstream.closeReason, reasons)})::int`
+
+    const fence = and(leadLive, this.scopeOf(who, scoped))
+    const stand = this.standPair(who, scoped)
+    const [[r], stages] = await Promise.all([
+      this.db
+        .select({
+          overdue: sql<number>`count(*) FILTER (WHERE ${overdueOpen(stand.due)})::int`,
+          won: closedWith('WON'),
+          stopped: closedWith('LOST', 'CHURNED'),
+        })
+        .from(workstream)
+        .innerJoin(lead, ANCHOR_ON)
+        .where(fence),
+      this.standTotals(and(fence, isNull(workstream.closedAt)), stand),
+    ])
+    return { overdue: r?.overdue ?? 0, won: r?.won ?? 0, stopped: r?.stopped ?? 0, stages }
   }
 
   /** The board's three counts, under the book door's joins, filters and scope —
@@ -540,7 +586,15 @@ export type WorkstreamFilters = Pick<
 >
 
 /** The rung as THIS reader sees it — see `standPair`. */
-type StandPair = { kind: SQL<WorkstreamStandKind>; key: SQL<string> }
+type StandPair = { kind: SQL<WorkstreamStandKind>; key: SQL<string>; due: SQL }
+
+/** What the repository counts for the cards; the service names the rungs. */
+export type WorkstreamScorecardTotals = {
+  overdue: number
+  won: number
+  stopped: number
+  stages: StandTotal[]
+}
 
 export type StandTotal = { kind: WorkstreamStandKind; key: string; n: number }
 export type CloseReasonTotal = { closeReason: WorkstreamCloseReason; n: number }
@@ -608,6 +662,19 @@ const STAND_DEAL = sql`COALESCE(
   (SELECT ${contract.opportunityCode} FROM ${contract} WHERE ${contract.code} = ${workstream.standCode}),
   ${workstream.standCode})`
 
+/** The deadline's calendar day: what `overdueBy` counts from, shared by the
+ *  priority ladder below and by the overdue card and filter so "late" has one
+ *  definition. `due` is the reader's `StandPair.due`, never the bare column.
+ *
+ *  `AT TIME ZONE 'UTC'` because `daysUntil` truncates in UTC and a bare
+ *  `date_trunc` follows the session TimeZone, so the two would split at night. */
+const dueDay = (due: SQL): SQL => sql`date_trunc('day', (${due}) AT TIME ZONE 'UTC')`
+
+/** "Open and past its deadline" — the ONE predicate behind the overdue card and
+ *  the book's `overdue` filter, so the card opens exactly the rows it counts. */
+const overdueOpen = (due: SQL): SQL =>
+  sql`(${isNull(workstream.closedAt)} AND ${dueDay(due)} < date_trunc('day', now() AT TIME ZONE 'UTC'))`
+
 /** Each rung of `WORKSTREAM_PRIORITY_LADDER` as a column — or `null` while the
  *  fact is not one. TWO OF THE FOUR ARE NULL TODAY, and they are named here so
  *  nobody later reads this as a two-rung ladder:
@@ -623,22 +690,27 @@ const STAND_DEAL = sql`COALESCE(
  *  `overdueBy` is whole calendar days (`daysUntil`): two runs due the same day
  *  must TIE at this rung and let the next one decide, and a raw timestamp
  *  would break that tie earlier than the engine does. */
-const RUNG_SQL: Record<WorkstreamPriorityRung['key'], { at: SQL; inverted: boolean } | null> = {
-  overdueBy: { at: sql`date_trunc('day', ${workstream.standDueAt})`, inverted: true },
+const rungSql = (
+  stand: StandPair,
+): Record<WorkstreamPriorityRung['key'], { at: SQL; inverted: boolean } | null> => ({
+  overdueBy: { at: dueDay(stand.due), inverted: true },
   waitingOverdue: null,
   lastContactedAt: null,
   openedAt: { at: OPENED_AT, inverted: false },
-}
+})
 
 /** The ladder translated MECHANICALLY: one term per rung, in the engine's
  *  order, with the engine's direction and null side. A rung with no column
  *  contributes nothing — never a stand-in, which would be a second ladder. */
-const PRIORITY_ORDER: SQL[] = WORKSTREAM_PRIORITY_LADDER.flatMap((rung) => {
-  const column = RUNG_SQL[rung.key]
-  if (column === null) return []
-  const dir = column.inverted === (rung.dir === 'desc') ? 'asc' : 'desc'
-  return [sql`${column.at} ${sql.raw(dir)} nulls ${sql.raw(rung.nulls)}`]
-})
+const priorityOrder = (stand: StandPair): SQL[] => {
+  const columns = rungSql(stand)
+  return WORKSTREAM_PRIORITY_LADDER.flatMap((rung) => {
+    const column = columns[rung.key]
+    if (column === null) return []
+    const dir = column.inverted === (rung.dir === 'desc') ? 'asc' : 'desc'
+    return [sql`${column.at} ${sql.raw(dir)} nulls ${sql.raw(rung.nulls)}`]
+  })
+}
 
 const READ_COLUMNS = {
   row: workstream,

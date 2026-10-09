@@ -4,6 +4,7 @@ import {
   WorkstreamBoardResponse,
   WorkstreamBookQuery,
   WorkstreamBookResponse,
+  WorkstreamScorecard,
   type WorkstreamBoardColumn,
   type WorkstreamFootprint,
   type WorkstreamRow,
@@ -59,6 +60,7 @@ export function workstreamBookQueryToParams(q: WorkstreamBookQuery): string {
   if (q.standKind !== undefined) p.set('standKind', q.standKind)
   if (q.standKey !== undefined) p.set('standKey', q.standKey)
   if (q.closeReason !== undefined) p.set('closeReason', q.closeReason)
+  if (q.overdue !== undefined) p.set('overdue', String(q.overdue))
   return p.toString()
 }
 
@@ -79,6 +81,25 @@ export function workstreamBookQuery(q: WorkstreamBookQuery) {
       }),
   })
 }
+
+/** `GET /sales/workstreams/scorecard` — the strip above the book (stage chart
+ *  and cards). No params: tab and filters never move it.
+ *
+ *  The key nests under `WORKSTREAM_BOOK_KEY` on purpose: every writer already
+ *  invalidates that prefix, so the cards follow the book with no list to keep
+ *  in step (a sibling `workstream-scorecard` key would need adding to four).
+ *  `staleTime` one minute, as the lead scorecard: the strip remounts on every
+ *  return from a run. */
+export const workstreamScorecardQuery = queryOptions({
+  queryKey: [...WORKSTREAM_BOOK_KEY, 'scorecard'] as const,
+  queryFn: ({ signal }) =>
+    api.read<WorkstreamScorecard>(`${BOOK_PATH}/scorecard`, {
+      need: READ_NEED,
+      schema: WorkstreamScorecard,
+      signal,
+    }),
+  staleTime: 60 * 1000,
+})
 
 // ---------------------------------------------------------------------------
 // THE BOARD — one catalogue call, then one paging call per column
@@ -175,6 +196,9 @@ export function workstreamColumnQuery(base: WorkstreamBookQuery, column: Workstr
     standKind: undefined,
     standKey: undefined,
     closeReason: undefined,
+    /* The catalogue does not take `overdue`, so a column that did would count
+       fewer cards than the header above it promises. */
+    overdue: undefined,
     ...columnFilter(column),
     size: COLUMN_PAGE_SIZE,
     page: 1,
@@ -283,7 +307,11 @@ export function withBoardParams(
     out.delete(VIEW_PARAM)
     out.delete(STEP_PARAM)
   }
-  if (next.view === 'kanban') out.set(VIEW_PARAM, next.view)
+  if (next.view === 'kanban') {
+    out.set(VIEW_PARAM, next.view)
+    // The board cannot apply these, so a link must not claim it does.
+    for (const key of ['overdue', 'standKind', 'standKey']) out.delete(key)
+  }
   if (next.step !== undefined) out.set(STEP_PARAM, next.step)
   return out
 }

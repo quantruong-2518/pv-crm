@@ -1,10 +1,8 @@
-import { useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
-  Chip,
   Icon,
   ScreenLayout,
   SearchField,
@@ -14,41 +12,57 @@ import {
   type TableSort,
 } from '@pv/ui'
 import {
+  WorkstreamBookQuery,
   WorkstreamSortKey,
   WorkstreamStatus,
-  type WorkstreamBookQuery,
   type WorkstreamRow,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
-import { pageIndexFromQueryPage, queryPageFromPageIndex } from '@/app/url'
-import { dm, dmy } from '@/lib/date'
+import { useBookPageClamp, useBookQuery } from '@/app/book-query'
+import { dmy } from '@/lib/date'
 import {
   DEFAULT_WORKSTREAM_BOOK_QUERY,
   WORKSTREAM_STATUS_LABEL,
-  footprintTotal,
   parseBoardView,
-  parseWorkstreamBookQuery,
   withBoardParams,
   workstreamBookQuery,
-  workstreamBookQueryToParams,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
-import { AvatarCell, TableFooter } from '@/components/table-bits'
-import { CloseBadge, ObjectChip, OverdueNote } from '@/components/workstream-bits'
+import { TableFooter } from '@/components/table-bits'
+import { ContactCell, CustomerCell, StandCell, StatusCell } from '@/components/workstream-cells'
 import { WorkstreamsBoard } from './workstreams-board'
+import { WorkstreamScoreStrip } from './workstreams-score'
 import { ViewSwitch } from './workstreams-board-parts'
 
 /** The workstream book — `/sales/workstreams`. One row per customer journey run.
  *
- *  Only what the server can filter is offered: status, search, account. No
- *  stage / close reason / holder / channel filter, because a filter held in the
- *  browser only filters the page the server happened to send.
+ *  Only what the server can filter is offered: status tabs, search, the account
+ *  chip, and the strip's rung bars and overdue card. Sort is customer, start
+ *  date, or the server's priority ladder (the default). Filters live in the
+ *  address (`app/book-query.ts`). No close reason / channel filter yet: the
+ *  contract takes those single-valued, and a filter held in the browser only
+ *  filters the page the server happened to send.
  *
  *  No ContextRail (law 10), the same conscious debt `pages/opportunities.tsx`
  *  records: a book has no open object to build a chain from. */
 
 type Go = (path: string) => void
+
+/* Rows per page: the contract's own default, restated for `useBookQuery` so the
+   address never carries a `size` nobody chose. */
+const PAGE_SIZE = DEFAULT_WORKSTREAM_BOOK_QUERY.size
+
+/* Every query field the server narrows by, bar sort and paging: they drive
+   `dirty` and "clear all". `status` counts only off its default tab. */
+const FILTER_KEYS = [
+  'status',
+  'accountCode',
+  'standKind',
+  'standKey',
+  'closeReason',
+  'overdue',
+] as const
 
 /* Built from the shared label table, not typed out again: the board names the
    same three statuses on its filter chip. */
@@ -57,83 +71,25 @@ const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamS
 )
 
 /* Ordered by the question the book answers first: whose journey, where it
-   stands, whether it needs action, who holds it, then the history. */
-const COLUMNS: TableColumn[] = [
-  { header: 'Khách hàng', width: '2fr', sortKey: 'customer' },
-  { header: 'Giai đoạn hiện tại', width: '2.2fr' },
-  { header: 'Tình trạng', width: '1.4fr' },
-  { header: 'Sale phụ trách', width: '140px', align: 'center' },
-  { header: 'BD phụ trách', width: '140px', align: 'center' },
-  { header: 'Lịch sử liên hệ', width: '1fr' },
-  { header: 'Ngày bắt đầu', width: '96px', sortKey: 'openedAt' },
-  { header: 'Mã hành trình', width: '88px' },
+   stands, whether it needs action, then the history. Holders and the journey
+   code are not columns: the detail page names them. */
+const columns: TableColumn[] = [
+  { header: 'Khách hàng', width: 'minmax(220px,2.4fr)', sortKey: 'customer' },
+  { header: 'Giai đoạn hiện tại', width: 'minmax(260px,2.4fr)' },
+  { header: 'Tình trạng', width: 'minmax(160px,1.2fr)', sortKey: 'priority' },
+  { header: 'Lịch sử liên hệ', width: 'minmax(200px,1.4fr)' },
+  { header: 'Ngày bắt đầu', width: '128px', sortKey: 'openedAt' },
 ]
-
-/* Every code is `XX-0000` in mono, so one fixed slot holds any chip: the text
-   beside it then starts at the same x on every row. */
-const CODE_SLOT = 'flex w-18 shrink-0'
-
-function CustomerCell({ row, go }: { row: WorkstreamRow; go: Go }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="min-w-0 flex-1 truncate" title={row.customer}>
-        {row.customer}
-      </span>
-      <span className={CODE_SLOT}>
-        {row.accountCode !== null && <ObjectChip kind="AC" code={row.accountCode} go={go} />}
-      </span>
-    </span>
-  )
-}
-
-function ContactCell({ row }: { row: WorkstreamRow }) {
-  const last = row.footprint.lastContactedAt
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <span className="tnum font-num w-6 shrink-0 text-right">{footprintTotal(row.footprint)}</span>
-      {last === null ? (
-        <span className="text-muted-foreground truncate">Chưa liên lạc</span>
-      ) : (
-        <span className="tnum font-num text-muted-foreground" title="Lần liên lạc gần nhất">
-          {dm(last)}
-        </span>
-      )}
-    </span>
-  )
-}
-
-/** One place for "does this need me": overdue while open, the outcome once closed. */
-function StatusCell({ row }: { row: WorkstreamRow }) {
-  if (row.closeReason === null || row.closedAt === null) {
-    return <OverdueNote overdueBy={row.overdueBy} />
-  }
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <CloseBadge reason={row.closeReason} />
-      <span className="tnum font-num text-muted-foreground">{dmy(row.closedAt)}</span>
-    </span>
-  )
-}
 
 function rowCells(row: WorkstreamRow, go: Go) {
   return [
     <CustomerCell key="customer" row={row} go={go} />,
-    <span key="stand" className="flex min-w-0 items-center gap-2">
-      <span className={CODE_SLOT}>
-        <ObjectChip kind={row.stand.kind} code={row.stand.code} go={go} />
-      </span>
-      <span className="min-w-0 truncate" title={row.stand.phaseLabel}>
-        {row.stand.phaseLabel}
-      </span>
-    </span>,
+    <StandCell key="stand" row={row} go={go} />,
     <StatusCell key="status" row={row} />,
-    <AvatarCell key="sale" name={row.saleHolder?.name} empty="Chưa có Sale phụ trách" />,
-    <AvatarCell key="bd" name={row.bdHolder?.name} empty="Chưa có BD phụ trách" />,
     <ContactCell key="contact" row={row} />,
-    <span key="opened" className="tnum font-num">
+    <span key="opened" className="tnum font-num text-muted-foreground">
       {dmy(row.openedAt)}
     </span>,
-    <Chip key="code">{row.code}</Chip>,
   ]
 }
 
@@ -147,31 +103,32 @@ export default function WorkstreamsPage() {
 function WorkstreamsBook() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm hành trình, khách hàng…' })
   const navigate = useNavigate()
+  /* Only the view switch reads the raw address: `useBookQuery` writes schema
+     keys alone, and `view` / `step` are not among them. */
   const [params, setParams] = useSearchParams()
-  const query = useMemo(() => parseWorkstreamBookQuery(params), [params])
-
-  /* Filters live in the URL so a filtered book is pasteable and Back undoes
-     one step. Any filter change returns to page 1. */
-  const patch = (next: Partial<WorkstreamBookQuery>) => {
-    const merged = { ...query, ...next, page: next.page ?? 1 }
-    setParams(new URLSearchParams(workstreamBookQueryToParams(merged)), { replace: true })
-  }
-  const clearAll = () => setParams(new URLSearchParams(), { replace: true })
+  const book = useBookQuery(WorkstreamBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const { query, text, setText, patch, goPage, clear: clearAll, dirty } = book
 
   const { data, isPending, error, refetch } = useQuery(workstreamBookQuery(query))
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const hidden = data?.hidden ?? 0
-  const dirty =
-    query.q !== undefined ||
-    query.accountCode !== undefined ||
-    query.status !== DEFAULT_WORKSTREAM_BOOK_QUERY.status
-  const tableSort: TableSort = { key: query.sort, dir: query.dir }
+  const { pageIndex } = useBookPageClamp(book, data?.total)
+  /* `priority` is a fixed ladder the server reads without `dir`, so the arrow
+     never shows a direction the order does not have. */
+  const tableSort: TableSort = {
+    key: query.sort,
+    dir: query.sort === 'priority' ? 'desc' : query.dir,
+  }
 
   const onSort = (key: string) => {
     const parsed = WorkstreamSortKey.safeParse(key)
     if (!parsed.success) return
+    if (parsed.data === 'priority') {
+      if (query.sort !== 'priority') patch({ sort: 'priority', dir: 'desc' })
+      return
+    }
     patch(
       query.sort === parsed.data
         ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
@@ -184,6 +141,7 @@ function WorkstreamsBook() {
       <ScreenLayout>
         <BookPage
           title="Sổ hành trình"
+          score={<WorkstreamScoreStrip query={query} patch={patch} />}
           tabs={
             <SegmentedControl
               label="Trạng thái"
@@ -199,21 +157,30 @@ function WorkstreamsBook() {
           }
           count={<BookCount total={total} noun="hành trình" hidden={hidden} />}
           tools={
-            <>
-              {/* Reads the raw param, not the parsed query: the contract trims `q`,
-                  so echoing the parsed value would eat the space between two words
-                  while the user is still typing. */}
+            /* Own wrapper: BookPage's tools row cannot wrap, so at 375px the
+               search, reset chip and view switch would push past the card. */
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
               <SearchField
                 placeholder="Tìm theo mã hành trình, tên lead hoặc công ty…"
-                value={params.get('q') ?? ''}
-                onChange={(v) => patch({ q: v.trim() === '' ? undefined : v })}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
+                value={text}
+                onChange={setText}
+                className="min-w-0 flex-1 max-sm:basis-full sm:max-w-[320px]"
               />
+              {dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  onClick={clearAll}
+                  className="pointer-coarse:h-12"
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
               {query.accountCode !== undefined && (
                 <Button
                   variant="ghost"
                   size="md"
-                  className="font-mono"
+                  className="pointer-coarse:h-12 font-mono"
                   aria-label={`Bỏ lọc theo công ty ${query.accountCode}`}
                   onClick={() => patch({ accountCode: undefined })}
                 >
@@ -227,7 +194,7 @@ function WorkstreamsBook() {
                   setParams(withBoardParams(params, { view: next }), { replace: true })
                 }
               />
-            </>
+            </div>
           }
           pending={isPending}
           failure={
@@ -255,10 +222,10 @@ function WorkstreamsBook() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[1200px]',
+            minWidth: 'min-w-[1000px]',
             sort: tableSort,
             onSort,
-            columns: COLUMNS,
+            columns,
             rows: rows.map((row) => ({
               id: row.code,
               onOpen: () => navigate(`/sales/workstreams/${encodeURIComponent(row.code)}`),
@@ -266,12 +233,7 @@ function WorkstreamsBook() {
             })),
           }}
           footer={
-            <TableFooter
-              page={pageIndexFromQueryPage(query.page)}
-              pageSize={query.size}
-              total={total}
-              onPage={(p) => patch({ page: queryPageFromPageIndex(p) })}
-            />
+            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
           }
         />
       </ScreenLayout>

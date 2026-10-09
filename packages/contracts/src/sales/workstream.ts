@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { PipelinePositionView } from '../position'
-import { Moment, ObjectCode, textInput } from '../primitives'
+import { ThreadChannel } from '../comms/thread'
+import { Bool, Moment, ObjectCode, textInput } from '../primitives'
 import { type LeadState, WorkstreamCloseReason } from './enums'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
@@ -88,17 +89,27 @@ export const WorkstreamHolder = z.object({
  *  channel or direction to bucket by. Reaching for touch here is reaching for
  *  the wrong ledger. */
 export const WorkstreamChannel = z.enum(
-  ['email', 'zalo-oa', 'telegram', 'phone', 'in-app', 'meeting', 'mail'],
+  [...ThreadChannel.options, 'mail'],
   'Kênh không có trong danh sách',
 )
 
 /** A count for EVERY channel, not only the ones that fired — so the screen
- *  prints seven cells straight off the object, with no channel left to
+ *  prints every cell straight off the object, with no channel left to
  *  default to zero itself. Same reasoning `OpportunityHistogram` states for
- *  its buckets, exhaustive here because the set of seven is fixed and known
+ *  its buckets, exhaustive here because the set is fixed and known
  *  rather than open-ended. */
 export const WorkstreamFootprint = z.object({
-  byChannel: z.record(WorkstreamChannel, z.number().int().nonnegative()),
+  /* Read tolerantly: a server one deploy behind does not know a channel added
+     since, and a missing count is zero, not a reason to refuse the whole book. */
+  byChannel: z
+    .partialRecord(WorkstreamChannel, z.number().int().nonnegative())
+    .transform(
+      (counts) =>
+        Object.fromEntries(WorkstreamChannel.options.map((c) => [c, counts[c] ?? 0])) as Record<
+          WorkstreamChannel,
+          number
+        >,
+    ),
   lastContactedAt: Moment.nullable(),
 })
 
@@ -121,8 +132,8 @@ export const WorkstreamRow = z.object({
 
   stand: WorkstreamStand,
 
-  /** `daysHere − limitDays` of the live opportunity, and null for every other
-   *  rung. NULL ON PURPOSE, and it means "nobody has set a deadline for the
+  /** `daysHere − limitDays` of the rung the run stands on, hidden (null) from a
+   *  reader who cannot open that rung's object. NULL ON PURPOSE, and it means "nobody has set a deadline for the
    *  rung this journey stands on", never "on time": a lead's ladder (`TIER`)
    *  carries no `limitDays` at all, and a closed opportunity has no
    *  `stage`/`stage_since` to measure from. Printing 0 or "OK" for either
@@ -176,6 +187,9 @@ export const WorkstreamBookQuery = PageQuery.extend({
    *  open run has no close reason at all, the invariant the DB already holds
    *  as `CHECK workstream_close_pair`. */
   closeReason: WorkstreamCloseReason.optional(),
+  /** `true` = open runs whose current rung is past its deadline — the same
+   *  set `WorkstreamScorecard.overdue` counts, so the card opens its own rows. */
+  overdue: Bool.optional(),
   sort: WorkstreamSortKey.default('priority'),
   dir: SortDir.default('desc'),
 })
@@ -219,6 +233,35 @@ export const WorkstreamBoardColumn = z.discriminatedUnion('by', [
  *  under, and the screen asks the book door with that one, not the view's. */
 export const WorkstreamBoardResponse = z.object({
   columns: z.array(WorkstreamBoardColumn),
+})
+
+/** `GET /sales/workstreams/scorecard` — the strip above the book, counted by
+ *  SQL over the WHOLE book the reader may see (scoped like the book, unlike
+ *  the room-wide `LeadScorecard`, because each count opens its own rows). No params: tab, search and
+ *  filters never move these, so a card cannot disagree with the book it heads
+ *  just because a page or a filter was narrower.
+ *  `overdue` is OPEN runs with `overdueBy > 0`; runs with no deadline (null)
+ *  are not counted. `stopped` is LOST plus CHURNED; WON is `won` alone.
+ *  `stages` groups the OPEN runs by current rung with the same `kind`/`key`
+ *  pair the book's `standKind`/`standKey` filter by, so a count opens exactly
+ *  the rows it names. Rungs with no open run are listed with count 0. */
+export const WorkstreamScorecard = z.object({
+  /** Open runs whose current rung is past its deadline. */
+  overdue: z.number().int().nonnegative(),
+  /** Closed with `closeReason` WON. */
+  won: z.number().int().nonnegative(),
+  /** Closed with `closeReason` LOST or CHURNED. */
+  stopped: z.number().int().nonnegative(),
+  /** Open runs per current rung, in ladder order. `label` is resolved by the
+   *  server (the same words the row pills print), never by the screen. */
+  stages: z.array(
+    z.object({
+      kind: WorkstreamStandKind,
+      key: z.string().min(1).max(40),
+      label: z.string().min(1),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
 })
 
 // ---------------------------------------------------------------------------
@@ -265,3 +308,4 @@ export type WorkstreamBookQuery = z.infer<typeof WorkstreamBookQuery>
 export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
 export type WorkstreamBoardColumn = z.infer<typeof WorkstreamBoardColumn>
 export type WorkstreamBoardResponse = z.infer<typeof WorkstreamBoardResponse>
+export type WorkstreamScorecard = z.infer<typeof WorkstreamScorecard>
