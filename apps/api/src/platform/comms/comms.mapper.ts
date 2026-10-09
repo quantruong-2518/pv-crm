@@ -109,7 +109,7 @@ export type NormalisedAddress = string & { readonly [folded]: true }
  *     instead of being filed as an address nothing can ever deliver to. Reusing
  *     it is also what keeps this table and `sales.lead.email` spelling one
  *     mailbox the same way.
- *   · phone — trim, then REQUIRE E.164. It does not call `normalisePhone`, and
+ *   · phone · whatsapp — trim, then REQUIRE E.164 (a WhatsApp id is the number). It does not call `normalisePhone`, and
  *     that is deliberate: that function assumes `+84` for anything without a
  *     `+` of its own, which is correct for a Vietnamese lead form and wrong
  *     here, where the address arrives from a call log or a webhook and the
@@ -133,7 +133,7 @@ export function normaliseAddress(channel: CommsChannel, raw: string): Normalised
     return parsed.data as NormalisedAddress
   }
 
-  if (channel === 'phone') {
+  if (channel === 'phone' || channel === 'whatsapp') {
     if (!E164.test(trimmed)) {
       throw invalid(
         {

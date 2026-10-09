@@ -121,7 +121,7 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['channel'],
     message:
-      'Kênh không nằm trong danh sách hệ nhận (email, Zalo OA, Telegram, điện thoại, trong app, họp).',
+      'Kênh không nằm trong danh sách hệ nhận (email, Zalo OA, Telegram, WhatsApp, điện thoại, trong app, họp).',
   },
 
   /** Reachable since meeting minutes write `external_id` = the meeting id. */

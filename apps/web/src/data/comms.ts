@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { Phone, Users, type IconGlyph } from '@pv/ui'
+import { Phone, Users, Whatsapp, type IconGlyph } from '@pv/ui'
 import {
   type ThreadChannel,
   type ThreadListResponse,
@@ -74,10 +74,10 @@ export const threadMessagesQuery = (threadId: string | null) =>
   })
 
 /** One picture per channel. Four members borrow the sales department's own
- *  send-channel table so a channel looks the same everywhere in the app, plus
- *  the one member that table has no room for.
+ *  send-channel table so a channel looks the same everywhere in the app; the
+ *  members that table has no room for are drawn here.
  *
- *  `CommsChannel` is wider than `WaveChannel` by exactly `phone` and narrower
+ *  `CommsChannel` is wider than `WaveChannel` by `phone` and `whatsapp`, narrower
  *  by the three POSTING channels (LinkedIn, Facebook, Website). The two unions
  *  answer two different questions — which road the system sends down, and which
  *  road a conversation actually happened on — so they can be borrowed from but
@@ -86,6 +86,7 @@ export const COMMS_CHANNEL_ICON: Record<ThreadChannel, IconGlyph> = {
   email: CHANNEL_ICON.email,
   'zalo-oa': CHANNEL_ICON['zalo-oa'],
   telegram: CHANNEL_ICON.telegram,
+  whatsapp: Whatsapp,
   'in-app': CHANNEL_ICON['in-app'],
   phone: Phone,
   meeting: Users,
@@ -97,6 +98,7 @@ export const COMMS_CHANNEL_LABEL: Record<ThreadChannel, string> = {
      own Zalo opened from a contact row, and naming it OA would misstate it. */
   'zalo-oa': 'Zalo',
   telegram: CHANNEL_LABEL.telegram,
+  whatsapp: 'WhatsApp',
   'in-app': CHANNEL_LABEL['in-app'],
   phone: 'Điện thoại',
   meeting: 'Gặp mặt',

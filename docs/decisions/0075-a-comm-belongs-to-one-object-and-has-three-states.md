@@ -35,6 +35,8 @@ are precise and neutral, no colloquial wording.
 
 ### 3 · Where comm records come from
 
+Amended by ADR 0081: Telegram and WhatsApp buttons join Gọi / Zalo / Gửi mail.
+
 - The **Gọi / Zalo / Gửi mail** buttons: a confirm dialog, then the record is
   created as "Chưa điền nội dung", then the action opens.
 - A meeting that ends: a scheduled job creates the record automatically.
@@ -70,6 +72,8 @@ A comm takes a recording, a transcript, minutes (MM) and chat screenshots.
   since creation is shown as late.
 
 ### 7 · Further owner decisions (01/10/2026)
+
+Amended by ADR 0081: Telegram and WhatsApp move a lead to `working` like Zalo.
 
 - Attachment size: audio up to 50 MB; other files (image, pdf, docx, txt) up to
   15 MB. The owner of the record may delete a file while the record is not

@@ -55,7 +55,7 @@ export class DebriefService {
     @Optional() @Inject(MESSAGE_LOGGED_HOOK) private readonly logged?: MessageLoggedHook,
   ) {}
 
-  /** The call / Zalo / mail buttons and the mobile log: a comm owned by the
+  /** The call / chat / mail buttons and the mobile log: a comm owned by the
    *  caller, always empty (its text is the confirm summary). Refused up front
    *  when the caller could never confirm it. On a lead it is an exchange, so the
    *  lead moves exactly as a logged turn moves it (`MESSAGE_LOGGED_HOOK`). */

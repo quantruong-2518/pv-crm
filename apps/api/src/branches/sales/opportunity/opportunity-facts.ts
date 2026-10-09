@@ -32,9 +32,16 @@ type BookFacts = Pick<OpportunityBookRow, 'lastActivityAt' | 'activityFreshness'
 
 const QUOTATION: TouchKind = MILESTONE_TOUCH.quotation
 const COUNTED: TouchKind[] = [...CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]), QUOTATION]
-/* The book's last-activity column (ADR 0077 §4): calls, meetings, mail and Zalo with the
-   customer, plus care and quotations. Telegram and in-app are not the customer. */
-const CUSTOMER_CHANNELS: ThreadChannel[] = ['phone', 'zalo-oa', 'email', 'meeting']
+/* The book's last-activity column (ADR 0077 §4): calls, meetings, mail and chat with the
+   customer, plus care and quotations. In-app is our own desk, not the customer. */
+const CUSTOMER_CHANNELS: ThreadChannel[] = [
+  'phone',
+  'zalo-oa',
+  'telegram',
+  'whatsapp',
+  'email',
+  'meeting',
+]
 const DAY_MS = 86_400_000
 
 @Injectable()

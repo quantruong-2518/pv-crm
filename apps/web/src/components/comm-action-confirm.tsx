@@ -48,6 +48,16 @@ const COPY: Record<CommActionChannel, { verb: string; cta: string; opens: string
     cta: 'Xác nhận và mở Zalo',
     opens: 'mở Zalo tới người này',
   },
+  telegram: {
+    verb: 'Liên hệ Telegram với',
+    cta: 'Xác nhận và mở Telegram',
+    opens: 'mở Telegram tới người này',
+  },
+  whatsapp: {
+    verb: 'Liên hệ WhatsApp với',
+    cta: 'Xác nhận và mở WhatsApp',
+    opens: 'mở WhatsApp tới người này',
+  },
   email: { verb: 'Gửi mail cho', cta: 'Xác nhận và soạn mail', opens: 'mở trình soạn thư' },
 }
 
@@ -94,8 +104,8 @@ export function CommActionConfirm({
   const confirm = () => {
     if (!channel || create.isPending || refused || !target.data) return
     /* Opened inside the press: a tab opened after the await is a popup the
-       browser blocks. It is pointed at Zalo only once the record exists. */
-    const tab = channel === 'zalo-oa' ? window.open('', '_blank') : null
+       browser blocks. It is pointed at the chat only once the record exists. */
+    const tab = channel === 'phone' || channel === 'email' ? null : window.open('', '_blank')
     create.mutate(
       {
         channel,
@@ -179,7 +189,12 @@ function launch(
     window.location.href = `tel:${contact.phone}`
     return
   }
-  const url = `https://zalo.me/${zaloNumber(contact.phone)}`
+  const url =
+    channel === 'zalo-oa'
+      ? `https://zalo.me/${zaloNumber(contact.phone)}`
+      : channel === 'telegram'
+        ? `https://t.me/+${phoneDigits(contact.phone)}`
+        : `https://wa.me/${phoneDigits(contact.phone)}`
   if (!tab) {
     window.open(url, '_blank', 'noopener')
     return
@@ -192,4 +207,10 @@ function launch(
 function zaloNumber(phone: string): string {
   const digits = phone.replace(/[^\d+]/g, '')
   return digits.startsWith('+84') ? `0${digits.slice('+84'.length)}` : digits.replace('+', '')
+}
+
+/** wa.me and t.me take the international spelling bare: `+84 912…` → `84912…`.
+ *  The books hold E.164, so the country code is already there. */
+function phoneDigits(phone: string): string {
+  return phone.replace(/\D/g, '')
 }

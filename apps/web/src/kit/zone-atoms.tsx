@@ -9,6 +9,7 @@ import {
   AvatarGroup,
   Badge,
   type BadgeProps,
+  BrandMark,
   Button,
   ChannelTag,
   Checkbox,
@@ -687,6 +688,18 @@ export function ZoneAtoms() {
           >
             <Avatar name="Nguyễn Văn Nam" size="sm" />
           </InfoTip>
+        </SpecCard>
+        {/* A-25 */}
+        <SpecCard
+          code="A-25"
+          name="BrandMark"
+          note="logo app chat"
+          bodyClassName="text-foreground flex h-32 items-center justify-center gap-6 px-4 py-5"
+          footer="logo thật của Zalo · Telegram · WhatsApp, một màu theo chữ xung quanh (currentColor) · chỉ đứng cạnh nút liên hệ mở app đó · trang trí, tên app nằm ở nút bên cạnh"
+        >
+          <BrandMark brand="zalo" size={24} />
+          <BrandMark brand="telegram" size={24} />
+          <BrandMark brand="whatsapp" size={24} />
         </SpecCard>
       </ZoneBody>
     </section>

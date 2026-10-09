@@ -15,7 +15,7 @@ import {
 
 export type { CommContact, CommMail, CommSubject } from './comm-action-confirm'
 
-/** The call, Zalo and mail buttons on one contact person (ADR 0075 §3).
+/** The call, chat and mail buttons on one contact person (ADR 0075 §3).
  *
  *  Every press goes through `CommActionConfirm`: the comm is created first,
  *  the call, chat or letter opens only after the server answered 201, so a
@@ -25,6 +25,8 @@ export type { CommContact, CommMail, CommSubject } from './comm-action-confirm'
 const BUTTON_LABEL: Record<CommActionChannel, string> = {
   phone: 'Gọi',
   'zalo-oa': 'Zalo',
+  telegram: 'Telegram',
+  whatsapp: 'WhatsApp',
   email: 'Gửi mail',
 }
 
@@ -60,6 +62,8 @@ export function CommActions({
     return contact.phone ? undefined : 'Chưa có số điện thoại.'
   }
 
+  /* Telegram and WhatsApp are opt-in: the record's floating bar carries them,
+     and the narrow grid below has columns for three at most. */
   const channels = (only ?? ['phone', 'zalo-oa', 'email']).filter((c) => c !== 'email' || mail)
   const reasons = [...new Set(channels.flatMap((c) => blocked(c) ?? []))]
 

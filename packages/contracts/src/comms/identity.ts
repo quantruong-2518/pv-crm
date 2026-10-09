@@ -29,8 +29,8 @@ import { ContractCode, Moment, ObjectCode, textInput } from '../primitives'
  *  only compiles while the two unions hold exactly the same members —
  *  `toContractRole(r: EngineRoleId): ContractRoleId => r`. That trick needs
  *  EQUALITY, and this union is not equal to E4's `Channel`: it is E4's four
- *  members plus `'phone'`, a real fifth channel `comms.identity` has to carry
- *  (a phone number an inbound call or SMS arrives from) that E4 has never sent
+ *  members plus `'phone'` and `'whatsapp'`, channels `comms.identity` has to
+ *  carry (a number an inbound call or chat arrives from) that E4 has never sent
  *  a notification through. An identity function typed `(c: Channel) => Channel`
  *  would reject `'phone'` at the call site, which is the one value this table
  *  exists to add — so the same mechanism cannot be reused verbatim here.
@@ -43,7 +43,7 @@ import { ContractCode, Moment, ObjectCode, textInput } from '../primitives'
  *  union holds. The reverse function would reject `'phone'`, so it does not
  *  exist. Widen this enum and that line stays green; misspell a shared member
  *  and it goes red at the mapper. */
-export const CommsChannel = z.enum(['email', 'zalo-oa', 'telegram', 'phone', 'in-app'])
+export const CommsChannel = z.enum(['email', 'zalo-oa', 'telegram', 'whatsapp', 'phone', 'in-app'])
 export type CommsChannel = z.infer<typeof CommsChannel>
 
 /** Which half of a conversation this address sits on. `'member'` is one of

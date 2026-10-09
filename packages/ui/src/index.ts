@@ -18,13 +18,14 @@ export * from './icons'
 export * from './layout/aurora-field'
 export * from './layout/glass-card'
 
-// ---- Zone 01 · Atoms (A-01 … A-24) ----
+// ---- Zone 01 · Atoms (A-01 … A-25) ----
 /** A-20 · AssistantFab là một atom — đúng một nút. File nằm ở `layout/` vì
  *  AppShell là chỗ duy nhất gắn nó, nhưng trên trang kit nó thuộc Zone 01. */
 export * from './layout/assistant-fab'
 export * from './ui/avatar'
 export * from './ui/avatar-group'
 export * from './ui/badge'
+export * from './ui/brand-mark'
 export * from './ui/button'
 export * from './ui/channel-tag'
 export * from './ui/checkbox'

@@ -550,7 +550,7 @@ export const OpportunityBookQuery = PageQuery.extend({
  *  honestly rather than defaulted away. */
 export const OpportunityBookRow = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
-  /** Latest customer-facing call, meeting, mail or Zalo, care activity, or
+  /** Latest customer-facing call, meeting, mail or chat, care activity, or
    *  quotation — system events excluded, so a reassignment does not read as care.
    *  Judged against `ActivityFreshness` (`./config`). */
   lastActivityAt: Moment.nullable(),

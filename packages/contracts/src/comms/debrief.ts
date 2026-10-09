@@ -34,11 +34,17 @@ export const DEBRIEF_SUMMARY_MAX = 2000
 export const DEBRIEF_TITLE_MAX = 120
 
 // ---------------------------------------------------------------------------
-// POST /comms/debriefs — the call / Zalo / mail action buttons
+// POST /comms/debriefs — the call / chat / mail action buttons
 // ---------------------------------------------------------------------------
 
-/** The three channels a button can open; the web opens tel:/Zalo/mail only after 201. */
-export const CommActionChannel = CommsChannel.extract(['phone', 'zalo-oa', 'email'])
+/** The channels a button can open; the web opens tel:/Zalo/Telegram/WhatsApp/mail only after 201. */
+export const CommActionChannel = CommsChannel.extract([
+  'phone',
+  'zalo-oa',
+  'telegram',
+  'whatsapp',
+  'email',
+])
 
 /** `contactCode` absent = the lead's own contact person, who has no `sales.contact` row.
  *  No text here: what was said is stored once, as the confirm summary. */

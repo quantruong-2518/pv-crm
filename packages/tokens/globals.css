@@ -120,6 +120,9 @@
   --shadow-assistant: 0 3px 14px rgba(61, 109, 245, 0.24);
   --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.34);
   --shadow-control-soft: 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* dock — the contact bar floating over a page: two layers, a tight contact
+     shadow under a wide soft one, so it lifts off dark and light alike */
+  --shadow-dock: 0 10px 28px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
 
   /* motion — 180ms ease-out (F-09), inside the 150–250ms band of the system */
   --motion-duration: 180ms;
@@ -297,6 +300,14 @@
     background: var(--popover);
     box-shadow:
       var(--shadow-pop),
+      inset 0 1px 0 var(--sheen-a);
+  }
+  /* glass-dock — the contact bar pinned over a page: the overlay face with a
+     shadow built to lift it off both themes. */
+  .glass-dock {
+    background: var(--popover);
+    box-shadow:
+      var(--shadow-dock),
       inset 0 1px 0 var(--sheen-a);
   }
   /* The caret of a dropdown: a square turned 45deg laid OVER the panel's top
@@ -521,6 +532,7 @@
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
   --shadow-panel: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
   --shadow-pop: 0 12px 40px rgba(15, 23, 42, 0.14);
+  --shadow-dock: 0 10px 28px rgba(15, 23, 42, 0.22), 0 2px 6px rgba(15, 23, 42, 0.12);
   --shadow-frame: 0 24px 64px rgba(15, 23, 42, 0.22);
   --shadow-primary: 0 1px 2px rgba(15, 23, 42, 0.12);
   --shadow-control: 0 0 0 1px rgba(15, 30, 60, 0.08);

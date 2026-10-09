@@ -87,11 +87,11 @@ export function RecordShell({
           </aside>
         )}
       </div>
-      {/* The bar's own height plus a gap, over the shell's bottom padding, so
-          the last card stays readable above it. The box holds the fixed bar and
+      {/* Room for the bar (one 56px row, a 16px gap) over the shell's bottom
+          padding, so the last card stays readable. The box holds the fixed bar and
           shows only when one drew: `ActionBar` may draw nothing. */}
       {actionBar && (
-        <div className="hidden h-20 shrink-0 has-[[data-action-bar]]:block">{actionBar}</div>
+        <div className="hidden h-[72px] shrink-0 has-[[data-action-bar]]:block">{actionBar}</div>
       )}
       {children}
     </ScreenLayout>

@@ -241,7 +241,7 @@ export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
       title={
         at
           ? `Hoạt động cuối ${dm(at)}`
-          : 'Chưa có cuộc gọi, cuộc gặp, email, Zalo, hoạt động chăm sóc hay báo giá nào'
+          : 'Chưa có cuộc gọi, cuộc gặp, email, Zalo, Telegram, WhatsApp, hoạt động chăm sóc hay báo giá nào'
       }
     >
       {word && <Flag icon={Timer} word={word} />}

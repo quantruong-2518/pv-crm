@@ -43,6 +43,8 @@ No quick-filter row: "overdue in stage" stays in the filter menu.
 
 ### 4 · "Hoạt động cuối" on the book
 
+Amended by ADR 0081: Telegram and WhatsApp count as customer contact.
+
 Latest of customer-facing comms (call, meeting, mail, Zalo), care activities and
 quotations. System events do not count. Colour thresholds are set in sales
 configuration; default amber from 6 days, red from 9.
@@ -58,6 +60,8 @@ configuration; default amber from 6 days, red from 9.
   already enforces.
 
 ### 6 · Profile layout
+
+Amended by ADR 0081: the bar also holds Telegram and WhatsApp.
 
 One place per fact, one place per action.
 

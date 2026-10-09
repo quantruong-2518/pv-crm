@@ -50,7 +50,7 @@ export const subjectCommIndexQuery = (subjectCode: string) =>
 export const commCreateFailure = (error: ApiError): string =>
   error.serverTitle ?? userMessage(error)
 
-/** The call / Zalo / mail buttons: an empty record first, the action after
+/** The call / chat / mail buttons: an empty record first, the action after
  *  201. No `retry` — a second POST is a second record nothing can tell apart. */
 export function useCreateCommRecord() {
   const client = useQueryClient()

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Button, ChevronDown, Contact, Icon, type IconGlyph } from '@pv/ui'
+import { BrandMark, Button, ChevronDown, Contact, Icon, cn, type IconGlyph } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { phoneText } from '@/lib/phone'
@@ -18,9 +18,9 @@ import { MenuButton, type MenuChoice } from './menu-button'
  *  the rare doors (ADR 0078 §1). A screen may pass ONE `primary` move, drawn
  *  last; one that does must not repeat it in its todo card.
  *
- *  Call, Zalo and mail ask which contact, primary first, then go through the
+ *  Every channel asks which contact, primary first, then goes through the
  *  comm confirm, which records first and opens the channel second (ADR 0075).
- *  Under `sm` the three fold into one contact button so the bar stays one row.
+ *  Under `sm` they fold into one contact button; the bar may still wrap to two rows.
  *  A screen nobody is reached from (campaign, company, contact) passes no
  *  `subject`: the bar is the more menu alone. 48px buttons (law 13). The
  *  shell keeps the room it floats over. */
@@ -28,8 +28,18 @@ import { MenuButton, type MenuChoice } from './menu-button'
 const CHANNELS: { channel: CommActionChannel; label: string }[] = [
   { channel: 'phone', label: 'Gọi' },
   { channel: 'zalo-oa', label: 'Zalo' },
+  { channel: 'telegram', label: 'Telegram' },
+  { channel: 'whatsapp', label: 'WhatsApp' },
   { channel: 'email', label: 'Gửi mail' },
 ]
+
+/** The three chat apps show their real logo and no words: the logo is the
+ *  label, and the button keeps the name in `aria-label` and `title`. */
+const BRAND: Partial<Record<CommActionChannel, 'zalo' | 'telegram' | 'whatsapp'>> = {
+  'zalo-oa': 'zalo',
+  telegram: 'telegram',
+  whatsapp: 'whatsapp',
+}
 
 export type BarContact = CommContact & {
   primary?: boolean
@@ -60,12 +70,15 @@ export function ActionBar({
   onCompose,
   mailBlocked,
   more = [],
+  extra,
   primary,
 }: {
   /** Names the group for a screen reader. */
   label: string
   /** The more menu — not drawn when empty. */
   more?: MenuChoice[]
+  /** A screen's own control, drawn before the more menu — the run overview's key. */
+  extra?: ReactNode
   /** The screen's one main move, drawn after everything else. */
   primary?: { label: string; icon?: IconGlyph; onClick: () => void }
 } & Reach) {
@@ -74,7 +87,7 @@ export function ActionBar({
   const choicesOf = useContactChoices(subject, people ?? [], mailBlocked, (channel, contact) =>
     setAsking({ channel, contact }),
   )
-  if (people === null && more.length === 0 && !primary) return null
+  if (people === null && more.length === 0 && !primary && !extra) return null
 
   /* Above the bottom nav under `lg`; clear of the assistant button above it.
      `data-action-bar` tells the shell a bar drew, so it keeps the room. */
@@ -86,13 +99,15 @@ export function ActionBar({
       <div
         role="group"
         aria-label={label}
-        className="glass-overlay pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
+        className="glass-dock pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
       >
         {people !== null && (
           <>
             <div className="sm:hidden">
               <MenuButton
                 up
+                size="md"
+                className="pointer-coarse:h-12"
                 label="Liên hệ"
                 icon={Contact}
                 ariaLabel="Liên hệ — chọn cách và người liên hệ"
@@ -104,9 +119,10 @@ export function ActionBar({
                           ...c,
                           key: `${channel}-${c.key}`,
                           label: (
-                            <>
+                            <span className="flex items-center gap-2">
+                              {BRAND[channel] && <BrandMark brand={BRAND[channel]} size={20} />}
                               {verb} · {c.label}
-                            </>
+                            </span>
                           ),
                         })),
                       )
@@ -114,23 +130,33 @@ export function ActionBar({
               />
             </div>
             <div className="hidden sm:contents">
-              {CHANNELS.map(({ channel, label: verb }) => (
-                <MenuButton
-                  key={channel}
-                  up
-                  label={verb}
-                  icon={COMMS_CHANNEL_ICON[channel]}
-                  ariaLabel={`${verb} — chọn người liên hệ`}
-                  choices={choicesOf(channel)}
-                />
-              ))}
+              {CHANNELS.map(({ channel, label: verb }) => {
+                const brand = BRAND[channel]
+                return (
+                  <MenuButton
+                    key={channel}
+                    up
+                    size="md"
+                    className={cn('pointer-coarse:h-12', brand && 'pointer-coarse:w-12 w-10 px-0')}
+                    label={brand ? null : verb}
+                    title={brand ? verb : undefined}
+                    mark={brand && <BrandMark brand={brand} size={20} />}
+                    icon={COMMS_CHANNEL_ICON[channel]}
+                    ariaLabel={`${verb} — chọn người liên hệ`}
+                    choices={choicesOf(channel)}
+                  />
+                )
+              })}
             </div>
           </>
         )}
+        {extra}
         {more.length > 0 && (
           <MenuButton
             up
             align="right"
+            size="md"
+            className="pointer-coarse:h-12"
             label="Khác"
             icon={ChevronDown}
             ariaLabel="Thao tác khác"
@@ -138,7 +164,7 @@ export function ActionBar({
           />
         )}
         {primary && (
-          <Button size="lg" onClick={primary.onClick}>
+          <Button size="md" className="pointer-coarse:h-12" onClick={primary.onClick}>
             {primary.icon && <Icon icon={primary.icon} size={16} />}
             {primary.label}
           </Button>

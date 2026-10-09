@@ -24,6 +24,8 @@ export type MenuChoice = {
 export function MenuButton({
   label,
   icon,
+  mark,
+  title,
   ariaLabel,
   choices,
   up = false,
@@ -34,6 +36,10 @@ export function MenuButton({
 }: {
   label: ReactNode
   icon?: IconGlyph
+  /** A brand logo instead of a stroke icon — wins over `icon`. */
+  mark?: ReactNode
+  /** Hover text for a button that shows no words. */
+  title?: string
   ariaLabel?: string
   choices: MenuChoice[]
   /** Open above the button — for a bar pinned to the bottom of the screen. */
@@ -92,11 +98,12 @@ export function MenuButton({
         variant={variant}
         className={className}
         aria-label={ariaLabel}
+        title={title}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
       >
-        {icon && <Icon icon={icon} size={16} />}
+        {mark ?? (icon && <Icon icon={icon} size={16} />)}
         {label}
       </Button>
       {open && (

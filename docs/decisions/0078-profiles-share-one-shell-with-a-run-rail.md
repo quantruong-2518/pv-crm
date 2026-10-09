@@ -16,6 +16,8 @@ books were unified the same way earlier in `apps/web/src/components/book-page.ts
 
 ### 1 · One shell
 
+Amended by ADR 0081: the floating bar also holds Telegram and WhatsApp.
+
 Lead, opportunity, contract and workstream profiles share one shell. Campaign,
 account and contact use it without the run parts (no run strip, no run rail,
 only their own rail). A company's rail is the list of its runs.
@@ -35,6 +37,8 @@ only their own rail). A company's rail is the list of its runs.
   geometry.
 
 ### 2 · What it replaces in 0077 §6
+
+Amended by ADR 0081: the floating bar also holds Telegram and WhatsApp.
 
 - Comms history is a fixed rail block on every profile, not only in the
   workstream drawer.

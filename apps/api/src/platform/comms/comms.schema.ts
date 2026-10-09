@@ -86,7 +86,7 @@ export const identity = comms.table(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    /** `$type` rather than a second spelling of the five members: the union
+    /** `$type` rather than a second spelling of the six members: the union
      *  lives in `contracts/src/comms/identity.ts` and the CHECK below is the
      *  only other place the values appear. A third copy here is the drift the
      *  CHECK exists to prevent. Same for `side`. */
@@ -125,13 +125,13 @@ export const identity = comms.table(
      *  table read overwhelmingly by address. Whoever adds that screen adds the
      *  index in the same migration as the question. */
     index('identity_object_idx').on(t.objectCode),
-    /** The five members of `CommsChannel`, copied out by hand rather than
-     *  generated. The day a sixth channel is added, that has to be a migration
-     *  somebody reads — a generated list would let the fence widen in a diff
-     *  nobody opens. */
+    /** The six members of `CommsChannel`, copied out by hand rather than
+     *  generated. The day a channel is added, that has to be a migration
+     *  somebody reads (0092 added 'whatsapp') — a generated list would let the
+     *  fence widen in a diff nobody opens. */
     check(
       'identity_channel_known',
-      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'phone', 'in-app')`,
+      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'whatsapp', 'phone', 'in-app')`,
     ),
     /** The same pair `meeting_attendee.side` uses, deliberately: two meetings
      *  with one person must not become two vocabularies. */
@@ -227,12 +227,12 @@ export const thread = comms.table(
      *  sit side by side without colliding. The constraint only bites once a
      *  door actually reads an id off the wire. */
     unique('thread_channel_external_unique').on(t.channel, t.externalId),
-    /** The six members of `ThreadChannel`, copied out by hand rather than
+    /** The seven members of `ThreadChannel`, copied out by hand rather than
      *  generated — the same reason `identity_channel_known` is: the day a
-     *  channel is added that has to be a migration a person reads (0075 did). */
+     *  channel is added that has to be a migration a person reads (0075, 0092). */
     check(
       'thread_channel_known',
-      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'phone', 'in-app', 'meeting')`,
+      sql`"channel" IN ('email', 'zalo-oa', 'telegram', 'whatsapp', 'phone', 'in-app', 'meeting')`,
     ),
     check('thread_state_known', sql`"state" IN ('open', 'archived')`),
     /** An empty string is not a missing subject and not an empty external id —

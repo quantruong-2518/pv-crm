@@ -52,6 +52,7 @@ const CHANNEL_TONE: Record<ThreadChannel, string> = {
   'zalo-oa': 'bg-success/20 text-on-tint-success',
   email: 'bg-surface-ink/9 text-muted-foreground',
   telegram: 'bg-surface-ink/9 text-muted-foreground',
+  whatsapp: 'bg-surface-ink/9 text-muted-foreground',
   'in-app': 'bg-surface-ink/9 text-muted-foreground',
 }
 

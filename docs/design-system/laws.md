@@ -52,7 +52,10 @@ Breaking one of these is a PR reject.
     object of the story currently open, dim-white chip = related object.
 11. **Icons**: Hugeicons Stroke Rounded, stroke 1.75, size 16 in buttons / 20
     in nav. Every glyph goes through the `Icon` gateway of `@pv/ui`; no filled
-    icons, no emoji.
+    icons, no emoji. **Single exception**: `BrandMark` (A-25), a filled inline
+    SVG, draws only the three chat-app logos (Zalo, Telegram, WhatsApp) on the
+    contact bar's buttons (0081), in one color — the text color; nothing else
+    may use `BrandMark`.
 12. **Screen background** is exactly 1 layer: the aurora glow — three points
     (`--aurora-1/2/3`) across the top 420px, masked downwards, opacity .55 —
     over `--background`. Gradient is light, never pattern: no grid, no grain,

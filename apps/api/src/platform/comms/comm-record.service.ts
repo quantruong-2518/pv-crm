@@ -9,7 +9,7 @@ import { DebriefRepository } from './debrief.repository'
 import { ThreadRepository } from './thread.repository'
 
 /** Opens a comm record — a thread, one empty logged turn and the owner's open
- *  debrief — for the call / Zalo / mail buttons, the mobile log and a meeting
+ *  debrief — for the call / chat / mail buttons, the mobile log and a meeting
  *  the moment it is booked (ADR 0075 §3). All rows and the audit line commit
  *  together. A booked meeting's record carries only the `booked` mark: its
  *  slot and title stay on `sales.meeting` (0084), read through the hook.
@@ -197,16 +197,17 @@ export class CommRecordService {
     }
   }
 
-  /** The customer's identity for this turn, or the guest row to mint. Zalo
-   *  falls back to the PHONE channel: an OA address is a platform user id only
-   *  a webhook knows, and a party on another channel than its thread is allowed. */
+  /** The customer's identity for this turn, or the guest row to mint. Zalo,
+   *  Telegram and WhatsApp fall back to the PHONE channel: a chat address is a
+   *  platform user id only a webhook knows, and a party on another channel than
+   *  its thread is allowed. */
   private async guestOf(
     channel: ThreadChannel,
     person: CommContact,
   ): Promise<{ id: string } | NewIdentity> {
     const known =
       (await this.threads.guestIdentity(person.code, channel === 'meeting' ? null : channel)) ??
-      (channel === 'zalo-oa' ? await this.threads.guestIdentity(person.code, 'phone') : null)
+      (CHAT_ON_PHONE.has(channel) ? await this.threads.guestIdentity(person.code, 'phone') : null)
     if (known) return known
     const mint = mintFor(channel, person)
     const taken = await this.threads.identityByAddress(mint.channel, mint.address)
@@ -250,7 +251,10 @@ export class CommRecordService {
   }
 }
 
-/** The address to mint: a phone for a call or Zalo (on the phone channel),
+/** Chats a button opens from the contact's phone number: no handle is stored. */
+const CHAT_ON_PHONE = new Set<ThreadChannel>(['zalo-oa', 'telegram', 'whatsapp'])
+
+/** The address to mint: a phone for a call or chat (on the phone channel),
  *  the mailbox for mail, either for a meeting. Refuses when the person has none. */
 function mintFor(channel: ThreadChannel, contact: CommContact): Mint {
   const byMail = channel === 'email' || (channel === 'meeting' && !contact.phone)
