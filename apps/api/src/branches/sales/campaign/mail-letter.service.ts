@@ -46,14 +46,16 @@ import { eventKeyOf, mergeOf, previewFrame } from './mas.service'
 type Judged = { contact: LetterContact; block?: MailGroupBlock }
 
 /** Whose mailbox a letter leaves from. `displayFrom` is the header value frozen
- *  on the run; `usedToday`/`remainingToday` are the Gmail allowance, null on Resend. */
+ *  on the run; `usedToday`/`remainingToday` are the Gmail allowance, null on Resend.
+ *  `unready` = the own mailbox was asked for and has no ready link: the shared
+ *  identity is carried so a preview can render, and a send must refuse. */
 type Sender = {
   transport: MailTransport
   address: string
   displayFrom: string
   usedToday: number | null
   remainingToday: number | null
-  mustConnect: boolean
+  unready: boolean
 }
 
 /** A door's label as it reads mid-sentence in a problem title: lower case. */
@@ -92,16 +94,13 @@ export class MailLetterService {
   ): Promise<MailGroupPreflightResponse> {
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
     const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
-    const sender = await this.senderFor(this.repo.readonlyHandle, who, new Date(), false)
+    const own = await this.senderFor(this.repo.readonlyHandle, who, 'gmail', new Date(), false)
     return MailGroupPreflightResponse.parse({
       recipients: judged.map(toRecipient),
       sendable: judged.filter((j) => !j.block).length,
       blocked: judged.filter((j) => j.block).length,
       sender: {
-        transport: sender.transport,
-        address: sender.address,
-        remainingToday: sender.remainingToday,
-        mustConnect: sender.mustConnect,
+        personal: own.unready ? null : { address: own.address, remaining: own.remainingToday ?? 0 },
       },
     })
   }
@@ -113,8 +112,15 @@ export class MailLetterService {
     const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
     const first = (judged.find((j) => !j.block) ?? judged[0])?.contact
     /* The frame reads its identity from the env's MAS From — hand it the
-       sender this letter will really carry, so preview and send agree. */
-    const sender = await this.senderFor(this.repo.readonlyHandle, who, new Date(), false)
+       sender this letter will really carry, so preview and send agree. An
+       unready own mailbox previews as shared: only send refuses it. */
+    const sender = await this.senderFor(
+      this.repo.readonlyHandle,
+      who,
+      body.transport,
+      new Date(),
+      false,
+    )
     const frame = previewFrame({ ...this.env, PV_EMAIL_MAS_FROM: sender.displayFrom })
 
     const letter = await renderMasLetter({
@@ -176,16 +182,17 @@ export class MailLetterService {
         )
       }
 
-      const sender = await this.senderFor(tx, who, scheduledAt ?? new Date(), true)
-      if (sender.mustConnect) {
+      const sender = await this.senderFor(tx, who, body.transport, scheduledAt ?? new Date(), true)
+      /* Never fall back to shared here: the person chose who the letter is from. */
+      if (sender.unready) {
         throw conflict(
-          'Thư từ hồ sơ phải gửi từ hộp thư của chính bạn. Kết nối tài khoản Google công ty rồi gửi lại.',
+          'Chưa kết nối được hộp thư của bạn — kết nối tài khoản Google công ty, hoặc chọn gửi từ hộp thư chung.',
         )
       }
       const limit = this.env.PV_GMAIL_DAILY_ADDRESS_MAX
       if (sender.usedToday !== null && sender.usedToday + addresses.length > limit) {
         throw conflict(
-          `Hộp thư Gmail của bạn đã gửi tới ${sender.usedToday}/${limit} địa chỉ trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ ${scheduledAt ? 'quanh giờ hẹn gửi' : 'qua'} — thư này có ${addresses.length} địa chỉ, vượt giới hạn.`,
+          `Hộp thư của bạn đã gửi tới ${sender.usedToday}/${limit} địa chỉ trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ ${scheduledAt ? 'quanh giờ hẹn gửi' : 'gần nhất'} — thư này có ${addresses.length} địa chỉ, vượt hạn mức.`,
         )
       }
 
@@ -246,23 +253,22 @@ export class MailLetterService {
     return reply(queued.mailRunId, queued.toCount, body.to.length, state)
   }
 
-  /** The one answer to "whose mailbox": Gmail exactly when the actor's Google
-   *  link is `ready`, else the shared MAS identity as before. Preflight,
-   *  preview and send all ask here. `lock` (send only, inside its transaction)
-   *  queues this actor's sends so the allowance is read after the previous one. */
-  private async senderFor(handle: Db, who: Actor, at: Date, lock: boolean): Promise<Sender> {
+  /** The one answer to "whose mailbox", for preflight, preview and send. The
+   *  sender picks (`wanted`); absent = the rule before the choice existed (own
+   *  mailbox when the link is ready, else shared). Own mailbox asked for
+   *  without a ready link comes back shared and `unready`. `lock` (send only,
+   *  in its transaction) queues this actor's sends so the allowance is read
+   *  after the previous one. */
+  private async senderFor(
+    handle: Db,
+    who: Actor,
+    wanted: MailTransport | undefined,
+    at: Date,
+    lock: boolean,
+  ): Promise<Sender> {
+    if (wanted === 'resend') return this.sharedSender()
     const link = await this.google.mailReadiness(who.id)
-    if (link?.readiness !== 'ready') {
-      const displayFrom = this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM
-      return {
-        transport: 'resend',
-        address: senderOf(displayFrom, '').address,
-        displayFrom,
-        usedToday: null,
-        remainingToday: null,
-        mustConnect: this.env.PV_PERSONAL_MAIL_REQUIRED,
-      }
-    }
+    if (link?.readiness !== 'ready') return { ...this.sharedSender(), unready: wanted === 'gmail' }
     const usedToday = await this.repo.gmailAddressesUsed(handle, who.id, at, lock)
     return {
       transport: 'gmail',
@@ -270,7 +276,20 @@ export class MailLetterService {
       displayFrom: `"${headerName(who.name)}" <${link.email}>`,
       usedToday,
       remainingToday: Math.max(0, this.env.PV_GMAIL_DAILY_ADDRESS_MAX - usedToday),
-      mustConnect: false,
+      unready: false,
+    }
+  }
+
+  /** The shared system mailbox — the identity every group letter had before. */
+  private sharedSender(): Sender {
+    const displayFrom = this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM
+    return {
+      transport: 'resend',
+      address: senderOf(displayFrom, '').address,
+      displayFrom,
+      usedToday: null,
+      remainingToday: null,
+      unready: false,
     }
   }
 

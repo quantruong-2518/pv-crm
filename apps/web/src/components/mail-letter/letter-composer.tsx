@@ -18,7 +18,7 @@ import { doorTemplatesQuery } from '@/data/mas'
 import type { EventOffer } from '@/data/opportunities'
 import { LetterContentCard, LetterPreviewColumn } from './letter-content'
 import { LetterFooter } from './letter-footer'
-import { useLetterForm } from './letter-form-state'
+import { useLetterForm, useLetterSender } from './letter-form-state'
 import {
   letterBlocker,
   letterCta,
@@ -72,14 +72,16 @@ export function LetterComposer({
   const { data: catalogue } = useQuery(doorTemplatesQuery(door))
   const send = useLetterSend()
   const templates = useMemo(() => (catalogue?.rows ?? []).filter((t) => t.active), [catalogue])
-  const { form, setForm, dirty } = useLetterForm(door, templates, catalogue !== undefined)
+  const { form, setForm } = useLetterForm(door, templates, catalogue !== undefined)
+
+  const from = useLetterSender(preflight, form.timing === 'later')
+  const transport = from.transport
 
   const cta = letterCta(form)
   const ready = people.addressing !== null && letterWritten(form)
+  const letter = { subject: form.subject, body: form.body, ...(cta ? { cta } : {}) }
   const preview = useLetterPreview(
-    ready && people.addressing
-      ? { ...people.addressing, subject: form.subject, body: form.body, ...(cta ? { cta } : {}) }
-      : null,
+    ready && people.addressing && transport ? { ...people.addressing, ...letter, transport } : null,
   )
   const hints = withGroupHint(
     mailHints({
@@ -92,12 +94,7 @@ export function LetterComposer({
     form.body,
   )
 
-  const blocker = letterBlocker(
-    form,
-    toCodes.length,
-    report?.sendable,
-    preflight.sender?.mustConnect,
-  )
+  const blocker = letterBlocker(form, toCodes.length, report?.sendable, from.fault)
   const fault = failure || preflight.error
   const message =
     fault ||
@@ -107,7 +104,7 @@ export function LetterComposer({
   const badge = <ToBadge checking={preflight.checking} report={report} />
 
   const submit = async () => {
-    if (blocker || !report || send.isPending) return
+    if (blocker || !report || !transport || send.isPending) return
     setFailure('')
     try {
       const result = await send.mutateAsync({
@@ -117,9 +114,8 @@ export function LetterComposer({
         to: toCodes,
         ccActorIds: people.ccIds,
         ...(form.templateCode ? { templateCode: form.templateCode } : {}),
-        subject: form.subject,
-        body: form.body,
-        ...(cta ? { cta } : {}),
+        ...letter,
+        transport,
         ...(form.timing === 'later' ? { scheduledAt: new Date(form.at).toISOString() } : {}),
       })
       const said = queuedToast(result.state, form.at)
@@ -144,7 +140,7 @@ export function LetterComposer({
             warn={Boolean(fault) || (!preflight.checking && Boolean(blocker))}
             form={form}
             setTiming={(timing, at) => setForm((f) => ({ ...f, timing, at }))}
-            sendDisabled={Boolean(blocker) || !report || send.isPending}
+            sendDisabled={Boolean(blocker) || !report || !transport || send.isPending}
             sending={send.isPending}
             aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}
             {...(preflight.error ? { onRetryCheck: preflight.retry } : {})}
@@ -159,7 +155,7 @@ export function LetterComposer({
               Không đọc được danh bạ liên hệ của khách này — chưa thêm người nhận được.
             </p>
           )}
-          <LetterSenderLine sender={preflight.sender} dirty={dirty} />
+          <LetterSenderLine line={from.line} />
           <RecipientsCard
             cells={cells}
             cc={cc}
@@ -176,7 +172,7 @@ export function LetterComposer({
             <LetterContentCard door={door} form={form} setForm={setForm} templates={templates} />
             <LetterPreviewColumn
               ready={ready}
-              transport={preflight.sender?.transport}
+              {...(from.shown ? { transport: from.shown } : {})}
               letter={preview.letter}
               pending={preview.pending}
               error={preview.error}

@@ -121,7 +121,8 @@ export function LetterPreviewColumn({
   cc,
 }: {
   ready: boolean
-  /** Where a reply lands differs by pipe, so the caption does too. */
+  /** The mailbox the letter will leave from; absent while that is not known
+   *  or the chosen one cannot send — then no mailbox and no reply line is shown. */
   transport?: MailTransport
   letter?: MasPreviewResponse
   pending: boolean
@@ -142,14 +143,16 @@ export function LetterPreviewColumn({
       pending={pending}
       error={error}
       envelope={[
-        { label: 'Từ', value: letter?.from ?? '—' },
+        { label: 'Từ', value: (transport && letter?.from) || '—' },
         { label: 'Tới', value: to.map((person) => person.name).join(', ') || '—' },
         { label: 'CC', value: addresseeLine([...cc, { email: SALES_INBOX }]) },
       ]}
-      caption={`Thư nhóm: mọi người trong To và CC nhận cùng một bản. ${
+      caption={`Thư nhóm: mọi người trong To và CC nhận cùng một bản.${
         transport === 'gmail'
-          ? 'Khách trả lời vào hộp thư của bạn; hệ thống ghi nhận “đã trả lời” sau vài phút.'
-          : 'Khách bấm Trả lời thì máy ghi nhận và báo người giữ.'
+          ? ' Khách trả lời vào hộp thư của bạn; hệ thống tự ghi nhận “Đã trả lời”.'
+          : transport === 'resend'
+            ? ' Thư trả lời của khách không về hộp thư của bạn.'
+            : ''
       }`}
     />
   )

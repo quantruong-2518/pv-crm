@@ -1,75 +1,30 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Button, Icon, Modal, Plug } from '@pv/ui'
-import {
-  COMPANY_MAIL_DOMAIN,
-  MAIL_PERSONAL_WINDOW_HOURS,
-  type GoogleLinkStatus,
-  type MailGroupPreflightResponse,
-} from '@pv/contracts'
+import { Button, Icon, Modal, Plug, SegmentedControl } from '@pv/ui'
+import type { MailTransport } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
-import { googleLinkQuery, useConnectGoogle } from '@/data/google'
+import { useConnectGoogle } from '@/data/google'
+import type { useLetterSender } from './letter-form-state'
+import { allowanceLeft } from './letter-model'
 
-/** The composer's one statement of which mailbox the letter leaves from.
+/** Which mailbox the letter leaves from — the person's choice (owner decision),
+ *  not a server rule: the shared system mailbox or their own company Gmail.
  *
- *  It names the kind of mailbox, not the address: the address is the preview
- *  envelope's, and a fact sits in one place. The kind is the server's (`sender`
- *  of the preflight), never derived here. The link status only picks the
- *  sentence that says why a letter is still on the shared mailbox, and it is
- *  waited for so the line does not grow a prompt after it appears. No Google
- *  client on the server = no prompt (`GoogleLinkLine`). `mustConnect` swaps
- *  the shared-mailbox sentence for the rule; the footer blocks Send.
+ *  Each fact has one place: the address is the preview envelope's, where a
+ *  reply lands is the preview caption's, and why the own mailbox cannot send
+ *  is the footer's (it is what shuts Send). This row is the choice, the
+ *  allowance left, and the button that fixes a link. Own-but-not-linked stays
+ *  selectable so the person sees why rather than a dead option.
  *
- *  Connecting is a full navigation to Google, so a written letter is lost:
- *  `dirty` puts a confirmation in front of it. */
-
-type Prompt = { why: string; action: string }
-
-const OWN_MAILBOX = 'để thư gửi từ hộp thư của chính bạn'
-const CONNECT = 'Kết nối tài khoản Google'
-const RECONNECT = 'Kết nối lại tài khoản Google'
-
-function promptOf(link: GoogleLinkStatus): Prompt | null {
-  if (!link.connected) {
-    return {
-      why: `Kết nối tài khoản Google công ty (@${COMPANY_MAIL_DOMAIN}) ${OWN_MAILBOX}.`,
-      action: CONNECT,
-    }
-  }
-  const linked = `Tài khoản Google đã kết nối${link.email ? ` (${link.email})` : ''}`
-  if (link.mail === 'needs_consent') {
-    return {
-      why: `${linked} chưa cấp quyền gửi thư qua Gmail. Kết nối lại và cấp quyền ${OWN_MAILBOX}.`,
-      action: RECONNECT,
-    }
-  }
-  if (link.mail === 'wrong_domain') {
-    return {
-      why: `${linked} không phải tài khoản @${COMPANY_MAIL_DOMAIN}. Kết nối lại bằng tài khoản công ty ${OWN_MAILBOX}.`,
-      action: RECONNECT,
-    }
-  }
-  return null
-}
-
-export function LetterSenderLine({
-  sender,
-  dirty,
-}: {
-  sender?: MailGroupPreflightResponse['sender']
-  /** The letter holds text the person wrote; leaving would lose it. */
-  dirty: boolean
-}) {
-  const link = useQuery(googleLinkQuery())
+ *  Connecting is a full navigation to Google that comes back to the home
+ *  screen, so the letter is lost: it is always confirmed first. */
+export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSender>['line'] }) {
   const connect = useConnectGoogle()
   const [asking, setAsking] = useState(false)
 
-  const known = sender && !link.isPending
-  const own = sender?.transport === 'gmail'
-  const prompt = known && !own && link.data?.configured ? promptOf(link.data) : null
-  const left = sender?.remainingToday ?? null
-
+  if (line.value === null) {
+    return line.reserve ? <div className="pointer-coarse:min-h-14 min-h-10" /> : null
+  }
   const go = () =>
     connect.mutate(undefined, {
       onError: (error) =>
@@ -80,60 +35,53 @@ export function LetterSenderLine({
     })
 
   return (
-    /* The row keeps its height while nothing is known, so the card below does not jump. */
-    <div className="flex min-h-5 min-w-0 flex-wrap items-center justify-between gap-2">
-      {known && (
-        <p className="text-muted-foreground m-0 min-w-0 flex-1 basis-64 text-[12px] leading-5">
-          {own
-            ? 'Thư gửi từ hộp thư của bạn'
-            : sender.mustConnect
-              ? 'Thư từ hồ sơ chỉ gửi được từ hộp thư của chính bạn'
-              : 'Thư gửi từ hộp thư chung'}
-          {left !== null && ' · '}
-          {left !== null &&
-            (left === 0 ? (
-              <span className="text-warning tnum">
-                {`đã hết hạn mức gửi trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ gần nhất`}
-              </span>
-            ) : (
-              <span className="tnum">
-                {`trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ gần nhất còn gửi được tới ${left} địa chỉ (tính cả To và CC)`}
-              </span>
-            ))}
-          {prompt && ` · ${prompt.why}`}
+    <div className="pointer-coarse:min-h-14 flex min-h-10 min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+      <SegmentedControl
+        label="Gửi từ"
+        value={line.value}
+        onChange={(value) => line.pick(value as MailTransport)}
+        options={[
+          { value: 'resend', label: 'Hộp thư chung' },
+          { value: 'gmail', label: 'Hộp thư của tôi' },
+        ]}
+      />
+      {line.remaining !== null && (
+        <p className="text-muted-foreground tnum m-0 min-w-0 flex-1 basis-64 text-[12px] leading-5">
+          {allowanceLeft(line.remaining)}
         </p>
       )}
-      {prompt && (
+      {line.action && (
         <Button
           type="button"
           size="sm"
           variant="secondary"
           className="pointer-coarse:h-12 shrink-0"
           disabled={connect.isPending}
-          onClick={() => (dirty ? setAsking(true) : go())}
+          onClick={() => setAsking(true)}
         >
           <Icon icon={Plug} size={16} />
-          {prompt.action}
+          {line.action}
         </Button>
       )}
       <Modal
         open={asking}
         onClose={() => setAsking(false)}
         className="h-auto sm:h-auto sm:max-w-[480px]"
-        title={CONNECT}
+        title={line.action ?? ''}
         footer={
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button size="lg" variant="ghost" type="button" onClick={() => setAsking(false)}>
-              Ở lại
+              Tiếp tục soạn thư
             </Button>
             <Button size="lg" type="button" disabled={connect.isPending} onClick={go}>
-              Rời màn hình
+              Kết nối, bỏ thư đang soạn
             </Button>
           </div>
         }
       >
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-          Kết nối tài khoản Google sẽ rời màn hình này, thư đang soạn sẽ mất.
+          Trang kết nối Google mở thay cho màn hình này và quay về trang chủ. Thư đang soạn không
+          được lưu.
         </p>
       </Modal>
     </div>

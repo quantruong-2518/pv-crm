@@ -18,14 +18,14 @@ sender.
 
 - System/transactional on `notify.` and bulk MAS on `go.` — both through
   Resend, unchanged.
-- The group letter leaves through the salesperson's OWN company Gmail mailbox
-  (Gmail API on the existing per-person Google link) when that link is ready;
-  otherwise it stays on the shared Resend sender as before.
-  With `PV_PERSONAL_MAIL_REQUIRED` on there is no "otherwise": a person with
-  no ready link cannot send a letter from a record at all (owner decision
-  09/10/2026 — a 1-to-1 letter under the shared sender's name is the thing
-  this ADR exists to end). The switch defaults off only so the shared sender
-  keeps working until the Google consent is live.
+- The group letter leaves from the mailbox its sender CHOOSES in the
+  composer: the shared Resend sender, or the salesperson's OWN company Gmail
+  mailbox (Gmail API on the existing per-person Google link). The own mailbox
+  is the default once that link is ready. Choosing it without a ready link is
+  refused, never downgraded to the shared sender — the person said who the
+  letter is from. (Owner decision 09/10/2026; a short-lived switch that
+  forbade the shared sender altogether was removed the same day in favour of
+  the choice.)
 - Bulk never goes through Gmail.
 
 ### 2 · "Ready"

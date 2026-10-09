@@ -1,5 +1,8 @@
 import {
+  COMPANY_MAIL_DOMAIN,
+  MAIL_PERSONAL_WINDOW_HOURS,
   MAS_RECIPIENT_BLOCK_LABEL,
+  type GoogleLinkStatus,
   type MailGroupPreflightResponse,
   type MailGroupRecipient,
   type MailGroupSendRequest,
@@ -59,21 +62,16 @@ export function letterCta(form: LetterForm): MailGroupSendRequest['cta'] {
 export const letterWritten = (form: LetterForm) =>
   form.subject.trim() !== '' && form.body.trim() !== ''
 
-/** The letter holds text the person wrote: something is there and it is not
- *  the template the composer seeded (`null` = nothing seeded yet). */
-export const letterDirty = (form: LetterForm, seed: LetterForm | null) =>
-  (form.subject !== '' || form.body !== '') &&
-  (form.subject !== seed?.subject || form.body !== seed.body)
-
 /** Why Send is shut, in one sentence; `null` = only the server's verdict is
  *  still owed. Order follows what a person fixes first. */
 export function letterBlocker(
   form: LetterForm,
   picked: number,
   sendable?: number,
-  mustConnect?: boolean,
+  /** Why the chosen mailbox cannot send this letter (`senderFault`). */
+  senderFault?: string,
 ): string | null {
-  if (mustConnect) return 'Kết nối tài khoản Google công ty trước khi gửi.'
+  if (senderFault) return senderFault
   if (picked === 0) return 'Chưa có ai trong To.'
   if (sendable === 0) return 'Chưa có ai trong To nhận được thư.'
   const gaps = [
@@ -186,3 +184,41 @@ export const LETTER_TONE: Record<
 /** Names, not addresses, where the ledger has one — the address is the title. */
 export const addresseeLine = (list: readonly { name?: string; email: string }[]) =>
   list.map((a) => a.name ?? a.email).join(', ')
+
+// ---------------------------------------------------------------------------
+// The sender choice — why the own mailbox cannot send, and what to press
+// ---------------------------------------------------------------------------
+
+export const CONNECT_GOOGLE = 'Kết nối tài khoản Google'
+export const RECONNECT_GOOGLE = 'Kết nối lại tài khoản Google'
+
+const NOT_YET = 'nên chưa gửi được từ hộp thư của bạn.'
+
+/** The footer's reason and the row's button for an own mailbox the server
+ *  will not send from. The last branch is a link the status read calls ready
+ *  (or could not read) while the server does not — a token revoked mid-day:
+ *  it still names an action, so Send is never shut with nothing to press. */
+export function unreadySender(link: GoogleLinkStatus | undefined): {
+  fault: string
+  action: string
+} {
+  if (link && !link.connected) {
+    return {
+      fault: `Chưa kết nối tài khoản Google công ty (@${COMPANY_MAIL_DOMAIN}) ${NOT_YET}`,
+      action: CONNECT_GOOGLE,
+    }
+  }
+  const linked = `Tài khoản Google đã kết nối${link?.email ? ` (${link.email})` : ''}`
+  const why =
+    link?.mail === 'needs_consent'
+      ? `${linked} chưa cấp quyền gửi thư qua Gmail ${NOT_YET}`
+      : link?.mail === 'wrong_domain'
+        ? `${linked} không phải tài khoản @${COMPANY_MAIL_DOMAIN} ${NOT_YET}`
+        : 'Tài khoản Google đã kết nối chưa gửi được thư. Kết nối lại để gửi từ hộp thư của bạn.'
+  return { fault: why, action: RECONNECT_GOOGLE }
+}
+
+export const ALLOWANCE_SPENT = `Hộp thư của bạn đã hết hạn mức gửi trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ gần nhất.`
+
+export const allowanceLeft = (remaining: number) =>
+  `Trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ gần nhất còn gửi được tới ${remaining} địa chỉ (tính cả To và CC)`

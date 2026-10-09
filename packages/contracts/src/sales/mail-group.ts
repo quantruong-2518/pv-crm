@@ -10,7 +10,7 @@ import {
   MasSendResponse,
   mailBody,
 } from './mail'
-import { MailSubjectKind, MailTransport } from './mail-door'
+import { MailSubjectKind, MailTransport, SALES_INBOX } from './mail-door'
 
 /** Group mail — ONE letter every recipient sees in To/CC, from a detail door.
  *
@@ -79,17 +79,21 @@ export const MailGroupPreflightResponse = z.object({
   recipients: z.array(MailGroupRecipient),
   sendable: z.number().int().nonnegative(),
   blocked: z.number().int().nonnegative(),
-  /** The mailbox the letter will show as From; the client never picks it.
-   *  `remainingToday` is the Gmail daily address allowance, null on Resend. */
+  /** The sender's own mailbox, as an alternative to the shared one. `personal`
+   *  is null until their company Gmail link is ready — the composer still
+   *  offers the choice, then asks for the link instead of sending. `remaining`
+   *  is the Gmail address allowance left in the rolling window. */
   sender: z.object({
-    transport: MailTransport,
-    address: z.string().min(1),
-    remainingToday: z.number().int().min(0).nullable(),
-    /** The server will refuse this letter until the sender links a company
-     *  Gmail (`PV_PERSONAL_MAIL_REQUIRED`); the composer blocks Send on it. */
-    mustConnect: z.boolean(),
+    personal: z
+      .object({ address: z.string().min(1), remaining: z.number().int().min(0) })
+      .nullable(),
   }),
 })
+
+/** Which mailbox the sender picked. Absent = the rule before the choice
+ *  existed (own mailbox when ready, else shared), so a composer cached across
+ *  a deploy keeps sending. */
+const chosenTransport = MailTransport.optional()
 
 export const MailGroupSendRequest = MailGroupAddressing.extend({
   /** Minted by the composer when it opens; a retried POST with the same id
@@ -104,9 +108,10 @@ export const MailGroupSendRequest = MailGroupAddressing.extend({
   cta: MailCta.optional(),
   /** Absent = send now. Compared against the server's clock, not here. */
   scheduledAt: Moment.optional(),
+  transport: chosenTransport,
 })
   .refine((v) => v.to.length + v.ccActorIds.length + 1 <= MAIL_GROUP_MAX_ADDRESSES, {
-    message: `Một thư tối đa ${MAIL_GROUP_MAX_ADDRESSES} địa chỉ, tính cả hộp thư chung`,
+    message: `Một thư tối đa ${MAIL_GROUP_MAX_ADDRESSES} địa chỉ, tính cả ${SALES_INBOX}`,
     path: ['to'],
   })
   .refine(fitsDoor, DOOR_MISMATCH)
@@ -118,6 +123,7 @@ export const MailGroupPreviewRequest = MailGroupAddressing.extend({
   subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
   cta: MailCta.optional(),
+  transport: chosenTransport,
 }).refine(fitsDoor, DOOR_MISMATCH)
 
 /** `skipped` counts the blocked `to` contacts the send re-checked and dropped. */

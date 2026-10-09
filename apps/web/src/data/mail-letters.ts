@@ -147,6 +147,7 @@ function useSettledPost<T>(path: string, body: object | null, fallback: string) 
   return {
     value: current?.value,
     last: answer?.value,
+    lastKey: answer?.key,
     error: current?.error ?? '',
     pending: key !== '' && !current,
     retry: () => {
@@ -182,7 +183,14 @@ export function useLetterPreview(body: MailGroupPreviewRequest | null) {
     body,
     'Không dựng được bản xem trước.',
   )
-  return { letter: answer.value ?? answer.last, error: answer.error, pending: answer.pending }
+  /* The envelope names a mailbox: an answer for the other mailbox must not
+     stand in after the choice is toggled. */
+  const same = answer.lastKey && JSON.parse(answer.lastKey).transport === body?.transport
+  return {
+    letter: answer.value ?? (same ? answer.last : undefined),
+    error: answer.error,
+    pending: answer.pending,
+  }
 }
 
 /** File the run and queue the one letter. Resolves to QUEUED, never to sent —
