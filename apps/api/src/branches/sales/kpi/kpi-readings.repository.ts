@@ -73,10 +73,10 @@ const onLane = (lane: 'BD' | 'SALE' | null, date: SQL, value: SQL): Fragment => 
 
 /** A lead "reaches" an actor at the first hand-over to them, else at the
  *  `created` touch naming them, else at its creation when they hold it. A lead
- *  not answered yet counts with `now − reach`: ignoring one must not improve
- *  the figure. */
+ *  not answered yet counts up to now, or to the month's end once it has closed,
+ *  so ignoring one cannot improve the figure and a closed month stops moving. */
 const firstResponse: Fragment = (only) => sql`
-  SELECT r.actor_id, ${median(sql`(COALESCE(f.at, now()) - r.at)`, 3600)} AS value
+  SELECT r.actor_id, ${median(sql`(COALESCE(f.at, LEAST(now(), (SELECT hi FROM span))) - r.at)`, 3600)} AS value
   FROM (
     SELECT t.subject_code AS lead_code, t.to_actor_id AS actor_id,
            COALESCE(min(t.at) FILTER (WHERE t.kind = 'handed-over'), min(t.at)) AS at
@@ -96,7 +96,7 @@ const firstResponse: Fragment = (only) => sql`
   LEFT JOIN LATERAL (
     SELECT min(t.at) AS at FROM sales.touch t
      WHERE t.subject_code = r.lead_code AND t.subject_kind = 'lead'
-       AND t.kind IN ('contacted', 'exchange-logged')
+       AND t.kind IN ('contacted', 'exchange-logged', 'first-meeting')
        AND t.actor_id = r.actor_id AND t.at >= r.at
   ) f ON true
   WHERE ${within(sql`r.at`)}${only(sql`r.actor_id`)}

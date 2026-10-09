@@ -63,15 +63,37 @@ In workflow order. Own = filtered on the actor; room = the whole Sales book.
 - `opportunities-opened` for the `account-executive` seat counts a deal where
   the actor is on EITHER lane (that seat stands on the SALE lane); for `bd` it
   stays the BD lane.
-- `first-response-hours` counts a lead that reached the actor and has not
-  been answered with its time so far — ignoring a lead must not improve the
-  figure.
+- `first-response-hours` takes a `contacted`, `exchange-logged` or
+  `first-meeting` touch as the response. A lead that reached the actor and has
+  not been answered counts up to now, or to the month's end once the month has
+  closed — ignoring a lead must not improve the figure, and a closed month
+  stops moving.
 - A snapshot metric (`overdue-receivables`) carries a figure only for the
   running month; a closed or future month reads `no-data`.
 
 The definition of each metric, its unit, direction and whether it is paced are
 the catalog in code, not here: `packages/contracts/src/sales/kpi.ts` and the
 API module `apps/api/src/branches/sales/kpi/`.
+
+### 3a · What each role does, and what the system reads
+
+| Role                | The action                                                                                                       | The recorded fact the metric reads                                                                   |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `marketing`         | Bring the lead into the book under your own name, with its origin and campaign                                   | The lead's `marketing_owner_id` and `created_at` (`leads-sourced`)                                   |
+|                     | Follow which of your leads became a deal and which were signed                                                   | Deal and contract rows on that lead (`lead-to-opportunity-rate`, `sourced-signed-value`)             |
+| `bd`                | Record the first contact as soon as a lead reaches you: an exchange, a contact, or the first meeting on the lead | The first such touch carrying your actor (`first-response-hours`)                                    |
+|                     | Open the deal when the lead qualifies and stand on its BD lane                                                   | The deal row and its BD owner (`opportunities-opened`)                                               |
+|                     | Hand the head a deal complete enough to accept                                                                   | `accepted_at` on the deal (`opportunity-accept-rate`)                                                |
+| `presales`          | Be added as an attendee of the meeting, and have the meeting marked held with you attended                       | The meeting's `held_at` and your attendee row's `attended` (`demos-joined`)                          |
+| `sale`              | Close every exchange record with its summary, evaluation and next step                                           | Debriefs you own with `closed_at` set (`debriefs-closed`)                                            |
+|                     | Raise the sign request when the deal is won, and stop a lost deal with its reason instead of leaving it open     | Contract rows and closed deals on your SALE lane (`signed-value`, `win-rate`)                        |
+|                     | Chase instalments before their due date                                                                          | Unpaid instalments past `due` on your contracts (`overdue-receivables`)                              |
+| `account-executive` | The `bd` and `sale` actions together                                                                             | As those two rows                                                                                    |
+| `head-of-sales`     | Accept new deals promptly and assign the seller                                                                  | `accepted_at` − `created_at` on the deal (`accept-lag-days`)                                         |
+|                     | Send next month's targets before the month starts                                                                | —                                                                                                    |
+|                     | Run the weekly 30-minute review from the "Cần chú ý" block                                                       | —                                                                                                    |
+| `director`          | Approve targets and sign requests promptly                                                                       | `decided_at` − `raised_at` on the approval (`approval-turnaround-hours`)                             |
+|                     | Watch collected cash and overdue receivables for the room                                                        | Instalments' `paid_at` (`collected-value`) and unpaid instalments past `due` (`overdue-receivables`) |
 
 ### 4 · The verdict
 
@@ -140,9 +162,9 @@ KPIs the CRM cannot score, each with the fact it is missing:
 Measurable in code but with nothing to read yet, as observed on the local
 data on 09/10/2026:
 
-- **First-response time** — every `contacted` touch has no actor and no
-  `exchange-logged` touch exists, so the metric has nothing to read until
-  first contact is recorded with its actor.
+- **First-response time** — the seed's `contacted` touches carry no actor
+  (the live write paths do record one), so on demo data the figure rests on
+  few rows.
 - **The activity metrics** — no meeting is marked held, no attendee is marked
   attended and no debrief is closed, so they read zero until those are used.
 
