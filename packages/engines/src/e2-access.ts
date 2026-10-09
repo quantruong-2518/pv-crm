@@ -115,6 +115,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
        department is not the job of the person who brings customers in. */
     'account.view',
     'performance.view',
+    'kpi.view',
     'plan.view',
     'config.view',
     /* Marketing owns the shared `contact@` mailbox, so it owns the table that
@@ -151,6 +152,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'opportunity.edit',
     'contract.view',
     'performance.view',
+    'kpi.view',
     'plan.view',
     'config.view',
   ],
@@ -168,6 +170,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'opportunity.edit',
     'contract.view',
     'performance.view',
+    'kpi.view',
     'plan.view',
   ],
 
@@ -201,6 +204,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'contract.view',
     'contract.edit',
     'performance.view',
+    'kpi.view',
     'plan.view',
     'config.view',
   ],
@@ -245,6 +249,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'contract.view',
     'contract.edit',
     'contract.record-payment',
+    'kpi.view',
     'plan.view',
     'plan.submit',
     'audit-log.view',

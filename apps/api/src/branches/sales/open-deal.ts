@@ -13,6 +13,10 @@ import { sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 export const dealOpen = (code: SQLWrapper, state: SQLWrapper): SQL =>
   sql`(${state} = 'open' AND NOT EXISTS (SELECT 1 FROM sales.contract od_k WHERE od_k.opportunity_code = ${code}))`
 
+/** Won = a contract row stands on the deal, whatever `state` still reads. */
+export const dealWon = (code: SQLWrapper): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.contract od_w WHERE od_w.opportunity_code = ${code})`
+
 /** Stopped for good (ADR 0069 §1) with nothing signed: won and lost never
  *  count one deal twice, a contract beats whatever `state` still reads. */
 export const dealLost = (code: SQLWrapper, state: SQLWrapper): SQL =>

@@ -159,3 +159,19 @@ Raised 08/10/2026 while scoping the "Khung hành trình" config area (ADR 0080).
 34. **Can a state be renamed from config?** Labels have two sources today: the
     config row name and the `OPPORTUNITY_STAGE_LABEL` / `LEAD_STATE_LABEL`
     constants.
+
+## KPI (added 09/10/2026)
+
+Raised while recording the KPI framework (ADR 0082).
+
+35. **Is the fixture "Hiệu suất" screen retired?** `/sales/performance` still
+    exists beside the two KPI screens and carries its own KPI model
+    (`ROLE_KPI_MODEL`). _(see ADR 0082)_
+36. **Is KPI linked to pay, and how is commission split?** v1 has no pay, bonus
+    or commission maths. The split between SALE, BD and head was already out
+    of scope in ADR 0071. _(see ADR 0082 §1, §8)_
+37. **Do accountant and delivery become roles?** Neither has a seat, and a
+    payment records no actor and no partial amount, so nothing of theirs can
+    be scored. _(see ADR 0082 §8)_
+38. **Does the pace verdict get a tolerance margin?** v1 has none — a margin
+    would be an invented threshold. _(see ADR 0082 §4)_

@@ -396,6 +396,20 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/installment-detail'),
   },
   {
+    path: '/sales/kpi/me',
+    name: 'KPI của tôi',
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-me'),
+  },
+  {
+    path: '/sales/kpi/company',
+    name: 'KPI công ty',
+    branch: 'Sales',
+    permission: 'performance.view',
+    load: () => import('@/pages/kpi-company'),
+  },
+  {
     path: '/sales/performance',
     name: 'Performance',
     branch: 'Sales',

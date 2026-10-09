@@ -166,6 +166,12 @@ export const PERMISSIONS = [
    *  Sale does NOT get this one: a seller does not confirm their own payment. */
   'contract.record-payment',
   'performance.view',
+  /** Own KPI readings, everyone-with-a-role's door (ADR 0082). */
+  'kpi.view',
+  /** Every person's readings — the manager's exception view. */
+  'kpi.view-all',
+  /** Propose or agree a role's period targets. */
+  'kpi.set-target',
   'plan.view',
   'plan.submit',
   'config.view',

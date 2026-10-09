@@ -8,6 +8,7 @@ import { CONFIG_CONSTRAINTS } from './config/config.constraints'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
+import { KpiModule } from './kpi/kpi.module'
 import { LeaderboardModule } from './leaderboard/leaderboard.module'
 import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
@@ -76,6 +77,9 @@ registerConstraints(CONFIG_CONSTRAINTS)
     /* Same standing as the leaderboard: period figures that join all three
        books and belong to none. */
     PerformanceModule,
+    /* Scorecards per role, computed on read from all three books — the
+       leaderboard's standing, and nothing asks it either. */
+    KpiModule,
     /* The journey book — one row per run at one company, gathered across the
        lead, its deals and its contract. It stands beside the three books rather
        than under one of them for `AccountModule`'s reason: a run spans all
