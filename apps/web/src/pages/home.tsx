@@ -13,9 +13,7 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { CHARTS_FROZEN_AT, salesPerformanceQuery } from '@/data/home-charts'
-import { performanceQuery } from '@/data/performance'
-import { DEFAULT_CHOICE } from '@/data/period'
+import { CHARTS_FROZEN_AT, frozenExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
 import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
 import { dm } from '@/lib/date'
 import { ExitsTile, MonthsTile } from './home-charts'
@@ -43,7 +41,7 @@ import {
 /** Screen 01 · Overview — a bento of sales figures over a short live list.
  *
  *  TWO SOURCES, AND THE SCREEN SAYS WHICH IS WHICH. Only the exits donut is
- *  still the frozen DAS Vina scenario (`performanceQuery`, still `load:`),
+ *  still the frozen DAS Vina scenario (`frozenExitsQuery`, still `load:`),
  *  pinned to the scenario's own period: the live picker runs on the calendar
  *  and leaves that window. Every other tile and the list are live reads.
  *
@@ -129,7 +127,7 @@ export function HomePage() {
     enabled: canCharts,
     placeholderData: keepPreviousData,
   })
-  const frozen = useQuery({ ...performanceQuery(DEFAULT_CHOICE), enabled: canCharts })
+  const frozen = useQuery({ ...frozenExitsQuery, enabled: canCharts })
   const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
   const list = useQuery({
     ...workstreamBookQuery(listQueryOf(filter)),

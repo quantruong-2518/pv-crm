@@ -1332,11 +1332,6 @@
       "count": 9
     }
   },
-  "apps/web/src/data/home.ts": {
-    "aurora/comment-budget": {
-      "count": 1
-    }
-  },
   "apps/web/src/data/intake-file.ts": {
     "aurora/comment-budget": {
       "count": 2
@@ -1467,22 +1462,6 @@
       "count": 1
     }
   },
-  "apps/web/src/data/performance.ts": {
-    "aurora/comment-budget": {
-      "count": 6
-    },
-    "aurora/comments-in-english": {
-      "count": 69
-    }
-  },
-  "apps/web/src/data/period.ts": {
-    "aurora/comment-budget": {
-      "count": 1
-    },
-    "aurora/comments-in-english": {
-      "count": 19
-    }
-  },
   "apps/web/src/data/plan.ts": {
     "aurora/comment-budget": {
       "count": 4
@@ -1514,7 +1493,7 @@
       "count": 1
     },
     "aurora/comments-in-english": {
-      "count": 32
+      "count": 27
     }
   },
   "apps/web/src/data/touches.ts": {
@@ -1690,17 +1669,6 @@
   "apps/web/src/pages/mail-templates.tsx": {
     "aurora/comment-budget": {
       "count": 3
-    }
-  },
-  "apps/web/src/pages/performance.tsx": {
-    "aurora/comment-budget": {
-      "count": 3
-    },
-    "aurora/comments-in-english": {
-      "count": 35
-    },
-    "max-lines": {
-      "count": 1
     }
   },
   "apps/web/src/pages/plan.tsx": {

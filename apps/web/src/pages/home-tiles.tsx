@@ -167,8 +167,8 @@ export function OpenValueTile({ data, className }: Figures) {
 const winRate = ({ cohort }: SalesPerformanceResponse['current']) =>
   rateOf(cohort.contracts, cohort.opportunities)
 
-/** Read on the cohort, as the Performance screen reads it, and the denominator
- *  is printed: the same label on the workstream book means won over closed. */
+/** Read on the cohort, and the denominator is printed: the same label on the
+ *  workstream book and on the KPI screens means won over closed. */
 export function WinRateTile({ data, className }: Figures) {
   const { cohort } = data.current
   const rate = winRate(data.current)

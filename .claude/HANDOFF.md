@@ -45,8 +45,7 @@ này chỉ giữ việc CÒN THIẾU — xong mục nào thì xoá dòng đó.
 - Người gửi đề nghị ký bị gỡ khỏi đơn trước khi duyệt vẫn được ghi là người ký.
 - Sửa trường thường của cơ hội không để lại vết touch/audit.
 - Vai không có `config.view` thấy khoá lý do rời phễu thay vì nhãn ở timeline.
-- `apps/web/src/data/performance.ts` và `apps/web/src/data/plan.ts` còn đọc nhãn
-  lý do rời phễu từ fixture.
+- `apps/web/src/data/plan.ts` còn đọc nhãn lý do rời phễu từ fixture.
 - Lệch ADR từ đợt audit, chưa quyết: 0032 (bảng 3 cột, code vẫn 5); câu hỏi mở
   Q4/Q5/Q7 bị code tự chọn đáp án; làn Account "Đã mua" chỉ tính lượt hiện tại;
   `apps/api/src/branches/sales/config/config.repository.ts` còn định nghĩa "đã ký" cũ.

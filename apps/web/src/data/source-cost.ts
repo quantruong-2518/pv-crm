@@ -1,7 +1,7 @@
 import { millions } from '@pv/ui'
 import { costBand, separableCost, wilson, type CostBandValue } from '@pv/engines'
 import { CostKind, type SourceCostLine } from '@pv/contracts'
-import { sourceStats, sourcesPaid, SOURCES, type CostLine } from '@pv/engines/fixtures/das-vina'
+import { sourceStats, sourcesPaid, SOURCES } from '@pv/engines/fixtures/das-vina'
 
 /** Tiền của một nguồn lead — dải giá, xếp hạng, phân rã theo loại, phép cắt kỳ.
  *  Kịch bản 2 · DAS Vina. Nền toán ở `@pv/engines` (`stats.ts`), số ở fixture;
@@ -104,11 +104,8 @@ function stretchOf(x: number, n: number): number {
   return w.lo > 0 ? w.p / w.lo : Number.POSITIVE_INFINITY
 }
 
-/** Dải giá của một nguồn với số tiền TRUYỀN VÀO, không tự đọc `Source.cost`.
- *
- *  Tham số `cost` rời ra vì màn Performance cắt chi phí theo kỳ: cùng một nguồn,
- *  cùng `leads`/`good` của kỳ, nhưng tử số là phần tiền tiêu TRONG kỳ. Hàm này
- *  không được biết kỳ nào, nó chỉ chia. */
+/** A source's price band for the cost PASSED IN, never read from `Source.cost`:
+ *  the caller decides which spend counts, and this function only divides. */
 export function costOf(
   src: { code: string; label: string },
   cost: number,
@@ -264,41 +261,4 @@ export function costBreakdown(lines: readonly SourceCostLine[]): CostBreakdown {
   }
 
   return { rows, total, absent: lines.length > 0 ? absent : [] }
-}
-
-/** Tiền tiêu trong một LÁT của trục thời gian.
- *
- *  `CostLine.day` mở khoá phép cắt này: trước 20/08 chi phí là số cả kỳ, nên
- *  màn Performance chia lead của một tháng cho tiền của cả bốn tháng.
- *
- *  Phần `lumped` là chỗ phép cắt còn nợ, và nó phải hiện trên màn chứ không
- *  giấu: dòng GỘP cả chuỗi (gói ESP nhiều tháng, cả bộ nội dung, phần công cụ
- *  chia theo đợt) ghi ở `startDay` của nguồn, nên cắt kỳ ở giữa một chuỗi thì
- *  cả dòng rơi trọn vào lát đầu. Chia mịn hơn cần chứng từ mịn hơn, mà hôm nay
- *  chưa có chứng từ nào. */
-export type PeriodSpend = {
-  /** Tổng tiền của các dòng rơi vào lát, đồng. */
-  cost: number
-  /** Phần trong `cost` là dòng gộp ghi ở ngày mở chuỗi, của những nguồn có chi
-   *  phí nằm CẢ TRONG lẫn NGOÀI lát. Bằng 0 khi không nguồn nào bị cắt ngang. */
-  lumped: number
-}
-
-export function spendIn(
-  sources: readonly { startDay: number; costLines: readonly CostLine[] }[],
-  keep: (line: CostLine) => boolean,
-): PeriodSpend {
-  let cost = 0
-  let lumped = 0
-
-  for (const s of sources) {
-    const inside = s.costLines.filter(keep)
-    cost += inside.reduce((sum, l) => sum + l.amount, 0)
-    /* Chuỗi nằm gọn trong lát thì không có gì bị kéo lệch — chỉ nguồn bị cắt
-       ngang mới có phần gộp đáng khai. */
-    if (inside.length === s.costLines.length) continue
-    lumped += inside.filter((l) => l.day === s.startDay).reduce((sum, l) => sum + l.amount, 0)
-  }
-
-  return { cost, lumped }
 }

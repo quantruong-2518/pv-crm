@@ -7,7 +7,8 @@ Source: project owner's decisions in chat, 09/10/2026
 
 A KPI model existed only as a frozen fixture: `ROLE_KPI_MODEL` in
 `packages/engines/src/fixtures/das-vina.ts`, read by the "Hiệu suất" screen
-(`/sales/performance`). The database had no target store and no period-aware
+(`/sales/performance`), which was retired the same day (see Consequences).
+The database had no target store and no period-aware
 reading per person. Three definitions of "won" disagreed: the leaderboard
 counts a deal that has a contract, the workstream scorecard counts a run
 closed `WON` off the lead's signature, and the fixture counts a lead carrying
@@ -183,9 +184,15 @@ data on 09/10/2026:
 
 ## Consequences
 
-- The fixture-backed "Hiệu suất" screen (`/sales/performance`) still exists
-  beside the two new screens, with its own KPI model. Whether to retire it is
-  not decided (question 35).
+- The fixture-backed "Hiệu suất" screen (`/sales/performance`) was retired
+  on 09/10/2026 by the owner's decision, the same day as this record: its
+  page, its route and its nav row are gone, and the two KPI screens (§7)
+  replace it. The overview's exits donut now reads `frozenExitsQuery` in
+  `apps/web/src/data/home-charts.ts`. The parked Plan screen stays.
+- Debt: the fixture's KPI model exports in
+  `packages/engines/src/fixtures/das-vina.ts` (`ROLE_KPI_MODEL`, `KPI_LAYERS`,
+  `HANDOFF_SLA`, `SLA_WATCH_MARGIN`) are no longer read by the web and were
+  left in place.
 - The leaderboard and the workstream scorecard keep their own "won"; only KPI
   is bound to §2's definition.
 - Debt: money metrics drop a contract with no amount or an unknown currency,
@@ -200,7 +207,6 @@ data on 09/10/2026:
 
 Not decided; each is a numbered question in `open-questions.md`:
 
-- Retiring the fixture "Hiệu suất" screen (question 35).
 - Pay linkage and the commission split (question 36).
 - Accountant and delivery roles (question 37).
 - A tolerance margin on the pace verdict (question 38).

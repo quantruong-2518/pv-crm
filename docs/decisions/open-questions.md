@@ -167,6 +167,8 @@ Raised while recording the KPI framework (ADR 0082).
 35. **Is the fixture "Hiệu suất" screen retired?** `/sales/performance` still
     exists beside the two KPI screens and carries its own KPI model
     (`ROLE_KPI_MODEL`). _(see ADR 0082)_
+    **Answered 09/10/2026: retired — the page, the route and the nav row are
+    deleted, the two KPI screens replace it, ADR 0082 Consequences.**
 36. **Is KPI linked to pay, and how is commission split?** v1 has no pay, bonus
     or commission maths. The split between SALE, BD and head was already out
     of scope in ADR 0071. _(see ADR 0082 §1, §8)_

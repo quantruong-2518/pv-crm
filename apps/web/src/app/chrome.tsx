@@ -323,15 +323,6 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'manage',
   },
   {
-    no: 5,
-    icon: Gauge,
-    label: 'Hiệu suất',
-    path: '/sales/performance',
-    permission: 'performance.view',
-    question: 'Đo hiệu suất đội ngũ và phát hiện điểm nghẽn',
-    group: 'manage',
-  },
-  {
     no: 6,
     icon: Target,
     label: 'Kế hoạch',
