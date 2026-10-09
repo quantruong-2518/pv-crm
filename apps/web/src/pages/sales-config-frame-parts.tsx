@@ -18,16 +18,14 @@ import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
 import { useProposeFrame } from '@/data/step-frame'
-import { ROLE_LABEL } from '@/data/users'
 import { byOrd, isDays } from './sales-config-model'
+import { SENT } from './sales-config-section'
 
 /** Rows of the journey frame's template list (`sales-config-frame.tsx`).
  *
  *  Same rules as every list on the config screen: no hard delete (off is the
  *  only one), every add, edit, switch or move goes to the approval inbox, and
- *  the row keeps showing the stored value until the director approves. */
-
-export const FRAME_SENT = `Đã gửi đề nghị · chờ ${ROLE_LABEL.director} duyệt.`
+ *  the row keeps showing the stored value until the proposal is approved. */
 
 /** The trigger is the control a finger lands on, and `Select` sizes it itself. */
 const SELECT_TOUCH = 'pointer-coarse:[&>button]:h-12'
@@ -67,7 +65,7 @@ export function TemplateRow({
   const sent = {
     onSuccess: () => {
       setEditing(false)
-      toastDone(FRAME_SENT)
+      toastDone(SENT)
     },
   }
   const move = (to: number) => {
@@ -152,7 +150,7 @@ export function TemplateRow({
         </div>
       )}
       {propose.error && (
-        <p role="alert" className="text-warning m-0 text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {userMessage(propose.error)}
         </p>
       )}
@@ -287,7 +285,7 @@ export function AddTemplate({ address, kinds }: { address: StateAddress; kinds: 
                 setName('')
                 setKindId(NO_KIND)
                 setDays('')
-                toastDone(FRAME_SENT)
+                toastDone(SENT)
               },
             },
           )
@@ -297,7 +295,7 @@ export function AddTemplate({ address, kinds }: { address: StateAddress; kinds: 
         Gửi đề nghị
       </Button>
       {propose.error && (
-        <p role="alert" className="text-warning m-0 w-full text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 w-full text-[11.5px]">
           {userMessage(propose.error)}
         </p>
       )}

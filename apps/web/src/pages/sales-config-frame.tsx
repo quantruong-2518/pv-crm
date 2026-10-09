@@ -22,8 +22,15 @@ import {
   templatesAt,
   useProposeFrame,
 } from '@/data/step-frame'
-import { AddTemplate, FRAME_SENT, TemplateRow } from './sales-config-frame-parts'
-import { DeadlineBox, LadderTable, Section, type AreaProps } from './sales-config-section'
+import { AddTemplate, TemplateRow } from './sales-config-frame-parts'
+import {
+  DeadlineBox,
+  LadderSend,
+  LadderTable,
+  SENT,
+  Section,
+  type AreaProps,
+} from './sales-config-section'
 
 /** The journey frame (ADR 0080) — phase › state › next steps: what a seller
  *  may set as the next step in each state, and whether they may type their own.
@@ -32,9 +39,10 @@ import { DeadlineBox, LadderTable, Section, type AreaProps } from './sales-confi
  *  Two write paths on purpose. Templates and the free-entry flag propose one
  *  at a time through `data/step-frame.ts`. A deal stage's deadline is still
  *  `limitDays` on `STAGE` (ADR 0080 §3), so its box writes the page's ladder
- *  draft and goes with the send bar. Lead states have no deadline (open
- *  question 33); the lead TIER ladder below is a different clock. */
+ *  draft and goes with that ladder's `LadderSend`. Lead states have no deadline
+ *  (open question 33); the lead TIER ladder below is a different clock. */
 export function FrameArea({ catalog, draft }: AreaProps) {
+  const tiers = ladderRows(catalog, 'TIER')
   return (
     <>
       <Section at="step-frame">
@@ -43,14 +51,9 @@ export function FrameArea({ catalog, draft }: AreaProps) {
 
       <Section at="tier-limits">
         <GlassCard variant="b" className="p-4">
-          <LadderTable
-            list="TIER"
-            head="Bậc"
-            rows={ladderRows(catalog, 'TIER')}
-            unit="lead"
-            draft={draft}
-          />
+          <LadderTable list="TIER" head="Bậc" rows={tiers} unit="lead" draft={draft} />
         </GlassCard>
+        <LadderSend list="TIER" rows={tiers} draft={draft} />
       </Section>
     </>
   )
@@ -82,6 +85,9 @@ function StepFrame({ catalog, draft }: AreaProps) {
       <LadderTable list="STAGE" head="Cột" rows={stages} unit="đơn" draft={draft} />
     </GlassCard>
   )
+  /* Mounted ONCE, outside the keyed state detail: a send in flight must
+     survive a state switch to clear its draft and keep its refusals. */
+  const stageSend = <LadderSend list="STAGE" rows={stages} draft={draft} />
 
   if (isPending) return <Skeleton className="h-32 w-full" />
   if (!frame) {
@@ -98,6 +104,7 @@ function StepFrame({ catalog, draft }: AreaProps) {
           className="py-12"
         />
         {stageTable}
+        {stageSend}
       </>
     )
   }
@@ -130,6 +137,7 @@ function StepFrame({ catalog, draft }: AreaProps) {
         />
       </div>
       {phase === 'opportunity' && !paired && stageTable}
+      {stageSend}
     </>
   )
 }
@@ -223,7 +231,7 @@ const YES = 'yes'
 const NO = 'no'
 
 /** The state's rules. The pick is LOCAL until sent, and falls back to the
- *  stored value afterwards: nothing changed until the director approves. */
+ *  stored value afterwards: nothing changed until the proposal is approved. */
 function RuleBlock({
   address,
   freeEntry,
@@ -236,10 +244,9 @@ function RuleBlock({
   const shown = pick ?? freeEntry
   /* Joined by position inside `ladderRows`; a misaligned ladder finds no row
      and draws no box rather than a box bound to the wrong stage. */
+  const stages = ladderRows(catalog, 'STAGE')
   const stage =
-    address.kind === 'opportunity'
-      ? ladderRows(catalog, 'STAGE').find((r) => r.key === address.state)
-      : undefined
+    address.kind === 'opportunity' ? stages.find((r) => r.key === address.state) : undefined
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-3 p-4">
@@ -274,7 +281,7 @@ function RuleBlock({
                   {
                     onSuccess: () => {
                       setPick(null)
-                      toastDone(FRAME_SENT)
+                      toastDone(SENT)
                     },
                   },
                 )
@@ -302,7 +309,7 @@ function RuleBlock({
       )}
 
       {propose.error && (
-        <p role="alert" className="text-warning m-0 text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {userMessage(propose.error)}
         </p>
       )}

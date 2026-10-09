@@ -10,27 +10,28 @@ import { AddLossReason, AddProduct } from './sales-config-add-rows'
 import { EntryRow } from './sales-config-comm'
 import { ActivityFreshnessConfig } from './sales-config-freshness'
 import { byOrd } from './sales-config-model'
-import { Section, type AreaProps } from './sales-config-section'
+import { EntryCount, Section, type AreaProps } from './sales-config-section'
 
 /** The deal flow — how stale a deal's last activity may get, why a deal leaves
  *  the board for the care list, and what the department sells. Switched-off
  *  rows stay listed in both catalogs: off is the only delete this system has. */
 export function DealArea({ catalog }: AreaProps) {
   const products = [...(catalog?.PRODUCT ?? [])].sort(byOrd)
+  const reasons = catalog?.LOSS_REASON ?? []
   return (
     <>
       <Section at="freshness">
         <ActivityFreshnessConfig />
       </Section>
 
-      <Section at="care-reasons">
-        <CareReasons rows={catalog?.LOSS_REASON ?? []} usage={catalog?.usage.LOSS_REASON ?? {}} />
+      <Section at="care-reasons" summary={<EntryCount rows={reasons} noun="lý do" />}>
+        <CareReasons rows={reasons} usage={catalog?.usage.LOSS_REASON ?? {}} />
         <AddLossReason />
       </Section>
 
       {/* 5.4c — the only catalog with a real foreign key pointing at it. It
           starts EMPTY on purpose: the migration seeds no undeclared products. */}
-      <Section at="products">
+      <Section at="products" summary={<EntryCount rows={products} noun="mục" />}>
         {products.length === 0 ? (
           <p className="text-muted-foreground text-[11.5px]">Chưa có sản phẩm/dịch vụ nào.</p>
         ) : (

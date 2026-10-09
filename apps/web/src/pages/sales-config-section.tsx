@@ -1,13 +1,17 @@
-import type { ReactNode } from 'react'
-import { DataTable, GlassCard, Input, cn } from '@pv/ui'
+import { useState, type ReactNode } from 'react'
+import { Button, DataTable, GlassCard, Input, cn } from '@pv/ui'
 import type { ConfigBundle, ConfigList } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import type { LadderRow } from '@/data/sales-config'
-import { isDays, sectionOf, type SectionId } from './sales-config-model'
+import { toastDone } from '@/app/toast'
+import { isEditDone, useProposeConfigEdits, type LadderRow } from '@/data/sales-config'
+import { editsOf, isDays, sectionOf, type SectionId } from './sales-config-model'
+
+/** The success toast of every send on the screen. It names no approver: who
+ *  approves is the server's chain, not a role this screen may print. */
+export const SENT = 'Đã gửi đề nghị · chờ duyệt.'
 
 /** The draft of typed deadlines, keyed `${list}/${id}`. It lives on the page,
- *  not in an area, so switching areas never drops a half-typed number and the
- *  send bar can read every area's edits at once. */
+ *  not in an area, so switching areas never drops a half-typed number. */
 export type LadderDraft = {
   typed: Record<string, string>
   onType: (next: (prev: Record<string, string>) => Record<string, string>) => void
@@ -29,10 +33,13 @@ export const SECTION_ANCHOR = 'scroll-mt-[128px]'
 export function Section({
   at,
   hint,
+  summary,
   children,
 }: {
   at: SectionId
   hint?: string
+  /** How much the section holds, at the right end of the title row. */
+  summary?: ReactNode
   children: ReactNode
 }) {
   const { no, title } = sectionOf(at)
@@ -44,7 +51,10 @@ export function Section({
       className={cn('flex flex-col gap-4 p-5 lg:p-6', SECTION_ANCHOR)}
     >
       <div className="flex flex-col gap-1">
-        <span className="text-[13px] font-semibold">{title}</span>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <span className="text-[13px] font-semibold">{title}</span>
+          {summary && <span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}
+        </div>
         {hint && <p className="text-muted-foreground text-[11.5px] leading-[1.5]">{hint}</p>}
       </div>
       {children}
@@ -52,8 +62,15 @@ export function Section({
   )
 }
 
+/** A catalog's size for `Section.summary`. Nothing for an empty list: the
+ *  section body already says so in words. */
+export function EntryCount({ rows, noun }: { rows: { active: boolean }[]; noun: string }) {
+  if (rows.length === 0) return null
+  return `${rows.length} ${noun} · ${rows.filter((r) => r.active).length} đang bật`
+}
+
 /** One rung's deadline, typed into the page's draft under `${list}/${id}` —
- *  the one key the send bar reads, so a table cell (5.5) and a deal stage's
+ *  the one key `LadderSend` reads, so a table cell (5.5) and a deal stage's
  *  box in the journey frame (5.14) cannot write two stores. CONTROLLED: an
  *  uncontrolled box would keep the previous send's text after the draft clears. */
 export function DeadlineBox({
@@ -80,7 +97,7 @@ export function DeadlineBox({
       placeholder="chưa đặt"
       inputMode="numeric"
       invalid={shown.trim() !== '' && !isDays(shown)}
-      className="pointer-coarse:h-12 tnum h-10 w-24"
+      className="pointer-coarse:h-12 tnum h-10 w-full max-w-24"
       onChange={(e) => draft.onType((prev) => ({ ...prev, [key]: e.target.value }))}
     />
   )
@@ -119,5 +136,98 @@ export function LadderTable({
         ],
       }))}
     />
+  )
+}
+
+/** What a rung is called in the sentence of its pending edit. */
+const RUNG = { STAGE: 'cột', TIER: 'bậc' } as const
+
+/** The send of ONE ladder, drawn next to its boxes. It sends every pending
+ *  edit of the list, not of the rows in sight: a box typed under another
+ *  state stays in the draft. Each edit becomes its own line in the approval
+ *  inbox (reasoning at `useProposeConfigEdits`). */
+export function LadderSend({
+  list,
+  rows,
+  draft,
+}: {
+  list: keyof typeof RUNG
+  rows: LadderRow[]
+  draft: LadderDraft
+}) {
+  const canPropose = useCan('config.propose')
+  const propose = useProposeConfigEdits()
+  const [failed, setFailed] = useState<string[]>([])
+
+  const edits = editsOf(
+    rows.map((row) => ({ list, row, what: `Hạn ${RUNG[list]} "${row.label}"` })),
+    draft.typed,
+  )
+  /* A non-number blocks the send rather than being dropped: dropping it would
+     send four of five edits and say five went. */
+  const bad = rows.filter((row) => {
+    const v = draft.typed[`${list}/${row.id}`] ?? ''
+    return v.trim() !== '' && !isDays(v)
+  })
+
+  if (!canPropose || (edits.length === 0 && bad.length === 0 && failed.length === 0)) return null
+
+  const send = () =>
+    propose.mutate(edits, {
+      onSuccess: (answers) => {
+        /* Only an accepted edit leaves the draft, and only if the box still
+           holds what was sent: a refused number stays typed for a retry. */
+        const done = new Map(
+          edits
+            .filter((e) => answers.some((a) => a.what === e.what && isEditDone(a)))
+            .map((e) => [`${e.list}/${e.id}`, e.limitDays]),
+        )
+        draft.onType((prev) =>
+          Object.fromEntries(
+            Object.entries(prev).filter(([key, v]) => Number(v) !== done.get(key)),
+          ),
+        )
+        setFailed(answers.flatMap((a) => (isEditDone(a) ? [] : [`${a.what}: ${a.failure}`])))
+        if (done.size > 0) toastDone(SENT)
+      },
+    })
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      {edits.length > 0 && (
+        <>
+          <ul className="m-0 flex flex-col gap-1 text-[11.5px]">
+            {edits.map((e) => (
+              <li key={e.id}>
+                {e.what} → <span className="tnum font-num">{e.limitDays}</span> ngày
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="md"
+            className="pointer-coarse:h-12 self-start"
+            disabled={bad.length > 0 || propose.isPending}
+            onClick={send}
+          >
+            Gửi đề nghị · {edits.length} thay đổi
+          </Button>
+        </>
+      )}
+      {bad.length > 0 && (
+        <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
+          Hạn của {bad.map((row) => `"${row.label}"`).join(', ')} không phải số ngày.
+        </p>
+      )}
+      {failed.length > 0 && (
+        <ul
+          role="alert"
+          className="text-destructive-foreground m-0 flex flex-col gap-1 text-[11.5px]"
+        >
+          {failed.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

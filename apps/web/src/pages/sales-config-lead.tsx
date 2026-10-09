@@ -4,16 +4,18 @@ import { AddStopReason } from './sales-config-add-rows'
 import { CommCriteriaConfig, EntryRow, StepKindConfig } from './sales-config-comm'
 import { byOrd } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
-import { SECTION_ANCHOR, Section, type AreaProps } from './sales-config-section'
+import { EntryCount, Section, type AreaProps } from './sales-config-section'
 
-/** Intake — how a lead may come in. `MotionPickerSection` is the same card the
- *  lead-origins screen mounts and brings its own heading, so it is anchored
- *  here rather than wrapped in a second titled `Section`. */
+/** Intake — how a lead may come in. `MotionPickerSection` is the same list the
+ *  lead-origins screen mounts; `bare` leaves the heading to this `Section`. */
 export function IntakeArea() {
   return (
-    <div id="motions" role="group" aria-label="Phương án tiếp cận" className={SECTION_ANCHOR}>
-      <MotionPickerSection />
-    </div>
+    <Section
+      at="motions"
+      hint="Tên hiện ở ô chọn khi tạo lead, bật/tắt, và form hỏi gì tiếp sau khi chọn phương án."
+    >
+      <MotionPickerSection bare />
+    </Section>
   )
 }
 
@@ -30,14 +32,15 @@ export function AssignArea() {
 /** Care and contact — why a lead stops being cared for, and the vocabulary of
  *  the contact confirm form. */
 export function CareArea({ catalog }: AreaProps) {
+  const stops = [...(catalog?.EXIT_REASON ?? [])].sort(byOrd)
   return (
     <>
       {/* 5.4 — counts STOPS, not leads (ADR 0070): one `sales.touch` row per
           stop. Switched-off rows stay listed: off is the only delete there is. */}
-      <Section at="stop-reasons">
+      <Section at="stop-reasons" summary={<EntryCount rows={stops} noun="lý do" />}>
         <GlassCard variant="b" className="p-4">
           <ul className="flex flex-col gap-2">
-            {[...(catalog?.EXIT_REASON ?? [])].sort(byOrd).map((r) => (
+            {stops.map((r) => (
               <li key={r.id}>
                 <EntryRow
                   entry={r}
@@ -53,11 +56,14 @@ export function CareArea({ catalog }: AreaProps) {
         <AddStopReason />
       </Section>
 
-      <Section at="comm-criteria">
+      <Section
+        at="comm-criteria"
+        summary={<EntryCount rows={catalog?.COMM_CRITERION ?? []} noun="câu" />}
+      >
         <CommCriteriaConfig />
       </Section>
 
-      <Section at="step-kinds">
+      <Section at="step-kinds" summary={<EntryCount rows={catalog?.STEP_KIND ?? []} noun="loại" />}>
         <StepKindConfig />
       </Section>
     </>

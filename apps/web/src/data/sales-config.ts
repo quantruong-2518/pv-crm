@@ -279,7 +279,7 @@ export function ladderRows(catalog: ConfigBundle | undefined, list: 'STAGE' | 'T
 
 /** One pending edit on the configuration screen.
  *
- *  `what` is the sentence the screen shows in its pending list; the approver
+ *  `what` is the sentence the screen shows beside its send button; the approver
  *  reads a different one, written server-side at the gate that knows the change
  *  (`config.approval.ts#consequenceOf`). Two audiences, two sentences, neither
  *  guessing at the other's. */
@@ -310,7 +310,7 @@ export const isEditDone = (r: ConfigEditResult): r is { what: string; requestId:
  *  all-or-nothing apply — and it would take from the approver the move they
  *  most need, which is to refuse the one wrong box and pass the other four.
  *
- *  The screen still SENDS once, because luật 2 of this module stands: nothing
+ *  A ladder still SENDS once, because luật 2 of this module stands: nothing
  *  on the configuration screen saves as you type. One press, N requests.
  *
  *  ------------------------------------------------------------------

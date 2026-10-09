@@ -6,14 +6,12 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { activityFreshnessQuery, useProposeActivityFreshness } from '@/data/sales-config'
+import { SENT } from './sales-config-section'
 
 /** Config section for the deal book's last-activity column (ADR 0077 §4):
  *  from how many quiet days a row turns amber, then red. Mounted by
  *  `sales-config-deal.tsx`. Both numbers go as ONE proposal through the approval
  *  inbox, and the box keeps the stored pair until it is approved. */
-
-/* Who approves is the server's chain, not a role this screen may name. */
-const SENT = 'Đã gửi đề nghị · chờ duyệt.'
 
 const FIELDS = [
   { axis: 'warnDays', setting: 'sales.activity.warn-days', label: 'Vàng từ (ngày)' },
@@ -71,7 +69,7 @@ export function ActivityFreshnessConfig() {
 
   if (error) {
     return (
-      <p role="alert" className="text-warning m-0 text-[11.5px]">
+      <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
         Không đọc được ngưỡng hiện tại.{' '}
         {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
       </p>
@@ -89,8 +87,7 @@ export function ActivityFreshnessConfig() {
               inputMode="numeric"
               disabled={!canPropose || !data}
               invalid={issue !== null}
-              suffix="ngày"
-              className="pointer-coarse:h-12"
+              className="pointer-coarse:h-12 tnum"
               onChange={(e) => setTyped({ ...shown, [f.axis]: e.target.value })}
             />
           </label>
@@ -121,7 +118,7 @@ export function ActivityFreshnessConfig() {
         </p>
       )}
       {(issue ?? propose.error) && (
-        <p role="alert" className="text-warning m-0 text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {issue ?? (propose.error ? userMessage(propose.error) : null)}
         </p>
       )}

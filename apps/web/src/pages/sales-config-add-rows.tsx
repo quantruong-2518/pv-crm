@@ -3,18 +3,13 @@ import { Plus } from '@pv/ui'
 import { Button, Icon, Input, Select } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
-import { ROLE_LABEL } from '@/data/users'
 import { useProposeLossReason, useProposeProduct, useProposeStopReason } from '@/data/sales-config'
+import { SENT } from './sales-config-section'
 
 /** The three "add one row" forms of the config screen — split out of
- *  `sales-config.tsx` on size alone (`max-lines`). Each sends on its own
- *  rather than joining the deadline batch (5.2 · 5.5): adding a row is a different verb
- *  on a different door (`POST` vs `PATCH`), and a name just typed has no old
- *  value to compare against. */
-
-/** Who gates every proposal — same source `sales-config.tsx` reads, so the two
- *  never name two different roles for one E3 chain. */
-const APPROVER = ROLE_LABEL.director
+ *  `sales-config.tsx` on size alone (`max-lines`). Each sends on its own, one
+ *  row per press: adding a row is its own door (`POST`), and a name just typed
+ *  has no old value to compare against. */
 
 /** 5.4c · add one product to the catalog.
  *
@@ -31,17 +26,18 @@ export function AddProduct() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Tên sản phẩm hoặc dịch vụ"
-        className="min-w-0 flex-1"
+        className="pointer-coarse:h-12 min-w-0 flex-1"
       />
 
       <Button
         size="md"
+        className="pointer-coarse:h-12"
         disabled={name.trim() === '' || propose.isPending}
         onClick={() =>
           propose.mutate(name.trim(), {
             onSuccess: () => {
               setName('')
-              toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
+              toastDone(SENT)
             },
           })
         }
@@ -79,10 +75,11 @@ export function AddLossReason() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Lý do vào danh sách chăm sóc"
-        className="min-w-0 flex-1"
+        className="pointer-coarse:h-12 min-w-0 flex-1"
       />
       <Select
         label="Áp dụng ở cột"
+        className="pointer-coarse:[&>button]:h-12"
         value={stage}
         onChange={setStage}
         options={LOSS_REASON_STAGE_OPTIONS}
@@ -90,6 +87,7 @@ export function AddLossReason() {
 
       <Button
         size="md"
+        className="pointer-coarse:h-12"
         disabled={name.trim() === '' || propose.isPending}
         onClick={() =>
           propose.mutate(
@@ -98,7 +96,7 @@ export function AddLossReason() {
               onSuccess: () => {
                 setName('')
                 setStage('')
-                toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
+                toastDone(SENT)
               },
             },
           )
@@ -126,17 +124,18 @@ export function AddStopReason() {
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Lý do dừng chăm sóc"
-        className="min-w-0 flex-1"
+        className="pointer-coarse:h-12 min-w-0 flex-1"
       />
 
       <Button
         size="md"
+        className="pointer-coarse:h-12"
         disabled={name.trim() === '' || propose.isPending}
         onClick={() =>
           propose.mutate(name.trim(), {
             onSuccess: () => {
               setName('')
-              toastDone(`Đã gửi đề nghị thêm mục · chờ ${APPROVER} gật.`)
+              toastDone(SENT)
             },
           })
         }

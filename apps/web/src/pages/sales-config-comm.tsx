@@ -6,9 +6,9 @@ import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
-import { ROLE_LABEL } from '@/data/users'
 import { salesCatalogQuery, useProposeCommEntry, useProposeConfigPatch } from '@/data/sales-config'
 import { byOrd } from './sales-config-model'
+import { SENT } from './sales-config-section'
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
  *  with their answers, and next-step kinds. Mounted by `sales-config-lead.tsx`.
@@ -20,21 +20,13 @@ import { byOrd } from './sales-config-model'
  *  is approved. A done comm keeps the words it was confirmed with, so a rename
  *  here never rewrites history. */
 
-const APPROVER = ROLE_LABEL.director
-const SENT = `Đã gửi đề nghị · chờ ${APPROVER} duyệt.`
-
 export function CommCriteriaConfig() {
   const { data: catalog } = useQuery(salesCatalogQuery)
   const criteria = [...(catalog?.COMM_CRITERION ?? [])].sort(byOrd)
   const answers = catalog?.COMM_ANSWER ?? []
-  const live = criteria.filter((c) => c.active).length
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        <span className="tnum font-num">{live}</span> câu đang bật.
-      </p>
-
       {criteria.map((c) => (
         /* Law 8 · a list sits on glass-b. */
         <GlassCard key={c.id} variant="b" className="flex flex-col gap-3 p-4">
@@ -194,7 +186,7 @@ export function EntryRow({
           ))}
       </div>
       {patch.error && (
-        <p role="alert" className="text-warning m-0 text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {userMessage(patch.error)}
         </p>
       )}
@@ -245,7 +237,7 @@ function AddEntry({
         Gửi đề nghị
       </Button>
       {propose.error && (
-        <p role="alert" className="text-warning m-0 w-full text-[11.5px]">
+        <p role="alert" className="text-destructive-foreground m-0 w-full text-[11.5px]">
           {userMessage(propose.error)}
         </p>
       )}

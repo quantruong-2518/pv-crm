@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Send, TriangleAlert } from '@pv/ui'
-import { Button, EmptyState, Icon, Input, MetaPill, Select, Skeleton } from '@pv/ui'
+import { EmptyState, GlassCard, Input, MetaPill, Select, Skeleton, TriangleAlert, cn } from '@pv/ui'
 import {
   FIRST_TOUCH_UNITS,
   firstTouchToMinutes,
@@ -13,8 +12,17 @@ import {
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
-import { ROLE_LABEL, ROLE_OPTIONS } from '@/data/users'
-import { salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
+import { ROLE_OPTIONS } from '@/data/users'
+import { motionLabelOf, salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
+import {
+  MOTION_LINE,
+  MOTION_NAME,
+  MOTION_ROW,
+  MotionCell,
+  MotionHead,
+  MotionSend,
+} from './lead-origins-motions'
+import { SENT } from './sales-config-section'
 
 /** Section 5.9 · what each of the six lead motions declares. Each row
  *  proposes on its own and answers with a receipt.
@@ -46,14 +54,33 @@ export function MotionSection() {
     )
   }
 
+  /* Law 8 · the six rows are one list on one glass-b. */
   return (
-    <div className="flex flex-col gap-4">
-      {rows.map((row) => (
-        <MotionRow key={row.motion} row={row} />
-      ))}
-    </div>
+    <GlassCard variant="b" className="flex flex-col gap-2 p-4">
+      <MotionHead
+        cols={POLICY_COLS}
+        labels={[
+          'Phương án',
+          'Chạm đầu trong',
+          'Người nhận',
+          'Vào chiến dịch mail lạnh',
+          'Form khách tự điền tính là đủ ô',
+        ]}
+      />
+      <ul className="flex flex-col gap-2">
+        {rows.map((row) => (
+          <MotionRow key={row.motion} row={row} />
+        ))}
+      </ul>
+    </GlassCard>
   )
 }
+
+/** Fractions only — see `PICKER_COLS` in `lead-origins-motions.tsx`. */
+const POLICY_COLS = 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]'
+
+/** `Select` sizes its own trigger, so the touch height has to reach inside. */
+const SELECT_FILL = 'pointer-coarse:[&>button]:h-12 w-full'
 
 /** Three answers, and "not declared" is one of them.
  *
@@ -78,6 +105,17 @@ function MotionRow({ row }: { row: MotionPolicy }) {
   const [selfServe, setSelfServe] = useState(triOf(row.selfServeCountsAsInitData))
 
   const propose = useProposeMotion(row.motion)
+  const name = motionLabelOf(row)
+  /* Sent is not saved: the boxes fall back to the stored row, so the row
+     stops saying "not sent" and a second press cannot file a duplicate. */
+  const sent = () => {
+    setValue(split === null ? '' : String(split.value))
+    setUnit(split?.unit ?? 'hour')
+    setOwner(row.ownerRoleId ?? '')
+    setCold(triOf(row.coldMailAllowed))
+    setSelfServe(triOf(row.selfServeCountsAsInitData))
+    toastDone(SENT)
+  }
 
   /* Only what actually differs from the stored row travels. Sending every box
      every time would make a request that claims to change four things when the
@@ -91,25 +129,22 @@ function MotionRow({ row }: { row: MotionPolicy }) {
     patch.selfServeCountsAsInitData = triBack(selfServe)
   }
 
-  const dirty = Object.keys(patch).length > 0
   const bad = value.trim() !== '' && !(Number(value) > 0)
-  const failure = isApiError(propose.error) ? userMessage(propose.error) : null
 
   return (
-    <div className="glass-b flex flex-col gap-3 rounded-lg p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-display text-[13.5px] font-semibold">{row.motion}</span>
-        {row.firstTouchMinutes === null &&
-        row.ownerRoleId === null &&
-        row.coldMailAllowed === null &&
-        row.selfServeCountsAsInitData === null ? (
-          <MetaPill>chưa khai gì</MetaPill>
-        ) : null}
-      </div>
+    <li className={MOTION_ROW}>
+      <div className={cn(MOTION_LINE, POLICY_COLS)}>
+        <div className={MOTION_NAME}>
+          <span className="text-[12.5px] font-semibold">{name}</span>
+          {row.firstTouchMinutes === null &&
+          row.ownerRoleId === null &&
+          row.coldMailAllowed === null &&
+          row.selfServeCountsAsInitData === null ? (
+            <MetaPill>chưa khai gì</MetaPill>
+          ) : null}
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-muted-foreground text-[11px]">Chạm đầu trong</span>
+        <MotionCell label="Chạm đầu trong">
           <div className="flex gap-2">
             <Input
               value={value}
@@ -117,77 +152,64 @@ function MotionRow({ row }: { row: MotionPolicy }) {
               inputMode="numeric"
               placeholder="chưa khai"
               invalid={bad}
-              aria-label={`Chạm đầu trong — ${row.motion}`}
-              className="min-w-0 flex-1"
+              aria-label={`Chạm đầu trong — ${name}`}
+              className="pointer-coarse:h-12 tnum min-w-0 flex-1"
             />
             <Select
-              label="Đơn vị"
+              label={`Đơn vị — ${name}`}
               hideLabel
+              className="pointer-coarse:[&>button]:h-12"
               value={unit}
               onChange={(v) => setUnit(v as FirstTouchUnit)}
               options={FIRST_TOUCH_UNITS.map((u) => ({ value: u.unit, label: u.label }))}
             />
           </div>
-        </div>
+        </MotionCell>
 
-        <Select
-          label="Người nhận"
-          value={owner}
-          /* `Select` speaks strings; the seven ids are the only values it is
-             given, so the cast narrows rather than assumes. */
-          onChange={(v) => setOwner(v as RoleId | '')}
-          options={[{ value: '', label: 'chưa khai' }, ...ROLE_OPTIONS]}
-        />
+        <MotionCell label="Người nhận">
+          <Select
+            label={`Người nhận — ${name}`}
+            hideLabel
+            className={SELECT_FILL}
+            value={owner}
+            /* `Select` speaks strings; the seven ids are the only values it is
+               given, so the cast narrows rather than assumes. */
+            onChange={(v) => setOwner(v as RoleId | '')}
+            options={[{ value: '', label: 'chưa khai' }, ...ROLE_OPTIONS]}
+          />
+        </MotionCell>
 
-        <Select
-          label="Vào chiến dịch mail lạnh"
-          value={cold}
-          onChange={setCold}
-          options={TRI('được', 'KHÔNG được')}
-        />
+        <MotionCell label="Vào chiến dịch mail lạnh">
+          <Select
+            label={`Vào chiến dịch mail lạnh — ${name}`}
+            hideLabel
+            className={SELECT_FILL}
+            value={cold}
+            onChange={setCold}
+            options={TRI('được', 'KHÔNG được')}
+          />
+        </MotionCell>
 
-        <Select
-          label="Form khách tự điền tính là đủ ô"
-          value={selfServe}
-          onChange={setSelfServe}
-          options={TRI('tính', 'không tính')}
-        />
+        <MotionCell label="Form khách tự điền tính là đủ ô">
+          <Select
+            label={`Form khách tự điền tính là đủ ô — ${name}`}
+            hideLabel
+            className={SELECT_FILL}
+            value={selfServe}
+            onChange={setSelfServe}
+            options={TRI('tính', 'không tính')}
+          />
+        </MotionCell>
       </div>
 
-      {failure ? (
-        <p role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-          {failure}
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          size="md"
-          disabled={!dirty || bad || propose.isPending}
-          onClick={() =>
-            propose.mutate(patch, {
-              /* Sent, never saved: the row on screen is still the stored one,
-                 and it stays that way until somebody approves. */
-              onSuccess: () => toastDone('Đã gửi đề nghị · chờ Giám đốc gật.'),
-            })
-          }
-        >
-          <Icon icon={Send} size={16} />
-          Gửi đề nghị
-        </Button>
-
-        {dirty ? (
-          <span className="text-muted-foreground text-[11.5px]">
-            {Object.keys(patch).length} ô đổi · chưa gửi
-          </span>
-        ) : null}
-
-        {row.ownerRoleId ? (
-          <span className="text-muted-foreground text-[11.5px]">
-            đang khai: {ROLE_LABEL[row.ownerRoleId]}
-          </span>
-        ) : null}
-      </div>
-    </div>
+      {/* Sent, never saved: the row on screen is still the stored one, and it
+          stays that way until somebody approves. */}
+      <MotionSend
+        changed={Object.keys(patch).length}
+        blocked={bad || propose.isPending}
+        failure={isApiError(propose.error) ? userMessage(propose.error) : null}
+        onSend={() => propose.mutate(patch, { onSuccess: sent })}
+      />
+    </li>
   )
 }
