@@ -21,13 +21,12 @@ import type { CampaignMemberRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { listField, useClientBookFilter } from '@/app/client-book-filter'
 import { toast } from '@/app/toast'
-import { ROW_ICON } from '@/components/table-bits'
+import { ROW_ICON, TableFooter } from '@/components/table-bits'
 import { campaignMembersQuery, type useCampaignMembers } from '@/data/campaign-book'
 import { AudiencePicker } from './campaign-audience-picker'
 
 /** Module 1 · the campaign AUDIENCE — ONE card holding who the letters go to,
- *  and a `Drawer` (same shape as `WaveDrawer`) that adds more from the lead
- *  book.
+ *  and a `Drawer` that adds more from the lead book.
  *
  *  Locked 28/09: the member list and the candidate picker used to stand as
  *  two stacked blocks, the top one reading empty on a fresh campaign before
@@ -37,8 +36,8 @@ import { AudiencePicker } from './campaign-audience-picker'
 
 /** THE ADD-RECIPIENTS DRAWER — the only door in this module that writes.
  *
- *  Selection resets to empty every time it opens (`AudienceTab` clears it in
- *  the same click that opens the drawer): a stale tick from three opens ago
+ *  Selection resets to empty every time it opens (`AudienceTab` clears it as
+ *  `adding` turns on): a stale tick from three opens ago
  *  reads as the screen having picked something the owner never touched. */
 function AudienceDrawer({
   open,
@@ -89,6 +88,9 @@ function AudienceDrawer({
 
 /** The member list's address keys — module level, as `useClientBookFilter`
  *  asks. `email` holds `present` / `missing`, either or both. */
+/** Rows a page of the audience shows — the owner's number (09/10). */
+const MEMBER_PAGE = 10
+
 const MEMBER_FILTERS = { email: listField() }
 const EMAIL_PRESENT = 'present'
 const EMAIL_MISSING = 'missing'
@@ -117,7 +119,7 @@ function MemberCard({
   canEdit: boolean
   onAdd: () => void
 }) {
-  const { data, isPending, refetch } = useQuery(campaignMembersQuery(code))
+  const { data, isPending } = useQuery(campaignMembersQuery(code))
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const { filters, text, setText, patch, clear, dirty } = useClientBookFilter(MEMBER_FILTERS)
@@ -129,6 +131,11 @@ function MemberCard({
     filters.email.length === 0
       ? searched
       : searched.filter((m) => filters.email.includes(m.email ? EMAIL_PRESENT : EMAIL_MISSING))
+
+  /* Clamped on read: a search or a removal can leave the page past the end. */
+  const [pageWanted, setPage] = useState(0)
+  const page = Math.min(pageWanted, Math.max(0, Math.ceil(visible.length / MEMBER_PAGE) - 1))
+  const pageRows = visible.slice(page * MEMBER_PAGE, (page + 1) * MEMBER_PAGE)
 
   const removeOne = (leadCode: string) =>
     members.mutate(
@@ -164,6 +171,23 @@ function MemberCard({
     </ColumnFilter>
   )
 
+  /* Nothing to search or filter yet, and the act that fills the list is in
+     the first card: the empty audience is one quiet panel. */
+  if (!isPending && total === 0) {
+    return (
+      <GlassCard
+        aria-label="Người nhận"
+        className="flex flex-col items-center gap-2 px-6 py-12 text-center"
+      >
+        <Icon icon={Users} size={24} className="text-muted-foreground" />
+        <h3 className="m-0 text-[14px] font-semibold">Danh sách người nhận còn rỗng</h3>
+        <p className="text-muted-foreground m-0 max-w-[440px] text-pretty text-[12px] leading-[1.6]">
+          Người nhận lấy từ sổ lead. Lead chưa có email vẫn thêm được, nhưng sẽ không nhận thư.
+        </p>
+      </GlassCard>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <GlassCard variant="b" className="flex flex-col p-0">
@@ -172,7 +196,7 @@ function MemberCard({
             placeholder="Tìm theo công ty, người liên hệ hoặc mã lead…"
             value={text}
             onChange={setText}
-            className="min-w-0 flex-1 sm:max-w-[320px]"
+            className="pointer-coarse:h-12 min-w-0 flex-1 sm:max-w-[320px]"
           />
           {dirty && (
             <Button size="md" variant="ghost" onClick={clear} className="pointer-coarse:h-12">
@@ -187,26 +211,15 @@ function MemberCard({
           )}
         </div>
 
-        {/* `overflow-auto` with a floor: without it `DataTable` clips (it is
-            `overflow-x-hidden`), and on a phone the email column — the whole
-            reason this list exists — truncates to nothing. */}
-        <div className="max-h-[50vh] overflow-auto">
+        {/* Without it `DataTable` clips (it is `overflow-x-hidden`), and on a
+            phone the email column — the whole reason this list exists —
+            truncates to nothing. */}
+        <div className="overflow-x-auto">
           {isPending ? (
             <div className="flex flex-col gap-3 p-5">
               <Skeleton height={48} />
               <Skeleton height={48} delay={200} />
             </div>
-          ) : total === 0 ? (
-            <EmptyState
-              icon={Users}
-              message="Danh sách người nhận còn rỗng."
-              action={
-                canEdit
-                  ? { label: 'Thêm người nhận', onClick: onAdd }
-                  : { label: 'Tải lại', onClick: () => void refetch() }
-              }
-              className="py-8"
-            />
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Inbox}
@@ -216,13 +229,16 @@ function MemberCard({
             />
           ) : (
             <MemberTable
-              rows={visible}
+              rows={pageRows}
               emailHeader={emailFilter}
               onRemove={canEdit ? removeOne : undefined}
               removing={members.isPending}
             />
           )}
         </div>
+        {visible.length > MEMBER_PAGE && (
+          <TableFooter page={page} pageSize={MEMBER_PAGE} total={visible.length} onPage={setPage} />
+        )}
       </GlassCard>
 
       {rows.length < total && (
@@ -312,22 +328,27 @@ export function AudienceTab({
   code,
   members,
   canEdit,
+  adding,
+  onAdding,
 }: {
   code: string
   members: ReturnType<typeof useCampaignMembers>
   canEdit: boolean
+  /** The add drawer's open state lives on the page: the todo card opens it too. */
+  adding: boolean
+  onAdding: (open: boolean) => void
 }) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set())
-  /* Stable identity: the Drawer re-focuses its panel whenever `onClose` changes. */
-  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   /* A fresh sheet every time it opens — see `AudienceDrawer`'s docblock for why
      stale ticks from an earlier visit must not survive to this one. */
-  const openDrawer = () => {
-    setSelected(new Set())
-    setDrawerOpen(true)
+  const [wasAdding, setWasAdding] = useState(false)
+  if (adding !== wasAdding) {
+    setWasAdding(adding)
+    if (adding) setSelected(new Set())
   }
+  /* Stable identity: the Drawer re-focuses its panel whenever `onClose` changes. */
+  const closeDrawer = useCallback(() => onAdding(false), [onAdding])
 
   const setOne = (leadCode: string, on: boolean) =>
     setSelected((cur) => {
@@ -364,8 +385,7 @@ export function AudienceTab({
             tone: 'success',
             detail: `Đã thêm ${res.added} lead.`,
           })
-          setSelected(new Set())
-          setDrawerOpen(false)
+          onAdding(false)
         },
         onError: (err) =>
           toast('Không thêm được người nhận', {
@@ -378,14 +398,14 @@ export function AudienceTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <MemberCard code={code} members={members} canEdit={canEdit} onAdd={openDrawer} />
+      <MemberCard code={code} members={members} canEdit={canEdit} onAdd={() => onAdding(true)} />
 
       {/* No drawer at all for a reader who cannot write it — the button that
           opens it is already hidden on the card above, so there is nothing
           left in here for a read-only role to reach. */}
       {canEdit && (
         <AudienceDrawer
-          open={drawerOpen}
+          open={adding}
           onClose={closeDrawer}
           selected={selected}
           onSetOne={setOne}

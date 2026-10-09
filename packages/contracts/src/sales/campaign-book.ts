@@ -65,6 +65,21 @@ export const CampaignBookRow = z.object({
   audienceCount: z.number().int().nonnegative(),
   /** Số đợt đã bắn (`campaign_run`), không tính đợt đang soạn chưa gửi. */
   waveCount: z.number().int().nonnegative(),
+  /** What the fired waves add up to, so the book can say how a campaign is
+   *  doing without opening it. Absent while `waveCount` is 0 — there is
+   *  nothing to sum, and a row of zeros would read as a result. */
+  waveTotals: z
+    .object({
+      sent: z.number().int().nonnegative(),
+      delivered: z.number().int().nonnegative(),
+      clicked: z.number().int().nonnegative(),
+      bounced: z.number().int().nonnegative(),
+      /** When the newest wave started; absent if none has started yet. */
+      lastWaveAt: Moment.optional(),
+      /** The wave still going out, if one is. */
+      sendingWaveNo: z.number().int().positive().optional(),
+    })
+    .optional(),
 
   createdAt: Moment,
   updatedAt: Moment,
@@ -114,6 +129,8 @@ export const CampaignProfile = CampaignBookRow.extend({
   batchCeiling: z.number().int().positive(),
   /** Bounce rate at which the breaker holds the rest of a wave, in percent. */
   bounceCeilingPercent: z.number().positive(),
+  /** Letters a wave must have sent before the breaker judges its bounce rate. */
+  bounceMinSample: z.number().int().positive(),
 })
 
 /** `POST /sales/campaigns` — mã do máy chủ sinh, trạng thái luôn bắt đầu `DRAFT`. */

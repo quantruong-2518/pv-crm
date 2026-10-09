@@ -1,21 +1,19 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Button, CircleAlert, GlassCard, Icon, ImageFrame, Input, Modal, Select, cn } from '@pv/ui'
+import { useEffect, useMemo, useState } from 'react'
+import { Button, CircleAlert, Drawer, Icon, ImageFrame, Input, Modal, Select, cn } from '@pv/ui'
 import type { Actor } from '@pv/engines'
 import type { CampaignPatch, CampaignProfile } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
 import { useCampaignCreate, type useCampaignPatch } from '@/data/campaign-book'
-import { useOriginNames } from '@/data/lead-origins'
 import { OriginSelect } from '@/components/lead-origin-pickers'
-import { dmhm, dmy } from '@/lib/date'
 import { emptyProfile, profileFrom, type ProfileDraft } from './campaign-model'
 
 /** Module 1 · the campaign PROFILE — the boxes naming a campaign, the modal
- *  that types a new one, and the tab that edits an existing one.
+ *  that types a new one, and the drawer that edits an existing one.
  *
  *  ONE set of boxes for both doors (`ProfileFields`), the same call the lead
- *  and deal screens make: a campaign typed in the modal and opened in the tab
- *  must not read as two different pieces of paper. */
+ *  and deal screens make: a campaign typed in the modal and opened in the
+ *  drawer must not read as two different pieces of paper. */
 
 export function ProfileFields({
   name,
@@ -52,84 +50,92 @@ export function ProfileFields({
   setEndsOn: (v: string) => void
   people: Actor[]
   sources: { id: string; name: string; active: boolean }[]
-  /** On in the create modal, off in the tab: a tab that grabs the caret the
-   *  moment it opens fights the reader who came to read. */
+  /** On in the create modal only: the edit drawer opens on a filled sheet, and
+   *  the reader has not said which box they came for. */
   autoFocusName?: boolean
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start">
-      <div className="flex flex-col gap-4">
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Tên chiến dịch</span>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={200}
-            placeholder="Ví dụ: Tiếp cận nhà máy Bắc Ninh · quý 3"
-            autoFocus={autoFocusName}
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Slogan (không bắt buộc)</span>
-          <Input
-            value={slogan}
-            onChange={(e) => setSlogan(e.target.value)}
-            maxLength={200}
-            placeholder="Câu mở đầu ngắn hiện dưới tên chiến dịch"
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="@container">
+      {/* Split on the room it is given, not the viewport: the same boxes sit
+          in a wide modal and in a 760px drawer. */}
+      <div className="@3xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] @3xl:items-start grid gap-6">
+        <div className="flex flex-col gap-4">
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Chủ chiến dịch</span>
-            <Select
-              label="Chủ chiến dịch"
-              hideLabel
-              value={ownerId}
-              onChange={setOwnerId}
-              options={[
-                { value: '', label: 'Chưa gán' },
-                ...people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role}` })),
-              ]}
+            <span className="text-muted-foreground text-[11px]">Tên chiến dịch</span>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={200}
+              placeholder="Ví dụ: Tiếp cận nhà máy Bắc Ninh · quý 3"
+              autoFocus={autoFocusName}
             />
           </label>
           <label className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[11px]">Nguồn dẫn</span>
-            <Select
-              label="Nguồn dẫn"
-              hideLabel
-              value={sourceId}
-              onChange={setSourceId}
-              options={[
-                { value: '', label: 'Chưa gán' },
-                ...sources.filter((s) => s.active).map((s) => ({ value: s.id, label: s.name })),
-              ]}
+            <span className="text-muted-foreground text-[11px]">Slogan (không bắt buộc)</span>
+            <Input
+              value={slogan}
+              onChange={(e) => setSlogan(e.target.value)}
+              maxLength={200}
+              placeholder="Câu mở đầu ngắn hiện dưới tên chiến dịch"
             />
           </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2">
+              <span className="text-muted-foreground text-[11px]">Chủ chiến dịch</span>
+              <Select
+                label="Chủ chiến dịch"
+                hideLabel
+                size="lg"
+                value={ownerId}
+                onChange={setOwnerId}
+                options={[
+                  { value: '', label: 'Chưa gán' },
+                  ...people.map((p) => ({ value: p.id, label: `${p.name} · ${p.role}` })),
+                ]}
+              />
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-muted-foreground text-[11px]">Nguồn dẫn</span>
+              <Select
+                label="Nguồn dẫn"
+                hideLabel
+                size="lg"
+                value={sourceId}
+                onChange={setSourceId}
+                options={[
+                  { value: '', label: 'Chưa gán' },
+                  ...sources.filter((s) => s.active).map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
+            </label>
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-muted-foreground text-[11px]">Nguồn của lead</span>
+            <OriginSelect
+              label="Nguồn của lead"
+              hideLabel
+              value={originId}
+              onChange={setOriginId}
+              emptyLabel="Chưa gán"
+            />
+            <span className="text-muted-foreground text-[11px] leading-[1.5]">
+              Lead mới gắn vào chiến dịch này qua phương án hỏi chiến dịch mang nguồn này; lead đã
+              vào sổ giữ nguồn cũ.
+            </span>
+          </div>
+          <label className="flex flex-col gap-2 sm:max-w-[240px]">
+            <span className="text-muted-foreground text-[11px]">
+              Ngày kết thúc (không bắt buộc)
+            </span>
+            <Input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
+            <span className="text-muted-foreground text-[11px] leading-[1.5]">
+              Qua ngày này, chiến dịch thôi hiện ở ô chọn chiến dịch khi tạo lead.
+            </span>
+          </label>
         </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-muted-foreground text-[11px]">Nguồn của lead</span>
-          <OriginSelect
-            label="Nguồn của lead"
-            hideLabel
-            value={originId}
-            onChange={setOriginId}
-            emptyLabel="Chưa gán"
-          />
-          <span className="text-muted-foreground text-[11px] leading-[1.5]">
-            Lead mới gắn vào chiến dịch này qua phương án hỏi chiến dịch mang nguồn này; lead đã vào
-            sổ giữ nguồn cũ.
-          </span>
-        </div>
-        <label className="flex flex-col gap-2 sm:max-w-[240px]">
-          <span className="text-muted-foreground text-[11px]">Ngày kết thúc (không bắt buộc)</span>
-          <Input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
-          <span className="text-muted-foreground text-[11px] leading-[1.5]">
-            Qua ngày này, chiến dịch thôi hiện ở ô chọn chiến dịch khi tạo lead.
-          </span>
-        </label>
-      </div>
 
-      <ThumbnailField value={thumbnailUrl} onChange={setThumbnailUrl} />
+        <ThumbnailField value={thumbnailUrl} onChange={setThumbnailUrl} />
+      </div>
     </div>
   )
 }
@@ -176,16 +182,16 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
       <ThumbnailPreview
         url={settled}
         empty="Chưa có ảnh. Dán link ảnh trực tiếp để xem trước ngay tại đây."
-        broken="Không tải được ảnh từ địa chỉ này — cần link ẢNH trực tiếp (kết thúc .jpg, .png, .webp), không phải link trang chia sẻ."
+        broken="Không tải được ảnh từ địa chỉ này — cần link ảnh trực tiếp (kết thúc .jpg, .png, .webp), không phải link trang chia sẻ."
       />
     </div>
   )
 }
 
-/** THE PICTURE FRAME — the create modal's preview, the read-only profile and
- *  the campaign header draw the same 16:9 box over the same URL, and each has
- *  to say which of two nothings it is showing: no address yet, versus an
- *  address the browser refused.
+/** THE PICTURE FRAME — the form's preview and the profile's info card draw
+ *  the same 16:9 box over the same URL, and say which of two nothings they
+ *  show: no address yet, versus an address the browser refused. A tinted box,
+ *  not glass: every caller already sits on a glass surface.
  *
  *  `broken` is state and not a DOM mutation, and it resets whenever `url`
  *  changes — a verdict belongs to ONE address. `referrerPolicy="no-referrer"`
@@ -198,7 +204,8 @@ export function ThumbnailPreview({
   className,
 }: {
   url: string
-  empty: string
+  /** Said while there is no address; a caller that never passes `''` omits it. */
+  empty?: string
   broken: string
   /** Placement only — the header fixes a width beside the title. The frame
    *  keeps its 16:9 in every caller. */
@@ -208,9 +215,11 @@ export function ThumbnailPreview({
   useEffect(() => setBroken(false), [url])
 
   return (
-    <GlassCard
-      variant="a"
-      className={cn('flex aspect-video items-center justify-center overflow-hidden p-0', className)}
+    <div
+      className={cn(
+        'bg-surface-ink/5 flex aspect-video items-center justify-center overflow-hidden rounded-md',
+        className,
+      )}
     >
       {url === '' || broken ? (
         <div className="flex flex-col items-center gap-2 px-6 text-center">
@@ -219,9 +228,11 @@ export function ThumbnailPreview({
             size={24}
             className={broken ? 'text-warning' : 'text-muted-foreground'}
           />
-          <p className="text-muted-foreground text-pretty text-[11.5px] leading-[1.6]">
-            {broken ? brokenNote : empty}
-          </p>
+          {(broken || empty) && (
+            <p className="text-muted-foreground m-0 text-pretty text-[11.5px] leading-[1.6]">
+              {broken ? brokenNote : empty}
+            </p>
+          )}
         </div>
       ) : (
         <img
@@ -233,11 +244,11 @@ export function ThumbnailPreview({
           onError={() => setBroken(true)}
         />
       )}
-    </GlassCard>
+    </div>
   )
 }
 
-/** A NEW CAMPAIGN IS FIVE BOXES, NOT FOUR STEPS.
+/** A NEW CAMPAIGN IS ONE FORM, NOT FOUR STEPS.
  *
  *  The wizard held three of its four steps in React state so the book would
  *  never show an empty campaign — a promise its own create mutation had
@@ -290,7 +301,7 @@ export function CampaignCreateModal({
         onSuccess: (row) => {
           toast(`Đã mở chiến dịch ${row.code}`, {
             tone: 'success',
-            detail: 'Còn là NHÁP — gom người nhận rồi bắn đợt đầu trong hồ sơ.',
+            detail: 'Chiến dịch đang là bản nháp — thêm người nhận rồi gửi đợt đầu trong hồ sơ.',
           })
           onCreated(row.code)
         },
@@ -308,7 +319,7 @@ export function CampaignCreateModal({
       open={open}
       onClose={onClose}
       title="Chiến dịch mới"
-      subtitle="Bảy ô này mở một chiến dịch NHÁP. Chưa lá thư nào rời máy ở bước này."
+      subtitle="Bảy ô này mở một chiến dịch nháp. Chưa lá thư nào rời máy ở bước này."
       footer={
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <span className="text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]">
@@ -361,52 +372,35 @@ function patchField(next: string, original: string): string | null | undefined {
   return next === '' ? null : next
 }
 
-/** The profile as FACTS, for a reader who cannot write it.
+/** THE EDIT DRAWER — the one place an existing campaign's boxes are typed.
  *
- *  Not the same form with every box shut: the source picker is fed by
- *  `salesCatalogQuery`, which asks `config.view` — a permission `presales`
- *  does not carry while holding `campaign.view`. That query refuses, the
- *  options come back empty, and a shut picker then reads as unassigned one row
- *  under a header naming the very source it cannot see. Printing the stored
- *  value is the call `opportunity-form-card.tsx` already made. Name, slogan,
- *  owner, source and thumbnail are left out: the header above shows them. */
-function ProfileFacts({ campaign }: { campaign: CampaignProfile }) {
-  const originNames = useOriginNames()
-  return (
-    <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-      <Fact label="Nguồn của lead">
-        {campaign.originId ? (originNames.get(campaign.originId) ?? campaign.originId) : 'Chưa gán'}
-      </Fact>
-      <Fact label="Ngày kết thúc">{campaign.endsOn ? dmy(campaign.endsOn) : 'Không đặt'}</Fact>
-    </dl>
-  )
-}
-
-/** One fact — term above, value below, read as one pair by a screen reader. */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col gap-1">
-      <dt className="text-muted-foreground text-[11px]">{label}</dt>
-      <dd className="truncate text-[13px]">{children}</dd>
-    </div>
-  )
-}
-
-export function ProfileTab({
+ *  Mounted only for a reader who may write: the source picker is fed by a
+ *  catalogue gated on `config.view`, which a read-only role does not hold. */
+export function ProfileDrawer({
   campaign,
+  open,
+  onClose,
   people,
   sources,
   patch,
-  canEdit,
 }: {
   campaign: CampaignProfile
+  open: boolean
+  onClose: () => void
   people: Actor[]
   sources: { id: string; name: string; active: boolean }[]
   patch: ReturnType<typeof useCampaignPatch>
-  canEdit: boolean
 }) {
-  const [draft, setDraft] = useState<ProfileDraft>(() => profileFrom(campaign))
   const original = useMemo(() => profileFrom(campaign), [campaign])
+  const [draft, setDraft] = useState<ProfileDraft>(original)
+
+  /* Seeded on every opening, during render rather than in an effect: a
+     refetch while the drawer is open must not wipe what is being typed. */
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setDraft(original)
+  }
 
   const changed =
     draft.name.trim() !== original.name ||
@@ -437,7 +431,10 @@ export function ProfileTab({
       ...(endsOn === undefined ? {} : { endsOn }),
     }
     patch.mutate(body, {
-      onSuccess: () => toast('Đã lưu hồ sơ chiến dịch', { tone: 'success' }),
+      onSuccess: () => {
+        toast('Đã lưu thông tin chiến dịch', { tone: 'success' })
+        onClose()
+      },
       onError: (err) =>
         toast('Không lưu được', {
           tone: 'danger',
@@ -446,58 +443,44 @@ export function ProfileTab({
     })
   }
 
-  /* A bare section, not a card: the thumbnail frame below is itself a glass
-     tile, and `.glass-a`/`.glass-b` now paint the same `--card` (law 4), so a
-     tile inside a tile has nothing left to tell the two apart. */
   return (
-    <section className="flex flex-col gap-6">
-      {/* No section title: the tab already names this face, and the header
-          above already says when the campaign opened. */}
-      <span className="text-muted-foreground text-[11.5px]">
-        Sửa gần nhất {dmhm(campaign.updatedAt)}
-      </span>
-      {!canEdit ? (
-        <ProfileFacts campaign={campaign} />
-      ) : (
-        <fieldset disabled={patch.isPending} className="contents">
-          <ProfileFields
-            name={draft.name}
-            setName={(v) => setDraft((d) => ({ ...d, name: v }))}
-            slogan={draft.slogan}
-            setSlogan={(v) => setDraft((d) => ({ ...d, slogan: v }))}
-            thumbnailUrl={draft.thumbnailUrl}
-            setThumbnailUrl={(v) => setDraft((d) => ({ ...d, thumbnailUrl: v }))}
-            ownerId={draft.ownerId}
-            setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
-            sourceId={draft.sourceId}
-            setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
-            originId={draft.originId}
-            setOriginId={(v) => setDraft((d) => ({ ...d, originId: v }))}
-            endsOn={draft.endsOn}
-            setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
-            people={people}
-            sources={sources}
-          />
-        </fieldset>
-      )}
-      {canEdit && (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width="lg"
+      title="Sửa thông tin chiến dịch"
+      subtitle={campaign.code}
+      footer={
         <div className="flex justify-end gap-2">
-          {/* Undo is a reset to the stored row, not a way back to a step: this
-              tab has no wizard behind it to cancel out of. */}
-          <Button
-            size="md"
-            variant="ghost"
-            className="pointer-coarse:h-12"
-            onClick={() => setDraft(original)}
-            disabled={!changed || patch.isPending}
-          >
-            Bỏ thay đổi
+          <Button size="lg" variant="ghost" onClick={onClose} disabled={patch.isPending}>
+            Huỷ
           </Button>
-          <Button size="md" className="pointer-coarse:h-12" onClick={submit} disabled={!canSave}>
+          <Button size="lg" onClick={submit} disabled={!canSave}>
             {patch.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
           </Button>
         </div>
-      )}
-    </section>
+      }
+    >
+      <fieldset disabled={patch.isPending} className="contents">
+        <ProfileFields
+          name={draft.name}
+          setName={(v) => setDraft((d) => ({ ...d, name: v }))}
+          slogan={draft.slogan}
+          setSlogan={(v) => setDraft((d) => ({ ...d, slogan: v }))}
+          thumbnailUrl={draft.thumbnailUrl}
+          setThumbnailUrl={(v) => setDraft((d) => ({ ...d, thumbnailUrl: v }))}
+          ownerId={draft.ownerId}
+          setOwnerId={(v) => setDraft((d) => ({ ...d, ownerId: v }))}
+          sourceId={draft.sourceId}
+          setSourceId={(v) => setDraft((d) => ({ ...d, sourceId: v }))}
+          originId={draft.originId}
+          setOriginId={(v) => setDraft((d) => ({ ...d, originId: v }))}
+          endsOn={draft.endsOn}
+          setEndsOn={(v) => setDraft((d) => ({ ...d, endsOn: v }))}
+          people={people}
+          sources={sources}
+        />
+      </fieldset>
+    </Drawer>
   )
 }

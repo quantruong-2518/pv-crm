@@ -1,23 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
-  Chip,
   ColumnFilter,
   ColumnFilterList,
   ColumnFilterRange,
   Icon,
-  Inbox,
-  Megaphone,
   Plus,
-  Zap,
   SearchField,
   SegmentedControl,
   ScreenLayout,
-  StatCard,
+  cn,
   type TableSort,
 } from '@pv/ui'
 import {
@@ -42,7 +38,8 @@ import {
 } from '@/data/campaign-book'
 import { BookCount, BookPage } from '@/components/book-page'
 import { Module1Books } from '@/components/module1-books'
-import { AvatarCell, TableFooter } from '@/components/table-bits'
+import { AvatarCell, FilterMenu, TableFooter } from '@/components/table-bits'
+import { nextTask, shareOf } from './campaign-model'
 import { CampaignCreateModal } from './campaign-profile-parts'
 
 /** Module 1 · Sổ chiến dịch — `GET /sales/campaigns`.
@@ -63,14 +60,14 @@ import { CampaignCreateModal } from './campaign-profile-parts'
  *  cột. Bộ lọc nằm trên ĐỊA CHỈ, nên một trang đã lọc chép cho người khác được.
  *
  *  Ít thứ hơn vì sổ này trả lời ít câu hơn: không có nút nạp tệp (thành viên
- *  vào chiến dịch từ Sổ lead, không từ một tệp rời). Trạng thái là hàng tab; Người phụ trách,
- *  Nguồn dẫn và Tạo lúc lọc ngay trên tiêu đề cột (`ColumnFilter`) như Sổ lead. */
+ *  vào chiến dịch từ Sổ lead, không từ một tệp rời). State is the tab row;
+ *  source and created date sit behind the one filter button, owner on its column. */
 
 /** Số dòng bảng vẽ. Nhỏ hơn mặc định 50 của hợp đồng vì hàng chiến dịch cao
  *  hơn hàng cơ hội — có tên dài và hai con số. */
 const PAGE_SIZE = 10
 
-const TABLE_MIN_WIDTH = 'min-w-[1040px]'
+const TABLE_MIN_WIDTH = 'min-w-[960px]'
 
 const STATES: CampaignState[] = ['DRAFT', 'RUNNING', 'STOPPED', 'DONE']
 
@@ -98,9 +95,10 @@ export function CampaignsPage() {
      fence never disagree; the real fence stays at the api layer and on the
      route. */
   const canWrite = useCan('campaign.edit')
+  const canFire = useCan('campaign.broadcast')
 
   /* The create form opens HERE, in state, instead of on a route of its own:
-     `/sales/campaigns/new` was a whole screen whose content was five boxes. */
+     `/sales/campaigns/new` was a whole screen whose content was one form. */
   const [creating, setCreating] = useState(false)
   const people = useSalesPeople()
   /* `config.view`, which `presales` does not hold while holding
@@ -127,20 +125,6 @@ export function CampaignsPage() {
   const hidden = data?.hidden ?? 0
   const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
 
-  /* Ba con số của CẢ SỔ, không của trang đang mở — `campaignFacetQuery` giải
-     thích vì sao và nó gãy ở đâu. "Người nhận" cộng dồn `audienceCount` chứ
-     không đếm lead DISTINCT: một lead nằm trong hai chiến dịch là hai lần được
-     gửi, và con số này trả lời "bao nhiêu lá thư một vòng bắn", không trả lời
-     "bao nhiêu người trong sổ". */
-  const score = useMemo(
-    () => ({
-      drafts: wholeBook.filter((c) => c.state === 'DRAFT').length,
-      running: wholeBook.filter((c) => c.state === 'RUNNING').length,
-      audience: wholeBook.reduce((sum, c) => sum + c.audienceCount, 0),
-    }),
-    [wholeBook],
-  )
-
   /* Options are built from the whole book, keyed by id with the server's own
      name and a count; a value no campaign carries is never offered. */
   const optionsOf = (
@@ -166,30 +150,14 @@ export function CampaignsPage() {
   const sourceOptions = optionsOf((c) => [c.sourceId, c.sourceName], null)
 
   const csvOf = (v?: string) => (v ? v.split(',') : [])
-  const listFilter = (
-    label: string,
-    key: 'owner' | 'source',
-    options: { value: string; label: string }[],
-  ) => (
-    <ColumnFilter label={label} active={Boolean(query[key])}>
+  const ownerFilter = (
+    <ColumnFilter label="Người phụ trách" active={Boolean(query.owner)}>
       {(close) => (
         <ColumnFilterList
-          options={options}
-          selected={csvOf(query[key])}
+          options={ownerOptions}
+          selected={csvOf(query.owner)}
           close={close}
-          onApply={(v) => book.patch({ [key]: v.length ? v.join(',') : undefined })}
-        />
-      )}
-    </ColumnFilter>
-  )
-  const dateFilter = (
-    <ColumnFilter label="Ngày tạo" iconOnly active={Boolean(query.createdFrom || query.createdTo)}>
-      {(close) => (
-        <ColumnFilterRange
-          from={query.createdFrom}
-          to={query.createdTo}
-          close={close}
-          onApply={({ from, to }) => book.patch({ createdFrom: from, createdTo: to })}
+          onApply={(v) => book.patch({ owner: v.length ? v.join(',') : undefined })}
         />
       )}
     </ColumnFilter>
@@ -209,35 +177,6 @@ export function CampaignsPage() {
   })
   const tabs = STATE_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
-  /* Zero reads as "missing", not "fine" — tint per cell on its own count.
-     `facets` is the loaded flag: `score` defaults every field to 0 while it
-     is still pending, and that pending zero must not flash as a warning. */
-  const zero = (n: number) => Boolean(facets) && n === 0
-
-  const scoreItems = [
-    {
-      icon: Megaphone,
-      label: 'Bản nháp',
-      value: String(score.drafts),
-      hint: 'Chiến dịch chưa bắt đầu gửi email',
-      warn: zero(score.drafts),
-    },
-    {
-      icon: Zap,
-      label: 'Đang chạy',
-      value: String(score.running),
-      hint: 'Còn ít nhất một đợt gửi chưa hoàn tất',
-      warn: zero(score.running),
-    },
-    {
-      icon: Inbox,
-      label: 'Tổng lượt người nhận',
-      value: score.audience.toLocaleString('vi-VN'),
-      hint: 'Một người có thể được tính ở nhiều chiến dịch',
-      warn: zero(score.audience),
-    },
-  ]
-
   const { pageIndex } = useBookPageClamp(book, data?.total)
   const tableSort: TableSort = { key: query.sort, dir: query.dir }
 
@@ -255,46 +194,47 @@ export function CampaignsPage() {
             )
           }
           nav={<Module1Books />}
-          score={
-            <div
-              role="group"
-              aria-label="Thẻ điểm sổ chiến dịch"
-              className="grid grid-cols-2 gap-3 lg:grid-cols-3"
-            >
-              {scoreItems.map((item) => (
-                <StatCard
-                  key={item.label}
-                  size="compact"
-                  icon={item.icon}
-                  label={item.label}
-                  value={item.value}
-                  hint={item.hint}
-                  tone={item.warn ? 'warning' : 'default'}
-                />
-              ))}
-            </div>
-          }
+          /* Tabs, search and the one filter button read left to right as on
+             the approved canvas; the count closes the row at the far right. */
           tabs={
-            <SegmentedControl
-              label="Trạng thái chiến dịch"
-              hideLabel
-              tone="quiet"
-              value={query.state ?? ANY}
-              options={tabs}
-              onChange={(value) =>
-                book.patch({ state: value === ANY ? undefined : (value as CampaignState) })
-              }
-            />
-          }
-          count={<BookCount total={total} noun="chiến dịch" hidden={hidden} />}
-          tools={
             <>
+              <SegmentedControl
+                label="Trạng thái chiến dịch"
+                hideLabel
+                tone="quiet"
+                value={query.state ?? ANY}
+                options={tabs}
+                onChange={(value) =>
+                  book.patch({ state: value === ANY ? undefined : (value as CampaignState) })
+                }
+              />
               <SearchField
-                placeholder="Tìm theo tên hoặc mã chiến dịch…"
+                placeholder="Tìm theo tên hoặc mã chiến dịch"
                 value={book.text}
                 onChange={book.setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
+                className="pointer-coarse:h-12 w-full sm:w-[320px]"
               />
+              <FilterMenu
+                label="Bộ lọc sổ chiến dịch"
+                active={(query.source ? 1 : 0) + (query.createdFrom || query.createdTo ? 1 : 0)}
+              >
+                <FilterSection title="Nguồn dẫn">
+                  <ColumnFilterList
+                    options={sourceOptions}
+                    selected={csvOf(query.source)}
+                    close={noop}
+                    onApply={(v) => book.patch({ source: v.length ? v.join(',') : undefined })}
+                  />
+                </FilterSection>
+                <FilterSection title="Ngày tạo">
+                  <ColumnFilterRange
+                    from={query.createdFrom}
+                    to={query.createdTo}
+                    close={noop}
+                    onApply={({ from, to }) => book.patch({ createdFrom: from, createdTo: to })}
+                  />
+                </FilterSection>
+              </FilterMenu>
               {book.dirty && (
                 <Button
                   size="md"
@@ -307,6 +247,7 @@ export function CampaignsPage() {
               )}
             </>
           }
+          tools={<BookCount total={total} noun="chiến dịch" hidden={hidden} />}
           pending={isPending}
           failure={
             bookError
@@ -353,58 +294,22 @@ export function CampaignsPage() {
               )
             },
             columns: [
-              /* Code and name are ONE column since 20/09: the code is how a
-                 row is named out loud, so it rides with the name instead of
-                 paying for a column of its own. The slack went to the name. */
-              { header: 'Chiến dịch', width: '3fr', sortKey: 'name' },
-              { header: 'Trạng thái', width: '1fr' },
+              { header: 'Chiến dịch', width: 'minmax(216px,3fr)', sortKey: 'name' },
+              { header: 'Trạng thái', width: '104px' },
+              { header: 'Việc kế tiếp', width: 'minmax(120px,1.2fr)' },
+              { header: 'Người nhận', width: '88px', align: 'right', sortKey: 'audienceCount' },
+              { header: 'Đợt gửi', width: 'minmax(104px,1fr)', sortKey: 'waveCount' },
+              { header: 'Đã bấm liên kết', width: '120px', align: 'right' },
               {
-                header: listFilter('Người phụ trách', 'owner', ownerOptions),
-                width: '140px',
+                header: ownerFilter,
+                width: '96px',
                 align: 'center',
               },
-              { header: listFilter('Nguồn dẫn', 'source', sourceOptions), width: '1.2fr' },
-              { header: 'Người nhận', width: '0.9fr', align: 'right', sortKey: 'audienceCount' },
-              {
-                header: 'Số đợt gửi',
-                width: 'minmax(88px,0.6fr)',
-                align: 'right',
-                sortKey: 'waveCount',
-              },
-              { header: 'Ngày tạo', width: '0.9fr', sortKey: 'createdAt', filter: dateFilter },
             ],
             rows: rows.map((c) => ({
               id: c.code,
               onOpen: () => navigate(`/sales/campaigns/${c.code}`),
-              cells: [
-                <div key="n" className="flex min-w-0 items-center gap-2">
-                  <Chip>{c.code}</Chip>
-                  <span className="min-w-0 truncate" title={c.name}>
-                    {c.name}
-                  </span>
-                </div>,
-                <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
-                  {CAMPAIGN_STATE_LABEL[c.state]}
-                </Badge>,
-                <AvatarCell
-                  key="o"
-                  name={c.ownerName}
-                  email={c.ownerEmail}
-                  empty="Chưa có người phụ trách"
-                />,
-                <span key="src" className="block truncate">
-                  {c.sourceName ?? '—'}
-                </span>,
-                <span key="a" className="tnum font-num">
-                  {c.audienceCount.toLocaleString('vi-VN')}
-                </span>,
-                <span key="w" className="tnum font-num">
-                  {c.waveCount}
-                </span>,
-                <span key="t" className="tnum font-num">
-                  {dm(c.createdAt)}
-                </span>,
-              ],
+              cells: campaignCells(c, { 'campaign.edit': canWrite, 'campaign.broadcast': canFire }),
             })),
           }}
           footer={
@@ -425,3 +330,94 @@ export function CampaignsPage() {
 }
 
 export default CampaignsPage
+
+/** The filter menu stays open after an apply: its two sections are applied
+ *  one at a time, and the count on the button says what is in force. */
+const noop = () => {}
+
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="flex max-h-[280px] min-h-0 flex-col gap-2">
+      <h3 className="text-muted-foreground m-0 text-[12px] font-semibold">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+const MUTED_LINE = 'text-muted-foreground block truncate text-[11px]'
+
+/** `can` decides the amber: a next task reads as a call only to a reader who
+ *  may answer it. */
+function campaignCells(
+  c: CampaignBookRow,
+  can: Record<'campaign.edit' | 'campaign.broadcast', boolean>,
+) {
+  const task = nextTask(c)
+  /* Scheduled-only waves have sent nothing: still an absence, not a zero. */
+  const totals = c.waveTotals && c.waveTotals.sent > 0 ? c.waveTotals : undefined
+  const lastWaveAt = c.waveTotals?.lastWaveAt
+  return [
+    <div key="n" className="flex min-w-0 items-center gap-3">
+      <Thumbnail key={c.thumbnailUrl} url={c.thumbnailUrl} />
+      <div className="min-w-0">
+        <span className="block truncate" title={c.name}>
+          {c.name}
+        </span>
+        <span className={MUTED_LINE}>
+          <span className="font-mono">{c.code}</span> · {c.sourceName ?? 'chưa gán nguồn dẫn'}
+        </span>
+      </div>
+    </div>,
+    <Badge key="s" tone={CAMPAIGN_STATE_TONE[c.state]}>
+      {CAMPAIGN_STATE_LABEL[c.state]}
+    </Badge>,
+    <span
+      key="t"
+      className={cn('block truncate', task?.needs && can[task.needs] && 'text-warning')}
+    >
+      {task?.label ?? '—'}
+    </span>,
+    <span key="a" className="tnum font-num">
+      {c.audienceCount > 0 ? c.audienceCount.toLocaleString('vi-VN') : '—'}
+    </span>,
+    c.waveCount > 0 ? (
+      <div key="w" className="min-w-0">
+        <span className="tnum block truncate">{c.waveCount} đợt</span>
+        {lastWaveAt && <span className={cn(MUTED_LINE, 'tnum')}>gần nhất {dm(lastWaveAt)}</span>}
+      </div>
+    ) : (
+      <span key="w">—</span>
+    ),
+    totals ? (
+      <div key="c" className="min-w-0">
+        <span className="tnum font-num block">{totals.clicked.toLocaleString('vi-VN')}</span>
+        <span className={cn(MUTED_LINE, 'tnum')}>
+          {shareOf(totals.clicked, totals.delivered, 1)} số tới nơi
+        </span>
+      </div>
+    ) : (
+      <span key="c">—</span>
+    ),
+    <AvatarCell key="o" name={c.ownerName} email={c.ownerEmail} empty="Chưa có người phụ trách" />,
+  ]
+}
+
+/** A 16:9 box that stays neutral when there is no picture or it will not
+ *  load. Keyed on the URL by the caller, so `broken` is one address's verdict. */
+function Thumbnail({ url }: { url?: string | undefined }) {
+  const [broken, setBroken] = useState(false)
+  return (
+    <span className="bg-surface-ink/5 block aspect-video w-14 shrink-0 overflow-hidden rounded-sm">
+      {url && !broken && (
+        <img
+          src={url}
+          alt=""
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          className="h-full w-full object-cover"
+          onError={() => setBroken(true)}
+        />
+      )}
+    </span>
+  )
+}

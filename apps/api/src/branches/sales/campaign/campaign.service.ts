@@ -30,7 +30,13 @@ import type { Db } from '@api/platform/db/db.module'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { PvError, conflict, denied, invalid, notFound } from '@api/platform/http/problem'
-import { toContract, toMemberRow, toProfile } from './campaign.mapper'
+import {
+  toContract,
+  toMemberRow,
+  toProfile,
+  waveTotalsOf,
+  type CampaignRead,
+} from './campaign.mapper'
 import { CampaignRepository } from './campaign.repository'
 import { MasService } from './mas.service'
 
@@ -65,18 +71,36 @@ export class CampaignService {
   async book(who: Actor, q: CampaignBookQuery): Promise<CampaignBookResponse> {
     const page = await this.repo.book(who, q, true)
     return CampaignBookResponse.parse({
-      rows: page.rows.map(toContract),
+      rows: (await this.withWaveTotals(page.rows)).map(toContract),
       total: page.total,
       hidden: page.hidden,
     })
   }
 
+  /** Attaches `waveTotals` to a page of reads: one wave read plus the two
+   *  aggregate passes of `MailRunRepository.tallies()` for the WHOLE page,
+   *  whatever its size — the counters are the run list's own, not a copy. */
+  private async withWaveTotals<T extends CampaignRead>(reads: T[]): Promise<T[]> {
+    const runs = await this.repo.waveRuns(
+      reads.filter((r) => r.waveCount > 0).map((r) => r.row.code),
+    )
+    if (runs.length === 0) return reads
+
+    const totals = waveTotalsOf(runs, await this.runs.tallies(runs.map((r) => r.mailRunId)))
+    return reads.map((r) => ({ ...r, waveTotals: totals.get(r.row.code) }))
+  }
+
   /** The two environment limits the profile carries, in one place so the
    *  screen never has to guess either of them again. */
-  private limits(): { batchCeiling: number; bounceCeilingPercent: number } {
+  private limits(): {
+    batchCeiling: number
+    bounceCeilingPercent: number
+    bounceMinSample: number
+  } {
     return {
       batchCeiling: this.env.PV_MAS_BATCH_MAX,
       bounceCeilingPercent: this.env.PV_MAS_BOUNCE_CEILING_PERCENT,
+      bounceMinSample: this.env.PV_MAS_BOUNCE_MIN_SAMPLE,
     }
   }
 
@@ -88,7 +112,8 @@ export class CampaignService {
     }
 
     const waves = await this.wavesOf(who, code)
-    return CampaignProfile.parse(toProfile(found, waves, this.limits()))
+    const [read] = await this.withWaveTotals([found])
+    return CampaignProfile.parse(toProfile(read ?? found, waves, this.limits()))
   }
 
   /** The creator owns it unless the form says otherwise.
@@ -140,7 +165,8 @@ export class CampaignService {
 
     const after = await this.repo.byCode(who, code, true)
     if (!after) throw notFound('chiến dịch', code)
-    return CampaignPatchResponse.parse(toContract(after))
+    const [read] = await this.withWaveTotals([after])
+    return CampaignPatchResponse.parse(toContract(read ?? after))
   }
 
   async pickable(q: CampaignPickableQuery): Promise<CampaignPickableResponse> {

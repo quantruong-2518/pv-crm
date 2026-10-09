@@ -53,12 +53,7 @@ export function TodoCard({
       <h2 id={titleId} className="font-display m-0 text-[16px] font-semibold leading-[1.4]">
         {title}
       </h2>
-      {/* `list-none` strips the list role in Safari; say it back. */}
-      <ol role="list" aria-label={rungsLabel} className="m-0 flex list-none flex-wrap gap-2 p-0">
-        {rungs.map((rung) => (
-          <RungCell key={rung.key} rung={rung} />
-        ))}
-      </ol>
+      <TodoRungs rungs={rungs} label={rungsLabel} />
       {(next || primary) && (
         <>
           <Separator />
@@ -69,6 +64,18 @@ export function TodoCard({
         </>
       )}
     </GlassCard>
+  )
+}
+
+/** The ladder by itself, for a profile that draws it inside another card. */
+export function TodoRungs({ rungs, label }: { rungs: TodoRung[]; label: string }) {
+  return (
+    /* `list-none` strips the list role in Safari; say it back. */
+    <ol role="list" aria-label={label} className="m-0 flex list-none flex-wrap gap-2 p-0">
+      {rungs.map((rung) => (
+        <RungCell key={rung.key} rung={rung} />
+      ))}
+    </ol>
   )
 }
 
@@ -110,7 +117,7 @@ function RungCell({ rung }: { rung: TodoRung }) {
         <span
           aria-hidden={rung.caption === null || undefined}
           className={cn(
-            'tnum text-[11px] leading-[1.4] opacity-80',
+            'tnum text-[11px] leading-[1.4]',
             rung.late || mark === 'stopped' ? 'text-destructive-foreground' : tone,
           )}
         >

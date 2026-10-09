@@ -27,9 +27,10 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
+import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { mailSequenceRun } from '../mail-sequence.schema'
 import { campaign, campaignMember, type CampaignRowDb } from './campaign.schema'
-import type { CampaignMemberRead, CampaignRead } from './campaign.mapper'
+import type { CampaignMemberRead, CampaignRead, CampaignWaveRunRead } from './campaign.mapper'
 
 export type CampaignBookPage = {
   rows: CampaignRead[]
@@ -444,6 +445,30 @@ export class CampaignRepository {
       .from(mailSequenceRun)
       .where(
         and(eq(mailSequenceRun.subjectType, 'campaign'), eq(mailSequenceRun.subjectCode, code)),
+      )
+      .orderBy(asc(mailSequenceRun.waveNo))
+  }
+
+  /** Every wave of `codes` with its run's state and start, in ONE grouped read
+   *  for the page. The four counters are not here on purpose: they are
+   *  `MailRunRepository.tallies()`' definition, and a copy of it would drift. */
+  async waveRuns(codes: readonly string[]): Promise<CampaignWaveRunRead[]> {
+    if (codes.length === 0) return []
+    return this.db
+      .select({
+        campaignCode: mailSequenceRun.subjectCode,
+        waveNo: mailSequenceRun.waveNo,
+        mailRunId: mailSequenceRun.mailRunId,
+        state: mailRun.state,
+        startedAt: mailRun.startedAt,
+      })
+      .from(mailSequenceRun)
+      .innerJoin(mailRun, eq(mailRun.id, mailSequenceRun.mailRunId))
+      .where(
+        and(
+          eq(mailSequenceRun.subjectType, 'campaign'),
+          inArray(mailSequenceRun.subjectCode, [...codes]),
+        ),
       )
       .orderBy(asc(mailSequenceRun.waveNo))
   }
