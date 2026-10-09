@@ -12,6 +12,7 @@ import {
   OPPORTUNITY_BOOK_KEY,
   opportunityBookQuery,
 } from '@/data/opportunities'
+import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
 
 /** Đổi người giữ một lead — `PATCH /sales/leads/:code/owner`.
  *
@@ -33,10 +34,10 @@ import {
  *  mang `owner_id IS NULL`, bật lên là không ai nhận được gì từ kho chung.
  *
  *  ------------------------------------------------------------------
- *  VỨT BỐN THỨ, KHÔNG VÁ MỘT Ô
+ *  VỨT MỌI CHỖ IN NGƯỜI GIỮ, KHÔNG VÁ MỘT Ô
  *  ------------------------------------------------------------------
- *  201 trả về nguyên dòng sổ, nhưng vá nó vào cache là vá đúng MỘT trong bốn
- *  chỗ đang in người giữ:
+ *  201 trả về nguyên dòng sổ, nhưng vá nó vào cache là vá đúng MỘT trong các
+ *  chỗ đang in người giữ. Phía lead có bốn:
  *
  *   · sổ lead — cột Lead PIC của trang đang mở;
  *   · mặt lọc của sổ (`lead-book/facets`) — ô lọc "Lead PIC" dựng danh sách
@@ -45,15 +46,17 @@ import {
  *   · hồ sơ lead (`lead-profile`) — khối PIC ở đầu trang chi tiết;
  *   · dòng thời gian (`lead-touches`) — máy chủ vừa ghi một lần chạm `handed-over`.
  *
- *  Hai tiền tố vì hai cái đầu nằm chung dưới `['sales','lead-book']`. Vá tay
- *  ba chỗ rồi quên chỗ thứ tư là đúng cái lớp lỗi "màn nói một đằng máy chủ
- *  một nẻo" mà cả tầng `data/` này dựng ra để không phải gặp nữa. */
+ *  Hai cái đầu nằm chung dưới `['sales','lead-book']`; sổ cơ hội, hồ sơ cơ
+ *  hội và sổ hành trình in người giữ nữa (`TOUCHED_KEYS`). Vá tay vài chỗ rồi
+ *  quên một chỗ là đúng cái lớp lỗi "màn nói một đằng máy chủ một nẻo" mà cả
+ *  tầng `data/` này dựng ra để không phải gặp nữa. */
 
 const OWNER_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 
-/** Các tiền tố bị vứt sau mỗi lượt giao. Chép chuỗi chứ không import: ba file
- *  kia xuất object query chứ không xuất tiền tố — cùng món nợ `lead-create.ts`
- *  đã ghi khi chép `LEAD_BOOK_KEY`, ghi lại đây để lần đổi tên tìm đủ chỗ. */
+/** Các tiền tố bị vứt sau mỗi lượt giao. Hai khoá sổ (cơ hội, hành trình) là
+ *  import; bốn khoá còn lại chép chuỗi: file của chúng xuất object query chứ
+ *  không xuất tiền tố — cùng món nợ `lead-create.ts` đã ghi khi chép
+ *  `LEAD_BOOK_KEY`, ghi lại đây để lần đổi tên tìm đủ chỗ. */
 const TOUCHED_KEYS = [
   ['sales', 'lead-book'],
   ['sales', 'lead-profile'],
@@ -61,6 +64,8 @@ const TOUCHED_KEYS = [
   // The old holder's open deals follow the lead (ADR 0069 §10): the Ops book and deal profiles.
   OPPORTUNITY_BOOK_KEY,
   ['sales', 'ops'],
+  // The run book and journey print the lead's holder too.
+  WORKSTREAM_BOOK_KEY,
 ] as const
 
 export function ownerPath(code: string): string {

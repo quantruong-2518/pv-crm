@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import {
   ArrowRight,
   Avatar,
@@ -54,6 +54,7 @@ import {
   type RailRung,
   type Status,
 } from './workstream-tree-model'
+import { StepDrawer } from './workstream-tree-step'
 
 /** The cards of the journey tree — lead, deal (full or compact), contract,
  *  and the continuation doors of lane 4 (growth, waiting) —
@@ -61,8 +62,9 @@ import {
  *
  *  Each card is absolutely placed by `workstream-tree-model.ts` but sized by
  *  its own content, so titles wrap instead of ending in "…". `data-node`
- *  is how the tree finds the cards to measure. A code, a rung and a door
- *  title open the object's profile; there is no selection (ADR 0078 §2). */
+ *  is how the tree finds the cards to measure. A rung opens its step drawer,
+ *  whose footer opens the object's profile; a code and a door title open the
+ *  profile straight away. There is no selection. */
 
 type Go = (path: string) => void
 export type Track = { go: Go; pathOf: PathOf }
@@ -124,9 +126,9 @@ function Holder({ person }: { person: WorkstreamHolder | null }) {
 // THE RAIL
 // ---------------------------------------------------------------------------
 
-/** `current` is warm, not StatusDot's own brand blue: blue is the selection
- *  ring on this screen. `stopped` is a solid grey dot, the same grey the book
- *  gives a lost deal (`STATE_TONE`).
+/** `current` is warm, not StatusDot's own brand blue, to match the warning
+ *  pill `rungStatus` gives it. `stopped` is a solid grey dot, the same grey the
+ *  book gives a lost deal (`STATE_TONE`).
  *  Unreached rungs are RINGS in `--muted-foreground` (a faint fill missed the
  *  3:1 non-text floor); a skipped one is dashed. */
 const HALO = {
@@ -189,49 +191,71 @@ function Rail({
   notes?: Partial<Record<string, string>>
 }) {
   const path = pathOf(CHAIN_KIND[kind], code)
+  /* The index outlives the close, so the drawer slides out with its words. */
+  const [step, setStep] = useState({ at: 0, open: false })
+  /* Stable: the drawer re-focuses its panel whenever `onClose` changes, which
+     would pull focus off the ‹ › button just pressed. */
+  const close = useCallback(() => setStep((s) => ({ ...s, open: false })), [])
+  const shown = rungs[step.at]
   return (
-    <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
-      {rungs.map((r, i) => {
-        const word = rungStatus(r.state, r.late).label
-        const note = notes?.[r.key]
-        return (
-          <li key={r.key} className="min-w-0">
-            <button
-              type="button"
-              disabled={!path}
-              aria-current={r.state === 'current' ? 'step' : undefined}
-              aria-label={`${[r.label, word, note].filter(Boolean).join(' · ')} — mở ${code}`}
-              title={note ? `${r.label} · ${note}` : r.label}
-              onClick={() => path && go(path)}
-              className={cn(
-                'motion-std flex min-h-12 w-full flex-col items-center rounded-md pt-1',
-                path && 'hover:bg-surface-ink/9',
-              )}
-            >
-              <span className="relative block h-4 w-full">
-                {i > 0 && <Half side="in" lit={r.litIn} />}
-                {i < rungs.length - 1 && <Half side="out" lit={r.litOut} />}
-                <span className="absolute left-1/2 top-2 flex -translate-x-1/2 -translate-y-1/2">
-                  <RungDot rung={r} />
-                </span>
-              </span>
-              <span
-                className={cn(
-                  'tnum pt-1 text-[11px]',
-                  r.late !== null
-                    ? 'text-destructive-foreground'
-                    : r.state === 'current'
-                      ? 'text-warning'
-                      : 'text-muted-foreground',
-                )}
+    <>
+      <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
+        {rungs.map((r, i) => {
+          const word = rungStatus(r.state, r.late).label
+          const note = notes?.[r.key]
+          return (
+            <li key={r.key} className="min-w-0">
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-current={r.state === 'current' ? 'step' : undefined}
+                aria-label={[`Bước ${i + 1}`, r.label, word, note].filter(Boolean).join(' · ')}
+                title={note ? `${r.label} · ${note}` : r.label}
+                onClick={() => setStep({ at: i, open: true })}
+                className="motion-std hover:bg-surface-ink/9 flex min-h-12 w-full flex-col items-center rounded-md pt-1"
               >
-                {r.state === 'skipped' ? STATE_WORD.skipped : r.at !== null ? dm(r.at) : ''}
-              </span>
-            </button>
-          </li>
-        )
-      })}
-    </ol>
+                <span className="relative block h-4 w-full">
+                  {i > 0 && <Half side="in" lit={r.litIn} />}
+                  {i < rungs.length - 1 && <Half side="out" lit={r.litOut} />}
+                  <span className="absolute left-1/2 top-2 flex -translate-x-1/2 -translate-y-1/2">
+                    <RungDot rung={r} />
+                  </span>
+                </span>
+                {/* Wraps rather than cuts: a number beside the skipped word is
+                    wider than a 48px cell. */}
+                <span className="tnum flex flex-wrap justify-center gap-x-1 pt-1 text-[11px]">
+                  <span className="text-muted-foreground font-semibold">{i + 1}</span>
+                  <span
+                    className={cn(
+                      r.late !== null
+                        ? 'text-destructive-foreground'
+                        : r.state === 'current'
+                          ? 'text-warning'
+                          : 'text-muted-foreground',
+                    )}
+                  >
+                    {r.state === 'skipped' ? STATE_WORD.skipped : r.at !== null ? dm(r.at) : ''}
+                  </span>
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+      <StepDrawer
+        open={step.open}
+        kind={kind}
+        code={code}
+        rungs={rungs}
+        notes={notes}
+        at={step.at}
+        meta={shown && <StatusPill status={rungStatus(shown.state, shown.late)} />}
+        path={path}
+        onStep={(at) => setStep({ at, open: true })}
+        onClose={close}
+        onOpen={go}
+      />
+    </>
   )
 }
 

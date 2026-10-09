@@ -89,7 +89,8 @@ export const CONTRACT_KIND_LABEL: Record<ContractKind, string> = {
  *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
  *   · `working`    — first real touch: call, message, meeting held, any mail sent
  *   · `nurturing`  — parked, never expires; any real touch loops it back to `working`
- *   · `converted`  — the first opportunity was opened from it
+ *   · `converted`  — the first opportunity was opened from it; the last live one
+ *                    lost with nothing signed parks it in `nurturing` (ADR 0069 §3)
  *   · `disqualified` — a person pressed "stop caring"; out of the loop (ADR 0068)
  *
  *  Tier (prospect/mql/sql) belongs to no state. Not `StageKey`: that is the deal's. */
@@ -111,6 +112,48 @@ export const LEAD_STATE_LABEL: Record<LeadState, string> = {
   nurturing: 'Nhóm chờ chăm sóc',
   converted: 'Thành cơ hội',
   disqualified: 'Ngừng chăm sóc',
+}
+
+/** Display words for each state, read only by the journey screen; kept beside
+ *  LEAD_STATE_LABEL so states are declared in one place. The rules live in the
+ *  `LeadState` docblock and ADR 0063 / 0068 / 0069, not here. A new state
+ *  without a hint is a compile error. */
+export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; next: string }> = {
+  new: {
+    does: 'Lead vừa được tạo, chưa có ai nhận.',
+    who: 'Hệ thống hoặc người nhập lead',
+    next: 'Có người nhận PIC thì sang Nhận PIC.',
+  },
+  assigned: {
+    does: 'Một người nhận phụ trách lead và chịu trách nhiệm liên hệ.',
+    who: 'Người phụ trách (PIC); với mail hẹn giờ là bất kỳ ai hẹn',
+    next: 'Có lịch chăm sóc (họp sắp tới, mail hẹn giờ) thì sang Tạo chiến lược chăm sóc; có lần chạm thật thì sang thẳng Tình trạng chăm sóc.',
+  },
+  verifying: {
+    does: 'Chăm sóc đã được lên lịch nhưng chưa chạm khách (họp sắp tới, mail hẹn giờ).',
+    who: 'PIC',
+    next: 'Có lần chạm thật đầu tiên (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc.',
+  },
+  working: {
+    does: 'Đang chăm sóc: mỗi lần chạm thật được ghi vào lịch sử liên hệ.',
+    who: 'PIC',
+    next: 'Tạm gác thì sang Nhóm chờ chăm sóc; có người bấm ngừng thì sang Ngừng chăm sóc; mở cơ hội thì sang Thành cơ hội (làm được từ mọi trạng thái còn mở).',
+  },
+  nurturing: {
+    does: 'Lead tạm gác, không hết hạn, vẫn giữ PIC.',
+    who: 'PIC',
+    next: 'Có lần chạm thật (gọi, nhắn, họp, gửi mail) hoặc bấm tay "Chăm lại" thì quay về Tình trạng chăm sóc, cùng lead, cùng người giữ.',
+  },
+  converted: {
+    does: 'Cơ hội đầu tiên đã được mở từ lead này.',
+    who: 'Người có quyền tạo cơ hội và sửa được lead',
+    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên và vẫn mở thêm được cơ hội; cơ hội cuối cùng bị dừng mà chưa ký thì lead về Nhóm chờ chăm sóc.',
+  },
+  disqualified: {
+    does: 'Một người đã bấm ngừng chăm sóc; lead rời vòng lặp, không chiến dịch hay mail nào tìm lại.',
+    who: 'Người bấm ngừng chăm sóc',
+    next: 'Chỉ người có quyền mới mở lại được; không có lần chạm nào tự kéo lead về.',
+  },
 }
 
 /** The states still in the funnel — the book's default tab and every "still

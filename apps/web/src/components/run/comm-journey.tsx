@@ -1,30 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, CircleX, Pencil } from '@pv/ui'
-import {
-  Badge,
-  Button,
-  Icon,
-  SegmentedControl,
-  Select,
-  Skeleton,
-  Timeline,
-  cn,
-  type TimelineItem,
-} from '@pv/ui'
-import { MAIL_LETTER_STATE_LABEL, type MailSubjectTimelineRow } from '@pv/contracts'
+import { CircleX, Pencil } from '@pv/ui'
+import { Button, Icon, SegmentedControl, Select, Skeleton, cn } from '@pv/ui'
+import type { MailSubjectTimelineRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { ChannelPill, CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
-import { LETTER_TONE } from '@/components/mail-letter/letter-model'
-import { COMM_FOCUS, COMM_STATE_DOT, subjectKindLabel } from '@/data/comm-record-detail'
+import { COMM_FOCUS, subjectKindLabel } from '@/data/comm-record-detail'
 import { commRecordPath, workstreamCommsPath } from '@/data/comm-records'
 import { COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { useOwnLetterCancel } from '@/data/mail-letters'
 import { LETTERS_KEY } from '@/data/mas'
-import { dm, dmhm } from '@/lib/date'
+import { JourneyList } from './comm-journey-list'
 import { useJourneyRows, type JourneyRow, type JourneySubject } from './comm-journey-rows'
 import { RunBlock } from './run-block'
 
@@ -87,7 +75,7 @@ export function CommJourney({
 
   return (
     <RunBlock
-      title="Liên hệ"
+      title="Lịch sử liên hệ"
       aside={
         <>
           {unconfirmed > 0 && (
@@ -96,21 +84,22 @@ export function CommJourney({
             </span>
           )}
           {canComms && workstreamCode !== null && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="pointer-coarse:h-12"
+            <button
+              type="button"
               aria-label="Xem cả luồng liên hệ"
               onClick={() => navigate(workstreamCommsPath(workstreamCode))}
+              className={cn(
+                'text-muted-foreground hover:text-foreground pointer-coarse:min-h-12 rounded-sm text-[13px] font-medium hover:underline',
+                COMM_FOCUS,
+              )}
             >
               Xem thêm
-              <Icon icon={ArrowRight} size={16} />
-            </Button>
+            </button>
           )}
         </>
       }
     >
-      {(hasScopes || channels.length > 1) && (
+      {rows.length > RECENT && (hasScopes || channels.length > 1) && (
         <div className="flex flex-wrap items-center gap-2">
           {hasScopes && subject && (
             <SegmentedControl
@@ -162,30 +151,23 @@ export function CommJourney({
           {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
         </p>
       ) : shown.length > 0 ? (
-        <Timeline
-          items={(cut ? shown.slice(0, RECENT) : shown).map((row) =>
-            itemOf(row, {
-              open: openOf(row),
-              showCode,
-              letterActions: row.letter?.canEdit ? (
-                <LetterActions
-                  letter={row.letter}
-                  onEdit={(id) => setEditing({ id, viaContent: false })}
-                />
-              ) : undefined,
-            }),
-          )}
+        <JourneyList
+          rows={cut ? shown.slice(0, RECENT) : shown}
+          showCode={showCode}
+          openOf={openOf}
+          actionsOf={(row) =>
+            row.letter?.canEdit && (
+              <LetterActions
+                letter={row.letter}
+                onEdit={(id) => setEditing({ id, viaContent: false })}
+              />
+            )
+          }
         />
       ) : rows.length > 0 ? (
         <p className={cn(NOTE, 'text-muted-foreground')}>Không có lượt liên hệ nào khớp bộ lọc.</p>
       ) : (
         canComms && <p className={cn(NOTE, 'text-muted-foreground')}>Chưa có lượt liên hệ nào.</p>
-      )}
-
-      {cut && (
-        <span className="text-muted-foreground tnum text-[12px]">
-          {RECENT} gần nhất trong {shown.length}
-        </span>
       )}
 
       {!canComms && (
@@ -200,78 +182,6 @@ export function CommJourney({
       />
     </RunBlock>
   )
-}
-
-/** One moment: when · channel · who and the pill of a row that still says
- *  something, then the content beneath (it opens the comm's screen or the letter). A
- *  scheduled letter or a booked meeting carries its hour: it has not happened yet. */
-function itemOf(
-  row: JourneyRow,
-  {
-    open,
-    showCode,
-    letterActions,
-  }: {
-    open: (() => void) | null
-    showCode: boolean
-    letterActions: TimelineItem['actions']
-  },
-): TimelineItem {
-  const ahead = row.letter?.state === 'SCHEDULED' || row.commState === 'scheduled'
-  const when = row.at && (ahead ? dmhm(row.at) : dm(row.at))
-  const content = (
-    <span
-      className={cn(
-        'text-[13px] leading-[1.5]',
-        row.titleMuted ? 'text-muted-foreground' : 'text-foreground',
-      )}
-    >
-      {row.title}
-    </span>
-  )
-
-  return {
-    id: row.key,
-    state: row.letter
-      ? LETTER_TONE[row.letter.state].dot
-      : row.commState
-        ? COMM_STATE_DOT[row.commState]
-        : 'next',
-    title: (
-      <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px] font-normal">
-        {when && <span className="tnum">{when}</span>}
-        <ChannelPill channel={row.channel} />
-        <span>{[row.owner, showCode && row.code].filter(Boolean).join(' · ')}</span>
-        <RowPill row={row} />
-        <CommLateMark late={row.late} />
-        <CommOverdueMark overdue={row.overdue} />
-      </span>
-    ),
-    children: open ? (
-      <button
-        type="button"
-        onClick={open}
-        className={cn(
-          'pointer-coarse:min-h-12 flex w-full items-center rounded-sm text-left hover:underline',
-          COMM_FOCUS,
-        )}
-      >
-        {content}
-      </button>
-    ) : (
-      content
-    ),
-    actions: letterActions,
-  }
-}
-
-/** A comm's pill only while unfinished; a letter's for every state but SENT,
- *  the plain outcome — opened, replied, bounced, held back, stopped all tell. */
-function RowPill({ row }: { row: JourneyRow }) {
-  if (row.commState && row.commState !== 'done') return <CommStateBadge state={row.commState} />
-  const state = row.letter?.state
-  if (!state || state === 'SENT') return null
-  return <Badge tone={LETTER_TONE[state].badge}>{MAIL_LETTER_STATE_LABEL[state]}</Badge>
 }
 
 /** Edit · Stop on a scheduled letter the reader created, as the old per-object letter list had them. */

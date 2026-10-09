@@ -139,11 +139,13 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
         </>
       }
-      railLabel="Liên hệ, người liên hệ và tài liệu của cơ hội"
+      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của cơ hội"
       rail={
         <>
           <RunOwners
             workstreamCode={op.workstream?.code ?? null}
+            focus={op.code}
+            lanes={op.owners}
             doors={
               op.state === 'open' && op.acts.assign.ok
                 ? {

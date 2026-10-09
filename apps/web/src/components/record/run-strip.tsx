@@ -1,6 +1,6 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, Route } from '@pv/ui'
+import { Route } from '@pv/ui'
 import {
   Button,
   ContextRail,
@@ -19,8 +19,9 @@ import type { RunSubject } from '@/components/run/run-subject'
 import { MenuButton } from './menu-button'
 
 /** The run strip — the same bar on every record of a run (ADR 0078 §1):
- *  company · run code · the five journey steps (`WORKSTREAM_JOURNEY_STEPS`),
- *  each reached step carrying its object's code chip, and the door to the tree.
+ *  run code · the five journey steps (`WORKSTREAM_JOURNEY_STEPS`), each reached
+ *  step carrying its object's code chip, and the door to the tree. No company
+ *  name: every record's own header already names the customer.
  *
  *  It IS the screen's ContextRail (law 10): every chip goes through it, azure
  *  for the one open. A step with several objects shows the one open, else the
@@ -81,8 +82,6 @@ export function ContextStrip({ objects }: { objects: RailObject[] }) {
 function RunBar({ journey, current }: { journey: Journey; current: RunSubject }) {
   const navigate = useNavigate()
   const canOpenContract = useCan('contract.view')
-  const canOpenAccount = useCan('account.view')
-  const account = canOpenAccount && journey.accountCode && chainPath('AC', journey.accountCode)
   const pathOf = (key: StepKey, code: string) =>
     key === 'lead'
       ? chainPath('LD', code)
@@ -93,27 +92,13 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
           : undefined
 
   return (
-    <GlassCard className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 sm:px-4">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {account ? (
-          <Link
-            to={account}
-            className="pointer-coarse:min-h-12 inline-flex items-center text-[13px] font-semibold leading-[1.5]"
-          >
-            {journey.customer}
-          </Link>
-        ) : (
-          <span className="text-foreground text-[13px] font-semibold leading-[1.5]">
-            {journey.customer}
-          </span>
-        )}
-        <ContextRail objects={[{ code: journey.code, source: current.kind === 'workstream' }]} />
-      </div>
+    <GlassCard className="flex min-h-14 flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2 sm:px-5">
+      <ContextRail objects={[{ code: journey.code, source: current.kind === 'workstream' }]} />
 
       <ol
         role="list"
         aria-label="Các bước của lượt"
-        className="m-0 flex min-w-0 flex-1 list-none flex-wrap items-center gap-1 p-0"
+        className="m-0 flex min-w-0 flex-1 list-none flex-wrap items-center gap-y-1 p-0"
       >
         {STEPS.map((step, i) => {
           const items = itemsOf(journey, step.key)
@@ -128,10 +113,21 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
 
           return (
             <li key={step.key} className="flex items-center gap-1">
-              {i > 0 && <Icon icon={ChevronRight} size={16} className="text-muted-foreground" />}
+              {i > 0 && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    'mx-2 h-0.5 w-4 rounded-full',
+                    focus ? 'bg-success' : 'bg-surface-ink/16',
+                  )}
+                />
+              )}
               <span
                 aria-current={here ? 'step' : undefined}
-                className={cn('flex items-center gap-2 rounded-md px-2 py-1', here && 'bg-accent')}
+                className={cn(
+                  'pointer-coarse:min-h-12 flex h-9 items-center gap-2 rounded-md px-3',
+                  here && 'bg-accent',
+                )}
               >
                 <StatusDot
                   state={here ? 'current' : focus ? 'ok' : 'next'}
@@ -153,9 +149,10 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                 {items.length > 1 && (
                   <MenuButton
                     size="sm"
+                    variant="ghost"
                     label={`+${items.length - 1}`}
                     ariaLabel={`Chọn trong ${items.length} ${step.label.toLowerCase()}`}
-                    className="pointer-coarse:h-12 tnum text-[12px]"
+                    className="pointer-coarse:h-12 tnum h-[26px] min-h-0 rounded-sm px-2 font-mono text-[11px]"
                     choices={items.map(({ code, hint }) => ({
                       key: code,
                       label: <span className="font-mono">{code}</span>,
@@ -177,7 +174,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
         <Button
           size="sm"
           variant="ghost"
-          className="pointer-coarse:h-12"
+          className="pointer-coarse:h-12 h-9"
           onClick={() => navigate(`/sales/workstreams/${encodeURIComponent(journey.code)}`)}
         >
           <Icon icon={Route} size={16} />

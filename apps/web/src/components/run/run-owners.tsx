@@ -1,37 +1,52 @@
 import { useQuery } from '@tanstack/react-query'
-import { Avatar, Button, Icon, Pencil, Skeleton, UserRoundPlus } from '@pv/ui'
-import type { WorkstreamHolder } from '@pv/contracts'
+import { ArrowLeftRight, Avatar, Button, Icon, Skeleton, UserRoundPlus } from '@pv/ui'
+import type { OpportunityOwner, WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { useDirectory } from '@/data/directory'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { RunBlock } from './run-block'
 
-/** Who answers for each step the run has reached — one row per object, so a
- *  run with two deals names both. Lives in the rail, not the strip: the strip
- *  says where the run stands, this says whose hands it is in.
+/** Who answers for the object on screen. `focus` is its code: the card then
+ *  names only that object's people, never a sibling deal's PIC just because
+ *  both share a lead. Without `focus` it lists the whole run (the run page).
  *
- *  Same words the books use: a lead outside every desk waits for the head to
- *  place it; a deal nobody accepted waits for the head's accept (ADR 0071).
- *
- *  A door sits beside the object it changes, only where the page can open one;
- *  a code shows only when its kind has more than one object to tell apart. */
+ *  A deal has two lanes, so `lanes` swaps its single holder for "BD PIC" and
+ *  "Sale PIC" rows. A door sits beside the object it changes, only where the
+ *  page can open one; a code shows only when its kind has several objects. */
 
+const SEAT = 'text-muted-foreground m-0 text-[11.5px] italic leading-[1.5]'
 const NOTE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
 
-type Row = { key: string; step: string; code: string; who: string | null; hint?: string }
+type Row = {
+  key: string
+  step: string
+  seat: string
+  code: string
+  who: string | null
+  id?: string | null
+  hint?: string
+}
 
 const name = (holder: WorkstreamHolder | null) => holder?.name ?? null
+const idOf = (holder: WorkstreamHolder | null) => holder?.id ?? null
+const LANE_SEAT = { BD: 'BD PIC', SALE: 'Sale PIC' } as const
 
 /** Keyed by object code: the one record on screen offers its own assign door. */
 export type OwnerDoors = Record<string, { label: string; onClick: () => void }>
 
 export function RunOwners({
   workstreamCode,
+  focus,
+  lanes,
   doors = {},
 }: {
   workstreamCode: string | null
+  focus?: string
+  lanes?: OpportunityOwner[]
   doors?: OwnerDoors
 }) {
   const canSee = useCan('workstream.view')
+  const people = useDirectory()
   const journey = useQuery({
     ...workstreamJourneyQuery(workstreamCode ?? ''),
     enabled: canSee && workstreamCode !== null,
@@ -41,27 +56,63 @@ export function RunOwners({
   const data = journey.data
   if (!data) return null
 
-  const rows: Row[] = [
+  const dealRows = (deal: (typeof data.deals)[number]): Row[] => {
+    if (!lanes || deal.code !== focus) {
+      return [
+        {
+          key: deal.code,
+          step: 'Cơ hội',
+          seat: 'PIC cơ hội',
+          code: deal.code,
+          who: name(deal.holder),
+          id: idOf(deal.holder),
+          hint: deal.acceptedAt === null ? 'Chờ nhận PIC' : 'Chưa có người giữ',
+        },
+      ]
+    }
+    const firstSale = lanes.find((o) => o.role === 'SALE')
+    const seated = lanes.map((o) => ({
+      key: o === firstSale ? deal.code : `${deal.code}-${o.role}-${o.id}`,
+      step: 'Cơ hội',
+      seat: LANE_SEAT[o.role],
+      code: deal.code,
+      who: o.name as string | null,
+      id: o.id,
+    }))
+    const noSale: Row[] = lanes.some((o) => o.role === 'SALE')
+      ? []
+      : [
+          {
+            key: deal.code,
+            step: 'Cơ hội',
+            seat: LANE_SEAT.SALE,
+            code: deal.code,
+            who: null,
+            hint: deal.acceptedAt === null ? 'Chờ nhận PIC' : 'Chưa có Sale',
+          },
+        ]
+    return [...seated, ...noSale]
+  }
+
+  const all: Row[] = [
     {
       key: data.lead.code,
       step: 'Lead',
+      seat: 'PIC lead',
       code: data.lead.code,
       who: name(data.lead.holder),
+      id: idOf(data.lead.holder),
       hint: 'Chưa phân công',
     },
-    ...data.deals.map((deal) => ({
-      key: deal.code,
-      step: 'Cơ hội',
-      code: deal.code,
-      who: name(deal.holder),
-      hint: deal.acceptedAt === null ? 'Chờ nhận PIC' : 'Chưa có người giữ',
-    })),
+    ...data.deals.flatMap(dealRows),
     ...data.contracts.flatMap((contract) => [
       {
         key: contract.code,
         step: 'Hợp đồng',
+        seat: 'Giữ hợp đồng',
         code: contract.code,
         who: name(contract.holder),
+        id: idOf(contract.holder),
         hint: 'Chưa có người giữ',
       },
       ...(contract.implementer
@@ -69,13 +120,16 @@ export function RunOwners({
             {
               key: `${contract.code}-impl`,
               step: 'Triển khai',
+              seat: 'Người triển khai',
               code: contract.code,
               who: contract.implementer.name,
+              id: contract.implementer.id,
             },
           ]
         : []),
     ]),
   ]
+  const rows = focus === undefined ? all : all.filter((r) => r.code === focus)
 
   const several = (step: string) => rows.filter((r) => r.step === step).length > 1
 
@@ -101,9 +155,11 @@ export function RunOwners({
               >
                 {row.who ?? row.hint}
               </span>
-              <span className={NOTE}>
-                {row.step}
-                {several(row.step) && <span className="font-mono"> · {row.code}</span>}
+              <span className={SEAT}>
+                {people.find((a) => a.id === row.id)?.role ?? row.seat}
+                {focus === undefined && several(row.step) && (
+                  <span className="font-mono"> {row.code}</span>
+                )}
               </span>
             </span>
             {doors[row.key] && (
@@ -115,7 +171,7 @@ export function RunOwners({
                 aria-label={`${doors[row.key]?.label} · ${row.step}`}
                 onClick={doors[row.key]?.onClick}
               >
-                <Icon icon={row.who ? Pencil : UserRoundPlus} size={16} />
+                <Icon icon={row.who ? ArrowLeftRight : UserRoundPlus} size={16} />
               </Button>
             )}
           </li>

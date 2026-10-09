@@ -31,11 +31,11 @@ import { STATE_TONE } from '@/data/opportunities'
 export type Journey = WorkstreamJourneyResponse
 export type PickKind = 'lead' | 'deal' | 'contract'
 
-/** The chain kind each ladder's object opens under — `chainPath`'s keys. */
+/** The chain kind each ladder's object opens under — the chain kinds `pathOf` takes. */
 export const CHAIN_KIND = { lead: 'LD', deal: 'OP', contract: 'HĐ' } as const
 
-/** Where a code's profile opens (ADR 0078 §2: a node opens its profile, no
- *  drawer); undefined = the reader has no door to it. */
+/** Where a code's profile opens — from its code chip, or from the footer of a
+ *  rung's step drawer; undefined = the reader has no door to it. */
 export type PathOf = (kind: string, code: string) => string | undefined
 
 export const doorId = (d: JourneyDoor) => `door:${d.leadCode}`
@@ -53,7 +53,8 @@ export const LANE_TOP = 56
 const FOOT = 16
 const ROW_GAP = 12
 const FAN_GAP = 8
-export const GHOST_H = 48
+/** Room for the empty-lane line beside a 48px open-deal button (law 13). */
+export const GHOST_H = 64
 
 const stepLabel = (key: (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']) =>
   WORKSTREAM_JOURNEY_STEPS.find((s) => s.key === key)?.label ?? ''

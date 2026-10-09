@@ -148,10 +148,10 @@ function ContractScreen({ contract }: { contract: Contract }) {
           )}
         </>
       }
-      railLabel="Liên hệ, người liên hệ và tài liệu của hợp đồng"
+      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của hợp đồng"
       rail={
         <>
-          <RunOwners workstreamCode={run.workstreamCode} />
+          <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
           <RunDocuments workstreamCode={run.workstreamCode} />

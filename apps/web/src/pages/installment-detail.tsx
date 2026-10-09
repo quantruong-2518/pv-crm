@@ -163,10 +163,10 @@ function InstallmentScreen({
           <RecordsCard installment={installment} />
         </>
       }
-      railLabel="Liên hệ, người liên hệ, giấy tờ và ghi chú của đợt"
+      railLabel="Lịch sử liên hệ, người liên hệ, giấy tờ và ghi chú của đợt"
       rail={
         <>
-          <RunOwners workstreamCode={run.workstreamCode} />
+          <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
           <DocsCard installment={installment} />

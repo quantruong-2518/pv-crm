@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Avatar, Badge, Drawer, Skeleton, cn } from '@pv/ui'
+import { ArrowLeftRight, Avatar, Badge, Button, Drawer, Icon, Skeleton, cn } from '@pv/ui'
 import { OPPORTUNITY_CONTACT_ROLE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -74,11 +74,16 @@ function LeadContacts({ code }: { code: string }) {
   }))
 
   return (
-    <RunBlock title="Người liên hệ" onEdit={canEdit ? () => setEditing(true) : undefined}>
+    <RunBlock title="Người liên hệ">
       {!canView || isCut(error) ? (
         <p className={NOTE}>Vai của bạn không xem được người liên hệ của lead này.</p>
       ) : (
-        <PeopleBody people={people} loading={isLoading} error={error} />
+        <PeopleBody
+          people={people}
+          loading={isLoading}
+          error={error}
+          onChange={canEdit ? () => setEditing(true) : undefined}
+        />
       )}
       <Drawer open={editing} onClose={() => setEditing(false)} width="md" title="Người liên hệ">
         <div className="p-4 sm:p-5">
@@ -109,8 +114,14 @@ function DealContacts({ code }: { code: string }) {
   const open = () => setEditing((prev) => ({ open: true, session: prev.session + 1 }))
 
   return (
-    <RunBlock title="Người liên hệ" onEdit={op?.acts.editDetails.ok ? open : undefined}>
-      <PeopleBody people={op && dealPeople(op)} loading={isPending} error={error} required />
+    <RunBlock title="Người liên hệ">
+      <PeopleBody
+        people={op && dealPeople(op)}
+        loading={isPending}
+        error={error}
+        required
+        onChange={op?.acts.editDetails.ok ? open : undefined}
+      />
       {op && editing.session > 0 && (
         <ContactsEditDrawer
           key={editing.session}
@@ -208,12 +219,14 @@ function PeopleBody({
   loading,
   error,
   required = false,
+  onChange,
   empty = 'Chưa có người liên hệ.',
 }: {
   people: Person[] | undefined
   loading: boolean
   error: Error | null
   required?: boolean
+  onChange?: (() => void) | undefined
   empty?: string
 }) {
   if (loading) return <Skeleton className="h-20 w-full" />
@@ -229,8 +242,8 @@ function PeopleBody({
   }
   return (
     <ul className="m-0 flex list-none flex-col gap-3 p-0">
-      {people.map((p) => (
-        <li key={p.code} className="flex min-w-0 items-start gap-3">
+      {people.map((p, i) => (
+        <li key={p.code} className="flex min-w-0 items-center gap-3">
           <Avatar name={p.name} size="md" />
           <span className="flex min-w-0 flex-col gap-1">
             <span className="flex flex-wrap items-center gap-2">
@@ -246,9 +259,26 @@ function PeopleBody({
               </span>
             ))}
           </span>
+          {i === 0 && onChange && <ChangeButton onClick={onChange} />}
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Beside the first name, icon only; the words live in the label. */
+function ChangeButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="pointer-coarse:h-12 pointer-coarse:w-12 ml-auto w-8 shrink-0 px-0"
+      title="Đổi người liên hệ"
+      aria-label="Đổi người liên hệ"
+      onClick={onClick}
+    >
+      <Icon icon={ArrowLeftRight} size={16} />
+    </Button>
   )
 }
 

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, type RailObject } from '@pv/ui'
@@ -7,29 +8,40 @@ import {
   JOURNEY_STATUS_LABEL,
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dmy } from '@/lib/date'
+import { useLeadDealReach } from '@/data/deal-sale'
+import { leadOf, leadProfileQuery } from '@/data/lead-profile'
+import { isOpenState } from '@/data/lead-state'
 import { chainPath } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { runDays } from '@/data/workstreams'
+import { assignDoorOf } from '@/components/assign-door'
+import { AssignMenu } from '@/components/assign-menu'
+import { ConvertDialog } from '@/components/convert-dialog'
+import { ActionBar } from '@/components/record/action-bar'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
-import { WorkstreamTree } from './workstream-tree'
-import { POOL, type PathOf } from './workstream-tree-model'
+import { TreeLegend, TreeZoomBar, WorkstreamTree } from './workstream-tree'
+import { useTreeZoom } from './workstream-tree-zoom'
+import type { PathOf } from './workstream-tree-model'
 
 /** One run — `/sales/workstreams/:code`, the run overview on the record shell
  *  (ADR 0078 §2): run strip, header, then the body — the four-lane tree, whose
  *  cards already carry what is late — and the rail — the whole run's comms and
  *  its lead's contacts. No files: a run has none of its own.
  *
- *  No drawer: a node of the tree opens its object's profile, and every act the
- *  drawer offered lives there. No floating bar: whom to contact is a question
- *  for the lead, deal or contract, not for the run. */
+ *  A rung of the tree opens its step drawer first; the object's profile sits
+ *  in that drawer's footer. Two lead doors are borrowed from the lead profile:
+ *  hand over a lead nobody holds (narrower than the profile, which also hands
+ *  over a held one), and open a deal from the empty deal lane. The floating
+ *  bar holds only the tree's key and zoom: whom to contact is a question for the lead,
+ *  deal or contract, so it has no contact buttons. */
 
 type Journey = WorkstreamJourneyResponse
 type Go = (path: string) => void
@@ -61,6 +73,7 @@ export default function WorkstreamDetailPage() {
 
 function RunScreen({ journey }: { journey: Journey }) {
   const navigate = useNavigate()
+  const zoomCtl = useTreeZoom()
   /* `chainPath` has no contract door; the strip gates it the same way. */
   const canOpenContract = useCan('contract.view')
   const pathOf: PathOf = (kind, code) =>
@@ -70,6 +83,7 @@ function RunScreen({ journey }: { journey: Journey }) {
         ? `/sales/contracts/${encodeURIComponent(code)}`
         : undefined
   const lead = { kind: 'lead', code: journey.lead.code } as const
+  const doors = useLeadDoors(journey.lead.code)
 
   return (
     <RecordShell
@@ -81,17 +95,84 @@ function RunScreen({ journey }: { journey: Journey }) {
         />
       }
       header={<RunHeader journey={journey} />}
-      main={<WorkstreamTree key={journey.code} journey={journey} go={navigate} pathOf={pathOf} />}
-      railLabel="Liên hệ và người liên hệ của hành trình"
+      main={
+        <WorkstreamTree
+          key={journey.code}
+          journey={journey}
+          zoomCtl={zoomCtl}
+          go={navigate}
+          pathOf={pathOf}
+          onOpenDeal={doors.openDeal}
+        />
+      }
+      actionBar={
+        <ActionBar
+          label="Thao tác của hành trình"
+          extra={
+            <>
+              <TreeLegend />
+              <span aria-hidden className="bg-surface-ink/16 mx-1 h-8 w-0.5 rounded-full" />
+              <TreeZoomBar ctl={zoomCtl} />
+            </>
+          }
+        />
+      }
+      railLabel="Lịch sử liên hệ và người liên hệ của hành trình"
       rail={
         <>
-          <RunOwners workstreamCode={journey.code} />
+          <RunOwners workstreamCode={journey.code} doors={doors.owners} />
           <CommJourney workstreamCode={journey.code} />
           <RunContacts subject={lead} />
         </>
       }
-    />
+    >
+      {doors.dialogs}
+    </RecordShell>
   )
+}
+
+/** The lead profile's hand-over and open-deal doors, under the gates
+ *  `lead-detail.tsx` applies — hand-over only while nobody holds the lead, read
+ *  off the same profile the gate reads. Nothing until the profile is read. */
+function useLeadDoors(code: string) {
+  const me = useSession((s) => s.actor)
+  const canView = useCan('lead.view')
+  const canAssign = useCan('lead.assign')
+  const canCreate = useCan('opportunity.create')
+  const profile = useQuery({ ...leadProfileQuery(code), enabled: canView }).data
+  const dealReach = useLeadDealReach(profile ?? { canEdit: true })
+  const [assigning, setAssigning] = useState(false)
+  const [converting, setConverting] = useState(false)
+  if (!profile) return { owners: {}, openDeal: undefined, dialogs: null }
+
+  const off = profile.disabledAt !== undefined
+  const holder = profile.ownerId ?? null
+  const assign = assignDoorOf(holder, canAssign, dealReach, me !== undefined)
+  const mayConvert =
+    canCreate &&
+    profile.canEdit &&
+    !off &&
+    (isOpenState(profile.state) || profile.state === 'converted')
+  return {
+    owners:
+      holder === null && !assign.shut && !off
+        ? { [code]: { label: assign.label, onClick: () => setAssigning(true) } }
+        : {},
+    openDeal: mayConvert ? () => setConverting(true) : undefined,
+    dialogs: (
+      <>
+        <AssignMenu
+          lead={leadOf(profile)}
+          profile={profile}
+          readOnly={dealReach}
+          trigger={false}
+          open={assigning}
+          onOpenChange={setAssigning}
+        />
+        <ConvertDialog profile={profile} open={converting} onClose={() => setConverting(false)} />
+      </>
+    ),
+  }
 }
 
 /** The strip's stand-in when the run cannot be re-read: previous journey,
@@ -110,16 +191,17 @@ function railOf(j: Journey, go: Go): RailObject[] {
   ]
 }
 
-/** The customer, then one meta line: ordinal, status or close reason, dates,
- *  the journey it grew from (its one door, the strip has none), the lead's
- *  holder. The code is the strip's, not repeated here. */
+/** The customer, then one meta line: status or close reason, dates, the
+ *  journey it grew from (its one door, the strip has none). The ordinal shows
+ *  only from the second journey on; the holder is the rail's. The code is the
+ *  strip's, not repeated here. */
 function RunHeader({ journey: j }: { journey: Journey }) {
   const previous = j.previous && chainPath('WS', j.previous.code)
   return (
     <RecordHeader
       title={j.customer}
       meta={[
-        `Hành trình ${j.ordinal}`,
+        j.ordinal > 1 && `Hành trình ${j.ordinal}`,
         j.status === 'closed'
           ? j.closeReason && CLOSE_REASON_LABEL[j.closeReason]
           : JOURNEY_STATUS_LABEL[j.status],
@@ -132,7 +214,6 @@ function RunHeader({ journey: j }: { journey: Journey }) {
             nối từ hành trình {j.previous.ordinal} ({JOURNEY_BORN_BY_LABEL[j.previous.bornBy]})
           </Link>
         ),
-        j.lead.holder ? `Người giữ ${j.lead.holder.name}` : POOL,
       ]}
     />
   )

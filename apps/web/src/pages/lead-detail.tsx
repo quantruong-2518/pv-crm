@@ -28,7 +28,7 @@ import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
-import { RunOwners } from '@/components/run/run-owners'
+import { RunOwners, type OwnerDoors } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunDocuments } from '@/components/run/run-documents'
 import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
@@ -74,6 +74,14 @@ export default LeadDetailPage
 /** Every open deal of this lead — only the drop gate reads it. A stable object
  *  so the menu does not rebuild on a render where nothing changed. */
 const EMPTY_LIVE_DEAL = { codes: [], hidden: 0 }
+
+/** The assign door is offered on the lead itself, and only while it is open to a change. */
+const leadDoors = (
+  code: string,
+  door: ReturnType<typeof assignDoorOf>,
+  off: boolean,
+  open: () => void,
+): OwnerDoors => (door.shut || off ? {} : { [code]: { label: door.label, onClick: open } })
 
 function LeadScreen({ lead }: { lead: LeadProfile }) {
   const navigate = useNavigate()
@@ -161,16 +169,13 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
       }
-      railLabel="Liên hệ, người liên hệ và tài liệu của lead"
+      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của lead"
       rail={
         <>
           <RunOwners
             workstreamCode={lead.workstreamCode}
-            doors={
-              assignDoor.shut || off
-                ? {}
-                : { [lead.code]: { label: assignDoor.label, onClick: () => setAssigning(true) } }
-            }
+            focus={lead.code}
+            doors={leadDoors(lead.code, assignDoor, off, () => setAssigning(true))}
           />
           {/* Off: the comms layer treats the lead as absent, so the card could
               only print "not found" — nothing is better than two errors. */}

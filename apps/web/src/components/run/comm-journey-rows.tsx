@@ -42,6 +42,8 @@ export type JourneyRow = {
   /** A booked meeting past its end, judged when the rows are built (render). */
   overdue: boolean
   letter: MailSubjectTimelineRow | null
+  /** The server says this reader may fill the comm in (`closableByMe`). */
+  canFill: boolean
   /** Who holds the comm, or who wrote the letter. */
   owner?: string
 }
@@ -58,6 +60,7 @@ const commRow = (row: DebriefView, now: number): JourneyRow => ({
   late: row.late,
   overdue: meetingOverdue(row, now),
   letter: null,
+  canFill: row.closableByMe,
   owner: row.owner.name,
 })
 
@@ -73,6 +76,7 @@ const letterRow = (code: string, row: MailSubjectTimelineRow): JourneyRow => ({
   late: false,
   overdue: false,
   letter: row,
+  canFill: false,
   owner: row.createdBy.name,
 })
 
