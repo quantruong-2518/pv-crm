@@ -85,6 +85,13 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/users'),
   },
   {
+    /** One Core · the index of configuration screens. No permission: the page
+     *  lists only what the role may open, and shows an empty state otherwise. */
+    path: '/settings',
+    name: 'Cài đặt & quản trị',
+    load: () => import('@/pages/settings'),
+  },
+  {
     /** One Core · the approval inbox — E3's queue, pipeline #10.
      *
      *  NO `branch`, like the two admin screens below it and for the same

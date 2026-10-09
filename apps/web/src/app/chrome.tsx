@@ -3,7 +3,6 @@ import {
   Bell,
   Building,
   Contact,
-  Ellipsis,
   FileCheck,
   Gauge,
   Handshake,
@@ -38,7 +37,7 @@ import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
  *  Lead · Cơ hội · Hợp đồng · Chiến dịch là bốn lối vào trực
  *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng và
- *  Hiệu suất gom vào một menu "Thêm" vì ít cần mở hơn. Chúng không nấp
+ *  Báo cáo là hai menu có tên vì ít cần mở hơn. Chúng không nấp
  *  dưới một mục "Kinh doanh" và
  *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
@@ -103,39 +102,43 @@ const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/', slot: 'home' },
   { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' },
   { icon: Bell, label: 'Thông báo', slot: 'notifications' },
+]
+
+/** Screens behind the avatar's single "Cài đặt & quản trị" door, listed on
+ *  `/settings`. Each `permission` mirrors its route in `routes.tsx`. */
+const ADMIN_ENTRIES: SettingsEntry[] = [
   {
-    /** Renamed from "Quản trị & ghi vết" the day it got a screen: the entry now
-     *  leads to the people book, and the audit log is a screen that does not
-     *  exist yet. A label promising two things where one is behind it teaches
-     *  people to look for a trail that is not there. "& ghi vết" comes back with
-     *  the audit screen, or the entry grows a second child. */
     icon: ShieldCheck,
-    label: 'Quản trị',
+    label: 'Người dùng',
+    description: 'Mở tài khoản và gán vai trò cho từng người',
     path: '/admin/users',
     permission: 'user.manage',
   },
   {
-    /** A SIBLING of the entry above, not a child of it — the header has one
-     *  level of Core entries and no submenu, and the docblock above already
-     *  named growing a second child as the way this section extends.
-     *
-     *  Its own permission, because the two screens are gated apart: somebody
-     *  who opens accounts for the company does not thereby get to rewrite what
-     *  every role may do. A role without `role.manage` does not see it. */
     icon: ListChecks,
     label: 'Vai trò',
+    description: 'Mỗi vai trò được làm những việc gì',
     path: '/admin/roles',
     permission: 'role.manage',
   },
   {
-    /** Admin side of lead origins: tidy the catalogue anybody may extend while
-     *  typing a lead. Gated by the permission that renames and merges. */
     icon: Route,
     label: 'Nguồn lead',
+    description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
     path: '/admin/lead-origins',
     permission: 'lead-origin.manage',
   },
 ]
+
+export const SETTINGS_PATH = '/settings'
+
+export type SettingsEntry = {
+  icon: IconGlyph
+  label: string
+  description: string
+  path: string
+  permission: Permission
+}
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình
  *  được danh sách. Bảng này là nguồn duy nhất của cả ba câu hỏi về chúng: mục
@@ -383,39 +386,56 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     onClick: () => navigate(module.path),
   })
 
-  /* The two customer reference books share a dropdown. */
-  const appsIn = (group: NavGroup) =>
+  const modulesIn = (group: NavGroup) =>
     SALES_MODULES.filter(
       (m) =>
         m.group === group &&
         !isParked(m.permission) &&
         access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
-    ).map(moduleApp)
-  const customer = appsIn('customer')
-  const manage = appsIn('manage')
-  const more = [...customer, ...manage]
+    )
+  const appsIn = (group: NavGroup) => modulesIn(group).map(moduleApp)
+  /* A named dropdown, not a catch-all: the label tells what is inside it. */
+  const menuOf = (label: string, icon: IconGlyph, description: string, items: HeaderApp[]) =>
+    items.length ? [{ icon, label, description, active: items.some((i) => i.active), items }] : []
+
+  const settings: SettingsEntry[] = [
+    ...ADMIN_ENTRIES.filter((e) => granted(e)),
+    ...modulesIn('setup').map((m) => ({
+      icon: m.icon,
+      label: m.label,
+      description: m.question,
+      path: m.path,
+      permission: m.permission,
+    })),
+  ]
+  const inSettings = [SETTINGS_PATH, ...settings.map((e) => e.path)].some(inModule)
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    /* Setup rides with the Core entries into the avatar menu: the one-row
-       header has room for the daily books only. */
-    core: [...ONE_CORE.filter(granted).map(plain), ...appsIn('setup')],
+    /* One account-menu door for every configuration screen; it vanishes for a
+       role that may open none of them. */
+    core: [
+      ...ONE_CORE.filter(granted).map(plain),
+      ...(settings.length
+        ? [
+            {
+              ...plain({
+                icon: SlidersHorizontal,
+                label: 'Cài đặt & quản trị',
+                path: SETTINGS_PATH,
+              }),
+              active: inSettings,
+            },
+          ]
+        : []),
+    ],
     /* One group, so no separators: the row reads as one list of books. */
     apps: [
       [
         ...appsIn('primary'),
-        ...(more.length
-          ? [
-              {
-                icon: Ellipsis,
-                label: 'Thêm',
-                description: 'Hồ sơ khách hàng, hiệu suất đội ngũ và kế hoạch kỳ tới',
-                active: more.some((app) => app.active),
-                items: more,
-              },
-            ]
-          : []),
+        ...menuOf('Khách hàng', Users, 'Công ty, người liên hệ và đối tác', appsIn('customer')),
+        ...menuOf('Báo cáo', Gauge, 'Hiệu suất đội ngũ và kế hoạch kỳ tới', appsIn('manage')),
       ],
     ],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
@@ -483,5 +503,5 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     subBar: <MeetingCountdownBar today={meetingToday} />,
   }
 
-  return { shell }
+  return { shell, settings }
 }
