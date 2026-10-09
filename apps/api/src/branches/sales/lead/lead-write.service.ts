@@ -34,6 +34,7 @@ import {
   fromCreate,
   fromPatch,
   LEAD_NOTE,
+  marketingCredit,
   refOf,
   type LeadValues,
   type LeadWrite,
@@ -179,7 +180,10 @@ export class LeadWriteService {
     const handle = this.repo.readonlyHandle
     const owner = body.ownerId ? await this.repo.actorById(handle, body.ownerId) : null
 
-    const write = fromCreate(body, owner?.name ?? null)
+    const write = fromCreate(
+      { ...body, marketingOwnerId: marketingCredit(who, body.marketingOwnerId) ?? undefined },
+      owner?.name ?? null,
+    )
     const picked = await this.campaignOf(handle, body)
     const referrer = body.refCode ? await referrerOf(this.partners, handle, body.refCode) : null
     const campaignId = picked ? picked.sourceId : (body.campaignId ?? null)
@@ -694,6 +698,7 @@ export class LeadWriteService {
           if (!known) seen.set(key, accountCode)
           rows.push({
             ...p.row,
+            marketingOwnerId: marketingCredit(who, p.row.marketingOwnerId),
             accountCode,
             originId: p.origin
               ? (originIds.get(pickKey(p.origin)) ?? null)

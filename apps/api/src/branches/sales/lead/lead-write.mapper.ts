@@ -6,6 +6,7 @@ import type {
   LeadPatch,
   LeadState,
   LeadTier,
+  RoleId,
 } from '@pv/contracts'
 import type { lead } from './lead.schema'
 
@@ -132,6 +133,13 @@ export function refOf(code: string, write: LeadWrite): ObjectRef {
     ...(write.values.state ? { state: write.values.state } : {}),
   }
 }
+
+/** Marketing credit follows whoever loaded the lead: a bulk load is that
+ *  person's sourcing, and KPI `leads-sourced` counts this column. */
+export const marketingCredit = (
+  who: { id: string; roleIds: readonly RoleId[] },
+  named: string | null | undefined,
+): string | null => named ?? (who.roleIds.includes('marketing') ? who.id : null)
 
 /** `POST /sales/leads` body → column values.
  *

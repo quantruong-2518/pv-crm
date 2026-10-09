@@ -13,7 +13,7 @@ import type { ScanBatchRowDb } from './lead-scan.schema'
 import { LeadScanRepository, type ScanCreator } from './lead-scan.repository'
 import { companyValuesOf, contactOf, leadWriteOf, UNKNOWN_NAME } from './lead-scan.mapper'
 import { LeadScanService } from './lead-scan.service'
-import { LEAD_NOTE } from './lead-write.mapper'
+import { LEAD_NOTE, marketingCredit } from './lead-write.mapper'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadWriteService } from './lead-write.service'
 import { LeadRepository } from './lead.repository'
@@ -144,7 +144,13 @@ export class LeadScanCommit {
       await this.write.bear(tx, {
         code,
         run,
-        write,
+        write: {
+          ...write,
+          values: {
+            ...write.values,
+            marketingOwnerId: marketingCredit(creator, write.values.marketingOwnerId),
+          },
+        },
         extra: {
           campaignId: campaign?.sourceId ?? null,
           originId: origin.id,
