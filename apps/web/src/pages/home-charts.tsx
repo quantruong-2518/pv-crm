@@ -1,11 +1,12 @@
 import { GlassCard, cn, millions, percent } from '@pv/ui'
-import type { WorkstreamScorecard } from '@pv/contracts'
+import type { SalesPerformanceResponse, WorkstreamScorecard } from '@pv/contracts'
 import { foldExits, type HomeSnapshot, type SourceLine, type StageLine } from '@/data/home-charts'
 import type { Performance } from '@/data/performance'
-import { num } from './home-model'
+import { monthInPeriod, num, periodShort } from './home-model'
 import { GROW_HEIGHT, GROW_WIDTH, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
 
-/** The chart tiles of row two, all frozen scenario figures, plus two tiles
+/** The chart tiles of row two: the months chart reads live period figures,
+ *  the exits donut is still frozen scenario figures. Plus two frozen tiles
  *  that are built but currently not shown (sources, days in stage).
  *
  *  The stage rows are drawn locally because `BarChart`'s horizontal rows take
@@ -25,12 +26,18 @@ function Swatch({ className, label }: { className: string; label: string }) {
   )
 }
 
-/** One column per month of the whole window: the leads that entered the book
- *  that month, split into those that reached the opportunity book by the cut
- *  and the rest. The fills encode that split, so the picked period is told by
- *  the label's weight, never by dimming a column. */
-export function MonthsTile({ data, className }: { data: Performance; className?: string }) {
-  const top = Math.max(1, ...data.months.map((m) => m.leads))
+/** One column per month of the quarter the period sits in: the leads that
+ *  entered the book that month, split into those that have reached the
+ *  opportunity book by now and the rest. The fills encode that split, so the
+ *  picked period is told by the label's weight, never by dimming a column. */
+export function MonthsTile({
+  data,
+  className,
+}: {
+  data: SalesPerformanceResponse
+  className?: string
+}) {
+  const top = Math.max(1, ...data.months.map((m) => m.cohort.leads))
 
   return (
     <GlassCard className={cn(TILE, className)}>
@@ -38,39 +45,41 @@ export function MonthsTile({ data, className }: { data: Performance; className?:
         title="Lead thành cơ hội theo tháng"
         aside={
           <span className="flex flex-wrap gap-x-3 gap-y-1">
-            <span>cả kỳ</span>
+            <span>cả quý</span>
             <Swatch className="bg-primary" label="thành cơ hội" />
             <Swatch className={NEUTRAL_MARK} label="chưa" />
           </span>
         }
       />
       <div className="flex flex-1 gap-3">
-        {data.months.map((m) => (
-          <div key={m.key} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+        {data.months.map(({ key, cohort: m }) => (
+          <div key={key} className="flex min-w-0 flex-1 flex-col items-center gap-1">
             <span className="tnum font-num text-[12px] font-semibold leading-4">
-              {m.leads > 0 ? percent(m.sql / m.leads) : '—'}
+              {m.leads > 0 ? percent(m.opportunities / m.leads) : '—'}
             </span>
             {/* A 1px card-colour seam (a shadow, not a gap): the two fills are under 3:1 against each other. */}
             <div className="flex h-36 w-full max-w-10 flex-col justify-end">
               <span
                 className={cn(NEUTRAL_MARK, 'rounded-t-sm', GROW_HEIGHT)}
-                style={{ height: `${((m.leads - m.sql) / top) * 100}%` }}
+                style={{ height: `${((m.leads - m.opportunities) / top) * 100}%` }}
               />
               <span
                 className={cn('bg-primary shadow-[0_-1px_0_var(--card)]', GROW_HEIGHT)}
-                style={{ height: `${(m.sql / top) * 100}%` }}
+                style={{ height: `${(m.opportunities / top) * 100}%` }}
               />
             </div>
             <span className={cn(NOTE, 'tnum font-num')}>
-              {num(m.sql)} / {num(m.leads)}
+              {num(m.opportunities)} / {num(m.leads)}
             </span>
             <span
               className={cn(
                 'tnum font-num text-[12px] leading-4',
-                m.selected ? 'text-foreground font-semibold' : 'text-muted-foreground',
+                monthInPeriod(key, data.period)
+                  ? 'text-foreground font-semibold'
+                  : 'text-muted-foreground',
               )}
             >
-              {m.short}
+              {periodShort(key)}
             </span>
           </div>
         ))}
@@ -273,9 +282,18 @@ const RAMP = [
 ]
 const REST = { stroke: 'stroke-muted-foreground', fill: NEUTRAL_MARK }
 
-/** Why the period's leads left the flow. The legend carries identity (label,
- *  count, share), so no slice is told apart by colour alone. */
-export function ExitsTile({ data, className }: { data: Performance; className?: string }) {
+/** Why leads left the flow. The legend carries identity (label,
+ *  count, share), so no slice is told apart by colour alone. Still the frozen
+ *  scenario, on its own period: the head says so, the picker does not move it. */
+export function ExitsTile({
+  data,
+  frozenDay,
+  className,
+}: {
+  data: Performance
+  frozenDay: string
+  className?: string
+}) {
   const total = data.exitedTotal
   const { slices, folded } = foldExits(data.exits, total)
   let run = 0
@@ -293,7 +311,10 @@ export function ExitsTile({ data, className }: { data: Performance; className?: 
 
   return (
     <GlassCard className={cn(TILE, className)}>
-      <TileHead title="Lý do lead rời luồng" aside={data.period.short} />
+      <TileHead
+        title="Lý do lead rời luồng"
+        aside={`${data.period.label} · tính tới ${frozenDay}`}
+      />
       {arcs.length === 0 ? (
         <p className={NOTE}>Không lead nào rời luồng trong {data.period.label.toLowerCase()}.</p>
       ) : (
@@ -308,8 +329,8 @@ export function ExitsTile({ data, className }: { data: Performance; className?: 
               className="size-full -rotate-90 fill-none"
             >
               {arcs.map((a, i) => (
-                /* Keyed by position so an arc slides to its new length on a
-                   period change instead of being replaced. */
+                /* Keyed by position so an arc slides to its new length when
+                   the rows change instead of being replaced. */
                 <circle
                   key={i}
                   cx={BOX / 2}

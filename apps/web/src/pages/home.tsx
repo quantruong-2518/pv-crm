@@ -13,17 +13,18 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { CHARTS_FROZEN_AT } from '@/data/home-charts'
+import { CHARTS_FROZEN_AT, salesPerformanceQuery } from '@/data/home-charts'
 import { performanceQuery } from '@/data/performance'
-import { resolvePeriod } from '@/data/period'
+import { DEFAULT_CHOICE } from '@/data/period'
 import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
 import { dm } from '@/lib/date'
 import { ExitsTile, MonthsTile } from './home-charts'
 import { PriorityList } from './home-list'
 import {
-  DEFAULT_PICK,
-  choiceOf,
+  currentPick,
+  keyOf,
   listQueryOf,
+  periodLabel,
   stepPick,
   type HomeGrain,
   type ListFilter,
@@ -41,9 +42,10 @@ import {
 
 /** Screen 01 · Overview — a bento of sales figures over a short live list.
  *
- *  TWO SOURCES, AND THE SCREEN SAYS WHICH IS WHICH. The charts are the frozen
- *  DAS Vina scenario (`performanceQuery`, still `load:`); the Overdue tile and the list are live workstream reads. The two
- *  halves disagree by design until the charts are cut over.
+ *  TWO SOURCES, AND THE SCREEN SAYS WHICH IS WHICH. Only the exits donut is
+ *  still the frozen DAS Vina scenario (`performanceQuery`, still `load:`),
+ *  pinned to the scenario's own period: the live picker runs on the calendar
+ *  and leaves that window. Every other tile and the list are live reads.
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
@@ -94,7 +96,7 @@ function PeriodPicker({ pick, onPick }: { pick: PeriodPick; onPick: (next: Perio
           <Icon icon={ChevronLeft} size={16} />
         </Button>
         <span aria-live="polite" className="tnum min-w-32 text-center text-[12.5px] font-semibold">
-          {resolvePeriod(choiceOf(pick)).label}
+          {periodLabel(keyOf(pick))}
         </span>
         <Button
           variant="ghost"
@@ -116,17 +118,18 @@ export function HomePage() {
   const canCharts = useCan('performance.view')
   const canRuns = useCan('workstream.view')
 
-  const [pick, setPick] = useState(DEFAULT_PICK)
+  const [pick, setPick] = useState(() => currentPick())
   const [filter, setFilter] = useState<ListFilter | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
   /* Previous data stays on screen across a period or filter change, so marks
      slide to their new size instead of dropping to a skeleton and back. */
   const charts = useQuery({
-    ...performanceQuery(choiceOf(pick)),
+    ...salesPerformanceQuery(keyOf(pick)),
     enabled: canCharts,
     placeholderData: keepPreviousData,
   })
+  const frozen = useQuery({ ...performanceQuery(DEFAULT_CHOICE), enabled: canCharts })
   const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
   const list = useQuery({
     ...workstreamBookQuery(listQueryOf(filter)),
@@ -162,6 +165,14 @@ export function HomePage() {
     />
   )
 
+  /* Its fixture read does not depend on the live one, so it also stands
+     beside the failure tile: the caption above names it either way. */
+  const exits = frozen.data ? (
+    <ExitsTile data={frozen.data} frozenDay={frozenDay} className={WIDE} />
+  ) : (
+    <TileSkeleton className={WIDE} />
+  )
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
@@ -170,10 +181,10 @@ export function HomePage() {
           description={
             canCharts ? (
               <>
-                Biểu đồ là số của kịch bản DAS Vina đóng băng lúc{' '}
+                Ô Lý do lead rời luồng là số của kịch bản DAS Vina đóng băng lúc{' '}
                 <span className="tnum font-num">{CHARTS_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
-                <span className="tnum font-num">{frozenDay}</span>; sau mốc đó không có số đo nào.
-                {canRuns && ' Ô Quá hạn và danh sách Cần xử lý trước đọc số thật.'}
+                <span className="tnum font-num">{frozenDay}</span>, không đổi theo kỳ đang chọn. Các
+                ô còn lại đọc số thật.
               </>
             ) : undefined
           }
@@ -191,16 +202,17 @@ export function HomePage() {
                 className={canRuns ? 'md:col-span-4 xl:col-span-10' : 'col-span-full'}
               />
               {overdue}
+              {exits}
             </>
           ) : charts.data ? (
             <>
               <SignedTile data={charts.data} className={SIGNED} />
-              <OpenValueTile data={charts.data} frozenDay={frozenDay} className={openSpan} />
+              <OpenValueTile data={charts.data} className={openSpan} />
               <WinRateTile data={charts.data} className={winSpan} />
               {overdue}
               <FunnelTile data={charts.data} className={PAIRED} />
               <MonthsTile data={charts.data} className={PAIRED} />
-              <ExitsTile data={charts.data} className={WIDE} />
+              {exits}
             </>
           ) : (
             <>

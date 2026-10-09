@@ -7,16 +7,34 @@ import {
   opsFromSource,
   sourceStats,
 } from '@pv/engines/fixtures/das-vina'
+import { SalesPerformanceResponse } from '@pv/contracts'
 import { api } from '@/app/api'
 import type { ExitRow } from './performance'
 
-/** The overview's figures that `performanceQuery` does not carry: conversion
- *  and cost per lead source, and days in stage. Scenario 2 (DAS Vina), frozen.
+/** The overview's own reads. `salesPerformanceQuery` is live: the period
+ *  tiles, with no `load:`.
  *
- *  `load:` is present, so this is still a fixture read. Nothing here is a new
- *  number: every field is a count, sum or mean over rows the fixture already
- *  holds. Open value, exits and the funnel are NOT repeated here: they have
- *  one ledger, `performanceQuery`; `foldExits` only regroups its rows. */
+ *  The rest is scenario 2 (DAS Vina), frozen: conversion and cost per lead
+ *  source, and days in stage, which `performanceQuery` does not carry.
+ *  `homeSnapshotQuery` has `load:`, so it is still a fixture read. Nothing
+ *  there is a new number: every field is a count, sum or mean over rows the
+ *  fixture already holds. Exits are NOT repeated here: they have one ledger,
+ *  `performanceQuery`; `foldExits` only regroups its rows. */
+
+/** `GET /sales/performance/:period`. Keyed apart from `performanceQuery`, whose
+ *  fixture rows sit under the same period keys. Always stale: its figures move
+ *  with writes to three books, and no write invalidates this key. */
+export const salesPerformanceQuery = (period: string) =>
+  queryOptions({
+    queryKey: ['sales', 'performance', 'live', period] as const,
+    staleTime: 0,
+    queryFn: ({ signal }) =>
+      api.read<SalesPerformanceResponse>(`/sales/performance/${period}`, {
+        need: { branch: 'Sales', permission: 'performance.view' },
+        schema: SalesPerformanceResponse,
+        signal,
+      }),
+  })
 
 /** Re-exported so the screen names the freeze without importing a fixture. */
 export const CHARTS_FROZEN_AT = DAS_VINA_FROZEN_AT

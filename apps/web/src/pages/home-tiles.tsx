@@ -13,16 +13,27 @@ import {
   cn,
   percent,
 } from '@pv/ui'
-import type { WorkstreamScorecard } from '@pv/contracts'
-import type { Performance } from '@/data/performance'
-import { deltaOf, funnelRate, num, type Delta } from './home-model'
+import type { SalesPerformanceResponse, WorkstreamScorecard } from '@pv/contracts'
+import {
+  deltaOf,
+  funnelOf,
+  monthInPeriod,
+  num,
+  periodLabel,
+  periodShort,
+  previousKey,
+  rateOf,
+  type Delta,
+} from './home-model'
 
 /** Row one of the overview bento and the funnel that opens row two.
  *
  *  Tiles are built on `GlassCard`, not `StatCard`: the compact `StatCard`
  *  prints its label in uppercase mono, and here the label is the tile's
  *  sentence-case title (law 6). Every figure arrives as a prop, and every
- *  tile's head says what it covers: a period, a frozen snapshot, or now. */
+ *  tile's head says what it covers: a period, a frozen snapshot, or now.
+ *  The period tiles name the period of the DATA, not of the picker, so a
+ *  placeholder kept across a period change is still labelled truthfully. */
 
 /** Shared with `home-charts.tsx`: only the measured mark moves, never the tile
  *  (the global reduced-motion rule in the token file switches both off). */
@@ -73,27 +84,30 @@ function DeltaLine({ delta, children }: { delta: Delta | null; children: ReactNo
   )
 }
 
-const versus = (data: Performance) =>
-  data.previous ? `so với ${data.previous.label.toLowerCase()}` : 'kỳ đầu, chưa có mốc so'
+type Figures = { data: SalesPerformanceResponse; className?: string }
 
-/** The lead tile counts contracts: the scenario records which were signed and
- *  when, but not their value, and the note says so instead of a blank sum. */
-export function SignedTile({ data, className }: { data: Performance; className?: string }) {
-  const o = data.overview
-  const top = Math.max(1, ...data.months.map((m) => m.signed))
+const versus = (data: SalesPerformanceResponse) =>
+  `so với ${periodLabel(previousKey(data.period)).toLowerCase()}`
+
+/** Contracts by the day they were signed. One with no amount is missing from
+ *  the sum, so it is counted beside it instead of passing as zero. */
+export function SignedTile({ data, className }: Figures) {
+  const now = data.current
+  const top = Math.max(1, ...data.months.map((m) => m.signedCount))
 
   return (
     <GlassCard className={cn(TILE, 'sm:flex-row sm:gap-6', className)}>
       <div className="flex min-w-0 flex-1 flex-col gap-3">
-        <TileHead title="Hợp đồng đã ký" aside={data.period.short} />
+        <TileHead title="Hợp đồng đã ký" aside={periodShort(data.period)} />
         <div className="mt-auto flex flex-col gap-2">
-          <span className={BIG}>{num(o.signedInPeriod)}</span>
-          <DeltaLine
-            delta={deltaOf(o.signedInPeriod, data.previous?.overview.signedInPeriod, 'count')}
-          >
+          <span className={BIG}>{billions(now.signedAmountVnd, 1)}</span>
+          <DeltaLine delta={deltaOf(now.signedAmountVnd, data.previous.signedAmountVnd, 'money')}>
             {versus(data)}
           </DeltaLine>
-          <span className={NOTE}>Kịch bản chưa ghi giá trị hợp đồng đã ký.</span>
+          <span className={cn(NOTE, 'tnum font-num')}>
+            {num(now.signedCount)} hợp đồng
+            {now.blankAmount > 0 && ` · ${num(now.blankAmount)} chưa nhập giá trị`}
+          </span>
         </div>
       </div>
 
@@ -107,9 +121,9 @@ export function SignedTile({ data, className }: { data: Performance; className?:
               className={cn(
                 'min-h-0.5 flex-1 rounded-t-sm',
                 GROW_HEIGHT,
-                m.selected ? 'bg-primary' : NEUTRAL_MARK,
+                monthInPeriod(m.key, data.period) ? 'bg-primary' : NEUTRAL_MARK,
               )}
-              style={{ height: `${(m.signed / top) * 100}%` }}
+              style={{ height: `${(m.signedCount / top) * 100}%` }}
             />
           ))}
         </div>
@@ -119,10 +133,12 @@ export function SignedTile({ data, className }: { data: Performance; className?:
               key={m.key}
               className={cn(
                 'tnum font-num flex-1 text-center text-[12px] leading-4',
-                m.selected ? 'text-foreground font-semibold' : 'text-muted-foreground',
+                monthInPeriod(m.key, data.period)
+                  ? 'text-foreground font-semibold'
+                  : 'text-muted-foreground',
               )}
             >
-              {m.short} · {num(m.signed)}
+              {periodShort(m.key)} · {num(m.signedCount)}
             </span>
           ))}
         </div>
@@ -131,40 +147,42 @@ export function SignedTile({ data, className }: { data: Performance; className?:
   )
 }
 
-export function OpenValueTile({
-  data,
-  frozenDay,
-  className,
-}: {
-  data: Performance
-  frozenDay: string
-  className?: string
-}) {
+/** The open book as it stands now: it keeps no history, so the picker does
+ *  not move this tile and it has nothing to compare with. */
+export function OpenValueTile({ data, className }: Figures) {
   return (
     <GlassCard className={cn(TILE, className)}>
-      <TileHead title="Giá trị đang mở" aside={`số chụp tại ${frozenDay}`} />
+      <TileHead title="Giá trị đang mở" aside="hiện tại" />
       <div className="mt-auto flex flex-col gap-2">
-        <span className={BIG}>{billions(data.overview.openValue, 1)}</span>
-        <span className={NOTE}>{num(data.overview.openDeals)} cơ hội đang mở</span>
+        <span className={BIG}>{billions(data.open.amountVnd, 1)}</span>
+        <span className={cn(NOTE, 'tnum font-num')}>
+          {num(data.open.count)} cơ hội đang mở
+          {data.open.blank > 0 && ` · ${num(data.open.blank)} chưa nhập giá trị`}
+        </span>
       </div>
     </GlassCard>
   )
 }
 
+const winRate = ({ cohort }: SalesPerformanceResponse['current']) =>
+  rateOf(cohort.contracts, cohort.opportunities)
+
 /** Read on the cohort, as the Performance screen reads it, and the denominator
  *  is printed: the same label on the workstream book means won over closed. */
-export function WinRateTile({ data, className }: { data: Performance; className?: string }) {
-  const o = data.overview
+export function WinRateTile({ data, className }: Figures) {
+  const { cohort } = data.current
+  const rate = winRate(data.current)
   return (
     <GlassCard className={cn(TILE, className)}>
-      <TileHead title="Tỷ lệ thắng" aside={data.period.short} />
+      <TileHead title="Tỷ lệ thắng" aside={periodShort(data.period)} />
       <div className="mt-auto flex flex-col gap-2">
-        <span className={BIG}>{o.winRate === null ? '—' : percent(o.winRate)}</span>
-        <DeltaLine delta={deltaOf(o.winRate, data.previous?.overview.winRate, 'points')}>
+        <span className={BIG}>{rate === null ? '—' : percent(rate)}</span>
+        <DeltaLine delta={deltaOf(rate, winRate(data.previous), 'points')}>
           {versus(data)}
         </DeltaLine>
         <span className={cn(NOTE, 'tnum font-num')}>
-          {num(o.won)} đã ký trên {num(o.sql)} lead của kỳ đã thành cơ hội
+          {num(cohort.contracts)} đã ký hợp đồng trên {num(cohort.opportunities)} lead của kỳ đã tạo
+          cơ hội
         </span>
       </div>
     </GlassCard>
@@ -258,29 +276,32 @@ export function OverdueTile({
   )
 }
 
-/** Four steps of one cohort, each a subset of the one above, so a bar is
- *  never wider than the bar before it. */
-export function FunnelTile({ data, className }: { data: Performance; className?: string }) {
-  const first = data.funnel[0]
-  const rate = funnelRate(data.funnel)
+/** Four steps of one cohort, each counted in leads, so no bar is wider than
+ *  the first. A lead can become a deal with no meeting logged on it, so the
+ *  third step is not bound by the second. */
+export function FunnelTile({ data, className }: Figures) {
+  const steps = funnelOf(data.current.cohort)
+  const leads = data.current.cohort.leads
+  const before = data.previous.cohort
+  const rate = rateOf(data.current.cohort.contracts, leads)
 
   return (
     <GlassCard className={cn(TILE, className)}>
       <TileHead
         title="Phễu chuyển đổi"
-        aside={`${data.period.short} · số lượng · % từ bước trước`}
+        aside={`${periodShort(data.period)} · số lượng · % từ bước trước`}
       />
       {/* Rate and delta share one line: the tile is one bento row tall. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className={BIG}>{rate === null ? '—' : percent(rate, 1)}</span>
         <span className={NOTE}>lead thành hợp đồng</span>
-        <DeltaLine delta={deltaOf(rate, funnelRate(data.previous?.funnel), 'points')}>
+        <DeltaLine delta={deltaOf(rate, rateOf(before.contracts, before.leads), 'points')}>
           {versus(data)}
         </DeltaLine>
       </div>
 
       <div className="flex flex-1 flex-col justify-between gap-2">
-        {data.funnel.map((step) => (
+        {steps.map((step) => (
           <div key={step.key} className="flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1 truncate text-[12.5px]" title={step.label}>
@@ -295,9 +316,7 @@ export function FunnelTile({ data, className }: { data: Performance; className?:
             </div>
             <div
               className={cn('bg-primary h-3 min-w-1 rounded-sm', GROW_WIDTH)}
-              style={{
-                width: `${first && first.count > 0 ? (step.count / first.count) * 100 : 0}%`,
-              }}
+              style={{ width: `${leads > 0 ? (step.count / leads) * 100 : 0}%` }}
             />
           </div>
         ))}
@@ -317,7 +336,7 @@ export function TileSkeleton({ className }: { className?: string }) {
   )
 }
 
-/** The frozen figures did not load. One tile for the whole bento, with the
+/** The period figures did not load. One tile for the whole bento, with the
  *  retry the books offer: the filters are not what broke. */
 export function ChartsFailed({
   detail,

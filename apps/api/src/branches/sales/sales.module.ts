@@ -18,6 +18,7 @@ import { NextStepModule } from './next-step/next-step.module'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
 import { OpportunityModule } from './opportunity/opportunity.module'
 import { PartnerModule } from './partner/partner.module'
+import { PerformanceModule } from './performance/performance.module'
 import { SearchModule } from './search/search.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
 import { WorkstreamModule } from './workstream/workstream.module'
@@ -72,6 +73,9 @@ registerConstraints(CONFIG_CONSTRAINTS)
     /* Not in `exports`, unlike the others: it belongs to no book, and no module
        has anything to ask it. */
     LeaderboardModule,
+    /* Same standing as the leaderboard: period figures that join all three
+       books and belong to none. */
+    PerformanceModule,
     /* The journey book — one row per run at one company, gathered across the
        lead, its deals and its contract. It stands beside the three books rather
        than under one of them for `AccountModule`'s reason: a run spans all
