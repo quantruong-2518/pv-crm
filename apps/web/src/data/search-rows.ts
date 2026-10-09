@@ -42,6 +42,12 @@ export const SEARCH_KIND_FACTS: Record<SearchKind, KindFacts> = {
     book: '/sales/contracts',
     detail: '/sales/contracts',
   },
+  partner: {
+    label: 'Đối tác',
+    icon: Handshake,
+    book: '/admin/partners',
+    detail: '/admin/partners',
+  },
 }
 
 /** Same folding as `header-search.tsx`, which `@pv/ui` does not export. */
@@ -57,6 +63,7 @@ const PREFIXES = new Map<string, SearchKind>([
   ['co hoi', 'opportunity'],
   ['chien dich', 'campaign'],
   ['hop dong', 'contract'],
+  ['doi tac', 'partner'],
 ])
 
 /** `co hoi: abc` → the opportunity kind and `abc`. The head is folded alone and
@@ -68,9 +75,12 @@ export function splitPrefix(text: string): { kind: SearchKind | null; q: string 
   return kind ? { kind, q: text.slice(colon + 1).trim() } : { kind: null, q: text.trim() }
 }
 
-/** The code of the record to open: a contact hit already carries its lead's. */
+/** The code of the record to open: a contact hit already carries its lead's. A partner has no
+ *  profile page, so it opens the partner book filtered by its ref. */
 export const hitPath = (hit: SearchHit) =>
-  `${SEARCH_KIND_FACTS[hit.kind].detail}/${encodeURIComponent(hit.code)}`
+  hit.kind === 'partner'
+    ? `${SEARCH_KIND_FACTS.partner.book}?q=${encodeURIComponent(hit.code)}`
+    : `${SEARCH_KIND_FACTS[hit.kind].detail}/${encodeURIComponent(hit.code)}`
 
 /** The kind to log as picked: opening a contact opens its lead, so that is
  *  what the recent list must remember. */

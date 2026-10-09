@@ -5,6 +5,7 @@ import type { PartnerRowDb } from './partner.schema'
 export function toContract(row: PartnerRowDb): Partner {
   return {
     code: row.code,
+    ref: row.ref,
     name: row.name,
     originId: row.originId,
     active: row.active,

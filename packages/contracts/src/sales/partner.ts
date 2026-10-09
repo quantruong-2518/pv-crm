@@ -20,6 +20,8 @@ export type PartnerCode = z.infer<typeof PartnerCode>
 
 export const Partner = z.object({
   code: PartnerCode,
+  /** `ABC-123` — random, what the partner book prints; `code` stays the key. */
+  ref: z.string().regex(/^[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{3}$/),
   name: z.string().min(1),
   originId: LeadOriginId,
   active: z.boolean(),
@@ -34,7 +36,16 @@ export const PartnerListQuery = z.object({
 })
 export type PartnerListQuery = z.infer<typeof PartnerListQuery>
 
-export const PartnerListResponse = z.object({ rows: z.array(Partner) })
+/** List row: the partner plus what its referrals became. Each count is of
+ *  DISTINCT leads, so a lead with two deals counts once and the ratios stay ≤ 1. */
+export const PartnerRow = Partner.extend({
+  leads: z.number().int().nonnegative(),
+  opportunities: z.number().int().nonnegative(),
+  contracts: z.number().int().nonnegative(),
+})
+export type PartnerRow = z.infer<typeof PartnerRow>
+
+export const PartnerListResponse = z.object({ rows: z.array(PartnerRow) })
 export type PartnerListResponse = z.infer<typeof PartnerListResponse>
 
 export const PARTNER_NAME_MAX = 120

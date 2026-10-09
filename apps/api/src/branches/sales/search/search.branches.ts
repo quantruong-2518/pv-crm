@@ -9,6 +9,7 @@ import { dealStoodBy } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { account } from '../account/account.schema'
 import { lead } from '../lead/lead.schema'
+import { partner } from '../partner/partner.schema'
 
 /** The SQL of one search branch per kind, as fragments for `SearchRepository`.
  *
@@ -115,6 +116,21 @@ function branchOf(kind: SearchKind, who: Scope, q?: string): Branch {
           { field: 'code', expr: campaign.code, code: true },
         ],
         fence: who.ownOnly ? eq(campaign.ownerId, who.id) : undefined,
+      }
+    case 'partner':
+      /* `code` is the ref: it is what people quote, and the web opens the
+         partner book filtered by it. Hidden partners stay findable. */
+      return {
+        from: sql`sales.partner`,
+        code: partner.ref,
+        title: partner.name,
+        subtitle: sql`${partner.code}`,
+        cols: [
+          { field: 'title', expr: partner.name },
+          { field: 'code', expr: partner.ref, code: true },
+          { field: 'code', expr: partner.code, code: true },
+        ],
+        fence: undefined,
       }
     case 'contract':
       return {

@@ -136,13 +136,6 @@ const ONE_CORE: NavEntry[] = [
     path: '/admin/lead-origins',
     permission: 'lead-origin.manage',
   },
-  {
-    /** Admin side of the partner book picked by referral/partner leads. */
-    icon: Handshake,
-    label: 'Đối tác',
-    path: '/admin/partners',
-    permission: 'lead-origin.manage',
-  },
 ]
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình
@@ -268,6 +261,16 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/contacts',
     permission: 'lead.view',
     question: 'Đã gặp người này bao giờ chưa, và gọi họ thế nào',
+    group: 'customer',
+  },
+  {
+    /* Partners are people we know: beside contacts in the More menu. */
+    no: 0,
+    icon: Handshake,
+    label: 'Đối tác',
+    path: '/admin/partners',
+    permission: 'lead-origin.manage',
+    question: 'Ai giới thiệu lead cho mình, và giới thiệu được bao nhiêu',
     group: 'customer',
   },
   {

@@ -1,9 +1,13 @@
+import { randomInt } from 'node:crypto'
 import { and, asc, eq, ilike, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { motionPolicy } from '../config/motion.schema'
 import { leadOrigin, leadOriginMotion } from '../lead-origin/lead-origin.schema'
+import { lead } from '../lead/lead.schema'
+import { opportunity } from '../opportunity/opportunity.schema'
+import { contract } from '../contract/contract.schema'
 import { partner, type PartnerRowDb } from './partner.schema'
 
 /** SQL for `sales.partner`. Decides nothing: which origin a partner may hang
@@ -11,6 +15,20 @@ import { partner, type PartnerRowDb } from './partner.schema'
 
 /** `REF-%04d` off `partner_code_seq`, the `NEXT_ID` shape of `lead-origin.repository.ts`. */
 const NEXT_CODE = sql`SELECT 'REF-' || lpad(nextval('sales.partner_code_seq')::text, 4, '0') AS code`
+
+/** No 0/1/I/O: the ref is read aloud and typed back. */
+const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+/** `ABC-123`-shaped, with at least one letter and one digit. */
+function randomRef(): string {
+  for (;;) {
+    const chars = Array.from({ length: 6 }, () => REF_ALPHABET[randomInt(REF_ALPHABET.length)])
+    const s = chars.join('')
+    if (/[A-Z]/.test(s) && /[2-9]/.test(s)) return `${s.slice(0, 3)}-${s.slice(3)}`
+  }
+}
+
+export type PartnerTally = { leads: number; opportunities: number; contracts: number }
 
 export type PartnerSet = Partial<Pick<PartnerRowDb, 'name' | 'originId' | 'active'>>
 
@@ -39,6 +57,21 @@ export class PartnerRepository {
         ),
       )
       .orderBy(asc(partner.name), asc(partner.code))
+  }
+
+  /** Referral funnel per partner code. Partners with no leads are absent. */
+  async tallies(): Promise<Map<string, PartnerTally>> {
+    const rows = await this.db
+      .select({
+        code: lead.partnerCode,
+        leads: sql<number>`count(*)::int`,
+        opportunities: sql<number>`count(*) FILTER (WHERE EXISTS (SELECT 1 FROM ${opportunity} o WHERE o.lead_code = ${lead.code}))::int`,
+        contracts: sql<number>`count(*) FILTER (WHERE EXISTS (SELECT 1 FROM ${contract} c WHERE c.lead_code = ${lead.code}))::int`,
+      })
+      .from(lead)
+      .where(sql`${lead.partnerCode} IS NOT NULL`)
+      .groupBy(lead.partnerCode)
+    return new Map(rows.map(({ code, ...t }) => [code ?? '', t]))
   }
 
   async byCode(db: Db, code: string): Promise<PartnerRowDb | null> {
@@ -78,10 +111,20 @@ export class PartnerRepository {
     return code
   }
 
+  /** A ref nobody holds yet; the unique index backstops a race. */
+  async freshRef(db: Db): Promise<string> {
+    for (;;) {
+      const ref = randomRef()
+      const [taken] = await db.select({ c: partner.code }).from(partner).where(eq(partner.ref, ref))
+      if (!taken) return ref
+    }
+  }
+
   async insert(
     tx: Db,
     values: {
       code: string
+      ref: string
       name: string
       originId: string
       contactCode?: string | undefined

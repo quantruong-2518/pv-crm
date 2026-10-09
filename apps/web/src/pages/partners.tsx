@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
+  Check,
   ColumnFilter,
   ColumnFilterList,
+  Copy,
   Icon,
   Plus,
   ScreenLayout,
@@ -14,17 +16,18 @@ import {
   type TableRowModel,
   type TableSort,
 } from '@pv/ui'
-import type { Partner } from '@pv/contracts'
+import type { PartnerRow as Partner } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { listField, oneOf, useClientBookFilter, type BookFilters } from '@/app/client-book-filter'
 import { isApiError, userMessage } from '@/app/api'
+import { toastDone } from '@/app/toast'
 import { useOriginNames } from '@/data/lead-origins'
 import { normalise } from '@/data/intake'
 import { partnersQuery } from '@/data/partners'
 import { BookCount, BookPage } from '@/components/book-page'
 import { AddPartnerModal, EditPartnerModal } from './partners-parts'
 
-/** Admin · the partner book — who sends us leads, picked by `REFERRER`-asking
+/** Partner book — who sends us leads, picked by `REFERRER`-asking
  *  motions on the create form and the import panel.
  *
  *  Same shape and same gate as `lead-origins.tsx`: the route asks
@@ -63,17 +66,19 @@ function filterPartnerBook(
 ): Partner[] {
   const needle = normalise(f.q)
   return rows.filter((p) => {
-    if (needle && !normalise(`${p.code} ${p.name}`).includes(needle)) return false
+    if (needle && !normalise(`${p.code} ${p.ref} ${p.name}`).includes(needle)) return false
     if (f.view === 'active' && !p.active) return false
     if (f.view === 'hidden' && p.active) return false
     return f.origin.length === 0 || f.origin.includes(p.originId)
   })
 }
 
-/** Name sorts in Vietnamese order; code is a plain string. Other keys never arrive. */
+/** Name sorts in Vietnamese order; the rest by count. Other keys never arrive. */
 const PARTNER_SORTS: Record<string, (a: Partner, b: Partner) => number> = {
-  code: (a, b) => a.code.localeCompare(b.code),
   name: (a, b) => a.name.localeCompare(b.name, 'vi'),
+  leads: (a, b) => a.leads - b.leads,
+  opportunities: (a, b) => a.opportunities - b.opportunities,
+  contracts: (a, b) => a.contracts - b.contracts,
 }
 
 /** The rows to draw, sorted, plus each tab's count. Counts follow the search and
@@ -89,6 +94,65 @@ function partnerView(all: Partner[], filters: PartnerFilters, sort: TableSort) {
   }
 }
 
+/** Copies the ref without opening the row it sits in. */
+function CopyRef({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async (e: MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      toastDone(`Đã chép mã ${value}`)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* Absent on plain http and blocked by some policies; the pill stays selectable. */
+    }
+  }
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      aria-label={`Chép mã ${value}`}
+      className="pointer-coarse:h-12"
+      onClick={copy}
+    >
+      <Icon icon={copied ? Check : Copy} size={14} />
+    </Button>
+  )
+}
+
+/** Cells of one book row, in column order: who, ref, kind, three counts, state. */
+function partnerCells(p: Partner, originName: string): ReactNode[] {
+  return [
+    <span key="n" className="truncate text-[12.5px] font-semibold">
+      {p.name}
+    </span>,
+    <span key="r" className="flex items-center gap-1">
+      <Badge tone="draft" className="font-mono">
+        {p.ref}
+      </Badge>
+      <CopyRef value={p.ref} />
+    </span>,
+    <span key="o" className="truncate text-[12.5px]">
+      {originName}
+    </span>,
+    ...[p.leads, p.opportunities, p.contracts].map((n, k) => (
+      <span key={`n${k}`} className="text-[12.5px] tabular-nums">
+        {n}
+      </span>
+    )),
+    p.active ? (
+      <Badge key="s" tone="success">
+        Đang dùng
+      </Badge>
+    ) : (
+      <Badge key="s" tone="draft">
+        Đã ẩn
+      </Badge>
+    ),
+  ]
+}
+
 const nextSort = (cur: TableSort, key: string): TableSort =>
   cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
 
@@ -98,7 +162,7 @@ export function PartnersPage() {
 
   const book = useClientBookFilter(PARTNER_FILTERS)
   const { filters, patch } = book
-  const [sort, setSort] = useState<TableSort>({ key: 'code', dir: 'asc' })
+  const [sort, setSort] = useState<TableSort>({ key: 'name', dir: 'asc' })
   const [adding, setAdding] = useState(false)
   /* Bumped on every opening, so the add modal remounts with a blank form. */
   const [addSeq, setAddSeq] = useState(0)
@@ -140,33 +204,14 @@ export function PartnersPage() {
   const tableRows: TableRowModel[] = rows.map((p) => ({
     id: p.code,
     onOpen: () => setEditingCode(p.code),
-    cells: [
-      <span key="c" className="font-mono text-[12px]">
-        {p.code}
-      </span>,
-      <span key="n" className="truncate text-[12.5px] font-semibold">
-        {p.name}
-      </span>,
-      <span key="o" className="truncate text-[12.5px]">
-        {originNames.get(p.originId) ?? p.originId}
-      </span>,
-      p.active ? (
-        <Badge key="s" tone="success">
-          Đang dùng
-        </Badge>
-      ) : (
-        <Badge key="s" tone="draft">
-          Đã ẩn
-        </Badge>
-      ),
-    ],
+    cells: partnerCells(p, originNames.get(p.originId) ?? p.originId),
   }))
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <BookPage
-          title="Đối tác giới thiệu lead"
+          title="Đối tác"
           actions={
             <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
               <Icon icon={Plus} size={16} />
@@ -187,7 +232,7 @@ export function PartnersPage() {
           tools={
             <>
               <SearchField
-                placeholder="Tìm theo mã đối tác hoặc tên…"
+                placeholder="Tìm theo tên hoặc mã đối tác…"
                 value={book.text}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
@@ -229,14 +274,17 @@ export function PartnersPage() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[720px]',
+            minWidth: 'min-w-[820px]',
             sort,
             onSort: toggleSort,
             columns: [
-              { header: 'Mã', width: '0.8fr', sortKey: 'code' },
-              { header: 'Tên đối tác', width: 'minmax(0,2fr)', sortKey: 'name' },
-              { header: originFilter, width: 'minmax(0,1.4fr)' },
-              { header: 'Trạng thái', width: 'minmax(0,1fr)' },
+              { header: 'Đối tác', width: 'minmax(0,2fr)', sortKey: 'name' },
+              { header: 'Mã ref', width: '168px', align: 'center' },
+              { header: originFilter, width: 'minmax(0,1.2fr)', align: 'center' },
+              { header: 'Lead', width: '88px', sortKey: 'leads', align: 'center' },
+              { header: 'Cơ hội', width: '88px', sortKey: 'opportunities', align: 'center' },
+              { header: 'Hợp đồng', width: '104px', sortKey: 'contracts', align: 'center' },
+              { header: 'Trạng thái', width: '128px', align: 'center' },
             ],
             rows: tableRows,
           }}

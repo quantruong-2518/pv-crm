@@ -19,6 +19,7 @@ export const SEARCH_KINDS = [
   'opportunity',
   'campaign',
   'contract',
+  'partner',
 ] as const
 export const SearchKind = z.enum(SEARCH_KINDS)
 export type SearchKind = z.infer<typeof SearchKind>

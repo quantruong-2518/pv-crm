@@ -48,11 +48,11 @@ export const searchRecent = sales.table(
       .on(t.actorId, t.q)
       .where(sql`"picked_code" IS NULL`),
 
-    /** The six `SEARCH_KINDS`, copied out: the list growing must be a migration
+    /** The seven `SEARCH_KINDS`, copied out: the list growing must be a migration
      *  somebody reads. */
     check(
       'search_recent_picked_kind_known',
-      sql`"picked_kind" IS NULL OR "picked_kind" IN ('lead', 'account', 'contact', 'opportunity', 'campaign', 'contract')`,
+      sql`"picked_kind" IS NULL OR "picked_kind" IN ('lead', 'account', 'contact', 'opportunity', 'campaign', 'contract', 'partner')`,
     ),
     /** A kind with no code, or a code with no kind, cannot be opened. */
     check('search_recent_pick_is_whole', sql`("picked_kind" IS NULL) = ("picked_code" IS NULL)`),

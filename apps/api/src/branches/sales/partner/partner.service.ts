@@ -47,7 +47,11 @@ export class PartnerService {
   async list(who: Actor, q: PartnerListQuery): Promise<PartnerListResponse> {
     const includeInactive = !!q.includeInactive && this.access.allows(who, 'lead-origin.manage')
     const rows = await this.repo.list({ ...(q.q ? { q: q.q } : {}), includeInactive })
-    return PartnerListResponse.parse({ rows: rows.map(toContract) })
+    const tallies = await this.repo.tallies()
+    const none = { leads: 0, opportunities: 0, contracts: 0 }
+    return PartnerListResponse.parse({
+      rows: rows.map((r) => ({ ...toContract(r), ...(tallies.get(r.code) ?? none) })),
+    })
   }
 
   /** With `contactCode` the call is idempotent: a contact that already holds a
@@ -65,7 +69,8 @@ export class PartnerService {
       const row = await this.repo.run(async (tx) => {
         await this.assertOrigin(tx, body.originId)
         const code = await this.repo.nextCode(tx)
-        const written = await this.repo.insert(tx, { code, ...body, createdBy: who.id })
+        const ref = await this.repo.freshRef(tx)
+        const written = await this.repo.insert(tx, { code, ref, ...body, createdBy: who.id })
         await this.note(tx, who.id, { kind: 'partner-create', code, ...body })
         return written
       })

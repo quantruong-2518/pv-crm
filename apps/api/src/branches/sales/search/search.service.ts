@@ -22,6 +22,7 @@ const VIEW: Record<SearchKind, Permission> = {
   opportunity: 'opportunity.view',
   campaign: 'campaign.view',
   contract: 'contract.view',
+  partner: 'lead-origin.manage',
 }
 
 /** Newest rows kept per person; the list shows them all. */

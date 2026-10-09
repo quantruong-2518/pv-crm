@@ -85,6 +85,7 @@ export function useHeaderSearch(): SearchRecords | undefined {
     opportunity: useCan('opportunity.view'),
     campaign: useCan('campaign.view'),
     contract: useCan('contract.view'),
+    partner: useCan('lead-origin.manage'),
   }
   const [text, setText] = useState('')
   const [chip, setChip] = useState<SearchKind | null>(null)

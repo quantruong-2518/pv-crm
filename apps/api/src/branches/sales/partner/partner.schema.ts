@@ -35,6 +35,8 @@ export const partner = sales.table(
     /** Display name as typed — content, not a key. Not UNIQUE: two referrers
      *  can share a name, and the code is what tells them apart. */
     name: text('name').notNull(),
+    /** Random `ABC-123` shown in the partner book. Display only: leads point at `code`. */
+    ref: text('ref').notNull(),
     /** "Which partners sit under origin X" is the picker's question, hence
      *  `partner_origin_idx`. */
     originId: text('origin_id')
@@ -60,6 +62,8 @@ export const partner = sales.table(
       .on(t.contactCode)
       .where(sql`"contact_code" IS NOT NULL`),
     /** `{4,}` not `{4}`: `%04d` pads, it does not truncate, so REF-10000 is legal. */
+    uniqueIndex('partner_ref_unique').on(t.ref),
+    check('partner_ref_shape', sql`"ref" ~ '^[A-HJ-NP-Z2-9]{3}-[A-HJ-NP-Z2-9]{3}$'`),
     check('partner_code_shape', sql`"code" ~ '^REF-[0-9]{4,}$'`),
     check('partner_no_blank', sql`"name" <> ''`),
   ],
