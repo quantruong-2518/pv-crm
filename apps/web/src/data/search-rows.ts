@@ -1,4 +1,5 @@
 import {
+  BriefcaseDollar,
   Building,
   Contact,
   FileCheck,
@@ -26,7 +27,7 @@ export const SEARCH_KIND_FACTS: Record<SearchKind, KindFacts> = {
   contact: { label: 'Liên hệ', icon: Contact, book: '/sales/contacts', detail: '/sales/leads' },
   opportunity: {
     label: 'Cơ hội',
-    icon: Handshake,
+    icon: BriefcaseDollar,
     book: '/sales/opportunities',
     detail: '/sales/opportunities',
   },

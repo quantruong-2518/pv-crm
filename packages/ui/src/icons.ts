@@ -106,6 +106,8 @@ export {
 
 // Semantic aliases for familiar names that Hugeicons does not expose directly.
 export {
+  // Opportunity glyph: Handshake stays the partner/referral mark, so the two books differ.
+  BriefcaseDollarIcon as BriefcaseDollar,
   Building02Icon as Building,
   ChartAnalysisIcon as ChartAnalysis,
   CheckmarkCircle02Icon as CheckCircle2,

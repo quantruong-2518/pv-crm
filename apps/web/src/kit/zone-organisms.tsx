@@ -1,12 +1,12 @@
 import {
   Bell,
+  BriefcaseDollar,
   Building,
   ChartAnalysis,
   Contact,
   ContactBook,
   FileCheck,
   Gauge,
-  Handshake,
   House,
   KeyRound,
   LogOut,
@@ -54,7 +54,7 @@ const HEADER_APPS = [
   [
     { icon: Route, label: 'Hành trình' },
     { icon: Users, label: 'Lead' },
-    { icon: Handshake, label: 'Cơ hội' },
+    { icon: BriefcaseDollar, label: 'Cơ hội' },
     { icon: FileCheck, label: 'Hợp đồng' },
     { icon: Megaphone, label: 'Chiến dịch' },
     { icon: ContactBook, label: 'Khách hàng', active: true, items: HEADER_CUSTOMER },

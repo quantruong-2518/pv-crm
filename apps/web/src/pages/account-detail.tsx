@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Handshake, Inbox, RotateCcw, Route } from '@pv/ui'
+import { BriefcaseDollar, Check, Inbox, RotateCcw, Route } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -369,7 +369,7 @@ function DealsCard({
         hint="Cả đơn đã đóng — thứ mình đã chào cho khách này gồm cả những lần trượt."
       >
         <span className="flex items-center gap-2">
-          <Icon icon={Handshake} size={16} />
+          <Icon icon={BriefcaseDollar} size={16} />
           Cơ hội · {account.dealRows.length}
         </span>
       </SectionTitle>

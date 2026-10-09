@@ -1,6 +1,7 @@
 import type { IconGlyph } from '@pv/ui'
 import {
   Bell,
+  BriefcaseDollar,
   Building,
   Contact,
   FileCheck,
@@ -270,7 +271,7 @@ export const SALES_MODULES: SalesModule[] = [
      *  init data thì lead thành cơ hội. Hai sổ dùng chung bố cục và chung ba
      *  mảnh bảng (`components/table-bits.tsx`). */
     no: 3,
-    icon: Handshake,
+    icon: BriefcaseDollar,
     label: 'Cơ hội',
     path: '/sales/opportunities',
     permission: 'opportunity.view',
