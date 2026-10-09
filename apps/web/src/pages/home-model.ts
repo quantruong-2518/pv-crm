@@ -83,16 +83,16 @@ export const num = (value: number) => value.toLocaleString('vi-VN', { maximumFra
  *  takes two sums in dong. */
 export function deltaOf(
   now: number | null,
-  before: number | null | undefined,
-  unit: 'count' | 'points' | 'money',
+  before: number | null,
+  unit: 'points' | 'money',
 ): Delta | null {
-  if (now === null || before === null || before === undefined) return null
+  if (now === null || before === null) return null
   const diff = now - before
   if (diff === 0) return { direction: 'flat', text: 'Không đổi' }
   const gap = Math.abs(diff)
   /* Under a billion the tile's own unit would round a real gap down to zero. */
   const money = gap >= 1_000_000_000 ? billions(gap, 1) : millions(gap, 0)
-  const size = unit === 'points' ? `${num(gap * 100)} điểm` : unit === 'money' ? money : num(gap)
+  const size = unit === 'points' ? `${num(gap * 100)} điểm` : money
   return { direction: diff > 0 ? 'up' : 'down', text: `${diff > 0 ? '+' : '−'}${size}` }
 }
 
