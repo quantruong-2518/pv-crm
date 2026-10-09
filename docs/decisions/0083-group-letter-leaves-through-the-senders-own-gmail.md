@@ -21,6 +21,11 @@ sender.
 - The group letter leaves through the salesperson's OWN company Gmail mailbox
   (Gmail API on the existing per-person Google link) when that link is ready;
   otherwise it stays on the shared Resend sender as before.
+  With `PV_PERSONAL_MAIL_REQUIRED` on there is no "otherwise": a person with
+  no ready link cannot send a letter from a record at all (owner decision
+  09/10/2026 — a 1-to-1 letter under the shared sender's name is the thing
+  this ADR exists to end). The switch defaults off only so the shared sender
+  keeps working until the Google consent is live.
 - Bulk never goes through Gmail.
 
 ### 2 · "Ready"

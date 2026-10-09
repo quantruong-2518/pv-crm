@@ -53,6 +53,7 @@ type Sender = {
   displayFrom: string
   usedToday: number | null
   remainingToday: number | null
+  mustConnect: boolean
 }
 
 /** A door's label as it reads mid-sentence in a problem title: lower case. */
@@ -100,6 +101,7 @@ export class MailLetterService {
         transport: sender.transport,
         address: sender.address,
         remainingToday: sender.remainingToday,
+        mustConnect: sender.mustConnect,
       },
     })
   }
@@ -175,6 +177,11 @@ export class MailLetterService {
       }
 
       const sender = await this.senderFor(tx, who, scheduledAt ?? new Date(), true)
+      if (sender.mustConnect) {
+        throw conflict(
+          'Thư từ hồ sơ phải gửi từ hộp thư của chính bạn. Kết nối tài khoản Google công ty rồi gửi lại.',
+        )
+      }
       const limit = this.env.PV_GMAIL_DAILY_ADDRESS_MAX
       if (sender.usedToday !== null && sender.usedToday + addresses.length > limit) {
         throw conflict(
@@ -253,6 +260,7 @@ export class MailLetterService {
         displayFrom,
         usedToday: null,
         remainingToday: null,
+        mustConnect: this.env.PV_PERSONAL_MAIL_REQUIRED,
       }
     }
     const usedToday = await this.repo.gmailAddressesUsed(handle, who.id, at, lock)
@@ -262,6 +270,7 @@ export class MailLetterService {
       displayFrom: `"${headerName(who.name)}" <${link.email}>`,
       usedToday,
       remainingToday: Math.max(0, this.env.PV_GMAIL_DAILY_ADDRESS_MAX - usedToday),
+      mustConnect: false,
     }
   }
 

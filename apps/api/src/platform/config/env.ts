@@ -410,6 +410,13 @@ const Env = z
     // GMAIL — a group letter through the sender's own mailbox (`mail_run.transport`)
     /** Addresses (To + CC) one person may send through Gmail per rolling 24 h. */
     PV_GMAIL_DAILY_ADDRESS_MAX: z.coerce.number().int().min(1).max(2000).default(100),
+    /** `true` = a letter from a record may ONLY leave from the sender's own
+     *  mailbox; no link, no send. Default off so the shared sender keeps working
+     *  until the Google consent is live and one real letter has been tried. */
+    PV_PERSONAL_MAIL_REQUIRED: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((v) => v === 'true'),
     /** How often the worker reads sent threads for replies and bounces. */
     PV_GMAIL_POLL_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
     /** How long after a letter was accepted its thread is still read. */

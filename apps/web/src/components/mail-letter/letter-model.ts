@@ -67,7 +67,13 @@ export const letterDirty = (form: LetterForm, seed: LetterForm | null) =>
 
 /** Why Send is shut, in one sentence; `null` = only the server's verdict is
  *  still owed. Order follows what a person fixes first. */
-export function letterBlocker(form: LetterForm, picked: number, sendable?: number): string | null {
+export function letterBlocker(
+  form: LetterForm,
+  picked: number,
+  sendable?: number,
+  mustConnect?: boolean,
+): string | null {
+  if (mustConnect) return 'Kết nối tài khoản Google công ty trước khi gửi.'
   if (picked === 0) return 'Chưa có ai trong To.'
   if (sendable === 0) return 'Chưa có ai trong To nhận được thư.'
   const gaps = [

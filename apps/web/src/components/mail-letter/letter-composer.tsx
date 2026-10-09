@@ -92,7 +92,12 @@ export function LetterComposer({
     form.body,
   )
 
-  const blocker = letterBlocker(form, toCodes.length, report?.sendable)
+  const blocker = letterBlocker(
+    form,
+    toCodes.length,
+    report?.sendable,
+    preflight.sender?.mustConnect,
+  )
   const fault = failure || preflight.error
   const message =
     fault ||

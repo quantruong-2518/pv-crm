@@ -85,6 +85,9 @@ export const MailGroupPreflightResponse = z.object({
     transport: MailTransport,
     address: z.string().min(1),
     remainingToday: z.number().int().min(0).nullable(),
+    /** The server will refuse this letter until the sender links a company
+     *  Gmail (`PV_PERSONAL_MAIL_REQUIRED`); the composer blocks Send on it. */
+    mustConnect: z.boolean(),
   }),
 })
 

@@ -18,7 +18,8 @@ import { googleLinkQuery, useConnectGoogle } from '@/data/google'
  *  of the preflight), never derived here. The link status only picks the
  *  sentence that says why a letter is still on the shared mailbox, and it is
  *  waited for so the line does not grow a prompt after it appears. No Google
- *  client on the server = no prompt (`GoogleLinkLine`).
+ *  client on the server = no prompt (`GoogleLinkLine`). `mustConnect` swaps
+ *  the shared-mailbox sentence for the rule; the footer blocks Send.
  *
  *  Connecting is a full navigation to Google, so a written letter is lost:
  *  `dirty` puts a confirmation in front of it. */
@@ -83,7 +84,11 @@ export function LetterSenderLine({
     <div className="flex min-h-5 min-w-0 flex-wrap items-center justify-between gap-2">
       {known && (
         <p className="text-muted-foreground m-0 min-w-0 flex-1 basis-64 text-[12px] leading-5">
-          {own ? 'Thư gửi từ hộp thư của bạn' : 'Thư gửi từ hộp thư chung'}
+          {own
+            ? 'Thư gửi từ hộp thư của bạn'
+            : sender.mustConnect
+              ? 'Thư từ hồ sơ chỉ gửi được từ hộp thư của chính bạn'
+              : 'Thư gửi từ hộp thư chung'}
           {left !== null && ' · '}
           {left !== null &&
             (left === 0 ? (
