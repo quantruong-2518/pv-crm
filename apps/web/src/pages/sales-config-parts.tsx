@@ -16,30 +16,18 @@ import { toastDone } from '@/app/toast'
 import { ROLE_LABEL, ROLE_OPTIONS } from '@/data/users'
 import { salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
 
-/** Section 5.9 · what each of the six lead motions declares.
- *
- *  ------------------------------------------------------------------
- *  THE ONLY SECTION ON THIS SCREEN THAT REACHES THE SERVER
- *  ------------------------------------------------------------------
- *  The eight sections above it collect changes into a local array and a send
- *  button that clears the array — the propose-then-approve shape, acted rather
- *  than wired, because until 14/09 there was nowhere to put a request. There is
- *  now (`platform.approval`), so this section does the real thing: each row
+/** Section 5.9 · what each of the six lead motions declares. Each row
  *  proposes on its own and answers with a receipt.
  *
  *  Rows are NOT repainted on success, and that is the point rather than an
  *  omission: the change has not happened. It happens when somebody approves it,
- *  which arrives through a different screen. Anything else would be the same
- *  lie the sections above tell, only with a network call behind it.
+ *  which arrives through a different screen.
  *
- *  ------------------------------------------------------------------
- *  EMPTY IS A VALUE HERE
- *  ------------------------------------------------------------------
- *  Every box starts empty and reads as undeclared, because these numbers do
- *  not exist yet and must not be invented. A placeholder showing "3" would be an invented policy
- *  that somebody reads as agreed a month later. Clearing a box is its own
- *  decision: it sends `null`, which un-declares the field rather than leaving
- *  it untouched. */
+ *  EMPTY IS A VALUE HERE. Every box starts empty and reads as undeclared,
+ *  because these numbers do not exist yet and must not be invented: a
+ *  placeholder showing "3" would be an invented policy that somebody reads as
+ *  agreed a month later. Clearing a box is its own decision: it sends `null`,
+ *  which un-declares the field rather than leaving it untouched. */
 export function MotionSection() {
   const { data: rows, isPending, error, refetch } = useQuery(salesMotionsQuery())
 

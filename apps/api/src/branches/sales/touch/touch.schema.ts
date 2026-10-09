@@ -2,6 +2,7 @@ import { check, index, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { LeadTier, RoleId, TouchKind, TouchSubject } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
+import { stepTemplate } from '../config/step-frame.schema'
 import { sales } from '../sales.schema'
 
 /** Lần chạm — chuyện gì đã xảy ra với một lead hoặc một cơ hội.
@@ -144,6 +145,12 @@ export const touch = sales.table(
      *  and deploy. */
     reasonId: text('reason_id'),
 
+    /** The template a finished step came from (ADR 0080 §5) — the step row is
+     *  deleted on "done", so this row is the only place left to say it. A real
+     *  FK, unlike `reason_id`: no virtual key, and templates are never deleted.
+     *  No index: no screen asks "touches of template X" yet. */
+    templateId: uuid('template_id').references(() => stepTemplate.id),
+
     note: text('note').notNull(),
   },
   (t) => [
@@ -225,6 +232,9 @@ export const touch = sales.table(
      *  `touch_hand_over_sides`: a pre-column or pre-deploy row stays NULL
      *  rather than fail. */
     check('touch_reason_only_stop', sql`"reason_id" IS NULL OR "kind" IN ('nurtured', 'exited')`),
+    /** One-way for `touch_reason_only_stop`'s reason: a typed step, and every
+     *  `next-step-done` row older than 0091, has no template. */
+    check('touch_template_only_step_done', sql`"template_id" IS NULL OR "kind" = 'next-step-done'`),
   ],
 )
 

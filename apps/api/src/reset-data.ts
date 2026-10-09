@@ -36,6 +36,8 @@ const KEEP = [
   'lead_origin_alias',
   'lead_origin_motion',
   'config_entry',
+  'step_template',
+  'state_rule',
 ]
 const OWNED_SCHEMAS = ['platform', 'sales', 'comms']
 

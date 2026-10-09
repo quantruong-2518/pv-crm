@@ -9,11 +9,17 @@ import {
   ConfigCode,
   LeadMotion,
   MotionPolicyPatch,
+  StateRulePatch,
+  StepTemplateCreate,
+  StepTemplateOrderPatch,
+  StepTemplateParams,
+  StepTemplatePatch,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { SalesConfigService } from './config.service'
+import { StepFrameService } from './step-frame.service'
 
 /** `/sales/config` — cấu hình danh mục, module 6 của nhánh Sales.
  *
@@ -38,7 +44,10 @@ import { SalesConfigService } from './config.service'
  *  lớp cùng nói một điều. Ba lớp cho một chỗ dễ vấp là rẻ. */
 @Controller('sales/config')
 export class SalesConfigController {
-  constructor(private readonly config: SalesConfigService) {}
+  constructor(
+    private readonly config: SalesConfigService,
+    private readonly frame: StepFrameService,
+  ) {}
 
   /** Cả sáu danh mục. Đây là thứ màn Cấu hình và mọi bảng tra nhãn cần. */
   @Get()
@@ -64,6 +73,55 @@ export class SalesConfigController {
     @Body(zod(ActivityFreshnessPatch)) body: ActivityFreshnessPatch,
   ) {
     return this.config.proposeActivityFreshness(who, body)
+  }
+
+  /** The journey frame (ADR 0080): every template, switched-off ones too, and
+   *  one rule per state with the default already resolved. The five doors sit
+   *  before `:list` — `step-frame/rules` has the very shape of `:list/:id`. */
+  @Get('step-frame')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  stepFrame() {
+    return this.frame.frame()
+  }
+
+  @Post('step-frame/templates')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  createStepTemplate(
+    @CurrentActor() who: Actor,
+    @Body(zod(StepTemplateCreate)) body: StepTemplateCreate,
+  ) {
+    return this.frame.proposeCreate(who, body)
+  }
+
+  /** `order` before `:id`, the reason `:list/order` gives; `StepTemplateId` is
+   *  a uuid, so the word could never be read as an id either. */
+  @Patch('step-frame/templates/order')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  reorderStepTemplates(
+    @CurrentActor() who: Actor,
+    @Body(zod(StepTemplateOrderPatch)) body: StepTemplateOrderPatch,
+  ) {
+    return this.frame.proposeOrder(who, body)
+  }
+
+  @Patch('step-frame/templates/:id')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchStepTemplate(
+    @CurrentActor() who: Actor,
+    @Param(zod(StepTemplateParams)) params: StepTemplateParams,
+    @Body(zod(StepTemplatePatch)) body: StepTemplatePatch,
+  ) {
+    return this.frame.proposePatch(who, params.id, body)
+  }
+
+  @Patch('step-frame/rules')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchStateRule(@CurrentActor() who: Actor, @Body(zod(StateRulePatch)) body: StateRulePatch) {
+    return this.frame.proposeRule(who, body)
   }
 
   @Get(':list')

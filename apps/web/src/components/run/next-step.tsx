@@ -17,12 +17,20 @@ import {
   Textarea,
   Trash2,
 } from '@pv/ui'
-import { NEXT_STEP_TEXT_MAX, type NextStep, type NextStepSetBody } from '@pv/contracts'
+import {
+  NEXT_STEP_TEXT_MAX,
+  type NextStep,
+  type NextStepSetBody,
+  type StepOptionsResponse,
+  type StepTemplateOption,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { dmy } from '@/lib/date'
 import { useSalesPeople } from '@/data/directory'
 import {
+  dueOnPick,
   nextStepQuery,
+  stepOptionsQuery,
   useClearNextStep,
   useFinishNextStep,
   useSetNextStep,
@@ -30,6 +38,7 @@ import {
 } from '@/data/next-step'
 import { DueBadge } from '@/components/contract-bits'
 import { Field } from '@/components/field-bits'
+import { EmptyFrameNote, PickedStepLine, TemplateChips } from './step-templates'
 
 /** Module 2 · The one thing that has to happen next on a lead or an
  *  opportunity (flow G1–G3, ADR 0069 §10). The record names its subject.
@@ -232,24 +241,58 @@ function StepView({ step, canEdit, onEdit, onFinish }: ViewProps) {
   )
 }
 
-/** Set, edit, or — when `finishing` — name what comes after the step just done.
- *  Mounted fresh on every open, so its boxes seed from props without a reseed.
- *  Exported for the deal profile's event follow-up, which sets the step in place. */
-export function NextStepForm({
-  subject,
-  step,
-  finishing,
-  onClose,
-}: {
+type FormProps = {
   subject: StepSubject
   step: NextStep | null
   finishing: boolean
   onClose: () => void
-}) {
+}
+
+/** Set, edit, or — when `finishing` — name what comes after the step just done.
+ *  Mounted fresh on every open, so its boxes seed from props without a reseed.
+ *  Exported for the deal profile's event follow-up, which sets the step in place.
+ *  Waits for the state's frame (ADR 0080): drawing the free box first would
+ *  offer a step the server may refuse. */
+export function NextStepForm(props: FormProps) {
+  const options = useQuery(stepOptionsQuery(props.subject.kind, props.subject.code))
+  if (options.data) return <StepForm {...props} options={options.data} />
+  if (options.isPending) return <Skeleton className="h-16 w-full" />
+  return (
+    <div className="flex flex-col gap-3">
+      <p role="alert" className="text-warning m-0 text-[12.5px] leading-[1.6]">
+        Không đọc được danh sách bước tiếp theo.{' '}
+        {isApiError(options.error) ? userMessage(options.error) : 'Vui lòng thử lại.'}
+      </p>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={props.onClose}>
+          Huỷ
+        </Button>
+        <Button
+          size="md"
+          variant="secondary"
+          className="pointer-coarse:h-12"
+          onClick={() => void options.refetch()}
+        >
+          Thử lại
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function StepForm({
+  subject,
+  step,
+  finishing,
+  onClose,
+  options,
+}: FormProps & { options: StepOptionsResponse }) {
   const seed = finishing ? null : step
   const [text, setText] = useState(seed?.text ?? '')
   /* Empty rather than today: a pre-filled day is a deadline nobody chose. */
   const [due, setDue] = useState(seed?.due ?? '')
+  const [dueAuto, setDueAuto] = useState(false)
+  const [templateId, setTemplateId] = useState(seed?.templateId)
   const { canAssign, holder } = subject
   /* Without the right to assign, the doer IS the holder, so the form never offers another. */
   const [doerId, setDoerId] = useState((canAssign ? seed?.doer.id : null) ?? holder?.id ?? '')
@@ -261,12 +304,36 @@ export function NextStepForm({
   const busy = set.isPending || finish.isPending || clear.isPending
   const failure = set.error ?? finish.error ?? clear.error
 
+  const linked = linkedTemplate(options, templateId, seed)
+  const locked = !options.freeEntry
+  const empty = locked && options.templates.length === 0
+  /* A chip replaces the box's words, so it stands down once somebody has
+     typed their own: one mis-tap must not cost them. */
+  const offering = locked || text === '' || text === linked?.name
+  /* Words that are no longer the template's are a typed step: the server
+     stores a template only while the text still equals its name. */
+  const type = (next: string) => {
+    setText(next)
+    if (linked && next.trim() !== linked.name) setTemplateId(undefined)
+  }
+
+  const pick = (template: StepTemplateOption | null) => {
+    setTemplateId(template?.id)
+    if (!template) return
+    setText(template.name)
+    const next = dueOnPick(template, due, dueAuto)
+    setDue(next.due)
+    setDueAuto(next.dueAuto)
+    box.current?.focus()
+  }
+
   /* The holder is sent as "absent": the server resolves it at write time, so a
      hand-over since this profile was read cannot leave a stale id behind. */
   const body: NextStepSetBody = {
-    text: text.trim(),
+    text: locked ? (linked?.name ?? '') : text.trim(),
     due,
     ...(doerId !== holder?.id && { doerId }),
+    ...(linked && { kindId: linked.kind.id, templateId: linked.id }),
   }
   const ready = body.text !== '' && due !== '' && doerId !== '' && !busy
   const done = { onSuccess: onClose }
@@ -283,69 +350,51 @@ export function NextStepForm({
         </p>
       )}
 
-      {text === '' && subject.suggestions.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {subject.suggestions.map((suggestion) => (
-            <Button
-              key={suggestion}
-              size="sm"
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              onClick={() => {
-                setText(suggestion)
-                box.current?.focus()
+      {empty && options.address ? (
+        <EmptyFrameNote address={options.address} />
+      ) : (
+        <>
+          {offering && <TemplateChips options={options} pickedId={linked?.id} onPick={pick} />}
+
+          {locked ? (
+            <Field label="Việc cần làm">
+              <PickedStepLine picked={linked} />
+            </Field>
+          ) : (
+            <Field label="Việc cần làm" note={`${text.length}/${NEXT_STEP_TEXT_MAX}`}>
+              <Textarea
+                ref={box}
+                value={text}
+                rows={2}
+                autoGrow
+                maxLength={NEXT_STEP_TEXT_MAX}
+                placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát."
+                aria-label="Việc cần làm"
+                onChange={(e) => type(e.target.value)}
+                onKeyDown={(e) => {
+                  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && ready) save()
+                }}
+              />
+            </Field>
+          )}
+
+          {/* Two columns only while the card is wide; the xl side column clips them. */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <DueField
+              value={due}
+              onChange={(next) => {
+                setDue(next)
+                setDueAuto(false)
               }}
-            >
-              {suggestion}
-            </Button>
-          ))}
-        </div>
+            />
+            {canAssign ? (
+              <DoerPicker subject={subject} step={step} value={doerId} onChange={setDoerId} />
+            ) : (
+              <HolderLine subject={subject} />
+            )}
+          </div>
+        </>
       )}
-
-      <Field label="Việc cần làm" note={`${text.length}/${NEXT_STEP_TEXT_MAX}`}>
-        <Textarea
-          ref={box}
-          value={text}
-          rows={2}
-          autoGrow
-          maxLength={NEXT_STEP_TEXT_MAX}
-          placeholder="Ví dụ: Gọi lại để chốt lịch khảo sát."
-          aria-label="Việc cần làm"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && ready) save()
-          }}
-        />
-      </Field>
-
-      {/* Two columns only while the card is wide; the xl side column clips them. */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-        <Field label="Hạn">
-          <Input
-            type="date"
-            value={due}
-            aria-label="Hạn của việc tiếp theo"
-            className="h-12"
-            onChange={(e) => setDue(e.target.value)}
-          />
-        </Field>
-        {canAssign ? (
-          <DoerPicker subject={subject} step={step} value={doerId} onChange={setDoerId} />
-        ) : (
-          <Field label="Người làm" hint={subject.holderHint}>
-            <p className="text-foreground flex min-h-12 min-w-0 items-center gap-2 text-[12.5px]">
-              {holder ? (
-                <>
-                  <Avatar name={holder.name} size="sm" />
-                  <span className="min-w-0 break-words">{holder.name}</span>
-                </>
-              ) : (
-                <span className="text-muted-foreground">{subject.noHolder}</span>
-              )}
-            </p>
-          </Field>
-        )}
-      </div>
 
       {failure && (
         <p role="alert" className="text-warning text-[12.5px] leading-[1.6]">
@@ -387,13 +436,59 @@ export function NextStepForm({
               Xong, không đặt việc mới
             </Button>
           )}
-          <Button size="md" className="pointer-coarse:h-12" disabled={!ready} onClick={save}>
-            <Icon icon={Check} size={16} />
-            {finishing ? 'Xong và lưu việc mới' : 'Lưu việc'}
-          </Button>
+          {!empty && (
+            <Button size="md" className="pointer-coarse:h-12" disabled={!ready} onClick={save}>
+              <Icon icon={Check} size={16} />
+              {finishing ? 'Xong và lưu việc mới' : 'Lưu việc'}
+            </Button>
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+function DueField({ value, onChange }: { value: string; onChange: (day: string) => void }) {
+  return (
+    <Field label="Hạn">
+      <Input
+        type="date"
+        value={value}
+        aria-label="Hạn của việc tiếp theo"
+        className="h-12"
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </Field>
+  )
+}
+
+/** The template a step is tied to. The standing step keeps its own even when
+ *  this state's list no longer offers it, so changing only the day or the doer
+ *  does not cut the link; a listed-only state still refuses it, and says so. */
+function linkedTemplate(
+  options: StepOptionsResponse,
+  templateId: string | undefined,
+  seed: NextStep | null,
+): StepTemplateOption | undefined {
+  const offered = options.templates.find((t) => t.id === templateId)
+  if (offered || !seed?.kind || !seed.templateId || seed.templateId !== templateId) return offered
+  return { id: seed.templateId, name: seed.text, kind: seed.kind }
+}
+
+function HolderLine({ subject: { holder, holderHint, noHolder } }: { subject: StepSubject }) {
+  return (
+    <Field label="Người làm" hint={holderHint}>
+      <p className="text-foreground flex min-h-12 min-w-0 items-center gap-2 text-[12.5px]">
+        {holder ? (
+          <>
+            <Avatar name={holder.name} size="sm" />
+            <span className="min-w-0 break-words">{holder.name}</span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">{noHolder}</span>
+        )}
+      </p>
+    </Field>
   )
 }
 

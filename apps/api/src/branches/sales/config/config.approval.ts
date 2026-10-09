@@ -11,6 +11,7 @@ import {
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
 import type { MotionPolicyPatchDb } from './motion.schema'
+import { frameConsequenceOf, isFrameChange, type FrameChange } from './step-frame.approval'
 
 /** THE E3 SEAM — one point for every write door, and it is now WIRED.
  *
@@ -70,6 +71,8 @@ export type ConfigChange =
   /** The book's two staleness dials (ADR 0077 §4), always as a pair so
    *  `alertDays > warnDays` was judged on the very body that lands. */
   | { kind: 'activity-freshness'; value: ActivityFreshness }
+  /** The journey frame's four (ADR 0080) — declared beside their words. */
+  | FrameChange
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
 export type ConfigReceipt = {
@@ -106,6 +109,7 @@ const CONFIG_APPROVERS: RoleId[] = ['director']
  *  saying yes must see the consequence, not a JSON body. Short on purpose —
  *  an inbox row is scanned, not studied. */
 function consequenceOf(change: ConfigChange): string {
+  if (isFrameChange(change)) return frameConsequenceOf(change)
   if (change.kind === 'create') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
   if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
   if (change.kind === 'reorder') {
@@ -194,8 +198,9 @@ export class SalesConfigGateE3 extends SalesConfigGate {
       chain,
     })
 
-    const subject =
-      change.kind === 'motion'
+    const subject = isFrameChange(change)
+      ? 'step-frame'
+      : change.kind === 'motion'
         ? change.motion
         : change.kind === 'activity-freshness'
           ? `${change.value.warnDays}/${change.value.alertDays}`

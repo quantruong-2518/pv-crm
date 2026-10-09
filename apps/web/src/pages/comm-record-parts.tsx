@@ -47,6 +47,7 @@ import {
 import { MEETING_MODE_LABEL, meetingRowLabel, meetingSlotOf } from '@/data/meeting-labels'
 import { meetingSubjectOf, meetingsQuery } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
+import { useStepOptions } from '@/data/next-step'
 
 /** The confirm form of an open comm, and the booked-meeting view with its
  *  close-out and reschedule doors (ADR 0074 §2, 0075 §2). The read view of a done
@@ -137,6 +138,7 @@ export function ConfirmWorkspace({
   const confirm = useConfirmComm()
   const target = record.stepTarget
   const current = target?.currentStep ?? null
+  const options = useStepOptions(target?.kind ?? null, record.subject.code)
   const saved = useMemo(() => readDraft(record.id), [record.id])
 
   const [title, setTitle] = useState(saved?.title ?? '')
@@ -149,7 +151,7 @@ export function ConfirmWorkspace({
     (title.trim() === '' ? 'Chưa có tiêu đề.' : null) ??
     (summary.trim() === '' ? 'Chưa có nội dung.' : null) ??
     evaluationBlockerOf(vocab, picked) ??
-    (target ? stepBlockerOf(draft) : null)
+    (target ? stepBlockerOf(draft, options) : null)
 
   const blocked = blocker !== null || confirm.isPending
 
@@ -167,7 +169,7 @@ export function ConfirmWorkspace({
         criterionId: c.id,
         answerId: picked[c.id] ?? '',
       })),
-      ...(target && { step: stepInputOf(draft, current) }),
+      ...(target && { step: stepInputOf(draft, current, options.data) }),
     }
     confirm.mutate(
       { id: record.id, body },
@@ -236,6 +238,7 @@ export function ConfirmWorkspace({
                 <CommNextStepFields
                   current={current}
                   kinds={vocab.data?.stepKinds ?? []}
+                  options={options}
                   draft={draft}
                   onDraft={setDraft}
                 />

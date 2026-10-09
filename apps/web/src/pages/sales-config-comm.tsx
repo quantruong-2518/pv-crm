@@ -1,21 +1,18 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, GlassCard, Icon, Input, Pencil, Plus } from '@pv/ui'
-import type { ConfigEntry } from '@pv/contracts'
+import type { ConfigEntry, ConfigList } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
 import { ROLE_LABEL } from '@/data/users'
-import {
-  salesCatalogQuery,
-  useProposeCommEntry,
-  useProposeConfigPatch,
-  type CommConfigList,
-} from '@/data/sales-config'
+import { salesCatalogQuery, useProposeCommEntry, useProposeConfigPatch } from '@/data/sales-config'
+import { byOrd } from './sales-config-model'
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
- *  with their answers, and next-step kinds. Mounted by `sales-config.tsx`.
+ *  with their answers, and next-step kinds. Mounted by `sales-config-lead.tsx`.
+ *  `EntryRow` is also the config screen's generic catalog row.
  *
  *  Same rules as every list on the config screen: no hard delete (a row with
  *  answers on it can only be switched off), every add, rename or switch goes
@@ -25,8 +22,6 @@ import {
 
 const APPROVER = ROLE_LABEL.director
 const SENT = `Đã gửi đề nghị · chờ ${APPROVER} duyệt.`
-
-const byOrd = (a: ConfigEntry, b: ConfigEntry) => a.ord - b.ord
 
 export function CommCriteriaConfig() {
   const { data: catalog } = useQuery(salesCatalogQuery)
@@ -99,16 +94,19 @@ export function StepKindConfig() {
 }
 
 /** One entry: code, name, state, how many rows lean on it, rename and switch. */
-function EntryRow({
+export function EntryRow({
   entry,
   list,
   usage,
   unit,
+  extra,
 }: {
   entry: ConfigEntry
-  list: CommConfigList
+  list: ConfigList
   usage: number
   unit: string
+  /** One more fact about the row, drawn before the state badge. */
+  extra?: ReactNode
 }) {
   const canPropose = useCan('config.propose')
   const patch = useProposeConfigPatch()
@@ -139,6 +137,7 @@ function EntryRow({
         ) : (
           <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium">{entry.name}</span>
         )}
+        {extra}
         <Badge
           tone={entry.active ? 'success' : 'draft'}
           className={entry.active ? undefined : BADGE_INK}
@@ -150,14 +149,27 @@ function EntryRow({
         </span>
         {canPropose &&
           (editing ? (
-            <Button
-              size="sm"
-              className="pointer-coarse:h-12"
-              disabled={name.trim() === '' || name.trim() === entry.name || patch.isPending}
-              onClick={() => send({ name: name.trim() })}
-            >
-              Gửi đề nghị
-            </Button>
+            <>
+              <Button
+                size="sm"
+                className="pointer-coarse:h-12"
+                disabled={name.trim() === '' || name.trim() === entry.name || patch.isPending}
+                onClick={() => send({ name: name.trim() })}
+              >
+                Gửi đề nghị
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="pointer-coarse:h-12"
+                onClick={() => {
+                  setEditing(false)
+                  setName(entry.name)
+                }}
+              >
+                Huỷ
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -195,7 +207,7 @@ function AddEntry({
   criterionId,
   placeholder,
 }: {
-  list: CommConfigList
+  list: ConfigList
   criterionId?: string
   placeholder: string
 }) {

@@ -4,6 +4,7 @@ import { api, type ApiError } from '@/app/api'
 import { commClosed } from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
 import { MEETING_KEY, MEETING_TODAY_KEY } from '@/data/meetings'
+import { rereadOptionsOnRefusal } from '@/data/next-step'
 
 /** The two meeting doors that are not on one subject's list: today's next
  *  meeting (`GET /sales/meetings/today`, the countdown bar) and the close-out of
@@ -42,6 +43,7 @@ export function useCloseMeeting() {
         need: COMM_VIEW_NEED,
         schema: DebriefView,
       }),
+    onError: rereadOptionsOnRefusal(client),
     onSuccess: (view) => {
       commClosed(client, view)
       /* `heldAt` and per-person `attended` now differ on the list. */

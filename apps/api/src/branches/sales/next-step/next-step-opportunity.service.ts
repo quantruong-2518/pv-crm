@@ -5,16 +5,19 @@ import {
   type NextStepDoneBody,
   type NextStepSetBody,
   type ObjectCode,
+  type StateAddress,
+  type StepOptionsResponse,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { StepFrameService } from '../config/step-frame.service'
 import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository } from './next-step.repository'
-import { assertNextDiffers, liveKind } from './next-step.rules'
+import { assertNextDiffers, dealAddress, liveKind } from './next-step.rules'
 import type { StepWrite } from './next-step.service'
 import { OpportunityStepRepository, type DealSlot } from './next-step-opportunity.repository'
 
@@ -33,12 +36,21 @@ export class OpportunityStepService {
     private readonly touch: TouchService,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly actors: ActorRepository,
+    private readonly frame: StepFrameService,
   ) {}
 
   async get(who: Actor, code: ObjectCode): Promise<NextStepResponse> {
     const slot = await this.deals.slot(who, code)
     if (!slot?.inScope) throw notFound('cơ hội', code)
     return answer(slot)
+  }
+
+  /** The picker's list for the stage the deal stands in now (ADR 0080 §4);
+   *  out of scope is the same 404 as `get`. */
+  async options(who: Actor, code: ObjectCode): Promise<StepOptionsResponse> {
+    const slot = await this.deals.slot(who, code)
+    if (!slot?.inScope) throw notFound('cơ hội', code)
+    return this.frame.options(dealAddress(slot))
   }
 
   async set(who: Actor, code: ObjectCode, body: NextStepSetBody): Promise<NextStepResponse> {
@@ -69,8 +81,9 @@ export class OpportunityStepService {
     code: ObjectCode,
     op: StepWrite,
     reach: DoerReach | null,
+    prefix = '',
   ): Promise<void> {
-    await this.lockOpen(tx, who, code)
+    const address = await this.lockOpen(tx, who, code)
     if (op.closing) {
       const current = (await this.deals.slot(who, code, tx))?.step
       if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
@@ -85,10 +98,11 @@ export class OpportunityStepService {
           kind: 'next-step-done',
           ...byOf(who),
           note: doneNote(current.text),
+          templateId: current.templateId,
         },
       ])
     }
-    if (op.next) await this.put(tx, who, code, op.next, reach)
+    if (op.next) await this.put(tx, who, code, address, op.next, reach, prefix)
     else await dropStep(tx, code)
   }
 
@@ -109,8 +123,10 @@ export class OpportunityStepService {
     tx: Db,
     who: Actor,
     code: ObjectCode,
+    address: StateAddress | null,
     body: NextStepSetBody,
     reach: DoerReach | null,
+    prefix: string,
   ): Promise<void> {
     const holderId = (await this.deals.holderOf(code, tx)) ?? who.id
     const doerId = body.doerId ?? holderId
@@ -134,14 +150,17 @@ export class OpportunityStepService {
         )
       }
     }
-    if (body.kindId !== undefined) await liveKind(this.steps, body.kindId, tx)
+    /* Asked under the deal's lock, so the stage read is the one written on. */
+    const step = await this.frame.settle(tx, address, body, prefix)
+    if (step.kindId !== undefined) await liveKind(this.steps, step.kindId, tx, `${prefix}kindId`)
     await this.steps.put(tx, {
       subjectCode: code,
-      text: body.text,
+      text: step.text,
       due: body.due,
       doerId,
       createdBy: who.id,
-      kindId: body.kindId ?? null,
+      kindId: step.kindId ?? null,
+      templateId: step.templateId,
     })
   }
 
@@ -158,8 +177,9 @@ export class OpportunityStepService {
     }
   }
 
-  /** Exists, in scope, still open — refused in that order. */
-  private async lockOpen(tx: Db, who: Actor, code: ObjectCode): Promise<void> {
+  /** Exists, in scope, still open — refused in that order. Answers the frame
+   *  state read off the locked row. */
+  private async lockOpen(tx: Db, who: Actor, code: ObjectCode): Promise<StateAddress | null> {
     const row = await this.deals.lock(tx, who, code)
     if (!row?.inScope) throw notFound('cơ hội', code)
     if (!row.open) {
@@ -167,6 +187,7 @@ export class OpportunityStepService {
         `Cơ hội ${code} ${row.signed ? 'đã thành hợp đồng' : 'đã dừng'} — chỉ cơ hội đang chạy mới có việc tiếp theo.`,
       )
     }
+    return dealAddress(row)
   }
 }
 

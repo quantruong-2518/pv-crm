@@ -3,6 +3,7 @@ import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
 import { CONFIG_ENTRIES } from './seed-reference-config'
 import { MAIL_TEMPLATES } from './seed-reference-mail'
+import { STEP_TEMPLATE_SEED } from './seed-step-frame'
 
 /** Replants the reference rows migrations planted once: the six motion
  *  policies, the lead-origin catalogue with its motions and aliases
@@ -142,6 +143,14 @@ async function main(): Promise<void> {
           SELECT ${c.id}, ${c.list}, ${c.name}, ${c.ord}::int, ${c.active}::boolean,
             ${c.limitDays}::int, ${c.kind}, ${c.stage}, ${c.doNotContact}::boolean, ${c.criterionId}
           WHERE NOT EXISTS (SELECT 1 FROM sales.config_entry WHERE id = ${c.id})`)
+      }
+      /* After the catalogues: a template's kind is a `STEP_KIND` row. */
+      for (const t of STEP_TEMPLATE_SEED) {
+        await tx.execute(sql`
+          INSERT INTO sales.step_template (id, object_kind, state_key, name, kind_id, ord)
+          VALUES (${t.id}::uuid, ${t.objectKind}, ${t.stateKey}, ${t.name}, ${t.kindId},
+            ${t.ord}::int)
+          ON CONFLICT DO NOTHING`)
       }
       /* Never backwards: ids minted since the reset must stay ahead. Only on a
          real run — `setval` ignores the rollback a preview ends with. */

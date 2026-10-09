@@ -29,6 +29,8 @@ import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository, type ConfigPatchDb } from './config.repository'
 import type { ConfigRowDb } from './config.schema'
+import { isFrameChange } from './step-frame.approval'
+import { StepFrameService } from './step-frame.service'
 
 /** Cấu hình danh mục Sales — nơi DUY NHẤT biết cả repository lẫn engine.
  *
@@ -55,6 +57,7 @@ export class SalesConfigService implements ApprovalApplier {
     private readonly repo: SalesConfigRepository,
     private readonly gate: SalesConfigGate,
     private readonly settings: SettingService,
+    private readonly frame: StepFrameService,
   ) {}
 
   /** Cả sáu danh mục. Một lần gọi, một câu truy vấn. */
@@ -281,6 +284,8 @@ export class SalesConfigService implements ApprovalApplier {
    *  per rule. "This name is taken" is the same fact whether it is read while
    *  typing or while approving. */
   private async applyChange(tx: Db, change: ConfigChange, proposerId: string): Promise<void> {
+    /* The journey frame re-judges and writes its own four kinds (ADR 0080). */
+    if (isFrameChange(change)) return this.frame.apply(tx, change)
     if (change.kind === 'activity-freshness') {
       /* Both keys land in the approval's tx, so the pair never half-applies. */
       await this.settings.setIn(tx, proposerId, [

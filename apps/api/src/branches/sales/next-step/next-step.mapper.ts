@@ -17,6 +17,7 @@ export function toContract(row: NextStepRead, today: string): NextStep {
     doer: { id: row.doerId, name: row.doerName },
     dueLevel: stepLevelOf(row.due, today),
     kind: row.kindId && row.kindName ? { id: row.kindId, name: row.kindName } : null,
+    ...(row.templateId ? { templateId: row.templateId } : {}),
   }
 }
 

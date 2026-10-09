@@ -9,13 +9,7 @@ import {
   Smartphone,
   type IconGlyph,
 } from '@pv/ui'
-import {
-  COMMISSION_SPLIT,
-  CREDIT_RULES,
-  INIT_DATA_QUESTIONS,
-  LEAD_CATEGORIES,
-  type WaveChannel,
-} from '@pv/engines/fixtures/das-vina'
+import { type WaveChannel } from '@pv/engines/fixtures/das-vina'
 import {
   ActivityFreshnessResponse,
   LEAD_STOP_REASON_OTHER,
@@ -97,89 +91,9 @@ export const E4_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram', 'in-a
  *  nhau — "hệ có gửi hộ được không" và "gửi hỏng thì có đo được không". */
 export const ADDRESSED_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram']
 
-const ALL_CHANNELS = Object.keys(CHANNEL_LABEL) as WaveChannel[]
-
 /** Object neo của ContextRail — cùng chuỗi với sổ lead, vì cấu hình ở đây là
  *  thứ đang áp lên đúng câu chuyện đó (luật 10). */
 export const ANCHOR_CODE = 'OP-0288'
-
-export type SalesConfig = Awaited<ReturnType<typeof fetchSalesConfig>>
-
-/** MỌI PHÉP ĐẾM RỜI KHỎI ĐÂY 31/08 — chúng nay là `usage` của `salesCatalogQuery`.
- *
- *  Trước lượt này hàm ở đây đếm trên `LEADS`, sổ fixture đóng băng 100 dòng,
- *  trong khi Sổ lead ngay bên cạnh đếm trên Neon 121. Hai con số về cùng một
- *  phòng, lệch nhau, và không có gì trên màn nói cho người xem biết vì sao —
- *  đúng thứ nguy hơn cả một màn giả hẳn, vì giả nằm lẫn trong thật.
- *
- *  Thứ CÒN LẠI ở đây là LUẬT, không phải số: câu hỏi hồ sơ nào bắt buộc, chia
- *  hoa hồng thế nào, phòng có những kênh gửi nào. Chúng vẫn `load:` fixture vì
- *  `config_entry` chưa chở được chúng — ba khối, đã ghi từng khối bên dưới.
- *
- *  HAI KHỐI RỜI KHỎI ĐÂY 14/09, và cả hai vì cùng một lý do: `config_entry` nay
- *  chở được chúng, nên giữ một bản fixture cạnh một bản máy chủ là dựng sẵn hai
- *  câu trả lời cho một câu hỏi.
- *
- *   · `stages` — mục 5.2 đọc `ladderRows(catalog, 'STAGE')`, tức đúng những
- *     dòng mà nút gửi của nó sửa. Trước lượt này màn in hạn của fixture rồi gửi
- *     một đề nghị sửa hạn ở Neon: gật xong, màn vẫn in số cũ mãi mãi.
- *   · `earlyStageSla` — mục 5.5 hết là một `null` đóng đinh trong code. `TIER`
- *     là thang bậc từ `0038`, nên ngưỡng của `prospect`/`mql` là `limitDays` của
- *     đúng những dòng ấy, nhập được và đi qua Hộp duyệt như mọi hạn khác. Nó
- *     vẫn TRỐNG — nhưng trống vì chưa ai điền, không vì không có chỗ điền. */
-async function fetchSalesConfig() {
-  return {
-    /** 5.1 — ô nào bắt buộc chính là cổng MQL → SQL. LUẬT, không phải số: số ô
-     *  đã điền nay ở `usage.slots`, khoá là `q.no`.
-     *
-     *  Mục ĐỌC ĐƯỢC, CHƯA SỬA ĐƯỢC, và mục duy nhất của màn còn thế. Bộ mười
-     *  câu không có chỗ nào trong `config_entry` để nằm: nó cần một danh mục
-     *  thứ chín cộng một cột thuộc tính `required`, và mười khoá ấy đang là
-     *  kiểu của `lead-form.ts` chứ không phải dữ liệu. Nút lật "bắt buộc" đã gỡ
-     *  ngày 14/09 vì nó vẽ một cổng MQL mới mà không cửa nào ghi được — xem
-     *  `sales-config.tsx`, mục 5.1. */
-    questions: INIT_DATA_QUESTIONS,
-
-    /** 5.3 — ngành và Sale phụ trách. `config_entry` ĐÃ giữ (`CATEGORY` có
-     *  `ownerId`), nhưng nhãn ở đây còn kèm hai thứ máy chủ chưa trả nguyên
-     *  hình: `key` chữ thường mà `sales.lead` đang chứa (nợ §6) và TÊN Sale
-     *  phụ trách, thứ `ownerId` phải tra qua sổ nhân sự mới ra. Số đếm thì
-     *  không còn ở đây — màn đọc `usage.CATEGORY[c.key]`, nối đúng bằng `key`. */
-    categories: LEAD_CATEGORIES,
-
-    /** 5.6 — hoa hồng chỉ chia khi có đơn ký; công trạng ghi ở mọi lần chạm.
-
-     *  Cả hai là tỉ lệ và luật ghi công, không phải dòng dữ liệu — số người mang
-     *  từng vai nay ở `usage.roles`. */
-    commission: COMMISSION_SPLIT,
-    credit: CREDIT_RULES,
-
-    /** 5.7 — kênh gửi. `hasRoad` false = khai báo được nhưng E4 chưa gửi thật
-     *  được; giấu nó đi thì người dùng tưởng đợt đã chạy.
-     *
-     *  HAI CỘT SỐ CỦA MỤC NÀY ĐÃ GỠ 31/08, và không thay bằng gì. Chúng đếm đợt
-     *  và lead theo kênh trên `SOURCES` của fixture, mà cơ sở dữ liệu KHÔNG có
-     *  cột nào ghi kênh gửi — mọi đợt thật đi đường email và không dòng nào nói
-     *  ra điều đó. Để nguyên là in số fixture cạnh năm mục vừa cắt sang Neon,
-     *  tức đúng thứ nguy hơn cả một màn giả hẳn. Cột quay lại ngày `mail_run`
-     *  hoặc `campaign_run` chở kênh; tới lúc đó bảng vẫn trả lời được câu hỏi
-     *  thật của nó — phòng có kênh nào, kênh nào E4 gửi được. */
-    channels: ALL_CHANNELS.map((key) => ({
-      key,
-      label: CHANNEL_LABEL[key],
-      hasRoad: E4_CHANNELS.includes(key),
-    })),
-  }
-}
-
-export const salesConfigQuery = queryOptions({
-  queryKey: ['sales', 'config'] as const,
-  queryFn: () =>
-    api.read('/sales/config', {
-      need: { branch: 'Sales', permission: 'config.view' },
-      load: fetchSalesConfig,
-    }),
-})
 
 // ---------------------------------------------------------------------------
 // Danh mục THẬT — sáu bảng từ `GET /sales/config`
@@ -200,10 +114,6 @@ export const salesConfigQuery = queryOptions({
  *  quan trọng khi nối, vì bốn danh mục còn khoá theo chuỗi cũ chứ chưa theo
  *  `id` cấu hình (nợ §6).
  *
- *  `salesConfigQuery` vẫn đứng riêng và vẫn `load:` fixture, nhưng nay nó chỉ
- *  còn chở LUẬT — danh sách câu hỏi hồ sơ, tỉ lệ chia hoa hồng, bảng kênh gửi —
- *  không còn một con số đếm nào.
- *
  *  Cache dài là mặc định của cả app (`staleTime: Infinity` ở
  *  `app/query-client.ts`) và ở đây nó đúng theo nghĩa mạnh nhất: danh mục chỉ
  *  đổi khi có người duyệt một đề nghị qua E3, tức là một biến cố có người
@@ -217,30 +127,13 @@ export const salesCatalogQuery = queryOptions({
     }),
 })
 
-/** Section 5.4 · the `EXIT_REASON` catalogue, as the CONFIG SCREEN needs it —
- *  `config.view`-gated, unlike `leadStopReasonsQuery` (`data/leads.ts`), which
- *  is the AE-safe door the stop dialogs and the lead screens read instead
- *  (a permission an ordinary Sale does not hold).
- *
- *  Inactive rows are KEPT, like `products` on this same screen: switching a
- *  reason off is the only "delete" this system has, and hiding the row here
- *  would make an administrator think it had vanished rather than muted. */
-export function stopReasonRows(catalog: ConfigBundle | undefined) {
-  return (catalog?.EXIT_REASON ?? []).map((r) => ({
-    id: r.id,
-    label: r.name,
-    active: r.active,
-    usage: catalog?.usage.EXIT_REASON[r.id] ?? 0,
-  }))
-}
-
 /** The label behind a stored stop key — a config id, or the virtual `'other'`
  *  key (`LEAD_STOP_REASON_OTHER`, an alias of `OPPORTUNITY_STOP_REASON_OTHER`
  *  — one sentinel, ADR 0070), never a sentence.
  *
  *  `rows` comes from whichever door the caller can reach: `leadStopReasonsQuery`
  *  for anyone who stops or reads a lead, or this screen's own `EXIT_REASON`
- *  (`stopReasonRows` above) — same two fields either way, so one function
+ *  (the config screen reads it straight off the catalog) — same two fields either way, so one function
  *  serves both without asking either caller for a permission it may not hold.
  *
  *  Reads the WHOLE list, inactive rows included — a lead stopped under a
@@ -253,21 +146,6 @@ export function stopReasonLabel(
   if (key === undefined) return undefined
   if (key === LEAD_STOP_REASON_OTHER) return 'Khác'
   return (rows ?? []).find((r) => r.id === key)?.name ?? key
-}
-
-/** Nguồn TỰ NHIÊN — khách tự tìm tới, không đợt nào chạy cho họ.
- *
- *  Đây là phép cân sổ lead của mục 5.7: cột "Lead đã về" cộng lại ÍT HƠN tổng
- *  sổ đúng bằng ngần này, và màn phải nói ra chỗ chênh chứ không để người xem
- *  tự cộng rồi ngờ số. Cả hai vế đọc từ máy chủ — `kind` là cột thật của
- *  `config_entry`, số lead là `usage.SOURCE` khoá theo `id`, quan hệ DUY NHẤT
- *  trong sáu danh mục đã có khoá ngoại thật. */
-export function naturalSources(catalog: ConfigBundle | undefined) {
-  const nat = (catalog?.SOURCE ?? []).filter((s) => s.kind === 'organic')
-  return {
-    count: nat.length,
-    leads: nat.reduce((sum, s) => sum + (catalog?.usage.SOURCE[s.id] ?? 0), 0),
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -586,10 +464,6 @@ export function useStageLimits(): Map<string, number | null> {
   return stageLimits(data)
 }
 
-/** The three comm close-out lists (ADR 0074) — the only lists here whose
- *  rows are also renamed and switched off from the config screen. */
-export type CommConfigList = 'COMM_CRITERION' | 'COMM_ANSWER' | 'STEP_KIND'
-
 /** The catalog changed only once approved; until then the inbox did. */
 function proposalSent(client: ReturnType<typeof useQueryClient>) {
   void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
@@ -604,7 +478,7 @@ export function useProposeCommEntry() {
   return useMutation<
     ConfigProposalReceipt,
     ApiError,
-    { list: CommConfigList; name: string; criterionId?: string }
+    { list: ConfigList; name: string; criterionId?: string }
   >({
     mutationFn: ({ list, ...body }) =>
       api.write<ConfigProposalReceipt>(`/sales/config/${list}`, {

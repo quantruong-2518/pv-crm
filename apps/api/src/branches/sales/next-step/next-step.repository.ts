@@ -22,6 +22,8 @@ export type NextStepRead = {
   doerName: string
   kindId: string | null
   kindName: string | null
+  /** The template the step was picked from (ADR 0080); null on a typed one. */
+  templateId: string | null
 }
 
 /** The columns of a step read, shared by every reader of the table. */
@@ -32,6 +34,7 @@ export const STEP_COLUMNS = {
   doerName: actor.name,
   kindId: nextStep.kindId,
   kindName: configEntry.name,
+  templateId: nextStep.templateId,
 }
 
 /** One object's step out of a batch. */
@@ -98,7 +101,13 @@ export class NextStepRepository {
   async openLeads(who: Actor, codes: readonly string[]) {
     if (codes.length === 0) return []
     return this.db
-      .select({ code: lead.code, ownerId: lead.ownerId, text: nextStep.text, due: nextStep.due })
+      .select({
+        code: lead.code,
+        ownerId: lead.ownerId,
+        state: lead.state,
+        text: nextStep.text,
+        due: nextStep.due,
+      })
       .from(lead)
       .leftJoin(nextStep, eq(nextStep.subjectCode, lead.code))
       .where(
@@ -258,6 +267,9 @@ export class NextStepRepository {
           due: values.due,
           doerId: values.doerId,
           kindId: values.kindId ?? null,
+          /* Written even when null: a typed step replacing a picked one must
+             not keep the old template. */
+          templateId: values.templateId ?? null,
           updatedAt: sql`now()`,
         },
       })
@@ -270,5 +282,13 @@ export function stepOf(
 ): NextStepRead | null {
   const { text, due, doerId, doerName } = row
   if (!text || !due || !doerId || !doerName) return null
-  return { text, due, doerId, doerName, kindId: row.kindId ?? null, kindName: row.kindName ?? null }
+  return {
+    text,
+    due,
+    doerId,
+    doerName,
+    kindId: row.kindId ?? null,
+    kindName: row.kindName ?? null,
+    templateId: row.templateId ?? null,
+  }
 }

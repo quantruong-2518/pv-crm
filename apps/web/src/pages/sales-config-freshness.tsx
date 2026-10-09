@@ -9,7 +9,7 @@ import { activityFreshnessQuery, useProposeActivityFreshness } from '@/data/sale
 
 /** Config section for the deal book's last-activity column (ADR 0077 §4):
  *  from how many quiet days a row turns amber, then red. Mounted by
- *  `sales-config.tsx`. Both numbers go as ONE proposal through the approval
+ *  `sales-config-deal.tsx`. Both numbers go as ONE proposal through the approval
  *  inbox, and the box keeps the stored pair until it is approved. */
 
 /* Who approves is the server's chain, not a role this screen may name. */

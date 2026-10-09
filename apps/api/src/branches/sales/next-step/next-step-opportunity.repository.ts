@@ -1,5 +1,6 @@
 import { and, eq, inArray, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { StageKey } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -19,6 +20,8 @@ export type DealSlot = {
   open: boolean
   signed: boolean
   inScope: boolean
+  /** The column the deal stands in — its frame state (ADR 0080); may be null. */
+  stage: StageKey | null
   today: string
   step: NextStepRead | null
 }
@@ -54,6 +57,7 @@ export class OpportunityStepRepository {
         open: openOf(),
         signed: signedOf(opportunity.code),
         inScope: this.inScope(who),
+        stage: opportunity.stage,
         today: VIETNAM_TODAY,
         ...STEP_COLUMNS,
       })
@@ -65,8 +69,8 @@ export class OpportunityStepRepository {
       .limit(1)
     if (!row) return null
 
-    const { open, signed, inScope, today, ...step } = row
-    return { open, signed, inScope, today, step: stepOf(step) }
+    const { open, signed, inScope, stage, today, ...step } = row
+    return { open, signed, inScope, stage, today, step: stepOf(step) }
   }
 
   /** Deals among `codes` still open and in the caller's scope, with their step
@@ -74,7 +78,12 @@ export class OpportunityStepRepository {
   async openDeals(who: Actor, codes: readonly string[]) {
     if (codes.length === 0) return []
     return this.db
-      .select({ code: opportunity.code, text: nextStep.text, due: nextStep.due })
+      .select({
+        code: opportunity.code,
+        stage: opportunity.stage,
+        text: nextStep.text,
+        due: nextStep.due,
+      })
       .from(opportunity)
       .leftJoin(nextStep, eq(nextStep.subjectCode, opportunity.code))
       .where(and(inArray(opportunity.code, [...codes]), openOf(), leadOn, this.inScope(who)))
@@ -88,6 +97,7 @@ export class OpportunityStepRepository {
         open: openOf(),
         signed: signedOf(opportunity.code),
         inScope: this.inScope(who),
+        stage: opportunity.stage,
       })
       .from(opportunity)
       .where(and(eq(opportunity.code, code), leadOn))

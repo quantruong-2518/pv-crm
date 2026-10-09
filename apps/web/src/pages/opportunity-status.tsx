@@ -52,7 +52,7 @@ function NextStepRow({ op }: { op: OpportunityProfileResponse }) {
   return (
     <NextStepCard
       embedded
-      subject={dealStepSubject(op.code, op.holder, op.stage)}
+      subject={dealStepSubject(op.code, op.holder)}
       canEdit={op.acts.editDetails.ok}
     />
   )

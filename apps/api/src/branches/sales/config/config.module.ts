@@ -11,6 +11,8 @@ import {
 import { SalesConfigGate, SalesConfigGateE3 } from './config.approval'
 import { SalesConfigRepository } from './config.repository'
 import { SalesConfigService } from './config.service'
+import { StepFrameRepository } from './step-frame.repository'
+import { StepFrameService } from './step-frame.service'
 
 /** Module 6 · Cấu hình danh mục Sales.
  *
@@ -55,9 +57,12 @@ import { SalesConfigService } from './config.service'
   providers: [
     SalesConfigService,
     SalesConfigRepository,
+    StepFrameService,
+    StepFrameRepository,
     { provide: SalesConfigGate, useClass: SalesConfigGateE3 },
   ],
-  exports: [SalesConfigService],
+  /* `StepFrameService`: the next-step doors ask it for the picker and the rule. */
+  exports: [SalesConfigService, StepFrameService],
 })
 export class SalesConfigModule implements OnModuleInit {
   constructor(

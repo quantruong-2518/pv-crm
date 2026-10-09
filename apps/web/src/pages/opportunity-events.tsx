@@ -273,7 +273,7 @@ function StepFollowUp({
   onDone: () => void
 }) {
   const { data, isPending, error } = useQuery(nextStepQuery('opportunity', op.code))
-  const subject = dealStepSubject(op.code, op.holder, op.stage)
+  const subject = dealStepSubject(op.code, op.holder)
   if (isPending) return <Skeleton className="h-16 w-full" />
   if (!data) {
     return (

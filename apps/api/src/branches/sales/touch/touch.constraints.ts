@@ -49,4 +49,18 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     message: 'Người ghi lần chạm không còn trong sổ nhân sự.',
   },
+
+  /** Stamped by the server off the locked step row (ADR 0080 §5), never typed;
+   *  `fields` is named because the id began as the seller's pick. */
+  touch_template_id_step_template_id_fk: {
+    kind: 'invalid',
+    fields: ['templateId'],
+    message: 'Việc vừa xong trỏ tới một mẫu không có trong danh sách.',
+  },
+
+  touch_template_only_step_done: {
+    kind: 'invalid',
+    fields: ['templateId'],
+    message: 'Chỉ lần chạm “xong việc tiếp theo” mới ghi được mẫu việc.',
+  },
 }

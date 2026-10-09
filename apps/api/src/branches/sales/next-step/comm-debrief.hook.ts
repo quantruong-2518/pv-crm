@@ -1,6 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
-import type { DebriefAnswerInput, DebriefStepTarget, DebriefTargetResponse } from '@pv/contracts'
+import type {
+  DebriefAnswerInput,
+  DebriefStepTarget,
+  DebriefTargetResponse,
+  StateAddress,
+} from '@pv/contracts'
 import {
   unconfirmable,
   type CommDebriefHook,
@@ -14,11 +19,12 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
 import { SalesConfigService } from '../config/config.service'
+import { StepFrameService } from '../config/step-frame.service'
 import { MeetingService } from '../meeting/meeting.service'
 import { OpportunityStepService, type DoerReach } from './next-step-opportunity.service'
 import { OpportunityStepRepository } from './next-step-opportunity.repository'
 import { NextStepRepository } from './next-step.repository'
-import { assertNextDiffers, liveKind } from './next-step.rules'
+import { assertNextDiffers, dealAddress, leadAddress, liveKind } from './next-step.rules'
 import { NextStepService } from './next-step.service'
 
 /** Sales' side of a comm record (ADR 0074 §7, 0075 §1): whether its one
@@ -39,6 +45,7 @@ export class NextStepDebriefHook implements CommDebriefHook {
     private readonly deals: OpportunityStepRepository,
     private readonly config: SalesConfigService,
     private readonly meetings: MeetingService,
+    private readonly frame: StepFrameService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -82,11 +89,17 @@ export class NextStepDebriefHook implements CommDebriefHook {
     }
     const op = {
       closing: step.previousDone,
-      next: { text: step.text, due: step.due, doerId: step.doerId, kindId: step.kind.id },
+      next: {
+        text: step.text,
+        due: step.due,
+        doerId: step.doerId,
+        kindId: step.kind.id,
+        templateId: step.templateId,
+      },
     }
     if (step.subject === 'lead')
-      await this.leadSteps.write(tx, who, step.subjectCode, op, step.reach)
-    else await this.dealSteps.write(tx, who, step.subjectCode, op, step.reach)
+      await this.leadSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH)
+    else await this.dealSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH)
   }
 
   /** The fence was comms' (`closable`); the meeting book owns the rest. */
@@ -142,6 +155,9 @@ export class NextStepDebriefHook implements CommDebriefHook {
     }
     const kind = await liveKind(this.steps, step.kindId, undefined, 'step.kindId')
     if (step.previousDone) assertNextDiffers(step.previousDone, step, 'step')
+    /* Asked here so the typist hears it on `step.*`; `write` re-asks it under
+       the lock, where the state is the one the step lands on (ADR 0080 §2). */
+    await this.frame.settle(undefined, target.address, step, STEP_PATH)
     const subjectCode = target.code
 
     if (target.kind === 'opportunity') {
@@ -177,12 +193,14 @@ export class NextStepDebriefHook implements CommDebriefHook {
         kind: 'lead' as const,
         currentStep: stepOf(r),
         holderId: r.ownerId,
+        address: leadAddress(r.state),
       })),
       ...deals.map((r) => ({
         code: r.code,
         kind: 'opportunity' as const,
         currentStep: stepOf(r),
         holderId: null,
+        address: dealAddress({ open: true, stage: r.stage }),
       })),
     ]
   }
@@ -192,7 +210,15 @@ export class NextStepDebriefHook implements CommDebriefHook {
   }
 }
 
-type Target = DebriefStepTarget & { code: string; holderId: string | null }
+/** Where the step sits in a close-out body, so a refusal names `step.<field>`
+ *  whether `prepare` or the write under the lock finds it. */
+const STEP_PATH = 'step.'
+
+type Target = DebriefStepTarget & {
+  code: string
+  holderId: string | null
+  address: StateAddress | null
+}
 
 /** What `prepare` learned on the pool that `apply` cannot re-ask inside the tx. */
 type PreparedStep = NonNullable<PreparedDebrief['step']> & { subjectCode: string } & (

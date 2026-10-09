@@ -1,5 +1,17 @@
-import { queryOptions, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { NextStepResponse, type NextStepDoneBody, type NextStepSetBody } from '@pv/contracts'
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
+import {
+  NextStepResponse,
+  StepOptionsResponse,
+  type NextStepDoneBody,
+  type NextStepSetBody,
+  type StepTemplateOption,
+} from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
 
@@ -8,6 +20,7 @@ import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
  *
  *      GET · PUT · DELETE   the step (read `*.view`, write `*.edit`, both scoped)
  *      POST  …/done         write a `next-step-done` touch, then set `next` or clear
+ *      GET   …/options      the templates and free-entry flag of the state it stands in
  *
  *  No `load:` — the doors are real. `need` copies each controller's `@Need` word
  *  for word so a drift shows by comparing two lines. Every door answers the
@@ -29,25 +42,31 @@ export type StepSubject = {
   /** Caption under a fixed doer, and the sentence when there is nobody. */
   holderHint: string
   noHolder: string
-  /** Chips that fill an empty box; none is fine. */
-  suggestions: readonly string[]
 }
 
 const DOOR: Record<
   NextStepSubject,
-  { base: string; read: ApiNeed; write: ApiNeed; touches: readonly string[] }
+  {
+    base: string
+    read: ApiNeed
+    write: ApiNeed
+    touches: readonly string[]
+    profile: readonly string[]
+  }
 > = {
   lead: {
     base: '/sales/leads',
     read: { branch: 'Sales', permission: 'lead.view', scoped: true },
     write: { branch: 'Sales', permission: 'lead.edit', scoped: true },
     touches: ['sales', 'lead-touches'],
+    profile: ['sales', 'lead-profile'],
   },
   opportunity: {
     base: '/sales/opportunities',
     read: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
     write: { branch: 'Sales', permission: 'opportunity.edit', scoped: true },
     touches: ['sales', 'ops-touches'],
+    profile: ['sales', 'ops'],
   },
 }
 
@@ -75,11 +94,75 @@ export const nextStepQuery = (subject: NextStepSubject, code: string) =>
       }),
   })
 
+const STEP_OPTIONS = 'step-options'
+
+/** Keyed UNDER the object's profile key: every state mover already invalidates
+ *  that prefix, so the picker follows a state change with no line of its own. */
+export const stepOptionsQuery = (subject: NextStepSubject, code: string) =>
+  queryOptions({
+    queryKey: [...DOOR[subject].profile, code, STEP_OPTIONS] as const,
+    queryFn: ({ signal }) =>
+      api.read<StepOptionsResponse>(`${path(subject, code)}/options`, {
+        need: DOOR[subject].read,
+        schema: StepOptionsResponse,
+        signal,
+      }),
+  })
+
+/** For a form whose subject may take no step at all: `null` reads nothing. */
+export function useStepOptions(subject: NextStepSubject | null, code: string) {
+  return useQuery({ ...stepOptionsQuery(subject ?? 'lead', code), enabled: subject !== null })
+}
+
+export function stepOptionsMoved(client: QueryClient) {
+  void client.invalidateQueries({ predicate: (q) => q.queryKey.at(-1) === STEP_OPTIONS })
+}
+
+/** The fields the frame judges (ADR 0080 §2): a pick of another state, or a
+ *  template renamed or re-pointed to another kind since the options were read. */
+const FRAME_FIELDS = ['templateId', 'text', 'kindId']
+
+/** A step refused on one of them — bare, or nested as `next.` / `step.` — may
+ *  mean the frame moved under the form: re-read what is on offer, since the
+ *  cache never goes stale by itself and the same chip would be resent forever. */
+export function rereadOptionsOnRefusal(client: QueryClient) {
+  return (error: ApiError) => {
+    const fields = error.kind === 'invalid-data' ? Object.keys(error.errors ?? {}) : []
+    if (fields.some((field) => FRAME_FIELDS.some((name) => field.endsWith(name)))) {
+      stepOptionsMoved(client)
+    }
+  }
+}
+
+/** Today + N as a local calendar day. Built from parts: parsing a bare
+ *  `YYYY-MM-DD` reads it as UTC and lands on the day before, west of Greenwich. */
+function dayAfter(days: number): string {
+  const now = new Date()
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+/** What picking a template does to the date: its default fills an empty box or
+ *  replaces one an earlier pick filled, never a day a person chose. */
+export function dueOnPick(
+  template: StepTemplateOption,
+  due: string,
+  dueAuto: boolean,
+): { due: string; dueAuto: boolean } {
+  if (due !== '' && !dueAuto) return { due, dueAuto: false }
+  return template.dueDays === undefined
+    ? { due: '', dueAuto: false }
+    : { due: dayAfter(template.dueDays), dueAuto: true }
+}
+
 /** A 409 means the step on screen is no longer the stored one (another tab
  *  finished or replaced it, or the deal stopped or signed) — re-read it rather
  *  than let the form retry stale. */
-function rereadOnConflict(client: QueryClient, code: string) {
+function rereadOnRefusal(client: QueryClient, code: string) {
+  const options = rereadOptionsOnRefusal(client)
   return (error: ApiError) => {
+    options(error)
     if (error.kind === 'conflict') {
       void client.invalidateQueries({ queryKey: nextStepKey(code) })
     }
@@ -97,7 +180,7 @@ export function useSetNextStep(subject: NextStepSubject, code: string) {
         need: DOOR[subject].write,
         schema: NextStepResponse,
       }),
-    onError: rereadOnConflict(client, code),
+    onError: rereadOnRefusal(client, code),
     onSuccess: stepSaved(client, subject, code),
   })
 }
@@ -114,7 +197,7 @@ export function useFinishNextStep(subject: NextStepSubject, code: string) {
         need: DOOR[subject].write,
         schema: NextStepResponse,
       }),
-    onError: rereadOnConflict(client, code),
+    onError: rereadOnRefusal(client, code),
     onSuccess: (answer) => {
       stepSaved(client, subject, code)(answer)
       void client.invalidateQueries({ queryKey: [...DOOR[subject].touches, code] })
@@ -132,7 +215,7 @@ export function useClearNextStep(subject: NextStepSubject, code: string) {
         need: DOOR[subject].write,
         schema: NextStepResponse,
       }),
-    onError: rereadOnConflict(client, code),
+    onError: rereadOnRefusal(client, code),
     onSuccess: stepSaved(client, subject, code),
   })
 }

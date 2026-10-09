@@ -74,7 +74,6 @@ export {
   Package,
   Paperclip,
   PenLine,
-  Pencil,
   Phone,
   PhoneIncoming,
   PhoneOutgoing,
@@ -122,6 +121,8 @@ export {
   Location01Icon as MapPin,
   Logout03Icon as LogOut,
   MoreHorizontalIcon as Ellipsis,
+  // The bare pencil read poorly at 14–16px; the pencil-in-a-square is the edit glyph.
+  PencilEdit02Icon as Pencil,
   Moon02Icon as Moon,
   Route01Icon as Route,
   CheckmarkSquare02Icon as SquareCheckBig,
@@ -130,4 +131,5 @@ export {
   UnavailableIcon as Ban,
   UserAdd01Icon as UserRoundPlus,
   UserGroupIcon as UsersRound,
+  WhatsappIcon as Whatsapp,
 } from '@hugeicons/core-free-icons'

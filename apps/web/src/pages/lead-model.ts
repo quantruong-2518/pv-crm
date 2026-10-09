@@ -135,11 +135,6 @@ function stopCaption(
     .join(' · ')
 }
 
-/** Openings that cover most of what follows a first conversation. A chip FILLS
- *  the box and saves nothing, and stands down once the box holds anything —
- *  overwriting somebody's typing on one mis-tap is how a screen loses work. */
-const LEAD_SUGGESTIONS = ['Gọi lại', 'Gửi hồ sơ năng lực', 'Hẹn khảo sát']
-
 /** `canAssign` is the reader's `lead.assign`: without it the doer is the holder. */
 export function leadStepSubject(lead: LeadProfile, canAssign: boolean): StepSubject {
   return {
@@ -149,7 +144,6 @@ export function leadStepSubject(lead: LeadProfile, canAssign: boolean): StepSubj
     canAssign,
     holderHint: 'Người giữ lead.',
     noHolder: 'Chưa ai giữ lead, cần giao lead trước.',
-    suggestions: LEAD_SUGGESTIONS,
   }
 }
 

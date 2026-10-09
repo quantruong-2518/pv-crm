@@ -30,6 +30,7 @@ import {
   useConfirmComm,
 } from '@/data/comm-record-detail'
 import { commCreateFailure, commRecordPath, useCreateCommRecord } from '@/data/comm-records'
+import { useStepOptions } from '@/data/next-step'
 import {
   ContentFields,
   PickChannel,
@@ -207,6 +208,7 @@ function SaveStep({
   const [picked, setPicked] = useState<Record<string, string>>({})
   const [draft, setDraft] = useState(EMPTY_STEP_DRAFT)
   const step = target.data?.stepTarget ?? null
+  const options = useStepOptions(step?.kind ?? null, subjectCode)
   const kind = subjectKindLabel(subjectCode)
 
   const blocker = !target.data
@@ -215,12 +217,12 @@ function SaveStep({
       : 'Đang đọc điều kiện xác nhận.'
     : !target.data.confirmable
       ? `Bạn không xác nhận được lượt liên hệ trên ${kind.toLowerCase()} ${subjectCode}, nên không lưu được ở đây.`
-      : (evaluationBlockerOf(vocab, picked) ?? (step ? stepBlockerOf(draft) : null))
+      : (evaluationBlockerOf(vocab, picked) ?? (step ? stepBlockerOf(draft, options) : null))
 
   const save = () =>
     onSave({
       answers: Object.entries(picked).map(([criterionId, answerId]) => ({ criterionId, answerId })),
-      ...(step && { step: stepInputOf(draft, step.currentStep) }),
+      ...(step && { step: stepInputOf(draft, step.currentStep, options.data) }),
     })
 
   return (
@@ -237,6 +239,7 @@ function SaveStep({
               <CommNextStepFields
                 current={step.currentStep}
                 kinds={vocab.data?.stepKinds ?? []}
+                options={options}
                 draft={draft}
                 onDraft={setDraft}
               />

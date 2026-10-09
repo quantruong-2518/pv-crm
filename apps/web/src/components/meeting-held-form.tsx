@@ -25,6 +25,7 @@ import {
 } from '@/data/comm-record-detail'
 import { meetingRowLabel } from '@/data/meeting-labels'
 import { useCloseMeeting } from '@/data/meeting-today'
+import { useStepOptions } from '@/data/next-step'
 
 /** The close-out of a booked meeting (the held button), in one panel: summary, who
  *  attended, the outcome (the comm's own evaluation answers), the next step
@@ -57,6 +58,7 @@ export function MeetingHeldForm({
   const vocab = useQuery(commVocabularyQuery)
   const close = useCloseMeeting()
   const target = record.stepTarget
+  const options = useStepOptions(target?.kind ?? null, record.subject.code)
   const people = useAttendance(open, meeting)
   const [summary, setSummary] = useState('')
   const [picked, setPicked] = useState<Record<string, string>>({})
@@ -66,7 +68,7 @@ export function MeetingHeldForm({
     (meeting ? null : 'Chưa có danh sách người dự của buổi họp nên chưa lưu được kết quả.') ??
     (summary.trim() === '' ? 'Chưa ghi tóm tắt buổi họp.' : null) ??
     evaluationBlockerOf(vocab, picked) ??
-    (target ? stepBlockerOf(draft) : null)
+    (target ? stepBlockerOf(draft, options) : null)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -77,7 +79,7 @@ export function MeetingHeldForm({
         criterionId: c.id,
         answerId: picked[c.id] ?? '',
       })),
-      ...(target && { step: stepInputOf(draft, target.currentStep) }),
+      ...(target && { step: stepInputOf(draft, target.currentStep, options.data) }),
       /* No booked list = no lists at all: an empty array would REPLACE the attendees. */
       ...(meeting && {
         hosts: people.hosts.map(({ actorId, name, attended }) => ({ actorId, name, attended })),
@@ -165,6 +167,7 @@ export function MeetingHeldForm({
             <CommNextStepFields
               current={target.currentStep}
               kinds={vocab.data?.stepKinds ?? []}
+              options={options}
               draft={draft}
               onDraft={setDraft}
             />

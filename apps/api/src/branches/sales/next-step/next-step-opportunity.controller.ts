@@ -18,6 +18,14 @@ export class OpportunityStepController {
     return this.steps.get(who, code)
   }
 
+  /** The picker's templates and free-entry flag for the state the object
+   *  stands in NOW (ADR 0080 §4) — the client never names a state. */
+  @Get('options')
+  @Need({ branch: 'Sales', permission: 'opportunity.view', scoped: true })
+  options(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
+    return this.steps.options(who, code)
+  }
+
   @Put()
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   set(

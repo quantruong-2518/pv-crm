@@ -1,7 +1,8 @@
-import { check, date, foreignKey, text, timestamp } from 'drizzle-orm/pg-core'
+import { check, date, foreignKey, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
+import { stepTemplate } from '../config/step-frame.schema'
 import { sales } from '../sales.schema'
 
 /** The ONE next step on an open lead or deal (`NextStep` in `@pv/contracts`).
@@ -47,6 +48,9 @@ export const nextStep = sales.table(
     kindList: text('kind_list').generatedAlwaysAs(
       (): SQL => sql`CASE WHEN "kind_id" IS NULL THEN NULL ELSE 'STEP_KIND' END`,
     ),
+    /** The template this step was picked from (ADR 0080); NULL on a typed step.
+     *  A plain FK is safe: templates are switched off, never deleted. */
+    templateId: uuid('template_id').references(() => stepTemplate.id),
   },
   (t) => [
     /** Safe as a real key: config rows are never deleted, only turned off, so

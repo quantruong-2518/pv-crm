@@ -8,7 +8,7 @@ import { useProposeLossReason, useProposeProduct, useProposeStopReason } from '@
 
 /** The three "add one row" forms of the config screen — split out of
  *  `sales-config.tsx` on size alone (`max-lines`). Each sends on its own
- *  rather than joining the batch of §5.1–5.9: adding a row is a different verb
+ *  rather than joining the deadline batch (5.2 · 5.5): adding a row is a different verb
  *  on a different door (`POST` vs `PATCH`), and a name just typed has no old
  *  value to compare against. */
 

@@ -138,3 +138,24 @@ Raised 05/10/2026 while reviewing the lead profile screen (ADR 0079).
 29. **Do the opportunity and contract profiles move their primary move to the
     bar too?** The lead did (ADR 0079 §2); the other two still draw it in the
     todo card.
+
+Raised 08/10/2026 while scoping the "Khung hành trình" config area (ADR 0080).
+
+30. **Is "next step required" per state a soft indicator or a hard refusal?**
+    It collides with the workstream-loop handover's rule that a next step is
+    optional with no warning (decision G2 there) and with the always-required
+    rule at comm close-out (ADR 0074 §5).
+31. **Should entering a state auto-create a next step?** It collides with one
+    step per object (decision G1 in the same handover; the step table's
+    primary key is the subject), with `doer_id`/`created_by` being NOT NULL
+    when a `new` lead has no holder, and with births and owner changes that
+    bypass the state writers.
+32. **Should finishing a step advance the state?** Every existing mover is
+    fact-triggered (ADR 0063/0068, ADR 0064 §3, ADR 0071 §3). A step-done that
+    writes the state would bypass `opportunity.accept` and could place a deal
+    in `quotation` without the `quotation-sent` fact that signing requires.
+33. **Does a lead state get its own deadline?** ADR 0067 §7 (D8) and ADR 0057
+    §4 suspended lead-rung deadlines; the lead clock today is the TIER ladder.
+34. **Can a state be renamed from config?** Labels have two sources today: the
+    config row name and the `OPPORTUNITY_STAGE_LABEL` / `LEAD_STATE_LABEL`
+    constants.

@@ -11,6 +11,7 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { emailDelivery, mailEvent } from '@api/platform/mail/mail.schema'
 import { sourceCost, sourceEvent, sourceFollower } from '@api/branches/sales/campaign/source.schema'
 import { configEntry } from '@api/branches/sales/config/config.schema'
+import { stepTemplate } from '@api/branches/sales/config/step-frame.schema'
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
@@ -30,6 +31,7 @@ import { JOURNEYS, PRODUCTS, SOURCES, type DealSeed, type JourneySeed } from './
 import { mailHistory } from './seed-mail'
 import { ACCOUNTS, type ContactSeed } from './seed-companies'
 import { configSeed, exitIdOf, person, productRows, sourceIdOf } from './seed-config'
+import { STEP_TEMPLATE_SEED } from './seed-step-frame'
 import { walkDeal } from './seed-deal-walk'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
@@ -685,6 +687,7 @@ async function seed(): Promise<void> {
       .insert(actor)
       .values(STAFF.map(({ ownOnly, ...p }) => ({ ...p, ownOnly: ownOnly ?? false })))
     await tx.insert(configEntry).values(configSeed)
+    await tx.insert(stepTemplate).values(STEP_TEMPLATE_SEED)
     await tx.insert(objectRef).values(out.objects)
     await tx.insert(account).values(out.accounts)
     await tx.insert(workstream).values(out.runs)

@@ -8,17 +8,20 @@ import {
   type NextStepDoneBody,
   type NextStepSetBody,
   type ObjectCode,
+  type StateAddress,
+  type StepOptionsResponse,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { StepFrameService } from '../config/step-frame.service'
 import { LeadService } from '../lead/lead.service'
 import { byOf, TouchService } from '../touch/touch.service'
 import { dropStep } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository, type NextStepSlot } from './next-step.repository'
-import { assertNextDiffers, liveKind } from './next-step.rules'
+import { assertNextDiffers, leadAddress, liveKind } from './next-step.rules'
 
 /** One write on a step: `closing` set = "done" (touch, then `next` or clear). */
 export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>>
@@ -41,11 +44,18 @@ export class NextStepService {
     private readonly touch: TouchService,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly actors: ActorRepository,
+    private readonly frame: StepFrameService,
   ) {}
 
   async get(who: Actor, code: ObjectCode): Promise<NextStepResponse> {
     await this.leads.guard(who, code)
     return answer(await this.repo.slot(code))
+  }
+
+  /** The picker's list for the state the lead stands in now (ADR 0080 §4). */
+  async options(who: Actor, code: ObjectCode): Promise<StepOptionsResponse> {
+    await this.leads.guard(who, code)
+    return this.frame.options(leadAddress((await this.repo.slot(code))?.state))
   }
 
   async set(who: Actor, code: ObjectCode, body: NextStepSetBody): Promise<NextStepResponse> {
@@ -72,7 +82,14 @@ export class NextStepService {
    *  under the lock, so a doubled press is refused and one piece of work logs
    *  one touch, written here while the text is still known. `reach` is
    *  `reaches(next.doerId)`, asked before the transaction. */
-  async write(tx: Db, who: Actor, code: ObjectCode, op: StepWrite, reach: boolean): Promise<void> {
+  async write(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+    op: StepWrite,
+    reach: boolean,
+    prefix = '',
+  ): Promise<void> {
     const held = await this.lockOpen(tx, who, code)
     if (op.closing) {
       const current = (await this.repo.slot(code, tx))?.step
@@ -88,10 +105,11 @@ export class NextStepService {
           kind: 'next-step-done',
           ...byOf(who),
           note: doneNote(current.text),
+          templateId: current.templateId,
         },
       ])
     }
-    if (op.next) await this.put(tx, who, code, held.ownerId, op.next, reach)
+    if (op.next) await this.put(tx, who, code, held, op.next, reach, prefix)
     else await dropStep(tx, code)
   }
 
@@ -110,10 +128,12 @@ export class NextStepService {
     tx: Db,
     who: Actor,
     code: ObjectCode,
-    holderId: string | null,
+    held: { ownerId: string | null; address: StateAddress | null },
     body: NextStepSetBody,
     reach: boolean,
+    prefix: string,
   ): Promise<void> {
+    const holderId = held.ownerId
     const doerId = body.doerId ?? holderId
     if (doerId === null) {
       throw invalid(
@@ -133,7 +153,10 @@ export class NextStepService {
         'Người làm không hợp lệ.',
       )
     }
-    if (body.kindId !== undefined) await liveKind(this.repo, body.kindId, tx)
+    /* The frame is asked under the lead's lock: the state it reads is the one
+       this write lands on (ADR 0080 §2). */
+    const step = await this.frame.settle(tx, held.address, body, prefix)
+    if (step.kindId !== undefined) await liveKind(this.repo, step.kindId, tx, `${prefix}kindId`)
     if (doerId !== holderId && !reach) {
       throw invalid(
         {
@@ -146,11 +169,12 @@ export class NextStepService {
     }
     await this.repo.put(tx, {
       subjectCode: code,
-      text: body.text,
+      text: step.text,
       due: body.due,
       doerId,
       createdBy: who.id,
-      kindId: body.kindId ?? null,
+      kindId: step.kindId ?? null,
+      templateId: step.templateId,
     })
   }
 
@@ -179,7 +203,7 @@ export class NextStepService {
         `Lead ${code} đang ở “${LEAD_STATE_LABEL[row.state]}” — chỉ lead còn trong phễu mới có việc tiếp theo.`,
       )
     }
-    return row
+    return { ownerId: row.ownerId, address: leadAddress(row.state) }
   }
 }
 

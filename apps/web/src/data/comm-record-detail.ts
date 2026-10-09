@@ -20,10 +20,12 @@ import {
   type DebriefClose,
   type DebriefStepInput,
   type DebriefSummary,
+  type StepOptionsResponse,
+  type StepTemplateOption,
 } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
 import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
-import { nextStepKey } from '@/data/next-step'
+import { nextStepKey, rereadOptionsOnRefusal, stepOptionsMoved } from '@/data/next-step'
 import { chainPath } from '@/data/opportunities'
 import { putOnceMore } from '@/data/lead-scan-run'
 
@@ -144,6 +146,7 @@ export function useConfirmComm() {
         need: COMM_VIEW_NEED,
         schema: DebriefView,
       }),
+    onError: rereadOptionsOnRefusal(client),
     onSuccess: (view) => commClosed(client, view),
   })
 }
@@ -155,6 +158,8 @@ export function commClosed(client: QueryClient, view: DebriefView) {
   /* The step landed on the subject through the sales hook, and a step
      marked done wrote a touch there too. */
   void client.invalidateQueries({ queryKey: nextStepKey(view.subject.code) })
+  /* A first real touch can move the lead's state, and with it the frame on offer. */
+  stepOptionsMoved(client)
   void client.invalidateQueries({ queryKey: ['sales', 'lead-touches'] })
   void client.invalidateQueries({ queryKey: ['sales', 'ops-touches'] })
   void client.invalidateQueries({ queryKey: COMMS_KEY })
@@ -331,24 +336,65 @@ export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
 }
 
 /** The next-step part of a confirm, as typed. `previousDone` claims the step
- *  the person saw is finished, so it starts unticked. */
-export type StepDraft = { kindId: string; text: string; due: string; previousDone: boolean }
+ *  the person saw is finished, so it starts unticked. `templateId` and
+ *  `dueAuto` (the day came from a template) are optional: drafts kept in the
+ *  browser before ADR 0080 carry neither. */
+export type StepDraft = {
+  kindId: string
+  text: string
+  due: string
+  previousDone: boolean
+  templateId?: string
+  dueAuto?: boolean
+}
 export const EMPTY_STEP_DRAFT: StepDraft = { kindId: '', text: '', due: '', previousDone: false }
 
 /** The step the closer saw on the subject — `DebriefStepTarget.currentStep`. */
 export type CurrentStep = { text: string; due: string } | null
 
-export function stepBlockerOf(draft: StepDraft): string | null {
-  if (draft.kindId === '') return 'Chưa chọn loại bước tiếp theo.'
-  if (draft.text.trim() === '') return 'Chưa ghi nội dung bước tiếp theo.'
+/** The draft's template, only while the state still offers it: a pick kept
+ *  from before the frame changed counts as no pick. */
+export function pickedTemplateOf(
+  draft: Pick<StepDraft, 'templateId'>,
+  options: StepOptionsResponse | undefined,
+): StepTemplateOption | undefined {
+  return options?.templates.find((t) => t.id === draft.templateId)
+}
+
+export function stepBlockerOf(
+  draft: StepDraft,
+  options: UseQueryResult<StepOptionsResponse>,
+): string | null {
+  if (!options.data) {
+    return options.error
+      ? 'Không tải được danh sách bước tiếp theo.'
+      : 'Đang tải danh sách bước tiếp theo.'
+  }
+  if (!options.data.freeEntry) {
+    if (options.data.templates.length === 0) return 'Chưa có bước nào trong khung để chọn.'
+    if (!pickedTemplateOf(draft, options.data)) return 'Chưa chọn bước tiếp theo trong danh sách.'
+  } else if (draft.kindId === '') {
+    return 'Chưa chọn loại bước tiếp theo.'
+  } else if (draft.text.trim() === '') {
+    return 'Chưa ghi nội dung bước tiếp theo.'
+  }
   return draft.due === '' ? 'Chưa chọn hạn của bước tiếp theo.' : null
 }
 
-export function stepInputOf(draft: StepDraft, current: CurrentStep): DebriefStepInput {
+export function stepInputOf(
+  draft: StepDraft,
+  current: CurrentStep,
+  options: StepOptionsResponse | undefined,
+): DebriefStepInput {
+  const picked = pickedTemplateOf(draft, options)
+  /* Listed-only: the template's own words and kind, whatever an older draft
+     still holds — the server refuses any other pair. */
+  const fixed = options?.freeEntry === false ? picked : undefined
   return {
-    kindId: draft.kindId,
-    text: draft.text.trim(),
+    kindId: fixed?.kind.id ?? draft.kindId,
+    text: fixed?.name ?? draft.text.trim(),
     due: draft.due,
+    ...(picked && { templateId: picked.id }),
     ...(draft.previousDone && current ? { previousDone: current } : {}),
   }
 }

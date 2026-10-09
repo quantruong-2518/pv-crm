@@ -1,4 +1,12 @@
-import type { NextStepDoneBody, NextStepKind, NextStepSetBody } from '@pv/contracts'
+import {
+  StepLeadState,
+  type LeadState,
+  type NextStepDoneBody,
+  type NextStepKind,
+  type NextStepSetBody,
+  type StageKey,
+  type StateAddress,
+} from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { invalid } from '@api/platform/http/problem'
 import type { NextStepRepository } from './next-step.repository'
@@ -35,4 +43,16 @@ export async function liveKind(
     { [field]: ['Loại việc không có trong danh mục hoặc đã tắt — chọn loại việc khác.'] },
     'Loại việc không hợp lệ.',
   )
+}
+
+/** The frame state an object stands in NOW (ADR 0080), or null when it stands
+ *  in none: a lead outside the funnel, a deal stopped, signed or with no stage.
+ *  One copy, so the picker and the write doors can never resolve differently. */
+export function leadAddress(state: LeadState | undefined): StateAddress | null {
+  const open = StepLeadState.safeParse(state)
+  return open.success ? { kind: 'lead', state: open.data } : null
+}
+
+export function dealAddress(deal: { open: boolean; stage: StageKey | null }): StateAddress | null {
+  return deal.open && deal.stage !== null ? { kind: 'opportunity', state: deal.stage } : null
 }
