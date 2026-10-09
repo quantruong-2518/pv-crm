@@ -10,7 +10,7 @@ import {
   MasSendResponse,
   mailBody,
 } from './mail'
-import { MailSubjectKind } from './mail-door'
+import { MailSubjectKind, MailTransport } from './mail-door'
 
 /** Group mail — ONE letter every recipient sees in To/CC, from a detail door.
  *
@@ -79,6 +79,13 @@ export const MailGroupPreflightResponse = z.object({
   recipients: z.array(MailGroupRecipient),
   sendable: z.number().int().nonnegative(),
   blocked: z.number().int().nonnegative(),
+  /** The mailbox the letter will show as From; the client never picks it.
+   *  `remainingToday` is the Gmail daily address allowance, null on Resend. */
+  sender: z.object({
+    transport: MailTransport,
+    address: z.string().min(1),
+    remainingToday: z.number().int().min(0).nullable(),
+  }),
 })
 
 export const MailGroupSendRequest = MailGroupAddressing.extend({
@@ -166,6 +173,14 @@ export const MailSubjectTimelineRow = z.object({
    *  still editable (scheduled, no letter left) and it is not a campaign wave.
    *  A broadcast holder edits the rest from the run book; `/own` re-checks. */
   canEdit: z.boolean(),
+  transport: MailTransport,
+  /** The bare mailbox frozen on the run when it was filed. */
+  fromAddress: z.string().min(1),
+  /** Non-null only for the run's creator: a Gmail thread id is per mailbox, so
+   *  the link opens nothing for anyone else. */
+  threadUrl: z.url().nullable(),
+  /** The delivery's last readable error; the row had no other slot for it. */
+  failureReason: z.string().nullable(),
 })
 
 /** Newest first, not paged — bounded by how often one object is written to. */

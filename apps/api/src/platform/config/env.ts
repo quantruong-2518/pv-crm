@@ -406,6 +406,14 @@ const Env = z
     /** base64 of 32 random bytes (`openssl rand -base64 32`), the AES-256-GCM
      *  key sealing refresh tokens. Rotating it disconnects everybody. */
     GOOGLE_TOKEN_KEY: z.string().default(''),
+
+    // GMAIL — a group letter through the sender's own mailbox (`mail_run.transport`)
+    /** Addresses (To + CC) one person may send through Gmail per rolling 24 h. */
+    PV_GMAIL_DAILY_ADDRESS_MAX: z.coerce.number().int().min(1).max(2000).default(100),
+    /** How often the worker reads sent threads for replies and bounces. */
+    PV_GMAIL_POLL_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
+    /** How long after a letter was accepted its thread is still read. */
+    PV_GMAIL_POLL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
   })
   /* Half a Google config reads as "off" with no error anywhere. */
   .refine(

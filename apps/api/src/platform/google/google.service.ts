@@ -5,6 +5,7 @@ import { ENV, type Env } from '../config/env'
 import { conflict } from '../http/problem'
 import { openToken, readState, sealToken, signState } from './google-crypto'
 import { CALENDAR_SCOPE, GoogleOAuth } from './google-oauth.client'
+import { mailReadinessOf } from './google-access'
 import { GoogleRepository } from './google.repository'
 
 /** The life of one person's Google link: status, consent, callback, disconnect.
@@ -32,10 +33,12 @@ export class GoogleService {
 
   async status(who: Actor): Promise<GoogleLinkStatus> {
     const link = await this.links.byActor(who.id)
+    const configured = this.oauth.config !== null
     return GoogleLinkStatus.parse({
-      configured: this.oauth.config !== null,
+      configured,
       connected: link !== null,
       ...(link ? { email: link.googleEmail } : {}),
+      ...(link && configured ? { mail: mailReadinessOf(link) } : {}),
     })
   }
 
@@ -50,7 +53,7 @@ export class GoogleService {
    *  otherwise a consent URL sent to a colleague would land their Google
    *  account on the sender's row. A grant missing the calendar box (the
    *  consent screen lets it be unticked) is not stored — it could write nothing.
-   *  That check is the only reader of the scope: the column is kept as a record. */
+   *  The Gmail boxes may be unticked: that link is stored and reads `needs_consent`. */
   async callback(who: Actor, q: CallbackQuery): Promise<string> {
     try {
       const c = this.oauth.config

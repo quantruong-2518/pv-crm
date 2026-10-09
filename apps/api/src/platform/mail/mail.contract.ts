@@ -96,8 +96,8 @@ export type SuppressionReason =
 // The message and the provider
 // ---------------------------------------------------------------------------
 
-/** Which pipeline a letter belongs to. TWO values, and the split is about
- *  BLAST RADIUS rather than about content.
+/** Which pipeline a letter belongs to. The split is about BLAST RADIUS rather
+ *  than about content. (`personal`, below the type, is the third value.)
  *
  *  `transactional` is a letter one person's action caused and one person
  *  expects — a lead alert, a password reset. `mas` is one letter of a batch
@@ -115,7 +115,11 @@ export type SuppressionReason =
  *  (a digest, a nightly summary) that inference would silently start posting it
  *  through the marketing account. The composer knows which kind of letter it
  *  just built and is the only thing that knows it for certain. */
-export type MailFlow = 'transactional' | 'mas'
+export type MailFlow = 'transactional' | 'mas' | 'personal'
+
+/* `personal`: a group letter leaving through the sender's own Gmail
+   (`mail_run.transport='gmail'`). The only flow the Gmail driver accepts, and
+   it never reaches Resend — `MAIL_PORT` routes on this field. */
 
 export type MailMessage = {
   /** Required, never defaulted. A composer that forgets to say which pipeline
@@ -132,6 +136,11 @@ export type MailMessage = {
   /** Always sent. A body with no text part reads as bulk to several filters. */
   text: string
   headers?: Record<string, string>
+  /** Whose mailbox sends it. Required when `flow` is `personal`. */
+  senderActorId?: string
+  /** Not the delivery's first attempt: an earlier one may already have been
+   *  accepted, so a driver without an idempotency key must look before sending. */
+  replay?: boolean
 }
 
 /** Why a send failed, in the only three shapes the worker acts on.
@@ -149,7 +158,8 @@ export type MailFailure =
    `blamesRecipient`: the provider named the `to` address itself; only then is
    the address banned. */
 
-export type MailSendResult = { ok: true; providerEmailId: string } | ({ ok: false } & MailFailure)
+export type MailSendResult =
+  { ok: true; providerEmailId: string; threadId?: string } | ({ ok: false } & MailFailure)
 
 /** The one door out of this process.
  *
@@ -401,11 +411,13 @@ export interface MailLedger extends MailEnqueue {
   claim(deliveryId: string): Promise<DeliveryToSend | null>
   /** `then.run` rides the accept's transaction, up to `then.attempts` times,
    *  each under a fresh savepoint: a failure rolls back only its own writes,
-   *  and the last one comes back as the result (else null). */
+   *  and the last one comes back as the result (else null). A `threadId` means
+   *  Gmail accepted it: `provider` and the thread id are written together. */
   markAccepted(
     deliveryId: string,
     providerEmailId: string,
     then?: { run: (tx: Db) => Promise<void>; attempts: number },
+    threadId?: string,
   ): Promise<unknown>
   /** `dead` parks the row for a human; everything else keeps it retryable.
    *  `refund` gives back the attempt `claim()` counted — a queue-wide stop. */
@@ -425,8 +437,18 @@ export interface MailLedger extends MailEnqueue {
   suppress(
     recipient: string,
     reason: SuppressionReason,
-    source: 'resend' | 'operator',
+    source: 'resend' | 'operator' | 'gmail',
   ): Promise<void>
+
+  /** A bounce that NAMES its addresses (a Gmail DSN), through the same
+   *  per-address step a pinned webhook bounce takes: each named address on
+   *  the letter still `queued` is marked `bounced`. An address is suppressed
+   *  only once it has bounced on `GMAIL_BOUNCE_STRIKES` distinct letters.
+   *  Returns how many address rows this call moved — 0 on a second run. */
+  applyAddressBounce(
+    deliveryId: string,
+    bounce: { addresses: string[]; reason: string; at: Date },
+  ): Promise<number>
 
   /** Idempotent by `svixId`: the same event replayed changes nothing.
    *  State only moves forward — see `advances`.
@@ -493,7 +515,8 @@ export interface MailLedger extends MailEnqueue {
    *  not: the retry reuses `idempotency_key` (= `event_key`), which is the
    *  whole reason that column exists, and Resend collapses the second request
    *  onto the first. So the correct move is to hand the row back to the relay
-   *  rather than to guess at what happened.
+   *  rather than to guess at what happened. (A Gmail letter has no such key;
+   *  its retry looks in the SENT label first — `findSent`, `gmail.driver.ts`.)
    *
    *  What must NOT happen is an endless loop: `claim()` increments
    *  `attempt_count` every time, and a row reaped over and over on a machine

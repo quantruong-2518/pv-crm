@@ -19,6 +19,11 @@ export type SubjectLetterRead = {
   run_cc: string[]
   created_by: string
   created_by_name: string | null
+  transport: 'resend' | 'gmail'
+  from_address: string
+  thread_id: string | null
+  error_code: string | null
+  error_summary: string | null
   open_count: number
   reply_count: number
   editable: boolean
@@ -68,6 +73,11 @@ export class MailTimelineRepository {
              r."cc_addresses"                    AS run_cc,
              r."created_by"                      AS created_by,
              a."name"                            AS created_by_name,
+             r."transport"                       AS transport,
+             r."from_address"                    AS from_address,
+             d."provider_thread_id"              AS thread_id,
+             d."last_error_code"                 AS error_code,
+             d."last_error_summary"              AS error_summary,
              COALESCE(e.open_count, 0)::int      AS open_count,
              COALESCE(p.reply_count, 0)::int     AS reply_count,
              ${stillEditable(sql`r."id"`, sql`r."state"`)} AS editable,

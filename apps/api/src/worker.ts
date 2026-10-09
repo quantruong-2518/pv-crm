@@ -17,6 +17,7 @@ import { OpportunityModule } from './branches/sales/opportunity/opportunity.modu
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
 import { MailModule } from './platform/mail/mail.module'
+import { GmailThreadSweeper } from './platform/mail/gmail-thread.sweeper'
 import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
 import { MasMailComposer } from './platform/mail/mas.composer'
 import { ENV, type Env } from './platform/config/env'
@@ -117,6 +118,7 @@ async function bootstrap(): Promise<void> {
   const consumer = app.get(MailConsumer)
   const relay = app.get(MailRelay)
   const runs = app.get(MailRunSweeper)
+  const gmailThreads = app.get(GmailThreadSweeper)
   const campaigns = app.get(CampaignSweeper)
   const gates = app.get(MailWaveGateSweeper)
 
@@ -226,6 +228,12 @@ async function bootstrap(): Promise<void> {
       })
     void runs.sweep().catch((error: unknown) => {
       log.error(`Quét lô mail lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    // Ticked here and nowhere else; it throttles itself to PV_GMAIL_POLL_MINUTES.
+    void gmailThreads.sweep().catch((error: unknown) => {
+      log.error(
+        `Gmail thread sweep failed: ${error instanceof Error ? error.message : String(error)}`,
+      )
     })
     void campaigns.sweep().catch((error: unknown) => {
       log.error(`Quét chiến dịch lỗi: ${error instanceof Error ? error.message : String(error)}`)

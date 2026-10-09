@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { GoogleModule } from '@api/platform/google/google.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
 import { ContractRepository } from '../contract/contract.repository'
@@ -57,7 +58,8 @@ import { SourceService } from './source.service'
  *  `exports` để trống: chưa module nào cần hỏi nhánh này điều gì. Ngày sổ chiến
  *  dịch cần biết "lô này thuộc đợt mấy" thì thêm `MasService`, không mở bảng. */
 @Module({
-  imports: [EnginesModule, MailModule, LeadStateModule, LeadOriginModule],
+  /* `GoogleModule`: the group letter asks `GoogleAccess` whose mailbox it leaves from. */
+  imports: [EnginesModule, MailModule, LeadStateModule, LeadOriginModule, GoogleModule],
   controllers: [
     MasController,
     MailLetterController,

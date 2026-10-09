@@ -51,6 +51,8 @@ import { MailRateGate, acquireToken } from './mail-rate'
  *       provider has accepted the mail, the process dies before the database
  *       hears about it, the job is redelivered. Same key, same 24-hour window
  *       — the provider returns the first result instead of sending twice.
+ *       The `personal` (Gmail) flow has NO such key: its only duplicate guard
+ *       is `findSent` in `gmail.driver.ts`, driven by `MailMessage.replay`.
  *
  *   7 · ACCEPTED → write the provider id, and in the same transaction tell
  *       the subject's branch the letter went out (`MAIL_SENT_HOOK`), done.
@@ -188,13 +190,18 @@ export class MailConsumer {
     const result = await this.port.send(message, delivery.idempotencyKey)
 
     if (result.ok) {
-      const missed = await this.ledger.markAccepted(delivery.id, result.providerEmailId, {
-        /* Every hook in one savepoint per attempt: any throw rolls all back and retries. */
-        run: async (tx) => {
-          for (const hook of this.sent) await hook.afterSent(tx, delivery)
+      const missed = await this.ledger.markAccepted(
+        delivery.id,
+        result.providerEmailId,
+        {
+          /* Every hook in one savepoint per attempt: any throw rolls all back and retries. */
+          run: async (tx) => {
+            for (const hook of this.sent) await hook.afterSent(tx, delivery)
+          },
+          attempts: HOOK_ATTEMPTS,
         },
-        attempts: HOOK_ATTEMPTS,
-      })
+        result.threadId,
+      )
       /* The mail is out either way — failing the job would retry a letter the
          provider already took. Only the subject's move is lost: say so, twice. */
       if (missed) {

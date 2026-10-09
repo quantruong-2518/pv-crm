@@ -81,3 +81,12 @@ missing key.
 
 Unmatched inbound mail is never dropped silently: it goes to
 `comms.inbox_unmatched`, a queue with a screen and an "who is this" action.
+
+## Amendment 09/10/2026 (see 0083)
+
+Wall (a) tests the sender's identity because a mailbox sync sees everything in
+a private mailbox. A message that the mail provider threaded under a letter
+THIS system sent is identified by the thread, not by the sender, so it is
+recorded even when the sender is not a known identity — limited to sender
+address, subject and time; never a body. The wall stands unchanged for
+everything else in a personal mailbox.

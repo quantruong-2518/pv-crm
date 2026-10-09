@@ -227,11 +227,20 @@ export class MailRepository implements MailLedger {
     deliveryId: string,
     providerEmailId: string,
     then?: { run: (tx: Db) => Promise<void>; attempts: number },
+    threadId?: string,
   ): Promise<unknown> {
     return this.db.transaction(async (tx) => {
       await tx
         .update(emailDelivery)
-        .set({ state: 'accepted', acceptedAt: sql`now()`, providerEmailId, updatedAt: sql`now()` })
+        .set({
+          state: 'accepted',
+          acceptedAt: sql`now()`,
+          providerEmailId,
+          /* Both or neither: `email_delivery_thread_needs_gmail` refuses a
+             thread id on a row whose provider is not gmail. */
+          ...(threadId ? { provider: 'gmail' as const, providerThreadId: threadId } : {}),
+          updatedAt: sql`now()`,
+        })
         .where(eq(emailDelivery.id, deliveryId))
       let error: unknown = null
       for (let i = 0; then && i < then.attempts; i++) {
@@ -350,7 +359,7 @@ export class MailRepository implements MailLedger {
   async suppress(
     recipient: string,
     reason: SuppressionReason,
-    source: 'resend' | 'operator',
+    source: 'resend' | 'operator' | 'gmail',
   ): Promise<void> {
     const key = recipient.trim().toLowerCase()
     await this.db
@@ -475,6 +484,65 @@ export class MailRepository implements MailLedger {
       )
     if ((standing?.n ?? 0) > 0) return 'applied'
     return this.advance(delivery, event)
+  }
+
+  /** See `MailLedger.applyAddressBounce`. The marking is `blameInGroup`, the
+   *  webhook's own step; the strike count runs AFTER it and on every call, so
+   *  a crash between the two is healed by the next read of the same thread. */
+  async applyAddressBounce(
+    deliveryId: string,
+    bounce: { addresses: string[]; reason: string; at: Date },
+  ): Promise<number> {
+    const [delivery] = await this.db
+      .select({ id: emailDelivery.id, state: emailDelivery.state })
+      .from(emailDelivery)
+      .where(eq(emailDelivery.id, deliveryId))
+      .limit(1)
+    const named = [...new Set(bounce.addresses.map(normalAddress))]
+    if (!delivery || named.length === 0) return 0
+
+    const standing = await this.db
+      .select({ address: emailDeliveryAddress.address })
+      .from(emailDeliveryAddress)
+      .where(
+        and(
+          eq(emailDeliveryAddress.deliveryId, deliveryId),
+          inArray(emailDeliveryAddress.address, named),
+          eq(emailDeliveryAddress.outcome, 'queued'),
+        ),
+      )
+    const attributed = standing.map((row) => row.address)
+    if (attributed.length > 0) {
+      const event = { type: 'gmail.bounced', state: 'bounced' as const, ...bounce }
+      await this.blameInGroup(delivery, event, attributed)
+    }
+
+    /* Strikes are DISTINCT letters, so re-reading this letter's DSN never adds
+       one. A letter without address rows (bulk, Resend) counts by its recipient.
+       DO NOTHING: an existing block keeps its own reason and its release. */
+    await this.db.execute(sql`
+      INSERT INTO "platform"."email_suppression" ("recipient", "reason", "source")
+      SELECT a."address", 'hard_bounce', 'gmail'
+        FROM "platform"."email_delivery_address" a
+       WHERE a."delivery_id" = ${deliveryId}::uuid
+         AND a."outcome" = 'bounced'
+         AND a."address" IN (${sql.join(named, sql`, `)})
+         AND (SELECT count(*) FROM (
+                SELECT b."delivery_id" AS id
+                  FROM "platform"."email_delivery_address" b
+                 WHERE b."address" = a."address" AND b."outcome" = 'bounced'
+                UNION
+                SELECT d."id"
+                  FROM "platform"."email_delivery" d
+                 WHERE d."recipient" = a."address"
+                   AND d."state" = 'bounced'
+                   AND d."role" = 'recipient'
+                   AND NOT EXISTS (SELECT 1 FROM "platform"."email_delivery_address" x
+                                    WHERE x."delivery_id" = d."id")
+              ) strikes) >= ${GMAIL_BOUNCE_STRIKES}::int
+      ON CONFLICT ("recipient") DO NOTHING
+    `)
+    return attributed.length
   }
 
   /** The ladder step itself — `advances()`, imported, never re-derived. */
@@ -823,6 +891,11 @@ const notHeld = sql`NOT EXISTS (
      AND gate."awaits_release"
      AND gate."released_at" IS NULL
 )`
+
+/** Under `gmail.metadata` a Failure DSN cannot say WHY: a dead address, a full
+ *  mailbox and a spam rejection read the same. One may be the letter's fault;
+ *  the same address failing on a second letter is the address's. */
+const GMAIL_BOUNCE_STRIKES = 2
 
 /** Rows per INSERT. See `enqueueBatch`. */
 const INSERT_CHUNK = 1_000

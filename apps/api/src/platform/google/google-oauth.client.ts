@@ -16,7 +16,13 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke'
 
 export const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
-const SCOPES = ['openid', 'email', CALENDAR_SCOPE].join(' ')
+/** Send as the person, and read thread HEADERS only: `gmail.metadata` cannot
+ *  fetch a body, which is what lets the reply sweep promise it never reads one. */
+export const GMAIL_SCOPES = [
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.metadata',
+] as const
+const SCOPES = ['openid', 'email', CALENDAR_SCOPE, ...GMAIL_SCOPES].join(' ')
 
 /** The cap the booking path promised: a slow Google never holds a save longer. */
 export const GOOGLE_TIMEOUT_MS = 8_000
@@ -35,7 +41,8 @@ const TokenBody = z.object({
   id_token: z.string().optional(),
 })
 
-const IdClaims = z.object({ email: z.string().includes('@') })
+/** Unverified is refused: the company-domain gate on sending rests on this claim. */
+const IdClaims = z.object({ email: z.string().includes('@'), email_verified: z.literal(true) })
 
 export type Granted = { refreshToken: string; scope: string; email: string }
 
@@ -86,7 +93,7 @@ export class GoogleOAuth {
     }
     const email = emailOf(body.id_token)
     if (!email) {
-      this.log.warn('code exchanged but the id token carries no email')
+      this.log.warn('code exchanged but the id token carries no verified email')
       return null
     }
     return { refreshToken: body.refresh_token, scope: body.scope ?? '', email }

@@ -59,6 +59,12 @@ export function letterCta(form: LetterForm): MailGroupSendRequest['cta'] {
 export const letterWritten = (form: LetterForm) =>
   form.subject.trim() !== '' && form.body.trim() !== ''
 
+/** The letter holds text the person wrote: something is there and it is not
+ *  the template the composer seeded (`null` = nothing seeded yet). */
+export const letterDirty = (form: LetterForm, seed: LetterForm | null) =>
+  (form.subject !== '' || form.body !== '') &&
+  (form.subject !== seed?.subject || form.body !== seed.body)
+
 /** Why Send is shut, in one sentence; `null` = only the server's verdict is
  *  still owed. Order follows what a person fixes first. */
 export function letterBlocker(form: LetterForm, picked: number, sendable?: number): string | null {

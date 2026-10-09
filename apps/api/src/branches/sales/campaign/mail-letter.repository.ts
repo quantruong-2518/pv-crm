@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { MailRunState, MailSubjectKind } from '@pv/contracts'
+import { MAIL_PERSONAL_WINDOW_HOURS, type MailRunState, type MailSubjectKind } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
@@ -152,6 +152,32 @@ export class MailLetterRepository {
       .select({ id: actor.id, name: actor.name, email: sql<string>`lower(trim(${actor.email}))` })
       .from(actor)
       .where(and(inArray(actor.id, [...ids]), isNull(actor.disabledAt)))
+  }
+
+  /** Addresses (To + CC rows) this actor's Gmail letters put in one rolling
+   *  window around `at`, by SEND time (schedule, else filing) — the busier of
+   *  the window ending at `at` and the one starting there, so letters filed on
+   *  many days for one morning cannot pile up. The locked inbox is not a row;
+   *  a cancelled run counts only if its letter had already left.
+   *  `lock` queues one actor's sends so two cannot both read the same total. */
+  async gmailAddressesUsed(handle: Db, actorId: string, at: Date, lock: boolean): Promise<number> {
+    if (lock) {
+      await handle.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`gmail-quota:${actorId}`}))`)
+    }
+    const r = (await handle.execute(sql`
+      SELECT GREATEST(count(*) FILTER (WHERE w.send_at > w.t - w.span AND w.send_at <= w.t),
+                      count(*) FILTER (WHERE w.send_at >= w.t AND w.send_at < w.t + w.span))::int AS used
+        FROM (SELECT COALESCE(r."scheduled_at", r."created_at") AS send_at,
+                     ${at.toISOString()}::timestamptz AS t,
+                     make_interval(hours => ${MAIL_PERSONAL_WINDOW_HOURS}) AS span
+                FROM "platform"."email_delivery_address" a
+                JOIN "platform"."email_delivery" d ON d."id" = a."delivery_id"
+                JOIN "platform"."mail_run" r ON r."id" = d."mail_run_id"
+               WHERE r."transport" = 'gmail'
+                 AND r."created_by" = ${actorId}
+                 AND (r."state" <> 'CANCELLED' OR d."accepted_at" IS NOT NULL)) w
+    `)) as { rows: { used: number }[] }
+    return r.rows[0]?.used ?? 0
   }
 
   /** The letter a client `letterId` already filed, found by its event key — a

@@ -7,6 +7,7 @@ import {
   SALES_INBOX,
   type MailSubjectKind,
   type MailTemplateRow,
+  type MailTransport,
   type MasPreviewResponse,
 } from '@pv/contracts'
 import { MailPreviewCard } from '@/components/mail-compose-bits'
@@ -112,6 +113,7 @@ export function LetterContentCard({
  *  route needs a first To to fill `{{contactName}}`. */
 export function LetterPreviewColumn({
   ready,
+  transport,
   letter,
   pending,
   error,
@@ -119,6 +121,8 @@ export function LetterPreviewColumn({
   cc,
 }: {
   ready: boolean
+  /** Where a reply lands differs by pipe, so the caption does too. */
+  transport?: MailTransport
   letter?: MasPreviewResponse
   pending: boolean
   error: string
@@ -138,11 +142,15 @@ export function LetterPreviewColumn({
       pending={pending}
       error={error}
       envelope={[
-        { label: 'Từ', value: letter?.from ?? 'noreply · Pebble Vina' },
+        { label: 'Từ', value: letter?.from ?? '—' },
         { label: 'Tới', value: to.map((person) => person.name).join(', ') || '—' },
         { label: 'CC', value: addresseeLine([...cc, { email: SALES_INBOX }]) },
       ]}
-      caption="Thư nhóm: mọi người trong To và CC nhận cùng một bản. Khách bấm Trả lời thì máy ghi nhận và báo người giữ."
+      caption={`Thư nhóm: mọi người trong To và CC nhận cùng một bản. ${
+        transport === 'gmail'
+          ? 'Khách trả lời vào hộp thư của bạn; hệ thống ghi nhận “đã trả lời” sau vài phút.'
+          : 'Khách bấm Trả lời thì máy ghi nhận và báo người giữ.'
+      }`}
     />
   )
 }

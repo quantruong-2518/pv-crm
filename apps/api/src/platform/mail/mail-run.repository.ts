@@ -46,6 +46,8 @@ export type MailRunCreate = {
   bccCopyTo: string | null
   /** Wave ≥ 2: held until the Sales gate sweeper calls `release()` (ADR 0068). */
   awaitsRelease: boolean
+  /** Which pipe the run leaves through, frozen at send click. Omitted = `resend`. */
+  transport?: 'resend' | 'gmail'
 }
 
 /** One run of the list as platform can answer it: the wire row minus what only
@@ -290,6 +292,7 @@ export class MailRunRepository {
         kind: input.kind,
         bccCopyTo: input.bccCopyTo,
         awaitsRelease: input.awaitsRelease,
+        ...(input.transport ? { transport: input.transport } : {}),
       })
       .returning({ id: mailRun.id })
 

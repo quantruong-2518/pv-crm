@@ -1,8 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { z } from 'zod'
-import { openToken } from './google-crypto'
-import { GOOGLE_TIMEOUT_MS, GoogleOAuth, type GoogleConfig } from './google-oauth.client'
-import { GoogleRepository } from './google.repository'
+import { GoogleAccess } from './google-access'
+import { GOOGLE_TIMEOUT_MS } from './google-oauth.client'
 
 /** Events on ONE person's primary Google Calendar — knows nothing about
  *  meetings; `branches/sales/meeting/meeting-calendar.ts` builds the event.
@@ -12,11 +11,9 @@ import { GoogleRepository } from './google.repository'
  *  One deadline (`GOOGLE_TIMEOUT_MS`) spans the token refresh AND the event
  *  call, so the wait a booker sees is bounded once, not per hop.
  *
- *  No access-token cache: each call refreshes first. A booking is a handful
- *  of calls a day per person, and a cache would be state to expire and evict.
- *  `invalid_grant` on refresh means the person revoked access at Google — the
- *  link row is deleted so the screen asks them to reconnect. Nothing else
- *  deletes it: a token that will not decrypt is our key's fault, not theirs. */
+ *  No access-token cache: each call refreshes first (`GoogleAccess.tokenFor`).
+ *  A booking is a handful of calls a day per person, and a cache would be
+ *  state to expire and evict. */
 
 const EVENTS_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
@@ -48,10 +45,7 @@ const EventBody = z.object({
 export class GoogleCalendar {
   private readonly log = new Logger('google')
 
-  constructor(
-    private readonly oauth: GoogleOAuth,
-    private readonly links: GoogleRepository,
-  ) {}
+  constructor(private readonly access: GoogleAccess) {}
 
   /** Insert, or patch `eventId`. An event deleted on Google's side (404/410)
    *  is inserted again rather than reported failed for ever. */
@@ -61,8 +55,9 @@ export class GoogleCalendar {
     event: CalendarEvent,
   ): Promise<CalendarOutcome> {
     const signal = AbortSignal.timeout(GOOGLE_TIMEOUT_MS)
-    const token = await this.tokenOf(ownerId, signal)
-    if (typeof token !== 'string') return token
+    const access = await this.access.tokenFor(ownerId, signal)
+    if (access.state !== 'ok') return { state: access.state }
+    const token = access.token
 
     const body = JSON.stringify(eventBody(event))
     const query = '?conferenceDataVersion=1&sendUpdates=all'
@@ -91,39 +86,14 @@ export class GoogleCalendar {
   /** Best effort, cancellation mailed to the guests; an event already gone is fine. */
   async remove(ownerId: string, eventId: string): Promise<void> {
     const signal = AbortSignal.timeout(GOOGLE_TIMEOUT_MS)
-    const token = await this.tokenOf(ownerId, signal)
-    if (typeof token !== 'string') return
+    const access = await this.access.tokenFor(ownerId, signal)
+    if (access.state !== 'ok') return
     await this.call(
       `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=all`,
       'DELETE',
-      token,
+      access.token,
       signal,
     )
-  }
-
-  private async tokenOf(
-    ownerId: string,
-    signal: AbortSignal,
-  ): Promise<string | { state: CalendarFailure }> {
-    const config: GoogleConfig | null = this.oauth.config
-    if (!config) return { state: 'off' }
-    const link = await this.links.byActor(ownerId)
-    if (!link) return { state: 'not_connected' }
-
-    let refreshToken: string
-    try {
-      refreshToken = openToken(config.key, ownerId, link.refreshTokenEnc)
-    } catch {
-      /* A mistyped GOOGLE_TOKEN_KEY would fail every row: keep them all. */
-      this.log.warn('stored refresh token cannot be decrypted — check GOOGLE_TOKEN_KEY')
-      return { state: 'failed' }
-    }
-    const access = await this.oauth.accessToken(config, refreshToken, signal)
-    if (access === 'revoked') {
-      await this.links.remove(ownerId)
-      return { state: 'not_connected' }
-    }
-    return access ?? { state: 'failed' }
   }
 
   private async call(

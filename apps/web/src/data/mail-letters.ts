@@ -166,6 +166,9 @@ export function useLetterPreflight(body: MailGroupPreflightRequest | null) {
   )
   return {
     report: answer.value,
+    /** Does not depend on the To list, so the previous answer's stands while
+     *  the next one is asked — the mailbox line must not blink on every pick. */
+    sender: (answer.value ?? answer.last)?.sender,
     error: answer.error,
     checking: answer.pending,
     retry: answer.retry,

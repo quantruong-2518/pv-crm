@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { CircleX, Pencil } from '@pv/ui'
-import { Button, Icon, SegmentedControl, Select, Skeleton, cn } from '@pv/ui'
+import { CircleX, Mail, Pencil } from '@pv/ui'
+import { Button, Icon, SegmentedControl, Select, Skeleton, buttonVariants, cn } from '@pv/ui'
 import type { MailSubjectTimelineRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
@@ -156,7 +156,8 @@ export function CommJourney({
           showCode={showCode}
           openOf={openOf}
           actionsOf={(row) =>
-            row.letter?.canEdit && (
+            row.letter &&
+            (row.letter.canEdit || row.letter.threadUrl) && (
               <LetterActions
                 letter={row.letter}
                 onEdit={(id) => setEditing({ id, viaContent: false })}
@@ -198,6 +199,26 @@ function LetterActions({
       onSuccess: () => toastDone('Đã dừng thư', 'Thư sẽ không được gửi đi.'),
       onError: (cause) => toastFail('Không dừng được thư', userMessage(cause)),
     })
+
+  /* A thread exists only once the letter left, and Edit · Stop only before it
+     does (`canEdit`), so the two sets of actions never share a row. */
+  if (letter.threadUrl) {
+    return (
+      <a
+        href={letter.threadUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cn(
+          buttonVariants({ variant: 'ghost', size: 'sm' }),
+          'pointer-coarse:h-12',
+          COMM_FOCUS,
+        )}
+      >
+        <Icon icon={Mail} size={16} />
+        Mở trong Gmail
+      </a>
+    )
+  }
 
   return (
     <>

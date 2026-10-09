@@ -1,6 +1,11 @@
 import { Module } from '@nestjs/common'
 import { ENV, type Env } from '@api/platform/config/env'
+import { GoogleGmail } from '@api/platform/google/google-gmail.client'
+import { GoogleModule } from '@api/platform/google/google.module'
 import { ConsoleMailDriver } from './console.driver'
+import { GmailMailDriver } from './gmail.driver'
+import { GmailSweepRepository } from './gmail-sweep.repository'
+import { GmailThreadSweeper } from './gmail-thread.sweeper'
 import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.contract'
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
@@ -58,19 +63,32 @@ import { UnsubscribeController } from './unsubscribe.controller'
  *  to hold it — cancelling a run because its bounce rate is over the ceiling is
  *  a decision about the SENDING ACCOUNT, not about anybody's leads. */
 @Module({
+  imports: [GoogleModule],
   controllers: [MailWebhookController, MailHealthController, UnsubscribeController],
   providers: [
     MailRepository,
     MailRunRepository,
     MailRunSweeper,
+    GmailSweepRepository,
+    GmailThreadSweeper,
     MasMailComposer,
     { provide: MAIL_LEDGER, useExisting: MailRepository },
     { provide: MAIL_ENQUEUE, useExisting: MailRepository },
     {
       provide: MAIL_PORT,
-      inject: [ENV],
-      useFactory: (env: Env): MailPort =>
-        env.PV_EMAIL_ENABLED ? new ResendMailDriver(env) : new ConsoleMailDriver(),
+      inject: [ENV, GoogleGmail],
+      /* The flag still decides first: off means NOTHING leaves, personal
+         letters included. On, `flow` picks the pipe — a personal letter never
+         falls back to Resend, which would change who it is from. */
+      useFactory: (env: Env, gmail: GoogleGmail): MailPort => {
+        if (!env.PV_EMAIL_ENABLED) return new ConsoleMailDriver()
+        const resend = new ResendMailDriver(env)
+        const personal = new GmailMailDriver(gmail)
+        return {
+          send: (message, key) =>
+            (message.flow === 'personal' ? personal : resend).send(message, key),
+        }
+      },
     },
   ],
   exports: [
@@ -79,6 +97,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
     MAIL_PORT,
     MailRunRepository,
     MailRunSweeper,
+    GmailThreadSweeper,
     MasMailComposer,
   ],
 })

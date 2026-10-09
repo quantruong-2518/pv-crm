@@ -92,10 +92,16 @@ export const emailDelivery = platform.table(
      *  `email_suppression.recipient` compare on that same normal form. */
     recipient: text('recipient').notNull(),
     state: text('state').$type<MailState>().notNull(),
-    provider: text('provider').notNull().default('resend'),
+    /** Which pipe ACCEPTED the letter, written with `provider_email_id`. The
+     *  default stands until then, so read `mail_run.transport` for intent. */
+    provider: text('provider').$type<'resend' | 'gmail'>().notNull().default('resend'),
     /** Set once Resend accepts the send; unique so a webhook can find its way
      *  back to exactly one delivery — see `applyWebhook()`. */
     providerEmailId: text('provider_email_id').unique(),
+    /** Gmail's thread id, the handle the reply sweep reads and the timeline
+     *  links to. Per-mailbox: it opens nothing for anyone but the sender.
+     *  Not unique — a later letter may join the same thread. */
+    providerThreadId: text('provider_thread_id'),
     idempotencyKey: text('idempotency_key').notNull().unique(),
     attemptCount: integer('attempt_count').notNull().default(0),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
@@ -187,6 +193,22 @@ export const emailDelivery = platform.table(
       'email_delivery_copy_has_run',
       sql`${t.role} = 'recipient' OR ${t.mailRunId} IS NOT NULL`,
     ),
+
+    /** The Gmail sweep's question: "which Gmail-accepted letters are still
+     *  inside the poll window". Partial, so it holds only letters sent from a
+     *  personal mailbox and costs a Resend insert nothing. */
+    index('email_delivery_gmail_sweep_idx')
+      .on(t.acceptedAt)
+      .where(sql`${t.provider} = 'gmail'`),
+    /** Copied out by hand, like `mail_run_transport_known`. Nothing wrote this
+     *  column before 0096, so every stored row holds the default. */
+    check('email_delivery_provider_known', sql`${t.provider} IN ('resend', 'gmail')`),
+    /** Resend has no threads; an id here on a Resend row would send the sweep
+     *  to a mailbox that never held the letter. */
+    check(
+      'email_delivery_thread_needs_gmail',
+      sql`${t.providerThreadId} IS NULL OR ${t.provider} = 'gmail'`,
+    ),
   ],
 )
 
@@ -257,7 +279,9 @@ export const emailSuppression = platform.table(
   {
     recipient: text('recipient').primaryKey(),
     reason: text('reason').$type<SuppressionReason>().notNull(),
-    source: text('source').$type<'resend' | 'operator'>().notNull(),
+    /** `gmail` = a mailer-daemon bounce the thread sweep read (0096); kept
+     *  apart from `resend` so a block can be traced to the pipe that saw it. */
+    source: text('source').$type<'resend' | 'operator' | 'gmail'>().notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     /** NULL = currently suppressed. A value here means a human deliberately let
      *  this address back in — `isSuppressed()` reads exactly this column. */
@@ -279,7 +303,7 @@ export const emailSuppression = platform.table(
      *  `source` gets the same treatment for the same reason — two values, both
      *  meaningful, neither enforced until now. */
     check('email_suppression_reason_valid', sql`${t.reason} IN (${SUPPRESSION_REASON_LIST})`),
-    check('email_suppression_source_valid', sql`${t.source} IN ('resend', 'operator')`),
+    check('email_suppression_source_valid', sql`${t.source} IN ('resend', 'operator', 'gmail')`),
   ],
 )
 

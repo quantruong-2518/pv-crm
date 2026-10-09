@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   MAIL_DOOR_LABEL,
+  MAIL_PERSONAL_WINDOW_HOURS,
   MAIL_NAME_MAX,
   MailGroupPreflightResponse,
   MailGroupSendResponse,
@@ -14,9 +15,11 @@ import {
   type MailGroupSendRequest,
   type MailRunState,
   type MailSubjectKind,
+  type MailTransport,
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
+import { GoogleAccess } from '@api/platform/google/google-access'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import {
   MAIL_ENQUEUE,
@@ -24,7 +27,7 @@ import {
   type MailAddressIntent,
   type MailEnqueue,
 } from '@api/platform/mail/mail.contract'
-import { renderMasLetter } from '@api/platform/mail/mas-letter'
+import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
@@ -41,6 +44,16 @@ import { eventKeyOf, mergeOf, previewFrame } from './mas.service'
 
 /** One judged To contact; `email` is set exactly when it will receive. */
 type Judged = { contact: LetterContact; block?: MailGroupBlock }
+
+/** Whose mailbox a letter leaves from. `displayFrom` is the header value frozen
+ *  on the run; `usedToday`/`remainingToday` are the Gmail allowance, null on Resend. */
+type Sender = {
+  transport: MailTransport
+  address: string
+  displayFrom: string
+  usedToday: number | null
+  remainingToday: number | null
+}
 
 /** A door's label as it reads mid-sentence in a problem title: lower case. */
 const subjectLabel = (door: MailSubjectKind): string => MAIL_DOOR_LABEL[door].toLowerCase()
@@ -69,6 +82,7 @@ export class MailLetterService {
     private readonly states: LeadStateWriter,
     private readonly deals: OpportunityRepository,
     private readonly contracts: ContractRepository,
+    private readonly google: GoogleAccess,
   ) {}
 
   async preflight(
@@ -77,10 +91,16 @@ export class MailLetterService {
   ): Promise<MailGroupPreflightResponse> {
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
     const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
+    const sender = await this.senderFor(this.repo.readonlyHandle, who, new Date(), false)
     return MailGroupPreflightResponse.parse({
       recipients: judged.map(toRecipient),
       sendable: judged.filter((j) => !j.block).length,
       blocked: judged.filter((j) => j.block).length,
+      sender: {
+        transport: sender.transport,
+        address: sender.address,
+        remainingToday: sender.remainingToday,
+      },
     })
   }
 
@@ -90,7 +110,10 @@ export class MailLetterService {
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
     const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
     const first = (judged.find((j) => !j.block) ?? judged[0])?.contact
-    const frame = previewFrame(this.env)
+    /* The frame reads its identity from the env's MAS From — hand it the
+       sender this letter will really carry, so preview and send agree. */
+    const sender = await this.senderFor(this.repo.readonlyHandle, who, new Date(), false)
+    const frame = previewFrame({ ...this.env, PV_EMAIL_MAS_FROM: sender.displayFrom })
 
     const letter = await renderMasLetter({
       subject: body.subject,
@@ -151,14 +174,25 @@ export class MailLetterService {
         )
       }
 
+      const sender = await this.senderFor(tx, who, scheduledAt ?? new Date(), true)
+      const limit = this.env.PV_GMAIL_DAILY_ADDRESS_MAX
+      if (sender.usedToday !== null && sender.usedToday + addresses.length > limit) {
+        throw conflict(
+          `Hộp thư Gmail của bạn đã gửi tới ${sender.usedToday}/${limit} địa chỉ trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ ${scheduledAt ? 'quanh giờ hẹn gửi' : 'qua'} — thư này có ${addresses.length} địa chỉ, vượt giới hạn.`,
+        )
+      }
+
       const mailRunId = await this.runs.create(tx, {
         label: `${body.subjectCode} · ${template?.name ?? body.subject}`.slice(0, MAIL_NAME_MAX),
         templateCode: body.templateCode ?? null,
         subject: body.subject,
         body: body.body,
         cta: body.cta ?? null,
-        fromAddress: this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM,
-        replyTo: this.env.PV_EMAIL_MAS_REPLY_TO || null,
+        fromAddress: sender.displayFrom,
+        /* Gmail: no Reply-To — the customer answers the sender's own mailbox
+           (and `mail_run_gmail_group_plain` refuses anything else). */
+        replyTo: sender.transport === 'gmail' ? null : this.env.PV_EMAIL_MAS_REPLY_TO || null,
+        transport: sender.transport,
         ccAddresses: [SALES_INBOX],
         kind: 'group',
         bccCopyTo: null,
@@ -203,6 +237,32 @@ export class MailLetterService {
     })
 
     return reply(queued.mailRunId, queued.toCount, body.to.length, state)
+  }
+
+  /** The one answer to "whose mailbox": Gmail exactly when the actor's Google
+   *  link is `ready`, else the shared MAS identity as before. Preflight,
+   *  preview and send all ask here. `lock` (send only, inside its transaction)
+   *  queues this actor's sends so the allowance is read after the previous one. */
+  private async senderFor(handle: Db, who: Actor, at: Date, lock: boolean): Promise<Sender> {
+    const link = await this.google.mailReadiness(who.id)
+    if (link?.readiness !== 'ready') {
+      const displayFrom = this.env.PV_EMAIL_MAS_FROM || this.env.PV_EMAIL_FROM
+      return {
+        transport: 'resend',
+        address: senderOf(displayFrom, '').address,
+        displayFrom,
+        usedToday: null,
+        remainingToday: null,
+      }
+    }
+    const usedToday = await this.repo.gmailAddressesUsed(handle, who.id, at, lock)
+    return {
+      transport: 'gmail',
+      address: link.email,
+      displayFrom: `"${headerName(who.name)}" <${link.email}>`,
+      usedToday,
+      remainingToday: Math.max(0, this.env.PV_GMAIL_DAILY_ADDRESS_MAX - usedToday),
+    }
   }
 
   /** 404 for a subject that does not exist; 403 when the caller is outside the
@@ -287,6 +347,16 @@ export class MailLetterService {
     }
     return ids.map((id) => found.find((f) => f.id === id) as (typeof found)[number])
   }
+}
+
+/** A display name fit for a quoted header phrase: a newline would start a
+ *  header of its own, a quote or backslash would end the phrase early. Dropped
+ *  rather than escaped — the footer's `senderOf` reads this back unescaped. */
+function headerName(name: string): string {
+  return name
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/["\\]/g, '')
+    .trim()
 }
 
 /** To first, in pick order; a colleague already on the letter is not copied

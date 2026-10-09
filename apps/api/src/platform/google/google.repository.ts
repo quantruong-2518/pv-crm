@@ -19,7 +19,7 @@ export class GoogleRepository {
   }
 
   /** Reconnecting replaces the row: one link per actor (primary key). `scope`
-   *  is stored as a record; nothing reads it back — the callback checks it first. */
+   *  is read back by `mailReadinessOf` to tell whether Gmail was consented. */
   async save(values: GoogleLinkValues): Promise<void> {
     await this.db
       .insert(googleLink)

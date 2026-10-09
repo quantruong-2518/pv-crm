@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Modal, cn } from '@pv/ui'
 import {
@@ -14,23 +14,22 @@ import { MailFloatingAids } from '@/components/mail-compose-bits'
 import { MailGuideDrawer } from '@/components/mail-guide-drawer'
 import { mailHints } from '@/data/mail-hints'
 import { useLetterPreview, useLetterSend } from '@/data/mail-letters'
-import { doorDefault, doorTemplatesQuery } from '@/data/mas'
+import { doorTemplatesQuery } from '@/data/mas'
 import type { EventOffer } from '@/data/opportunities'
 import { LetterContentCard, LetterPreviewColumn } from './letter-content'
 import { LetterFooter } from './letter-footer'
+import { useLetterForm } from './letter-form-state'
 import {
-  EMPTY_FORM,
   letterBlocker,
   letterCta,
   letterReadyNote,
   letterWritten,
   queuedToast,
   withGroupHint,
-  withTemplate,
-  type LetterForm,
 } from './letter-model'
 import { RecipientPicker, RecipientsCard } from './letter-recipients'
 import { useLetterRecipients } from './letter-recipients-state'
+import { LetterSenderLine } from './letter-sender'
 
 /** An activity or the next quotation round, or the reason nothing is recorded;
  *  `primaryContact` is the deal's own addressee (contact code), seeded into To. */
@@ -63,8 +62,6 @@ export function LetterComposer({
   onClose: () => void
 }) {
   const [letterId] = useState(() => crypto.randomUUID())
-  const [form, setForm] = useState<LetterForm>(EMPTY_FORM)
-  const [seededTemplate, setSeededTemplate] = useState(false)
   const [picking, setPicking] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [failure, setFailure] = useState('')
@@ -75,15 +72,7 @@ export function LetterComposer({
   const { data: catalogue } = useQuery(doorTemplatesQuery(door))
   const send = useLetterSend()
   const templates = useMemo(() => (catalogue?.rows ?? []).filter((t) => t.active), [catalogue])
-
-  /* The door's default template, once, and only over a blank letter — a
-     refetch or a slow catalogue must not overwrite what somebody has typed. */
-  useEffect(() => {
-    if (seededTemplate || !catalogue) return
-    setSeededTemplate(true)
-    const preset = doorDefault(templates, door)
-    setForm((f) => (f.subject || f.body ? f : withTemplate(f, preset)))
-  }, [seededTemplate, catalogue, templates, door])
+  const { form, setForm, dirty } = useLetterForm(door, templates, catalogue !== undefined)
 
   const cta = letterCta(form)
   const ready = people.addressing !== null && letterWritten(form)
@@ -165,6 +154,7 @@ export function LetterComposer({
               Không đọc được danh bạ liên hệ của khách này — chưa thêm người nhận được.
             </p>
           )}
+          <LetterSenderLine sender={preflight.sender} dirty={dirty} />
           <RecipientsCard
             cells={cells}
             cc={cc}
@@ -181,6 +171,7 @@ export function LetterComposer({
             <LetterContentCard door={door} form={form} setForm={setForm} templates={templates} />
             <LetterPreviewColumn
               ready={ready}
+              transport={preflight.sender?.transport}
               letter={preview.letter}
               pending={preview.pending}
               error={preview.error}

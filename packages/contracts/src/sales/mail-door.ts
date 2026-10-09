@@ -42,6 +42,18 @@ export const MailSubjectKind = MailDoor.extract(['lead', 'opportunity', 'contrac
  *  swap it for another address. */
 export const SALES_INBOX = 'sales@pebblevina.com'
 
+/** Only mailboxes on this domain may send a group letter through Gmail; any
+ *  other linked account stays on the shared Resend sender. */
+export const COMPANY_MAIL_DOMAIN = 'pebblevina.com'
+
+/** Rolling window of the per-sender Gmail ceiling. One constant so the count
+ *  query, the refusal message and the composer line cannot drift apart. */
+export const MAIL_PERSONAL_WINDOW_HOURS = 24
+
+/** Which pipe a run leaves through, frozen on the run at send click so a later
+ *  link change can never silently change who the letter is from. */
+export const MailTransport = z.enum(['resend', 'gmail'])
+
 /** A door's tag set: unique, non-empty. Empty would make a template invisible
  *  in every picker while still `active` — retiring is `active: false`. */
 export const MailDoorSet = z
@@ -57,4 +69,5 @@ export const MailTemplateListQuery = z.object({
 
 export type MailDoor = z.infer<typeof MailDoor>
 export type MailSubjectKind = z.infer<typeof MailSubjectKind>
+export type MailTransport = z.infer<typeof MailTransport>
 export type MailTemplateListQuery = z.infer<typeof MailTemplateListQuery>

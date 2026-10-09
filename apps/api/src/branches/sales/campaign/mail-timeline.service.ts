@@ -9,6 +9,7 @@ import {
   type MailSubjectTimelineRow,
 } from '@pv/contracts'
 import { denied, notFound } from '@api/platform/http/problem'
+import { senderOf } from '@api/platform/mail/mas-letter'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
@@ -65,10 +66,18 @@ function toLine(who: Actor, row: SubjectLetterRead): MailSubjectTimelineRow {
     ...row.run_cc.map((email) => addressee(email, null)),
   ]
 
+  const state = stateOf(row)
+  const mailbox = senderOf(row.from_address, '').address
+  /* A thread id is per mailbox: only the creator's own Gmail can open it. */
+  const threadUrl =
+    mine && row.thread_id
+      ? `https://mail.google.com/mail/?authuser=${encodeURIComponent(mailbox)}#all/${row.thread_id}`
+      : null
+
   return {
     runId: row.run_id,
     subject: row.subject,
-    state: stateOf(row),
+    state,
     ...(scheduledAt ? { scheduledAt } : {}),
     ...(sentAt ? { sentAt } : {}),
     to,
@@ -76,7 +85,35 @@ function toLine(who: Actor, row: SubjectLetterRead): MailSubjectTimelineRow {
     createdBy: { actorId: row.created_by, name: row.created_by_name ?? row.created_by },
     mine,
     canEdit: mine && row.editable && !row.campaign_wave,
+    transport: row.transport,
+    fromAddress: mailbox,
+    threadUrl,
+    failureReason: failureOf(row, state),
   }
+}
+
+/** Codes whose stored summary was written for a person to read: the Gmail
+ *  driver's permanent refusals and the sweeper's bounce. */
+const READABLE: Record<string, true | undefined> = {
+  'gmail-unlinked': true,
+  'gmail-no-consent': true,
+  'gmail-rejected': true,
+  'gmail-unverified': true,
+  'gmail.bounced': true,
+}
+
+/** The reason a letter failed, for ANY viewer of the record — a whitelist on
+ *  the error code, because every other summary is a provider's sentence, an
+ *  exception message or an operator note. `gmail-unavailable` promises a retry
+ *  in its stored text, which is untrue once the delivery gave up: fixed words. */
+function failureOf(row: SubjectLetterRead, state: MailLetterState): string | null {
+  const gaveUp = row.delivery_state === 'dead' || FAILED[row.delivery_state]
+  const failed = state === 'BOUNCED' || state === 'SUPPRESSED' || (state === 'CANCELLED' && gaveUp)
+  if (!failed || row.transport !== 'gmail' || !row.error_code) return null
+  if (READABLE[row.error_code]) return row.error_summary
+  return row.error_code === 'gmail-unavailable' && gaveUp
+    ? 'Gmail không nhận thư sau nhiều lần thử — thư chưa được gửi.'
+    : null
 }
 
 const LEFT: Record<string, true | undefined> = { accepted: true, delayed: true, delivered: true }

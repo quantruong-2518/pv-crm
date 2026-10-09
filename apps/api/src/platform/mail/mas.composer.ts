@@ -158,6 +158,21 @@ export class MasMailComposer implements MailComposer {
       if (!seen.has(clean)) cc.push(clean)
       seen.add(clean)
     }
+    if (run.transport === 'gmail') {
+      /* The person's own mailbox: no Reply-To at all, so an answer lands in
+         their inbox and the thread sweep — not a plus-address — reads it.
+         `claim()` counts before the attempt, so 1 is the first try. */
+      return {
+        flow: 'personal',
+        senderActorId: run.createdBy,
+        replay: delivery.attemptCount > 1,
+        from: header(run.fromAddress),
+        to,
+        ...(cc.length > 0 ? { cc } : {}),
+        ...letter,
+        headers: { 'X-PV-Delivery': delivery.id },
+      }
+    }
     return {
       flow: 'mas',
       from: header(run.fromAddress),

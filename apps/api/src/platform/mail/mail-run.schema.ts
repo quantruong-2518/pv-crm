@@ -131,6 +131,11 @@ export const mailRun = platform.table(
      *  0065 was, so old writers stay valid without knowing the column. */
     kind: text('kind').$type<'bulk' | 'group'>().notNull().default('bulk'),
 
+    /** Which pipe the run leaves through, frozen at the send click: a `gmail`
+     *  run never falls back to Resend, that would change who the letter is
+     *  from. The default is what every run before 0096 was. */
+    transport: text('transport').$type<'resend' | 'gmail'>().notNull().default('resend'),
+
     /** The shared inbox that gets ONE copy of a bulk run, carried by its own
      *  `role = 'run_copy'` delivery rather than a BCC on recipient 1 — whose
      *  letter holds their own unsubscribe link and tracking Reply-To. */
@@ -204,6 +209,16 @@ export const mailRun = platform.table(
     check(
       'mail_run_group_plain',
       sql`${t.kind} = 'bulk' OR (${t.bccCopyTo} IS NULL AND NOT ${t.awaitsRelease})`,
+    ),
+    /** `MailTransport`, copied out by hand: a third pipe must be a migration
+     *  somebody reads. */
+    check('mail_run_transport_known', sql`${t.transport} IN ('resend', 'gmail')`),
+    /** Bulk mail stays on Resend, and a letter from a person's own mailbox is
+     *  answered there: a Reply-To would route the reply away from the thread
+     *  the sweep reads. One-way, so every pre-0096 run passes untouched. */
+    check(
+      'mail_run_gmail_group_plain',
+      sql`${t.transport} <> 'gmail' OR (${t.kind} = 'group' AND ${t.replyTo} IS NULL)`,
     ),
   ],
 )

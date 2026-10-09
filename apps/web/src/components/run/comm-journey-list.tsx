@@ -117,12 +117,20 @@ export function JourneyList({
                   <Icon icon={COMMS_CHANNEL_ICON[row.channel]} size={16} />
                   {COMMS_CHANNEL_LABEL[row.channel]}
                 </span>
+                {row.letter?.transport === 'gmail' && (
+                  <span className="text-muted-foreground">{row.letter.fromAddress}</span>
+                )}
                 {showCode && <span className="text-muted-foreground font-mono">{row.code}</span>}
                 <RowPill row={row} />
                 <CommLateMark late={row.late} />
                 <CommOverdueMark overdue={row.overdue} />
               </p>
               <Body row={row} open={openOf(row) || null} />
+              {row.letter?.failureReason && (
+                <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
+                  {row.letter.failureReason}
+                </p>
+              )}
               {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
             </div>
           </li>
