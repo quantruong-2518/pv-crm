@@ -107,7 +107,7 @@ this ADR is the one that describes the group letter's transport.
 - Every person relinks once.
 - Owed: the daily count shown in the composer is for "send now" and does not
   yet reflect a scheduled hour (the server still refuses correctly at send).
-- Not built: follow-up letters into the same thread; an MX check before
-  sending.
+- Not built: follow-up letters into the same thread. (The check of the
+  receiving domain before sending is ADR 0087.)
 - A thread stops being watched after its first reply, so a later bounce on
   that letter is not read.

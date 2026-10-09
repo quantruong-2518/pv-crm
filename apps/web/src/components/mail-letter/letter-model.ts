@@ -134,7 +134,10 @@ export function toCell(
   const block = verdict && !checking ? verdict.block : email ? undefined : 'NO_EMAIL'
   if (!block) return { code, name, line: email ?? '', ok: Boolean(verdict) && !checking }
   const why = block === 'NO_EMAIL' ? 'thiếu email' : MAS_RECIPIENT_BLOCK_LABEL[block].toLowerCase()
-  return { code, name, line: `${why} · không nhận`, flag: why, ok: false }
+  /* The one block the person can clear by correcting the address, so say that. */
+  const line =
+    block === 'UNDELIVERABLE' ? `${why} · kiểm tra lại địa chỉ email` : `${why} · không nhận`
+  return { code, name, line, flag: why, ok: false }
 }
 
 /** The default To: a deal letter's own primary contact (`OpportunityRow.primaryContact`),

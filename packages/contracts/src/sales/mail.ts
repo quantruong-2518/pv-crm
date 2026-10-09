@@ -281,7 +281,7 @@ export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
 
 /** Why a picked lead will NOT receive this run.
  *
- *  Four reasons, kept apart because they need four different actions from the
+ *  Five reasons, kept apart because they need different actions from the
  *  person about to press send:
  *
  *   · `EXITED`     — the lead has left the funnel (`sales.lead.exit_reason`).
@@ -296,9 +296,19 @@ export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
  *     this says which pick was folded into which, so a person is not left
  *     wondering why 40 leads produced 39 mails.
  *
- *  One combined "blocked" flag would leave all four looking identical on
- *  screen while only two of them are anybody's problem. */
-export const MasRecipientBlock = z.enum(['EXITED', 'SUPPRESSED', 'NO_EMAIL', 'DUPLICATE'])
+ *   · `UNDELIVERABLE` — the address's domain cannot receive mail (it does not
+ *     exist, or publishes that it accepts none). Usually a typo in the data:
+ *     fixable, and re-checked on every preflight, never stored.
+ *
+ *  One combined "blocked" flag would leave all five looking identical on
+ *  screen while only three of them are anybody's problem. */
+export const MasRecipientBlock = z.enum([
+  'EXITED',
+  'SUPPRESSED',
+  'NO_EMAIL',
+  'DUPLICATE',
+  'UNDELIVERABLE',
+])
 
 /** What each block reason is called. Same shared-label rule as
  *  `MAIL_RUN_STATE_LABEL` above — the preflight panel prints these, and so does
@@ -308,6 +318,7 @@ export const MAS_RECIPIENT_BLOCK_LABEL = {
   SUPPRESSED: 'Đã chặn',
   NO_EMAIL: 'Thiếu email',
   DUPLICATE: 'Trùng địa chỉ',
+  UNDELIVERABLE: 'Tên miền không nhận thư',
 } as const satisfies Record<z.infer<typeof MasRecipientBlock>, string>
 
 /** One picked lead, as the preflight sees it.

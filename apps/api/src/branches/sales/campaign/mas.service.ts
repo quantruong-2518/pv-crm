@@ -30,9 +30,11 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/mail/mail.contract'
+import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository, type MailRunUpdate } from '@api/platform/mail/mail-run.repository'
 import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
+import { deadNote, mailKey } from './mail-domain'
 import {
   MasRepository,
   type ExistingSequenceWave,
@@ -154,6 +156,7 @@ export class MasService {
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(ENV) private readonly env: Env,
     private readonly states: LeadStateWriter,
+    private readonly domains: MailDomainCheck,
   ) {}
 
   /** A dry run that writes nothing — not even a sequence number. */
@@ -166,7 +169,9 @@ export class MasService {
       body.audience.subjectType,
       codes,
     )
-    return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
+    return MasPreflightResponse.parse(
+      this.report(codes, this.decide(codes, rows, await this.deadOf(rows))),
+    )
   }
 
   /** The same verdict `send()` reaches, on the same terms — see `scopeFor`.
@@ -193,7 +198,9 @@ export class MasService {
       codes,
     )
 
-    return MasPreflightResponse.parse(this.report(codes, this.decide(codes, rows)))
+    return MasPreflightResponse.parse(
+      this.report(codes, this.decide(codes, rows, await this.deadOf(rows))),
+    )
   }
 
   /** The letter as it will actually look, rendered through the worker's own
@@ -321,6 +328,19 @@ export class MasService {
     const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null
     const state: MailRunState = scheduledAt ? 'SCHEDULED' : 'SENDING'
 
+    /* DNS before the transaction, never inside it — a lookup must not hold a
+       transaction open. An address that only appears in the re-read below
+       (the lead was edited in between) goes out without the domain check. */
+    const dead = await this.deadOf(
+      await this.repo.audience(
+        this.repo.readonlyHandle,
+        who,
+        scopeFor(campaignCode),
+        body.audience.subjectType,
+        codes,
+      ),
+    )
+
     const queued = await this.repo.run(async (tx) => {
       if (campaignCode !== undefined && !(await this.repo.campaignExists(tx, campaignCode))) {
         throw notFound('chiến dịch', campaignCode)
@@ -350,7 +370,7 @@ export class MasService {
         body.audience.subjectType,
         codes,
       )
-      const decided = this.decide(codes, rows)
+      const decided = this.decide(codes, rows, dead)
       const sendable = decided.filter(
         (d): d is { row: MasSubjectRow & { email: string } } =>
           d.block === undefined && d.row.email !== null,
@@ -438,7 +458,7 @@ export class MasService {
       await this.repo.writeRunNote(tx, {
         actorId: who.id,
         runId: mailRunId,
-        note: `tạo lô MAS · ${written} thư · ${body.label}`,
+        note: `tạo lô MAS · ${written} thư · ${body.label}${deadNote(decided.filter((d) => d.block === 'UNDELIVERABLE').length)}`,
       })
       return { mailRunId, written, waveNo, state }
     })
@@ -452,7 +472,7 @@ export class MasService {
          `MasSendResponse` exists to give a person, so they can see that 40
          picks became 37 letters without counting anything. It therefore
          measures against `body.audience.codes.length` and absorbs every reason
-         a pick produced no row: the three block reasons, a code repeated in the
+         a pick produced no row: every block reason, a code repeated in the
          list, a code naming nothing, and a row the scope axis cut. */
       skipped: picked.length - queued.written,
       state: queued.state,
@@ -844,7 +864,7 @@ export class MasService {
   /** WHO GETS A LETTER — the whole decision, in one pass over the picks.
    *
    *  ------------------------------------------------------------------
-   *  THE ORDER OF THE FOUR REASONS IS THE DECISION
+   *  THE ORDER OF THE REASONS IS THE DECISION
    *  ------------------------------------------------------------------
    *  A lead can fail more than one test, and `MasRecipient.block` holds one
    *  answer, so the order below is what the person reads:
@@ -864,14 +884,17 @@ export class MasService {
    *                      them looking for a mail nobody received. Two leads
    *                      sharing one suppressed address therefore BOTH read
    *                      `SUPPRESSED`, which is what actually happened.
-   *   4 · `DUPLICATE`  — a letter is going to this address; this pick was
+   *   4 · `UNDELIVERABLE` — the domain cannot receive mail (`dead`). Below
+   *                      `SUPPRESSED`, the permanent fact; above `DUPLICATE`
+   *                      for the same reason: no letter goes to that address.
+   *   5 · `DUPLICATE`  — a letter is going to this address; this pick was
    *                      folded into it.
    *
    *  ------------------------------------------------------------------
    *  AN EXITED LEAD DOES NOT CLAIM ITS ADDRESS EITHER
    *  ------------------------------------------------------------------
    *  `spokenFor` is only ever added to on the sendable branch, so a pick
-   *  blocked for ANY of the four reasons leaves the address free for the next
+   *  blocked for ANY of the reasons leaves the address free for the next
    *  pick that shares it. That matters most here: a dead lead and a live lead
    *  at the same company mailbox must not end with the live one reading
    *  `DUPLICATE` of a letter that was never written.
@@ -888,7 +911,11 @@ export class MasService {
    *  A code with no row is skipped entirely — it names no lead, or it names one
    *  the scope axis cut in SQL. Neither has a `MasRecipientBlock`, and inventing
    *  a row for the second would print a company name this caller may not read. */
-  private decide(codes: readonly string[], rows: readonly MasSubjectRow[]): Decided[] {
+  private decide(
+    codes: readonly string[],
+    rows: readonly MasSubjectRow[],
+    dead: ReadonlySet<string>,
+  ): Decided[] {
     const byCode = new Map(rows.map((row) => [row.code, row]))
     /* Addresses that already have a letter in this batch. Lower-cased for the
        same reason `email_delivery.recipient` is: `An@x.vn` and `an@x.vn` are
@@ -909,15 +936,23 @@ export class MasService {
           ? 'NO_EMAIL'
           : row.suppressed
             ? 'SUPPRESSED'
-            : spokenFor.has(address)
-              ? 'DUPLICATE'
-              : undefined
+            : dead.has(mailKey(address))
+              ? 'UNDELIVERABLE'
+              : spokenFor.has(address)
+                ? 'DUPLICATE'
+                : undefined
 
       if (block === undefined && address) spokenFor.add(address)
       out.push({ row, block })
     }
 
     return out
+  }
+
+  /** Addresses of this audience whose domain cannot receive mail: ONE lookup
+   *  per request, asked on a pool read and never inside a transaction. */
+  private deadOf(rows: readonly MasSubjectRow[]): Promise<Set<string>> {
+    return this.domains.undeliverable(rows.flatMap((row) => (row.email ? [row.email] : [])))
   }
 
   /** Rows AND counts — the redundancy `MasPreflightResponse` asks for on

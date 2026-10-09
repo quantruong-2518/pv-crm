@@ -27,12 +27,14 @@ import {
   type MailAddressIntent,
   type MailEnqueue,
 } from '@api/platform/mail/mail.contract'
+import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
 import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
+import { deadNote, mailKey } from './mail-domain'
 import {
   MailLetterRepository,
   type FiledLetter,
@@ -86,6 +88,7 @@ export class MailLetterService {
     private readonly deals: OpportunityRepository,
     private readonly contracts: ContractRepository,
     private readonly google: GoogleAccess,
+    private readonly domains: MailDomainCheck,
   ) {}
 
   async preflight(
@@ -93,7 +96,8 @@ export class MailLetterService {
     body: MailGroupPreflightRequest,
   ): Promise<MailGroupPreflightResponse> {
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
-    const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
+    const dead = await this.deadFor(subject, body.to)
+    const judged = await this.judge(this.repo.readonlyHandle, subject, body.to, dead)
     const own = await this.senderFor(this.repo.readonlyHandle, who, 'gmail', new Date(), false)
     return MailGroupPreflightResponse.parse({
       recipients: judged.map(toRecipient),
@@ -109,7 +113,9 @@ export class MailLetterService {
    *  one copy, one name. Blocked-only lists still preview, on the first pick. */
   async preview(who: Actor, body: MailGroupPreviewRequest): Promise<MasPreviewResponse> {
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
-    const judged = await this.judge(this.repo.readonlyHandle, subject, body.to)
+    /* No domain check here: the preview only picks a name, and a DNS wait on
+       every refresh of it is not worth that. Preflight and send keep it. */
+    const judged = await this.judge(this.repo.readonlyHandle, subject, body.to, new Set())
     const first = (judged.find((j) => !j.block) ?? judged[0])?.contact
     /* The frame reads its identity from the env's MAS From — hand it the
        sender this letter will really carry, so preview and send agree. An
@@ -167,8 +173,12 @@ export class MailLetterService {
       ? await this.mas.templateByCode(body.templateCode)
       : undefined
 
+    /* DNS before the transaction, never inside it. A contact whose address
+       changed between this read and the re-judge below is not domain-checked. */
+    const dead = await this.deadFor(subject, body.to)
+
     const queued = await this.repo.run(async (tx) => {
-      const judged = await this.judge(tx, subject, body.to)
+      const judged = await this.judge(tx, subject, body.to, dead)
       const to = judged.filter((j) => !j.block)
       const cc = await this.ccOf(tx, body.ccActorIds)
       const addresses = addressesOf(to, cc)
@@ -243,7 +253,7 @@ export class MailLetterService {
       await this.mas.writeRunNote(tx, {
         actorId: who.id,
         runId: mailRunId,
-        note: `tạo thư nhóm · ${subjectLabel(body.door)} ${body.subjectCode} · ${to.length} người nhận`,
+        note: `tạo thư nhóm · ${subjectLabel(body.door)} ${body.subjectCode} · ${to.length} người nhận${deadNote(judged.filter((j) => j.block === 'UNDELIVERABLE').length)}`,
       })
       return { mailRunId, toCount: to.length }
     })
@@ -324,6 +334,17 @@ export class MailLetterService {
     return subject
   }
 
+  /** The picked To addresses whose domain cannot receive mail: ONE lookup per
+   *  request, on a pool read, so no transaction ever waits on DNS. Only
+   *  contacts `judge` will accept — a code from another company costs no DNS.
+   *  Colleague CCs are company mailboxes and are not asked about. */
+  private async deadFor(subject: LetterSubject, codes: readonly string[]): Promise<Set<string>> {
+    const rows = await this.repo.contacts(this.repo.readonlyHandle, subject, codes)
+    return this.domains.undeliverable(
+      rows.flatMap((row) => (row.belongs && row.email ? [row.email] : [])),
+    )
+  }
+
   /** The verdict per To pick, in the order picked. A code outside the
    *  subject's company is refused outright — a code is not an address the
    *  client may choose freely. Reason order as `MasService.decide`. */
@@ -331,6 +352,7 @@ export class MailLetterService {
     handle: Db,
     subject: LetterSubject,
     codes: readonly string[],
+    dead: ReadonlySet<string>,
   ): Promise<Judged[]> {
     const rows = await this.repo.contacts(handle, subject, codes)
     const byCode = new Map(rows.map((row) => [row.code, row]))
@@ -349,9 +371,11 @@ export class MailLetterService {
         ? 'NO_EMAIL'
         : contact.suppressedReason
           ? 'SUPPRESSED'
-          : spokenFor.has(contact.email)
-            ? 'DUPLICATE'
-            : undefined
+          : dead.has(mailKey(contact.email))
+            ? 'UNDELIVERABLE'
+            : spokenFor.has(contact.email)
+              ? 'DUPLICATE'
+              : undefined
       if (!block && contact.email) spokenFor.add(contact.email)
       return { contact, block }
     })

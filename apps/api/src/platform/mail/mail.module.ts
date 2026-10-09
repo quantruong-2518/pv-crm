@@ -12,6 +12,7 @@ import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.cont
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
 import { MailRunRepository } from './mail-run.repository'
+import { MailDomainCheck } from './mail-domain-check'
 import { MailRunSweeper } from './mail-run.sweeper'
 import { MAIL_SENT_HOOK, type MailSentHook } from './mail-sent.hook'
 import { MasMailComposer } from './mas.composer'
@@ -74,6 +75,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
     MailRepository,
     MailRunRepository,
     MailRunSweeper,
+    MailDomainCheck,
     GmailSweepRepository,
     GmailThreadSweeper,
     MasMailComposer,
@@ -103,6 +105,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
     MAIL_PORT,
     MailRunRepository,
     MailRunSweeper,
+    MailDomainCheck,
     GmailThreadSweeper,
     MasMailComposer,
     /* For `MailConsumer`, which rings a dead letter through it. */
