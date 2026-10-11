@@ -58,7 +58,6 @@ export function ScoreStrip() {
       icon: Users,
       label: 'Tổng lead',
       value: count(data?.leads),
-      hint: 'Tổng số khách hàng tiềm năng',
       warn: zero(data?.leads),
     },
     {
@@ -250,7 +249,7 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
                 detail: `${lead.code} · ${lead.company}`,
               }),
             onError: (error) =>
-              toast(isApiError(error) ? userMessage(error) : 'Không giao được, vui lòng thử lại.', {
+              toast(isApiError(error) ? userMessage(error) : 'Không nhận được lead. Thử lại.', {
                 tone: 'danger',
               }),
           },

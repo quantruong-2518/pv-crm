@@ -38,8 +38,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignProfile }) {
       <GlassCard className="flex flex-col items-center gap-2 px-6 py-12 text-center">
         <h2 className="m-0 text-[14px] font-semibold">Hiệu quả chiến dịch</h2>
         <p className="text-muted-foreground m-0 max-w-[480px] text-pretty text-[12px] leading-[1.6]">
-          Chưa có thư nào được gửi đi. Biểu đồ hiệu quả, tỉ lệ bấm, bounce và rủi ro của chiến dịch
-          sẽ hiện tại đây sau khi đợt đầu tiên bắt đầu gửi.
+          Chưa gửi thư nào. Kết quả sẽ hiện sau khi đợt đầu bắt đầu gửi.
         </p>
       </GlassCard>
     )

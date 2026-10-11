@@ -49,8 +49,8 @@ export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
   ) : error || !rows ? (
     <EmptyState
       icon={TriangleAlert}
-      message={`Không đọc được phương án tiếp cận. ${
-        isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+      message={`Không tải được phương án tiếp cận. ${
+        isApiError(error) ? userMessage(error) : 'Thử lại.'
       }`}
       action={{ label: 'Thử lại', onClick: () => void refetch() }}
       className="py-12"
@@ -82,7 +82,7 @@ export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5" aria-label="Phương án tiếp cận">
-      <SectionTitle hint="Tên hiện ở ô chọn khi tạo lead, bật/tắt, và form hỏi gì tiếp sau khi chọn phương án. Đổi gì cũng thành một đề nghị chờ duyệt.">
+      <SectionTitle hint="Đổi gì cũng thành một đề nghị chờ duyệt.">
         Phương án tiếp cận
       </SectionTitle>
       {body}
@@ -203,7 +203,7 @@ function MotionPickerRow({ row }: { row: MotionPolicy }) {
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder={MOTION_LABEL[row.motion]}
-            aria-label={`Tên hiện — ${row.motion}`}
+            aria-label={`Tên hiện: ${row.motion}`}
             className="pointer-coarse:h-12"
           />
         </MotionCell>
@@ -215,7 +215,7 @@ function MotionPickerRow({ row }: { row: MotionPolicy }) {
         />
         <MotionCell label="Hỏi gì sau khi chọn">
           <SegmentedControl
-            label={`Hỏi gì sau khi chọn — ${row.motion}`}
+            label={`Hỏi gì sau khi chọn: ${row.motion}`}
             hideLabel
             value={asks}
             options={MotionAsks.options.map((a) => ({ value: a, label: MOTION_ASKS_LABEL[a] }))}

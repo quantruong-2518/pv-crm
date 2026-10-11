@@ -78,7 +78,7 @@ export function AddPartnerModal({ open, onClose }: { open: boolean; onClose: () 
       open={open}
       onClose={onClose}
       title="Thêm đối tác"
-      subtitle="Chọn người đã có trong sổ liên hệ — đại lý, khách cũ, người quen. Mã đối tác do hệ thống cấp."
+      subtitle="Chọn người trong sổ liên hệ. Mã đối tác được cấp tự động."
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           {failed(create.error) && (
@@ -120,7 +120,7 @@ function KindField({ value, onChange }: { value: string; onChange: (id: string) 
         emptyLabel="— chọn loại —"
       />
       <span className="text-muted-foreground text-[11px] leading-[1.5]">
-        Chỉ nguồn thuộc phương án hỏi mã giới thiệu. Thiếu loại thì thêm ở trang Nguồn lead.
+        Thiếu loại thì thêm ở trang Nguồn lead.
       </span>
     </div>
   )
@@ -210,10 +210,7 @@ function EditPartnerBody({ partner }: { partner: Partner }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionTitle
-          size="sm"
-          hint="Ẩn thì đối tác thôi hiện ở ô chọn. Lead đã mang mã này giữ nguyên."
-        >
+        <SectionTitle size="sm" hint="Đối tác ẩn không hiện trong ô chọn.">
           {partner.active ? 'Ẩn đối tác' : 'Hiện lại đối tác'}
         </SectionTitle>
         <div>

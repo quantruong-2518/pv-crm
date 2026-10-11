@@ -106,7 +106,7 @@ export function UserStatusCell({ user }: { user: UserRow }) {
         /* Luật 6 — một ngày nằm trong cột bảng là "số bảng": chữ số phải đều
            bề rộng, nếu không cột lệch khi cuộn qua nhiều dòng đang khoá. */
         className="tnum"
-        title={`Khoá từ ${dmy(user.disabledAt)}. Mọi phiên đang mở của tài khoản này đã bị cắt.`}
+        title={`Khoá từ ${dmy(user.disabledAt)}.`}
       >
         Đang khoá · {dm(user.disabledAt)}
       </Badge>
@@ -122,7 +122,7 @@ export function UserStatusCell({ user }: { user: UserRow }) {
       <Badge
         tone="warning"
         className="tnum"
-        title={`Đặt lại mật khẩu mặc định ${dmy(user.mustChangePasswordAt)}. Người này đăng nhập được nhưng chỉ mở được màn đổi mật khẩu, cho tới khi họ đặt mật khẩu riêng.`}
+        title={`Đặt lại mật khẩu mặc định ${dmy(user.mustChangePasswordAt)}. Người này phải đổi mật khẩu mới dùng được.`}
       >
         Chờ đổi mật khẩu · {dm(user.mustChangePasswordAt)}
       </Badge>
@@ -130,14 +130,7 @@ export function UserStatusCell({ user }: { user: UserRow }) {
   }
 
   if (!user.passwordSet) {
-    return (
-      <Badge
-        tone="warning"
-        title="Tài khoản đã mở nhưng chủ nhân chưa đặt mật khẩu — gửi thư đặt mật khẩu trong panel."
-      >
-        Chờ đặt mật khẩu
-      </Badge>
-    )
+    return <Badge tone="warning">Chờ đặt mật khẩu</Badge>
   }
 
   return (
@@ -288,7 +281,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             row.disabledAt === null ? 'Đã mở khoá tài khoản' : 'Đã khoá tài khoản',
             row.disabledAt === null
               ? `${row.name} đăng nhập lại được ngay.`
-              : `${row.name} không đăng nhập được nữa, mọi phiên đang mở đã bị cắt.`,
+              : `${row.name} không đăng nhập được nữa.`,
           )
         },
         onError: (error) => setFailure(userMessage(error)),
@@ -308,7 +301,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
       onSuccess: (row) => {
         toastDone(
           'Đã đặt lại mật khẩu mặc định',
-          `${row.name} phải đổi mật khẩu ngay lần đăng nhập tới, và mọi phiên đang mở đã bị cắt.`,
+          `${row.name} bị đăng xuất và phải đổi mật khẩu khi đăng nhập lại.`,
         )
       },
       onError: (error) => setFailure(userMessage(error)),
@@ -331,10 +324,10 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           return
         }
         if (view.sent) {
-          toastDone('Đã xếp hàng thư đặt mật khẩu', `Thư đi tới ${user.email} sau vài chục giây.`)
+          toastDone('Đang gửi thư đặt mật khẩu', `Thư tới ${user.email} sau vài chục giây.`)
           return
         }
-        setFailure('Máy chủ không gửi được thư và cũng không trả về đường dẫn. Thử lại sau.')
+        setFailure('Không gửi được thư. Thử lại sau.')
       },
       onError: (error) => setFailure(userMessage(error)),
     })
@@ -385,8 +378,8 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
       title={user ? `Sửa ${user.name}` : 'Thêm người'}
       subtitle={
         user
-          ? 'Sửa vai, nhánh và phạm vi. Hòm thư thì không — đổi hòm thư là đổi người nhận link đặt lại mật khẩu.'
-          : 'Tài khoản mở ra chưa có mật khẩu. Thư đặt mật khẩu là đường vào duy nhất, và gửi được ngay sau khi lưu.'
+          ? 'Sửa vai, nhánh và phạm vi. Hòm thư không sửa được.'
+          : 'Sau khi lưu, gửi thư đặt mật khẩu để người này vào được.'
       }
       /* The badge reads `lockedAt`, not `user.disabledAt`: the lock button can
          flip it while the panel stays open, and a header still saying "Đang
@@ -460,7 +453,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           <FormField
             label="Họ tên"
             errors={errors.name}
-            hint="Tên này hiện ở cột Lead PIC, ở dòng ghi vết và trong thư gửi đi."
+            hint="Tên hiện ở cột Lead PIC, nhật ký và thư gửi đi."
           >
             <Input
               value={name}
@@ -479,8 +472,8 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             errors={errors.email}
             hint={
               mailboxFrozen
-                ? 'Không sửa được. Hòm thư là nơi nhận link đặt lại mật khẩu, nên đổi nó là đổi ai vào được tài khoản này — khoá tài khoản cũ rồi mời địa chỉ mới là đường có để lại vết.'
-                : 'Hòm thư công ty. Thư đặt mật khẩu đi tới đây, và mọi hệ khác khoá theo địa chỉ này chứ không theo tên.'
+                ? 'Không sửa được. Muốn đổi hòm thư, hãy khoá tài khoản này rồi mời địa chỉ mới.'
+                : 'Hòm thư công ty. Thư đặt mật khẩu gửi tới đây.'
             }
           >
             <Input
@@ -511,7 +504,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           <FormField
             label="Nhãn vai"
             errors={errors.role}
-            hint="Chữ hiện trên màn — kèm ngành nếu có (“Sale · chip”). Không quyết định quyền."
+            hint="Chữ hiện trên màn, kèm ngành nếu có (“Sale · chip”)."
           >
             <Input
               value={roleLabel}
@@ -532,7 +525,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             hint={
               isMe
                 ? 'Không tự đổi vai của chính mình.'
-                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào; Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị này.'
+                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào.'
             }
           >
             {isMe ? (
@@ -565,8 +558,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         <section className="flex flex-col gap-3">
           <Kicker>Nhánh</Kicker>
           <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-            Nhánh là license của công ty, không phải quyền của vai: không có nhánh thì màn của nhánh
-            đó đóng, dù vai có quyền gì đi nữa.
+            Chỉ mở được màn của nhánh đã chọn.
           </p>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -576,11 +568,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                 checked={branches.includes(branch)}
                 disabled={branch === CORE_BRANCH}
                 label={branch}
-                hint={
-                  branch === CORE_BRANCH
-                    ? 'Bắt buộc — không có One thì không có trang chủ'
-                    : undefined
-                }
+                hint={branch === CORE_BRANCH ? 'Bắt buộc' : undefined}
                 onChange={(on) => toggleBranch(branch, on)}
               />
             ))}
@@ -650,10 +638,10 @@ function LockButton({
   onClick: () => void
 }) {
   const why = isMe
-    ? 'Không tự khoá tài khoản của chính mình — máy chủ cũng từ chối. Nhờ Giám đốc hoặc một Trưởng phòng khác.'
+    ? 'Không tự khoá tài khoản của chính mình. Nhờ Giám đốc hoặc một Trưởng phòng khác.'
     : locked
       ? 'Mở lại quyền đăng nhập cho tài khoản này.'
-      : 'Cắt quyền đăng nhập và kết thúc mọi phiên đang mở của tài khoản này.'
+      : 'Chặn đăng nhập và đăng xuất tài khoản này ngay.'
 
   return (
     <span title={why}>
@@ -695,8 +683,8 @@ function ResetPasswordButton({
   onClick: () => void
 }) {
   const why = isMe
-    ? 'Không tự đặt lại mật khẩu của chính mình ở đây — máy chủ cũng từ chối. Dùng màn đổi mật khẩu.'
-    : 'Đặt lại về mật khẩu mặc định và bắt người này đổi ngay lần đăng nhập tới. Mọi phiên đang mở bị cắt. Dùng khi hòm thư không tới được; bình thường thì gửi thư đặt mật khẩu.'
+    ? 'Không tự đặt lại mật khẩu của chính mình. Dùng màn đổi mật khẩu.'
+    : 'Đặt lại về mật khẩu mặc định và đăng xuất người này. Người này phải đổi mật khẩu ở lần đăng nhập tới. Dùng khi hòm thư không nhận được thư.'
 
   return (
     <span title={why}>
@@ -722,8 +710,8 @@ function InviteLink({ link, onCopy }: { link: string; onCopy: () => void }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-warning text-[11.5px] leading-[1.6]">
-        Cửa gửi thư của máy này đang đóng, nên không lá thư nào rời máy được. Chép đường dẫn dưới
-        đây và đưa tận tay người nhận — nó đặt được mật khẩu, ai giữ nó là vào được tài khoản.
+        Chưa gửi thư được. Chép đường dẫn dưới đây và đưa tận tay người nhận. Ai có đường dẫn này là
+        đặt được mật khẩu của tài khoản.
       </span>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Input

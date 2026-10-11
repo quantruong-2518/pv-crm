@@ -88,7 +88,7 @@ export function OwnersSection({
             onPick={(id) => onSet('bdOwners', toggled(draft.bdOwners, id))}
             onRemove={(id) => !locked && onSet('bdOwners', toggled(draft.bdOwners, id))}
             hint={locked ? 'không bỏ được khi chỉ còn bạn chịu trách nhiệm' : undefined}
-            emptyNote="Cả phòng đã có trong danh sách này."
+            emptyNote="Không còn ai để thêm."
           />
           {errors.bdOwners && <Refusal text={errors.bdOwners.join(' · ')} />}
         </Lane>
@@ -98,7 +98,7 @@ export function OwnersSection({
             variant="inline"
             label="Sale đứng đơn"
             placeholder={
-              canAccept ? 'Gõ tên Sale để tìm…' : 'Để trống — trưởng phòng giao khi Nhận PIC'
+              canAccept ? 'Gõ tên Sale để tìm…' : 'Để trống, trưởng phòng giao khi Nhận PIC'
             }
             tokens={draft.saleOwners.map((id) => ({ id, name: byId(id)?.name ?? id }))}
             suggestions={people
@@ -178,7 +178,7 @@ export function AfterCreate({
         Bảng lượt bán: thẻ {card} chuyển sang cơ hội · {OPPORTUNITY_STAGE_LABEL[born]}.
         {!canAccept &&
           limitDays !== null &&
-          ` Hạn Nhận PIC là hạn cột Khởi tạo ở Thiết lập (${limitDays} ngày) — quá hạn thì thẻ hiện trễ.`}
+          ` Hạn Nhận PIC là ${limitDays} ngày, quá hạn thì thẻ hiện trễ.`}
       </p>
     </div>
   )

@@ -119,8 +119,7 @@ export function ProfileFields({
               emptyLabel="Chưa gán"
             />
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Lead mới gắn vào chiến dịch này qua phương án hỏi chiến dịch mang nguồn này; lead đã
-              vào sổ giữ nguồn cũ.
+              Chỉ áp dụng cho lead mới.
             </span>
           </div>
           <label className="flex flex-col gap-2 sm:max-w-[240px]">
@@ -129,7 +128,7 @@ export function ProfileFields({
             </span>
             <Input type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Qua ngày này, chiến dịch thôi hiện ở ô chọn chiến dịch khi tạo lead.
+              Sau ngày này, chiến dịch không còn để chọn khi tạo lead.
             </span>
           </label>
         </div>
@@ -170,9 +169,7 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-muted-foreground text-[11px]">
-        Thumbnail — dán URL ảnh (không bắt buộc)
-      </span>
+      <span className="text-muted-foreground text-[11px]">Link ảnh (không bắt buộc)</span>
       <Input
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -181,8 +178,8 @@ function ThumbnailField({ value, onChange }: { value: string; onChange: (v: stri
 
       <ThumbnailPreview
         url={settled}
-        empty="Chưa có ảnh. Dán link ảnh trực tiếp để xem trước ngay tại đây."
-        broken="Không tải được ảnh từ địa chỉ này — cần link ảnh trực tiếp (kết thúc .jpg, .png, .webp), không phải link trang chia sẻ."
+        empty="Chưa có ảnh."
+        broken="Không tải được ảnh. Cần link ảnh trực tiếp, đuôi .jpg, .png hoặc .webp."
       />
     </div>
   )
@@ -301,14 +298,14 @@ export function CampaignCreateModal({
         onSuccess: (row) => {
           toast(`Đã mở chiến dịch ${row.code}`, {
             tone: 'success',
-            detail: 'Chiến dịch đang là bản nháp — thêm người nhận rồi gửi đợt đầu trong hồ sơ.',
+            detail: 'Chiến dịch đang nháp. Thêm người nhận để gửi đợt đầu.',
           })
           onCreated(row.code)
         },
         onError: (err) =>
           toast('Không tạo được chiến dịch', {
             tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
           }),
       },
     )
@@ -319,13 +316,11 @@ export function CampaignCreateModal({
       open={open}
       onClose={onClose}
       title="Chiến dịch mới"
-      subtitle="Bảy ô này mở một chiến dịch nháp. Chưa lá thư nào rời máy ở bước này."
+      subtitle="Chưa gửi thư nào ở bước này."
       footer={
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-4">
           <span className="text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]">
-            {name === ''
-              ? 'Cần ít nhất tên chiến dịch.'
-              : 'Tạo xong sẽ mở thẳng hồ sơ để gom người nhận.'}
+            {name === '' ? 'Cần nhập tên chiến dịch.' : 'Tạo xong sẽ mở hồ sơ chiến dịch.'}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="lg" variant="ghost" onClick={onClose} disabled={create.isPending}>
@@ -438,7 +433,7 @@ export function ProfileDrawer({
       onError: (err) =>
         toast('Không lưu được', {
           tone: 'danger',
-          detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+          detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
         }),
     })
   }

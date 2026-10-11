@@ -174,7 +174,7 @@ function buildProposals(): PlanProposal[] {
     const value = rotting.reduce((sum, d) => sum + d.amount, 0)
     out.push({
       id: 'rotting-deals',
-      suggestion: `Đưa ${HEAD_OF_SALES} vào cuộc với ${rotting.length} đơn đang mục, bắt đầu từ ${head.map((d) => d.code).join(' và ')} — hai đơn nằm cột lâu nhất.`,
+      suggestion: `Đưa ${HEAD_OF_SALES} vào xử lý ${rotting.length} đơn quá hạn cột. Bắt đầu từ ${head.map((d) => d.code).join(' và ')}.`,
       basis: `${rotting.length}/${OPEN_DEALS.length} đơn quá hạn cột · ${billions(value)} đang treo · ${head.map(overdueLine).join(' · ')}`,
       owner: HEAD_OF_SALES,
       codes: head.map((d) => d.code),
@@ -188,8 +188,8 @@ function buildProposals(): PlanProposal[] {
   if (top && top.count > 0) {
     out.push({
       id: 'touch-earlier',
-      suggestion: `Cho agent 1 chạm sớm hơn ở bậc Đầu mối — lý do rơi lớn nhất của kỳ vẫn là "${top.label}".`,
-      basis: `${top.count}/${exitedTotal} lead rơi vì lý do này · ${top.atFirstTier}/${top.count} rơi ngay ở bậc Đầu mối · trung bình mới điền ${avg(top.filledSum, top.count)} trên ${REQUIRED_SLOTS} ô bắt buộc`,
+      suggestion: `Cho agent 1 liên hệ sớm hơn ở bậc Đầu mối. Lý do ra khỏi luồng nhiều nhất của kỳ là "${top.label}".`,
+      basis: `${top.count}/${exitedTotal} lead ra khỏi luồng vì lý do này · ${top.atFirstTier}/${top.count} ra ngay ở bậc Đầu mối · trung bình mới điền ${avg(top.filledSum, top.count)} trên ${REQUIRED_SLOTS} ô bắt buộc`,
       owner: MARKETING,
       codes: top.codes.slice(0, 2),
       confirmLabel: 'Thêm vào kế hoạch',
@@ -220,11 +220,11 @@ function buildProposals(): PlanProposal[] {
     out.push({
       id: 'shift-budget',
       suggestion: gap
-        ? `Dồn ngân sách sang ${gap.cheap.code} và cắt ${gap.dear.code} — ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`
-        : `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để dày mẫu số — chưa nguồn nào chứng minh được là rẻ hơn nguồn nào.`,
+        ? `Dồn ngân sách sang ${gap.cheap.code}, cắt ${gap.dear.code}. ${gap.dear.code} đắt hơn ít nhất ${gap.timesText} lần mỗi lead tốt.`
+        : `Giữ nguyên ngân sách của ${cheap.code} và ${dear.code} tháng tới, chạy thêm đợt để có thêm dữ liệu. Chưa nguồn nào chứng minh được là rẻ hơn.`,
       basis: gap
-        ? `${bands} · hai dải RỜI NHAU, nên bội số lấy từ hai đầu gần nhau nhất (${millions(gap.dear.band.lo)} chia ${millions(gap.cheap.band.hi ?? 0)}) chứ không phải từ hai điểm`
-        : `${bands} · hai dải CHỒNG NHAU, nên không có bội số nào đứng vững — tỉ số hai điểm ở đây là một con số không ai kiểm được`,
+        ? `${bands} · hai dải không chồng nhau, bội số tính từ hai đầu gần nhau nhất (${millions(gap.dear.band.lo)} chia ${millions(gap.cheap.band.hi ?? 0)})`
+        : `${bands} · hai dải chồng nhau, chưa tính được bội số`,
       owner: MARKETING,
       codes: [cheap.code, dear.code],
       confirmLabel: 'Thêm vào kế hoạch',
@@ -294,8 +294,8 @@ function buildStats(): { stats: PlanStat[]; statsNote: string } {
        khẳng định quan hệ tập hợp từ hai phép đếm là kiểu bịa dữ liệu tinh vi
        nhất, vì nó đúng cho tới ngày fixture đổi. */
     statsNote: sameChokepoint
-      ? `Hai ô đầu đếm cùng một chỗ tắc từ hai sổ khác nhau: SLA chỉ đo bậc SQL, mà hạn của bậc SQL nằm đúng ở cột của sổ cơ hội. Đối chiếu theo mã đơn thì ${overSla.length} lead quá SLA ở trên đúng là ${rotting.length} đơn đang mục — một vấn đề, không phải hai.`
-      : `Hai ô đầu đo hai chỗ khác nhau: ${overSla.length} lead quá SLA và ${rotting.length} đơn đang mục KHÔNG trùng nhau theo mã đơn, nên đừng cộng gộp hay coi là một.`,
+      ? `Hai ô đầu cùng đếm một chỗ tắc: ${overSla.length} lead quá SLA chính là ${rotting.length} đơn đang mục.`
+      : `Hai ô đầu đo hai chỗ khác nhau: ${overSla.length} lead quá SLA và ${rotting.length} đơn đang mục không trùng mã đơn.`,
   }
 }
 
@@ -318,12 +318,12 @@ function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingCl
   const gap = cheap && dear && cheap.code !== dear.code ? costGap(cheap, dear) : null
 
   const note = [
-    `${ranked.length} nguồn có tiêu tiền, rẻ nhất lên đầu theo ĐIỂM — dải bên cạnh mới là thứ quyết được việc.`,
+    `${ranked.length} nguồn có tiêu tiền, xếp rẻ nhất lên đầu. Xem dải bên cạnh khi so sánh.`,
     cashless.length > 0
-      ? `${cashless.map((r) => r.code).join(' và ')} không tốn đồng tiền mặt nào nên đứng ngoài bảng so giá: một bảng có chúng thì nguồn rẻ nhất vĩnh viễn là thứ không mua thêm được bằng ngân sách.`
+      ? `${cashless.map((r) => r.code).join(' và ')} không tốn tiền mặt nên không có trong bảng so giá.`
       : '',
     thin.length > 0
-      ? `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')} — dải vẫn hiện, nhưng không câu so sánh nào được dựa vào ${thin.length > 1 ? 'chúng' : 'nó'}.`
+      ? `${thin.map((r) => `${r.code} (${r.why})`).join(' · ')}: chưa đủ để so sánh.`
       : '',
   ]
     .filter(Boolean)
@@ -333,10 +333,10 @@ function buildRanking(): { ranking: SourceCost[]; rankingNote: string; rankingCl
     ranking: ranked,
     rankingNote: note,
     rankingClaim: gap
-      ? `Câu so sánh giữa hai đầu bảng: ${gap.cheap.code} rẻ hơn ${gap.dear.code} ít nhất ${gap.timesText} lần mỗi lead tốt, vì dải ${bandText(gap.cheap.band)} và dải ${bandText(gap.dear.band)} rời hẳn nhau.`
+      ? `${gap.cheap.code} rẻ hơn ${gap.dear.code} ít nhất ${gap.timesText} lần mỗi lead tốt. Dải ${bandText(gap.cheap.band)} và dải ${bandText(gap.dear.band)} không chồng nhau.`
       : cheap && dear
-        ? `Chưa câu so sánh nào đứng vững trên bảng này: dải của ${cheap.code} (${bandText(cheap.band)}) và dải của ${dear.code} (${bandText(dear.band)}) còn chồng nhau, nên hai đầu bảng chưa phân biệt được với nhau.`
-        : 'Chưa nguồn nào tiêu tiền trong kỳ, nên chưa có gì để so.',
+        ? `Chưa so sánh được hai đầu bảng: dải của ${cheap.code} (${bandText(cheap.band)}) và dải của ${dear.code} (${bandText(dear.band)}) chồng nhau.`
+        : 'Kỳ này chưa nguồn nào tiêu tiền.',
   }
 }
 

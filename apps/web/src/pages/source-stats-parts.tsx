@@ -118,7 +118,7 @@ export function SourceStatsBlock() {
   return (
     <GlassCard variant="b" aria-label="Hiệu quả theo nguồn lead">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-        <SectionTitle hint="Chọn một dòng để xem chi tiết theo từng cấp · Tỷ lệ = Hợp đồng / Tổng lead">
+        <SectionTitle hint="Chọn một dòng để xem chi tiết. Tỷ lệ = Hợp đồng / Tổng lead.">
           Hiệu quả theo nguồn lead
         </SectionTitle>
         <Select
@@ -140,7 +140,7 @@ export function SourceStatsBlock() {
           <EmptyState
             icon={TriangleAlert}
             message={`Không tải được số liệu hiệu quả theo nguồn lead. ${
-              isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+              isApiError(error) ? userMessage(error) : 'Thử lại.'
             }`}
             action={{ label: 'Thử lại', onClick: () => void refetch() }}
             className="py-12"

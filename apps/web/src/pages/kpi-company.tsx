@@ -75,7 +75,7 @@ export function KpiCompanyPage() {
           <section className="flex flex-col gap-3">
             <SectionTitle
               size="lg"
-              hint="Một người gửi đề nghị, một người khác duyệt. Chỉ tiêu đã duyệt muốn đổi thì gửi đề nghị mới; hệ thống lưu thành phiên bản mới."
+              hint="Một người gửi đề nghị, người khác duyệt. Muốn đổi chỉ tiêu đã duyệt, gửi đề nghị mới."
             >
               Chỉ tiêu theo vai trò
             </SectionTitle>
@@ -83,9 +83,7 @@ export function KpiCompanyPage() {
               {(data) => (
                 <>
                   {data.closed && (
-                    <p className={NOTE}>
-                      Tháng đã kết thúc nên chỉ tiêu của tháng không còn thay đổi.
-                    </p>
+                    <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
                   )}
                   {data.roles.map((entry) => (
                     <RoleTargets

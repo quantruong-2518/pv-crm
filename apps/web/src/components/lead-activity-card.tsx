@@ -11,9 +11,7 @@ export function LeadActivityCard() {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Hoạt động">
       <SectionTitle size="detail">Hoạt động</SectionTitle>
-      <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Lịch họp, email và dòng thời gian có sau khi tạo lead.
-      </p>
+      <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">Có sau khi tạo lead.</p>
     </GlassCard>
   )
 }

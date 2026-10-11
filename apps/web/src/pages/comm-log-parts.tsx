@@ -139,7 +139,7 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
   if (!canRead) {
     return (
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Vai của bạn không mở được sổ lượt bán, nên không chọn được lượt để ghi liên hệ.
+        Vai của bạn không xem được sổ lượt bán.
       </p>
     )
   }
@@ -156,7 +156,7 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
         <Skeleton className="h-24 w-full" />
       ) : error ? (
         <p role="alert" className="text-warning m-0 text-[12px]">
-          {isApiError(error) ? userMessage(error) : 'Không đọc được sổ lượt bán.'}
+          {isApiError(error) ? userMessage(error) : 'Không tải được sổ lượt bán.'}
         </p>
       ) : data.rows.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12.5px]">

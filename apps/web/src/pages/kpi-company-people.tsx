@@ -122,7 +122,7 @@ export function AttentionBlock({ people }: { people: readonly KpiPerson[] }) {
       {unjudged > 0 && (
         <p className="px-5 text-[12.5px] leading-5">
           <span className={FIGURE}>{num(unjudged)}</span> vai trò chưa có chỉ tiêu được duyệt trong
-          tháng này, nên chưa đánh giá được chỉ số của các vai trò đó.
+          tháng này.
         </p>
       )}
       {rows.length > 0 && <PeopleRows rows={rows} full={false} />}

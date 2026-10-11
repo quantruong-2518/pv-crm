@@ -60,11 +60,11 @@ export function NotDoing() {
   const items = [
     {
       title: 'Không có bảng lead trên màn này',
-      body: 'Lead thuộc module 2. Cùng một dòng lead mà thao tác được ở hai màn thì không màn nào là nơi đúng để tra. Ở đây còn đúng một con số và một lối sang Sổ lead.',
+      body: 'Danh sách lead xem ở Sổ lead. Ở đây chỉ có số tổng.',
     },
     {
       title: 'Không vẽ đường theo thời gian',
-      body: `Kịch bản là một lát cắt đóng băng ${dm(DAS_VINA_FROZEN_AT)}. Dựng trục tháng-quý là phải đẻ số không ai ký.`,
+      body: `Số liệu chốt ngày ${dm(DAS_VINA_FROZEN_AT)}, chưa có số theo tháng hay quý.`,
     },
   ]
 
@@ -241,11 +241,7 @@ function StepAudience({
           người dùng rằng nó chờ một đoạn văn, và mắt phải đi hết bề ngang mới
           biết mình gõ tới đâu. */}
       <div className="max-w-2xl">
-        <Field
-          label="Tên chiến dịch"
-          required
-          hint="Tên này hiện trong sổ và trong báo cáo — đặt sao cho ba tháng nữa đọc lại vẫn biết nó là cái gì."
-        >
+        <Field label="Tên chiến dịch" required>
           <Input
             value={draft.name}
             aria-required
@@ -304,8 +300,7 @@ function StepAudience({
         {members.length === 0 ? (
           <p className="text-warning flex items-start gap-2 text-[11.5px] leading-[1.5]">
             <Icon icon={TriangleAlert} size={16} />
-            Không ai khớp ba điều kiện này cùng lúc. Bỏ bớt một hàng chip là danh sách có người trở
-            lại.
+            Không ai khớp cả ba điều kiện. Bỏ bớt một điều kiện để có người nhận.
           </p>
         ) : (
           <div className="flex flex-col gap-2">
@@ -438,13 +433,12 @@ function WaveCard({
       {sendsViaE4(wave.channel) ? (
         <span className="text-muted-foreground flex items-start gap-2 text-[11px] leading-[1.5]">
           <Icon icon={Send} size={16} />
-          Hệ gửi đợt này · nhật ký gửi và luật chống trùng người nhận do hệ giữ
+          Gửi tự động, có nhật ký gửi và chống trùng người nhận
         </span>
       ) : (
         <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
           <Icon icon={TriangleAlert} size={16} />
-          Hệ chưa nối đường gửi cho {CHANNEL_LABEL[wave.channel]} — hệ giữ lịch và nhắc, người tự
-          đăng bài rồi nhập số về.
+          Chưa gửi tự động qua {CHANNEL_LABEL[wave.channel]}. Bạn đăng bài rồi nhập số liệu về.
         </span>
       )}
 
@@ -508,17 +502,14 @@ function WaveCard({
         </div>
         {wave.sendNow ? (
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            "Gửi ngay" là ngay khi bạn bấm <b className="text-foreground">Bắt đầu chạy</b> — lưu
-            nháp thì chưa có mail nào đi.
+            "Gửi ngay" tính từ lúc bạn bấm <b className="text-foreground">Bắt đầu chạy</b>. Lưu nháp
+            thì chưa gửi mail nào.
           </span>
         ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
-        <Field
-          label="Kỳ vọng bao nhiêu lead"
-          hint="Không bắt buộc. Để 0 nghĩa là chưa đặt, và sau này màn ghi 'chưa đặt kỳ vọng' chứ không ghi 'hụt'."
-        >
+        <Field label="Kỳ vọng bao nhiêu lead" hint="Không bắt buộc. Để 0 nếu chưa đặt kỳ vọng.">
           <Input
             value={String(wave.expected)}
             inputMode="numeric"
@@ -540,12 +531,12 @@ function WaveCard({
               value={wave.content}
               onChange={(html) => onPatch({ content: html })}
               label={`Nội dung mail của đợt ${index + 1}`}
-              placeholder="Soạn nội dung đợt này — chèn được ảnh, sửa được HTML thô."
+              placeholder="Soạn nội dung đợt này. Chèn được ảnh, sửa được HTML."
             />
           )}
           {copied && wave.content.trim() === '' ? (
             <span className="text-muted-foreground text-[11px] leading-[1.5]">
-              Kịch bản không lưu nội dung đã soạn — ô này để trống là đúng.
+              Nội dung đợt cũ không còn lưu. Soạn lại ở ô này.
             </span>
           ) : null}
         </div>
@@ -679,7 +670,7 @@ export function CampaignForm({
             hint={
               mode === 'duplicate'
                 ? 'Đã chép chuỗi đợt và nội dung. Chọn lại người nhận ở Bước 1.'
-                : 'Ba bước, cuộn thẳng xuống. Không cần ai duyệt: lưu nháp lúc nào cũng được, chỉ "Bắt đầu chạy" mới gửi mail.'
+                : 'Lưu nháp lúc nào cũng được. Chỉ "Bắt đầu chạy" mới gửi mail.'
             }
           >
             {title}
@@ -728,8 +719,7 @@ export function CampaignForm({
 
           {copiedWaves > 0 ? (
             <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-              Kịch bản không lưu nội dung đã soạn — ô nội dung của {copiedWaves} đợt cũ để trống.
-              Dựng lại một bài chưa từng có thì màn đang bịa.
+              Nội dung của {copiedWaves} đợt cũ không còn lưu, ô nội dung để trống.
             </p>
           ) : null}
 
@@ -762,11 +752,7 @@ export function CampaignForm({
         </section>
 
         <section className="flex flex-col gap-4">
-          <SectionTitle
-            size="lg"
-            kicker="Bước 3"
-            hint="Cả hai thứ ở bước này đều không bắt buộc — bỏ qua được."
-          >
+          <SectionTitle size="lg" kicker="Bước 3" hint="Cả hai đều không bắt buộc.">
             Khi nào dừng?
           </SectionTitle>
 
@@ -787,7 +773,7 @@ export function CampaignForm({
 
               <Field
                 label="Đủ bao nhiêu lead thì dừng cả chuỗi"
-                hint="Để 0 là không đặt trần — chuỗi chạy hết các đợt đã soạn."
+                hint="Để 0 thì chạy hết các đợt đã soạn."
               >
                 <Input
                   value={String(draft.stopAtLeads)}
@@ -803,18 +789,17 @@ export function CampaignForm({
               </Field>
 
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Điều kiện dừng do hệ giữ, không phải do người ngồi canh. Chống trùng người nhận cũng
-                vậy: một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.
+                Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời
+                gian.
               </p>
             </div>
 
             <div className="bg-surface-ink/5 flex flex-col gap-3 rounded-md p-4">
-              <GroupLabel id={approverId}>Người duyệt — không bắt buộc</GroupLabel>
+              <GroupLabel id={approverId}>Người duyệt (không bắt buộc)</GroupLabel>
 
               {approvers.length === 0 ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chưa có ai trong chuỗi duyệt, và chiến dịch vẫn tạo được. Thêm người vào đây khi
-                  khoản chi hoặc danh sách gửi cần một người thứ hai nhìn qua.
+                  Chưa có người duyệt. Thêm khi khoản chi hoặc danh sách gửi cần người xem lại.
                 </p>
               ) : (
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -880,8 +865,8 @@ export function CampaignForm({
                     }))}
                   />
                   <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                    Chuỗi đi từ trái sang phải, người đầu tiên nhận trước. Có chuỗi thì không đợt
-                    nào bung ra trước khi người cuối gật.
+                    Duyệt lần lượt từ trái sang phải. Đợt nào cũng chờ người cuối duyệt xong mới
+                    gửi.
                   </p>
                 </>
               ) : null}
@@ -915,10 +900,10 @@ export function CampaignForm({
           )}
         >
           {locked
-            ? 'Đang chạy — ô nhập đã khoá. Kịch bản đóng băng không nhận chiến dịch mới, nên dòng này chưa lên sổ.'
+            ? 'Đang chạy. Ô nhập đã khoá. Chiến dịch này chưa lên sổ.'
             : canRun
-              ? `Gửi cho ${members.length} người · ${draft.waves.length} đợt · đợt đầu ${whenText(draft.waves[0]!)} · ${draft.stopOnReply ? 'khách trả lời thì ngưng nhắc' : 'chuỗi chạy hết kể cả khi khách đã trả lời'}.`
-              : `Chưa chạy được — còn thiếu ${missing.join(' · ')}. Vẫn lưu nháp được.`}
+              ? `Gửi cho ${members.length} người · ${draft.waves.length} đợt · đợt đầu ${whenText(draft.waves[0]!)} · ${draft.stopOnReply ? 'khách trả lời thì ngưng nhắc' : 'khách trả lời vẫn gửi tiếp'}.`
+              : `Chưa chạy được, còn thiếu ${missing.join(' · ')}. Vẫn lưu nháp được.`}
         </p>
 
         <div className="flex flex-wrap items-center gap-2">

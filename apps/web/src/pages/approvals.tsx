@@ -62,7 +62,7 @@ export default function ApprovalInboxScreen() {
         <ScreenHeader
           kicker="One Core"
           title="Hộp duyệt"
-          description="Các yêu cầu đang chờ bạn phê duyệt. Sau khi duyệt, thay đổi được áp dụng ngay."
+          description="Duyệt xong, thay đổi có hiệu lực ngay."
           meta={
             rows && rows.length > 0 ? (
               <MetaPill tone="warning">{rows.length} yêu cầu đang chờ</MetaPill>
@@ -78,8 +78,8 @@ export default function ApprovalInboxScreen() {
         ) : error || !rows ? (
           <EmptyState
             icon={TriangleAlert}
-            message={`Không tải được danh sách yêu cầu phê duyệt. ${
-              isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+            message={`Không tải được danh sách yêu cầu. ${
+              isApiError(error) ? userMessage(error) : 'Thử lại.'
             }`}
             action={{ label: 'Thử lại', onClick: () => void refetch() }}
             className="py-12"
@@ -89,7 +89,7 @@ export default function ApprovalInboxScreen() {
              it means rather than offering something to create. */
           <EmptyState
             icon={Inbox}
-            message="Không có yêu cầu nào đang chờ bạn phê duyệt."
+            message="Không có yêu cầu nào chờ bạn duyệt."
             /* The one next step an inbox has: look again. It fills from other
                people's screens, so a reader who expected something has nothing
                to create here — only a reason to re-ask. */
@@ -190,7 +190,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
           <Textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Nhập lý do từ chối để người gửi yêu cầu hiểu quyết định."
+            placeholder="Lý do từ chối"
             rows={3}
           />
           <div className="flex flex-wrap gap-2">
@@ -212,9 +212,7 @@ function RequestCard({ request }: { request: ApprovalRequestView }) {
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={decide.isPending}
-            onClick={() =>
-              send({ decision: 'approved' }, 'Đã phê duyệt. Thay đổi đã được áp dụng.')
-            }
+            onClick={() => send({ decision: 'approved' }, 'Đã phê duyệt. Thay đổi đã có hiệu lực.')}
           >
             Phê duyệt
           </Button>

@@ -82,7 +82,7 @@ export function LeadCard({
                 <Badge tone="success">Khách cũ</Badge>
               )}
               {workstream.customer !== null && (
-                <span className="text-muted-foreground">tự suy từ lịch sử công ty</span>
+                <span className="text-muted-foreground">theo lịch sử công ty</span>
               )}
               {previous && workstream.previousWonCode && (
                 <Link
@@ -109,9 +109,7 @@ export function LeadCard({
           ) : (
             <>
               <Badge tone="warning">Chưa gắn</Badge>
-              <span className="text-muted-foreground">
-                cần có trước khi ký · gắn xong mới đối chiếu được lượt trước
-              </span>
+              <span className="text-muted-foreground">cần có trước khi ký</span>
             </>
           )}
         </Row>
@@ -132,7 +130,7 @@ export function StandingDealNote({ context }: { context: OpportunityOpenContext 
     <div className="bg-primary/16 flex gap-3 rounded-md px-4 py-3 text-[12.5px] leading-[1.6]">
       <Icon icon={Info} size={16} className="text-on-tint-primary mt-1 shrink-0" />
       <span className="min-w-0 flex-1">
-        Lượt bán này đang đứng ở{' '}
+        Lượt bán này đang ở{' '}
         {path ? (
           <Link
             to={path}
@@ -145,9 +143,9 @@ export function StandingDealNote({ context }: { context: OpportunityOpenContext 
         ) : (
           'một cơ hội khác'
         )}{' '}
-        · {OPPORTUNITY_STAGE_LABEL[standingDeal.stage]}. Cơ hội mới vẫn tạo được và có ở sổ cơ hội,
-        nhưng thẻ {workstream ? <span className="font-mono">{workstream.code}</span> : 'lượt bán'}{' '}
-        trên bảng lượt bán vẫn đứng ở {standsAt} cho tới khi cơ hội mới đi xa hơn.
+        · {OPPORTUNITY_STAGE_LABEL[standingDeal.stage]}. Cơ hội mới vẫn được tạo. Thẻ{' '}
+        {workstream ? <span className="font-mono">{workstream.code}</span> : 'lượt bán'} trên bảng
+        lượt bán vẫn ở {standsAt} cho tới khi cơ hội mới đi xa hơn.
       </span>
     </div>
   )

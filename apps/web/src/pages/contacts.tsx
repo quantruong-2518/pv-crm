@@ -113,7 +113,7 @@ export default function ContactsPage() {
             error
               ? {
                   message: `Không tải được danh sách người liên hệ. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -123,8 +123,8 @@ export default function ContactsPage() {
             rows.length === 0
               ? {
                   message: book.dirty
-                    ? 'Không có người liên hệ nào phù hợp với bộ lọc hiện tại.'
-                    : 'Chưa có người liên hệ nào. Hãy thêm người liên hệ từ hồ sơ lead.',
+                    ? 'Không có người liên hệ nào khớp bộ lọc.'
+                    : 'Chưa có người liên hệ nào. Thêm từ hồ sơ lead.',
                   action: book.dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },

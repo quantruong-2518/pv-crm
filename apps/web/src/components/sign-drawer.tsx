@@ -130,10 +130,10 @@ export function SignDrawer({ op, open, onClose }: Props) {
       title={again ? 'Ký thêm hợp đồng' : 'Đề nghị ký'}
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account} —{' '}
+          <span className="font-mono">{op.code}</span> · {op.account}.{' '}
           {again
-            ? 'một hợp đồng mới bên cạnh hợp đồng đã ký; được duyệt thì cộng vào giá trị đơn.'
-            : 'được duyệt thì đơn rời bốn cột và thành hợp đồng.'}
+            ? 'Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
+            : 'Được duyệt thì đơn thành hợp đồng.'}
         </>
       }
       meta={<Chip>{op.code}</Chip>}
@@ -153,7 +153,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
               : busy
                 ? 'Đang gửi đề nghị ký…'
                 : body
-                  ? 'Gửi xong là một đề nghị chờ duyệt. Hợp đồng và số hợp đồng chỉ có khi người duyệt gật.'
+                  ? 'Gửi xong, đề nghị chờ duyệt.'
                   : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'}
           </span>
           <div className="flex shrink-0 gap-2">
@@ -206,9 +206,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
             label="Số tiền ký"
             required
             hint={
-              again
-                ? 'Số của riêng hợp đồng này. Được duyệt thì giá trị đơn của cơ hội là tổng các hợp đồng đã ký bằng đồng tiền của cơ hội; giá trị dự kiến vẫn giữ.'
-                : 'Mồi bằng giá trị dự kiến. Số chốt thường khác số đã chào — sửa ở đây. Được duyệt thì cơ hội hiện giá trị đơn theo hợp đồng đã ký; giá trị dự kiến vẫn giữ.'
+              again ? 'Số của riêng hợp đồng này.' : 'Lấy sẵn từ giá trị dự kiến, sửa nếu khác.'
             }
           >
             <span className="relative flex items-center">
@@ -254,8 +252,8 @@ export function SignDrawer({ op, open, onClose }: Props) {
           label="Ngày ký"
           hint={
             form.signedDate !== ''
-              ? `Đọc là ${dmy(form.signedDate)}. Giấy tờ hay vào sổ sau khi bút đã ký — lùi lại đúng ngày đó.`
-              : 'Bỏ trống thì lấy đúng lúc bấm.'
+              ? `Ngày ${dmy(form.signedDate)}.`
+              : 'Bỏ trống là lấy lúc bấm gửi.'
           }
         >
           <Input
@@ -267,11 +265,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
           />
         </Field>
 
-        <Field
-          label="Hoa hồng về"
-          plain
-          hint="Mồi bằng Sale đang giữ đơn. Phần chốt của hoa hồng ghi cho đúng một người — đổi ở đây không đổi ai đứng đơn."
-        >
+        <Field label="Hoa hồng về" plain hint="Mặc định là Sale đang giữ đơn.">
           <Select
             label="Hoa hồng về"
             hideLabel
@@ -289,8 +283,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
         <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={TriangleAlert} size={16} className="text-warning mt-1 shrink-0" />
           <p className="text-[11.5px] leading-[1.5]">
-            Đề nghị này đi qua Hộp duyệt; được gật thì hợp đồng mới được tạo, và từ đó không gỡ được
-            từ giao diện.
+            Đề nghị đi qua Hộp duyệt. Hợp đồng chỉ được tạo khi được duyệt, và không gỡ được.
             {owner && (
               <>
                 {' '}

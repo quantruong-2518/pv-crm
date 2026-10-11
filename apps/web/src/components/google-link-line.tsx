@@ -27,7 +27,7 @@ export function GoogleLinkLine() {
   return (
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
       <p className="text-muted-foreground m-0 min-w-0 text-[11.5px] leading-[1.5]">
-        Chưa nối Google Calendar — buổi họp sẽ không lên Google Calendar.
+        Chưa nối Google Calendar nên buổi họp không lên lịch.
       </p>
       <Button
         type="button"

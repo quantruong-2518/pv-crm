@@ -15,7 +15,7 @@ import { ROLE_LABEL } from '@/data/users'
 export function EmptyFrameNote({ address }: { address: StateAddress }) {
   return (
     <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-      “{stateLabelOf(address)}” chưa có bước nào trong khung — báo {ROLE_LABEL['head-of-sales']}.
+      “{stateLabelOf(address)}” chưa có bước nào. Báo {ROLE_LABEL['head-of-sales']}.
     </p>
   )
 }
@@ -27,7 +27,7 @@ export function FrameUnread({ error, onRetry }: { error: unknown; onRetry: () =>
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p role="alert" className="text-warning m-0 min-w-0 text-[12.5px] leading-[1.6]">
         Không đọc được danh sách bước tiếp theo.{' '}
-        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
       <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onRetry}>
         Thử lại

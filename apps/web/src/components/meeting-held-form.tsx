@@ -65,7 +65,7 @@ export function MeetingHeldForm({
   const [draft, setDraft] = useState(EMPTY_STEP_DRAFT)
 
   const blocker =
-    (meeting ? null : 'Chưa có danh sách người dự của buổi họp nên chưa lưu được kết quả.') ??
+    (meeting ? null : 'Chưa có danh sách người dự.') ??
     (summary.trim() === '' ? 'Chưa ghi tóm tắt buổi họp.' : null) ??
     evaluationBlockerOf(vocab, picked) ??
     (target ? stepBlockerOf(draft, options) : null)

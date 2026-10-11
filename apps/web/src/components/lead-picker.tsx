@@ -88,9 +88,7 @@ export function LeadPickList({
       {error ? (
         <EmptyState
           icon={TriangleAlert}
-          message={`Không lấy được sổ lead. ${
-            isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
-          }`}
+          message={`Không lấy được sổ lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
           action={{ label: 'Thử lại', onClick: () => void refetch() }}
           className="py-12"
         />
@@ -104,9 +102,7 @@ export function LeadPickList({
         <EmptyState
           icon={Inbox}
           message={
-            q === undefined
-              ? 'Sổ lead chưa có lead nào mở được cơ hội — chưa có khách nào để mở đơn.'
-              : `Không có lead nào khớp "${q}".`
+            q === undefined ? 'Chưa có lead nào mở được cơ hội.' : `Không có lead nào khớp "${q}".`
           }
           action={
             q === undefined
@@ -127,8 +123,7 @@ export function LeadPickList({
               stops looking instead of narrowing the search. */}
           <p className="text-muted-foreground text-[11px] leading-[1.5]">
             Hiện <span className="tnum font-num">{rows.length}</span> trên{' '}
-            <span className="tnum font-num">{total}</span> lead mở được cơ hội. Gõ vào ô tìm để thu
-            hẹp.
+            <span className="tnum font-num">{total}</span> lead mở được cơ hội.
           </p>
         </>
       )}

@@ -51,8 +51,8 @@ export function ExitDialog({
       title="Lead có vấn đề"
       subtitle={
         <>
-          <span className="font-mono">{profile.code}</span> · {profile.company} — đưa ra khỏi luồng
-          là dừng lead lại. Sổ vẫn giữ dòng này, và mở lại được khi khách quay lại.
+          <span className="font-mono">{profile.code}</span> · {profile.company}. Mở lại được khi
+          khách quay lại.
         </>
       }
       footer={
@@ -69,8 +69,8 @@ export function ExitDialog({
               : exit.isPending
                 ? 'Đang ghi…'
                 : !ready
-                  ? 'Chọn một lý do để bật nút.'
-                  : 'Ghi ngay, không cần ai duyệt. Công trạng của nguồn kéo lead về vẫn giữ.'}
+                  ? 'Chọn lý do.'
+                  : 'Ghi ngay, không cần duyệt.'}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button size="md" variant="ghost" onClick={onClose}>
@@ -178,7 +178,7 @@ export function StopReasonField({
           value={note}
           aria-label="Ghi rõ thêm về lý do"
           aria-required={noteNeeded}
-          placeholder={notePlaceholder ?? 'Chi tiết của riêng lead này — ai nói, nói khi nào…'}
+          placeholder={notePlaceholder ?? 'Ai nói, nói khi nào…'}
           onChange={(e) => onNoteChange(e.target.value)}
         />
       </label>

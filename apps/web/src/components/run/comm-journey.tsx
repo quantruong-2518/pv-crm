@@ -139,7 +139,7 @@ export function CommJourney({
       {lettersError !== null && (
         <p className={cn(NOTE, 'text-muted-foreground')}>
           Không đọc được các email.{' '}
-          {isApiError(lettersError) ? userMessage(lettersError) : 'Vui lòng thử lại.'}
+          {isApiError(lettersError) ? userMessage(lettersError) : 'Thử lại.'}
         </p>
       )}
 
@@ -147,8 +147,7 @@ export function CommJourney({
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <p className={cn(NOTE, 'text-muted-foreground')}>
-          Không đọc được các lượt liên hệ.{' '}
-          {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+          Không đọc được các lượt liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </p>
       ) : shown.length > 0 ? (
         <JourneyList
@@ -196,7 +195,7 @@ function LetterActions({
   const stop = useOwnLetterCancel()
   const onStop = () =>
     stop.mutate(letter.runId, {
-      onSuccess: () => toastDone('Đã dừng thư', 'Thư sẽ không được gửi đi.'),
+      onSuccess: () => toastDone('Đã dừng thư', 'Thư sẽ không gửi đi.'),
       onError: (cause) => toastFail('Không dừng được thư', userMessage(cause)),
     })
 

@@ -187,7 +187,6 @@ export const PROFILE_FIELDS: ProfileField[] = [
     label: 'Tên gọi trong sổ',
     kind: 'text',
     group: 'company',
-    hint: 'Tên mọi màn gọi khách này. Hợp đồng vẫn ký theo tên pháp nhân.',
   },
   {
     key: 'legalName',
@@ -195,7 +194,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     kind: 'text',
     group: 'company',
     slot: 'legal-entity',
-    hint: 'Hợp đồng ký theo tên này, không theo tên gọi trong sổ.',
+    hint: 'Hợp đồng ký theo tên này.',
   },
   {
     key: 'taxCode',
@@ -221,7 +220,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'company',
     slot: 'industry',
     options: CATEGORY_OPTIONS,
-    hint: 'Đổi ngành có thể thay đổi người phụ trách mặc định.',
+    hint: 'Đổi ngành có thể đổi người phụ trách mặc định.',
   },
   {
     key: 'industries',
@@ -232,7 +231,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
        is what decides the default holder. */
     notesOnly: true,
     placeholder: 'Gõ ngành rồi Enter',
-    hint: 'Ghi chú tham khảo, không đổi người phụ trách. Ngành đã nhập hiện làm gợi ý cho người khác.',
+    hint: 'Ghi chú tham khảo.',
   },
   {
     key: 'mainProduct',
@@ -282,7 +281,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     group: 'person',
     slot: 'channel',
     options: CHANNEL_OPTIONS,
-    hint: 'Chọn kênh khách vừa sử dụng để phản hồi.',
+    hint: 'Kênh khách dùng để phản hồi.',
   },
   {
     key: 'channelUrl',
@@ -306,8 +305,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     kind: 'long',
     group: 'need',
     slot: 'pain',
-    placeholder: 'Việc khách muốn giải, kể bằng lời của khách…',
-    hint: 'Ghi lại vấn đề do khách xác nhận, không tự suy đoán.',
+    placeholder: 'Kể lại bằng lời của khách…',
   },
   {
     key: 'currentStack',
@@ -336,7 +334,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     kind: 'money',
     group: 'need',
     slot: 'budget',
-    hint: 'Ghi ngân sách khách đã chia sẻ, không dùng giá đang chào.',
+    hint: 'Ngân sách khách đã cho biết.',
   },
   {
     key: 'currency',
@@ -363,7 +361,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     kind: 'select',
     group: 'system',
     people: 'Còn ở kho chung, chưa ai nhận',
-    hint: 'Đổi người phụ trách có thể ảnh hưởng đến phân bổ hoa hồng.',
+    hint: 'Đổi người phụ trách có thể đổi cách chia hoa hồng.',
   },
   {
     key: 'bdOwner',
@@ -596,7 +594,7 @@ const MOTION_FIELD: FormField = {
   label: 'Phương án tiếp cận',
   kind: 'select',
   group: 'system',
-  hint: 'Ai chủ động trước. Mỗi phương án hỏi tiếp đúng một ô: nguồn, chiến dịch hoặc mã giới thiệu.',
+  hint: 'Ai chủ động trước.',
 }
 
 /** Level 2 of the origin. Drawn by `OwnerSourceCard` through a Combobox, but

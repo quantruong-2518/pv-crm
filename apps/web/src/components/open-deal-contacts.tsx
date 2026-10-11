@@ -145,8 +145,7 @@ function NoContacts({ onOpenLead }: { onOpenLead: () => void }) {
   return (
     <div className="bg-surface-ink/9 flex flex-wrap items-center gap-3 rounded-md px-4 py-3">
       <p className="text-muted-foreground m-0 min-w-0 flex-1 text-[12.5px] leading-[1.6]">
-        Lead này chưa có người liên hệ nào, và công ty cũng chưa có ai để chọn. Thêm người ở thẻ
-        Người liên hệ trên hồ sơ lead, rồi mở lại phiếu.
+        Lead này chưa có người liên hệ. Thêm người ở thẻ Người liên hệ trong hồ sơ lead.
       </p>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onOpenLead}>
         Mở hồ sơ lead

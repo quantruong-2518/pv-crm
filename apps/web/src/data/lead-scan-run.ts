@@ -158,7 +158,7 @@ async function prepareAll(picked: Picked[], keys: string[]): Promise<Ready[]> {
   })
   if (repeats.size > 0) {
     dropFiles(repeats)
-    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Cùng một tệp được chọn hơn một lần.')
+    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Một tệp được chọn nhiều lần.')
   }
   return ready
 }
@@ -182,7 +182,7 @@ async function upload(
   })
   if (repeats.size > 0) {
     dropFiles(repeats)
-    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Máy chủ đã có đúng tệp này trong lô.')
+    toastWarn(`Bỏ ${repeats.size} tệp trùng`, 'Tệp này đã có trong lô.')
   }
 
   const ids = await inPool(jobs, UPLOAD_LANES, async ({ key, prepared, slot }) => {
@@ -199,7 +199,7 @@ async function upload(
       patchFile(key, { phase: 'uploaded', progress: 1 })
       return slot.id
     } catch {
-      patchFile(key, { phase: 'failed', error: 'Tải lên không được' })
+      patchFile(key, { phase: 'failed', error: 'Không tải lên được' })
       return null
     }
   })

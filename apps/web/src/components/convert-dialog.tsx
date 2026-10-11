@@ -141,7 +141,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
       onClose={onClose}
       width="lg"
       title={created ? <span className="sr-only">Đã mở cơ hội</span> : 'Mở cơ hội'}
-      subtitle={created ? undefined : 'Phiếu đã mồi sẵn từ lead — kiểm lại các ô có dấu * rồi tạo.'}
+      subtitle={created ? undefined : 'Điền sẵn từ lead. Kiểm lại các ô có dấu *.'}
       footer={
         created ? undefined : (
           <OpenBar
@@ -206,7 +206,7 @@ function ContextGate({ error, onRetry }: { error: Error | null; onRetry: () => v
     return (
       <EmptyState
         icon={TriangleAlert}
-        message={`Không mở được phiếu. ${isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}`}
+        message={`Không mở được phiếu. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
         action={{ label: 'Thử lại', onClick: onRetry }}
         className="py-12"
       />

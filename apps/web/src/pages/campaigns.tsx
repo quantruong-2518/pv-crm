@@ -253,7 +253,7 @@ export function CampaignsPage() {
             bookError
               ? {
                   message: `Không tải được danh sách chiến dịch. ${
-                    isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+                    isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetchBook(),
                 }
@@ -263,10 +263,10 @@ export function CampaignsPage() {
             rows.length === 0
               ? {
                   message: book.dirty
-                    ? 'Không có chiến dịch nào phù hợp với bộ lọc hiện tại.'
+                    ? 'Không có chiến dịch nào khớp bộ lọc.'
                     : canWrite
-                      ? 'Chưa có chiến dịch nào. Hãy tạo chiến dịch rồi thêm người nhận từ sổ lead.'
-                      : 'Chưa có chiến dịch nào trong phạm vi của bạn.',
+                      ? 'Chưa có chiến dịch nào.'
+                      : 'Chưa có chiến dịch nào bạn xem được.',
                   action: book.dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : canWrite

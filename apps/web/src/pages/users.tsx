@@ -144,7 +144,7 @@ export function UsersPage() {
                      server's own sentence when it wrote one, so "mất mạng" and
                      "phiên hết hạn" read differently. */
                   message: `Không tải được danh sách người dùng. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -153,8 +153,7 @@ export function UsersPage() {
           empty={
             rows.length === 0
               ? {
-                  message:
-                    'Chưa có người dùng nào. Hãy thêm người dùng đầu tiên; họ sẽ tự đặt mật khẩu qua email mời.',
+                  message: 'Chưa có người dùng nào.',
                   action: { label: 'Thêm người dùng', onClick: openCreate },
                 }
               : undefined

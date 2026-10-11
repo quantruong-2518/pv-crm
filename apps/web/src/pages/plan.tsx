@@ -114,10 +114,9 @@ export function PlanPage() {
           title="Số liệu & kế hoạch"
           description={
             <>
-              DAS Vina · lát cắt chốt lúc{' '}
+              DAS Vina · số liệu chốt lúc{' '}
               <span className="font-mono">{DAS_VINA_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
-              <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span> · module 4 ăn đầu ra của
-              module 1 + 2 + 3, không đẻ số mới
+              <span className="font-mono">{dm(DAS_VINA_FROZEN_AT)}</span>
             </>
           }
           context={
@@ -223,7 +222,7 @@ export function PlanPage() {
                   <Icon icon={Orbit} size={20} className="text-accent-foreground" />
                   <h3 className="text-[13px] font-semibold">Đề xuất cho tháng tới</h3>
                   <span className="text-muted-foreground text-[11px]">
-                    {board.proposals.length} việc · mỗi việc một căn cứ số riêng
+                    {board.proposals.length} việc
                   </span>
                 </div>
 
@@ -250,14 +249,13 @@ export function PlanPage() {
                       empty={
                         added ? (
                           <>
-                            Đã nằm trong kế hoạch, người làm là{' '}
-                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>. Vẫn
-                            chưa gửi cho ai.
+                            Đã vào kế hoạch, người làm là{' '}
+                            <b className="text-on-tint-primary font-semibold">{p.owner}</b>. Chưa
+                            gửi cho ai.
                           </>
                         ) : (
                           <>
-                            Chưa tạo gì cả. Bấm nút trên thì đề xuất mới vào kế hoạch, và{' '}
-                            {board.approver} vẫn phải gật trước khi {p.owner} bắt tay vào làm.
+                            Chưa tạo gì cả. {board.approver} duyệt rồi {p.owner} mới làm.
                           </>
                         )
                       }
@@ -282,7 +280,7 @@ export function PlanPage() {
                 {chosen.length === 0 ? (
                   <EmptyState
                     icon={ClipboardList}
-                    message="Chưa tạo gì cả. Kế hoạch chỉ chứa thứ người bấm thêm vào — trợ lý không tự chốt việc nào, kể cả việc nó vừa đề xuất."
+                    message="Kế hoạch chưa có việc nào."
                     /* EmptyState LUÔN vẽ một nút, nên nút phải làm được việc
                        thật — nút bấm không phản hồi tệ hơn không có nút. */
                     action={{
@@ -352,8 +350,7 @@ export function PlanPage() {
                 )}
 
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Nút cuối của màn là gửi duyệt, không phải làm ngay: {board.approver} là người gật,
-                  và E3 giữ yêu cầu ở trạng thái chờ cho tới lúc đó.
+                  Gửi duyệt xong, việc chỉ bắt đầu khi {board.approver} đồng ý.
                 </p>
               </GlassCard>
             </div>
@@ -375,19 +372,19 @@ function NotDoing() {
   const items = [
     {
       title: 'Không dự báo doanh số tháng tới',
-      body: 'DAS Vina là một lát cắt đóng băng, không có trục thời gian. Mọi đường cong tháng tới sẽ là số không ai ký — kế hoạch dựng trên số bịa thì tệ hơn không có kế hoạch.',
+      body: 'Chưa có số theo thời gian nên không dự báo được.',
     },
     {
-      title: 'Không có delta trên bốn ô số',
-      body: 'Delta là so với kỳ trước, mà kỳ trước không tồn tại trong kịch bản này. Ô số ở đây nói "đang là bao nhiêu", không nói "đang tăng hay giảm".',
+      title: 'Không có mức tăng giảm trên bốn ô số',
+      body: 'Chưa có kỳ trước để so sánh.',
     },
     {
       title: 'Không tự gửi cho ai',
-      body: 'Trợ lý không thêm việc vào kế hoạch, không gửi duyệt, không báo cho ai. Cả ba bước đều chờ người bấm — luật 9.',
+      body: 'Trợ lý không thêm việc, không gửi duyệt, không báo ai. Cả ba bước chờ bạn bấm.',
     },
     {
-      title: 'Không chép cả module 3 sang đây',
-      body: 'Bốn ô số trên là mức tối thiểu một kế hoạch cần. "Ai đang làm được, ai đang tắc" vẫn là câu hỏi của màn Performance.',
+      title: 'Không lặp lại màn Performance',
+      body: 'Ai đang làm được, ai đang tắc xem ở màn Performance.',
     },
   ]
 

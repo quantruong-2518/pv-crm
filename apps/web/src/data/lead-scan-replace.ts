@@ -46,7 +46,7 @@ async function replaceOne(code: string, id: string, picked: Picked) {
   await putOnceMore(slot.putUrl, prepared.upload, prepared.declared.mime, (progress) =>
     setJob(id, { phase: 'uploading', progress }),
   ).catch(() => {
-    throw new Error('Tải lên không được')
+    throw new Error('Không tải lên được')
   })
   /* A missing thumbnail costs a grey tile later, not the file. */
   if (slot.thumbPutUrl && prepared.thumb) {

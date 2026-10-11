@@ -61,10 +61,7 @@ export function InstallmentChart({ views }: { views: InstallmentView<Installment
   }
 
   return (
-    <RecordCard
-      title="Hình của dòng tiền"
-      hint="Cột xếp theo thứ tự đợt, không theo tỉ lệ thời gian — đợt cuối cách đợt trước nó nhiều tháng."
-    >
+    <RecordCard title="Hình của dòng tiền" hint="Cột xếp theo thứ tự đợt.">
       <div className="flex h-[180px] items-end gap-6">
         {views.map((v) => (
           <div key={v.installment.no} className="flex h-full flex-1 flex-col justify-end gap-2">
@@ -138,7 +135,7 @@ export function MoneySummary({
           size="compact"
           label="Quá hạn thu"
           value={money.overdue > 0 ? millions(money.overdue, 0) : '0 ₫'}
-          source={money.overdue > 0 ? 'phải gọi hôm nay' : 'chưa đợt nào trễ hạn tiền'}
+          source={money.overdue > 0 ? 'phải gọi hôm nay' : 'chưa đợt nào trễ hạn'}
         />
       </div>
 
@@ -176,10 +173,7 @@ export function InstallmentList({
 }) {
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
-      <SectionTitle
-        size="detail"
-        hint="Mở một đợt để thấy điều kiện mở khoá, giấy tờ, bản ghi và ghi chú của riêng nó."
-      >
+      <SectionTitle size="detail" hint="Mở một đợt để xem điều kiện, giấy tờ, bản ghi và ghi chú.">
         {views.length} đợt thanh toán
       </SectionTitle>
 

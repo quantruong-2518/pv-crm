@@ -179,10 +179,10 @@ export function HomePage() {
           description={
             canCharts ? (
               <>
-                Ô Lý do lead rời luồng là số của kịch bản DAS Vina đóng băng lúc{' '}
+                Ô Lý do lead rời luồng là số chốt lúc{' '}
                 <span className="tnum font-num">{CHARTS_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
-                <span className="tnum font-num">{frozenDay}</span>, không đổi theo kỳ đang chọn. Các
-                ô còn lại đọc số thật.
+                <span className="tnum font-num">{frozenDay}</span>, không đổi theo kỳ. Các ô còn lại
+                là số thật.
               </>
             ) : undefined
           }
@@ -195,7 +195,7 @@ export function HomePage() {
           ) : charts.error ? (
             <>
               <ChartsFailed
-                detail={isApiError(charts.error) ? userMessage(charts.error) : 'Vui lòng thử lại.'}
+                detail={isApiError(charts.error) ? userMessage(charts.error) : 'Thử lại.'}
                 onRetry={() => void charts.refetch()}
                 className={canRuns ? 'md:col-span-4 xl:col-span-10' : 'col-span-full'}
               />

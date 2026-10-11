@@ -224,7 +224,7 @@ export default function AccountsPage() {
             error
               ? {
                   message: `Không tải được danh sách công ty. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -234,8 +234,8 @@ export default function AccountsPage() {
             rows.length === 0
               ? {
                   message: book.dirty
-                    ? 'Không có công ty nào phù hợp với bộ lọc hiện tại.'
-                    : 'Chưa có công ty nào. Công ty sẽ được tạo tự động khi bạn thêm lead.',
+                    ? 'Không có công ty nào khớp bộ lọc.'
+                    : 'Chưa có công ty nào. Công ty tự tạo khi bạn thêm lead.',
                   action: book.dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },

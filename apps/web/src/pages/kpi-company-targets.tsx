@@ -54,7 +54,7 @@ function readCells({ def, target }: Line) {
     agreed ? (
       <span key="agreed" className={TWO_LINES}>
         <span className="tnum font-num font-semibold">{printValue(def.unit, agreed.value)}</span>
-        <span className={NOTE_NUM}>Phiên bản {num(agreed.version)}</span>
+        <span className={NOTE_NUM}>Lần duyệt {num(agreed.version)}</span>
       </span>
     ) : (
       <span key="agreed" className="text-muted-foreground">
@@ -97,7 +97,7 @@ function bodyOf(lines: Line[], draft: Draft): KpiProposeBody | null {
 const failed = (error: ApiError) =>
   toastFail(
     error.kind === 'conflict'
-      ? 'Đề nghị vừa thay đổi sau khi bạn mở bảng. Bảng đã tải lại, hãy xem lại rồi thao tác.'
+      ? 'Đề nghị vừa thay đổi. Bảng đã tải lại, xem lại rồi thao tác.'
       : userMessage(error),
   )
 
@@ -167,13 +167,12 @@ export function RoleTargets({
           {/* In words, so a refused field is not told by its red ring alone. */}
           <div className="mr-auto flex min-w-0 flex-col gap-1">
             <p className={NOTE}>
-              Cách nhập: hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy, tỷ lệ nhập theo phần
-              trăm và không quá 100.
+              Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm, tối đa
+              100.
             </p>
             {mine && (
               <p className={NOTE}>
-                Bạn gửi đề nghị này nên không tự duyệt được. Cần một người khác có quyền duyệt chỉ
-                tiêu.
+                Bạn gửi đề nghị này nên không tự duyệt được. Cần người khác duyệt.
               </p>
             )}
           </div>

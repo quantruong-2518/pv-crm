@@ -123,14 +123,14 @@ export function RolesPage() {
            thing the reader does is redo work the server already accepted. */
         const said = isApiError(refusal)
           ? userMessage(refusal)
-          : 'Không lưu được bảng phân quyền. Vui lòng thử lại.'
+          : 'Không lưu được bảng phân quyền. Thử lại.'
         setFailure(saved > 0 ? `Đã lưu ${saved} vai trò. ${said}` : said)
         return
       }
     }
 
     setEdited(null)
-    toastDone('Đã lưu bảng phân quyền', 'Quyền mới được áp dụng từ thao tác tiếp theo.')
+    toastDone('Đã lưu bảng phân quyền', 'Quyền mới có hiệu lực từ thao tác tiếp theo.')
   }
 
   const summary = isPending
@@ -218,7 +218,7 @@ export function RolesPage() {
               <EmptyState
                 icon={TriangleAlert}
                 message={`Không tải được bảng phân quyền. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                  isApiError(error) ? userMessage(error) : 'Thử lại.'
                 }`}
                 action={{ label: 'Thử lại', onClick: () => void refetch() }}
                 className="py-12"

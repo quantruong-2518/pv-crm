@@ -215,7 +215,7 @@ export function LadderSend({
       )}
       {bad.length > 0 && (
         <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
-          Hạn của {bad.map((row) => `"${row.label}"`).join(', ')} không phải số ngày.
+          Hạn của {bad.map((row) => `"${row.label}"`).join(', ')} phải là số ngày.
         </p>
       )}
       {failed.length > 0 && (

@@ -281,7 +281,7 @@ function SuggestionMenu({
           {!searching
             ? (emptyNote ?? 'Không còn ai để thêm.')
             : freeText
-              ? 'Không tìm thấy ai — nhấn Enter để thêm tên vừa gõ.'
+              ? 'Không tìm thấy ai. Nhấn Enter để thêm tên vừa gõ.'
               : 'Không tìm thấy ai.'}
         </p>
       ) : (

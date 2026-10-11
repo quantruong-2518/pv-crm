@@ -50,7 +50,7 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
       ) : !deal ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
           Không đọc được diễn biến của cơ hội.{' '}
-          {isApiError(journey.error) ? userMessage(journey.error) : 'Vui lòng thử lại.'}
+          {isApiError(journey.error) ? userMessage(journey.error) : 'Thử lại.'}
         </p>
       ) : (
         <Timeline items={itemsOf(deal)} />

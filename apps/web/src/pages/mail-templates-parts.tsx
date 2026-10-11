@@ -168,11 +168,10 @@ export function MailTemplateDrawer({
         subtitle={
           template ? (
             <>
-              Sửa mẫu <span className="font-semibold">không</span> đụng tới lô đã gửi — mỗi lô đã
-              chụp lại tiêu đề và nội dung lúc tạo.
+              Sửa mẫu <span className="font-semibold">không</span> đổi các lô đã gửi.
             </>
           ) : (
-            'Mẫu là chỗ bắt đầu của một lá thư. Người soạn vẫn sửa được trước khi gửi.'
+            'Người soạn vẫn sửa được thư trước khi gửi.'
           )
         }
         meta={
@@ -223,7 +222,7 @@ export function MailTemplateDrawer({
            width: it reads the copy and shape, not the sent pixel width. */}
         <div className="grid min-w-0 gap-4 md:grid-cols-[3fr_2fr] md:items-start">
           <div className="flex min-w-0 flex-col gap-4">
-            <Field label="Tên mẫu" errors={errors['name']} hint="Tên hiện trong ô chọn mẫu.">
+            <Field label="Tên mẫu" errors={errors['name']}>
               <Input
                 value={name}
                 maxLength={200}
@@ -265,13 +264,13 @@ export function MailTemplateDrawer({
             <Field
               label={`Tiêu đề email · ${subject.length}/200`}
               errors={errors['subject']}
-              hint="Phần lớn hộp thư cắt quanh 70 ký tự."
+              hint="Tiêu đề dài hơn 70 ký tự dễ bị cắt."
             >
               <Input
                 value={subject}
                 maxLength={200}
                 invalid={Boolean(errors['subject']?.length)}
-                placeholder="Tiêu đề người nhận đọc thấy trong hộp thư"
+                placeholder="Tiêu đề hiện trong hộp thư người nhận"
                 onChange={(event) => {
                   setSubject(event.target.value)
                   clearError('subject')
@@ -328,7 +327,7 @@ export function MailTemplateDrawer({
                   <MailRichBody
                     value={body}
                     invalid={Boolean(errors['body']?.length)}
-                    placeholder="Thân thư. Enter là đoạn mới, Shift+Enter là xuống dòng."
+                    placeholder="Nội dung thư. Enter xuống đoạn mới, Shift+Enter xuống dòng."
                     onChange={(markdown) => {
                       setBody(markdown)
                       clearError('body')
@@ -341,7 +340,7 @@ export function MailTemplateDrawer({
                   rows={20}
                   value={body}
                   invalid={Boolean(errors['body']?.length)}
-                  placeholder="Thân thư. Một dòng trống là một đoạn."
+                  placeholder="Nội dung thư. Một dòng trống là một đoạn."
                   onChange={(event) => {
                     setBody(event.target.value)
                     clearError('body')
@@ -353,7 +352,7 @@ export function MailTemplateDrawer({
             <Field
               label="Nút trong email (không bắt buộc)"
               errors={errors['cta.label'] ?? errors['cta.url'] ?? errors['cta']}
-              hint="Để trống cả hai ô nếu mẫu không cần nút. Link dán trong thân thư không bấm được."
+              hint="Để trống nếu không cần nút. Link dán trong nội dung thư không bấm được."
             >
               <div className="grid gap-2 sm:grid-cols-[minmax(150px,.55fr)_minmax(0,1fr)]">
                 <Input
@@ -397,7 +396,7 @@ export function MailTemplateDrawer({
               <Field
                 label="Trạng thái"
                 errors={errors['active']}
-                hint="Ngừng dùng thì mẫu biến khỏi ô chọn, nhưng lô cũ vẫn đọc được tên nó."
+                hint="Mẫu ngừng dùng không hiện trong ô chọn."
                 control="plain"
               >
                 <SegmentedControl
@@ -421,7 +420,7 @@ export function MailTemplateDrawer({
             letter={preview.letter}
             pending={preview.pending}
             error={preview.error}
-            caption="Chưa gắn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi."
+            caption="Tên và công ty là dữ liệu mẫu."
           />
         </div>
       </Modal>

@@ -74,7 +74,7 @@ export function ExtrasSection({
               invalid={Boolean(errors.description)}
               value={draft.description}
               aria-label="Mô tả cơ hội"
-              placeholder="Việc khách muốn giải — một hai câu là đủ."
+              placeholder="Khách cần gì, viết một hai câu."
               onChange={(e) => onSet('description', e.target.value)}
             />
           </Field>

@@ -69,7 +69,7 @@ export function profileFrom(c: CampaignProfile): ProfileDraft {
  *  `MAS_MAX_RECIPIENTS`: that constant bounds a hand-picked REQUEST and never
  *  sees a campaign, while the real limit is `PV_MAS_BATCH_MAX`. */
 export function ceilingNote(count: number, ceiling: number): string {
-  return `Đang có ${count} người nhận, vượt trần ${ceiling} của một đợt gửi — bớt xuống rồi hãy gửi.`
+  return `Có ${count} người nhận, vượt trần ${ceiling} của một đợt gửi. Bớt người nhận để gửi.`
 }
 
 /** The two faces of one campaign. On the address bar (`?tab=`), so a screen
@@ -160,7 +160,7 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
       sign: 'over',
       tag: 'Bounce · vượt trần',
       title: `Đợt ${last.waveNo} vượt trần ${c.bounceCeilingPercent}%`,
-      text: `${shareOf(run.bounced, run.sent, 1)} — ${n(run.bounced)} thư bị trả lại trên ${n(run.sent)} thư đã gửi`,
+      text: `${shareOf(run.bounced, run.sent, 1)}: ${n(run.bounced)} trên ${n(run.sent)} thư đã gửi bị trả lại`,
     })
   } else if (total.sent > 0) {
     const gap = c.bounceCeilingPercent - (total.bounced / total.sent) * 100
@@ -173,7 +173,7 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
       sign: gap > 0 ? 'ok' : 'watch',
       tag: gap > 0 ? 'Bounce · an toàn' : 'Bounce · cần theo dõi',
       title: gap > 0 ? `Còn cách trần ${points} điểm` : 'Cả chiến dịch đã tới mức trần',
-      text: `Cả chiến dịch ${shareOf(total.bounced, total.sent, 1)} — ${n(total.bounced)} thư bị trả lại trên ${n(total.sent)} thư đã gửi`,
+      text: `Cả chiến dịch ${shareOf(total.bounced, total.sent, 1)}: ${n(total.bounced)} trên ${n(total.sent)} thư đã gửi bị trả lại`,
     })
   }
 
@@ -184,7 +184,7 @@ export function waveRisks(c: CampaignProfile): WaveRisk[] {
     const versus = diff > 0 ? 'cao hơn' : diff < 0 ? 'thấp hơn' : 'bằng'
     const unfinished =
       now.run.state === 'SENDING'
-        ? ` — đợt ${now.waveNo} mới gửi ${n(now.run.sent)} trên ${n(now.run.audienceCount)} thư`
+        ? ` (đợt ${now.waveNo} mới gửi ${n(now.run.sent)} trên ${n(now.run.audienceCount)} thư)`
         : ''
     risks.push({
       key: 'clicks',
@@ -239,5 +239,5 @@ export function overlapNote(rows: readonly CampaignOverlap[]): string | null {
       ? `${names.slice(0, 2).join(', ')} và ${names.length - 2} chiến dịch khác`
       : names.join(', ')
 
-  return `${people} người nhận đang nhận thư của ${where} — đợt này vẫn gửi cho họ, nên họ đọc hai lá trong cùng một quãng.`
+  return `${people} người nhận đang nhận thư của ${where}. Đợt này vẫn gửi cho họ.`
 }

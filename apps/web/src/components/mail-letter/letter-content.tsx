@@ -133,7 +133,7 @@ export function LetterPreviewColumn({
   if (!ready) {
     return (
       <p className="text-muted-foreground m-0 px-1 text-[12px] leading-5">
-        Bản xem trước hiện ở đây ngay khi có người trong To, tiêu đề và nội dung.
+        Bản xem trước hiện khi đã có người nhận, tiêu đề và nội dung.
       </p>
     )
   }
@@ -149,7 +149,7 @@ export function LetterPreviewColumn({
       ]}
       caption={`Thư nhóm: mọi người trong To và CC nhận cùng một bản.${
         transport === 'gmail'
-          ? ' Khách trả lời vào hộp thư của bạn; hệ thống tự ghi nhận “Đã trả lời”.'
+          ? ' Khách trả lời vào hộp thư của bạn, thư tự ghi “Đã trả lời”.'
           : transport === 'resend'
             ? ' Thư trả lời của khách không về hộp thư của bạn.'
             : ''

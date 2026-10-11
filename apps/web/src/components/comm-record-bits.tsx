@@ -47,9 +47,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
         </div>
       ) : (
         row.state === 'done' && (
-          <p className="text-muted-foreground m-0 text-[12px]">
-            Lượt liên hệ này không đặt bước tiếp theo.
-          </p>
+          <p className="text-muted-foreground m-0 text-[12px]">Không đặt bước tiếp theo.</p>
         )
       )}
     </>

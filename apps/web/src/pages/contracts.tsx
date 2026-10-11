@@ -126,7 +126,7 @@ function ContractScore() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
-        Số liệu của toàn bộ hợp đồng, không giới hạn theo phạm vi dữ liệu của bạn
+        Số liệu của toàn bộ hợp đồng.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -154,7 +154,7 @@ function ContractScore() {
           source={
             scheduled === 0
               ? 'Chưa có đợt thanh toán nào'
-              : `${Math.round((collected / scheduled) * 100)}% số tiền đã lên lịch thu`
+              : `${Math.round((collected / scheduled) * 100)}% tổng tiền theo lịch thu`
           }
         />
         <StatCard
@@ -315,7 +315,7 @@ export function ContractsPage() {
             error
               ? {
                   message: `Không tải được danh sách hợp đồng. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -325,12 +325,12 @@ export function ContractsPage() {
             tableRows.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có hợp đồng nào phù hợp với bộ lọc hiện tại.',
+                    message: 'Không có hợp đồng nào khớp bộ lọc.',
                     action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
                   }
                 : {
                     message:
-                      'Chưa có hợp đồng nào trong phạm vi của bạn. Hợp đồng sẽ được tạo khi một cơ hội ký thành công.',
+                      'Chưa có hợp đồng nào bạn xem được. Hợp đồng tự tạo khi cơ hội ký thành công.',
                     action: {
                       label: 'Xem sổ cơ hội',
                       onClick: () => navigate('/sales/opportunities'),
@@ -379,10 +379,7 @@ export function ContractsPage() {
         {hidden > 0 && (
           <div className="text-muted-foreground flex items-center gap-3 text-[11.5px]">
             <Icon icon={Lock} size={16} />
-            <span>
-              {hidden} hợp đồng không hiển thị vì nằm ngoài phạm vi dữ liệu của bạn. Muốn xem các
-              hợp đồng này, cần thay đổi người phụ trách.
-            </span>
+            <span>{hidden} hợp đồng không hiện vì nằm ngoài phạm vi của bạn.</span>
           </div>
         )}
       </ScreenLayout>

@@ -10,10 +10,7 @@ import { EntryCount, Section, type AreaProps } from './sales-config-section'
  *  lead-origins screen mounts; `bare` leaves the heading to this `Section`. */
 export function IntakeArea() {
   return (
-    <Section
-      at="motions"
-      hint="Tên hiện ở ô chọn khi tạo lead, bật/tắt, và form hỏi gì tiếp sau khi chọn phương án."
-    >
+    <Section at="motions" hint="Tên, bật/tắt và form hỏi tiếp của mỗi phương án.">
       <MotionPickerSection bare />
     </Section>
   )

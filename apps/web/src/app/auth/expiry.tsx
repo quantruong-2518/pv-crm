@@ -69,12 +69,12 @@ export function ExpiryWarning() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="m-0 text-[12.5px] font-semibold">
-              Phiên hết sau {countdown(deadline - now)}
+              Hết thời gian đăng nhập sau {countdown(deadline - now)}
             </p>
             <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
               {renewable
-                ? 'Không thao tác thì hệ tự đóng phiên trên máy này.'
-                : 'Hết ca làm việc — lưu lại việc đang dở trước khi phải đăng nhập lại.'}
+                ? 'Không thao tác thì sẽ tự đăng xuất.'
+                : 'Hết ca làm việc. Lưu việc đang dở trước khi đăng nhập lại.'}
             </p>
           </div>
           <button
@@ -88,7 +88,7 @@ export function ExpiryWarning() {
         </div>
         {renewable && (
           <Button size="sm" onClick={() => void renewSession()}>
-            Gia hạn phiên
+            Gia hạn đăng nhập
           </Button>
         )}
       </GlassCard>

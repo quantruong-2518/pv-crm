@@ -74,10 +74,10 @@ export function ScanDropZone({
       />
       <div className="flex flex-col gap-2">
         <p className="text-[15px] font-semibold">
-          {over ? 'Thả ra là nhận' : 'Kéo thả tệp vào đây'}
+          {over ? 'Thả để tải lên' : 'Kéo thả tệp vào đây'}
         </p>
         <p className="text-muted-foreground text-[12.5px]">
-          Danh thiếp, ảnh chụp, PDF hồ sơ — thả nhiều tệp một lần
+          Danh thiếp, ảnh chụp, PDF hồ sơ. Thả được nhiều tệp một lần.
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-3">

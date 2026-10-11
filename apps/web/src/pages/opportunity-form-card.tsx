@@ -210,7 +210,7 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
           invalid={Boolean(errors.description)}
           value={work.description}
           aria-label="Mô tả cơ hội"
-          placeholder="Việc khách muốn giải — một hai câu là đủ."
+          placeholder="Khách cần gì, một hai câu."
           onChange={(e) => set('description', e.target.value)}
         />
       </Field>
@@ -229,7 +229,7 @@ function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileR
     <div className="flex min-w-0 flex-col gap-5">
       <PersonPickField
         label="BD mở cửa"
-        hint="Người mở được khách — nhận công trạng mở cửa."
+        hint="Người mở được khách, được ghi công."
         picked={work.bdOwners}
         errors={errors.bdOwners}
         onToggle={(id) => set('bdOwners', toggled(work.bdOwners, id))}
@@ -260,4 +260,4 @@ function percentOf(typed: string, last: number | null): number | null {
   return Number.isInteger(n) && n >= 0 && n <= 100 ? n : last
 }
 
-const MISSING_NOTE = 'Còn thiếu — chưa lưu được phiếu.'
+const MISSING_NOTE = 'Còn thiếu, chưa lưu được phiếu.'

@@ -206,7 +206,7 @@ function AccountContacts({ code }: { code: string }) {
         people={people}
         loading={isPending}
         error={error}
-        empty="Chưa ghi được ai ở công ty này. Thêm người liên hệ ở hồ sơ lead."
+        empty="Công ty này chưa có người liên hệ. Thêm ở hồ sơ lead."
       />
     </RunBlock>
   )
@@ -233,7 +233,7 @@ function PeopleBody({
   if (error || !people) {
     return (
       <p className={NOTE}>
-        Không đọc được người liên hệ. {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        Không đọc được người liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )
   }

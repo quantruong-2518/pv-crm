@@ -57,8 +57,8 @@ export function LeadDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không tìm thấy lead nào mang mã ${code}. Kiểm tra lại mã, hoặc mở lại từ sổ lead.`,
-            fallback: 'Không đọc được hồ sơ lead này.',
+            notFound: `Không tìm thấy lead ${code}.`,
+            fallback: 'Không mở được hồ sơ lead.',
             back: { label: 'Về sổ lead', onClick: () => navigate('/sales/leads') },
           }}
         />

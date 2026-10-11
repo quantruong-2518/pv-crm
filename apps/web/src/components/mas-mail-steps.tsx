@@ -156,7 +156,7 @@ function ChosenGrid({
 
       {report && report.hidden > 0 && (
         <p className="text-warning m-0 text-[12px] leading-5">
-          {report.hidden} người nhận bị ẩn theo quyền của bạn nên sẽ không nhận email.
+          {report.hidden} người nhận ngoài quyền xem của bạn, sẽ không nhận email.
         </p>
       )}
       {report?.apolloCount ? (
@@ -166,7 +166,7 @@ function ChosenGrid({
         </p>
       ) : null}
       <p className="text-glass-foreground m-0 text-[12px] leading-5">
-        Người nhận được kiểm tra tự động. Kết quả hiện trên từng dòng.
+        Kết quả kiểm tra hiện trên từng dòng.
       </p>
     </div>
   )
@@ -241,16 +241,14 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
         label="Lưu nội dung này thành mẫu"
         /* The only hint left in the form: not guidance, but the reason a
            control is locked, and it has to stand beside that control. */
-        {...(allowed
-          ? {}
-          : { hint: 'Cần quyền sửa mẫu email mới lưu được — thư vẫn gửi bình thường.' })}
+        {...(allowed ? {} : { hint: 'Cần quyền sửa mẫu email. Thư vẫn gửi bình thường.' })}
       />
       {allowed && draft.saveAsTemplate && (
-        <Field label="Tên mẫu *" hint="Tên này hiện trong ô 'Bắt đầu từ mẫu' của cả đội.">
+        <Field label="Tên mẫu *" hint="Cả đội thấy tên này trong ô 'Bắt đầu từ mẫu'.">
           <Input
             value={draft.templateName}
             maxLength={MAIL_NAME_MAX}
-            placeholder="VD: Chào lần đầu — nhà máy thực phẩm"
+            placeholder="VD: Chào lần đầu, nhà máy thực phẩm"
             onChange={(event) => draft.setTemplateName(event.target.value)}
           />
         </Field>
@@ -330,7 +328,7 @@ export function DeliveryOptions({
         checked={draft.trackEngagement}
         onChange={draft.setTrackEngagement}
         label="Ghi nhận khi khách mở email hoặc bấm nút"
-        hint="Tín hiệu hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi lượt mở hay lượt bấm nào."
+        hint="Lượt mở và lượt bấm hiện ở Lịch sử của hồ sơ."
       />
     </SendOptions>
   )
@@ -465,9 +463,9 @@ export function LetterColumn({
       envelope={[
         { label: 'Từ', value: preview.letter?.from ?? 'noreply · Pebble Vina' },
         { label: 'Tới', value: to },
-        { label: 'Trả lời về', value: 'địa chỉ theo dõi riêng của thư này' },
+        { label: 'Trả lời về', value: 'địa chỉ riêng của thư này' },
       ]}
-      caption="Gửi loạt: mỗi người nhận một thư riêng, trộn tên của chính họ. Gửi loạt không đính kèm file."
+      caption="Mỗi người nhận một thư riêng, tên điền theo từng người. Không đính kèm tệp được."
     />
   )
 }
@@ -477,7 +475,7 @@ export function LetterColumn({
 function PreviewPlaceholder() {
   return (
     <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
-      Bản xem trước hiện ở đây ngay khi bước "Nội dung" có tiêu đề và nội dung.
+      Bản xem trước hiện khi bước "Nội dung" có tiêu đề và nội dung.
     </p>
   )
 }

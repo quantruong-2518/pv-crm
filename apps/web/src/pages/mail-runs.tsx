@@ -207,13 +207,13 @@ export function MailRunsPage() {
         onSuccess: (res) => {
           toast(`Đã dừng lô "${run.label}"`, {
             tone: 'success',
-            detail: `${res.held} email chưa gửi đã được giữ lại.`,
+            detail: `Đã giữ lại ${res.held} email chưa gửi.`,
           })
         },
         onError: (err) => {
           toast('Không dừng được lô', {
             tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
           })
         },
       },
@@ -233,7 +233,7 @@ export function MailRunsPage() {
                 icon={Send}
                 value={page.sent.toLocaleString('vi-VN')}
                 label="Email đã gửi"
-                hint={`Tổng của ${rows.length} lô gửi trên trang này`}
+                hint={`${rows.length} lô gửi trên trang này`}
               />
               <StatCard
                 size="compact"
@@ -308,7 +308,7 @@ export function MailRunsPage() {
             error
               ? {
                   message: `Không tải được danh sách lô gửi. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -317,9 +317,7 @@ export function MailRunsPage() {
           empty={
             rows.length === 0
               ? {
-                  message: book.dirty
-                    ? 'Không có lô gửi nào phù hợp với bộ lọc hiện tại.'
-                    : 'Chưa có lô gửi nào. Lô gửi sẽ được tạo khi bạn gửi email từ sổ lead hoặc bắt đầu một chiến dịch.',
+                  message: book.dirty ? 'Không có lô gửi nào khớp bộ lọc.' : 'Chưa có lô gửi nào.',
                   action: book.dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : {
@@ -420,7 +418,7 @@ export function MailRunsPage() {
               />
               <p className="text-muted-foreground m-0 px-5 pb-4 text-[11.5px] leading-[1.5]">
                 Sửa khi lô còn Hẹn giờ. Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Chỉ người tạo lô hoặc
-                người có quyền phát chiến dịch mới Sửa, Dừng được.
+                người có quyền phát chiến dịch được Sửa, Dừng.
               </p>
             </>
           }

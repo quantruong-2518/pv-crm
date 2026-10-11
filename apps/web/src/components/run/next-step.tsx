@@ -96,9 +96,7 @@ export function NextStepCard({
 function StepShell({ children }: { children: ReactNode }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Việc tiếp theo">
-      <SectionTitle size="detail" hint="Một bước cụ thể phải làm tiếp.">
-        Việc tiếp theo
-      </SectionTitle>
+      <SectionTitle size="detail">Việc tiếp theo</SectionTitle>
       {children}
     </GlassCard>
   )
@@ -123,8 +121,7 @@ function StepBody({
   if (!data) {
     return (
       <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-        Không đọc được việc tiếp theo.{' '}
-        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        Không đọc được việc tiếp theo. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )
   }
@@ -261,7 +258,7 @@ export function NextStepForm(props: FormProps) {
     <div className="flex flex-col gap-3">
       <p role="alert" className="text-warning m-0 text-[12.5px] leading-[1.6]">
         Không đọc được danh sách bước tiếp theo.{' '}
-        {isApiError(options.error) ? userMessage(options.error) : 'Vui lòng thử lại.'}
+        {isApiError(options.error) ? userMessage(options.error) : 'Thử lại.'}
       </p>
       <div className="flex flex-wrap justify-end gap-2">
         <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={props.onClose}>

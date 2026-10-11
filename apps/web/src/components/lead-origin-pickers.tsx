@@ -324,7 +324,7 @@ function ReferrerCodeStep({
   if (loaded && offered.length === 0) {
     return (
       <span role="alert" className="text-destructive-foreground text-[11.5px] leading-[1.5]">
-        Phương án tiếp cận này chưa có nguồn nào — thêm ở trang Nguồn lead.
+        Phương án tiếp cận này chưa có nguồn. Thêm ở trang Nguồn lead.
       </span>
     )
   }

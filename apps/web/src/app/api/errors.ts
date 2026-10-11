@@ -160,9 +160,9 @@ export function failureOf(status: number): ApiFailure {
 export function userMessage(error: ApiError): string {
   switch (error.kind) {
     case 'network':
-      return 'Không nối được máy chủ. Kiểm tra mạng rồi thử lại.'
+      return 'Không kết nối được. Kiểm tra mạng rồi thử lại.'
     case 'unauthenticated':
-      return 'Phiên đã hết hạn. Đăng nhập lại để tiếp tục.'
+      return 'Đã hết thời gian đăng nhập. Đăng nhập lại để tiếp tục.'
     /* Three of E2's four refusals land on this one kind, and each one sends the
        user somewhere different — that is why they get three sentences, not one.
        Missing licence is the company's purchase; missing permission is a role
@@ -176,7 +176,7 @@ export function userMessage(error: ApiError): string {
     case 'forbidden':
       if (error.reason === 'branch-not-licensed') return 'Công ty chưa mở nhánh này.'
       if (error.reason === 'out-of-scope')
-        return 'Dữ liệu này của người khác. Nhờ người đang phụ trách mở hộ, hoặc xin bàn giao.'
+        return 'Dữ liệu này do người khác phụ trách. Nhờ họ mở giúp.'
       return 'Bị ẩn theo quyền của bạn.'
     /* Only reachable when the user pressed Cancel on the confirmation box —
        every other path was settled by `confirmOnReauthRequired` before a screen
@@ -184,16 +184,16 @@ export function userMessage(error: ApiError): string {
        just chose not to, and a sentence that sounds like a refusal would send
        them off to ask for permissions they already have. */
     case 'reauth-required':
-      return 'Chưa xác nhận mật khẩu nên thao tác chưa chạy. Làm lại và xác nhận để tiếp tục.'
+      return 'Chưa xác nhận mật khẩu. Làm lại và xác nhận để tiếp tục.'
     /* Barely reachable: the guard sends the person to the change-password
        screen off `SessionView.mustChangePassword`, before any request goes out.
        What lands here is a session whose flag went stale mid-visit - an
        administrator pressed reset while the tab was open - so the sentence has
        to say what happened as well as what to do. */
     case 'password-change-required':
-      return 'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại thao tác.'
+      return 'Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu rồi làm lại.'
     case 'not-found':
-      return 'Không tìm thấy dữ liệu này. Có thể nó vừa bị xoá.'
+      return 'Không tìm thấy dữ liệu này. Có thể đã bị xoá.'
     /* `error.message` is the server's own `title` when it sent one (see
        `toApiError` in `client.ts`) — a duplicate-email 409 and a stale-write
        409 are both `'conflict'`, but they are not the same sentence: only the
@@ -201,14 +201,14 @@ export function userMessage(error: ApiError): string {
        which is which, so its sentence wins; the canned line below only covers
        the rare case where the server said nothing at all. */
     case 'conflict':
-      return error.message || 'Người khác vừa sửa dữ liệu này. Tải lại rồi làm lại thao tác.'
+      return error.message || 'Người khác vừa sửa dữ liệu này. Tải lại rồi làm lại.'
     /* Unlike the kinds above, this one IS the screen's business: it is a
        complaint about what the user just typed, not about the session or the
        server. `error.errors` often names the offending field, but a screen
        cannot always show a per-field message (list filters, query params), so
        this sentence must stand on its own even when `errors` is empty. */
     case 'invalid-data':
-      return 'Dữ liệu vừa nhập chưa hợp lệ. Kiểm tra lại rồi thử lại.'
+      return 'Dữ liệu chưa hợp lệ. Kiểm tra lại.'
     /* Every 429 the server sends carries its own sentence (a daily quota is not
        "too fast"), so it wins, as for `conflict` above. */
     case 'rate-limited':
@@ -219,8 +219,8 @@ export function userMessage(error: ApiError): string {
        wrong sentence here: a contract skew does not heal with time, and that
        line leaves someone pressing F5 at a screen that will never come back. */
     case 'contract-mismatch':
-      return 'Màn và máy chủ đang lệch phiên bản dữ liệu. Báo người trực deploy — tải lại trang không chữa được.'
+      return 'Dữ liệu không khớp với màn hình. Báo quản trị viên.'
     case 'server-error':
-      return 'Máy chủ đang trục trặc. Thử lại sau ít phút.'
+      return 'Hệ thống đang gặp sự cố. Thử lại sau ít phút.'
   }
 }

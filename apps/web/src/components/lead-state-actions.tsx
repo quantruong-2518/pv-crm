@@ -49,18 +49,14 @@ export function NurtureDialog({
           profile={profile}
           /* ADR 0068: a parked lead never expires on its own — only a real
              touch wakes it, or a person presses the disqualify button. */
-          what={`khách chưa sẵn sàng. Lead không tự hết hạn ở đây — một lần liên hệ thật sẽ đưa lead quay lại, và chỉ người mới bấm ${LEAD_STATE_LABEL.disqualified} được.`}
+          what={'Khách chưa sẵn sàng. Có liên hệ thật thì lead quay lại.'}
         />
       }
       footer={
         <StepFooter
           error={nurture.error}
           pending={nurture.isPending}
-          hint={
-            ready
-              ? 'Ghi ngay, không cần ai duyệt. Bấm Chăm lại khi khách có tín hiệu mới.'
-              : 'Chọn một lý do để bật nút.'
-          }
+          hint={ready ? 'Ghi ngay, không cần duyệt.' : 'Chọn lý do.'}
           onClose={onClose}
           confirm={{
             icon: Timer,
@@ -99,7 +95,7 @@ function done(message: string, onClose: () => void) {
 function Subject({ profile, what }: { profile: LeadProfile; what: string }) {
   return (
     <>
-      <span className="font-mono">{profile.code}</span> · {profile.company} — {what}
+      <span className="font-mono">{profile.code}</span> · {profile.company}. {what}
     </>
   )
 }

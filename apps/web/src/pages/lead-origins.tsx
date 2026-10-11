@@ -159,7 +159,7 @@ export function LeadOriginsPage() {
             error
               ? {
                   message: `Không tải được danh sách nguồn lead. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -169,7 +169,7 @@ export function LeadOriginsPage() {
             rows.length === 0
               ? filtering
                 ? {
-                    message: 'Không có nguồn lead nào phù hợp với bộ lọc hiện tại.',
+                    message: 'Không có nguồn lead nào khớp bộ lọc.',
                     action: { label: 'Bỏ hết bộ lọc', onClick: clear },
                   }
                 : {

@@ -85,9 +85,7 @@ export function MeetingScheduleDrawer({
   const linkBroken = form.link.trim() !== '' && !isHttpUrl(form.link.trim())
   const blocker = blockerOf(form, linkBroken)
   const onError = (error: unknown) =>
-    setFailure(
-      isApiError(error) ? userMessage(error) : 'Không lưu được buổi họp. Vui lòng thử lại.',
-    )
+    setFailure(isApiError(error) ? userMessage(error) : 'Không lưu được buổi họp. Thử lại.')
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -117,7 +115,7 @@ export function MeetingScheduleDrawer({
           toastSaved(
             doneToast(past, row.isFirst),
             row,
-            row.isFirst ? 'Dòng thời gian của lead có thêm một mốc "gặp lần đầu".' : undefined,
+            row.isFirst ? 'Đã thêm mốc "gặp lần đầu" vào dòng thời gian của lead.' : undefined,
           )
           onClose()
         },
@@ -194,8 +192,8 @@ function useSubjectBook(subject: MeetingSubject, open: boolean) {
  *  server already draws that line on the lead timeline, so a screen announcing
  *  a booking over a meeting held last Tuesday contradicts its own history. */
 function doneToast(past: boolean, first: boolean): string {
-  if (past) return first ? 'Đã ghi lại buổi họp — đây là lần gặp đầu' : 'Đã ghi lại buổi họp'
-  return first ? 'Đã đặt lịch — đây là lần gặp đầu' : 'Đã đặt lịch họp'
+  if (past) return first ? 'Đã ghi lại buổi họp, lần gặp đầu' : 'Đã ghi lại buổi họp'
+  return first ? 'Đã đặt lịch, lần gặp đầu' : 'Đã đặt lịch họp'
 }
 
 /** One sentence per way this cannot be sent yet, in the order the eye reads the
@@ -207,9 +205,9 @@ function blockerOf(form: MeetingDraft, linkBroken: boolean): string | null {
   if (!form.time) return 'Chưa chọn giờ bắt đầu.'
   if (form.hostIds.length === 0) return 'Chọn ít nhất một người bên mình.'
   if (form.hostIds.length > MEETING_MAX_HOSTS)
-    return `Một buổi tối đa ${MEETING_MAX_HOSTS} người bên mình — đang chọn ${form.hostIds.length}.`
+    return `Tối đa ${MEETING_MAX_HOSTS} người bên mình, đang chọn ${form.hostIds.length}.`
   if (form.guests.length > MEETING_MAX_GUESTS)
-    return `Một buổi tối đa ${MEETING_MAX_GUESTS} khách — đang chọn ${form.guests.length}.`
+    return `Tối đa ${MEETING_MAX_GUESTS} khách, đang chọn ${form.guests.length}.`
   if (linkBroken) return 'Link họp phải bắt đầu bằng http:// hoặc https://.'
   return null
 }
@@ -313,7 +311,6 @@ function BasicsGroup({
       </Field>
       <Field
         label="Link họp"
-        hint="Để trống cũng được — dán link vào sau khi đã có."
         problem={linkBroken ? 'Link họp phải bắt đầu bằng http:// hoặc https://.' : undefined}
       >
         <Input
@@ -458,8 +455,7 @@ function AttendeesGroup({
      an address typed here would be stored in `name` and read back as a person's
      name everywhere the meeting is shown. */
   const addTypedGuest = (text: string): string | null => {
-    if (LOOKS_LIKE_EMAIL.test(text))
-      return 'Ô này nhận TÊN khách, không nhận email — hồ sơ buổi họp không có chỗ lưu địa chỉ.'
+    if (LOOKS_LIKE_EMAIL.test(text)) return 'Nhập tên khách, không nhập email.'
     form.addGuest({ id: `typed:${text}`, name: text })
     return null
   }
@@ -476,8 +472,8 @@ function AttendeesGroup({
           suggestions={staff.filter((person) => !form.hostIds.includes(person.id))}
           onPick={form.addHost}
           onRemove={form.dropHost}
-          hint="Người đầu tiên là chủ trì. Backspace để bỏ người cuối."
-          emptyNote="Cả sổ nhân sự đã có mặt trong buổi này."
+          hint="Người đầu tiên là chủ trì."
+          emptyNote="Không còn ai để thêm."
         />
       </Field>
 
@@ -500,8 +496,8 @@ function AttendeesGroup({
           onPick={pickContact}
           onRemove={form.dropGuest}
           onFreeText={addTypedGuest}
-          hint={`Tìm trong người liên hệ của ${company}. Chưa có trong sổ thì gõ tên rồi nhấn Enter.`}
-          emptyNote="Sổ liên hệ của lead này chưa có ai — gõ tên khách rồi nhấn Enter."
+          hint={`Chọn từ người liên hệ của ${company}, hoặc gõ tên rồi nhấn Enter.`}
+          emptyNote="Chưa có người liên hệ. Gõ tên khách rồi nhấn Enter."
         />
       </Field>
     </section>
@@ -522,7 +518,7 @@ function PrepareGroup({ form }: { form: MeetingDraft }) {
         />
       </Field>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Biên bản, người dự và tệp ghi vào lượt liên hệ của buổi họp, bằng nút Họp xong.
+        Biên bản, người dự và tệp ghi bằng nút Họp xong.
       </p>
     </section>
   )

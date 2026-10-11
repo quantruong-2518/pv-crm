@@ -138,7 +138,7 @@ export function ContactsCard({
         <Skeleton className="h-20 w-full" />
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa ghi được ai ở công ty này. Người đầu tiên bạn thêm tự thành người liên hệ chính.
+          Chưa có người liên hệ. Người đầu tiên là người liên hệ chính.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -340,9 +340,7 @@ function ContactDrawer({
       width="md"
       title={row === null ? 'Thêm người liên hệ' : `Sửa ${row.name}`}
       subtitle={
-        row === null && first
-          ? 'Đây là người đầu tiên của lead này, nên hệ sẽ đặt họ làm người liên hệ chính.'
-          : 'Chỉ tên là bắt buộc.'
+        row === null && first ? 'Người đầu tiên là người liên hệ chính.' : 'Chỉ tên là bắt buộc.'
       }
       footer={
         <div className="flex items-center justify-end gap-3">
@@ -377,11 +375,7 @@ function ContactDrawer({
           />
         </Field>
 
-        <Field
-          label="Email"
-          errors={errors.email}
-          hint="Bỏ trống được. Thư gửi theo hộp thư của lead."
-        >
+        <Field label="Email" errors={errors.email} hint="Thư gửi theo hộp thư của lead.">
           <Input
             type="email"
             value={draft.email}
@@ -400,12 +394,7 @@ function ContactDrawer({
           />
         </Field>
 
-        <Field
-          label="Kênh hay trả lời"
-          plain
-          errors={errors.channel}
-          hint="Kênh người này hay trả lời nhất."
-        >
+        <Field label="Kênh hay trả lời" plain errors={errors.channel}>
           <Select
             label="Kênh hay trả lời"
             hideLabel

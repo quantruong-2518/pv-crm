@@ -362,7 +362,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
         label: 'Xem nguồn kéo về',
         icon: Megaphone,
         primary: true,
-        why: `Lead đã ra khỏi luồng · ${lead.exitReason}. Việc còn lại là trả phản hồi cho nơi kéo nó về.`,
+        why: `Lead đã ra khỏi luồng · ${lead.exitReason}.`,
       },
       {
         key: 'assign-owner',
@@ -380,7 +380,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Nhận lead về mình',
       icon: UserPlus,
       primary: true,
-      why: 'Lead còn ở kho chung, chưa ai đứng tên — không ai nhận thì không ai chạm.',
+      why: 'Lead còn ở kho chung, chưa ai nhận.',
     })
   }
 
@@ -390,7 +390,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: `Lấy ${missing} ô còn thiếu`,
       icon: ClipboardList,
       primary: out.length === 0,
-      why: `Cổng init data là ${REQUIRED_SLOTS} ô bắt buộc. Chưa qua cổng thì agent 2 không chạy.`,
+      why: `Cần đủ ${REQUIRED_SLOTS} ô bắt buộc.`,
     })
   }
 
@@ -400,7 +400,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Đề nghị nhận vào pipeline',
       icon: ArrowRight,
       primary: out.length === 0,
-      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. Người gật là ${APPROVER_ROLE_LABEL}, Sale đề nghị chứ không tự chuyển bậc.`,
+      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. Chờ ${APPROVER_ROLE_LABEL} duyệt.`,
     })
   }
 
@@ -419,7 +419,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Nhắc ký',
       icon: PenLine,
       primary: out.length === 0,
-      why: 'Đơn đang ở cột cuối — thứ còn thiếu là chữ ký, không phải thông tin.',
+      why: 'Đơn đang ở cột cuối, còn thiếu chữ ký.',
     })
   } else if (lead.stage) {
     out.push({
@@ -427,7 +427,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Đề nghị sang cột kế',
       icon: ArrowRight,
       primary: out.length === 0,
-      why: 'Đơn còn trong hạn cột đang đứng; đẩy sớm thì cả sổ chạy nhanh hơn.',
+      why: 'Đơn còn trong hạn của cột.',
     })
   }
 
@@ -443,7 +443,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       ? contact.title
         ? `${contact.title} · ${contact.phone}`
         : contact.phone
-      : 'Chưa có ô số 5 "kênh gọi lại được" — nhắn lại đúng chỗ khách vừa nhắn.',
+      : 'Chưa có số điện thoại.',
   })
 
   out.push({
@@ -451,7 +451,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
     label: 'Giao việc',
     icon: Users,
     primary: false,
-    why: 'Giao cho người khác cùng làm. Giao việc không đổi người giữ lead.',
+    why: 'Giao cho người khác cùng làm.',
   })
 
   return out
@@ -559,7 +559,7 @@ export function myWork(input: {
       const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
       push(
         lead,
-        missing > 0 ? `Còn thiếu ${missing} ô bắt buộc` : 'Đủ ô bắt buộc — chờ đẩy sang Sale',
+        missing > 0 ? `Còn thiếu ${missing} ô bắt buộc` : 'Đủ ô bắt buộc · chờ đẩy sang Sale',
       )
     }
   }
@@ -578,13 +578,13 @@ export function myWork(input: {
 
   if (actor.roleIds.includes('head-of-sales')) {
     for (const lead of running) {
-      if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn gật cho vào pipeline')
+      if (canPromoteToSql(lead).ok) push(lead, 'Đủ ô bắt buộc · chờ bạn duyệt vào pipeline')
     }
     for (const lead of running) {
       if (isOverSla(lead)) push(lead, `Quá hạn cột · ${lead.daysHere} ngày`)
     }
     for (const lead of running) {
-      if (!lead.owner) push(lead, 'Còn ở kho chung · chưa ai đứng tên')
+      if (!lead.owner) push(lead, 'Còn ở kho chung · chưa ai nhận')
     }
   }
 
@@ -635,29 +635,29 @@ export function assigneeOptions(
 
       if (a.id === meId) {
         rank = 0
-        why = 'Nhận việc về chính mình'
+        why = 'Bạn tự nhận'
       } else if (a.name === owner) {
         rank = 10
         why = `Sale phụ trách ngành ${domains.join(' · ')}`
       } else if (a.roleIds.includes('bd') && missing > 0) {
         rank = 20
-        why = `Còn ${missing} ô bắt buộc — moi ô là việc của vai này`
+        why = `Còn ${missing} ô bắt buộc, việc của BD`
       } else if (a.roleIds.includes('marketing') && lead.tier === 'prospect') {
         rank = 40
-        why = 'Lead còn ở bậc đầu mối — nuôi tiếp là việc của Marketing'
+        why = 'Lead còn ở bậc đầu mối, Marketing nuôi tiếp'
       } else if (a.roleIds.includes('head-of-sales')) {
         rank = 50
         /* Không còn "người gật mọi đề nghị" — không còn đề nghị nào để gật.
            Vai này đứng cao vì nó là vai DUY NHẤT giao được lead cho người
            khác (`lead.assign`), nên nó cũng là người nhận lại được một lead
            đang không biết đưa cho ai. */
-        why = 'Trưởng phòng — điều phối lead cho cả phòng'
+        why = 'Trưởng phòng, điều phối lead cho cả phòng'
       } else if (domains.length > 0) {
         rank = 70
         why = `Sale ngành ${domains.join(' · ')}`
       } else if (a.roleIds.includes('bd')) {
         rank = 60
-        why = 'Mở khách mới, moi ô bắt buộc'
+        why = 'Mở khách mới, điền ô bắt buộc'
       }
 
       return { actor: a, domains, rank, why }

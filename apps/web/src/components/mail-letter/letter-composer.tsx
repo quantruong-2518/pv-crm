@@ -152,7 +152,7 @@ export function LetterComposer({
         <div className="flex min-w-0 flex-col gap-5">
           {people.contacts.failed && (
             <p className="text-warning m-0 text-[12px] leading-5">
-              Không đọc được danh bạ liên hệ của khách này — chưa thêm người nhận được.
+              Không đọc được danh sách người liên hệ. Chưa thêm người nhận được.
             </p>
           )}
           <LetterSenderLine line={from.line} />
@@ -232,10 +232,10 @@ function MilestoneNote({
       )}
     >
       {!offer
-        ? `Thư vẫn gửi, ${what} sẽ không được ghi. ${deal.block ?? ''}`.trim()
+        ? `Thư vẫn gửi nhưng không ghi ${what}. ${deal.block ?? ''}`.trim()
         : quoting
           ? `Gửi thành công sẽ ghi ${what} (lần ${offer.nextRound})${moves}` +
-            (offer.atAssigned ? ' — bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.')
+            (offer.atAssigned ? ', bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.')
           : `Gửi thành công sẽ ghi một ${what}${moves}.`}
     </p>
   )

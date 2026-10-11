@@ -105,7 +105,7 @@ export function withGroupHint(hints: MailHint[] | null, picked: number, body: st
       id: 'group-name',
       tone: 'warn' as const,
       text: 'Thư nhóm chỉ điền được một tên',
-      detail: `Có ${picked} người trong To; tên người nhận lấy người đầu tiên.`,
+      detail: `Có ${picked} người trong To. Tên điền theo người đầu tiên.`,
     },
   ]
 }
@@ -155,9 +155,9 @@ export function queuedToast(state: MailGroupSendResponse['state'], at: string) {
   return state === 'SCHEDULED'
     ? {
         title: 'Đã đặt lịch 1 email',
-        detail: `Thư đi lúc ${dmhm(new Date(at).toISOString())} · Dừng được ngay tại dòng hoạt động.`,
+        detail: `Thư đi lúc ${dmhm(new Date(at).toISOString())} . Dừng được ở dòng hoạt động.`,
       }
-    : { title: 'Đã xếp hàng 1 email', detail: 'Email sẽ rời hệ thống sau vài chục giây.' }
+    : { title: 'Đã xếp hàng 1 email', detail: 'Email gửi đi sau vài chục giây.' }
 }
 
 export const sendLabel = (form: LetterForm) =>

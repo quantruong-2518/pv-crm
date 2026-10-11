@@ -233,8 +233,7 @@ export const isSelfGranting = (permission: Permission): boolean =>
 
 export const SELF_GRANTING_TAG = 'Tự cấp'
 
-export const SELF_GRANTING_WHY =
-  'Ai có quyền này tự cấp được cho mình mọi quyền còn lại. Trao nó cho một vai là trao cả bảng.'
+export const SELF_GRANTING_WHY = 'Quyền này tự cấp được mọi quyền khác.'
 
 // ---------------------------------------------------------------------------
 // The draft the screen edits

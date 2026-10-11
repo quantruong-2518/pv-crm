@@ -72,10 +72,7 @@ export function OpportunityNewPage() {
           title="Mở cơ hội"
         />
         <GlassCard variant="b" className="flex flex-col gap-5 p-4 sm:p-5 lg:p-6">
-          <SectionTitle
-            size="detail"
-            hint="Một cơ hội mọc ra từ một lead. Chọn lead trước — phiếu mở ngay sau, đã mồi sẵn tên, tiền và người bán của khách đó."
-          >
+          <SectionTitle size="detail" hint="Chọn lead. Tên, giá trị và Sale được điền sẵn.">
             Đơn này của khách nào
           </SectionTitle>
           {/* The lead rides on the ADDRESS, so a half-filled ticket survives a
@@ -125,8 +122,7 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
             note={
               missing ? (
                 <>
-                  Không có lead nào mang mã <span className="font-mono">{leadCode}</span> — một cơ
-                  hội phải mọc ra từ một lead có thật.
+                  Không có lead mã <span className="font-mono">{leadCode}</span>.
                 </>
               ) : (
                 (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'

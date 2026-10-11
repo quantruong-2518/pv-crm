@@ -208,7 +208,7 @@ function EventFields({
       {quoting && atAssigned && (
         <p className="text-warning m-0 flex items-start gap-2 text-[12.5px] leading-[1.6]">
           <Icon icon={TriangleAlert} size={16} className="mt-1 shrink-0" />
-          Chưa ghi hoạt động chăm sóc nào — chuyển thẳng sang {OPPORTUNITY_STAGE_LABEL.quotation}?
+          Chưa ghi hoạt động chăm sóc nào. Chuyển thẳng sang {OPPORTUNITY_STAGE_LABEL.quotation}?
           Cột {OPPORTUNITY_STAGE_LABEL.engaged} sẽ hiện là bỏ qua.
         </p>
       )}
@@ -220,7 +220,7 @@ function EventFields({
           hint={
             atAssigned
               ? `Hoạt động đầu tiên chuyển cơ hội sang cột ${OPPORTUNITY_STAGE_LABEL.engaged}.`
-              : 'Ghi lặp lại được, theo thứ tự nào cũng được.'
+              : 'Ghi lại nhiều lần, thứ tự nào cũng được.'
           }
         >
           <Select
@@ -245,7 +245,7 @@ function EventFields({
           onChange={(e) => setForm({ ...form, day: e.target.value })}
         />
       </Field>
-      <Field label="Ghi chú" hint="Tuỳ chọn — khách nói gì, gửi gì, ai tham gia.">
+      <Field label="Ghi chú" hint="Khách nói gì, gửi gì, ai tham gia.">
         <Textarea
           autoGrow
           rows={3}

@@ -31,8 +31,7 @@ const STEP_DOT: Record<JourneyRungState, StatusDotState> = {
   upcoming: 'next',
 }
 
-const INVOICE_NOTE =
-  'Hoá đơn chỉ ghi nhận: số và ngày hoá đơn, ngày và số tiền đã thu. Hệ thống không phát hành hoá đơn.'
+const INVOICE_NOTE = 'Chỉ ghi số và ngày hoá đơn, ngày và số tiền đã thu.'
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

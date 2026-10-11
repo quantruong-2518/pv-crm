@@ -201,7 +201,7 @@ function WorkstreamsBook() {
             error
               ? {
                   message: `Không tải được danh sách hành trình. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -211,10 +211,10 @@ function WorkstreamsBook() {
             rows.length === 0
               ? {
                   message: dirty
-                    ? 'Không có hành trình nào phù hợp với bộ lọc hiện tại.'
+                    ? 'Không có hành trình nào khớp bộ lọc.'
                     : hidden > 0
-                      ? `${hidden} hành trình nằm ngoài phạm vi của bạn nên không hiện ở đây.`
-                      : 'Chưa có hành trình nào. Hành trình sẽ xuất hiện khi lead bắt đầu được theo dõi.',
+                      ? `${hidden} hành trình nằm ngoài phạm vi của bạn.`
+                      : 'Chưa có hành trình nào.',
                   action: dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: clearAll }
                     : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
