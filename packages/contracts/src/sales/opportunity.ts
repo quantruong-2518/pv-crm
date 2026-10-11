@@ -90,7 +90,7 @@ export type ActivityFreshnessLevel = z.infer<typeof ActivityFreshnessLevel>
 export const OpportunityFile = z.object({
   name: textInput(255),
   size: z
-    .number('Cỡ tệp là bắt buộc')
+    .number('Cỡ tệp là bắt buộc.')
     .int()
     .nonnegative()
     .max(256 * 1024 * 1024, 'Tệp quá lớn.'),
@@ -271,7 +271,7 @@ export const OpportunityUpdate = z
     currency: CurrencyCode.nullable(),
   })
   .refine((v) => (v.amount === null) === (v.currency === null), {
-    error: 'Nhập cả giá trị và đơn vị tiền.',
+    error: 'Giá trị đơn cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
     path: ['currency'],
   })
 

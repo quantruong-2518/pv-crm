@@ -47,7 +47,7 @@ export function editTermsVerdict(deal: DealAt): OpportunityAct {
   if (deal.pendingSign) {
     return {
       ok: false,
-      reason: `Cơ hội ${code} đang chờ duyệt ký, chưa sửa ${terms} được.`,
+      reason: `Cơ hội ${code} đang chờ duyệt ký. Chờ duyệt hoặc từ chối đề nghị rồi sửa ${terms}.`,
     }
   }
   return { ok: true }

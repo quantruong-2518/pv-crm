@@ -120,7 +120,7 @@ function KindField({ value, onChange }: { value: string; onChange: (id: string) 
         emptyLabel="— chọn loại —"
       />
       <span className="text-muted-foreground text-[11px] leading-[1.5]">
-        Thiếu loại thì thêm ở trang Nguồn lead.
+        Thiếu loại thì thêm nguồn thuộc phương án hỏi mã giới thiệu ở trang Nguồn lead.
       </span>
     </div>
   )
@@ -210,7 +210,10 @@ function EditPartnerBody({ partner }: { partner: Partner }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionTitle size="sm" hint="Đối tác ẩn không hiện trong ô chọn.">
+        <SectionTitle
+          size="sm"
+          hint="Ẩn thì không chọn được đối tác này nữa. Lead đã mang mã này giữ nguyên."
+        >
           {partner.active ? 'Ẩn đối tác' : 'Hiện lại đối tác'}
         </SectionTitle>
         <div>

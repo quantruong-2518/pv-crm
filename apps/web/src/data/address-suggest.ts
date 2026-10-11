@@ -52,7 +52,7 @@ const PROBE_STALE_MS = 30 * 60 * 1000
 export const SUGGEST_EMPTY_TEXT = 'Không thấy địa chỉ. Thử gõ thêm số nhà, đường hoặc phường.'
 /** The search itself was refused or failed — most often the per-person or daily
  *  ceiling — and "not found" would send the typist hunting for a typo. */
-export const SUGGEST_FAILED_TEXT = 'Chưa tra được địa chỉ. Bạn nhập tay.'
+export const SUGGEST_FAILED_TEXT = 'Chưa tra được địa chỉ. Hãy nhập tay.'
 export const SUGGEST_TOO_SHORT_TEXT = `Gõ ít nhất ${ADDRESS_SUGGEST_MIN_CHARS} ký tự để tìm địa chỉ`
 
 /** `keepPreviousData` so the menu does not flash empty between keystrokes; no

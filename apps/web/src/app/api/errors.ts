@@ -176,7 +176,7 @@ export function userMessage(error: ApiError): string {
     case 'forbidden':
       if (error.reason === 'branch-not-licensed') return 'Công ty chưa mở nhánh này.'
       if (error.reason === 'out-of-scope')
-        return 'Dữ liệu này do người khác phụ trách. Nhờ họ mở giúp.'
+        return 'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.'
       return 'Bị ẩn theo quyền của bạn.'
     /* Only reachable when the user pressed Cancel on the confirmation box —
        every other path was settled by `confirmOnReauthRequired` before a screen

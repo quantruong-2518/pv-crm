@@ -125,7 +125,7 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
                   Không có lead mã <span className="font-mono">{leadCode}</span>.
                 </>
               ) : (
-                (failure && userMessage(failure)) || 'Không đọc được hồ sơ lead này.'
+                (failure && userMessage(failure)) || 'Không mở được hồ sơ lead.'
               )
             }
             onBack={() => navigate('/sales/opportunities')}

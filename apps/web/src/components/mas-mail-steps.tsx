@@ -156,7 +156,7 @@ function ChosenGrid({
 
       {report && report.hidden > 0 && (
         <p className="text-warning m-0 text-[12px] leading-5">
-          {report.hidden} người nhận ngoài quyền xem của bạn, sẽ không nhận email.
+          {report.hidden} người nhận bị ẩn theo quyền của bạn, sẽ không nhận email.
         </p>
       )}
       {report?.apolloCount ? (

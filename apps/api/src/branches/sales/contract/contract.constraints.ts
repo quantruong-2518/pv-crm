@@ -34,6 +34,6 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
   contract_owner_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['ownerId'],
-    message: 'Không tìm thấy người ký. Chọn lại.',
+    message: 'Không tìm thấy người hưởng hoa hồng. Chọn lại.',
   },
 }

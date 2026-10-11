@@ -210,7 +210,7 @@ export class UsersService {
        it is a naming scheme that has run out. Say so plainly rather than
        looping forever or falling back to a random id nobody can read. */
     throw conflict(
-      `Không tạo được mã tài khoản từ tên này vì đã có quá nhiều tài khoản mang mã "u-${seed}". Đổi cách viết tên hoặc nhờ quản trị viên đặt mã.`,
+      `Không tạo được mã tài khoản từ tên này vì đã có quá nhiều tài khoản mang mã "u-${seed}". Đổi cách viết tên.`,
       { name: ['Tên này trùng mã với quá nhiều tài khoản đã có.'] },
     )
   }

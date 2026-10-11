@@ -109,7 +109,7 @@ export function FileDrop({
     if (!files || files.length === 0) return
 
     if (files.length > 1) {
-      setOwn(`Mỗi lần chỉ nhận một tệp.`)
+      setOwn('Mỗi lần chỉ nhận một tệp.')
       return
     }
 
@@ -239,7 +239,7 @@ export function FileDrop({
             {busy
               ? 'Đang đọc tệp…'
               : over
-                ? 'Thả tệp vào đây'
+                ? 'Thả để chọn tệp'
                 : fileName
                   ? fileName
                   : 'Kéo và thả tệp dữ liệu vào đây'}

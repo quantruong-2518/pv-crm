@@ -75,7 +75,7 @@ export function originKey(text: string): string {
 // The catalog itself
 // ---------------------------------------------------------------------------
 
-export const LeadOriginId = z.string().regex(/^LO-\d{4,}$/, 'Mã nguồn sai dạng')
+export const LeadOriginId = z.string().regex(/^LO-\d{4,}$/, 'Mã nguồn sai dạng.')
 export type LeadOriginId = z.infer<typeof LeadOriginId>
 
 /** One catalog row. `aliases` are the OLD keys folded into this one by a

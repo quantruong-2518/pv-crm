@@ -1,7 +1,7 @@
 import type { ConstraintBook } from '../http/db-error'
 
 /** The one constraint on `platform.actor` a person can walk into, and the
- *  sentence they get instead of "Máy chủ gặp sự cố.".
+ *  sentence they get instead of "Hệ thống gặp sự cố.".
  *
  *  ------------------------------------------------------------------
  *  WHY NOT A `SELECT` BEFORE THE `INSERT`
@@ -35,6 +35,6 @@ export const ACTOR_CONSTRAINTS: ConstraintBook = {
   actor_email_unique: {
     kind: 'conflict',
     fields: ['email'],
-    message: 'Hòm thư này đã thuộc về một tài khoản khác. Dùng địa chỉ khác.',
+    message: 'Hòm thư này đã thuộc về một tài khoản khác. Tìm tài khoản đó hoặc dùng địa chỉ khác.',
   },
 }

@@ -44,7 +44,7 @@ export class GoogleService {
 
   connect(who: Actor): GoogleConnectStart {
     const c = this.oauth.config
-    if (!c) throw conflict('Chưa bật kết nối Google Calendar.')
+    if (!c) throw conflict('Chưa bật kết nối Google Calendar. Báo quản trị viên.')
     const state = signState(c.key, who.id, new Date(Date.now() + STATE_TTL_MS))
     return GoogleConnectStart.parse({ url: this.oauth.consentUrl(c, state) })
   }

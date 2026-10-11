@@ -192,7 +192,7 @@ function ContentPart() {
         <Note
           icon={Link}
           title="Dán link vào thân thư thì bấm không được"
-          body="Nhiều hòm thư, trong đó có Outlook, không tự biến địa chỉ dán giữa câu thành link bấm được. Hãy đưa địa chỉ xuống ô “Nút trong email” ở cuối bước Nội dung để người nhận thấy một nút bấm được."
+          body="Nhiều hộp thư, trong đó có Outlook, không tự biến địa chỉ dán giữa câu thành link bấm được. Hãy đưa địa chỉ xuống ô “Nút trong email” ở cuối bước Nội dung để người nhận thấy một nút bấm được."
         />
 
         <Note

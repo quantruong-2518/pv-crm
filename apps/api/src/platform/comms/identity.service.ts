@@ -220,7 +220,7 @@ function refuseWrongHalf(row: IdentityRowDb, body: IdentityPatch): void {
 
   if (body.objectCode !== undefined && row.side !== 'guest') {
     throw invalid(
-      { objectCode: ['Định danh này là của nhân viên, không gắn được mã khách hàng.'] },
+      { objectCode: ['Định danh này là của nhân viên, không gắn được mã hồ sơ.'] },
       'Không sửa được trường này.',
     )
   }

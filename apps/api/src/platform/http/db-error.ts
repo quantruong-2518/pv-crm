@@ -7,11 +7,11 @@ import { conflict, invalid, type PvError } from './problem'
  *  VÌ SAO PHẢI CÓ TẦNG NÀY
  *  ------------------------------------------------------------------
  *  `ProblemFilter` chỉ hiểu `PvError` và `HttpException`; mọi thứ khác rơi vào
- *  nhánh cuối và thành 500 "Máy chủ gặp sự cố.". Nhưng phần lớn lỗi Postgres
+ *  nhánh cuối và thành 500 "Hệ thống gặp sự cố.". Nhưng phần lớn lỗi Postgres
  *  KHÔNG phải máy chủ hỏng — đó là dữ liệu người dùng vừa gửi không qua được
  *  một ràng buộc mà chính hệ đã dựng. Nộp lại form landing với email đã có là
  *  chuyện thường ngày nhất của một landing page, và người gửi phải nhận
- *  "email này đã có trong sổ" chứ không phải "máy chủ gặp sự cố" — câu thứ hai
+ *  "email này đã có trong sổ" chứ không phải "hệ thống gặp sự cố" — câu thứ hai
  *  vừa sai, vừa khiến họ bấm gửi thêm ba lần nữa.
  *
  *  ------------------------------------------------------------------

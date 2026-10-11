@@ -78,7 +78,7 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   /** Dòng gương ở `platform.object` phải có TRƯỚC dòng lead.
    *
    *  Đây là ràng buộc dễ đâm vào nhất của mọi cửa GHI, và trước khi có dòng
-   *  này nó ra "Máy chủ gặp sự cố" — câu duy nhất không nói được người đọc
+   *  này nó ra "Hệ thống gặp sự cố" — câu duy nhất không nói được người đọc
    *  phải đi đâu. Không phải lỗi của người gửi: họ không biết `platform.object`
    *  tồn tại và cũng không nên biết. Nên câu dưới đây nói với LẬP TRÌNH VIÊN
    *  đang mở một cửa vào mới, và về khoá `(gốc)` chứ không tô đỏ ô nào — không

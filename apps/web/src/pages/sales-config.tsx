@@ -101,7 +101,7 @@ export function SalesConfigPage() {
             <GlassCard className="p-5 lg:p-6">
               <EmptyState
                 icon={TriangleAlert}
-                message={`Không đọc được cấu hình. ${
+                message={`Không tải được cấu hình. ${
                   isApiError(error) ? userMessage(error) : 'Thử lại.'
                 }`}
                 action={{ label: 'Thử lại', onClick: () => void refetch() }}

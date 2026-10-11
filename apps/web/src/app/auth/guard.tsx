@@ -159,7 +159,7 @@ function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> })
     verdict.reason === 'branch-not-licensed'
       ? 'Công ty chưa mở nhánh này.'
       : verdict.reason === 'out-of-scope'
-        ? 'Dữ liệu này do người khác phụ trách. Nhờ họ mở giúp.'
+        ? 'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.'
         : 'Vai của bạn chưa có quyền vào màn này.'
 
   return (

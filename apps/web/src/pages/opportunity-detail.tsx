@@ -59,7 +59,7 @@ export function OpportunityDetailPage() {
           failure={{
             error,
             notFound: `Không có cơ hội mã ${code} trong sổ của bạn.`,
-            fallback: 'Không đọc được hồ sơ cơ hội này.',
+            fallback: 'Không mở được hồ sơ cơ hội.',
             back: { label: 'Về sổ cơ hội', onClick: () => navigate('/sales/opportunities') },
           }}
         />

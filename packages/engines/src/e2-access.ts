@@ -465,7 +465,7 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
       (need.ref.ownerId ?? need.ref.owner) &&
       need.ref.ownerId !== actor.id
     ) {
-      return { ok: false, reason: 'out-of-scope', note: `${need.ref.code} không đứng tên bạn.` }
+      return { ok: false, reason: 'out-of-scope', note: `${need.ref.code} không do bạn phụ trách.` }
     }
 
     return PASS

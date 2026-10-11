@@ -126,7 +126,7 @@ function ContractScore() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
-        Số liệu của toàn bộ hợp đồng.
+        Số liệu của toàn bộ hợp đồng, gồm cả hợp đồng ngoài phạm vi của bạn.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

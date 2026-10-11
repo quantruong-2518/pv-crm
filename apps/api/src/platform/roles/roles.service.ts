@@ -122,7 +122,7 @@ export class RolesService {
       if (await this.repo.anyEnabledActorIn(after, tx)) continue
 
       throw conflict(
-        `Không bỏ được ${key} khỏi vai này vì không còn tài khoản hoạt động nào giữ nó. Cấp ${key} cho vai đang có người trước.`,
+        `Bỏ ${key} khỏi vai này thì không còn tài khoản đang hoạt động nào giữ quyền đó. Cấp ${key} cho một vai đang có người trước.`,
       )
     }
   }

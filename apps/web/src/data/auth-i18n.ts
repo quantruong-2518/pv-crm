@@ -167,7 +167,7 @@ export const forgotPasswordText = {
     ' 주소로 재설정 메일을 보냈습니다.',
   ),
   hint: tr(
-    'Chưa thấy thư? Kiểm tra hộp thư rác hoặc địa chỉ email. Gửi lại thì link cũ hết dùng được.',
+    'Chưa thấy thư? Kiểm tra hộp thư rác hoặc địa chỉ email. Gửi lại thì link cũ không dùng được nữa.',
     'Please check your spam folder or verify the email address if the message takes too long to arrive. Resending replaces the previous link, which stops working.',
     '메일이 오래도록 오지 않으면 스팸함을 확인하거나 이메일 주소를 다시 확인해 주세요. 다시 보내면 이전 링크는 더 이상 사용할 수 없습니다.',
   ),

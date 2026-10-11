@@ -70,7 +70,7 @@ export function ActivityFreshnessConfig() {
   if (error) {
     return (
       <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
-        Không đọc được ngưỡng hiện tại. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
+        Không tải được ngưỡng hiện tại. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )
   }

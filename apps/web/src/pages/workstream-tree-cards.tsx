@@ -477,7 +477,7 @@ const DOOR_TEXT = {
   wakeAny:
     'Đưa lead vào chiến dịch hoặc bấm "Chăm lại" thì lead này quay lại chăm sóc, vẫn trong hành trình này, do người giữ cũ phụ trách.',
   wakeManual:
-    'Chỉ bấm "Chăm lại" mới quay lại chăm sóc. Lead này không đưa vào chiến dịch hay nhận mail.',
+    'Chỉ bấm "Chăm lại" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
   wakeUnknown: 'Chưa biết khách có đồng ý liên hệ lại không.',
 } as const
 

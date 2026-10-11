@@ -32,7 +32,7 @@ export function RunLabel({ run }: { run: MailRunRow }) {
  *  says nothing; the row does not carry the addresses, so it names the kind. */
 export function RunAudience({ run }: { run: MailRunRow }) {
   if (run.kind === 'group') {
-    return <span title="Một thư gửi chung cho cả nhóm">Thư nhóm</span>
+    return <span title="Một thư, mọi người nhận thấy địa chỉ của nhau">Thư nhóm</span>
   }
   return <span>{num(run.audienceCount)}</span>
 }

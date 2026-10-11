@@ -207,7 +207,7 @@ export class LeadExitService {
     const found = await this.leads.byCode(who, code)
     if (!found) throw notFound('lead', code)
     if (!found.holds) {
-      throw denied('out-of-scope', `Lead ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     return found
   }
@@ -219,7 +219,7 @@ export class LeadExitService {
     const row = await this.repo.lockForMove(tx, code)
     if (!row) throw notFound('lead', code)
     if (who.ownOnly && row.ownerId !== who.id) {
-      throw denied('out-of-scope', `Lead ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     return row
   }

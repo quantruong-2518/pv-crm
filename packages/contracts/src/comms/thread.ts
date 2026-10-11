@@ -289,7 +289,7 @@ export const MessageCreate = z.discriminatedUnion('thread', [
      *  needs the database, so `LeadCommsHook.afterLogged` makes it. */
     meetingId: MeetingId.optional(),
   }).refine((b) => (b.channel === 'meeting') === (b.meetingId !== undefined), {
-    message: 'Biên bản họp phải gắn với một cuộc họp.',
+    message: 'Chỉ biên bản họp mới gắn cuộc họp, và phải gắn đúng một cuộc.',
     path: ['meetingId'],
   }),
   MessageCreateFields.extend({

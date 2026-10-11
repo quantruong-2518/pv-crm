@@ -22,7 +22,7 @@ import { useSession } from './session'
  *  chưa lưu" và "còn hiện trên màn của người ngồi sau", chọn cái thứ nhất.
  *
  *  Cái dải này vì thế quan trọng hơn trước: hai phút cảnh báo nay là cơ hội duy
- *  nhất để người dùng bấm lưu trước khi bị đá ra. Nút "Gia hạn phiên" trên dải
+ *  nhất để người dùng bấm lưu trước khi bị đá ra. Nút "Gia hạn đăng nhập" trên dải
  *  là đường tránh, và nó chỉ hiện khi gia hạn được thật.
  *
  *  Thang tầng của app: nav 40 · drawer 50 · **dải cảnh báo 55 · hộp xác nhận

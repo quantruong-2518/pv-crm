@@ -518,7 +518,7 @@ function PrepareGroup({ form }: { form: MeetingDraft }) {
         />
       </Field>
       <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Biên bản, người dự và tệp ghi bằng nút Họp xong.
+        Sau buổi họp, bấm Họp xong để ghi biên bản, người dự và tệp.
       </p>
     </section>
   )

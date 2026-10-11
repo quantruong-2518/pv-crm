@@ -155,7 +155,7 @@ export function queuedToast(state: MailGroupSendResponse['state'], at: string) {
   return state === 'SCHEDULED'
     ? {
         title: 'Đã đặt lịch 1 email',
-        detail: `Thư đi lúc ${dmhm(new Date(at).toISOString())} . Dừng được ở dòng hoạt động.`,
+        detail: `Thư đi lúc ${dmhm(new Date(at).toISOString())}. Dừng được ở dòng hoạt động.`,
       }
     : { title: 'Đã xếp hàng 1 email', detail: 'Email gửi đi sau vài chục giây.' }
 }

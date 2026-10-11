@@ -30,7 +30,7 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['actorId', 'objectCode'],
     message:
-      'Định danh của nhân viên phải có mã nhân sự, của khách phải có mã khách hàng. Chỉ một trong hai.',
+      'Định danh của nhân viên phải có mã nhân sự, của khách phải có mã hồ sơ. Chỉ một trong hai.',
   },
 
   identity_no_blank: {
@@ -45,7 +45,7 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
   identity_actor_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['actorId'],
-    message: 'Người này không còn trong sổ nhân sự.',
+    message: 'Không tìm thấy người này. Chọn lại.',
   },
 
   identity_object_code_object_code_fk: {
@@ -90,13 +90,13 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   message_party_identity_id_identity_id_fk: {
     kind: 'invalid',
     fields: ['parties'],
-    message: 'Có người trong danh sách không còn tồn tại.',
+    message: 'Không tìm thấy một người trong danh sách. Chọn lại.',
   },
 
   message_from_identity_id_identity_id_fk: {
     kind: 'invalid',
     fields: ['fromIdentityId'],
-    message: 'Người gửi không còn tồn tại.',
+    message: 'Không tìm thấy người gửi. Chọn lại.',
   },
 
   message_direction_known: {
@@ -108,7 +108,7 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   message_body_not_blank: {
     kind: 'invalid',
     fields: ['bodyText'],
-    message: 'Nội dung thư không được để trống.',
+    message: 'Nội dung không hợp lệ. Điền nội dung hoặc bỏ ô này.',
   },
 
   message_duration_nonneg: {

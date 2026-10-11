@@ -35,7 +35,7 @@ async function checkVersion(): Promise<void> {
     announced = true
     toast('Có bản mới của PV One', {
       tone: 'info',
-      detail: 'Tải lại để dùng bản mới.',
+      detail: 'Tải lại khi tiện để dùng bản mới.',
       action: { label: 'Tải lại', onClick: () => window.location.reload() },
       ttlMs: 3_600_000,
     })

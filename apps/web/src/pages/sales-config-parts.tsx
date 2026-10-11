@@ -45,7 +45,7 @@ export function MotionSection() {
     return (
       <EmptyState
         icon={TriangleAlert}
-        message={`Không đọc được thiết lập luồng. ${
+        message={`Không tải được thiết lập luồng. ${
           isApiError(error) ? userMessage(error) : 'Thử lại.'
         }`}
         action={{ label: 'Thử lại', onClick: () => void refetch() }}

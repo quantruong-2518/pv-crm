@@ -586,7 +586,10 @@ export class MasService {
       throw denied('out-of-scope', 'Chỉ người tạo lô mới sửa hay dừng được lô này.')
     }
     if (await this.repo.campaignOfRun(id)) {
-      throw denied('permission-denied', 'Lô này thuộc một chiến dịch. Sửa hay dừng ở Sổ lô gửi.')
+      throw denied(
+        'permission-denied',
+        'Lô này thuộc một chiến dịch. Nhờ người có quyền gửi chiến dịch sửa hay dừng ở Sổ lô gửi.',
+      )
     }
 
     return 'state' in patch

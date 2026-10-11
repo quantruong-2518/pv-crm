@@ -59,6 +59,6 @@ export async function referrerOf(
   refCode: string,
 ): Promise<{ code: string; name: string; originId: string }> {
   const found = await partners.live(db, refCode)
-  if (!found) throw invalid({ refCode: ['Không tìm thấy mã giới thiệu.'] })
+  if (!found) throw invalid({ refCode: ['Mã giới thiệu không có hoặc đang ẩn.'] })
   return found
 }

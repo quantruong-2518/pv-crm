@@ -111,7 +111,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK)-\d{2,4}$/, 'Mã cấu hình sai dạng')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 

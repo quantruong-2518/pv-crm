@@ -1090,4 +1090,5 @@ function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): Touch
 const sellerAmong = (ids: readonly string[], roles: ReadonlyMap<string, RoleId[]>): boolean =>
   hasSellerOf(ids.map((id) => ({ role: 'SALE' as const, roleIds: roles.get(id) })))
 
-const frozenForSign = () => conflict('Cơ hội đang chờ duyệt ký, chưa sửa được.')
+const frozenForSign = () =>
+  conflict('Cơ hội đang chờ duyệt ký. Chờ duyệt hoặc từ chối đề nghị rồi sửa.')

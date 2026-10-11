@@ -400,7 +400,7 @@ export function nextActions(lead: Lead, contact: LeadContact | null): NextAction
       label: 'Đề nghị nhận vào pipeline',
       icon: ArrowRight,
       primary: out.length === 0,
-      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. Chờ ${APPROVER_ROLE_LABEL} duyệt.`,
+      why: `Đủ ${REQUIRED_SLOTS} ô bắt buộc. ${APPROVER_ROLE_LABEL} là người duyệt.`,
     })
   }
 

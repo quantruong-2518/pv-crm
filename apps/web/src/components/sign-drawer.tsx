@@ -252,7 +252,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
           label="Ngày ký"
           hint={
             form.signedDate !== ''
-              ? `Ngày ${dmy(form.signedDate)}.`
+              ? `Ngày ${dmy(form.signedDate)}. Sửa nếu ký ngày khác.`
               : 'Bỏ trống là lấy lúc bấm gửi.'
           }
         >
@@ -265,7 +265,11 @@ export function SignDrawer({ op, open, onClose }: Props) {
           />
         </Field>
 
-        <Field label="Hoa hồng về" plain hint="Mặc định là Sale đang giữ đơn.">
+        <Field
+          label="Hoa hồng về"
+          plain
+          hint="Mặc định là Sale đang giữ đơn. Đổi ở đây chỉ đổi người nhận hoa hồng."
+        >
           <Select
             label="Hoa hồng về"
             hideLabel

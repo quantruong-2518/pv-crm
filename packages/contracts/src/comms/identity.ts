@@ -102,7 +102,7 @@ const IdentityFields = z.object({
  *  A union rather than a widened `ObjectCode` pattern, on purpose: the day the
  *  identifier clean-up renames that kind, this collapses back to one member and
  *  the removal is a line, not an excavation. */
-export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã đối tượng sai dạng.')
+export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã hồ sơ sai dạng.')
 export type LinkableCode = z.infer<typeof LinkableCode>
 
 /** A discriminated union on `side`, not one object with both fields optional

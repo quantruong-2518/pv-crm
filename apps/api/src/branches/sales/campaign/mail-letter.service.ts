@@ -312,7 +312,7 @@ export class MailLetterService {
           ? deal?.inScope
           : (await this.contracts.byCode(who, code))?.inScope
     if (!inScope) {
-      throw denied('out-of-scope', `${MAIL_DOOR_LABEL[door]} ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `${MAIL_DOOR_LABEL[door]} ${code} không do bạn phụ trách.`)
     }
     const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
     if (found && (LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {

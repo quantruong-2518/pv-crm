@@ -172,7 +172,7 @@ export function BookCount({
         <>
           {' · '}
           <span className="text-warning">
-            <span className="tnum">{hidden}</span> ngoài phạm vi của bạn
+            <span className="tnum">{hidden}</span> bị ẩn theo quyền của bạn
           </span>
         </>
       )}

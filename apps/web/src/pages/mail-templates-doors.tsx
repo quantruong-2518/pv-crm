@@ -80,7 +80,7 @@ export function DoorsField({
           </div>
           <Problem lines={errors.defaultFor} />
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Mỗi nơi chỉ có một mẫu mặc định.
+            Mỗi nơi chỉ có một mẫu mặc định. Chọn ở đây sẽ thay mẫu mặc định cũ.
           </span>
         </div>
       )}

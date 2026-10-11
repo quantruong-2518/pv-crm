@@ -220,7 +220,7 @@ function EventFields({
           hint={
             atAssigned
               ? `Hoạt động đầu tiên chuyển cơ hội sang cột ${OPPORTUNITY_STAGE_LABEL.engaged}.`
-              : 'Ghi lại nhiều lần, thứ tự nào cũng được.'
+              : 'Ghi được nhiều lần, thứ tự nào cũng được.'
           }
         >
           <Select

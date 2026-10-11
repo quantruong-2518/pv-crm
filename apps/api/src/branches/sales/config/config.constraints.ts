@@ -43,7 +43,7 @@ export const CONFIG_CONSTRAINTS: ConstraintBook = {
   step_template_state_known: {
     kind: 'invalid',
     fields: ['address'],
-    message: 'Trạng thái này không có mẫu việc tiếp theo. Chọn trạng thái khác.',
+    message: 'Trạng thái này không dùng mẫu việc tiếp theo. Chọn trạng thái khác.',
   },
 
   step_template_object_kind_known: {
@@ -55,7 +55,7 @@ export const CONFIG_CONSTRAINTS: ConstraintBook = {
   state_rule_state_known: {
     kind: 'invalid',
     fields: ['address'],
-    message: 'Trạng thái này không có thiết lập việc tiếp theo. Chọn trạng thái khác.',
+    message: 'Trạng thái này không dùng thiết lập việc tiếp theo. Chọn trạng thái khác.',
   },
 
   state_rule_object_kind_known: {

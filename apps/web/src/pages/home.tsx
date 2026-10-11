@@ -179,7 +179,7 @@ export function HomePage() {
           description={
             canCharts ? (
               <>
-                Ô Lý do lead rời luồng là số chốt lúc{' '}
+                Ô Lý do lead rời luồng là số mẫu, chốt lúc{' '}
                 <span className="tnum font-num">{CHARTS_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
                 <span className="tnum font-num">{frozenDay}</span>, không đổi theo kỳ. Các ô còn lại
                 là số thật.

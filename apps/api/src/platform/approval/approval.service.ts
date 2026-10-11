@@ -116,7 +116,7 @@ export class ApprovalService {
         throw new PvError({
           kind: 'server',
           status: 500,
-          title: `Chưa mở được yêu cầu duyệt: không có ai giữ vai "${role}".`,
+          title: `Chưa mở được yêu cầu duyệt: không có tài khoản đang hoạt động nào giữ vai "${role}". Báo quản trị viên.`,
         })
       }
       taken.add(person.id)

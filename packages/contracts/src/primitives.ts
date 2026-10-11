@@ -36,7 +36,7 @@ function isRealCalendarDate(s: string): boolean {
  *  driver, which surfaces as a 500 that cannot say which field was wrong.
  *  Checking here turns the same input into one 400 pointing at one field. */
 export const Day = z
-  .string('Ngày là bắt buộc')
+  .string('Ngày là bắt buộc.')
   /* `abort` on both checks, and it is what keeps ONE mistake to ONE sentence.
      Without it '15/10/2026' fails the regex AND `isRealCalendarDate` (which
      slices NaN out of a string shaped some other way), so the form prints two
@@ -48,7 +48,7 @@ export const Day = z
 
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
 export const Moment = z
-  .string('Mốc thời gian là bắt buộc')
+  .string('Mốc thời gian là bắt buộc.')
   .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/, 'Thời điểm không đúng định dạng.')
 
 /** Tiền, ĐƠN VỊ ĐỒNG, số nguyên.
@@ -59,7 +59,7 @@ export const Moment = z
  *  `{ amount, currency }` khi có đơn ngoại tệ thật;
  *  hôm nay khai rõ đơn vị ở tên là bước một. */
 export const MoneyVnd = z
-  .number('Số tiền là bắt buộc')
+  .number('Số tiền là bắt buộc.')
   /* One sentence for both halves of what `.int()` checks — whole number, and
      inside the range JavaScript can still count exactly. Left to zod they are
      two English sentences ("Not an integer" · "Too big: expected int to be
@@ -71,8 +71,8 @@ export const MoneyVnd = z
 
 /** Mã object — 'LD-0042', 'OP-0301'. ASCII, không dấu (nợ số 1). */
 export const ObjectCode = z
-  .string('Mã đối tượng là bắt buộc.')
-  .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã đối tượng sai dạng.')
+  .string('Mã hồ sơ là bắt buộc.')
+  .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã hồ sơ sai dạng.')
 
 /** Mã hợp đồng — 'HĐ-2711', 'HĐ-5001'. KHÔNG khớp `ObjectCode` và không được
  *  ép cho khớp: `ObjectCode` là `^[A-Z]{1,3}-\d{3,6}$`, còn 'Đ' không nằm trong

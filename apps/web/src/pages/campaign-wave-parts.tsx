@@ -50,7 +50,7 @@ export function StopModal({
           detail:
             res.cancelled.length === 0
               ? 'Không còn thư chưa gửi.'
-              : `${res.cancelled.length} đợt bị huỷ, ${held} thư chưa gửi được giữ lại.`,
+              : `Đã huỷ ${res.cancelled.length} đợt, giữ lại ${held} thư chưa gửi.`,
         })
         onClose()
       },
@@ -80,7 +80,7 @@ export function StopModal({
       }
     >
       <div className="flex max-w-[640px] flex-col gap-4 text-[13px] leading-[1.65]">
-        <p>Các đợt chưa gửi bị huỷ, thư chưa gửi được giữ lại. Thư đã gửi không thu hồi được.</p>
+        <p>Các đợt chưa gửi bị huỷ, thư chưa gửi bị giữ lại. Thư đã gửi không thu hồi được.</p>
         <p className="text-warning">
           Dừng rồi không chạy lại được. Muốn gửi tiếp, tạo chiến dịch mới.
         </p>

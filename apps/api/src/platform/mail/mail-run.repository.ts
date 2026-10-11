@@ -459,7 +459,7 @@ export class MailRunRepository {
            SET "state" = 'dead',
                "next_attempt_at" = NULL,
                "last_error_code" = 'mas-cancelled',
-               "last_error_summary" = 'Lô đã huỷ, thư chưa gửi được giữ lại.',
+               "last_error_summary" = 'Lô đã huỷ nên thư này không gửi.',
                "updated_at" = now()
          WHERE d."state" = 'pending'
            AND d."mail_run_id" IN (SELECT "id" FROM stopped)

@@ -39,10 +39,10 @@ const contactCodes = z
 
 /** A contract code starts with a non-ASCII letter, which `ObjectCode` refuses
  *  (it is `A-Z` only); the door says which of the two the code must be. */
-const SubjectCode = z.union([ObjectCode, ContractCode], 'Mã đối tượng sai dạng.')
+const SubjectCode = z.union([ObjectCode, ContractCode], 'Mã hồ sơ sai dạng.')
 const fitsDoor = (v: { door: MailSubjectKind; subjectCode: string }) =>
   (v.door === 'contract') === v.subjectCode.startsWith('HĐ-')
-const DOOR_MISMATCH = { message: 'Mã đối tượng không khớp nơi gửi.', path: ['subjectCode'] }
+const DOOR_MISMATCH = { message: 'Mã hồ sơ không khớp nơi gửi.', path: ['subjectCode'] }
 
 /** The contacts a letter is addressed to, and the object it is about. The
  *  server checks every contact belongs to the subject's company — a code is

@@ -41,7 +41,7 @@ export class MailTimelineService {
           : await this.contracts.byCode(who, code)
     if (!found) throw notFound(MAIL_DOOR_LABEL[kind].toLowerCase(), code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `${code} không do bạn phụ trách.`)
     }
 
     const rows = await this.repo.of(kind, code)

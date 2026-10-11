@@ -49,7 +49,7 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
         <Skeleton className="h-32 w-full" />
       ) : !deal ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không đọc được diễn biến của cơ hội.{' '}
+          Không tải được diễn biến của cơ hội.{' '}
           {isApiError(journey.error) ? userMessage(journey.error) : 'Thử lại.'}
         </p>
       ) : (

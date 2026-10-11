@@ -206,11 +206,7 @@ export function FailLogCard({ op }: { op: OpportunityRow }) {
     { term: 'Ghi chú', value: op.stopNote ?? 'Không có ghi chú' },
     {
       term: 'Người kết luận',
-      value: history.isPending ? (
-        <Skeleton className="h-4 w-32" />
-      ) : (
-        (exit?.by ?? 'Chưa ghi người dừng.')
-      ),
+      value: history.isPending ? <Skeleton className="h-4 w-32" /> : (exit?.by ?? 'Chưa ghi'),
     },
   ]
 

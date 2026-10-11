@@ -274,7 +274,7 @@ function useFireWave(
       { wave: composerDraftInput(composer) },
       {
         onSuccess: (res) => {
-          toast(`Đã bắt đầu gửi đợt ${campaign.waveCount + 1}`, {
+          toast(`Đã tạo đợt ${campaign.waveCount + 1}`, {
             tone: 'success',
             detail: `${res.queued} thư đang chờ gửi${skipped(res.skipped)}.`,
           })
@@ -451,7 +451,8 @@ function stepNote(
   failed: boolean,
 ): string {
   if (step === 1) return 'Xem bản xem trước rồi sang bước Kiểm lại.'
-  if (failed) return 'Không kiểm được người nhận. Vẫn gửi được, người không gửi được sẽ bị bỏ qua.'
+  if (failed)
+    return 'Không kiểm được người nhận. Vẫn gửi được, ai không nhận được thư sẽ bị bỏ qua.'
   if (!preflight) return 'Đang kiểm người nhận…'
   if (step === 0) return `${preflight.sendable} người sẽ nhận đợt này.`
   return 'Đợt đã gửi không thu hồi được.'

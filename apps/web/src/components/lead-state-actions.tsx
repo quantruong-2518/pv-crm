@@ -49,7 +49,7 @@ export function NurtureDialog({
           profile={profile}
           /* ADR 0068: a parked lead never expires on its own — only a real
              touch wakes it, or a person presses the disqualify button. */
-          what={'Khách chưa sẵn sàng. Có liên hệ thật thì lead quay lại.'}
+          what="Khách chưa sẵn sàng. Có liên hệ thật thì lead quay lại."
         />
       }
       footer={

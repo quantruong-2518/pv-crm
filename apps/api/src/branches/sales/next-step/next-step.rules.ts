@@ -40,7 +40,7 @@ export async function liveKind(
   const row = await repo.stepKind(kindId, handle)
   if (row?.active) return { id: row.id, name: row.name }
   throw invalid(
-    { [field]: ['Loại việc không có trong danh mục hoặc đã tắt. Chọn loại việc khác.'] },
+    { [field]: ['Loại việc này không có hoặc đã tắt. Chọn loại việc khác.'] },
     'Loại việc không hợp lệ.',
   )
 }

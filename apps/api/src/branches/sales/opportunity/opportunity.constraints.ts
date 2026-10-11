@@ -6,7 +6,7 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  Luật nằm ở `opportunity.schema.ts` và chỉ nằm ở đó; sửa ràng buộc thì sửa
  *  bên schema rồi sang đây sửa câu. Ràng buộc không có mặt ở đây không hỏng gì
  *  — bộ dịch lùi về câu chung theo SQLSTATE — nó chỉ đổi một câu người đọc
- *  được thành "máy chủ gặp sự cố".
+ *  được thành "hệ thống gặp sự cố".
  *
  *  Khoá là tên POSTGRES báo về, không phải tên biến Drizzle. Ba tên `*_fk` do
  *  Drizzle sinh từ tên bảng và tên cột, nên đổi tên cột là đổi khoá ở đây;
@@ -20,7 +20,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_money_pair: {
     kind: 'invalid',
     fields: ['amount', 'currency'],
-    message: 'Điền cả giá trị đơn và đồng tiền, hoặc bỏ trống cả hai.',
+    message: 'Giá trị đơn cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
   },
 
   /** A stop writes the whole fail log: the column, a reason, the close date.
@@ -86,7 +86,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_owner_actor_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['saleOwners', 'bdOwners'],
-    message: 'Có người không còn trong sổ nhân sự. Chọn lại người đứng đơn.',
+    message: 'Không tìm thấy người đứng đơn. Chọn lại.',
   },
 
   opportunity_owner_role_known: {

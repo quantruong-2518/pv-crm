@@ -90,7 +90,7 @@ export class OpportunityController {
    *  PHẢI đứng trước `@Get(':code')`, và đây là một luật của bộ định tuyến chứ
    *  không phải thẩm mỹ: Fastify khớp theo thứ tự khai, nên nếu `:code` khai
    *  trước thì chuỗi `scorecard` rơi vào nó và chết ở `zod(ObjectCode)` bằng một
-   *  400 nói "Mã object sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
+   *  400 nói "Mã hồ sơ sai dạng" — đúng về mặt kỹ thuật và vô nghĩa với người
    *  đọc log. Sổ lead đã vấp đúng chỗ này và ghi lại ở `lead.controller.ts`.
    *
    *  KHÔNG `scoped`: đây là điểm của cả phòng, không của riêng ai. Xem

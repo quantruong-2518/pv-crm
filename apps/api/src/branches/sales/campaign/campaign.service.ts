@@ -108,7 +108,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
 
     const waves = await this.wavesOf(who, code)
@@ -149,7 +149,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
 
     const originId = body.originId ? await this.liveOrigin(body.originId) : body.originId
@@ -211,7 +211,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
 
     const [added, removed] = await this.repo.run(async (tx) => {
@@ -241,7 +241,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
 
     const page = await this.repo.members(code, q)
@@ -265,7 +265,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
     if (found.row.state !== 'DRAFT') {
       throw conflict(`Chỉ chiến dịch nháp mới bắt đầu chạy được.`)
@@ -326,7 +326,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
 
     const leadCodes = await this.repo.activeMemberCodes(code)
@@ -359,7 +359,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
     /* DONE gets through because RUNNING is a passing state, not a resting one:
        `CampaignSweeper` runs `closeFinished()` on a timer and drops a campaign
@@ -409,7 +409,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
     }
     if (found.row.state !== 'RUNNING') {
       throw conflict(`Chỉ chiến dịch đang chạy mới dừng được.`)

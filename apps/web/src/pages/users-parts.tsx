@@ -525,7 +525,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             hint={
               isMe
                 ? 'Không tự đổi vai của chính mình.'
-                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào.'
+                : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào. Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị.'
             }
           >
             {isMe ? (
