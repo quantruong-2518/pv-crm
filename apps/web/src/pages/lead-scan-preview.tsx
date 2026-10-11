@@ -253,6 +253,7 @@ function OutcomeCell({ group }: { group: ScanGroup }) {
     <span className="flex flex-wrap items-center gap-2">
       <Badge tone={OUTCOME_FACE[group.outcome].tone}>{outcomeText(group)}</Badge>
       {group.outcome === 'MERGE_INTO_LEAD' && <Chip>{group.leadCode}</Chip>}
+      {group.outcome === 'NEW_LEAD' && group.accountCode && <Chip>{group.accountCode}</Chip>}
     </span>
   )
 }

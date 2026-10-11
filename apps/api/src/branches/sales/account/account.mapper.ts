@@ -1,4 +1,4 @@
-import type { ObjectRef } from '@pv/engines'
+import { leadKeys, type ObjectRef } from '@pv/engines'
 import type { AccountCreate, AccountProfile, AccountRow } from '@pv/contracts'
 import type { account } from './account.schema'
 import type { AccountRead } from './account.repository'
@@ -28,6 +28,7 @@ export type AccountValues = Omit<typeof account.$inferInsert, 'code' | 'createdA
  *  about what the body meant. */
 export function fromForm(body: AccountCreate): AccountValues {
   return {
+    ...keysOf(body),
     name: body.name,
     legalName: body.legalName ?? null,
     taxCode: body.taxCode ?? null,
@@ -38,6 +39,17 @@ export function fromForm(body: AccountCreate): AccountValues {
     plants: body.plants ?? null,
     note: body.note ?? null,
   }
+}
+
+/** `tax_root` and `name_key`, folded by the one normaliser the admission gate
+ *  reads with. Every write of a name or tax code passes here: nothing in the
+ *  database keeps the two key columns in step. */
+export function keysOf(input: {
+  name: string
+  taxCode?: string | null
+}): Pick<AccountValues, 'taxRoot' | 'nameKey'> {
+  const { taxRoot, nameKey } = leadKeys(input, [])
+  return { taxRoot, nameKey }
 }
 
 /** The string `account_identity_uniq` indexes, computed on this side so a

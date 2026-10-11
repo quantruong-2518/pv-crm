@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from '../primitives'
 import { LeadSourceKind } from './enums'
+import { AdmissionVerdict } from './lead-admission'
 import { LEAD_MAX } from './lead-fields'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginPick } from './lead-origin'
@@ -211,6 +212,10 @@ export const LeadImportRowOut = z.object({
   /** Dedupe key the server computed for this row. Empty = there was not enough
    *  in the row to compare it against anything. */
   key: z.string(),
+  /** What the admission gate said about this row, so the preview can say "new
+   *  lead on an existing company". Absent when the gate was not consulted. */
+  admission: AdmissionVerdict.optional(),
+  accountCode: ObjectCode.optional(),
 })
 
 /** A row that did not pass. Superset of `RowError` on the screen.
@@ -298,14 +303,12 @@ export const LeadImportDup = z.object({
  *  normal outcome of loading the same list a second time. One combined number
  *  leaves the person unable to tell whether to go fix the file or ignore it. */
 export const LeadImportReport = z.object({
-  /** Rows that passed everything and would be written — INCLUDING the
-   *  `dupWithBook` rows below, since ADR 0070: a collision with the book is
-   *  written and flagged, not refused. */
+  /** Rows that passed everything and would be written — NOT the `dupWithBook`
+   *  rows below, which are dropped and reported. */
   rows: z.array(LeadImportRowOut),
   errors: z.array(LeadImportError),
-  /** Count of rows matching a lead ALREADY in the book — written and flagged
-   *  (`LeadRow.duplicateOf`), not dropped. Name kept for the screen; see
-   *  `LeadImportDup`. */
+  /** Count of rows matching a lead ALREADY in the book — dropped and reported
+   *  in `dupWithBook`. Name kept for the screen; see `LeadImportDup`. */
   duplicates: z.number().int().nonnegative(),
   /** Count of rows dropped for matching ANOTHER row in this same file. */
   dupInFile: z.number().int().nonnegative(),
@@ -321,6 +324,12 @@ export const LeadImportReport = z.object({
     z.object({ line: z.number().int().min(2), first: z.string(), into: z.number().int().min(2) }),
   ),
 
+  /** Rows whose person was ADDED to a lead already in the book (verdict
+   *  `new-contact`) — no lead of their own, and not a duplicate either. */
+  joined: z
+    .array(z.object({ line: z.number().int().min(2), first: z.string(), code: ObjectCode }))
+    .optional(),
+
   /** Origins this batch touches. `matched` hit an existing catalog key;
    *  `created` names the NEW ones a commit would mint — a dry run has no ids
    *  for them yet, so names are all there is to show. */
@@ -333,8 +342,8 @@ export const LeadImportReport = z.object({
 /** Dry run. Nothing is written, no code is minted, no batch exists afterwards.
  *
  *  Collisions against the book are decided on `lower(email)`, the same key
- *  `lead_email_idx` looks up for every other duplicate check (ADR 0070 — a
- *  live match is flagged, not refused). Note the mismatch this creates with
+ *  `lead_email_idx` looks up for every other duplicate check; a match is
+ *  dropped and reported, not written. Note the mismatch this creates with
  *  the screen, which dedupes on tax code, then on company+province — see the
  *  handover; the two sides are answering "is this the same company" and "is
  *  this the same live lead", which are not the same question. */

@@ -1,18 +1,25 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { normaliseEmail, taxRoot, type AccessControl, type ScanPlanGroup } from '@pv/engines'
+import { incomingOfScan, type AccessControl, type ScanPlanGroup } from '@pv/engines'
 import type { LeadState, ScanResult } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import type { ScanAttempt } from '@api/platform/queue/scan-jobs'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
-import { byOf, TouchService } from '../touch/touch.service'
 import { ContactService } from '../contact/contact.service'
 import { CampaignService } from '../campaign/campaign.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import type { ScanBatchRowDb } from './lead-scan.schema'
+import { LeadAdmissionService } from './lead-admission.service'
 import { LeadScanRepository, type ScanCreator } from './lead-scan.repository'
-import { companyValuesOf, contactOf, leadWriteOf, UNKNOWN_NAME } from './lead-scan.mapper'
+import {
+  companyValuesOf,
+  contactOf,
+  leadWriteOf,
+  scanActionOf,
+  type ScanAction,
+} from './lead-scan.mapper'
 import { LeadScanService } from './lead-scan.service'
+import { UNKNOWN_NAME } from './lead-person-name'
 import { LEAD_NOTE, marketingCredit } from './lead-write.mapper'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadWriteService } from './lead-write.service'
@@ -20,8 +27,9 @@ import { LeadRepository } from './lead.repository'
 import { LEAD_GONE_STATES } from './lead-state'
 
 /** The scan commit job: the plan recomputed fresh, then ONE transaction per
- *  group, in plan order, each re-asking the book inside itself — the import
- *  door checks outside its transaction and races; this one cannot.
+ *  group, in plan order. Each takes the admission gate's lock and asks the
+ *  gate again; a group whose fresh verdict no longer supports its planned
+ *  outcome is held, never written on a stale answer.
  *
  *  Retry-safe: every group's transaction also saves the running `result`, so
  *  a re-delivered job skips any group whose lead is already in it (a lead
@@ -37,6 +45,9 @@ class NoLongerCommitting extends Error {}
 
 type Campaign = { sourceId: string | null; originId: string | null } | null
 
+/** What a group's transaction did; a held group answers null instead. */
+type Done = { kind: NonNullable<ScanAction>['kind']; leadCode: string }
+
 @Injectable()
 export class LeadScanCommit {
   private readonly log = new Logger('LeadScanCommit')
@@ -50,7 +61,7 @@ export class LeadScanCommit {
     private readonly runs: WorkstreamRepository,
     private readonly contacts: ContactService,
     private readonly campaigns: CampaignService,
-    private readonly touch: TouchService,
+    private readonly gate: LeadAdmissionService,
     private readonly actors: ActorRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
@@ -81,7 +92,7 @@ export class LeadScanCommit {
       await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], CREATOR_REVOKED)
       return
     }
-    const plan = await this.scans.planOf(creator, await this.repo.files(code))
+    const { plan } = await this.scans.planOf(creator, await this.repo.files(code))
     /* A campaign closed since upload loses the attribution, not the batch. */
     const campaign = batch.campaignCode
       ? await this.campaigns.pickableOne(batch.campaignCode)
@@ -102,11 +113,13 @@ export class LeadScanCommit {
         continue
       }
       try {
-        const lead = target
-          ? await this.merge(batch, creator, group, target, result)
+        const done = target
+          ? await this.merge(batch, creator, group, result)
           : await this.create(batch, creator, group, campaign, result)
-        if (lead === null) result.held += 1
-        else (target ? result.mergedInto : result.created).push(lead)
+        /* A join lists nothing: its lead is in `created` since its first group. */
+        if (done === null) result.held += 1
+        else if (done.kind === 'merge') result.mergedInto.push(done.leadCode)
+        else if (done.kind === 'create') result.created.push(done.leadCode)
       } catch (error) {
         if (error instanceof NoLongerCommitting) {
           this.log.warn(`scan ${code}: batch left COMMITTING mid-commit; stopping`)
@@ -127,19 +140,35 @@ export class LeadScanCommit {
     })
   }
 
-  /** Null = the book changed since the plan and now holds this company. */
+  /** The only decision a group is written on: the gate's lock, then the gate
+   *  again, on the group's own transaction. */
+  private async decide(tx: Db, creator: ScanCreator, group: ScanPlanGroup, result: ScanResult) {
+    const fresh = await this.gate.admit(tx, creator, incomingOfScan(group))
+    return { fresh, action: scanActionOf(group, fresh, result.created) }
+  }
+
+  /** Null = the book changed since the plan. A `join` wrote no lead: the
+   *  group's people went onto the lead an earlier group of this batch opened. */
   private async create(
     batch: ScanBatchRowDb,
     creator: ScanCreator,
     group: ScanPlanGroup,
     campaign: Campaign,
     result: ScanResult,
-  ): Promise<string | null> {
+  ): Promise<Done | null> {
     const { write, primary } = leadWriteOf(group, batch, creator)
     const code = await this.leads.nextCode()
     const run = await this.runs.nextCode()
     return this.repo.run(async (tx) => {
-      if ((await this.bookHits(tx, creator, group)) > 0) return null
+      const { action } = await this.decide(tx, creator, group, result)
+      if (action?.kind === 'join') {
+        const people = group.people.map(contactOf)
+        await this.contacts.seedExtra(tx, action.leadCode, people, creator, UNKNOWN_NAME)
+        await this.repo.linkAttachments(tx, group.fileIds, action.leadCode)
+        await this.progress(tx, batch.code, result, {})
+        return action
+      }
+      if (action?.kind !== 'create') return null
       const origin = await this.write.derivedOrigin(tx, campaign?.originId ?? null)
       await this.write.bear(tx, {
         code,
@@ -160,61 +189,44 @@ export class LeadScanCommit {
         who: creator,
         owner: creator,
         note: LEAD_NOTE.scanned(batch.code),
+        accountCode: action.accountCode,
       })
       const others = group.people.filter((p) => p !== primary).map(contactOf)
       await this.contacts.seedExtra(tx, code, others, creator, UNKNOWN_NAME)
       await this.repo.linkAttachments(tx, group.fileIds, code)
       await this.progress(tx, batch.code, result, { created: [...result.created, code] })
-      return code
+      return { kind: 'create', leadCode: code }
     })
   }
 
-  /** Fill-empty-only. Null = the lead left the book or the uploader's scope. */
+  /** Fill-empty-only, then the gate's re-entry: the people the lead lacks and
+   *  one `re-entered` touch. Null = the lead left the book, the uploader's
+   *  scope, or the verdict that pointed at it. */
   private async merge(
     batch: ScanBatchRowDb,
     creator: ScanCreator,
     group: ScanPlanGroup,
-    leadCode: string,
     result: ScanResult,
-  ): Promise<string | null> {
+  ): Promise<Done | null> {
     return this.repo.run(async (tx) => {
+      const { fresh, action } = await this.decide(tx, creator, group, result)
+      if (action?.kind !== 'merge') return null
+      const { leadCode } = action
       const found = await this.writeRepo.lockForOwnerChange(tx, leadCode)
       const gone = !found || (LEAD_GONE_STATES as readonly LeadState[]).includes(found.state)
       if (gone || (creator.ownOnly && found.ownerId !== creator.id)) return null
-      const filled = await this.writeRepo.fillEmpty(tx, leadCode, companyValuesOf(group))
-      const people = group.people.map(contactOf)
-      const added = await this.contacts.seedExtra(tx, leadCode, people, creator, UNKNOWN_NAME)
+      await this.writeRepo.fillEmpty(tx, leadCode, companyValuesOf(group))
+      const people = fresh.newPeople.map((n) => {
+        const person = contactOf(group.people[n]!)
+        return { ...person, name: person.name ?? UNKNOWN_NAME }
+      })
+      await this.gate.reenter(tx, leadCode, people, creator, 'SCAN')
       await this.repo.linkAttachments(tx, group.fileIds, leadCode)
-      /* A timeline row only for a real change — linking files alone is none. */
-      if (filled || added > 0) {
-        await this.touch.record(tx, [
-          {
-            subjectCode: leadCode,
-            subjectKind: 'lead',
-            kind: 'field-filled',
-            ...byOf(creator),
-            note: LEAD_NOTE.scanMerged(batch.code, group.fileIds.length),
-          },
-        ])
-      }
       await this.progress(tx, batch.code, result, {
         mergedInto: [...result.mergedInto, leadCode],
       })
-      return leadCode
+      return action
     })
-  }
-
-  /** The plan's own book question, re-asked on the group's transaction. */
-  private async bookHits(tx: Db, creator: ScanCreator, group: ScanPlanGroup): Promise<number> {
-    const emails = group.people.map((p) => p.email && normaliseEmail(p.email))
-    const tax = group.fields.find((f) => f.field === 'taxCode')?.value
-    const hits = await this.leads.scanBook(
-      creator,
-      emails.filter((e): e is string => !!e),
-      tax && taxRoot(tax) ? [taxRoot(tax)!] : [],
-      tx,
-    )
-    return hits.length
   }
 
   /** Saved inside the group's own transaction; the caller mirrors it in

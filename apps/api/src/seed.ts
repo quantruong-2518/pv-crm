@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { normalisePhone, type LeadState, type TouchKind } from '@pv/contracts'
+import { normalisePhone as phoneKeyOf } from '@pv/engines'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
+import { keysOf } from '@api/branches/sales/account/account.mapper'
 import { account } from '@api/branches/sales/account/account.schema'
 import { campaign, campaignMember } from '@api/branches/sales/campaign/campaign.schema'
 import { mailSequenceRun } from '@api/branches/sales/mail-sequence.schema'
@@ -109,6 +111,8 @@ function plantAccounts(): void {
     out.accounts.push({
       code: ac,
       name: a.name,
+      /* The admission gate finds a company by these; NULL reads as a stranger. */
+      ...keysOf(a),
       legalName: a.legalName,
       address: a.address,
       province: a.province,
@@ -175,6 +179,7 @@ function plantContacts(ld: string, domain: string, people: ContactSeed[], born: 
       title: p.title,
       email: `${p.mail}@${domain}`,
       phone: normalisePhone(p.phone),
+      phoneKey: phoneKeyOf(p.phone),
       channel: p.channel,
       isPrimary: n === 0,
       by: n === 0 ? MARKETING.name : BD.name,
@@ -691,7 +696,9 @@ async function seed(): Promise<void> {
     await tx.insert(objectRef).values(out.objects)
     await tx.insert(account).values(out.accounts)
     await tx.insert(workstream).values(out.runs)
-    await tx.insert(lead).values(out.leads)
+    /* Keyed here, not in `plantJourney`: the admission gate looks leads up by it. */
+    const keyed = out.leads.map((l) => ({ ...l, phoneKey: l.phone ? phoneKeyOf(l.phone) : null }))
+    await tx.insert(lead).values(keyed)
     await tx.insert(contact).values(out.contacts)
     await tx.insert(edge).values(out.edges)
     await tx.insert(campaign).values(campaigns.map((c) => c.row))

@@ -45,7 +45,12 @@ function CreateBar({ draft }: { draft: LeadDraft }) {
         >
           Xoá hết
         </Button>
-        <Button size="lg" disabled={draft.pending} onClick={draft.submit}>
+        {/* An admission panel is up: its buttons are the only way forward. */}
+        <Button
+          size="lg"
+          disabled={draft.pending || draft.admission !== null}
+          onClick={draft.submit}
+        >
           {draft.pending ? 'Đang tạo…' : 'Tạo lead'}
         </Button>
         <span aria-hidden className="hidden shrink-0 lg:block lg:size-[60px]" />

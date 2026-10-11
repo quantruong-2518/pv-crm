@@ -1,4 +1,16 @@
-import type { ScanPlan, ScanPlanGroup, ScanPlanPerson, ScanReadFile } from '@pv/engines'
+import {
+  companyDomain,
+  foldCompanyName,
+  normaliseEmail,
+  normalisePhone,
+  taxRoot,
+  websiteHost,
+  type AdmissionDecision,
+  type ScanPlan,
+  type ScanPlanGroup,
+  type ScanPlanPerson,
+  type ScanReadFile,
+} from '@pv/engines'
 import type {
   LeadAttachment,
   ScanExtraction,
@@ -8,6 +20,8 @@ import type {
 } from '@pv/contracts'
 import type { AttachmentRowDb } from '@api/platform/storage/attachment.schema'
 import type { ScanBatchRowDb } from './lead-scan.schema'
+import type { Needles } from './lead-admission.mapper'
+import { UNKNOWN_NAME } from './lead-person-name'
 import type { ScanFileJoined } from './lead-scan.repository'
 import { stateAtBirth, type LeadValues, type LeadWrite } from './lead-write.mapper'
 
@@ -16,9 +30,6 @@ import { stateAtBirth, type LeadValues, type LeadWrite } from './lead-write.mapp
  *  The engine keeps `fileIds` and phones on a group; the contract does not,
  *  so the preview drops them here. A held group is rebuilt field by field
  *  rather than spread, so a `leadCode` can never ride out on it. */
-
-/** A scanned person with no readable name still has to print, and to store. */
-export const UNKNOWN_NAME = 'Chưa rõ tên'
 
 export function toReadFiles(files: readonly ScanFileJoined[]): ScanReadFile[] {
   return files
@@ -30,6 +41,44 @@ export function toReadFiles(files: readonly ScanFileJoined[]): ScanReadFile[] {
       companies: f.extraction!.companies,
       unsure: f.extraction!.unsure,
     }))
+}
+
+/** Every key the reads could put to the gate — a SUPERSET of what the plan
+ *  asks (it keys one phone per person and one name per group), so the book is
+ *  loaded once, before grouping, whatever grouping then decides. */
+export function scanNeedlesOf(read: readonly ScanReadFile[]): Needles {
+  const people = read.flatMap((f) => f.people)
+  const companies = read.flatMap((f) => f.companies)
+  const set = (values: readonly (string | null)[], key: (raw: string) => string | null) => [
+    ...new Set(values.map((v) => (v ? key(v) : null)).filter((k): k is string => !!k)),
+  ]
+  const emails = set(
+    [...people.map((p) => p.email), ...companies.flatMap((c) => c.emails)],
+    normaliseEmail,
+  )
+  const hosts = [
+    ...emails.map((e) => e.split('@')[1]!),
+    ...set(
+      companies.map((c) => c.website),
+      websiteHost,
+    ),
+  ]
+  return {
+    taxRoots: set(
+      companies.map((c) => c.taxCode),
+      taxRoot,
+    ),
+    nameKeys: set(
+      [...companies.flatMap((c) => [c.name, c.legalName]), ...people.map((p) => p.companyName)],
+      foldCompanyName,
+    ),
+    emails,
+    phones: set(
+      [...people, ...companies].flatMap((x) => x.phones),
+      normalisePhone,
+    ),
+    domains: set(hosts, companyDomain),
+  }
 }
 
 export function isEmpty(extraction: ScanExtraction): boolean {
@@ -55,7 +104,9 @@ export function toScanFile(f: ScanFileJoined): ScanFile {
   }
 }
 
-function toGroup(g: ScanPlanGroup): ScanGroup {
+/** `shown` = the accounts the uploader may be pointed at; the commit attaches
+ *  to the planned account either way, the preview only says so when allowed. */
+function toGroup(g: ScanPlanGroup, shown: ReadonlySet<string>): ScanGroup {
   const base = {
     key: g.key,
     company: g.company,
@@ -63,15 +114,20 @@ function toGroup(g: ScanPlanGroup): ScanGroup {
     people: g.people.map((p) => ({ name: p.name ?? UNKNOWN_NAME, title: p.title, email: p.email })),
     fields: g.fields,
   }
-  return g.outcome === 'MERGE_INTO_LEAD'
-    ? { ...base, outcome: g.outcome, leadCode: g.leadCode }
+  if (g.outcome === 'MERGE_INTO_LEAD') return { ...base, outcome: g.outcome, leadCode: g.leadCode }
+  return g.outcome === 'NEW_LEAD' && g.accountCode && shown.has(g.accountCode)
+    ? { ...base, outcome: g.outcome, accountCode: g.accountCode }
     : { ...base, outcome: g.outcome }
 }
 
-export function toPreview(plan: ScanPlan, files: readonly ScanFileJoined[]): ScanPreview {
+export function toPreview(
+  plan: ScanPlan,
+  files: readonly ScanFileJoined[],
+  shown: ReadonlySet<string>,
+): ScanPreview {
   return {
     totals: plan.totals,
-    groups: plan.groups.map(toGroup),
+    groups: plan.groups.map((g) => toGroup(g, shown)),
     skipped: {
       noLead: files.filter((f) => f.state === 'EMPTY').length + plan.noLeadFileIds.length,
       unreadable: files.filter((f) => f.state === 'FAILED').length,
@@ -162,4 +218,34 @@ export function leadWriteOf(
       },
     },
   }
+}
+
+/** What the commit may still do with a group once the gate has re-decided
+ *  under its lock. `join` = a lead THIS batch opened on the group's company. */
+export type ScanAction =
+  | { kind: 'create'; accountCode: string | null }
+  | { kind: 'merge' | 'join'; leadCode: string }
+  | null
+
+/** Null = the book moved since the plan and no longer supports its outcome. */
+export function scanActionOf(
+  g: ScanPlanGroup,
+  fresh: AdmissionDecision,
+  opened: readonly string[],
+): ScanAction {
+  const onLead = fresh.leadCode && !fresh.outOfScope ? fresh.leadCode : null
+  if (g.outcome === 'MERGE_INTO_LEAD') {
+    return onLead === g.leadCode ? { kind: 'merge', leadCode: onLead } : null
+  }
+  if (g.outcome !== 'NEW_LEAD') return null
+  /* An earlier group of this batch already opened the lead on the SAME
+     returning company: one lead per company per batch, these become contacts. */
+  const accountCode = g.accountCode ?? null
+  if (onLead && accountCode && fresh.accountCode === accountCode && opened.includes(onLead)) {
+    return { kind: 'join', leadCode: onLead }
+  }
+  const planned = accountCode ? 'returning-account' : 'new-account'
+  return fresh.verdict === planned && fresh.accountCode === accountCode
+    ? { kind: 'create', accountCode }
+    : null
 }

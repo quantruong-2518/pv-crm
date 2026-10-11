@@ -38,6 +38,7 @@ import {
   MAX_IMPORT_CELL,
   PHONE_MAX,
   foldText,
+  type AdmissionVerdict,
   type IntakeTrust,
   type LeadImportReport,
 } from '@pv/contracts'
@@ -854,6 +855,10 @@ export type BuiltRow = {
   /** Set by the grouping step only — see `LeadImportRow.group` / `.primary`. */
   group?: string
   primary?: boolean
+  /** Lead door only, from the server: what the admission gate said about the
+   *  row and the company it matched. Absent = the gate was not consulted. */
+  admission?: AdmissionVerdict
+  accountCode?: string
 }
 
 export type RowError = {
@@ -940,6 +945,8 @@ export type ImportReport = {
   codes?: string[]
   /** Lead book only: rows that went in as an extra contact of a grouped lead. */
   attached?: LeadImportReport['attached']
+  /** Lead book only: rows whose person was added to a lead already in the book. */
+  joined?: LeadImportReport['joined']
   /** Lead book only: how the batch's origins resolved against the catalog. */
   origins?: { matched: number; created: string[] }
 }

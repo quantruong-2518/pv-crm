@@ -12,7 +12,7 @@ import {
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { normalisePhone, type Actor } from '@pv/engines'
 import { OWNER_NONE, type ContactBookQuery, type ContactFacetsQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
@@ -342,6 +342,8 @@ export class ContactRepository {
         contactName: row.name,
         contactTitle: row.title,
         phone: row.phone,
+        /* Recomputed, not copied from `row.phoneKey`: that one may predate the backfill. */
+        phoneKey: row.phone ? normalisePhone(row.phone) : null,
         contactChannel: row.channel,
         ...(row.email ? { email: row.email } : {}),
       })
