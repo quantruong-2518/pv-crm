@@ -60,7 +60,7 @@ không chép vào đây. Chép một con số vào tài liệu là hẹn ngày n
 
 ## Luật khi sinh code
 
-Ba luật này áp cho **mọi dòng viết ra**, không phải chỉ khi được nhắc.
+Bốn luật này áp cho **mọi dòng viết ra**, không phải chỉ khi được nhắc.
 
 **1 · Comment mang cái VÌ SAO, và có trần.** Code đã nói _cái gì_ — comment nói
 vì sao chọn thế này thay vì thế kia, đặt ngay tại chỗ khai báo. **Trần cứng:
@@ -87,6 +87,12 @@ tách theo `/split`, không để nó phình tiếp (`max-lines` gác). Skill
 `karpathy-guidelines` là bản đầy đủ — **cần cài marketplace `karpathy-skills`
 trước**, `pnpm ctx` sẽ nhắc nếu chưa.
 
+**4 · Chữ trên màn phải thực sự Việt, sáng nghĩa.** Sản phẩm B2B, người dùng
+18–50 tuổi, không cần biết công nghệ vẫn dùng được. Mỗi chuỗi trả lời "ô này
+điền gì" hoặc "bấm thì chuyện gì xảy ra", bằng từ dân văn phòng vẫn dùng. Giữ hệ
+quả, bỏ cơ chế. Đọc `docs/design-system/ui-copy.md` trước khi viết bất cứ chuỗi
+nào người dùng thấy.
+
 ## Cái gì máy gác, cái gì người gác
 
 **Đừng tự kiểm bằng mắt thứ máy đã gác, và đừng tưởng máy đã gác thứ nó không gác.**
@@ -103,6 +109,7 @@ Máy gác — sai là không merge được:
 | 10 · ContextRail         | tầng kiểu (`RailObject.onOpen`) + `E1.story()` dựng chuỗi                 |
 | 11 · icon qua `<Icon>`   | `aurora/icon-through-gate`                                                |
 | 15 · không AI slop       | `aurora/no-ai-slop`                                                       |
+| chữ trên màn · từ cấm    | `aurora/no-ai-slop` — mục máy gác trong `docs/design-system/ui-copy.md`   |
 | kịch bản không trộn      | `aurora/no-scenario-mix`                                                  |
 | comment tiếng Anh        | `aurora/comments-in-english`                                              |
 | trần comment             | `aurora/comment-budget`                                                   |
@@ -116,6 +123,8 @@ Người gác — CI **không** biết, phải tự nhìn:
 - **Mẫu mail** — không compiler nào render và không test nào chạy, nên đổi gì
   trong `packages/mail-templates` thì mở `pnpm mail:preview` mà nhìn. Luật 13 áp
   ở đây như mọi nơi khác, và email không có token nên phải tự đo hex.
+- **Chữ trên màn** — máy chỉ bắt mấy từ cấm; mọi luật còn lại trong
+  `docs/design-system/ui-copy.md` là người nhìn.
 
 ## Test — không tự sinh, trừ một ngoại lệ
 

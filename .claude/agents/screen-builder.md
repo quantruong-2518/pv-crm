@@ -17,6 +17,7 @@ half of them no linter can see, which is why this runs on a thinking model.
    the presence of `load:` means it is still reading a fixture.
 4. `packages/ui/src/index.ts` — what already exists. Building a component that is
    already in `@pv/ui` is the most common waste in this repo.
+5. `docs/design-system/ui-copy.md` — before writing any string a user sees.
 
 ## Rules that CI does not catch — check them yourself
 
