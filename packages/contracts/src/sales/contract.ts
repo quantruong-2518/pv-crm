@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ContractKind, CurrencyCode } from './enums'
-import { OpportunityRow } from './opportunity'
+import { OpportunityOwner, OpportunityRow } from './opportunity'
 
 /** Signing a deal — the door that RAISES the request that makes a deal read `won`.
  *
@@ -104,7 +104,7 @@ export const ContractSign = z.object({
    *  17:00 in Hanoi once the string is read back as UTC. */
   signedAt: Moment.optional(),
 
-  /** Whose commission. Absent = the first `SALE` owner on the deal. */
+  /** Whose commission. Absent = the deal's holder, i.e. its SALE primary. */
   ownerId: z.string().trim().min(1).max(64).optional(),
 })
 
@@ -225,6 +225,10 @@ export const InstallmentSummaryRow = InstallmentRow.pick({
 // THE READ SHAPE
 // ---------------------------------------------------------------------------
 
+/** One person frozen onto a contract. `OpportunityOwner`'s own shape, so the
+ *  snapshot cannot drift from the lanes it was copied from. */
+export const ContractParticipant = OpportunityOwner
+
 /** One signed contract, as the book prints it — LEAN installments only.
  *  `ContractDetailRow` below extends this same row with the full nested
  *  schedule for the one-contract screen. */
@@ -248,6 +252,9 @@ export const ContractRow = z.object({
   /** Present together or not at all — an unassigned contract has neither. */
   ownerId: z.string().min(1).max(64).optional(),
   ownerName: textInput(120).optional(),
+  /** The deal's SALE/BD lanes as they stood at signing — written once by the
+   *  server, so no request body carries it and a later lane edit never moves it. */
+  participants: z.array(ContractParticipant),
   /** Absent on a just-signed contract with no schedule drafted yet — the
    *  sign door (`ContractSignResponse`) returns a row before any installment
    *  exists. */
@@ -337,6 +344,7 @@ export type InstallmentRecordRow = z.infer<typeof InstallmentRecordRow>
 export type InstallmentNoteRow = z.infer<typeof InstallmentNoteRow>
 export type InstallmentRow = z.infer<typeof InstallmentRow>
 export type InstallmentSummaryRow = z.infer<typeof InstallmentSummaryRow>
+export type ContractParticipant = z.infer<typeof ContractParticipant>
 export type ContractRow = z.infer<typeof ContractRow>
 export type ContractDetailRow = z.infer<typeof ContractDetailRow>
 export type ContractStatusFilter = z.infer<typeof ContractStatusFilter>

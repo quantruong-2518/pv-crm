@@ -27,7 +27,7 @@ export function DealPrimary({
   return (
     <>
       {state.acceptMounted && (
-        <AcceptDealButton code={op.code} show={move === 'accept'} size="lg" />
+        <AcceptDealButton code={op.code} owners={op.owners} show={move === 'accept'} size="lg" />
       )}
       {move === 'assign' && (
         <AssignSaleButton op={op} hasSeller={op.hasSeller} size="lg" variant="default" />

@@ -8,6 +8,8 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  Bảng này ít ràng buộc nhưng ràng buộc của nó đắt nhất nhánh: một dòng ở đây
  *  là câu trả lời cho "khách này đã ký chưa", và câu đó đi vào doanh số. Nên
  *  mọi câu dưới đây nói rõ đơn nào, chứ không nói "có lỗi xảy ra". */
+const LANE_MOVED = 'Người đứng tên cơ hội vừa thay đổi — tải lại trang rồi ký lại.'
+
 export const CONTRACT_CONSTRAINTS: ConstraintBook = {
   /** Ký hai lần cùng một đơn. Service đã kiểm `signed` trước và trả 409 gọi tên
    *  mã hợp đồng đã có, nên khoá này chỉ ăn khi hai người bấm "Chốt thắng" trên
@@ -35,5 +37,22 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['ownerId'],
     message: 'Người ăn hoa hồng không còn trong sổ nhân sự — chọn lại người ký.',
+  },
+
+  /** The signing-day snapshot (ADR 0086) is copied from `opportunity_owner`,
+   *  whose own fences already hold — only a deal changed mid-sign trips these. */
+  contract_participant_role_known: {
+    kind: 'conflict',
+    message: LANE_MOVED,
+  },
+
+  contract_participant_primary_is_sale: {
+    kind: 'conflict',
+    message: LANE_MOVED,
+  },
+
+  contract_participant_one_primary_idx: {
+    kind: 'conflict',
+    message: LANE_MOVED,
   },
 }

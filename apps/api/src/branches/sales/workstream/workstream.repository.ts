@@ -229,16 +229,17 @@ export class WorkstreamRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
+        primary: opportunityOwner.isPrimary,
         roleIds: actor.roleIds,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(inArray(opportunityOwner.opportunityCode, [...codes]))
-      .orderBy(opportunityOwner.role, actor.name)
+      .orderBy(opportunityOwner.role, desc(opportunityOwner.isPrimary), actor.name)
 
     const byDeal = new Map<string, OwnerRow[]>()
     for (const r of rows) {
-      const owner = { id: r.id, name: r.name, role: r.role, roleIds: r.roleIds }
+      const owner = { id: r.id, name: r.name, role: r.role, primary: r.primary, roleIds: r.roleIds }
       const list = byDeal.get(r.code)
       if (list) list.push(owner)
       else byDeal.set(r.code, [owner])

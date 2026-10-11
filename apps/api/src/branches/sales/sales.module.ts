@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { registerConstraints } from '@api/platform/http/db-error'
 import { ACCOUNT_CONSTRAINTS } from './account/account.constraints'
 import { AccountModule } from './account/account.module'
+import { CAMPAIGN_CONSTRAINTS } from './campaign/campaign.constraints'
 import { CampaignModule } from './campaign/campaign.module'
 import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
 import { CONFIG_CONSTRAINTS } from './config/config.constraints'
@@ -42,6 +43,7 @@ registerConstraints(ACCOUNT_CONSTRAINTS)
 registerConstraints(CONTACT_CONSTRAINTS)
 registerConstraints(NEXT_STEP_CONSTRAINTS)
 registerConstraints(CONFIG_CONSTRAINTS)
+registerConstraints(CAMPAIGN_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *

@@ -10,14 +10,22 @@ import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
-import { assertSellers, NO_OWNER, recordSaleLane } from './opportunity-owners'
+import {
+  assertSellers,
+  lanePeople,
+  NO_OWNER,
+  primaryOf,
+  recordSaleLane,
+  salePrimaryOf,
+} from './opportunity-owners'
 import { ownerRowsOf, toRef } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** The assign door (ADR 0071): the head gives an accepted deal its seller, or
  *  changes them. REPLACES the SALE lane — reassigning is the point — where the
- *  accept door only adds. An unchanged lane is a no-op; an ADDED id must be an
+ *  accept door only adds. An unchanged lane with the same primary (ADR 0086) is
+ *  a no-op; an ADDED id must be an
  *  active seller (a migrated head already on the lane may stay); an empty lane
  *  is fine while someone still holds the deal (the acceptor, after accept).
  *
@@ -54,7 +62,13 @@ export class OpportunityAssign {
       const before = found.owners.filter((o) => o.role === 'SALE')
       const removed = before.filter((o) => !body.saleOwners.includes(o.id))
       const addedIds = body.saleOwners.filter((id) => !before.some((o) => o.id === id))
-      if (removed.length === 0 && addedIds.length === 0) return
+      const salePrimary = salePrimaryOf(
+        await lanePeople(tx, body.saleOwners),
+        primaryOf(found.owners),
+        body.salePrimary,
+      )
+      const same = salePrimary === primaryOf(found.owners)
+      if (removed.length === 0 && addedIds.length === 0 && same) return
       await assertSellers(tx, addedIds)
 
       /* The BD lane is written back as read under the lock: this door owns SALE only. */
@@ -62,7 +76,7 @@ export class OpportunityAssign {
       await this.deals.replaceOwners(
         tx,
         code,
-        ownerRowsOf(code, { saleOwners: body.saleOwners, bdOwners }),
+        ownerRowsOf(code, { saleOwners: body.saleOwners, bdOwners }, salePrimary),
       )
       const fresh = await this.deals.byCode(null, code, tx)
       if (!fresh) throw notFound('cơ hội', code)

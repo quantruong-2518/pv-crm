@@ -100,7 +100,7 @@ checked against `git show` if the original is ever needed.
     marketing, bd, presales, sale, account-executive). Until the owner
     decides, the PIC-driven transitions in ADR 0058 use the existing
     permissions (`lead.edit` scoped for the PIC's own moves, `lead.disqualify`
-    for disqualify/reopen). _(see ADR 0058)_
+    for disqualify/reopen). _(see ADR 0058; ADR 0086)_
 
 ## Shared flows (added 28/09/2026)
 
@@ -171,7 +171,7 @@ Raised while recording the KPI framework (ADR 0082).
     deleted, the two KPI screens replace it, ADR 0082 Consequences.**
 36. **Is KPI linked to pay, and how is commission split?** v1 has no pay, bonus
     or commission maths. The split between SALE, BD and head was already out
-    of scope in ADR 0071. _(see ADR 0082 §1, §8)_
+    of scope in ADR 0071. _(see ADR 0082 §1, §8; ADR 0086)_
 37. **Do accountant and delivery become roles?** Neither has a seat, and a
     payment records no actor and no partial amount, so nothing of theirs can
     be scored. _(see ADR 0082 §8)_
@@ -221,3 +221,21 @@ Raised while recording the admission gate (ADR 0084).
 52. **Should an email-only match be downgraded to `needs-review` when the
     incoming company name is different and unmatched?** Default: no.
     _(see ADR 0084 Consequences)_
+
+## Person in charge (added 11/10/2026)
+
+Raised while recording the per-stage people rules (ADR 0086).
+
+53. **Should presales get a lane on the opportunity later?** Default: no
+    (owner 11/10: "chưa cần"). _(see ADR 0086 §3)_
+54. **Should BD (or every lane) also carry a primary once commission split is
+    modelled?** Default: no. _(see ADR 0086 §2)_
+55. **Who is the accountable Sale on existing deals with several sellers — is
+    the name-order backfill acceptable, or should the head of sales review
+    them?** Default: the backfill stands. _(see ADR 0086 Consequences)_
+56. **Should the wording for the two lanes be unified?** Screens say
+    `Sale PIC` / `BD PIC`, `BD đứng đơn`, `BD mở cửa`, `Sale đứng đơn` in
+    different places; `PIC_RULES` uses "Sale đứng đơn" / "BD mở cửa". Default:
+    leave as is. _(see ADR 0086)_
+57. **Should the contract snapshot also freeze names, not only ids?**
+    Default: no. _(see ADR 0086 §4)_

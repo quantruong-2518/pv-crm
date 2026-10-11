@@ -687,6 +687,13 @@
       "when": 1789715100000,
       "tag": "0098_email_domain_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1791875100000,
+      "tag": "0100_person_in_charge",
+      "breakpoints": true
     }
   ]
 }

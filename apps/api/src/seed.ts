@@ -19,6 +19,7 @@ import { contract, contractInstallment } from '@api/branches/sales/contract/cont
 import { lead } from '@api/branches/sales/lead/lead.schema'
 import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
+import { salePrimaryOf } from '@api/branches/sales/opportunity/opportunity-owners'
 import { NOTE } from '@api/branches/sales/opportunity/opportunity.mapper'
 import {
   opportunity,
@@ -566,7 +567,12 @@ function plantDeal(
     acceptedAt: walk.moves[1]?.at ?? null,
     createdAt: entered,
   })
-  out.owners.push({ opportunityCode: op, actorId: owner.id, role: 'SALE' })
+  out.owners.push({
+    opportunityCode: op,
+    actorId: owner.id,
+    role: 'SALE',
+    isPrimary: salePrimaryOf([owner], null) === owner.id,
+  })
   if (owner.id !== BD.id) out.owners.push({ opportunityCode: op, actorId: BD.id, role: 'BD' })
   d.products.forEach((n) =>
     out.products.push({ opportunityCode: op, productId: productRows[n]!.id, list: 'PRODUCT' }),
@@ -744,6 +750,11 @@ async function seed(): Promise<void> {
     await tx.insert(opportunityProduct).values(out.products)
     await tx.insert(opportunityStageEvent).values(out.moves)
     await tx.insert(contract).values(out.contracts)
+    /* The sign door's snapshot (ADR 0086): each paper keeps its deal's lanes. */
+    await tx.execute(sql`
+      INSERT INTO sales.contract_participant (contract_code, actor_id, role, is_primary)
+      SELECT c.code, w.actor_id, w.role, w.is_primary
+      FROM sales.contract c JOIN sales.opportunity_owner w ON w.opportunity_code = c.opportunity_code`)
     await tx.insert(contractInstallment).values(out.installments)
     await tx.insert(touch).values(out.touches)
     await tx.insert(meeting).values(out.meetings)

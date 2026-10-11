@@ -9,6 +9,7 @@ import {
   OpportunityLiveDeal,
   OpportunityProfileResponse,
   OpportunityScorecard,
+  PIC_RULES,
   type OpportunityAct,
   type OpportunityFacetsQuery,
   type OpportunityOwner,
@@ -287,6 +288,47 @@ export const bdOwnersOf = (op: OpportunityRow) => ownersOf(op, 'BD')
 
 export const namesOf = (owners: OpportunityOwner[]) => owners.map((o) => o.name)
 export const idsOf = (owners: OpportunityOwner[]) => owners.map((o) => o.id)
+
+/** The deal's two lanes as the one PIC rule table spells them (ADR 0086), so a
+ *  screen reads the lane's words and whether it has a primary from one place.
+ *  Looked up by role: the table's row order is not a promise. */
+const laneRule = (role: OpportunityOwner['role']) =>
+  PIC_RULES.opportunity.find((rule) => rule.role === role)!
+export const SALE_LANE = laneRule('SALE')
+export const BD_LANE = laneRule('BD')
+export const SALE_PRIMARY_LABEL = 'Sale chính'
+
+/** Whether to SAY who the primary is: a lane of one already names them. */
+export const marksPrimary = (owner: OpportunityOwner, lane: readonly OpportunityOwner[]) =>
+  owner.primary && lane.length > 1
+
+/** One lane as a line of names, its primary marked. Also reads a contract's
+ *  signing snapshot, which keeps the same shape. */
+export const laneText = (lane: OpportunityOwner[]) =>
+  lane.map((o) => (marksPrimary(o, lane) ? `${o.name} (chính)` : o.name)).join(', ')
+
+/** Both lanes of a list of people on one line, SALE first then BD. */
+export function lanesText(people: OpportunityOwner[]): string {
+  const sale = people.filter((o) => o.role === 'SALE')
+  const bd = people.filter((o) => o.role === 'BD')
+  return [sale.length > 0 && `Sale ${laneText(sale)}`, bd.length > 0 && `BD ${laneText(bd)}`]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** The primary a form stands on: the user's pick while that person is still on
+ *  the lane, else the stored primary. NO further fallback — with neither, the
+ *  server chooses by its own rule, so a form must not name someone for it. */
+export const salePrimaryIn = (
+  lane: readonly string[],
+  picked: string | null,
+  stored?: string,
+): string | undefined =>
+  picked !== null && lane.includes(picked)
+    ? picked
+    : stored !== undefined && lane.includes(stored)
+      ? stored
+      : undefined
 
 /** Tiền của một đơn, quy về ĐỒNG. `null` khi đơn chưa moi được ô 9, và `null`
  *  không phải 0.

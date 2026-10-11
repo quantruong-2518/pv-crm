@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
 import { UserPlus } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
-import { OPPORTUNITY_STAGE_LABEL } from '@pv/contracts'
+import { OPPORTUNITY_STAGE_LABEL, type OpportunityOwner } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
 import { focusSoon } from '@/lib/focus'
+import { salePrimaryIn } from '@/data/opportunities'
 import { useAcceptDeal } from '@/data/opportunities-write'
 import { SellerModal } from './seller-modal'
 
@@ -13,7 +14,9 @@ import { SellerModal } from './seller-modal'
  *
  *  The Sale pick is OPTIONAL and ADDS to the lane, never replaces it — the
  *  contract's own rule; replacing is the assign act (`opportunity-assign.tsx`).
- *  Both pick through `SellerModal`, sellers only.
+ *  Both pick through `SellerModal`, sellers only. The primary is chosen from
+ *  the lane as it will stand — who is on it plus who is added (ADR 0086) — and
+ *  is sent only when it moves, so a plain accept keeps the stored one.
  *
  *  `show` hides the button but keeps the modal mounted: the accept moves the
  *  stage before the call settles, and an unmounted modal would lose its exit
@@ -22,6 +25,7 @@ import { SellerModal } from './seller-modal'
 
 export function AcceptDealButton({
   code,
+  owners,
   show = true,
   size = 'md',
   variant = 'default',
@@ -31,6 +35,8 @@ export function AcceptDealButton({
   onAccepted,
 }: {
   code: string
+  /** The deal's people as stored; the SALE ones are the lane accept adds to. */
+  owners: readonly OpportunityOwner[]
   show?: boolean
   size?: 'sm' | 'md' | 'lg'
   /** `ghost` for a book row: `default` paints a gradient image that a
@@ -46,16 +52,26 @@ export function AcceptDealButton({
   const trigger = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [sellers, setSellers] = useState<string[]>([])
+  const [primaryPick, setPrimaryPick] = useState<string | null>(null)
   const accept = useAcceptDeal(code)
+  const standing = owners.filter((o) => o.role === 'SALE')
+  const lane = [...new Set([...standing.map((o) => o.id), ...sellers])]
+  const storedPrimary = standing.find((o) => o.primary)?.id
+  const primary = salePrimaryIn(lane, primaryPick, storedPrimary)
 
   const close = () => {
     setOpen(false)
     setSellers([])
+    setPrimaryPick(null)
     accept.reset()
   }
 
-  const submit = () =>
-    accept.mutate(sellers.length === 0 ? {} : { saleOwners: sellers }, {
+  const submit = () => {
+    const body = {
+      ...(sellers.length > 0 && { saleOwners: sellers }),
+      ...(primary !== undefined && primary !== storedPrimary && { salePrimary: primary }),
+    }
+    accept.mutate(body, {
       onSuccess: () => {
         toastDone(`Đã nhận PIC ${code}.`)
         close()
@@ -64,6 +80,7 @@ export function AcceptDealButton({
         if (returnFocus) focusSoon(() => (trigger.current?.isConnected ? null : returnFocus()), 240)
       },
     })
+  }
 
   return (
     <>
@@ -96,6 +113,8 @@ export function AcceptDealButton({
         fieldHint="Tuỳ chọn. Người chọn ở đây được thêm vào đơn, không thay ai đang đứng."
         sellers={sellers}
         onChange={setSellers}
+        names={new Map(standing.map((o) => [o.id, o.name]))}
+        primary={{ lane, value: primary, onChange: setPrimaryPick }}
         note={
           sellers.length === 0
             ? 'Có thể giao Sale sau — cơ hội cần một Sale trước khi Chốt thắng.'

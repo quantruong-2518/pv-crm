@@ -97,6 +97,19 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
     message: 'Vai trên đơn chỉ có Sale đứng đơn hoặc BD mở cửa.',
   },
 
+  /** The two fences of ADR 0086. `salePrimaryOf` picks one SALE person on
+   *  every door, so these only answer two writes racing, or a door added later. */
+  opportunity_owner_primary_is_sale: {
+    kind: 'invalid',
+    fields: ['salePrimary'],
+    message: 'Sale chính phải là một người trong danh sách Sale đứng đơn',
+  },
+
+  opportunity_owner_one_primary_idx: {
+    kind: 'conflict',
+    message: 'Cơ hội chỉ có một Sale chính — tải lại trang rồi thử lại.',
+  },
+
   opportunity_probability_range: {
     kind: 'invalid',
     fields: ['probability'],

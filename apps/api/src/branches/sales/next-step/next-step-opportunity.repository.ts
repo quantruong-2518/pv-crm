@@ -114,6 +114,7 @@ export class OpportunityStepRepository {
         id: actor.id,
         name: actor.name,
         role: opportunityOwner.role,
+        primary: opportunityOwner.isPrimary,
         roleIds: actor.roleIds,
       })
       .from(opportunityOwner)

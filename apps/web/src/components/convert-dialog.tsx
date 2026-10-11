@@ -9,7 +9,7 @@ import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/
 import { useCan, useSession } from '@/app/auth'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
-import { chainPath } from '@/data/opportunities'
+import { chainPath, salePrimaryIn } from '@/data/opportunities'
 import {
   createBodyOf,
   draftErrorsOf,
@@ -73,6 +73,9 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   )
   const [draft, setDraft] = useState<OpportunityDraft>(seed)
   const [picks, setPicks] = useState<OpportunityContactPick[]>([])
+  /* Beside the draft like `picks`: the 14-cell draft has no room for it. */
+  const [primaryPick, setPrimaryPick] = useState<string | null>(null)
+  const salePrimary = salePrimaryIn(draft.saleOwners, primaryPick) ?? draft.saleOwners[0]
   const [errors, setErrors] = useState<FieldErrors>({})
   const [created, setCreated] = useState<Created | null>(null)
   const [ready, setReady] = useState(false)
@@ -101,6 +104,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   const set = <K extends keyof OpportunityDraft>(key: K, value: OpportunityDraft[K]) => {
     setDraft((d) => ({ ...d, [key]: value }))
     clear(key)
+    if (key === 'saleOwners') clear('salePrimary')
   }
   const pick = (next: OpportunityContactPick[]) => {
     setPicks(next)
@@ -111,7 +115,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
 
   const submit = () => {
     if (!ctx) return
-    promote.mutate(createBodyOf(profile.code, draft, picks), {
+    promote.mutate(createBodyOf(profile.code, draft, picks, salePrimary), {
       onSuccess: (row) =>
         setCreated({
           row,
@@ -181,6 +185,11 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
               me={me}
               canAccept={canAccept}
               accountOwner={ctx.account?.owner}
+              salePrimary={salePrimary}
+              onSalePrimary={(id) => {
+                setPrimaryPick(id)
+                clear('salePrimary')
+              }}
               onSet={set}
             />
             <AfterCreate

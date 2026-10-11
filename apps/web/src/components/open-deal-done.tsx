@@ -11,7 +11,14 @@ import {
 } from '@pv/contracts'
 import { CURRENCIES } from '@pv/engines/fixtures/das-vina'
 import { dmy } from '@/lib/date'
-import { bdOwnersOf, namesOf, saleOwnersOf } from '@/data/opportunities'
+import {
+  BD_LANE,
+  SALE_LANE,
+  bdOwnersOf,
+  laneText,
+  namesOf,
+  saleOwnersOf,
+} from '@/data/opportunities'
 
 /** What the drawer turns into once the server has accepted the ticket.
  *
@@ -91,7 +98,7 @@ export function CreatedPanel({
   const { row, context } = created
   const { workstream } = context
   const bd = namesOf(bdOwnersOf(row))
-  const sale = namesOf(saleOwnersOf(row))
+  const sale = saleOwnersOf(row)
 
   return (
     <div className="flex flex-col gap-8 py-8">
@@ -123,8 +130,8 @@ export function CreatedPanel({
         </Pair>
         <Pair label="Ngày chốt dự kiến">{row.expectedClose ? dmy(row.expectedClose) : '—'}</Pair>
         <Pair label="Người liên hệ">{contactLine(created)}</Pair>
-        <Pair label="BD mở cửa">{bd.length > 0 ? bd.join(', ') : '—'}</Pair>
-        {sale.length > 0 && <Pair label="Sale đứng đơn">{sale.join(', ')}</Pair>}
+        <Pair label={BD_LANE.label}>{bd.length > 0 ? bd.join(', ') : '—'}</Pair>
+        {sale.length > 0 && <Pair label={SALE_LANE.label}>{laneText(sale)}</Pair>}
         <Pair label="Công ty">
           {row.accountCode ? (
             <>

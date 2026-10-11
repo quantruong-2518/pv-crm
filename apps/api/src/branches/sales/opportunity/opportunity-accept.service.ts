@@ -10,7 +10,14 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
-import { actorRoles, assertSellers, recordSaleLane } from './opportunity-owners'
+import {
+  actorRoles,
+  assertSellers,
+  lanePeople,
+  primaryOf,
+  recordSaleLane,
+  salePrimaryOf,
+} from './opportunity-owners'
 import { holderOf, type RefOwner } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
@@ -57,6 +64,14 @@ export class OpportunityAccept {
       const onSale = new Set(found.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
       const addedIds = (body.saleOwners ?? []).filter((id) => !onSale.has(id))
       await assertSellers(tx, addedIds)
+      /* The primary is judged on the MERGED lane: the body may name someone
+         already standing on it (ADR 0086). */
+      const before = primaryOf(found.owners)
+      const salePrimary = salePrimaryOf(
+        await lanePeople(tx, [...onSale, ...addedIds]),
+        before,
+        body.salePrimary,
+      )
       await this.deals.addOwners(
         tx,
         (body.saleOwners ?? []).map((actorId) => ({
@@ -65,6 +80,7 @@ export class OpportunityAccept {
           role: 'SALE' as const,
         })),
       )
+      if (salePrimary !== before) await this.deals.setSalePrimary(tx, code, salePrimary)
       const fresh = (await this.deals.byCode(null, code, tx)) ?? found
       const owner = await this.holderAfter(tx, fresh, by)
       const moved = await this.lifecycle.assigned(

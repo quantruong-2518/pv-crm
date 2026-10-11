@@ -66,6 +66,7 @@ export const OpportunityProfileContract = ContractRow.pick({
   amount: true,
   currency: true,
   signedAt: true,
+  participants: true,
 }).extend({ owner: WorkstreamHolder.nullable() })
 
 /** Sum of the signed contracts in the DEAL's currency — display-only; the deal's

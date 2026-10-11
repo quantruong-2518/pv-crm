@@ -1,6 +1,7 @@
 import type { ObjectRef } from '@pv/engines'
 import type {
   ContractDetailRow,
+  ContractParticipant,
   ContractRow,
   ContractSign,
   InstallmentConditionRow,
@@ -70,6 +71,7 @@ export function toContract(
   row: ContractRowDb,
   ownerName: string | null,
   customer: string,
+  participants: ContractParticipant[],
 ): ContractRow {
   return {
     code: row.code,
@@ -84,6 +86,7 @@ export function toContract(
        `owner_id` NULL, và lúc đó cái tên cũng không tồn tại — trả `ownerId`
        kèm `ownerName` rỗng là bày ra một người không có. */
     ...(row.ownerId && ownerName ? { ownerId: row.ownerId, ownerName } : {}),
+    participants,
   }
 }
 
@@ -117,10 +120,11 @@ export function toBookRow(read: {
   row: ContractRowDb
   ownerName: string | null
   customer: string
+  participants: ContractParticipant[]
   installments: ContractInstallmentRowDb[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer),
+    ...toContract(read.row, read.ownerName, read.customer, read.participants),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -131,6 +135,7 @@ export function toDetail(read: {
   row: ContractRowDb
   ownerName: string | null
   customer: string
+  participants: ContractParticipant[]
   contact: string
   contactRole: string | null
   installments: {
@@ -142,7 +147,7 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer),
+    ...toContract(read.row, read.ownerName, read.customer, read.participants),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back

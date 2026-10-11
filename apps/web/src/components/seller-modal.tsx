@@ -3,8 +3,9 @@ import { Button, Icon, Modal, cn, type IconGlyph } from '@pv/ui'
 import { isSellerRole } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { useSalesPeople } from '@/data/directory'
-import { toggled } from '@/data/opportunities'
+import { SALE_PRIMARY_LABEL, toggled } from '@/data/opportunities'
 import { PersonTokenField } from './person-token-field'
+import { SalePrimaryPick } from './sale-primary-pick'
 import { Field } from './ops-fields'
 
 /** Module 3 · the seller picker in a modal — shared by the accept act (adds to
@@ -13,7 +14,8 @@ import { Field } from './ops-fields'
  *  Suggests only `isSellerRole` people, the ones the server takes on that lane.
  *  A token already on the lane stays drawn even when its owner is not a seller
  *  (a migrated head), so nobody is dropped without a visible tap. The caller
- *  owns the list, the door and the sentence under it; this owns the shape. */
+ *  owns the list, the door and the sentence under it; this owns the shape.
+ *  `primary` adds the lane's primary choice (ADR 0086) under the picker. */
 
 export function SellerModal({
   open,
@@ -25,6 +27,7 @@ export function SellerModal({
   sellers,
   onChange,
   names,
+  primary,
   note,
   error,
   busy,
@@ -44,6 +47,8 @@ export function SellerModal({
   onChange: (next: string[]) => void
   /** Names for ids the directory may not know any more (locked-out owners). */
   names?: ReadonlyMap<string, string>
+  /** The lane the primary is chosen from — on accept, wider than `sellers`. */
+  primary: { lane: readonly string[]; value: string | undefined; onChange: (id: string) => void }
   /** The sentence under the field when nothing failed and nothing is pending. */
   note: string
   error: ApiError | null
@@ -58,6 +63,7 @@ export function SellerModal({
   const people = useSalesPeople()
   const sellerPool = people.filter((a) => isSellerRole(a.roleIds))
   const toggle = (id: string) => onChange(toggled(sellers, id))
+  const nameOf = (id: string) => people.find((a) => a.id === id)?.name ?? names?.get(id) ?? id
 
   return (
     <Modal
@@ -98,8 +104,9 @@ export function SellerModal({
             const person = people.find((a) => a.id === id)
             return {
               id,
-              name: person?.name ?? names?.get(id) ?? id,
+              name: nameOf(id),
               ...(person && { note: person.role }),
+              ...(primary.lane.length > 1 && id === primary.value && { tag: SALE_PRIMARY_LABEL }),
             }
           })}
           suggestions={sellerPool
@@ -110,6 +117,14 @@ export function SellerModal({
           emptyNote="Không còn Sale nào để thêm."
         />
       </Field>
+      <div className="pt-4 empty:hidden">
+        <SalePrimaryPick
+          people={primary.lane.map((id) => ({ id, name: nameOf(id) }))}
+          value={primary.value}
+          errors={error?.errors?.salePrimary}
+          onChange={primary.onChange}
+        />
+      </div>
     </Modal>
   )
 }

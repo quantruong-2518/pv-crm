@@ -321,12 +321,13 @@ export class OpportunityRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
+        primary: opportunityOwner.isPrimary,
         roleIds: actor.roleIds,
       })
       .from(opportunityOwner)
       .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(inArray(opportunityOwner.opportunityCode, codes))
-      .orderBy(opportunityOwner.role, actor.name, actor.id)
+      .orderBy(opportunityOwner.role, desc(opportunityOwner.isPrimary), actor.name, actor.id)
 
     const byCode = new Map<string, OwnerRow[]>()
     for (const r of rows) byCode.set(r.code, [...(byCode.get(r.code) ?? []), r])
@@ -543,7 +544,7 @@ export class OpportunityRepository {
 
   /** The open deals of ONE lead with their owners, oldest first, in one
    *  statement — what the live-deal door needs to build an E2 ref per deal.
-   *  Owners keep `ownersOf`'s order (role, then name). */
+   *  Owners keep `ownersOf`'s order (role, primary first, then name). */
   async liveDealsWithOwners(
     leadCode: string,
   ): Promise<{ row: OpportunityRowDb; owners: OpportunityOwner[] }[]> {
@@ -553,19 +554,26 @@ export class OpportunityRepository {
         id: opportunityOwner.actorId,
         name: actor.name,
         role: opportunityOwner.role,
+        primary: opportunityOwner.isPrimary,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
       .leftJoin(opportunityOwner, eq(opportunityOwner.opportunityCode, opportunity.code))
       .leftJoin(actor, eq(actor.id, opportunityOwner.actorId))
       .where(and(eq(opportunity.leadCode, leadCode), this.live(), leadLive))
-      .orderBy(opportunity.createdAt, opportunity.code, opportunityOwner.role, actor.name)
+      .orderBy(
+        opportunity.createdAt,
+        opportunity.code,
+        opportunityOwner.role,
+        desc(opportunityOwner.isPrimary),
+        actor.name,
+      )
 
     const deals = new Map<string, { row: OpportunityRowDb; owners: OpportunityOwner[] }>()
     for (const r of rows) {
       const deal = deals.get(r.row.code) ?? { row: r.row, owners: [] }
       if (r.id !== null && r.name !== null && r.role !== null) {
-        deal.owners.push({ id: r.id, name: r.name, role: r.role })
+        deal.owners.push({ id: r.id, name: r.name, role: r.role, primary: r.primary ?? false })
       }
       deals.set(r.row.code, deal)
     }
@@ -635,7 +643,7 @@ export class OpportunityRepository {
   /** Ghi người đứng đơn. Một câu cho cả danh sách. */
   async insertOwners(
     tx: Db,
-    rows: readonly { opportunityCode: string; actorId: string; role: 'SALE' | 'BD' }[],
+    rows: readonly (typeof opportunityOwner.$inferInsert)[],
   ): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(opportunityOwner).values([...rows])
@@ -652,6 +660,19 @@ export class OpportunityRepository {
       .insert(opportunityOwner)
       .values([...rows])
       .onConflictDoNothing()
+  }
+
+  /** Moves the SALE primary of a lane already written (ADR 0086). Two
+   *  statements, clear then set: `opportunity_owner_one_primary_idx` is checked
+   *  per row, so one UPDATE could meet two primaries midway. */
+  async setSalePrimary(tx: Db, code: string, actorId: string | null): Promise<void> {
+    const onDeal = eq(opportunityOwner.opportunityCode, code)
+    await tx.update(opportunityOwner).set({ isPrimary: false }).where(onDeal)
+    if (actorId === null) return
+    await tx
+      .update(opportunityOwner)
+      .set({ isPrimary: true })
+      .where(and(onDeal, eq(opportunityOwner.actorId, actorId), eq(opportunityOwner.role, 'SALE')))
   }
 
   /** Lock one deal `FOR UPDATE`, then re-read what the doors decided on before
@@ -769,7 +790,7 @@ export class OpportunityRepository {
   async replaceOwners(
     tx: Db,
     code: string,
-    rows: readonly { opportunityCode: string; actorId: string; role: 'SALE' | 'BD' }[],
+    rows: readonly (typeof opportunityOwner.$inferInsert)[],
   ): Promise<void> {
     await tx.delete(opportunityOwner).where(eq(opportunityOwner.opportunityCode, code))
     await this.insertOwners(tx, rows)

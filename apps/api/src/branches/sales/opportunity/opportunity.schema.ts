@@ -483,6 +483,10 @@ export const opportunityOwner = sales.table(
       .notNull()
       .references(() => actor.id),
     role: text('role').$type<OpportunityOwnerRole>().notNull(),
+    /** THE accountable person of the SALE lane (ADR 0086), stored so nobody
+     *  re-derives it from name order. "A non-empty SALE lane has one" spans
+     *  rows, which no CHECK can say — the service keeps it; the fences cap it. */
+    isPrimary: boolean('is_primary').notNull().default(false),
   },
   (t) => [
     primaryKey({
@@ -491,7 +495,14 @@ export const opportunityOwner = sales.table(
     }),
     /** "Đơn của tôi" — xem docblock trên. */
     index('opportunity_owner_actor_idx').on(t.actorId),
+    /** "Who is accountable for this deal" — and the fence that makes the
+     *  answer one row: a second primary on the same deal is refused. */
+    uniqueIndex('opportunity_owner_one_primary_idx')
+      .on(t.opportunityCode)
+      .where(sql`"is_primary"`),
     check('opportunity_owner_role_known', sql`"role" IN ('SALE', 'BD')`),
+    /** BD opens the door and never closes the deal: the lane has no primary. */
+    check('opportunity_owner_primary_is_sale', sql`NOT "is_primary" OR "role" = 'SALE'`),
   ],
 )
 

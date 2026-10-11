@@ -74,14 +74,18 @@ import {
   assertHeld,
   assertSaleLaneKept,
   assertSellers,
+  holderOfIds,
+  ownersOfIds,
+  primaryOf,
   recordSaleLane,
   saleLaneChange,
+  saleLaneOf,
+  salePrimaryOf,
 } from './opportunity-owners'
 import {
   fromCreate,
   fromUpdate,
   hasSellerOf,
-  holderOf,
   daysInStageOf,
   NOTE,
   ownerRowsOf,
@@ -373,7 +377,12 @@ export class OpportunityService {
        column". */
     const now = new Date()
     const write = fromCreate(body, now, lead.workstreamCode, acceptor?.id ?? null)
-    const owner = holderOfIds(body, names, roles, acceptor)
+    const salePrimary = salePrimaryOf(
+      saleLaneOf(body.saleOwners, names, roles),
+      null,
+      body.salePrimary,
+    )
+    const owner = holderOfIds(body, names, roles, acceptor, salePrimary)
     await assertSellers(handle, body.saleOwners)
     assertHeld(owner)
     const code = await this.repo.nextCode()
@@ -393,7 +402,7 @@ export class OpportunityService {
         code,
         accountCode: accounts.get(body.leadCode) ?? null,
       })
-      await this.repo.insertOwners(tx, ownerRowsOf(code, write))
+      await this.repo.insertOwners(tx, ownerRowsOf(code, write, salePrimary))
       await this.repo.insertProducts(tx, productRowsOf(code, write))
       await this.opening.writeContacts(tx, who, code, body.leadCode, body.contacts)
 
@@ -460,14 +469,7 @@ export class OpportunityService {
       await this.facts.row({
         row,
         account: lead.company,
-        owners: [
-          ...body.saleOwners.map((id) => ({
-            id,
-            name: names.get(id) ?? id,
-            role: 'SALE' as const,
-          })),
-          ...body.bdOwners.map((id) => ({ id, name: names.get(id) ?? id, role: 'BD' as const })),
-        ],
+        owners: ownersOfIds(body, names, salePrimary),
         contractCodes: [],
         holder: owner,
         acceptedBy: acceptor,
@@ -530,11 +532,11 @@ export class OpportunityService {
     ])
 
     const write = fromUpdate(body)
-    const { row, owner, acceptedBy } = await this.repo.run(async (tx) => {
+    const { row, owner, acceptedBy, salePrimary } = await this.repo.run(async (tx) => {
       await this.assertLockedAsRead(tx, code, found, pendingSign)
-      const { now, owner } = await this.ownersUnderLock(tx, code, body, names, roles)
+      const { now, owner, salePrimary } = await this.ownersUnderLock(tx, code, body, names, roles)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
-      await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
+      await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write, salePrimary))
       await recordSaleLane(tx, this.touch, saleLaneChange(now, body.saleOwners, names, owner, who))
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
       const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
@@ -545,7 +547,7 @@ export class OpportunityService {
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
       await this.mirror.put(tx, toRef(written, owner))
-      return { row: written, owner, acceptedBy: now.acceptedBy }
+      return { row: written, owner, acceptedBy: now.acceptedBy, salePrimary }
     })
 
     const productNames =
@@ -555,14 +557,7 @@ export class OpportunityService {
       await this.facts.row({
         row,
         account: found.account,
-        owners: [
-          ...body.saleOwners.map((id) => ({
-            id,
-            name: names.get(id) ?? id,
-            role: 'SALE' as const,
-          })),
-          ...body.bdOwners.map((id) => ({ id, name: names.get(id) ?? id, role: 'BD' as const })),
-        ],
+        owners: ownersOfIds(body, names, salePrimary),
         /* "Đã thắng" không đổi được bằng cửa này — nó là câu hỏi về bảng
            `contract`, và lượt sửa vừa rồi không chạm bảng đó. Chở lại đúng câu
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
@@ -682,14 +677,15 @@ export class OpportunityService {
         workstreamByLead.get(write.leadCode) ?? null,
         acceptor?.id ?? null,
       )
+      const salePrimary = salePrimaryOf(saleLaneOf(write.saleOwners, names, roles), null)
       return {
         code,
         row: { ...draft.values, code },
         ref: refOf(code, draft, {
           label: draft.values.name,
-          owner: holderOfIds(write, names, roles, acceptor),
+          owner: holderOfIds(write, names, roles, acceptor, salePrimary),
         }),
-        owners: ownerRowsOf(code, draft),
+        owners: ownerRowsOf(code, draft, salePrimary),
         /* THE "ENTERED THE BOARD" ROW — the same row the single-deal create
            door writes, for the same reason. This door forgot it until 03/09,
            and the omission was invisible on every screen: an imported deal
@@ -868,18 +864,23 @@ export class OpportunityService {
     body: OpportunityUpdate,
     names: ReadonlyMap<string, string>,
     roles: ReadonlyMap<string, RoleId[]>,
-  ): Promise<{ now: OpportunityRead; owner: RefOwner | null }> {
+  ): Promise<{ now: OpportunityRead; owner: RefOwner | null; salePrimary: string | null }> {
     const now = await this.repo.byCode(null, code, tx)
     if (!now) throw notFound('cơ hội', code)
-    assertSaleLaneKept(now, body.saleOwners)
+    assertSaleLaneKept(now, body.saleOwners, body.salePrimary)
     const onSale = new Set(now.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
     await assertSellers(
       tx,
       body.saleOwners.filter((id) => !onSale.has(id)),
     )
-    const owner = holderOfIds(body, names, roles, now.acceptedBy)
+    const salePrimary = salePrimaryOf(
+      saleLaneOf(body.saleOwners, names, roles),
+      primaryOf(now.owners),
+      body.salePrimary,
+    )
+    const owner = holderOfIds(body, names, roles, now.acceptedBy, salePrimary)
     assertHeld(owner)
-    return { now, owner }
+    return { now, owner, salePrimary }
   }
 
   private async pendingSign(code: string): Promise<boolean> {
@@ -1045,28 +1046,13 @@ function positionOf(
   return position === null ? null : PipelinePositionView.parse(position)
 }
 
-/** The body changes who stands on the SALE lane. The deal's terms are judged
- *  apart (`touchesTerms`); `state` left the body with ADR 0064. */
+/** The body changes who stands on the SALE lane, or names another primary.
+ *  The deal's terms are judged apart (`touchesTerms`); `state` left the body
+ *  with ADR 0064. */
 function saleLaneMoved(found: OpportunityRead, body: OpportunityUpdate): boolean {
   const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
+  if (body.salePrimary !== undefined && body.salePrimary !== primaryOf(found.owners)) return true
   return sale.length !== body.saleOwners.length || sale.some((id) => !body.saleOwners.includes(id))
-}
-
-/** `holderOf` over a body's owner ids, with names and roles resolved first so
- *  it applies its own order, not the body's; ids the actor book does not know
- *  are skipped (their insert dies on the owner foreign key). */
-function holderOfIds(
-  body: { saleOwners: readonly string[]; bdOwners: readonly string[] },
-  names: ReadonlyMap<string, string>,
-  roles: ReadonlyMap<string, RoleId[]>,
-  acceptor: RefOwner | null,
-): RefOwner | null {
-  const lane = (ids: readonly string[], role: 'SALE' | 'BD') =>
-    ids.flatMap((id) => {
-      const name = names.get(id)
-      return name === undefined ? [] : [{ id, name, role, roleIds: roles.get(id) ?? null }]
-    })
-  return holderOf([...lane(body.saleOwners, 'SALE'), ...lane(body.bdOwners, 'BD')], acceptor)
 }
 
 /** A deal born accepted tells its timeline the same fact the accept door

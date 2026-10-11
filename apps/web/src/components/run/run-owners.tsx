@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, Avatar, Button, Icon, Skeleton, UserRoundPlus } from '@pv/ui'
+import { ArrowLeftRight, Avatar, Button, Icon, MetaPill, Skeleton, UserRoundPlus } from '@pv/ui'
 import type { OpportunityOwner, WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useDirectory } from '@/data/directory'
+import { SALE_PRIMARY_LABEL, marksPrimary } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { RunBlock } from './run-block'
 
@@ -14,7 +15,7 @@ import { RunBlock } from './run-block'
  *  "Sale PIC" rows. A door sits beside the object it changes, only where the
  *  page can open one; a code shows only when its kind has several objects. */
 
-const SEAT = 'text-muted-foreground m-0 text-[11.5px] italic leading-[1.5]'
+export const SEAT = 'text-muted-foreground m-0 text-[11.5px] italic leading-[1.5]'
 const NOTE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
 
 type Row = {
@@ -25,6 +26,8 @@ type Row = {
   who: string | null
   id?: string | null
   hint?: string
+  /** The SALE lane's primary, said only when the lane has several people. */
+  primary?: boolean
 }
 
 const name = (holder: WorkstreamHolder | null) => holder?.name ?? null
@@ -70,7 +73,8 @@ export function RunOwners({
         },
       ]
     }
-    const firstSale = lanes.find((o) => o.role === 'SALE')
+    const sale = lanes.filter((o) => o.role === 'SALE')
+    const firstSale = sale.find((o) => o.primary) ?? sale[0]
     const seated = lanes.map((o) => ({
       key: o === firstSale ? deal.code : `${deal.code}-${o.role}-${o.id}`,
       step: 'Cơ hội',
@@ -78,6 +82,7 @@ export function RunOwners({
       code: deal.code,
       who: o.name as string | null,
       id: o.id,
+      primary: marksPrimary(o, sale),
     }))
     const noSale: Row[] = lanes.some((o) => o.role === 'SALE')
       ? []
@@ -162,6 +167,7 @@ export function RunOwners({
                 )}
               </span>
             </span>
+            {row.primary && <MetaPill className="shrink-0">{SALE_PRIMARY_LABEL}</MetaPill>}
             {doors[row.key] && (
               <Button
                 size="sm"

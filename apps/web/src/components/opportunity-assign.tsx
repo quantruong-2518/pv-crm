@@ -3,14 +3,16 @@ import { UserRoundPlus } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { OpportunityRow } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
+import { SALE_LANE, salePrimaryIn } from '@/data/opportunities'
 import { useAssignSale } from '@/data/opportunities-write'
 import { SellerModal } from './seller-modal'
 
 /** Module 3 · the assign act — a head gives or changes a deal's seller after
  *  accept (ADR 0071, `POST …/:code/sale-owners`, the ONLY door to that lane once
  *  past `new`). REPLACES the lane, so the modal opens on the lane as it stands
- *  and whatever is left is the lane; an unchanged list is not sent. The
- *  server's 400/409 lands in the modal's own footer line.
+ *  and whatever is left is the lane; an unchanged list is not sent. Moving only
+ *  the primary is a change too (ADR 0086). The server's 400/409 lands in the
+ *  modal's own footer line.
  *
  *  The caller decides who sees it (`opportunity.assign`, open, past `new`, no
  *  signature pending) and says whether a seller stands, which picks the word.
@@ -49,11 +51,16 @@ export function AssignSaleButton({
   const [ownOpen, setOwnOpen] = useState(false)
   /* `null` = untouched, so the modal opens on the lane as it stands. */
   const [picked, setSellers] = useState<string[] | null>(null)
+  const [primaryPick, setPrimaryPick] = useState<string | null>(null)
   const assign = useAssignSale(op.code)
   const lane = op.owners.filter((o) => o.role === 'SALE')
   const current = lane.map((o) => o.id)
   const sellers = picked ?? current
-  const unchanged = sameSet(sellers, current)
+  const storedPrimary = lane.find((o) => o.primary)?.id
+  const primary = salePrimaryIn(sellers, primaryPick, storedPrimary)
+  /* Sent only when the user moved it: untouched, the server keeps or chooses. */
+  const primaryMoved = primary !== undefined && primary !== storedPrimary
+  const unchanged = sameSet(sellers, current) && !primaryMoved
   const label = hasSeller ? 'Đổi Sale' : 'Giao Sale'
   const open = openProp ?? ownOpen
 
@@ -61,12 +68,13 @@ export function AssignSaleButton({
     if (openProp === undefined) setOwnOpen(false)
     else onClose?.()
     setSellers(null)
+    setPrimaryPick(null)
     assign.reset()
   }
   const submit = () => {
     if (unchanged) return
     assign.mutate(
-      { saleOwners: sellers },
+      { saleOwners: sellers, ...(primaryMoved && { salePrimary: primary }) },
       {
         onSuccess: () => {
           toastDone(`Đã cập nhật Sale đứng đơn ${op.code}.`)
@@ -103,14 +111,17 @@ export function AssignSaleButton({
             <span className="font-mono">{op.code}</span>.
           </>
         }
-        fieldLabel="Sale đứng đơn"
+        fieldLabel={SALE_LANE.label}
         fieldHint="Chỉ người vai Sale hoặc AE. Bỏ một người khỏi danh sách là người đó thôi đứng đơn."
         sellers={sellers}
         onChange={setSellers}
         names={new Map(lane.map((o) => [o.id, o.name]))}
+        primary={{ lane: sellers, value: primary, onChange: setPrimaryPick }}
         note={
           unchanged
-            ? 'Danh sách chưa đổi — thêm hoặc bỏ một người để lưu.'
+            ? sellers.length > 1
+              ? 'Chưa có gì thay đổi — thêm người, bỏ người hoặc đổi Sale chính rồi mới lưu được.'
+              : 'Danh sách chưa đổi — thêm hoặc bỏ một người để lưu.'
             : sellers.length === 0
               ? 'Danh sách trống — cơ hội sẽ không còn Sale, và chưa Chốt thắng được.'
               : ''
