@@ -379,7 +379,7 @@ export const ConfigEntryPatch = z
     criterionId: ConfigCode.optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
-    message: 'Không có trường nào để sửa',
+    message: 'Không có gì để sửa.',
   })
 
 /** Đổi thứ tự cả danh mục bằng MỘT lần gửi.
@@ -393,7 +393,7 @@ export const ConfigEntryPatch = z
 export const ConfigOrderPatch = z
   .object({ ids: z.array(ConfigCode).min(1) })
   .refine((p) => new Set(p.ids).size === p.ids.length, {
-    message: 'Có mã lặp lại trong thứ tự mới',
+    message: 'Thứ tự có mục bị lặp.',
     path: ['ids'],
   })
 
@@ -419,7 +419,7 @@ export const ActivityFreshness = z
     alertDays: z.number().int().min(alertDef.min).max(alertDef.max),
   })
   .refine((v) => v.alertDays > v.warnDays, {
-    error: 'Ngưỡng báo động phải lớn hơn ngưỡng nhắc',
+    error: 'Ngưỡng báo động phải lớn hơn ngưỡng nhắc.',
     path: ['alertDays'],
   })
 export const ActivityFreshnessResponse = ActivityFreshness

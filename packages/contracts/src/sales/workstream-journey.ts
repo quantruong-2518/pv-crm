@@ -302,7 +302,7 @@ export const WorkstreamJourneyResponse = z
     doors: z.array(JourneyDoor),
   })
   .refine((v) => (v.status === 'closed') === (v.closeReason !== null), {
-    error: 'Lý do đóng chỉ có khi hành trình đã đóng',
+    error: 'Chỉ hành trình đã đóng mới có lý do đóng.',
     path: ['closeReason'],
   })
 

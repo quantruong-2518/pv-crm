@@ -23,7 +23,7 @@ export const NextStepParams = z.object({ code: ObjectCode })
 
 /** Declared here, not in `./step-frame`, so imports run one way: that file
  *  reads this one, and two files reading each other's constants die at load. */
-export const StepTemplateId = z.uuid('Mã mẫu bước phải là UUID')
+export const StepTemplateId = z.uuid('Mã mẫu bước không hợp lệ.')
 
 /** `doerId` absent means the object's holder, resolved by the server at write time.
  *  `kindId` is a `STEP_KIND` entry; optional here because the step card predates

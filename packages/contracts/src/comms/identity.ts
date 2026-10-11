@@ -52,7 +52,7 @@ export type CommsChannel = z.infer<typeof CommsChannel>
 export const IdentitySide = z.enum(['member', 'guest'])
 export type IdentitySide = z.infer<typeof IdentitySide>
 
-export const IdentityId = z.uuid('Mã định danh phải là UUID')
+export const IdentityId = z.uuid('Mã định danh không hợp lệ.')
 
 /** Ceiling on the raw cell. Wide enough to hold `EMAIL_MAX` (254) with room
  *  left for a Zalo OA user id or a Telegram chat id, neither of which is an
@@ -102,7 +102,7 @@ const IdentityFields = z.object({
  *  A union rather than a widened `ObjectCode` pattern, on purpose: the day the
  *  identifier clean-up renames that kind, this collapses back to one member and
  *  the removal is a line, not an excavation. */
-export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã object sai dạng')
+export const LinkableCode = z.union([ObjectCode, ContractCode], 'Mã đối tượng sai dạng.')
 export type LinkableCode = z.infer<typeof LinkableCode>
 
 /** A discriminated union on `side`, not one object with both fields optional
@@ -162,7 +162,7 @@ export const IdentityPatch = z
     verifiedAt: Moment.nullable().optional(),
   })
   .refine((p) => !(p.actorId !== undefined && p.objectCode !== undefined), {
-    message: 'Chỉ sửa một nửa — actorId hoặc objectCode, không cả hai trong một lượt.',
+    message: 'Chỉ sửa người hoặc đối tượng, không sửa cả hai.',
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có gì để sửa.',
@@ -180,7 +180,7 @@ export const IdentityMerge = z
     mergeId: IdentityId,
   })
   .refine((v) => v.keepId !== v.mergeId, {
-    message: 'Không thể gộp một định danh với chính nó.',
+    message: 'Không gộp được với chính nó.',
   })
 
 export type IdentityMerge = z.infer<typeof IdentityMerge>

@@ -22,7 +22,10 @@ export const WORKSTREAM_DOCUMENT_MIME = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
 ] as const
-export const WorkstreamDocumentMime = z.enum(WORKSTREAM_DOCUMENT_MIME, 'Loại tệp không nhận')
+export const WorkstreamDocumentMime = z.enum(
+  WORKSTREAM_DOCUMENT_MIME,
+  'Loại tệp này không nhận được.',
+)
 
 export const WORKSTREAM_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
 
@@ -31,8 +34,12 @@ export const WorkstreamDocumentParams = z.object({ code: ObjectCode, documentId:
 export const WorkstreamDocumentDeclareBody = z.object({
   name: textInput(255),
   mime: WorkstreamDocumentMime,
-  bytes: z.number().int().positive('Tệp rỗng').max(WORKSTREAM_DOCUMENT_MAX_BYTES, 'Tệp vượt 5 MB'),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'sha256 sai dạng'),
+  bytes: z
+    .number()
+    .int()
+    .positive('Tệp rỗng.')
+    .max(WORKSTREAM_DOCUMENT_MAX_BYTES, 'Tệp tối đa 5 MB.'),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Tệp chưa đọc được. Chọn lại tệp.'),
 })
 
 export const WorkstreamDocumentDeclareResponse = z.object({ id: z.uuid(), putUrl: z.url() })

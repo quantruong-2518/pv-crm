@@ -72,7 +72,7 @@ export const PartnerPatch = z
     active: z.boolean().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
-    message: 'Không có ô nào để sửa',
+    message: 'Không có gì để sửa.',
   })
 export type PartnerPatch = z.infer<typeof PartnerPatch>
 

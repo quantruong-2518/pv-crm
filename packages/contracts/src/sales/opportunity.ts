@@ -93,7 +93,7 @@ export const OpportunityFile = z.object({
     .number('Cỡ tệp là bắt buộc')
     .int()
     .nonnegative()
-    .max(256 * 1024 * 1024, 'Tệp quá lớn'),
+    .max(256 * 1024 * 1024, 'Tệp quá lớn.'),
 })
 
 /** At most this many files on one deal. A bound rather than a hope: the column
@@ -134,7 +134,7 @@ export const OPPORTUNITY_STAGE_NOTE_MAX = 500
  *  the same pair twice and never dies on its own primary key. */
 const ownerIds = z
   .array(textInput(64))
-  .max(20, 'Tối đa 20 người')
+  .max(20, 'Tối đa 20 người.')
   .transform((ids) => [...new Set(ids)])
 
 /** One contact attached to a deal at create. `role: null` = nobody has said yet. */
@@ -148,8 +148,8 @@ export const OpportunityContactPick = z.object({
  *  a doubled click must not drop the `primary` flag the second copy carried. */
 const contactPicks = z
   .array(OpportunityContactPick)
-  .min(1, 'Chọn ít nhất một người liên hệ')
-  .max(OPPORTUNITY_CONTACTS_MAX, `Tối đa ${OPPORTUNITY_CONTACTS_MAX} người liên hệ`)
+  .min(1, 'Chọn ít nhất một người liên hệ.')
+  .max(OPPORTUNITY_CONTACTS_MAX, `Tối đa ${OPPORTUNITY_CONTACTS_MAX} người liên hệ.`)
   .transform((picks) => {
     const byCode = new Map<string, z.infer<typeof OpportunityContactPick>>()
     for (const p of picks) {
@@ -163,7 +163,7 @@ const contactPicks = z
     return [...byCode.values()]
   })
   .refine((picks) => picks.filter((p) => p.primary).length === 1, {
-    error: 'Chọn đúng một người liên hệ chính',
+    error: 'Chọn đúng một người liên hệ chính.',
   })
 
 // ---------------------------------------------------------------------------
@@ -219,7 +219,7 @@ const dealFields = {
    *  server should reject a whole form over. */
   products: z
     .array(ConfigCode)
-    .max(OPPORTUNITY_PRODUCTS_MAX, `Tối đa ${OPPORTUNITY_PRODUCTS_MAX} sản phẩm`)
+    .max(OPPORTUNITY_PRODUCTS_MAX, `Tối đa ${OPPORTUNITY_PRODUCTS_MAX} sản phẩm.`)
     .optional()
     .default([])
     .transform((ids) => [...new Set(ids)]),
@@ -271,7 +271,7 @@ export const OpportunityUpdate = z
     currency: CurrencyCode.nullable(),
   })
   .refine((v) => (v.amount === null) === (v.currency === null), {
-    error: 'Giá trị và đồng tiền phải đi cùng nhau',
+    error: 'Nhập cả giá trị và đơn vị tiền.',
     path: ['currency'],
   })
 
@@ -791,7 +791,7 @@ export const OpportunityStopBody = z
     note: textInputOptional(OPPORTUNITY_STOP_NOTE_MAX),
   })
   .refine((v) => v.reasonKey !== OPPORTUNITY_STOP_REASON_OTHER || v.note !== undefined, {
-    error: 'Chọn "Khác" thì phải ghi lý do',
+    error: 'Chọn "Khác" thì phải ghi lý do.',
     path: ['note'],
   })
 

@@ -83,10 +83,10 @@ export const LEAD_NUM = {
 export const industryTags = z
   .array(
     z
-      .string('Ngành phải là chữ')
+      .string('Nhập tên ngành bằng chữ.')
       .trim()
-      .min(1, 'Ngành không được để trống')
-      .max(LEAD_MAX.industryTag, `Mỗi ngành tối đa ${LEAD_MAX.industryTag} ký tự`),
+      .min(1, 'Ngành không được để trống.')
+      .max(LEAD_MAX.industryTag, `Mỗi ngành tối đa ${LEAD_MAX.industryTag} ký tự.`),
   )
   .transform((tags) => {
     const seen = new Set<string>()
@@ -95,7 +95,7 @@ export const industryTags = z
       return seen.has(key) ? false : (seen.add(key), true)
     })
   })
-  .pipe(z.array(z.string()).max(LEAD_NUM.industriesMax, `Tối đa ${LEAD_NUM.industriesMax} ngành`))
+  .pipe(z.array(z.string()).max(LEAD_NUM.industriesMax, `Tối đa ${LEAD_NUM.industriesMax} ngành.`))
 
 /** A COUNT of something: whole, above zero, under a stated ceiling.
  *
@@ -111,10 +111,10 @@ export const industryTags = z
  *  `-1.5` is not three separate problems. */
 export const counted = (what: string, max: number) =>
   z
-    .number(`${what} phải là một số`)
-    .int({ error: `${what} phải là số nguyên`, abort: true })
-    .positive({ error: `${what} phải lớn hơn 0`, abort: true })
-    .max(max, `${what} tối đa ${max.toLocaleString('vi-VN')}`)
+    .number(`${what} phải là một số.`)
+    .int({ error: `${what} phải là số nguyên.`, abort: true })
+    .positive({ error: `${what} phải lớn hơn 0.`, abort: true })
+    .max(max, `${what} tối đa ${max.toLocaleString('vi-VN')}.`)
 
 /** The window a hand-typed date has to land in.
  *
@@ -131,7 +131,7 @@ export const DEADLINE_YEARS = { from: 2000, to: 2100 } as const
 export const deadlineDay = Day.refine((s) => {
   const year = Number(s.slice(0, 4))
   return year >= DEADLINE_YEARS.from && year <= DEADLINE_YEARS.to
-}, `Thời hạn phải trong khoảng năm ${DEADLINE_YEARS.from}…${DEADLINE_YEARS.to}`)
+}, `Thời hạn phải trong khoảng năm ${DEADLINE_YEARS.from} đến ${DEADLINE_YEARS.to}.`)
 
 /** Strip the decoration a spreadsheet puts on a tax code, and fold the two
  *  spellings of a branch code into one.
@@ -149,7 +149,7 @@ export function normaliseTaxCode(s: string): string {
 
 /** The one shape a Vietnamese tax code has, and the one sentence saying so. */
 const TAX_CODE = /^\d{10}(-\d{3})?$/
-const TAX_CODE_WRONG = 'Mã số thuế phải là 10 chữ số, hoặc 10 chữ số kèm 3 số chi nhánh'
+const TAX_CODE_WRONG = 'Mã số thuế gồm 10 chữ số, hoặc 10 chữ số kèm 3 số chi nhánh.'
 
 /** Tax code, optional. Empty after normalising means ABSENT — same rule as
  *  `textInputOptional`, and for the same reason: `tax_code` is one of the fifteen
@@ -164,8 +164,8 @@ const TAX_CODE_WRONG = 'Mã số thuế phải là 10 chữ số, hoặc 10 ch�
  *  `dedupeKeys` in the import panel keys on it before anything else — and an
  *  identity nobody validated is an identity that silently fails to match. */
 export const taxCodeOptional = z
-  .string('Mã số thuế phải là chữ số')
-  .max(LEAD_MAX.taxCode, `Mã số thuế tối đa ${LEAD_MAX.taxCode} ký tự`)
+  .string('Mã số thuế chỉ gồm chữ số.')
+  .max(LEAD_MAX.taxCode, `Mã số thuế tối đa ${LEAD_MAX.taxCode} ký tự.`)
   .transform(normaliseTaxCode)
   .transform((s) => (s === '' ? undefined : s))
   .pipe(z.string().regex(TAX_CODE, TAX_CODE_WRONG).optional())
@@ -180,8 +180,8 @@ export const taxCodeOptional = z
  *  what was in it, and one schema cannot mean both. What must NOT be duplicated
  *  is the shape itself, so both spellings check `TAX_CODE`. */
 export const taxCodeClearable = z
-  .string('Ô này phải là chữ')
-  .max(LEAD_MAX.taxCode, `Mã số thuế tối đa ${LEAD_MAX.taxCode} ký tự`)
+  .string('Nhập chữ.')
+  .max(LEAD_MAX.taxCode, `Mã số thuế tối đa ${LEAD_MAX.taxCode} ký tự.`)
   .transform(normaliseTaxCode)
   .transform((s): string | null => (s === '' ? null : s))
   .pipe(z.string().regex(TAX_CODE, TAX_CODE_WRONG).nullable())
@@ -204,11 +204,12 @@ export const taxCodeClearable = z
  *  `abort` so a value that is plainly not an address gets one sentence, not
  *  one per rule it happens to break. */
 const CHANNEL_URL = /^\S+\.\S+$/
-const CHANNEL_URL_WRONG = 'Địa chỉ trang phải liền một mạch và có tên miền, ví dụ linkedin.com/in/…'
+const CHANNEL_URL_WRONG =
+  'Địa chỉ trang không có dấu cách và phải có tên miền, ví dụ linkedin.com/in/abc.'
 
 export const channelUrlOptional = z
-  .string('Ô này phải là chữ')
-  .max(LEAD_MAX.contactChannelUrl, `Tối đa ${LEAD_MAX.contactChannelUrl} ký tự`)
+  .string('Nhập chữ.')
+  .max(LEAD_MAX.contactChannelUrl, `Tối đa ${LEAD_MAX.contactChannelUrl} ký tự.`)
   .transform((s) => s.trim())
   .transform((s) => (s === '' ? undefined : s))
   .pipe(z.string().regex(CHANNEL_URL, CHANNEL_URL_WRONG).optional())
@@ -217,8 +218,8 @@ export const channelUrlOptional = z
 /** Same shape on the door where clearing is a thing a person does — see
  *  `taxCodeClearable` for why the pair exists rather than one schema. */
 export const channelUrlClearable = z
-  .string('Ô này phải là chữ')
-  .max(LEAD_MAX.contactChannelUrl, `Tối đa ${LEAD_MAX.contactChannelUrl} ký tự`)
+  .string('Nhập chữ.')
+  .max(LEAD_MAX.contactChannelUrl, `Tối đa ${LEAD_MAX.contactChannelUrl} ký tự.`)
   .transform((s) => s.trim())
   .transform((s): string | null => (s === '' ? null : s))
   .pipe(z.string().regex(CHANNEL_URL, CHANNEL_URL_WRONG).nullable())

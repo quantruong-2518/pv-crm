@@ -54,7 +54,7 @@ export const CampaignBookRow = z.object({
   slogan: z.string().min(1).optional(),
   /** URL ảnh thumbnail, không phải file lưu ở máy chủ — kho file chưa có nên
    *  đây là ô dán URL, giống `MailCta.url`. */
-  thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+  thumbnailUrl: z.url('Địa chỉ ảnh phải là địa chỉ web đầy đủ.').optional(),
 
   /** Last day the campaign takes new leads; absent = open-ended. With `state`,
    *  it is what the lead-create picker filters on — see `CampaignPickableResponse`. */
@@ -140,7 +140,7 @@ export const CampaignCreate = z.object({
   sourceId: ConfigCode.optional(),
   originId: LeadOriginId.optional(),
   slogan: textInputOptional(200),
-  thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').optional(),
+  thumbnailUrl: z.url('Địa chỉ ảnh phải là địa chỉ web đầy đủ.').optional(),
   endsOn: Day.optional(),
 })
 
@@ -165,7 +165,7 @@ export const CampaignPatch = z
     sourceId: ConfigCode.nullable().optional(),
     originId: LeadOriginId.nullable().optional(),
     slogan: textInputOptional(200).nullable(),
-    thumbnailUrl: z.url('Địa chỉ ảnh phải là một URL đầy đủ').nullable().optional(),
+    thumbnailUrl: z.url('Địa chỉ ảnh phải là địa chỉ web đầy đủ.').nullable().optional(),
     endsOn: Day.nullable().optional(),
   })
   .refine(
@@ -177,7 +177,7 @@ export const CampaignPatch = z
       v.slogan !== undefined ||
       v.thumbnailUrl !== undefined ||
       v.endsOn !== undefined,
-    { message: 'Cần sửa ít nhất một trường' },
+    { message: 'Không có gì để sửa.' },
   )
 
 export const CampaignPatchResponse = CampaignBookRow
@@ -191,7 +191,7 @@ export const CampaignMemberPatch = z
     remove: z.array(ObjectCode).max(500).optional(),
   })
   .refine((v) => (v.add?.length ?? 0) > 0 || (v.remove?.length ?? 0) > 0, {
-    message: 'Cần thêm hoặc bớt ít nhất một lead',
+    message: 'Chọn ít nhất một lead để thêm hoặc bớt.',
   })
 
 export const CampaignMemberPatchResponse = z.object({

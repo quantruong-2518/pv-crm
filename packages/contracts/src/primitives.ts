@@ -43,13 +43,13 @@ export const Day = z
      complaints about one typo — and any check chained on top of `Day`, such as
      `deadlineDay`, adds a third. A string that is not a date has nothing more
      to say about itself. */
-  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Ngày phải dạng YYYY-MM-DD', abort: true })
-  .refine(isRealCalendarDate, { error: 'Ngày không có trên lịch', abort: true })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Ngày không đúng định dạng.', abort: true })
+  .refine(isRealCalendarDate, { error: 'Ngày không có trên lịch.', abort: true })
 
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
 export const Moment = z
   .string('Mốc thời gian là bắt buộc')
-  .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/, 'Mốc phải là ISO 8601 có múi giờ')
+  .regex(/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/, 'Thời điểm không đúng định dạng.')
 
 /** Tiền, ĐƠN VỊ ĐỒNG, số nguyên.
  *
@@ -66,13 +66,13 @@ export const MoneyVnd = z
      <=9007199254740991") appearing in the middle of a Vietnamese form, and a
      figure past the safe range produces BOTH plus whatever ceiling the field
      adds on top. `abort` cuts it to the first thing that is actually wrong. */
-  .int({ error: 'Số tiền phải là số nguyên, trong khoảng ghi nhận được', abort: true })
-  .nonnegative('Số tiền không được âm')
+  .int({ error: 'Số tiền phải là số nguyên, không quá lớn.', abort: true })
+  .nonnegative('Số tiền không được âm.')
 
 /** Mã object — 'LD-0042', 'OP-0301'. ASCII, không dấu (nợ số 1). */
 export const ObjectCode = z
-  .string('Mã object là bắt buộc')
-  .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã object sai dạng')
+  .string('Mã đối tượng là bắt buộc.')
+  .regex(/^[A-Z]{1,3}-\d{3,6}$/, 'Mã đối tượng sai dạng.')
 
 /** Mã hợp đồng — 'HĐ-2711', 'HĐ-5001'. KHÔNG khớp `ObjectCode` và không được
  *  ép cho khớp: `ObjectCode` là `^[A-Z]{1,3}-\d{3,6}$`, còn 'Đ' không nằm trong
@@ -90,7 +90,7 @@ export const ObjectCode = z
 export const ContractCode = z
   .string()
   .trim()
-  .regex(/^HĐ-\d{3,6}$/, 'Mã hợp đồng sai dạng')
+  .regex(/^HĐ-\d{3,6}$/, 'Mã hợp đồng sai dạng.')
 
 export type Day = z.infer<typeof Day>
 export type Moment = z.infer<typeof Moment>
@@ -138,9 +138,9 @@ export function collapseSpaces(s: string): string {
  *  nhất, không phải nếu mà là khi (cùng lý do với `Day` và `Moment` ở trên). */
 export const textInput = (max = 200) =>
   z
-    .string('Không được để trống')
+    .string('Không được để trống.')
     .transform(collapseSpaces)
-    .pipe(z.string().min(1, 'Không được để trống').max(max, `Tối đa ${max} ký tự`))
+    .pipe(z.string().min(1, 'Không được để trống.').max(max, `Tối đa ${max} ký tự.`))
 
 /** Ô text NGƯỜI NHẬP, tuỳ chọn. Rỗng sau khi chuẩn hoá = KHÔNG CÓ.
  *
@@ -150,8 +150,8 @@ export const textInput = (max = 200) =>
  *  ở đây thì mỗi lần bỏ trắng một ô là một lần CHECK ném 500. */
 export const textInputOptional = (max = 200) =>
   z
-    .string('Ô này phải là chữ')
-    .max(max, `Tối đa ${max} ký tự`)
+    .string('Nhập chữ.')
+    .max(max, `Tối đa ${max} ký tự.`)
     .transform(collapseSpaces)
     .transform((s) => (s === '' ? undefined : s))
     .optional()
@@ -185,16 +185,16 @@ export const EMAIL_MAX = 254
  *  so at `lead.schema.ts`), so this is also what keeps the two tables speaking
  *  one convention instead of each remembering it separately. */
 export const email = z
-  .string('Hòm thư là bắt buộc')
-  .max(EMAIL_MAX, `Hòm thư tối đa ${EMAIL_MAX} ký tự`)
+  .string('Hòm thư là bắt buộc.')
+  .max(EMAIL_MAX, `Hòm thư tối đa ${EMAIL_MAX} ký tự.`)
   .transform((s) => s.trim().toLowerCase())
   /* An EMPTY box is a box nobody filled in, and it has to say so. Without this
      line `''` fell through to `z.email` and came back as the malformed-mailbox
      complaint — the form telling somebody their address is wrong when what they
      did was skip it. `lead-patch.ts` recorded the wart in its own docblock; the
      fix belongs here, where every door reads it, not in one of them. */
-  .refine((s) => s !== '', { error: 'Hòm thư là bắt buộc', abort: true })
-  .pipe(z.email('Hòm thư sai dạng'))
+  .refine((s) => s !== '', { error: 'Hòm thư là bắt buộc.', abort: true })
+  .pipe(z.email('Hòm thư sai dạng.'))
 
 /** Ceiling on the RAW cell — decoration included, so it is wider than the 15
  *  digits E.164 allows: '+84 (024) 3456 7890' is eleven digits wearing eight
@@ -286,8 +286,8 @@ function withoutDefaultCc(digits: string): string {
  *  applies to what is left once the decoration comes off and the country code
  *  goes on. */
 export const phoneOptional = z
-  .string('Số điện thoại phải là chữ số')
-  .max(PHONE_MAX, { error: `Số điện thoại tối đa ${PHONE_MAX} ký tự`, abort: true })
+  .string('Số điện thoại chỉ gồm chữ số.')
+  .max(PHONE_MAX, { error: `Số điện thoại tối đa ${PHONE_MAX} ký tự.`, abort: true })
   /* Letters are REFUSED rather than stripped, and the difference is a whole
      class of silent wrong data. `normalisePhone` keeps only digits, so before
      this line a cell reading 'goi 0912345678' or '0912345678 (di dong)' parsed
@@ -303,14 +303,14 @@ export const phoneOptional = z
      between two digit groups into one. */
   .refine(
     (s) => !/[^\d\s+\-().'\u2018\u2019\u2010-\u2015\u2212]/.test(s),
-    'Số điện thoại chỉ gồm chữ số và dấu ngăn',
+    'Số điện thoại chỉ gồm chữ số và dấu ngăn cách.',
   )
   .transform(normalisePhone)
   .transform((s) => (s === '' ? undefined : s))
   .pipe(
     z
       .string()
-      .regex(/^\+\d{8,15}$/, 'Số điện thoại phải có 8…15 chữ số')
+      .regex(/^\+\d{8,15}$/, 'Số điện thoại phải có 8 đến 15 chữ số.')
       .optional(),
   )
   .optional()
@@ -342,9 +342,9 @@ export const phoneOptional = z
 export const intFromQuery = z
   .string()
   .trim()
-  .regex(/^-?\d+$/, 'Phải là số nguyên, không dấu ngăn nghìn')
+  .regex(/^-?\d+$/, 'Nhập số nguyên, không có dấu ngăn cách.')
   .transform(Number)
-  .pipe(z.number().int('Số quá lớn để đếm chính xác'))
+  .pipe(z.number().int('Số quá lớn.'))
 
 /** Money arriving THROUGH A QUERY STRING, in dong. `intFromQuery` first, `MoneyVnd`
  *  second — so `?budgetMin=-1` dies at `nonnegative()` instead of becoming a

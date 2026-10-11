@@ -412,7 +412,7 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
    *  được" nữa. Ghi vết là việc của chỗ CHẶN THẬT (guard route, handler nút),
    *  nơi biết mình vừa chặn một lần chứ không phải vừa lọc một bảng. */
   const check: AccessControl['check'] = (actor, need) => {
-    if (!actor) return { ok: false, reason: 'unauthenticated', note: 'Phiên chưa đăng nhập.' }
+    if (!actor) return { ok: false, reason: 'unauthenticated', note: 'Bạn chưa đăng nhập.' }
 
     const branch = need.branch ?? need.ref?.branch ?? null
     if (branch && !actor.branches.includes(branch)) {
@@ -453,7 +453,7 @@ export function createAccessControl(opts: { clock?: Clock } = {}): AccessControl
       return {
         ok: false,
         reason: 'permission-denied',
-        note: `Kiểu ${need.ref.kind} chưa khai miền quyền — chưa ai được sửa nó.`,
+        note: `Chưa ai được sửa ${need.ref.kind}.`,
       }
     }
 

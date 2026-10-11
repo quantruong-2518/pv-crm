@@ -148,7 +148,7 @@ export const MotionPolicyPatch = z
     selfServeCountsAsInitData: z.boolean().nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
-    message: 'Không có ô nào được gửi lên.',
+    message: 'Không có gì để sửa.',
   })
 
 /** What a typist needs of each motion — `GET /sales/lead-motions`, gated by

@@ -58,8 +58,8 @@ export const MailTransport = z.enum(['resend', 'gmail'])
  *  in every picker while still `active` — retiring is `active: false`. */
 export const MailDoorSet = z
   .array(MailDoor)
-  .min(1, 'Chọn ít nhất một nơi dùng mẫu')
-  .refine((ds) => new Set(ds).size === ds.length, 'Nơi dùng mẫu bị lặp')
+  .min(1, 'Chọn ít nhất một nơi dùng mẫu.')
+  .refine((ds) => new Set(ds).size === ds.length, 'Nơi dùng mẫu bị lặp.')
 
 /** `GET /sales/mail/templates?door=…` — the picker only lists what its door
  *  serves. Absent = every template (the template book). */

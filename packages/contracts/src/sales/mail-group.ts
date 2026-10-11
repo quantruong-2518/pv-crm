@@ -34,15 +34,15 @@ const unique = (xs: readonly string[]) => new Set(xs).size === xs.length
 
 const contactCodes = z
   .array(ObjectCode)
-  .min(1, 'Chưa có người nhận')
-  .refine(unique, 'Người nhận bị lặp')
+  .min(1, 'Chưa có người nhận.')
+  .refine(unique, 'Người nhận bị lặp.')
 
 /** A contract code starts with a non-ASCII letter, which `ObjectCode` refuses
  *  (it is `A-Z` only); the door says which of the two the code must be. */
-const SubjectCode = z.union([ObjectCode, ContractCode], 'Mã đối tượng sai dạng')
+const SubjectCode = z.union([ObjectCode, ContractCode], 'Mã đối tượng sai dạng.')
 const fitsDoor = (v: { door: MailSubjectKind; subjectCode: string }) =>
   (v.door === 'contract') === v.subjectCode.startsWith('HĐ-')
-const DOOR_MISMATCH = { message: 'Mã đối tượng không khớp nơi gửi', path: ['subjectCode'] }
+const DOOR_MISMATCH = { message: 'Mã đối tượng không khớp nơi gửi.', path: ['subjectCode'] }
 
 /** The contacts a letter is addressed to, and the object it is about. The
  *  server checks every contact belongs to the subject's company — a code is
@@ -100,7 +100,7 @@ export const MailGroupSendRequest = MailGroupAddressing.extend({
    *  answers with the run it already filed instead of mailing the customer twice. */
   letterId: z.uuid(),
   /** Colleagues copied in; the server resolves their mailboxes. */
-  ccActorIds: z.array(z.string().min(1).max(64)).refine(unique, 'Người CC bị lặp'),
+  ccActorIds: z.array(z.string().min(1).max(64)).refine(unique, 'Người CC bị lặp.'),
   templateCode: MailTemplateCode.optional(),
   subject: textInput(MAIL_SUBJECT_MAX),
   body: mailBody,
@@ -111,7 +111,7 @@ export const MailGroupSendRequest = MailGroupAddressing.extend({
   transport: chosenTransport,
 })
   .refine((v) => v.to.length + v.ccActorIds.length + 1 <= MAIL_GROUP_MAX_ADDRESSES, {
-    message: `Một thư tối đa ${MAIL_GROUP_MAX_ADDRESSES} địa chỉ, tính cả ${SALES_INBOX}`,
+    message: `Một thư tối đa ${MAIL_GROUP_MAX_ADDRESSES} địa chỉ, tính cả ${SALES_INBOX}.`,
     path: ['to'],
   })
   .refine(fitsDoor, DOOR_MISMATCH)
