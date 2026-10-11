@@ -182,7 +182,7 @@ export function PreviewStep({
         </Button>
         <p className="text-muted-foreground tnum text-[12.5px]">
           {nothing
-            ? 'Lô này không có gì để tạo hay nhập.'
+            ? 'Không có gì để tạo hay nhập.'
             : merges > 0
               ? `Bấm để tạo và nhập ${merges} công ty vào lead có sẵn.`
               : 'Bấm để tạo lead.'}

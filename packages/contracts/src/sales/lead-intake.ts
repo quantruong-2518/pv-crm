@@ -151,7 +151,7 @@ const campaignParam = (max = 120) =>
   z
     .string()
     .trim()
-    .max(max, `Tối đa ${max} ký tự`)
+    .max(max, `Tối đa ${max} ký tự.`)
     .transform((value) => (value === '' ? undefined : value))
     .optional()
 

@@ -214,7 +214,7 @@ export const LeadRow = z.object({
  *  server and not re-spelled by every caller. */
 export const LeadStateFilter = z.enum(
   [...LeadState.options, 'open', 'live', 'all'],
-  'Trạng thái không có trong danh sách',
+  'Trạng thái không có trong danh sách.',
 )
 
 /** Columns the book can be sorted by. A closed list on purpose: a sort key with
@@ -674,7 +674,7 @@ export const LeadCreate = z
     /** The budget the CUSTOMER named, not the price we quoted. Bounded so a
      *  mistyped figure gets a Vietnamese sentence instead of zod's English one
      *  about `MAX_SAFE_INTEGER` — see `LEAD_NUM`. */
-    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').optional(),
+    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức cho phép.').optional(),
     currency: CurrencyCode.optional(),
     deadline: deadlineDay.optional(),
 
@@ -693,7 +693,9 @@ export const LeadCreate = z
          it did not come through, and "not chosen" would be the wrong thing to
          tell them. */
       error: (issue) =>
-        issue.input === undefined ? 'Chưa chọn thế' : 'Thế này không đi qua cửa gõ tay được',
+        issue.input === undefined
+          ? 'Chưa chọn phương án tiếp cận.'
+          : 'Phương án tiếp cận này không dùng được khi gõ tay.',
     }),
     /** Optional: a lead typed in directly belongs to no campaign, and inventing
      *  a campaign code to fill the field creates a campaign that is in no
@@ -731,7 +733,7 @@ export const LeadCreate = z
        a constraint — while this produces a 400 pointing at the currency control
        the user forgot to touch. `250000000` with no unit is a number that
        cannot be added to the row next to it. */
-    message: 'Có ngân sách thì phải chọn đơn vị tiền, và ngược lại',
+    message: 'Ngân sách cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
     path: ['currency'],
   })
 
@@ -771,8 +773,8 @@ export const LeadCreateResponse = LeadRow
  *  colleague's edit with values read before they made it. */
 const clearableText = (max: number) =>
   z
-    .string('Ô này phải là chữ')
-    .max(max, `Tối đa ${max} ký tự`)
+    .string('Ô này phải là chữ.')
+    .max(max, `Tối đa ${max} ký tự.`)
     .transform(collapseSpaces)
     .transform((s): string | null => (s === '' ? null : s))
     .nullish()
@@ -847,7 +849,7 @@ export const LeadPatch = z
     /* Bounded exactly as on the create door. A ceiling one door holds and the
        other does not is a ceiling: the value simply arrives through the door
        that lets it in, and the book ends up holding what the form refuses. */
-    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức ghi nhận được').nullish(),
+    budget: MoneyVnd.max(LEAD_NUM.budgetMax, 'Ngân sách vượt mức cho phép.').nullish(),
     currency: CurrencyCode.nullish(),
     deadline: deadlineDay.nullish(),
   })
@@ -857,7 +859,7 @@ export const LeadPatch = z
        nobody. Refusing names the real mistake — the caller built the body from
        a diff that turned out to be empty, and the button should have been
        disabled. */
-    message: 'Không có ô nào để sửa — thân bài rỗng.',
+    message: 'Không có gì để sửa.',
   })
 
 /** What `PATCH /sales/leads/:code` answers with: the profile, re-read.

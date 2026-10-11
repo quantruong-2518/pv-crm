@@ -233,7 +233,7 @@ function checkRow(
   keep('amount', rawAmount)
   const amount = digitsOf(rawAmount)
   if (amount === null) {
-    return { field: 'amount', reason: `${LABEL.amount} "${rawAmount}" không phải là số.` }
+    return { field: 'amount', reason: `${LABEL.amount} "${rawAmount}" phải là số` }
   }
 
   const rawCurrency = cell('currency')
@@ -242,7 +242,7 @@ function checkRow(
   if (!CurrencyCode.safeParse(currency).success) {
     return {
       field: 'currency',
-      reason: `${LABEL.currency} "${rawCurrency}" không nằm trong danh sách`,
+      reason: `${LABEL.currency} "${rawCurrency}" không có trong danh sách`,
     }
   }
 
@@ -371,7 +371,7 @@ function personOf(
 ): ActorLite | { reason: string } {
   const found = staffByName.get(fold(raw)) ?? []
   const first = found[0]
-  if (!first) return { reason: `Không có ai tên "${raw}" trong sổ nhân sự` }
+  if (!first) return { reason: `Không tìm thấy người tên "${raw}"` }
   if (found.length > 1) return { reason: `Có nhiều người tên "${raw}". Sửa tệp cho rõ.` }
   return first
 }

@@ -133,7 +133,7 @@ export class LeadScanService {
       const added = await this.declare(who, code, body.files, taken)
       /* The replaced row is on its way out, so it does not hold a place. */
       if (current.length - (replaced ? 1 : 0) + added.files.length > SCAN_MAX_FILES) {
-        throw invalid({ files: [`Một lô tối đa ${SCAN_MAX_FILES} tệp`] })
+        throw invalid({ files: [`Một lô tối đa ${SCAN_MAX_FILES} tệp.`] })
       }
       if (added.files.length > 0) await this.repo.insertFiles(tx, added.attachments, added.files)
       return added.slots

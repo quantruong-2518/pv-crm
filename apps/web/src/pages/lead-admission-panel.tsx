@@ -80,7 +80,7 @@ export function LeadAdmissionPanel({
 
         {bookChanged && (
           <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.5]">
-            Sổ vừa thay đổi sau lần kiểm tra trước. Dưới đây là kết quả mới.
+            Sổ vừa thay đổi. Đây là kết quả mới.
           </p>
         )}
 
@@ -150,7 +150,7 @@ function verdictOf(
     case 'same-lead':
       if (code === undefined || match.outOfScope) {
         return {
-          said: `Khách này đã có trong sổ và đang do người khác phụ trách. ${HELD_ELSEWHERE}`,
+          said: `Khách này đã có trong sổ, không do bạn phụ trách. ${HELD_ELSEWHERE}`,
           held: true,
           choices: heldChoices,
         }
@@ -169,7 +169,7 @@ function verdictOf(
     case 'new-contact':
       if (code === undefined || match.outOfScope) {
         return {
-          said: `Công ty này đã có lead đang mở trong sổ, do người khác phụ trách. ${HELD_ELSEWHERE}`,
+          said: `Công ty này đã có lead đang mở, không do bạn phụ trách. ${HELD_ELSEWHERE}`,
           held: true,
           choices: heldChoices,
         }
@@ -206,7 +206,7 @@ function verdictOf(
       }
     case 'needs-review':
       return {
-        said: 'Chưa chắc đây là khách mới: trong sổ có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
+        said: 'Trong sổ có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
         choices: [createLead('Vẫn tạo lead mới')],
       }
     case 'new-account':
@@ -240,7 +240,7 @@ function CandidateRow({
     <li className="flex flex-wrap items-center justify-between gap-3">
       <span className="flex min-w-0 flex-col gap-1 text-[12.5px] leading-[1.5]">
         <span className="font-semibold">
-          {hidden && 'Một hồ sơ trong sổ, do người khác phụ trách'}
+          {hidden && 'Hồ sơ trong sổ, không do bạn phụ trách'}
           {shown && (
             <>
               {shown.name} · <Code>{shown.code}</Code>

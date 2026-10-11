@@ -76,7 +76,7 @@ const SERVER_STATUS: Record<ScanFile['state'], { status: RowStatus; bucket: Buck
 const LOCAL_STATUS: Record<Exclude<LocalFile['phase'], 'uploading'>, RowStatus> = {
   preparing: { moving: 'Đang nén…' },
   uploaded: { tone: 'draft', text: 'Đã tải lên' },
-  failed: { tone: 'danger', text: 'Tải lên hỏng' },
+  failed: { tone: 'danger', text: 'Không tải lên được' },
 }
 
 const fromLocal = (f: LocalFile): FileRow => ({
@@ -154,9 +154,9 @@ const REVIEW_WORDS =
 export const OUTCOME_FACE: Record<ScanOutcome, { tone: BadgeTone; text: string }> = {
   NEW_LEAD: { tone: 'success', text: 'Tạo 1 lead mới' },
   MERGE_INTO_LEAD: { tone: 'running', text: 'Nhập vào lead' },
-  HELD_MISSING_CONTACT: { tone: 'warning', text: 'Không tạo — thiếu email người liên hệ' },
+  HELD_MISSING_CONTACT: { tone: 'warning', text: 'Không tạo: thiếu email người liên hệ' },
   HELD_OTHER_OWNER: { tone: 'draft', text: 'Ngoài phạm vi của bạn' },
-  HELD_NEEDS_REVIEW: { tone: 'warning', text: `Không tạo — ${REVIEW_WORDS}` },
+  HELD_NEEDS_REVIEW: { tone: 'warning', text: `Không tạo: ${REVIEW_WORDS}` },
 }
 
 /** A new lead on a company already in the book says so in the gate's own
@@ -167,7 +167,7 @@ export const outcomeText = (group: ScanGroup) =>
     ? OUTCOME_FACE[group.outcome].text
     : group.accountCode
       ? `${OUTCOME_FACE.NEW_LEAD.text} · ${ADMISSION_VERDICT_LABEL['returning-account']}`
-      : `${OUTCOME_FACE.NEW_LEAD.text} · ${group.people.length} contact`
+      : `${OUTCOME_FACE.NEW_LEAD.text} · ${group.people.length} người`
 
 /** Step 3's view filter: outcomes picked in the column header, plus free text
  *  over company, province, people and the lead a group merges into. A view
@@ -198,10 +198,10 @@ export function notCreatedPills(batch: LeadScanResponse): string[] {
   const count = (outcome: ScanOutcome) => groups.filter((g) => g.outcome === outcome).length
   const skipped = batch.preview?.skipped ?? { noLead: 0, unreadable: 0 }
   const lines: [number, string][] = [
-    [count('MERGE_INTO_LEAD'), 'công ty — nhập vào lead có sẵn'],
-    [count('HELD_MISSING_CONTACT'), 'công ty — thiếu email người liên hệ, không tạo'],
-    [count('HELD_OTHER_OWNER'), 'công ty — đã có trong sổ, ngoài phạm vi của bạn'],
-    [count('HELD_NEEDS_REVIEW'), `công ty — ${REVIEW_WORDS}, không tạo`],
+    [count('MERGE_INTO_LEAD'), 'công ty nhập vào lead có sẵn'],
+    [count('HELD_MISSING_CONTACT'), 'công ty thiếu email người liên hệ, không tạo'],
+    [count('HELD_OTHER_OWNER'), 'công ty đã có trong sổ, ngoài phạm vi của bạn'],
+    [count('HELD_NEEDS_REVIEW'), `công ty ${REVIEW_WORDS}, không tạo`],
     [skipped.noLead, 'tệp không chứa lead'],
     [skipped.unreadable, 'tệp không đọc được'],
   ]

@@ -171,14 +171,14 @@ export class LeadWriteService {
     if (body.ownerId && body.ownerId !== who.id && !mayAssign) {
       throw denied(
         'out-of-scope',
-        'Bạn chỉ tạo lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.',
+        'Bạn chỉ tạo được lead do bạn phụ trách. Liên hệ trưởng phòng để giao cho người khác.',
       )
     }
     /* BD/marketing credit is commission too (`COMMISSION_SPLIT`) — same fence. */
     if (!mayAssign && [body.bdOwnerId, body.marketingOwnerId].some((id) => id && id !== who.id)) {
       throw denied(
         'out-of-scope',
-        'Bạn chỉ ghi công BD, Marketing cho chính mình được. Ghi công cho người khác là việc của trưởng phòng.',
+        'Bạn chỉ ghi được công BD, Marketing cho chính bạn. Liên hệ trưởng phòng để ghi cho người khác.',
       )
     }
     const handle = this.repo.readonlyHandle
@@ -400,14 +400,14 @@ export class LeadWriteService {
           throw denied(
             'out-of-scope',
             found.ownerId === who.id
-              ? `Lead ${code} đang đứng tên bạn. Trả lead về kho chung là việc của trưởng phòng.`
-              : `Lead ${code} đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.`,
+              ? `Lead ${code} đang do bạn phụ trách. Liên hệ trưởng phòng để trả về kho chung.`
+              : `Lead ${code} đã có người nhận. Liên hệ trưởng phòng để đổi người phụ trách.`,
           )
         }
         if (body.ownerId !== who.id) {
           throw denied(
             'out-of-scope',
-            'Bạn chỉ nhận lead trong kho chung về cho mình được. Giao cho người khác là việc của trưởng phòng.',
+            'Bạn chỉ nhận được lead từ kho chung về cho bạn. Liên hệ trưởng phòng để giao cho người khác.',
           )
         }
       }
@@ -552,13 +552,11 @@ export class LeadWriteService {
     if (!before) throw notFound('lead', code)
 
     if (!before.holds) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
     if (body.tier !== undefined && !TIER_EDITABLE(before.row.state)) {
-      throw conflict(
-        `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không sửa bậc của lead đã rời phễu được.`,
-      )
+      throw conflict(`Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS}. Không sửa được bậc.`)
     }
     /* The five person columns belong to the primary contact's writer; the
        wire shape is unchanged, only who writes them. */
@@ -666,7 +664,7 @@ export class LeadWriteService {
          sorted statement, then the whole file assessed again on this `tx`. */
       const plan = await this.admitted(tx, who, checked, true)
       if (plan.writes.length > minted) {
-        throw conflict('Sổ lead vừa thay đổi trong lúc nạp. Nạp lại tệp này.')
+        throw conflict('Sổ lead vừa thay đổi. Nạp lại tệp này.')
       }
       /* Row and mirror row are built together, from the same draft and the same
          code, so the two can never drift apart by an index. */
@@ -835,7 +833,7 @@ export class LeadWriteService {
     const picked = await this.campaigns.pickableOne(code)
     if (!picked) {
       throw invalid({
-        campaignCode: ['Chiến dịch không nhận lead mới — đã dừng, đã xong hoặc quá ngày kết thúc.'],
+        campaignCode: ['Chiến dịch không nhận lead mới: đã dừng, đã xong hoặc quá ngày kết thúc.'],
       })
     }
     return picked
@@ -875,7 +873,7 @@ export class LeadWriteService {
    *  only stopped throwing away the answer. */
   private async assertCampaign(handle: Db, id: string): Promise<string> {
     const name = await this.repo.campaignName(handle, id)
-    if (name === null) throw invalid({ campaignId: ['Chiến dịch không có trong sổ chiến dịch.'] })
+    if (name === null) throw invalid({ campaignId: ['Không tìm thấy chiến dịch.'] })
     return name
   }
 
@@ -924,7 +922,7 @@ export class LeadWriteService {
       this.origins.index(),
     ])
     if (body.origin && 'id' in body.origin && !origins.byId.get(body.origin.id)?.active) {
-      throw invalid({ origin: ['Nguồn không có trong danh mục hoặc đang tắt.'] })
+      throw invalid({ origin: ['Không tìm thấy nguồn này, hoặc nguồn đang tắt. Chọn lại.'] })
     }
 
     const mayAssign = this.access.allows(who, 'lead.assign')
