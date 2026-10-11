@@ -18,6 +18,7 @@ import { AccountRepository } from './account.repository'
 import {
   fromForm,
   identityOfLead,
+  keysOf,
   refOf,
   toContract,
   toProfile,
@@ -108,9 +109,9 @@ export class AccountService {
     )
   }
 
-  async create(body: AccountCreate): Promise<AccountRow> {
+  async create(body: AccountCreate, createdBy: string): Promise<AccountRow> {
     const code = await this.repo.nextCode()
-    const values = fromForm(body)
+    const values = { ...fromForm(body), createdBy }
 
     await this.repo.run(async (tx) => {
       /* Mirror row BEFORE the business row, the same order every service with
@@ -207,7 +208,7 @@ export class AccountService {
    *  a NULL `account_code`, and the customer book would stand still while
    *  the lead book keeps growing — exactly the kind of silent failure no
    *  screen turns red for. */
-  async resolveForLead(tx: Db, lead: LeadCompanyFacts): Promise<string> {
+  async resolveForLead(tx: Db, lead: LeadCompanyFacts, createdBy: string | null): Promise<string> {
     const found = await this.repo.byIdentity(tx, identityOfLead(lead))
     if (found) return found.code
 
@@ -226,6 +227,9 @@ export class AccountService {
       headcount: lead.headcount ?? null,
       plants: lead.plants ?? null,
       note: null,
+      ...keysOf({ name: lead.company, taxCode: lead.taxCode }),
+      /* Null is the anonymous landing door. */
+      createdBy,
     }
 
     const code = await this.repo.nextCodeOn(tx)

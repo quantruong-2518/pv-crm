@@ -177,3 +177,47 @@ Raised while recording the KPI framework (ADR 0082).
     be scored. _(see ADR 0082 §8)_
 38. **Does the pace verdict get a tolerance margin?** v1 has none — a margin
     would be an invented threshold. _(see ADR 0082 §4)_
+
+## Lead admission (added 11/10/2026)
+
+Raised while recording the admission gate (ADR 0084).
+
+39. **Can one company legitimately have two open leads at once?** Default in
+    code: exactly one open lead → a new person is attached to it; two or more
+    → `needs-review`. _(see ADR 0084 §3)_
+40. **Should a re-entry through file import leave a `re-entered` touch when the
+    row is an exact repeat?** Default: no, the row is dropped and reported.
+    _(see ADR 0084 §5)_
+41. **Should the landing door auto-attach to an open lead, as built, or always
+    open a new lead?** Default: the same person leaves a touch only; a new person opens a new lead
+    on the same account.
+    _(see ADR 0084 §5)_
+42. **Who gets sourcing credit when a duplicate is entered by a second
+    person?** Default: the first; the second leaves only the touch.
+    _(see ADR 0084 §6)_
+43. **When may `account_identity_uniq` be tightened to the folded keys?**
+    Default: unchanged until existing duplicate accounts are cleaned up.
+    _(see ADR 0084 §8)_
+44. **Should a seller who hits someone else's customer be able to raise a
+    request to the head of sales from the form?** Default: the form only tells
+    them to contact the head. _(see ADR 0084 §5)_
+45. **Should scanning a card that adds nothing new leave a `re-entered` row
+    every time?** Default: yes. _(see ADR 0084 §5; ties to question 40)_
+46. **Should a company-record mailbox count as evidence against the book?**
+    Default: no. _(see ADR 0084 Consequences)_
+47. **Where should a `re-entered` touch be shown on the lead profile?**
+    Default: nowhere yet. _(see ADR 0084 Consequences)_
+48. **Should a file-import row whose evidence is uncertain (`needs-review`)
+    wait for a person instead of being written?** Default: it is written as a
+    new lead and marked in the result. _(see ADR 0084 §5)_
+49. **May a seller claim a customer whose leads are unowned through the
+    form?** Default: no — unowned leads count as outside an own-only seller's
+    scope. _(see ADR 0084 §9)_
+50. **Should the account profile filter its leads, owners and contacts by the
+    reader's scope?** Default: no filter — existing behaviour. _(see ADR 0084
+    §9)_
+51. **Should the check door be rate-limited or audited?** Default: neither.
+    _(see ADR 0084 Consequences)_
+52. **Should an email-only match be downgraded to `needs-review` when the
+    incoming company name is different and unmatched?** Default: no.
+    _(see ADR 0084 Consequences)_

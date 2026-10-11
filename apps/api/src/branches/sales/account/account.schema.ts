@@ -71,6 +71,22 @@ export const account = sales.table(
     legalName: text('legal_name'),
     taxCode: text('tax_code'),
 
+    /** The two keys the admission gate matches a batch on (0097): the tax code
+     *  cut to its root, so a branch office meets its head office, and the name
+     *  with diacritics, legal words and punctuation folded away.
+     *
+     *  PLAIN columns written by the service, not `GENERATED`: the folding lives
+     *  in `@pv/engines` and SQL cannot spell it without `unaccent`, which
+     *  PGlite and Neon would not be guaranteed to share. NULL = a row no
+     *  normaliser has visited yet, and it matches nothing — never `''`.
+     *
+     *  NOT part of `account_identity_uniq`, and not unique themselves: stored
+     *  rows already collide under this folding (one name typed with and
+     *  without diacritics), and a collision here is a candidate for a person
+     *  to judge, not a refusal. */
+    taxRoot: text('tax_root'),
+    nameKey: text('name_key'),
+
     address: text('address'),
     province: text('province'),
     category: text('category').$type<LeadCategory>(),
@@ -98,6 +114,11 @@ export const account = sales.table(
     /** What the account team knows that no column asks for. */
     note: text('note'),
 
+    /** Who created the row; NULL for companies that predate the column and for
+     *  the anonymous landing door. `SET NULL` like `lead.created_by`: removing
+     *  a person must not be refused by a company they once typed in. */
+    createdBy: text('created_by').references(() => actor.id, { onDelete: 'set null' }),
+
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -118,6 +139,12 @@ export const account = sales.table(
     uniqueIndex('account_identity_uniq').on(
       sql`coalesce(nullif(btrim("tax_code"), ''), lower(btrim("name")))`,
     ),
+
+    /** "Which companies share a tax root with any row of this batch" —
+     *  `tax_root = ANY($1)`, one read for up to 5,000 rows. */
+    index('account_tax_root_idx').on(t.taxRoot),
+    /** The same batch read for rows with no tax code: `name_key = ANY($1)`. */
+    index('account_name_key_idx').on(t.nameKey),
 
     index('account_province_idx').on(t.province),
     index('account_category_idx').on(t.category),

@@ -107,17 +107,18 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
-  /** `keyOf` → code, over leads not disqualified. `null` = a lead outside the
-   *  caller's scope: still a duplicate, but its code is not theirs to learn. */
-  book: ReadonlyMap<string, string | null>
 }
+
+/** A file line as the report quotes it. */
+export type ImportLine = Pick<LeadImportDup, 'line' | 'first' | 'key'>
 
 export type ImportCheck = {
   report: LeadImportReport
   /** One draft per entry of `report.rows`, in the same order. The commit path
    *  mints a code for each and writes them; the preview path drops them.
-   *  `extras` are the `report.attached` rows of that lead's group. */
-  writes: (LeadWrite & { extras: ContactSeed[] })[]
+   *  `extras` are the `report.attached` rows of that lead's group; `lines[0]`
+   *  is the lead's own row and `lines[n]` the row of `extras[n - 1]`. */
+  writes: (LeadWrite & { extras: ContactSeed[]; lines: ImportLine[] })[]
 }
 
 /** Column names as the person filling in the file sees them — the headers of
@@ -188,13 +189,12 @@ const GROUPED_INT = /^\d[\d.,\s]*$/
    cell is still CHECKED against the closed list, because a value outside it
    means the column mapping is wrong — then it is dropped. */
 
-/** The dedupe key, and the only identity this import has: `leadDupKey` —
- *  contact name + company + phone, the owner's definition of "the same lead".
+/** The IN-FILE dedupe key, `leadDupKey` — contact name + company + phone, the
+ *  same fold the screen groups a file by, so both ends drop the same repeats.
  *
- *  NOT the mailbox key the book's `duplicateOf` flag reads (ADR 0070). That
- *  flag is a signal on a lead already written; this key decides whether a row
- *  of a file is written at all. */
-export const keyOf = leadDupKey
+ *  Not what decides a row against the BOOK: that is the admission gate's
+ *  verdict, applied after this check by `lead-admission.import.ts`. */
+const keyOf = leadDupKey
 
 type Cells = Partial<Record<LeadImportField, string>>
 
@@ -203,55 +203,45 @@ type Read<T> = { ok: true; value: T } | { ok: false; reason: string }
 type Outcome =
   { ok: true; write: LeadWrite; out: LeadImportRowOut } | { ok: false; error: LeadImportError }
 
-/** Check a whole batch: every row, then the batch against itself, then the
- *  batch against the book.
+/** Check a whole batch: every row, then the batch against itself. The book is
+ *  the admission gate's question, asked afterwards — `dupWithBook` leaves
+ *  here empty.
  *
  *  A broken row is reported as broken and never as a duplicate — reversing that
  *  produces "312 duplicates" when the real answer was "312 rows have no
- *  mailbox". A repeat inside the file is dropped, and so is a row the book
- *  already holds — both are listed, neither is written. */
+ *  mailbox". A repeat inside the file is dropped and listed, never written. */
 export function checkBatch(input: ImportCheckInput): ImportCheck {
   const staff = indexStaff(input.staff)
 
   const rows: LeadImportRowOut[] = []
   const writes: ImportCheck['writes'] = []
   const errors: LeadImportError[] = []
-  const dupWithBook: LeadImportDup[] = []
   const dupWithinFile: LeadImportDup[] = []
   const attached: LeadImportReport['attached'] = []
   const seen = new Set<string>()
   const survivors: Survivor[] = []
   const wanted = wantedMains(input.rows)
-  /** Lines that did not survive, and the lead already holding one (if shown). */
-  const gone = new Map<number, string | undefined>()
+  /** Lines that did not survive. */
+  const gone = new Set<number>()
 
   for (const row of input.rows) {
     const outcome = checkRow(row, input, staff, input.campaigns)
     if (!outcome.ok) {
       errors.push(outcome.error)
-      gone.set(row.line, undefined)
+      gone.add(row.line)
       continue
     }
 
     const { out, write } = outcome
-    const first = firstOf(row, out.values)
+    const line = { line: row.line, first: firstOf(row, out.values), key: out.key }
     /* An empty key means the row folds to nothing comparable: never a duplicate. */
-    const code = out.key === '' ? undefined : input.book.get(out.key)
-
-    /* Already in the system: reported with the lead holding it, never written
-       again — loading one file twice must not double the book. */
-    if (code !== undefined) {
-      dupWithBook.push({ line: row.line, first, key: out.key, ...(code === null ? {} : { code }) })
-      gone.set(row.line, code ?? undefined)
-      continue
-    }
     if (out.key !== '' && seen.has(out.key)) {
-      dupWithinFile.push({ line: row.line, first, key: out.key })
-      gone.set(row.line, undefined)
+      dupWithinFile.push(line)
+      gone.add(row.line)
       continue
     }
     seen.add(out.key)
-    survivors.push({ row, out, write: { ...write, extras: [] } })
+    survivors.push({ row, out, write: { ...write, extras: [], lines: [line] } })
   }
 
   const { mains, mixed } = groupsOf(survivors)
@@ -264,7 +254,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     } else if (lost !== undefined && gone.has(lost)) {
       /* The chosen main contact stayed out: promoting somebody else would
          build a second lead the person never asked for, so the rest wait. */
-      errors.push({ line: s.row.line, first, reason: mainGone(lost, gone.get(lost)) })
+      errors.push({ line: s.row.line, first, reason: mainGone(lost) })
     } else if (main && main !== s) {
       /* Only the person is taken: the lead's own cells come from the main row. */
       const v = s.write.values
@@ -275,6 +265,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
         phone: v.phone ?? undefined,
         channel: v.contactChannel ?? undefined,
       })
+      main.write.lines.push(...s.write.lines)
       attached.push({ line: s.row.line, first, into: main.row.line })
     } else {
       rows.push(s.out)
@@ -289,10 +280,10 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
     report: {
       rows,
       errors,
-      duplicates: dupWithBook.length,
+      duplicates: 0,
       dupInFile: dupWithinFile.length,
       total: input.rows.length,
-      dupWithBook,
+      dupWithBook: [],
       dupWithinFile,
       attached,
       origins: originTally(writes, input.origins),
@@ -304,10 +295,8 @@ type Survivor = { row: LeadImportRow; out: LeadImportRowOut; write: ImportCheck[
 
 const GROUP_MIXED = 'Các dòng gộp chung một lead phải cùng công ty'
 
-const mainGone = (line: number, code: string | undefined): string =>
-  code
-    ? `Lead chung đã có trong hệ thống (${code}) — thêm người này trong hồ sơ lead đó`
-    : `Liên hệ chính của lead chung (dòng ${line}) không vào hệ thống — xử lý dòng đó rồi nạp lại`
+const mainGone = (line: number): string =>
+  `Liên hệ chính của lead chung (dòng ${line}) không vào hệ thống — xử lý dòng đó rồi nạp lại`
 
 /** Group → the line the person meant as its main contact: the flagged row,
  *  else the group's first row. Read off EVERY row, before any check, so a
@@ -351,7 +340,7 @@ function groupsOf(survivors: readonly Survivor[]): {
 
 /** Distinct existing origins the accepted rows land on, and the names a
  *  commit would mint — computed, never written, so the preview stays read-only. */
-function originTally(
+export function originTally(
   writes: readonly LeadWrite[],
   index: OriginIndex,
 ): LeadImportReport['origins'] {

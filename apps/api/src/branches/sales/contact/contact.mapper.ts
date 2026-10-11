@@ -1,10 +1,18 @@
-import type { ObjectRef } from '@pv/engines'
+import { normalisePhone, type ObjectRef } from '@pv/engines'
 import type { ContactCreate, ContactPatch, ContactRow } from '@pv/contracts'
 import type { contact, ContactRowDb } from './contact.schema'
 import type { LeadContactMirror } from './contact.repository'
 import { byOf } from '../touch/touch.service'
 
 export type ContactValues = Omit<typeof contact.$inferInsert, 'code' | 'createdAt' | 'updatedAt'>
+
+/** `phone_key` when a write names the phone — sparse like the patch mappers,
+ *  so an untouched phone keeps its key. Folded by the normaliser the admission
+ *  gate reads with; nothing in the database does it. */
+function keysOf(person: { phone?: string | null }): Pick<ContactValues, 'phoneKey'> {
+  if (person.phone === undefined) return {}
+  return { phoneKey: person.phone ? normalisePhone(person.phone) : null }
+}
 
 /** Both halves of "who wrote this down" are filled in, and they are not a
  *  duplication: `by` is the NAME as it read on the day (an old row keeps it
@@ -16,20 +24,23 @@ export type ContactValues = Omit<typeof contact.$inferInsert, 'code' | 'createdA
 export function fromCreate(
   leadCode: string,
   body: ContactCreate,
-  who: { id: string; name: string },
+  by: { id: string; name: string } | null,
   isPrimary: boolean,
 ): ContactValues {
+  /* `null` is the anonymous landing door, as in `fromLeadBirth`. */
+  const who = byOf(by)
   return {
     leadCode,
     name: body.name,
     title: body.title ?? null,
     email: body.email ?? null,
     phone: body.phone ?? null,
+    ...keysOf({ phone: body.phone ?? null }),
     channel: body.channel ?? null,
     note: body.note ?? null,
     isPrimary,
-    by: who.name,
-    createdBy: who.id,
+    by: who.by,
+    createdBy: who.actorId ?? null,
   }
 }
 
@@ -57,6 +68,7 @@ export function fromLeadBirth(
     title: mirror.contactTitle,
     email: mirror.email,
     phone: mirror.phone,
+    ...keysOf({ phone: mirror.phone }),
     channel: mirror.contactChannel,
     note: null,
     isPrimary: true,
@@ -87,6 +99,7 @@ export function fromPatch(body: ContactPatch): Partial<ContactValues> {
     ...(body.phone === undefined ? {} : { phone: body.phone }),
     ...(body.channel === undefined ? {} : { channel: body.channel }),
     ...(body.note === undefined ? {} : { note: body.note }),
+    ...keysOf(body),
   }
 }
 
@@ -99,6 +112,7 @@ export function fromLeadMirror(f: Partial<LeadContactMirror>): Partial<ContactVa
     ...(f.email === undefined ? {} : { email: f.email }),
     ...(f.phone === undefined ? {} : { phone: f.phone }),
     ...(f.contactChannel === undefined ? {} : { channel: f.contactChannel }),
+    ...keysOf({ phone: f.phone }),
   }
 }
 

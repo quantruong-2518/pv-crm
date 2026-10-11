@@ -10,6 +10,8 @@ import { AUDIENCE_INTERNAL, LEAD_INTAKE_ACCEPTED, plan, type ObjectRef } from '@
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
+import { incomingOf } from './lead-admission.mapper'
+import { LeadAdmissionService } from './lead-admission.service'
 import { fromIntake, LEAD_NOTE, refOf } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
@@ -29,6 +31,7 @@ export class LeadIntakeService {
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     private readonly origins: LeadOriginService,
+    private readonly gate: LeadAdmissionService,
   ) {}
 
   async accept(
@@ -52,6 +55,20 @@ export class LeadIntakeService {
     /* No live-email fence any more (ADR 0070): a second lead on one mailbox is
        written and flagged by the book's `duplicateOf`, never refused here. */
     await this.writes.run(async (tx) => {
+      /* Anonymous, so this door never refuses and never asks. Only the SAME
+         person on an open lead re-enters it; a colleague or a second enquiry
+         opens a lead on the matched company, so the alert below still goes out. */
+      const admitted = await this.gate.admit(tx, null, incomingOf('0', { ...body, people: [body] }))
+      if (admitted.verdict === 'same-lead' && admitted.leadCode) {
+        await this.gate.reenter(tx, admitted.leadCode, [], null, 'LANDING_PAGE')
+        await this.intake.writeAttempt(tx, {
+          ...attempt,
+          status: 'duplicate',
+          leadCode: admitted.leadCode,
+        })
+        /* No alert: a repeated submit is the same lead (see `notify`). */
+        return
+      }
       const origin = await this.originOf(tx, query.utm_source)
       /* The same birth every other door makes (company edge, primary contact,
          first touch) — this door only adds its attempt row and the alert. */
@@ -68,6 +85,7 @@ export class LeadIntakeService {
         who: null,
         owner: null,
         note: LEAD_NOTE.landing,
+        accountCode: admitted.accountCode,
       })
       await this.intake.writeAttempt(tx, { ...attempt, status: 'accepted', leadCode: code })
       await this.notify(tx, refOf(code, write))
@@ -98,7 +116,7 @@ export class LeadIntakeService {
    *  send, and the worker keeps it after the commit.
    *
    *  Only the ACCEPTED path reaches this. The honeypot and the duplicate paths
-   *  write their attempt row outside any transaction and stay that way: a bot
+   *  write their attempt row and queue nothing: a bot
    *  must not be able to make this system send mail, and a repeated submit is
    *  the same lead — mailing it again is exactly the duplicate that
    *  `UNIQUE(event_key)` exists to prevent.

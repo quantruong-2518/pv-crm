@@ -35,6 +35,7 @@ import {
   taxCodeClearable,
   taxCodeOptional,
 } from './lead-fields'
+import { AdmissionChoice } from './lead-admission'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
@@ -720,6 +721,9 @@ export const LeadCreate = z
      *  default). The server derives `origin` from the partner's `originId`;
      *  sending `origin` alongside this is refused, not merged. */
     refCode: PartnerCode.optional(),
+    /* Optional so a client that never looked still parses; the server then
+       refuses with the match unless the verdict is `new-account`. */
+    admission: AdmissionChoice.optional(),
   })
   .refine((v) => (v.budget === undefined) === (v.currency === undefined), {
     /* Money always carries its unit. Enforced here rather than left to

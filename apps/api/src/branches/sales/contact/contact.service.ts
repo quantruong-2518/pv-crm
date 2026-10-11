@@ -183,7 +183,7 @@ export class ContactService {
     tx: Db,
     leadCode: string,
     people: readonly (Omit<ContactSeed, 'name'> & { name: string | null })[],
-    who: { id: string; name: string },
+    who: { id: string; name: string } | null,
     unnamed: string,
   ): Promise<number> {
     const keyOf = (p: { name: string | null; email?: string | null; phone?: string | null }) => {
@@ -209,12 +209,12 @@ export class ContactService {
 
   /** People onto a lead as NON-primary contacts, on the caller's `tx`, with no
    *  "already here" test of its own: the caller has decided these are new —
-   *  `seedExtra` by its card key, the file import by `leadDupKey`. */
+   *  `seedExtra` by its card key, the file import by its in-file key. */
   async attach(
     tx: Db,
     leadCode: string,
     people: readonly ContactSeed[],
-    who: { id: string; name: string },
+    who: { id: string; name: string } | null,
   ): Promise<void> {
     for (const person of people) {
       const code = await this.repo.nextCode(tx)

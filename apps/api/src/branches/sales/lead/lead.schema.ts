@@ -199,6 +199,11 @@ export const lead = sales.table(
      *  thường lần thứ hai. */
     email: text('email').notNull(),
     phone: text('phone'),
+    /** `phone` in the one form the admission gate compares (0097), folded by
+     *  `@pv/engines` and written by the service — not `GENERATED`, SQL cannot
+     *  spell that folding. NULL = no phone, or a row not yet normalised.
+     *  Outside `required_filled`: slot 5 measures what the customer gave. */
+    phoneKey: text('phone_key'),
     contactChannel: text('contact_channel').$type<ContactChannel>(),
     /** The customer's page on that channel. DELIBERATELY out of slot 5 of
      *  `required_filled`: a link is not a way to call somebody back, and
@@ -403,6 +408,12 @@ export const lead = sales.table(
      *  index to flag `duplicateOf`. `lower(email)` stays — `An@x.vn` and
      *  `an@x.vn` are one mailbox either way. */
     index('lead_email_idx').on(sql`lower("email")`),
+    /** "Which leads sit on any email domain of this batch" (0098). The gate
+     *  must spell this expression token for token, or the planner skips it. */
+    index('lead_email_domain_idx').on(sql`split_part(lower("email"), '@', 2)`),
+    /** "Which leads share a phone with any row of this batch" — the gate's
+     *  `phone_key = ANY($1)`. Plain like the email index: a signal, not a wall. */
+    index('lead_phone_key_idx').on(t.phoneKey),
 
     /** The campaign has to EXIST, and has to be a row of the source catalogue.
      *

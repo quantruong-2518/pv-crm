@@ -71,6 +71,10 @@ export const contact = sales.table(
     /** Optional here, `NOT NULL` on the lead — see the contract's docblock. */
     email: text('email'),
     phone: text('phone'),
+    /** `phone` in the one form the admission gate compares (0097), folded by
+     *  `@pv/engines` and written by the service — not `GENERATED`, SQL cannot
+     *  spell that folding. NULL = no phone, or a row not yet normalised. */
+    phoneKey: text('phone_key'),
     /** Which channel this person actually answers on. Same vocabulary a
      *  campaign fires through, so "reached them on X" and "sent through X" are
      *  one enum rather than two lists that drift. */
@@ -106,6 +110,12 @@ export const contact = sales.table(
      *  is "have we met this person before", and mailboxes are compared without
      *  case. A raw index would sit unused by the only query that wants it. */
     index('contact_email_idx').on(sql`lower("email")`),
+    /** "Who do we know on any email domain of this batch" (0098) — same
+     *  expression as `lead_email_domain_idx`, and the gate must spell it alike. */
+    index('contact_email_domain_idx').on(sql`split_part(lower("email"), '@', 2)`),
+    /** "Have we met this phone number before", for a whole batch at once —
+     *  the admission gate's `phone_key = ANY($1)`. */
+    index('contact_phone_key_idx').on(t.phoneKey),
 
     /** ONE check across eight columns rather than eight checks.
      *

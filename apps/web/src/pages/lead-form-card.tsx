@@ -5,6 +5,7 @@ import type { LeadDraft } from '@/data/lead-draft'
 import type { SaveState } from '@/data/lead-patch'
 import { fieldsOf, PROFILE_GROUPS, readField, type FormMode } from '@/data/lead-form'
 import { RecordCard } from '@/components/record/record-card'
+import { LeadAdmissionPanel } from './lead-admission-panel'
 import { FieldRow } from './lead-fields'
 
 /** Module 2 · The profile card — one tab row and the boxes of the open tab.
@@ -113,6 +114,14 @@ export function LeadForm({
         <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
           Ô có dấu sao là bắt buộc. Ô bỏ trống không được ghi xuống sổ.
         </span>
+      )}
+
+      {draft.admission && (
+        <LeadAdmissionPanel
+          panel={draft.admission}
+          pending={draft.pending}
+          onChoose={draft.chooseAdmission}
+        />
       )}
 
       {draft.formError && (

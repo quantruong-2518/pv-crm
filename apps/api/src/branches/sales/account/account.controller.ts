@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common'
+import type { Actor } from '@pv/engines'
 import {
   AccountBookQuery,
   AccountCreate,
@@ -9,6 +10,7 @@ import {
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
+import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { AccountService } from './account.service'
 
 /** `/sales/accounts` — the customer-company book.
@@ -49,8 +51,8 @@ export class AccountController {
 
   @Post()
   @Need({ branch: 'Sales', permission: 'account.edit' })
-  create(@Body(zod(AccountCreate)) body: AccountCreate) {
-    return this.accounts.create(body)
+  create(@CurrentActor() who: Actor, @Body(zod(AccountCreate)) body: AccountCreate) {
+    return this.accounts.create(body, who.id)
   }
 
   @Patch(':code')

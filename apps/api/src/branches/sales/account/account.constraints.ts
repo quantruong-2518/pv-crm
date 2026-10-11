@@ -21,6 +21,10 @@ export const ACCOUNT_CONSTRAINTS: ConstraintBook = {
     fields: ['name'],
     message: 'Công ty phải có tên.',
   },
+  account_created_by_actor_id_fk: {
+    kind: 'invalid',
+    message: 'Người ghi dòng này không còn trong sổ nhân sự.',
+  },
   account_code_code_fk: {
     kind: 'invalid',
     message:

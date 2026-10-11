@@ -32,7 +32,6 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
-import { contact } from '../contact/contact.schema'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
@@ -357,74 +356,6 @@ export class LeadRepository {
       .limit(1)
 
     return row ?? null
-  }
-
-  /** Live leads sharing a mailbox or a tax root with a scan batch, the scope
-   *  verdict SELECTED as `byCode` does, ordered by code so the preview is
-   *  the same on every poll. A branch code (`…-001`) matches its root.
-   *  A disabled lead stays a candidate — never re-created — with its code
-   *  withheld (`inScope = false`), here and in `importBook`. */
-  async scanBook(
-    who: Pick<Actor, 'id' | 'ownOnly'>,
-    emails: readonly string[],
-    taxRoots: readonly string[],
-    db: Db = this.db,
-  ): Promise<{ code: string; emailLower: string; taxCode: string | null; inScope: boolean }[]> {
-    if (emails.length === 0 && taxRoots.length === 0) return []
-    const scope = this.scopeOf(who, true)
-    const root = sql`left(regexp_replace(${lead.taxCode}, '[^0-9]', '', 'g'), 10)`
-    return db
-      .select({
-        code: lead.code,
-        emailLower: sql<string>`lower(${lead.email})`,
-        taxCode: lead.taxCode,
-        inScope: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
-      })
-      .from(lead)
-      .where(
-        and(
-          notInArray(lead.state, [...LEAD_GONE_STATES]),
-          or(
-            emails.length > 0 ? inArray(sql`lower(${lead.email})`, [...emails]) : undefined,
-            taxRoots.length > 0 ? inArray(root, [...taxRoots]) : undefined,
-          ),
-        ),
-      )
-      .orderBy(asc(lead.code))
-  }
-
-  /** Everybody on every live lead — the candidates the import door folds with
-   *  `leadDupKey`. One per contact row, plus the lead's own columns: a lead
-   *  whose last contact was deleted has no row in `sales.contact`.
-   *
-   *  The WHOLE live book, no company filter: any SQL filter here is stricter
-   *  than the fold ("Cty ABC." never fetched "Cty ABC"), and a missed
-   *  candidate is a lead written twice. Revisit with a persisted key column
-   *  when the book outgrows one read. */
-  async importBook(
-    who: Pick<Actor, 'id' | 'ownOnly'>,
-    db: Db = this.db,
-  ): Promise<
-    { code: string; company: string; contactName: string; phone: string | null; inScope: boolean }[]
-  > {
-    const scope = this.scopeOf(who, true)
-    const found = await db
-      .select({
-        code: lead.code,
-        company: lead.company,
-        contactName: lead.contactName,
-        phone: lead.phone,
-        inScope: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
-        person: { name: contact.name, phone: contact.phone },
-      })
-      .from(lead)
-      .leftJoin(contact, eq(contact.leadCode, lead.code))
-      .where(notInArray(lead.state, [...LEAD_GONE_STATES]))
-      .orderBy(asc(lead.code), asc(contact.code))
-    return found.flatMap(({ person, ...own }) => [
-      own,
-      ...(person ? [{ ...own, contactName: person.name, phone: person.phone }] : []),
-    ])
   }
 
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.

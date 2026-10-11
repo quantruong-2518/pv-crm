@@ -2,6 +2,7 @@ import 'reflect-metadata'
 import { Module } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { LeadCreate } from '@pv/contracts'
+import { PvError } from '@api/platform/http/problem'
 import { LeadModule } from '@api/branches/sales/lead/lead.module'
 import { LeadWriteRepository } from '@api/branches/sales/lead/lead-write.repository'
 import { LeadWriteService } from '@api/branches/sales/lead/lead-write.service'
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
     console.log(`Đích: ${app.get<DbHandle>(DB_HANDLE).kind} · ${APPLY ? 'GHI THẬT' : 'xem trước'}`)
 
     const leads = app.get(LeadWriteService)
+    const refused: string[] = []
     for (const r of RECIPIENTS) {
       const taken = live.get(r.email)
       if (taken) {
@@ -84,11 +86,22 @@ async function main(): Promise<void> {
         console.log(`  + ${r.email.padEnd(30)} ${r.company}`)
         continue
       }
-      const row = await leads.create(
-        caller.actor,
-        LeadCreate.parse({ ...r, motion: 'OUTBOUND', origin: { name: 'Email lạnh' } }),
-      )
-      console.log(`  + ${r.email.padEnd(30)} ${row.code}`)
+      try {
+        const row = await leads.create(
+          caller.actor,
+          LeadCreate.parse({ ...r, motion: 'OUTBOUND', origin: { name: 'Email lạnh' } }),
+        )
+        console.log(`  + ${r.email.padEnd(30)} ${row.code}`)
+      } catch (error) {
+        /* The admission gate knows this company: a script has no one to ask,
+           so the row is reported and the rest still go in. */
+        if (!(error instanceof PvError) || !error.extra?.admission) throw error
+        refused.push(r.email)
+        console.log(`  ! ${r.email.padEnd(30)} ${error.message}`)
+      }
+    }
+    if (refused.length > 0) {
+      console.log(`${refused.length} dòng bị cửa đối chiếu từ chối: ${refused.join(', ')}`)
     }
     if (!APPLY) console.log('Chưa ghi gì. Thêm --apply để ghi.')
   } finally {
