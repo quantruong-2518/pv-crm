@@ -89,10 +89,10 @@ function Waiting() {
           <Icon icon={Plug} size={24} />
         </span>
         <div className="flex flex-col gap-2">
-          <h1 className="font-display m-0 text-[20px] font-semibold">Máy chủ đang bảo trì</h1>
+          <h1 className="font-display m-0 text-[20px] font-semibold">Hệ thống đang bảo trì</h1>
           <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
-            Trang vẫn mở và mọi thứ bạn gõ dở vẫn nằm nguyên trên màn phía sau. Chỉ đường nối tới
-            máy chủ đang tạm ngưng — không có gì bị mất.
+            Trang vẫn mở và những gì bạn đang gõ dở vẫn còn nguyên. Hệ thống chỉ tạm ngưng, không có
+            gì bị mất.
           </p>
         </div>
       </div>
@@ -126,7 +126,7 @@ function Recovered() {
         <Icon icon={CircleCheck} size={24} />
       </span>
       <div className="flex flex-col gap-2">
-        <h1 className="font-display m-0 text-[20px] font-semibold">Máy chủ đã trở lại</h1>
+        <h1 className="font-display m-0 text-[20px] font-semibold">Hệ thống đã hoạt động lại</h1>
         <p className="text-muted-foreground m-0 text-pretty text-[12.5px] leading-[1.65]">
           Gián đoạn {howLong(Date.now() - (since ?? Date.now()))}. Dữ liệu trên màn đang tự tải lại
           — bạn làm tiếp đúng chỗ đang dở.
@@ -172,7 +172,7 @@ export function ServerDown() {
       className="fixed inset-0 z-[70] flex items-center justify-center overflow-auto bg-[var(--scrim)] p-6 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
-      aria-label={health === 'down' ? 'Máy chủ đang bảo trì' : 'Máy chủ đã trở lại'}
+      aria-label={health === 'down' ? 'Hệ thống đang bảo trì' : 'Hệ thống đã hoạt động lại'}
     >
       <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
         <img

@@ -271,7 +271,7 @@ function StepAudience({
         </div>
 
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Không chọn gì ở một hàng nghĩa là hàng đó KHÔNG lọc — không phải loại hết. Đang gửi cho:{' '}
+          Hàng nào không chọn gì thì lấy tất cả. Đang gửi cho:{' '}
           <b className="text-foreground font-semibold">{groupText(draft.group)}</b>.
         </p>
 
@@ -678,7 +678,7 @@ export function CampaignForm({
             kicker={kicker}
             hint={
               mode === 'duplicate'
-                ? 'Chép nguyên chuỗi đợt và nội dung. Nhóm người nhận CỐ TÌNH để trống — chọn lại ở Bước 1.'
+                ? 'Đã chép chuỗi đợt và nội dung. Nhóm người nhận để trống, bạn chọn lại ở Bước 1.'
                 : 'Ba bước, cuộn thẳng xuống. Không cần ai duyệt: lưu nháp lúc nào cũng được, chỉ "Bắt đầu chạy" mới gửi mail.'
             }
           >

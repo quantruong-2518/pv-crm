@@ -196,7 +196,7 @@ function EditPartnerBody({ partner }: { partner: Partner }) {
       <section className="flex flex-col gap-3">
         <SectionTitle
           size="sm"
-          hint="Chỉ áp cho lead MỚI được giới thiệu từ nay — nguồn của lead đã vào sổ được chốt lúc nhận, không đổi theo."
+          hint="Chỉ áp dụng cho lead được giới thiệu từ nay. Lead đã có trong sổ giữ nguyên nguồn cũ."
         >
           Đổi loại
         </SectionTitle>

@@ -50,7 +50,7 @@ export function ExtrasSection({
       >
         <span className="text-[14px] font-semibold">Bổ sung</span>
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
-          {refused ? 'Mở sẵn vì máy chủ từ chối một ô ở đây' : countText(draft, seed)}
+          {refused ? 'Mở sẵn vì có một ô ở đây cần sửa' : countText(draft, seed)}
         </span>
         <Icon
           icon={ChevronDown}

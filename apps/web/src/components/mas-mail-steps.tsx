@@ -166,7 +166,7 @@ function ChosenGrid({
         </p>
       ) : null}
       <p className="text-glass-foreground m-0 text-[12px] leading-5">
-        Kiểm tra người nhận tự chạy mỗi khi danh sách đứng yên. Kết luận của máy chủ hiện trên từng
+        Danh sách người nhận được kiểm tra tự động sau mỗi lần thay đổi. Kết quả hiện trên từng
         dòng.
       </p>
     </div>

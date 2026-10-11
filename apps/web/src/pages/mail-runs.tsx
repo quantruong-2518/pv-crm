@@ -420,8 +420,8 @@ export function MailRunsPage() {
               />
               <p className="text-muted-foreground m-0 px-5 pb-4 text-[11.5px] leading-[1.5]">
                 Sửa chỉ khi lô còn Hẹn giờ; Dừng khi lô còn Hẹn giờ hoặc Đang gửi. Người tạo lô tự
-                Sửa, Dừng lô của mình; người có quyền phát chiến dịch Sửa, Dừng được mọi lô. Nút
-                sáng vẫn có thể bị máy chủ từ chối nếu thư đầu đã rời máy.
+                Sửa, Dừng lô của mình; người có quyền phát chiến dịch Sửa, Dừng được mọi lô. Thư đầu
+                tiên đã gửi đi thì không Sửa, Dừng được nữa, dù nút còn sáng.
               </p>
             </>
           }

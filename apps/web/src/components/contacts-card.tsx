@@ -342,7 +342,7 @@ function ContactDrawer({
       subtitle={
         row === null && first
           ? 'Đây là người đầu tiên của lead này, nên hệ sẽ đặt họ làm người liên hệ chính.'
-          : 'Chỉ TÊN là bắt buộc — một người mình chưa xin được số vẫn là một người đã gặp.'
+          : 'Chỉ tên là bắt buộc. Chưa xin được số thì bổ sung sau.'
       }
       footer={
         <div className="flex items-center justify-end gap-3">

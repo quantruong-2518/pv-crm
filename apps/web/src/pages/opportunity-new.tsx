@@ -154,7 +154,7 @@ function NewDealScreen({ lead }: { lead: LeadProfile }) {
         back={{ label: 'Sổ cơ hội', onClick: () => navigate('/sales/opportunities') }}
         kicker="Cơ hội"
         title="Mở cơ hội"
-        description="Cơ hội mới mọc ra từ lead đang chọn. Mã do máy chủ cấp lúc tạo."
+        description="Mã được cấp tự động."
         meta={
           <>
             {/* Law 10 — the chain of the LEAD this deal will join, in the SAME

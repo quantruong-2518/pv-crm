@@ -272,7 +272,7 @@ export function ReadingStep({
         description={
           uploading
             ? 'Đang tải tệp lên — giữ trang này mở tới khi tải xong.'
-            : 'Đóng trang cũng không sao — lô chạy tiếp trên máy chủ.'
+            : 'Đóng trang cũng không sao, lô vẫn chạy tiếp.'
         }
         rail={batch && scanRail(batch, navigate)}
         cancel={cancel}
