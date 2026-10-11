@@ -108,7 +108,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
 
     const waves = await this.wavesOf(who, code)
@@ -149,7 +149,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
 
     const originId = body.originId ? await this.liveOrigin(body.originId) : body.originId
@@ -199,7 +199,7 @@ export class CampaignService {
    *  at a folded row. Asked first so a wrong id is a 400 on the field, not an FK. */
   private async liveOrigin(id: string): Promise<string> {
     const found = await this.origins.survivorOf(id)
-    if (!found) throw invalid({ originId: ['Nguồn không có trong danh mục.'] })
+    if (!found) throw invalid({ originId: ['Không tìm thấy nguồn này.'] })
     return found.id
   }
 
@@ -211,7 +211,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
 
     const [added, removed] = await this.repo.run(async (tx) => {
@@ -241,7 +241,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
 
     const page = await this.repo.members(code, q)
@@ -265,12 +265,10 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
     if (found.row.state !== 'DRAFT') {
-      throw conflict(
-        `Chỉ chiến dịch NHÁP mới bắt đầu chạy được — chiến dịch này đang ${found.row.state}.`,
-      )
+      throw conflict(`Chỉ chiến dịch nháp mới bắt đầu chạy được.`)
     }
 
     /* A DRAFT can already have waves: the MAS modal on the lead book can pin a
@@ -280,14 +278,12 @@ export class CampaignService {
        UPDATE below on purpose — merged in, 0 rows could not tell "no longer a
        draft" from "already has a wave", and the two send the user elsewhere. */
     if (found.waveCount > 0) {
-      throw conflict(
-        `Chiến dịch ${code} đã có đợt đi rồi — mở hồ sơ chiến dịch và thêm đợt mới ở đó, đừng bắt đầu chạy lại.`,
-      )
+      throw conflict(`Chiến dịch ${code} đã có đợt gửi. Thêm đợt mới trong hồ sơ chiến dịch.`)
     }
 
     const leadCodes = await this.repo.activeMemberCodes(code)
     if (leadCodes.length === 0) {
-      throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi chạy.')
+      throw conflict('Chiến dịch chưa có người nhận. Thêm thành viên trước khi chạy.')
     }
 
     /* Early gate, NOT a second fence: `MasService.send()` keeps enforcing
@@ -296,16 +292,14 @@ export class CampaignService {
        400 pinned to an `audience.codes` field this screen has no box for. */
     if (leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
       throw conflict(
-        `Tệp người nhận có ${leadCodes.length} lead, vượt trần ${this.env.PV_MAS_BATCH_MAX} lead mỗi đợt — bớt thành viên rồi bắt đầu chạy lại.`,
+        `Chiến dịch có ${leadCodes.length} người nhận, mỗi đợt gửi tối đa ${this.env.PV_MAS_BATCH_MAX}. Bớt thành viên rồi chạy lại.`,
       )
     }
 
     /* Conditional write, not `setState`: the DRAFT check above is a read, and
        two overlapping requests both pass it. See `startIfDraft`. */
     if (!(await this.repo.startIfDraft(code))) {
-      throw conflict(
-        `Chiến dịch ${code} vừa rời trạng thái NHÁP ở một lượt khác — tải lại để xem trạng thái hiện tại trước khi bắn.`,
-      )
+      throw conflict(`Chiến dịch ${code} không còn là nháp. Tải lại để xem.`)
     }
 
     const waves: MasSendResponse[] = []
@@ -332,7 +326,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
 
     const leadCodes = await this.repo.activeMemberCodes(code)
@@ -365,7 +359,7 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
     /* DONE gets through because RUNNING is a passing state, not a resting one:
        `CampaignSweeper` runs `closeFinished()` on a timer and drops a campaign
@@ -380,25 +374,21 @@ export class CampaignService {
        legacy shape the MAS modal used to write, and this door is its only way
        back to a normal life cycle. */
     if (found.row.state === 'STOPPED') {
-      throw conflict(
-        `Chiến dịch ${code} đã dừng — không nối đợt vào chiến dịch đã dừng; tạo chiến dịch mới nếu muốn gửi tiếp.`,
-      )
+      throw conflict(`Chiến dịch ${code} đã dừng. Tạo chiến dịch mới để gửi tiếp.`)
     }
     if (found.row.state === 'DRAFT' && found.waveCount === 0) {
-      throw conflict(
-        `Chiến dịch ${code} chưa bắn đợt nào — bấm "Bắn đợt 1" trong hồ sơ chiến dịch để gửi đợt đầu tiên.`,
-      )
+      throw conflict(`Chiến dịch ${code} chưa có đợt gửi nào. Bắt đầu chạy chiến dịch trước.`)
     }
 
     const leadCodes = await this.repo.activeMemberCodes(code)
     if (leadCodes.length === 0) {
-      throw conflict('Chiến dịch chưa có người nhận nào — thêm thành viên trước khi bắn đợt mới.')
+      throw conflict('Chiến dịch chưa có người nhận. Thêm thành viên trước khi gửi đợt mới.')
     }
 
     /* Same early gate as `start()` — `MasService.send()` stays the real fence. */
     if (leadCodes.length > this.env.PV_MAS_BATCH_MAX) {
       throw conflict(
-        `Tệp người nhận có ${leadCodes.length} lead, vượt trần ${this.env.PV_MAS_BATCH_MAX} lead mỗi đợt — bớt thành viên rồi bắn lại.`,
+        `Chiến dịch có ${leadCodes.length} người nhận, mỗi đợt gửi tối đa ${this.env.PV_MAS_BATCH_MAX}. Bớt thành viên rồi gửi lại.`,
       )
     }
 
@@ -419,12 +409,10 @@ export class CampaignService {
     const found = await this.repo.byCode(who, code, true)
     if (!found) throw notFound('chiến dịch', code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Chiến dịch ${code} do người khác phụ trách.`)
     }
     if (found.row.state !== 'RUNNING') {
-      throw conflict(
-        `Chỉ chiến dịch ĐANG CHẠY mới dừng được — chiến dịch này đang ${found.row.state}.`,
-      )
+      throw conflict(`Chỉ chiến dịch đang chạy mới dừng được.`)
     }
 
     const cancelled: MailRunPatchResponse[] = []

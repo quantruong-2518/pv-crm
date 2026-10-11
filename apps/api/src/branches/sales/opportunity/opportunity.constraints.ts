@@ -20,7 +20,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_money_pair: {
     kind: 'invalid',
     fields: ['amount', 'currency'],
-    message: 'Giá trị đơn phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
+    message: 'Điền cả giá trị đơn và đồng tiền, hoặc bỏ trống cả hai.',
   },
 
   /** A stop writes the whole fail log: the column, a reason, the close date.
@@ -29,49 +29,47 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_lost_closed: {
     kind: 'invalid',
     fields: ['reasonKey'],
-    message:
-      'Dừng đơn thì phải ghi cột đang đứng, lý do và ngày đóng — thiếu một thứ thì không ai đọc lại được.',
+    message: 'Dừng đơn phải ghi cột đang đứng, lý do và ngày đóng.',
   },
 
   opportunity_lost_off_board: {
     kind: 'invalid',
-    message: 'Đơn đã dừng không còn đứng ở cột nào của bảng.',
+    message: 'Đơn đã dừng không thuộc cột nào của bảng.',
   },
 
   opportunity_open_has_no_stop: {
     kind: 'invalid',
     fields: ['reasonKey'],
-    message: 'Đơn đang chạy không mang lý do dừng.',
+    message: 'Đơn đang chạy không có lý do dừng.',
   },
 
   /** Fences 0073 added (ADR 0072): only a writer still on the old five
    *  columns trips them, so the answer says to reload, not to fix a field. */
   opportunity_stage_known: {
     kind: 'conflict',
-    message: 'Cột của cơ hội không nằm trong bốn cột của bảng — tải lại trang rồi thử lại.',
+    message: 'Cột của cơ hội không có trong bảng. Tải lại trang rồi thử lại.',
   },
 
   opportunity_stage_event_stage_known: {
     kind: 'conflict',
-    message: 'Lượt đổi cột nhắc tới một cột không còn trên bảng — tải lại trang rồi thử lại.',
+    message: 'Cột đã chọn không còn trên bảng. Tải lại trang rồi thử lại.',
   },
 
   opportunity_stopped_at_stage_known: {
     kind: 'invalid',
-    message: 'Cột đơn dừng lại không nằm trong bốn cột của bảng.',
+    message: 'Cột đơn dừng lại không có trong bảng.',
   },
 
   opportunity_state_known: {
     kind: 'invalid',
-    message:
-      'Trạng thái lưu chỉ có "Đang chạy" hoặc "Đã dừng". Đơn thắng là đơn CÓ HỢP ĐỒNG, ký ở hồ sơ cơ hội.',
+    message: 'Trạng thái chỉ có "Đang chạy" hoặc "Đã dừng". Ký hợp đồng ở hồ sơ cơ hội.',
   },
 
   /** A column and its clock travel together or not at all. Only the lifecycle
    *  writer sets the pair, so this is a net under a future write door. */
   opportunity_stage_clock: {
     kind: 'invalid',
-    message: 'Đơn đứng ở một cột thì phải có mốc vào cột đó, và ngược lại.',
+    message: 'Cột của đơn và ngày vào cột phải đi cùng nhau.',
   },
 
   /** Lead không có thật. Service đã trả 404 gọi tên mã trước khi tới đây, nên
@@ -79,7 +77,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_lead_code_lead_code_fk: {
     kind: 'invalid',
     fields: ['leadCode'],
-    message: 'Không có lead nào mang mã này — cơ hội phải mọc ra từ một lead có thật.',
+    message: 'Không tìm thấy lead mang mã này.',
   },
 
   /** Id người không có trong sổ nhân sự. Đây là hàng rào THẬT cho hai ô chọn
@@ -88,7 +86,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_owner_actor_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['saleOwners', 'bdOwners'],
-    message: 'Có người không còn trong sổ nhân sự — chọn lại người đứng đơn.',
+    message: 'Có người không còn trong sổ nhân sự. Chọn lại người đứng đơn.',
   },
 
   opportunity_owner_role_known: {
@@ -100,7 +98,7 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_probability_range: {
     kind: 'invalid',
     fields: ['probability'],
-    message: 'Xác suất thắng là một số từ 0 đến 100.',
+    message: 'Xác suất thắng phải từ 0 đến 100.',
   },
 
   /** The COMPOSITE foreign key `(product_id, list)` into `config_id_list`. It
@@ -110,13 +108,13 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
   opportunity_product_config_fk: {
     kind: 'invalid',
     fields: ['products'],
-    message: 'Có mục không nằm trong danh mục Sản phẩm/dịch vụ — chọn lại từ danh sách.',
+    message: 'Có mục không nằm trong danh mục Sản phẩm/dịch vụ. Chọn lại từ danh sách.',
   },
 
   opportunity_product_pk: {
     kind: 'invalid',
     fields: ['products'],
-    message: 'Một sản phẩm chỉ chọn được một lần trên cùng một đơn.',
+    message: 'Mỗi sản phẩm chỉ chọn một lần trên một đơn.',
   },
 
   /** A user should never see the two sentences below: every column move goes
@@ -125,19 +123,18 @@ export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
    *  what it got wrong, instead of getting a 500 naming a constraint. */
   opportunity_stage_event_moved: {
     kind: 'invalid',
-    message:
-      'Một dòng lịch sử phải ghi một lượt đổi cột thật — cột đi và cột đến không được trùng.',
+    message: 'Cột đi và cột đến không được trùng nhau.',
   },
 
   opportunity_stage_event_clock: {
     kind: 'invalid',
-    message: 'Dòng lịch sử có cột đi thì phải có số ngày đứng ở cột đó, và ngược lại.',
+    message: 'Cột đi và số ngày ở cột đó phải đi cùng nhau.',
   },
 
   /** A unique index on `platform.approval`, but its meaning is this module's:
    *  two sign presses racing past `OpportunitySign.propose`'s own check. */
   approval_contract_sign_waiting_uq: {
     kind: 'conflict',
-    message: 'Cơ hội này đã có một yêu cầu ký đang chờ duyệt.',
+    message: 'Cơ hội này đã có yêu cầu ký đang chờ duyệt.',
   },
 }

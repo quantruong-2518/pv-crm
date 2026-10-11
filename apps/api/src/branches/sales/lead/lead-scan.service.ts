@@ -56,7 +56,7 @@ const CANCELLED = 'Bạn đã huỷ lô này.'
 const PREVIEWED = ['READY', 'COMMITTING', 'DONE'] as const
 /** Before the commit press, a batch's file set may still change or be dropped. */
 const OPEN: readonly ScanBatchState[] = ['UPLOADING', 'READING', 'READY']
-const closed = (code: string) => conflict(`Lô ${code} đã đóng — không thêm, đọc hay huỷ được nữa.`)
+const closed = (code: string) => conflict(`Lô ${code} đã đóng.`)
 const EXT: Record<ScanUploadMime, string> = {
   'image/webp': 'webp',
   'image/jpeg': 'jpg',
@@ -92,7 +92,7 @@ export class LeadScanService {
       await this.repo.lockUploader(tx, who.id)
       if ((await this.repo.batchesLastDay(who.id, tx)) >= SCAN_DAILY_BATCHES_PER_USER) {
         throw rateLimited(
-          `Bạn đã nạp đủ ${SCAN_DAILY_BATCHES_PER_USER} lô trong 24 giờ qua — thử lại sau.`,
+          `Bạn đã nạp đủ ${SCAN_DAILY_BATCHES_PER_USER} lô trong 24 giờ qua. Thử lại sau.`,
         )
       }
       await this.repo.insertBatch(tx, {
@@ -162,7 +162,7 @@ export class LeadScanService {
       const keep = new Set(body.files)
       const pending = files.filter((f) => f.state === 'QUEUED' && f.readAt === null)
       const listed = pending.filter((f) => keep.has(f.id))
-      if (listed.length < keep.size) throw conflict(`Lô ${code} đã bắt đầu đọc rồi.`)
+      if (listed.length < keep.size) throw conflict(`Lô ${code} đã bắt đầu đọc.`)
       const unlisted = batch.state === 'UPLOADING' ? pending.filter((f) => !keep.has(f.id)) : []
       const dropped = await this.repo.dropFiles(
         tx,
@@ -255,7 +255,7 @@ export class LeadScanService {
       }
       /* A file added after READY is not in the preview the person approved. */
       if ((await this.repo.files(code, tx)).some((f) => f.state === 'QUEUED')) {
-        throw conflict(`Lô ${code} còn tệp chưa đọc — đọc xong mọi tệp rồi mới tạo lead.`)
+        throw conflict(`Lô ${code} còn tệp chưa đọc. Chờ đọc xong rồi tạo lead.`)
       }
       await this.repo.moveBatch(tx, code, ['READY'], 'COMMITTING')
     })
@@ -346,7 +346,7 @@ export class LeadScanService {
   private async admit(): Promise<void> {
     /* 409 like `PV_MAS_ENABLED`: the answer is a server setting, not a grant. */
     if (!this.reader.enabled) {
-      throw conflict('Nạp lead từ ảnh chưa được cấu hình trên máy chủ này — báo quản trị viên.')
+      throw conflict('Chưa bật nạp lead từ ảnh. Báo quản trị viên.')
     }
     await this.spendable(this.repo.pool)
   }
@@ -356,7 +356,7 @@ export class LeadScanService {
   private async spendable(db: Db): Promise<void> {
     const budget = this.env.SCAN_DAILY_TOKEN_BUDGET
     if (budget > 0 && (await this.repo.tokensLastDay(db)) >= budget) {
-      throw rateLimited('Hệ thống đã dùng hết hạn mức đọc AI trong 24 giờ qua — thử lại sau.')
+      throw rateLimited('Đã hết hạn mức đọc ảnh trong 24 giờ qua. Thử lại sau.')
     }
   }
 

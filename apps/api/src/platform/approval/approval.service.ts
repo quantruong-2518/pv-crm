@@ -116,9 +116,7 @@ export class ApprovalService {
         throw new PvError({
           kind: 'server',
           status: 500,
-          title:
-            `Chưa mở được yêu cầu duyệt: không có ai đang giữ vai "${role}" để gật. ` +
-            'Cần một tài khoản còn hoạt động mang vai đó trong sổ nhân sự.',
+          title: `Chưa mở được yêu cầu duyệt: không có ai giữ vai "${role}".`,
         })
       }
       taken.add(person.id)
@@ -214,13 +212,13 @@ export class ApprovalService {
    *  first decision. */
   async decide(who: Actor, id: string, body: ApprovalDecisionBody): Promise<ApprovalRequestView> {
     const row = await this.repo.byId(id)
-    if (!row) throw notFound('approval', id)
+    if (!row) throw notFound('yêu cầu duyệt', id)
 
     const verdict = decideOn(row, who, body.decision, new Date().toISOString())
 
     if (!verdict.ok) {
       if (verdict.reason === 'already-decided') {
-        throw conflict('Yêu cầu này đã được quyết rồi.')
+        throw conflict('Yêu cầu này đã có quyết định.')
       }
       if (verdict.reason === 'not-your-turn') {
         throw denied('out-of-scope', `Yêu cầu này đang chờ ${verdict.waitingFor ?? 'người khác'}.`)
@@ -270,7 +268,7 @@ export class ApprovalService {
       return true
     })
 
-    if (!moved) throw conflict('Yêu cầu này vừa được người khác quyết.')
+    if (!moved) throw conflict('Người khác vừa quyết yêu cầu này.')
 
     this.log.log(`${id} · ${row.kind} · ${after.state} · by ${who.id}`)
 

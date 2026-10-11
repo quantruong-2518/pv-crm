@@ -11,7 +11,7 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
 export const MEETING_CONSTRAINTS: ConstraintBook = {
   meeting_no_blank: {
     kind: 'invalid',
-    message: 'Buổi họp phải có tiêu đề — một dòng trống không kể lại được gì.',
+    message: 'Buổi họp phải có tiêu đề.',
   },
 
   meeting_link_is_web: {
@@ -25,19 +25,19 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
    *  no field. */
   meeting_mode_known: {
     kind: 'invalid',
-    message: 'Hình thức họp không nằm trong danh sách chọn được trên màn đặt lịch.',
+    message: 'Chọn hình thức họp trong danh sách.',
   },
 
   meeting_duration_known: {
     kind: 'invalid',
-    message: 'Thời lượng họp phải chọn từ danh sách có sẵn trên màn đặt lịch.',
+    message: 'Chọn thời lượng họp trong danh sách.',
   },
 
   /** A code with no `platform.object` row — rare, since leads and deals are
    *  never deleted, but cheaper than a 500 nobody can read. */
   meeting_subject_code_object_code_fk: {
     kind: 'invalid',
-    message: 'Lead hoặc cơ hội của buổi họp này không có trong sổ.',
+    message: 'Không tìm thấy lead hoặc cơ hội của buổi họp.',
   },
 
   /** zod gates the code first; a row breaking this came by another road. */
@@ -48,14 +48,14 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
 
   meeting_attendee_side_known: {
     kind: 'invalid',
-    message: 'Người dự phải đứng về phía chủ trì hoặc phía khách.',
+    message: 'Người dự phải thuộc phía chủ trì hoặc phía khách.',
   },
 
   /** Ràng buộc DUY NHẤT ở đây mà người dùng gặp thật, và gặp thường: chọn
    *  người chủ trì bằng cách gõ tên thay vì chọn từ sổ nhân sự. */
   meeting_attendee_host_is_actor: {
     kind: 'invalid',
-    message: 'Người chủ trì phải chọn từ sổ nhân sự, không gõ tay — khách thì gõ tay.',
+    message: 'Chọn người chủ trì từ sổ nhân sự.',
   },
 
   /** Somebody picked from the contact book, deleted between opening the form
@@ -63,12 +63,12 @@ export const MEETING_CONSTRAINTS: ConstraintBook = {
    *  its own sentence for the same reason. */
   meeting_attendee_contact_code_contact_code_fk: {
     kind: 'invalid',
-    message: 'Người liên hệ được chọn không còn trong sổ.',
+    message: 'Không tìm thấy người liên hệ đã chọn.',
   },
 
   meeting_attendee_contact_only_guest: {
     kind: 'invalid',
-    message: 'Chỉ khách mới gắn được người liên hệ — người chủ trì lấy từ sổ nhân sự.',
+    message: 'Chỉ khách mới gắn được người liên hệ.',
   },
 
   meeting_attendee_no_blank: {

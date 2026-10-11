@@ -20,12 +20,12 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
 
   touch_kind_known: {
     kind: 'invalid',
-    message: 'Loại lần chạm không nằm trong danh sách loại đã biết.',
+    message: 'Loại lần chạm không hợp lệ.',
   },
 
   touch_no_blank: {
     kind: 'invalid',
-    message: 'Lần chạm phải có người làm và câu mô tả — một dòng trống không kể được gì.',
+    message: 'Lần chạm phải có người làm và mô tả.',
   },
 
   /** Only a `handed-over` row names the two ends of a hand-over, and it names at least
@@ -34,12 +34,12 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
    *  is wrong, and the sentence below exists for the log rather than the screen. */
   touch_hand_over_sides: {
     kind: 'invalid',
-    message: 'Chỉ lần chạm loại giao mới chở được người giao và người nhận.',
+    message: 'Chỉ lần chạm loại giao mới có người giao và người nhận.',
   },
 
   touch_handed_over_names_an_end: {
     kind: 'invalid',
-    message: 'Một lần giao phải nói ra người giao hoặc người nhận.',
+    message: 'Lần giao phải có người giao hoặc người nhận.',
   },
 
   /** Người ghi không còn trong sổ nhân sự. Chỉ ăn khi một tài khoản bị xoá
@@ -55,7 +55,7 @@ export const TOUCH_CONSTRAINTS: ConstraintBook = {
   touch_template_id_step_template_id_fk: {
     kind: 'invalid',
     fields: ['templateId'],
-    message: 'Việc vừa xong trỏ tới một mẫu không có trong danh sách.',
+    message: 'Mẫu việc không có trong danh sách.',
   },
 
   touch_template_only_step_done: {

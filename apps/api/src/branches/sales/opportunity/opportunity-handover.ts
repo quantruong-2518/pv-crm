@@ -89,7 +89,7 @@ export async function handDealsOver(
     throw invalid(
       {
         ownerId: [
-          `${move.to.name} không giữ được cơ hội của lead này — cần nhân sự Sales đang hoạt động, xem được cơ hội.`,
+          `${move.to.name} không nhận được cơ hội của lead này. Cần nhân sự Sales đang hoạt động và xem được cơ hội.`,
         ],
       },
       'Người nhận không giữ được cơ hội.',

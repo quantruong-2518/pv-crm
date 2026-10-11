@@ -90,7 +90,7 @@ export class RolesService {
     )
     if (dropped.length === 0) return
     throw conflict(
-      `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình được — nhờ một quản trị viên khác làm việc này. Người tự bỏ quyền sửa phân quyền sẽ không mở lại được chính màn vừa dùng.`,
+      `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình. Nhờ quản trị viên khác làm.`,
     )
   }
 
@@ -122,7 +122,7 @@ export class RolesService {
       if (await this.repo.anyEnabledActorIn(after, tx)) continue
 
       throw conflict(
-        `Bỏ ${key} khỏi vai này thì không còn tài khoản nào đang hoạt động giữ được nó. Cấp ${key} cho một vai đang có người trước, rồi hãy bỏ ở đây — nếu không sẽ không còn ai sửa được phân quyền.`,
+        `Không bỏ được ${key} khỏi vai này vì không còn tài khoản hoạt động nào giữ nó. Cấp ${key} cho vai đang có người trước.`,
       )
     }
   }

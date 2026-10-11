@@ -31,7 +31,7 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   lead_money_pair: {
     kind: 'invalid',
     fields: ['budget', 'currency'],
-    message: 'Ngân sách phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
+    message: 'Ngân sách cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
   },
 
   lead_disabled_pair: {
@@ -43,7 +43,7 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   lead_exit_pair: {
     kind: 'invalid',
     fields: ['exitReason', 'exitedAt'],
-    message: 'Đánh dấu lead rơi khỏi luồng phải kèm cả lý do lẫn ngày rơi.',
+    message: 'Lead rời phễu phải có cả lý do và ngày rời.',
   },
 
   /** The three lifecycle fences left after ADR 0063 dropped `lead_working_has_tier`
@@ -59,12 +59,12 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   lead_disqualified_has_reason: {
     kind: 'conflict',
     fields: ['exitReason'],
-    message: `Lead “${LEAD_STATE_LABEL.disqualified}” phải kèm lý do rời phễu, và chỉ lead đó mới mang lý do này.`,
+    message: `Lead “${LEAD_STATE_LABEL.disqualified}” phải có lý do rời phễu, lead khác thì không.`,
   },
   lead_open_owner_matches: {
     kind: 'conflict',
     fields: ['ownerId'],
-    message: `Lead còn trong phễu thì “${LEAD_STATE_LABEL.new}” nghĩa là chưa ai nhận: có người phụ trách thì không còn là lead mới, và ngược lại.`,
+    message: `Lead còn trong phễu: chưa có người phụ trách thì phải ở “${LEAD_STATE_LABEL.new}”, và ngược lại.`,
   },
 
   /** CHECK trải trên mười lăm cột, nên không quy được về một ô nào. Câu chung,
@@ -72,7 +72,7 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
    *  đây là lưới thứ hai cho ngày cổng quên. */
   lead_no_blank: {
     kind: 'invalid',
-    message: 'Có ô nhập chỉ chứa khoảng trắng. Điền nội dung thật cho ô đó, hoặc để trống hẳn.',
+    message: 'Có ô chỉ chứa khoảng trắng. Điền nội dung hoặc để trống.',
   },
 
   /** Dòng gương ở `platform.object` phải có TRƯỚC dòng lead.
@@ -98,17 +98,17 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   lead_owner_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['ownerId'],
-    message: 'Người phụ trách không có trong sổ nhân sự.',
+    message: 'Không tìm thấy người phụ trách.',
   },
   lead_bd_owner_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['bdOwnerId'],
-    message: 'Người BD được ghi công không có trong sổ nhân sự.',
+    message: 'Không tìm thấy người BD được ghi công.',
   },
   lead_marketing_owner_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['marketingOwnerId'],
-    message: 'Người marketing được ghi công không có trong sổ nhân sự.',
+    message: 'Không tìm thấy người marketing được ghi công.',
   },
 
   /** The campaign has to exist, and has to be a row of the source catalogue.
@@ -126,6 +126,6 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
   lead_campaign_fk: {
     kind: 'invalid',
     fields: ['campaignId'],
-    message: 'Chiến dịch không có trong sổ chiến dịch.',
+    message: 'Không tìm thấy chiến dịch.',
   },
 }

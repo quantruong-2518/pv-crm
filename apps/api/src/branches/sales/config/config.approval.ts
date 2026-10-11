@@ -113,7 +113,7 @@ function consequenceOf(change: ConfigChange): string {
   if (change.kind === 'create') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
   if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
   if (change.kind === 'reorder') {
-    return `Xếp lại thứ tự danh mục ${change.list} — ${change.ids.length} dòng`
+    return `Xếp lại thứ tự danh mục ${change.list}: ${change.ids.length} dòng`
   }
   if (change.kind === 'activity-freshness') {
     const { warnDays, alertDays } = change.value
@@ -151,14 +151,14 @@ function motionWords(patch: MotionPolicyPatchDb): string[] {
     said.push(
       patch.coldMailAllowed === null
         ? 'mail lạnh: bỏ khai'
-        : `mail lạnh: ${patch.coldMailAllowed ? 'được' : 'KHÔNG được'}`,
+        : `mail lạnh: ${patch.coldMailAllowed ? 'được' : 'không được'}`,
     )
   }
   if (patch.selfServeCountsAsInitData !== undefined) {
     said.push(
       patch.selfServeCountsAsInitData === null
         ? 'form khách tự điền: bỏ khai'
-        : `form khách tự điền ${patch.selfServeCountsAsInitData ? 'tính' : 'KHÔNG tính'} là đủ ô`,
+        : `form khách tự điền ${patch.selfServeCountsAsInitData ? 'tính' : 'không tính'} là đủ ô`,
     )
   }
 

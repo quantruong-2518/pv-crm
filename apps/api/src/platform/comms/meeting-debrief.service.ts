@@ -26,7 +26,7 @@ export class MeetingDebriefService {
     const found = await this.records.closable(who, id)
     const meetingId = found.thread.channel === 'meeting' ? found.thread.externalId : null
     if (!meetingId || !found.row.booked) {
-      throw conflict('Liên hệ này không phải một cuộc họp đã hẹn — dùng “Xác nhận”.')
+      throw conflict('Đây không phải cuộc họp đã hẹn. Dùng “Xác nhận”.')
     }
     return this.records.confirm(who, found, body, (tx) =>
       hook.meetingHeld(tx, who, {

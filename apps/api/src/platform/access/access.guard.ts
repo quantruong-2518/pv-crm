@@ -58,7 +58,7 @@ export class AccessGuard implements CanActivate {
       throw new PvError({
         kind: 'forbidden',
         status: 403,
-        title: 'Đường dữ liệu chưa khai quyền.',
+        title: 'Chức năng này chưa mở.',
         reason: 'permission-denied',
       })
     }

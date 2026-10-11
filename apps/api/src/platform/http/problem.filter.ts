@@ -66,7 +66,7 @@ export class ProblemFilter implements ExceptionFilter {
     /* Lỗi không lường trước: ghi ĐỦ vào log, trả RẤT ÍT ra ngoài. Một stack
        trace trong response là bản đồ nội thất của máy chủ gửi cho người lạ. */
     this.log.error(`${req.method} ${req.url}`, raw instanceof Error ? raw.stack : String(raw))
-    return new PvError({ kind: 'server', status: 500, title: 'Máy chủ gặp sự cố.' })
+    return new PvError({ kind: 'server', status: 500, title: 'Hệ thống gặp sự cố.' })
   }
 
   private kindOf(status: number): ProblemKind {

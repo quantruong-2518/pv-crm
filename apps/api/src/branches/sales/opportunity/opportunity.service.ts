@@ -364,7 +364,7 @@ export class OpportunityService {
     if (lead === null) throw notFound('lead', body.leadCode)
     if (!holds(who, lead.ownerId)) throw foreignLead(body.leadCode)
     if (lead.exited)
-      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
+      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -902,7 +902,7 @@ export class OpportunityService {
       locked.pendingSign !== pendingSign ||
       locked.lost !== lost
     ) {
-      throw conflict(`Cơ hội ${code} vừa được ký, gửi duyệt ký hoặc dừng — tải lại rồi thử lại.`)
+      throw conflict(`Cơ hội ${code} vừa được ký, gửi duyệt ký hoặc dừng. Tải lại rồi thử lại.`)
     }
   }
 
@@ -923,7 +923,7 @@ export class OpportunityService {
     const foreign = rows.find((r) => !holds(who, r.ownerId))
     if (foreign) throw foreignLead(foreign.code)
     if (rows.some((r) => r.exited))
-      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`)
+      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
     return new Map(rows.map((r) => [r.code, r.accountCode]))
   }
 
@@ -1090,5 +1090,4 @@ function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): Touch
 const sellerAmong = (ids: readonly string[], roles: ReadonlyMap<string, RoleId[]>): boolean =>
   hasSellerOf(ids.map((id) => ({ role: 'SALE' as const, roleIds: roles.get(id) })))
 
-const frozenForSign = () =>
-  conflict('Cơ hội đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa')
+const frozenForSign = () => conflict('Cơ hội đang chờ duyệt ký, chưa sửa được.')

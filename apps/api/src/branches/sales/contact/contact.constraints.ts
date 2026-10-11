@@ -15,14 +15,13 @@ export const CONTACT_CONSTRAINTS: ConstraintBook = {
    *  point the user at the wrong one. The sentence carries the rule instead. */
   contact_no_blank: {
     kind: 'invalid',
-    message:
-      'Ô nào không điền thì để trống hẳn — một ô chỉ có dấu cách không phải một câu trả lời.',
+    message: 'Ô không điền thì để trống, đừng chỉ nhập dấu cách.',
   },
 
   contact_channel_known: {
     kind: 'invalid',
     fields: ['channel'],
-    message: 'Kênh liên lạc phải chọn từ danh sách — không gõ tay một kênh mới.',
+    message: 'Kênh liên lạc phải chọn từ danh sách.',
   },
 
   /** The partial unique index behind `POST …/primary`.
@@ -36,18 +35,17 @@ export const CONTACT_CONSTRAINTS: ConstraintBook = {
   contact_primary_idx: {
     kind: 'conflict',
     fields: ['isPrimary'],
-    message:
-      'Lead này đã có một người liên hệ chính. Đổi người chính bằng nút "Đặt làm chính", đừng gắn cờ trực tiếp.',
+    message: 'Lead này đã có người liên hệ chính.',
   },
 
   contact_lead_code_lead_code_fk: {
     kind: 'invalid',
-    message: 'Lead của người liên hệ này không còn trong sổ.',
+    message: 'Không tìm thấy lead của người liên hệ này.',
   },
 
   contact_created_by_actor_id_fk: {
     kind: 'invalid',
-    message: 'Người ghi dòng này không còn trong sổ nhân sự.',
+    message: 'Không tìm thấy người ghi dòng này.',
   },
 
   contact_code_object_code_fk: {

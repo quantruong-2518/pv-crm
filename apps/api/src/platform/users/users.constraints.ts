@@ -35,7 +35,6 @@ export const ACTOR_CONSTRAINTS: ConstraintBook = {
   actor_email_unique: {
     kind: 'conflict',
     fields: ['email'],
-    message:
-      'Hòm thư này đã thuộc về một tài khoản khác. Một hòm thư chỉ mở được một tài khoản — tìm người đó trong sổ, hoặc dùng địa chỉ khác.',
+    message: 'Hòm thư này đã thuộc về một tài khoản khác. Dùng địa chỉ khác.',
   },
 }

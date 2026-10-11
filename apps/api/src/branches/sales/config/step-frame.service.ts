@@ -168,7 +168,7 @@ export class StepFrameService {
       const { address, freeEntry } = change.rule
       if (freeEntry || (await this.repo.ofAddress(address, handle)).some((r) => r.active)) return
       throw conflict(
-        `Trạng thái ${stateWords(address)} chưa có bước nào đang bật trong danh sách — thêm ít nhất một bước cho trạng thái này trước, rồi mới tắt tự điền.`,
+        `Thêm ít nhất một mẫu đang bật cho ${stateWords(address)} trước khi tắt tự điền.`,
       )
     }
     if (change.kind === 'step-template-create') {
@@ -211,7 +211,7 @@ export class StepFrameService {
     const rows = await this.repo.ofAddress(address, handle)
     if (rows.some((r) => r.active && r.id !== row.id)) return
     throw conflict(
-      `“${row.name}” là bước cuối cùng đang bật của ${stateWords(address)}, nơi không cho tự điền — bật tự điền hoặc để lại ít nhất một bước.`,
+      `“${row.name}” là mẫu đang bật cuối cùng của ${stateWords(address)}. Bật tự điền hoặc giữ lại ít nhất một mẫu.`,
     )
   }
 
@@ -219,7 +219,7 @@ export class StepFrameService {
     const kind = (await this.repo.stepKinds(handle)).find((k) => k.id === kindId)
     if (kind?.active) return
     throw invalid(
-      { kindId: ['Loại việc không có trong danh mục hoặc đã tắt — chọn loại việc khác.'] },
+      { kindId: ['Loại việc này không có hoặc đã tắt. Chọn loại việc khác.'] },
       'Loại việc không hợp lệ.',
     )
   }
@@ -246,7 +246,7 @@ export class StepFrameService {
       throw invalid(
         {
           [`${prefix}templateId`]: [
-            `Ở ${stateWords(address)}, việc tiếp theo phải chọn từ danh sách — chọn một việc trong danh sách.`,
+            `Ở ${stateWords(address)}, hãy chọn việc tiếp theo trong danh sách.`,
           ],
         },
         'Việc tiếp theo phải chọn từ danh sách.',
@@ -257,9 +257,7 @@ export class StepFrameService {
     if (!template?.active || address === null || !sameAddress(template, address)) {
       throw invalid(
         {
-          [`${prefix}templateId`]: [
-            'Danh sách việc tiếp theo vừa thay đổi — tải lại và chọn lại việc trong danh sách.',
-          ],
+          [`${prefix}templateId`]: ['Danh sách việc tiếp theo vừa đổi. Tải lại và chọn lại.'],
         },
         'Việc đã chọn không còn trong danh sách.',
       )
@@ -281,7 +279,7 @@ export class StepFrameService {
       throw invalid(
         {
           [`${prefix}text`]: [
-            `Ở ${stateWords(address)} không được sửa nội dung việc trong danh sách — giữ nguyên “${template.name}”.`,
+            `Ở ${stateWords(address)} không được sửa nội dung việc. Giữ nguyên “${template.name}”.`,
           ],
         },
         'Nội dung việc tiếp theo phải giữ nguyên theo danh sách.',
@@ -290,9 +288,7 @@ export class StepFrameService {
     if (body.kindId !== undefined && body.kindId !== template.kindId) {
       throw invalid(
         {
-          [`${prefix}kindId`]: [
-            'Loại việc phải theo việc đã chọn trong danh sách — tải lại và chọn lại.',
-          ],
+          [`${prefix}kindId`]: ['Loại việc phải khớp với việc đã chọn. Tải lại và chọn lại.'],
         },
         'Loại việc không khớp với việc đã chọn.',
       )
@@ -313,7 +309,7 @@ function assertNameFree(
   const clash = rows.find((r) => r.active && r.id !== exceptId && r.name.toLowerCase() === key)
   if (!clash) return
   throw conflict(
-    `Trạng thái ${stateWords(address)} đã có mẫu việc tiếp theo tên "${clash.name}" — đặt tên khác.`,
+    `Trạng thái ${stateWords(address)} đã có mẫu việc tiếp theo tên "${clash.name}". Đặt tên khác.`,
   )
 }
 
@@ -330,6 +326,6 @@ function assertOrderCovers(have: string[], given: string[]): void {
         ...(strange.length > 0 ? [`Không thuộc trạng thái này: ${strange.join(', ')}`] : []),
       ],
     },
-    'Thứ tự mới phải liệt kê đúng và đủ các mẫu việc tiếp theo của trạng thái.',
+    'Thứ tự mới phải có đủ các mẫu việc tiếp theo của trạng thái.',
   )
 }

@@ -141,7 +141,7 @@ export class MailLetterService {
 
   async send(who: Actor, body: MailGroupSendRequest): Promise<MailGroupSendResponse> {
     if (!this.env.PV_MAS_ENABLED) {
-      throw conflict('Đường gửi thư đang tắt trên máy chủ này — cần bật PV_MAS_ENABLED.')
+      throw conflict('Chưa bật gửi thư. Báo quản trị viên.')
     }
     const subject = await this.subjectFor(who, body.door, body.subjectCode)
     const eventKey = eventKeyOf(body.door, body.letterId, 'letter')
@@ -150,9 +150,7 @@ export class MailLetterService {
     const filed = await this.repo.filedLetter(eventKey)
     if (filed) {
       if (filed.createdBy !== who.id || !sameLetter(filed, body, scheduledAt)) {
-        throw conflict(
-          'Mã thư này đã được dùng cho một thư khác — mở lại khung soạn để gửi thư mới.',
-        )
+        throw conflict('Mã thư này đã dùng cho thư khác. Mở lại khung soạn để gửi thư mới.')
       }
       return reply(filed.runId, filed.toCount, body.to.length, filed.state)
     }
@@ -177,7 +175,7 @@ export class MailLetterService {
       const first = to[0]?.contact
       if (!first?.email) {
         throw invalid(
-          { to: ['Không còn người nhận nào nhận được thư — kiểm tra email của từng người.'] },
+          { to: ['Không có người nhận nào gửi được. Kiểm tra email của từng người.'] },
           'Không còn người nhận hợp lệ.',
         )
       }
@@ -186,13 +184,13 @@ export class MailLetterService {
       /* Never fall back to shared here: the person chose who the letter is from. */
       if (sender.unready) {
         throw conflict(
-          'Chưa kết nối được hộp thư của bạn — kết nối tài khoản Google công ty, hoặc chọn gửi từ hộp thư chung.',
+          'Hộp thư của bạn chưa kết nối. Kết nối Google công ty hoặc gửi từ hộp thư chung.',
         )
       }
       const limit = this.env.PV_GMAIL_DAILY_ADDRESS_MAX
       if (sender.usedToday !== null && sender.usedToday + addresses.length > limit) {
         throw conflict(
-          `Hộp thư của bạn đã gửi tới ${sender.usedToday}/${limit} địa chỉ trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ ${scheduledAt ? 'quanh giờ hẹn gửi' : 'gần nhất'} — thư này có ${addresses.length} địa chỉ, vượt hạn mức.`,
+          `Hộp thư của bạn đã gửi tới ${sender.usedToday}/${limit} địa chỉ trong ${MAIL_PERSONAL_WINDOW_HOURS} giờ ${scheduledAt ? 'quanh giờ hẹn gửi' : 'gần nhất'}. Thư này có ${addresses.length} địa chỉ, vượt hạn mức.`,
         )
       }
 
@@ -235,7 +233,7 @@ export class MailLetterService {
       )
       /* Null = the same key landed between the read above and this insert —
          a concurrent retry. Roll this copy back; the other one stands. */
-      if (!deliveryId) throw conflict('Thư này vừa được gửi bởi một yêu cầu khác — tải lại để xem.')
+      if (!deliveryId) throw conflict('Thư này vừa được gửi. Tải lại để xem.')
 
       /* Timed = care scheduled; sent now moves nothing here — the letter going
          out does, in the worker (`LeadMailSentHook`, ADR 0068 §1–2). */
@@ -314,18 +312,15 @@ export class MailLetterService {
           ? deal?.inScope
           : (await this.contracts.byCode(who, code))?.inScope
     if (!inScope) {
-      throw denied(
-        'out-of-scope',
-        `${MAIL_DOOR_LABEL[door]} ${code} không đứng tên bạn — hỏi người đang giữ nó.`,
-      )
+      throw denied('out-of-scope', `${MAIL_DOOR_LABEL[door]} ${code} do người khác phụ trách.`)
     }
     const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
     if (found && (LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {
       throw conflict(
-        `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS} — không gửi thư được.`,
+        `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS}. Không gửi được thư.`,
       )
     }
-    if (deal?.row.state === 'lost') throw conflict('Cơ hội đã dừng — gửi thư từ lead.')
+    if (deal?.row.state === 'lost') throw conflict('Cơ hội đã dừng. Gửi thư từ lead.')
     return subject
   }
 

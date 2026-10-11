@@ -29,8 +29,8 @@ import { LEAD_GONE_STATES } from './lead-state'
  *  No campaign enrolment: membership is a campaign's MAS audience, and a
  *  scanned card is no opt-in (ADR 0041) — the lead keeps the attribution. */
 
-export const COMMIT_FAILED = 'Không tạo xong lead từ lô này — lead đã tạo vẫn giữ nguyên.'
-const CREATOR_REVOKED = 'Người tải lô này không còn quyền tạo lead — lô không ghi gì.'
+export const COMMIT_FAILED = 'Không tạo xong lead từ lô này.'
+const CREATOR_REVOKED = 'Người tải lô này không còn quyền tạo lead.'
 
 /** The sweeper failed the batch mid-commit: roll the group back and stop. */
 class NoLongerCommitting extends Error {}

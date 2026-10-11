@@ -38,7 +38,7 @@ export function refuseByAsks(asks: MotionAsks, sent: AskedFields): void {
     no('refCode', MOTION_ASKS_MISSING.REFERRER)
   }
   if (asks !== 'ORIGIN' && sent.origin) {
-    no('origin', `Nguồn được lấy theo ${DERIVED_FROM[asks]} — không chọn nguồn riêng`)
+    no('origin', `Nguồn lấy theo ${DERIVED_FROM[asks]}, không chọn riêng.`)
   }
   if (asks !== 'REFERRER' && sent.refCode) {
     no('refCode', 'Phương án tiếp cận này không nhận mã giới thiệu')
@@ -59,6 +59,6 @@ export async function referrerOf(
   refCode: string,
 ): Promise<{ code: string; name: string; originId: string }> {
   const found = await partners.live(db, refCode)
-  if (!found) throw invalid({ refCode: ['Mã giới thiệu không tồn tại hoặc đã ẩn'] })
+  if (!found) throw invalid({ refCode: ['Không tìm thấy mã giới thiệu.'] })
   return found
 }

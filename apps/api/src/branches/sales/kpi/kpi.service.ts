@@ -160,7 +160,7 @@ export class KpiService {
       )
       if (pending.length === 0) throw conflict('Vai này không có chỉ tiêu nào đang chờ duyệt.')
       if (pending.some((r) => r.proposedById === who.id)) {
-        throw conflict('Bạn là người gửi đề nghị chỉ tiêu này nên cần một quản lý khác duyệt.')
+        throw conflict('Bạn là người gửi nên cần quản lý khác duyệt.')
       }
       const seenAt = new Map(body.seen.map((s) => [s.key, Date.parse(s.proposedAt)]))
       const same =
@@ -180,10 +180,7 @@ export class KpiService {
 
   async acknowledge(who: Actor, period: KpiPeriodKey, role: RoleId): Promise<KpiMeResponse> {
     if (!who.roleIds.map(toContractRole).includes(role)) {
-      throw denied(
-        'permission-denied',
-        'Bạn không giữ vai này nên không nhận chỉ tiêu của nó được.',
-      )
+      throw denied('permission-denied', 'Bạn không giữ vai này nên không nhận được chỉ tiêu.')
     }
     this.stillOpen(period)
     await this.targets.acknowledge({ actorId: who.id, role, period, acknowledgedAt: new Date() })
@@ -236,7 +233,7 @@ export class KpiService {
    *  meant to be agreed before its month starts. */
   private stillOpen(period: KpiPeriodKey): void {
     if (this.clock(period).phase === 'closed') {
-      throw conflict('Tháng này đã kết thúc nên chỉ tiêu của nó không còn thay đổi được.')
+      throw conflict('Tháng này đã kết thúc, không đổi được chỉ tiêu.')
     }
   }
 
