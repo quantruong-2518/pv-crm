@@ -223,7 +223,7 @@ export function MailPreviewCard({
       <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
         {caption ??
           (recipients && recipients.length > 0
-            ? 'Thư gửi đi sẽ giống hệt bản này. Mỗi người nhận thấy tên của riêng mình.'
+            ? 'Bản xem trước. Tên thay theo từng người nhận.'
             : 'Chưa chọn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi.')}
       </p>
     </GlassCard>

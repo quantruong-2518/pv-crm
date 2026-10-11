@@ -531,7 +531,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             errors={errors.roleIds}
             hint={
               isMe
-                ? 'Không tự đổi vai của chính mình. Hạ vai xong bạn sẽ bị khoá khỏi màn này và không tự mở lại được.'
+                ? 'Không tự đổi vai của chính mình.'
                 : 'Chọn ít nhất một vai. Vai quyết định người này mở được màn nào; Giám đốc và Trưởng phòng Kinh doanh mở được cả màn Quản trị này.'
             }
           >
@@ -599,7 +599,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           <Checkbox
             checked={ownOnly}
             label={SCOPE_OWN_LABEL}
-            hint="Người này chỉ thấy lead và cơ hội do họ phụ trách."
+            hint="Chỉ thấy lead và cơ hội do người này phụ trách."
             onChange={(on) => {
               setOwnOnly(on)
               clearError('ownOnly')

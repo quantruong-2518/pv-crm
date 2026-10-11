@@ -194,10 +194,7 @@ function EditPartnerBody({ partner }: { partner: Partner }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionTitle
-          size="sm"
-          hint="Chỉ áp dụng cho lead được giới thiệu từ nay. Lead đã có trong sổ giữ nguyên nguồn cũ."
-        >
+        <SectionTitle size="sm" hint="Chỉ áp dụng cho lead giới thiệu từ nay.">
           Đổi loại
         </SectionTitle>
         <KindField value={originId} onChange={setOriginId} />

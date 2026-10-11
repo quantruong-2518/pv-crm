@@ -388,7 +388,7 @@ export function SourceDetailPage() {
                 size="sm"
                 hint={
                   source.costByKind.total > 0
-                    ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của chiến dịch. Chỉ gồm tiền đã chi, không gồm giờ công.`
+                    ? `${source.costByKind.rows.length} loại chi tiền mặt · tổng ${millions(source.costByKind.total)} · không gồm giờ công`
                     : undefined
                 }
               >

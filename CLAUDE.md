@@ -87,11 +87,11 @@ tách theo `/split`, không để nó phình tiếp (`max-lines` gác). Skill
 `karpathy-guidelines` là bản đầy đủ — **cần cài marketplace `karpathy-skills`
 trước**, `pnpm ctx` sẽ nhắc nếu chưa.
 
-**4 · Chữ trên màn phải thực sự Việt, sáng nghĩa.** Sản phẩm B2B, người dùng
-18–50 tuổi, không cần biết công nghệ vẫn dùng được. Mỗi chuỗi trả lời "ô này
-điền gì" hoặc "bấm thì chuyện gì xảy ra", bằng từ dân văn phòng vẫn dùng. Giữ hệ
-quả, bỏ cơ chế. Đọc `docs/design-system/ui-copy.md` trước khi viết bất cứ chuỗi
-nào người dùng thấy.
+**4 · Chữ trên màn phải thực sự Việt, sáng nghĩa, tinh gọn.** Sản phẩm B2B,
+người dùng 18–50 tuổi, không cần biết công nghệ vẫn dùng được. Mỗi chuỗi trả lời
+"ô này điền gì" hoặc "bấm thì chuyện gì xảy ra": một câu ngắn, nêu sự việc, không
+diễn giải. Giữ hệ quả, bỏ cơ chế. Đọc `docs/design-system/ui-copy.md` trước khi
+viết bất cứ chuỗi nào người dùng thấy.
 
 ## Cái gì máy gác, cái gì người gác
 

@@ -10,13 +10,14 @@ because it is content. Do not translate it.
 
 PV One is B2B. Its users are 18 to 50 years old and must be able to use it with
 no technology knowledge. The owner's standard for content is
-`'thực sự Việt, sáng nghĩa'` — genuinely Vietnamese, plain in meaning.
+`'thực sự Việt, sáng nghĩa'` — genuinely Vietnamese, plain in meaning — and
+`'tinh gọn'` — lean: an enterprise product does not explain itself.
 
 **The one test.** A string answers "what do I fill in here" or "what happens
-when I press this", in words an office worker already uses. A string that
-answers anything else is cut.
+when I press this", in one short sentence, in words an office worker already
+uses. A string that answers anything else is cut.
 
-## Five faults
+## Faults
 
 Each "before" was taken from the code when this page was written; the file is
 named so the screen can be found.
@@ -24,8 +25,7 @@ named so the screen can be found.
 1. **Implementation leaks** — the string explains how the product does it.
    `apps/web/src/pages/users-parts.tsx`
    - Before: `'Chỉ thấy lead và cơ hội đứng tên mình. Máy chủ cắt ngay trong SQL, không phải bộ lọc của màn.'`
-   - After: `'Người này chỉ thấy lead và cơ hội do họ phụ trách.'` — an admin
-     ticks this box for someone else, so `'mình'` would not say whose.
+   - After: `'Chỉ thấy lead và cơ hội do người này phụ trách.'`
 2. **Defensive negation** — `'chứ không…'`, `'không phải…'`: the string argues
    against a reading the user never had.
    `apps/web/src/pages/source-parts.tsx`
@@ -34,22 +34,27 @@ named so the screen can be found.
 3. **Counting the UI instead of naming the action.**
    `apps/web/src/pages/campaign-profile-parts.tsx`
    - Before: `'Bảy ô này mở một chiến dịch nháp. Chưa lá thư nào rời máy ở bước này.'`
-   - After: `'Chưa gửi thư nào ở bước này.'` — the button already says
-     `'Tạo chiến dịch nháp'`, so that half is not said twice.
+   - After: `'Chưa gửi thư nào ở bước này.'` — the button says the rest.
 4. **Capitals for emphasis, narrator voice** — the string talks about its own
    fields as characters. Law 6 in `docs/design-system/laws.md` already rules
    out uppercase.
    `apps/web/src/components/account-fields.tsx`
    - Before: `'Có mã số thuế thì nó THẮNG tên: hai dòng cùng mã số thuế là một công ty, dù tên viết khác nhau.'`
-   - After: `'Trùng mã số thuế là cùng một công ty, kể cả khi tên viết khác nhau.'`
+   - After: `'Trùng mã số thuế là cùng một công ty.'`
 5. **Coined verbs and metaphors.**
    `apps/web/src/pages/opportunity-new.tsx`
    - Before: `'Cơ hội mới mọc ra từ lead đang chọn. Mã do máy chủ cấp lúc tạo.'`
-   - After: `'Mã được cấp tự động.'` — the title already says `'Mở cơ hội'`,
-     so the first sentence goes.
+   - After: `'Mã được cấp tự động.'` — the title says the rest.
+6. **Explaining instead of stating.**
+   `apps/web/src/components/contacts-card.tsx`
+   - Before: `'Chỉ TÊN là bắt buộc — một người mình chưa xin được số vẫn là một người đã gặp.'`
+   - After: `'Chỉ tên là bắt buộc.'`
 
 ## Rules
 
+- **One short sentence that states the fact.** No reason why, no reassurance,
+  no exception, no `'kể cả khi…'` clause. If the label already says it, no
+  hint at all.
 - **Keep the consequence, drop the mechanism.** The user needs to know the code
   is assigned automatically; not who assigns it.
 - **Reuse the words already on labels**, do not coin new ones. The label maps
@@ -62,7 +67,6 @@ named so the screen can be found.
   out; the rest are eyes-only.
 - **No sentence shapes translated from English**: a passive nobody needs,
   `'một cách…'`, `'việc'` + verb.
-- **A hint that only restates its label is deleted**, not rewritten.
 
 ## Why AI writes this way here
 
@@ -80,9 +84,9 @@ Machine-enforced — `aurora/no-ai-slop`
   vowel mark.
 
 It looks only at strings written straight into JSX: text, string attributes,
-and `{}` expressions, including ternaries and `&&`. Existing violations are
-locked by count in `eslint-suppressions.json`; `pnpm lint:debt` says how many
-are left.
+and `{}` expressions, including ternaries and `&&`. A violation that
+predates the rule is locked by count in `eslint-suppressions.json`, not
+exempted; `pnpm lint:debt` says whether any remain.
 
 Eyes-only — everything else on this page, and what the rule does not reach:
 

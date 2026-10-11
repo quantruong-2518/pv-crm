@@ -67,7 +67,7 @@ export function AccountCreateDialog({
       onClose={onClose}
       width="lg"
       title="Mở công ty mới"
-      subtitle="Mỗi công ty là một khách. Lead, đơn và hợp đồng của họ đều gắn với công ty này."
+      subtitle="Lead, đơn và hợp đồng sẽ gắn với công ty này."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <span

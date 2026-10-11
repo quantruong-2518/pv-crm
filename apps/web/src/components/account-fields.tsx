@@ -41,7 +41,7 @@ export function AccountFields({
           label="Tên công ty"
           required
           errors={errors.name}
-          hint="Tên gọi trong sổ. Nếu chưa có mã số thuế, tên này dùng để kiểm tra công ty đã có trong sổ hay chưa."
+          hint="Dùng để kiểm tra trùng khi chưa có mã số thuế."
           className="sm:col-span-2"
         >
           <Input
@@ -71,7 +71,7 @@ export function AccountFields({
         <Field
           label="Mã số thuế"
           errors={errors.taxCode}
-          hint="Trùng mã số thuế là cùng một công ty, kể cả khi tên viết khác nhau."
+          hint="Trùng mã số thuế là cùng một công ty."
         >
           <Input
             value={draft.taxCode}

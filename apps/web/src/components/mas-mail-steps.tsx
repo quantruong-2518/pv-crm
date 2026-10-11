@@ -166,8 +166,7 @@ function ChosenGrid({
         </p>
       ) : null}
       <p className="text-glass-foreground m-0 text-[12px] leading-5">
-        Danh sách người nhận được kiểm tra tự động sau mỗi lần thay đổi. Kết quả hiện trên từng
-        dòng.
+        Người nhận được kiểm tra tự động. Kết quả hiện trên từng dòng.
       </p>
     </div>
   )
