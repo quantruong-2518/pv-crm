@@ -33,6 +33,7 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { stillEditable } from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
+import { edgeTrimmed } from './mail-address-sql'
 import { leadLive } from '../lead/lead-scope'
 import { dealStoodBy, leadDealHeldBy } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
@@ -88,7 +89,7 @@ const LEAD_FACTS = {
   company: lead.company,
   contactName: lead.contactName,
   contactTitle: lead.contactTitle,
-  email: sql<string | null>`NULLIF(trim(${lead.email}), '')`,
+  email: sql<string | null>`NULLIF(${edgeTrimmed(lead.email)}, '')`,
   sourceKind: lead.sourceKind,
   suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
   state: lead.state,
@@ -98,7 +99,7 @@ const LEAD_FACTS = {
  *  docblock for why the predicate is repeated here rather than asked one
  *  address at a time. */
 const SUPPRESSED_ON = and(
-  eq(emailSuppression.recipient, sql`lower(trim(${lead.email}))`),
+  eq(emailSuppression.recipient, sql`lower(${edgeTrimmed(lead.email)})`),
   isNull(emailSuppression.releasedAt),
 )
 

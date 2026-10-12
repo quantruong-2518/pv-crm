@@ -10,6 +10,7 @@ import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { opportunity } from '../opportunity/opportunity.schema'
+import { edgeTrimmed } from './mail-address-sql'
 
 /** The object a group letter is about, resolved to the lead that carries its
  *  scope and the company whose contacts may be addressed. */
@@ -125,7 +126,7 @@ export class MailLetterRepository {
       .select({
         code: contact.code,
         name: contact.name,
-        email: sql<string | null>`NULLIF(lower(trim(${contact.email})), '')`,
+        email: sql<string | null>`NULLIF(lower(${edgeTrimmed(contact.email)}), '')`,
         belongs,
         suppressedReason: emailSuppression.reason,
       })
@@ -134,7 +135,7 @@ export class MailLetterRepository {
       .leftJoin(
         emailSuppression,
         and(
-          eq(emailSuppression.recipient, sql`lower(trim(${contact.email}))`),
+          eq(emailSuppression.recipient, sql`lower(${edgeTrimmed(contact.email)})`),
           isNull(emailSuppression.releasedAt),
         ),
       )
