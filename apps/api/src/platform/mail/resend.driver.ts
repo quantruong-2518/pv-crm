@@ -97,7 +97,7 @@ export class ResendMailDriver implements MailPort {
         kind: 'retry',
         wide: true,
         code: 'unexpected_exception',
-        summary: 'Gửi mail thất bại không rõ nguyên nhân — SDK ném lỗi thay vì trả về.',
+        summary: 'Gửi mail thất bại, không rõ nguyên nhân.',
       }
     }
 

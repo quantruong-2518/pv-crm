@@ -110,15 +110,13 @@ export function AcceptDealButton({
           </>
         }
         fieldLabel="Giao thêm Sale đứng đơn"
-        fieldHint="Tuỳ chọn. Người chọn ở đây được thêm vào đơn, không thay ai đang đứng."
+        fieldHint="Không bắt buộc."
         sellers={sellers}
         onChange={setSellers}
         names={new Map(standing.map((o) => [o.id, o.name]))}
         primary={{ lane, value: primary, onChange: setPrimaryPick }}
         note={
-          sellers.length === 0
-            ? 'Có thể giao Sale sau — cơ hội cần một Sale trước khi Chốt thắng.'
-            : ''
+          sellers.length === 0 ? 'Giao Sale sau cũng được. Cần có Sale trước khi Chốt thắng.' : ''
         }
         error={accept.error}
         busy={accept.isPending}

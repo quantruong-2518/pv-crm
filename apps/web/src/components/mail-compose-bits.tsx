@@ -39,9 +39,7 @@ export function MailFloatingAids({
           aria-label="Nên xem lại trước khi gửi"
           className="glass-overlay flex w-[360px] max-w-[calc(100vw-48px)] flex-col gap-2 rounded-lg p-4"
         >
-          <span className="text-[13px] font-semibold leading-5">
-            Nên xem lại · không chặn nút Gửi
-          </span>
+          <span className="text-[13px] font-semibold leading-5">Nên xem lại</span>
           <ul className="m-0 flex max-h-[360px] list-none flex-col gap-2 overflow-y-auto p-0">
             {hints?.map((hint) => (
               <li
@@ -223,8 +221,8 @@ export function MailPreviewCard({
       <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">
         {caption ??
           (recipients && recipients.length > 0
-            ? 'Đây là thư thật, dựng bằng đúng bộ khung máy chủ dùng khi gửi. Mỗi người nhận được thay tên riêng.'
-            : 'Chưa chọn người nhận nên tên và công ty đang là dữ liệu mẫu. Bố cục thì đúng như thư gửi đi.')}
+            ? 'Bản xem trước. Tên thay theo từng người nhận.'
+            : 'Chưa chọn người nhận nên tên và công ty là dữ liệu mẫu.')}
       </p>
     </GlassCard>
   )

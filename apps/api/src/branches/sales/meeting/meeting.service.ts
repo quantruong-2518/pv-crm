@@ -180,7 +180,7 @@ export class MeetingService {
   async drop(who: Actor, code: string, id: string): Promise<void> {
     const row = await this.changeable(who, code, id)
     if (row.at.getTime() <= Date.now()) {
-      throw conflict('Lịch họp đã diễn ra nên không thể xoá.')
+      throw conflict('Lịch họp đã diễn ra, không xoá được.')
     }
     const files = await this.repo.run(async (tx) => {
       await this.stillOpen(tx, id)
@@ -216,9 +216,9 @@ export class MeetingService {
     if (!row || row.subjectCode !== held.subjectCode) {
       throw new Error(`meeting ${held.meetingId} is not on ${held.subjectCode}`)
     }
-    if (row.heldAt) throw conflict('Cuộc họp này đã được chốt họp xong.')
+    if (row.heldAt) throw conflict('Cuộc họp này đã chốt “Họp xong”.')
     if (row.at.getTime() > Date.now()) {
-      throw conflict('Cuộc họp chưa bắt đầu nên chưa chốt “Họp xong” được.')
+      throw conflict('Cuộc họp chưa bắt đầu, chưa chốt “Họp xong” được.')
     }
     await this.dealEditable(tx, row.subjectCode)
     await this.guestsBelongHere(tx, row.subjectCode, held.guests)
@@ -304,7 +304,7 @@ export class MeetingService {
     const row = await this.repo.byId(id, tx)
     if (row?.subjectCode === code) return
     throw invalid(
-      { meetingId: [`Cuộc họp này không thuộc ${code} — chọn một cuộc họp của chính ${code}.`] },
+      { meetingId: [`Chọn một cuộc họp của ${code}.`] },
       `Cuộc họp không thuộc ${code}.`,
     )
   }
@@ -418,9 +418,7 @@ export class MeetingService {
 
     throw invalid(
       {
-        guests: [
-          `Người liên hệ ${stray.join(', ')} không thuộc ${subjectCode} — chỉ chọn được người trong sổ liên hệ của chính ${subjectCode}.`,
-        ],
+        guests: [`Người liên hệ ${stray.join(', ')} không thuộc ${subjectCode}.`],
       },
       `Người dự không thuộc ${subjectCode}.`,
     )
@@ -446,8 +444,8 @@ export class MeetingService {
     throw denied(
       'permission-denied',
       owner
-        ? `Chỉ ${owner.actor.name} hoặc cấp trên của ${owner.actor.name} mới đổi được lịch họp này.`
-        : 'Lịch họp này không còn người đặt — chỉ trưởng phòng kinh doanh hoặc giám đốc đổi được.',
+        ? `Chỉ ${owner.actor.name} và cấp trên của họ mới đổi được lịch họp này.`
+        : 'Chỉ trưởng phòng kinh doanh hoặc giám đốc đổi được lịch họp này.',
     )
   }
 
@@ -459,7 +457,7 @@ export class MeetingService {
   }
 }
 
-const HELD = 'Cuộc họp đã họp xong nên không sửa hay xoá được.'
+const HELD = 'Cuộc họp đã họp xong, không sửa hay xoá được.'
 const DAY_MS = 86_400_000
 /** Asia/Ho_Chi_Minh is UTC+7 with no daylight saving. */
 const HCM_OFFSET_MS = 7 * 3_600_000

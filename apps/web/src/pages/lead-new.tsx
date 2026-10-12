@@ -41,7 +41,7 @@ export function LeadNewPage() {
             back={{ label: 'Sổ lead', onClick: () => navigate('/sales/leads') }}
             title="Lead mới"
             className="gap-3 [&>div]:gap-3 [&_h2]:tracking-[-.4px]"
-            description="Một dòng một lần, người gõ chịu trách nhiệm từng ô. Lead vào sổ ở kho chung, chưa ai nhận — giao cho người phụ trách là một việc riêng."
+            description="Lead mới vào kho chung, chưa ai nhận."
             meta={<SaveStateNote state={draft.saveState} />}
           />
         </GlassCard>

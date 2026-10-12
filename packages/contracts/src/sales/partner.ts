@@ -15,7 +15,7 @@ import { LeadOriginId } from './lead-origin'
  *  must be an origin offered under `REFERRAL` or `PARTNER` — that pairing is
  *  server-enforced, not a zod refinement, because it reads the live catalog. */
 
-export const PartnerCode = z.string().regex(/^REF-\d{4,}$/, 'Mã đối tác sai dạng')
+export const PartnerCode = z.string().regex(/^REF-\d{4,}$/, 'Mã đối tác sai dạng.')
 export type PartnerCode = z.infer<typeof PartnerCode>
 
 export const Partner = z.object({
@@ -72,7 +72,7 @@ export const PartnerPatch = z
     active: z.boolean().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
-    message: 'Không có ô nào để sửa',
+    message: 'Không có gì để sửa.',
   })
 export type PartnerPatch = z.infer<typeof PartnerPatch>
 

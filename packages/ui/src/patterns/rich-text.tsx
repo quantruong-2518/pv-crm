@@ -155,7 +155,7 @@ export function RichText({
 
       {source ? (
         <textarea
-          aria-label={`${label} — HTML thô`}
+          aria-label={`${label} · mã HTML`}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           style={{ minHeight }}

@@ -26,7 +26,7 @@ const CONTACT_UNIQUE = 'partner_contact_unique'
 function usable(held: PartnerRowDb): PartnerRowDb {
   if (held.active) return held
   throw invalid({
-    contactCode: [`Người này đã có mã ${held.code} nhưng đang ẩn — bật lại ở trang Đối tác.`],
+    contactCode: [`Người này đã có mã ${held.code} nhưng đang ẩn. Bật lại ở trang Đối tác.`],
   })
 }
 
@@ -121,7 +121,7 @@ export class PartnerService {
   private async assertOrigin(tx: Db, originId: string): Promise<void> {
     if (!(await this.repo.originOffered(tx, originId))) {
       throw invalid({
-        originId: ['Nguồn phải đang bật và thuộc một phương án hỏi mã giới thiệu.'],
+        originId: ['Nguồn phải đang bật và có hỏi mã giới thiệu.'],
       })
     }
   }

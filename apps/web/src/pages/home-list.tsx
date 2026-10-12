@@ -76,9 +76,7 @@ export function PriorityList({
             {data.hidden > 0 && (
               <>
                 {' · '}
-                <span className="text-warning">
-                  {num(data.hidden)} không hiển thị do phạm vi dữ liệu
-                </span>
+                <span className="text-warning">{num(data.hidden)} nằm ngoài phạm vi của bạn</span>
               </>
             )}
           </span>
@@ -111,7 +109,7 @@ export function PriorityList({
           <EmptyState
             icon={TriangleAlert}
             message={`Không tải được danh sách hành trình. ${
-              isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+              isApiError(error) ? userMessage(error) : 'Thử lại.'
             }`}
             action={{ label: 'Thử lại', onClick: onRetry }}
             className="py-12"
@@ -127,10 +125,10 @@ export function PriorityList({
             icon={Inbox}
             message={
               filter
-                ? 'Không có hành trình nào phù hợp với bộ lọc hiện tại.'
+                ? 'Không có hành trình nào khớp bộ lọc.'
                 : data.hidden > 0
-                  ? `${data.hidden} hành trình nằm ngoài phạm vi của bạn nên không hiện ở đây.`
-                  : 'Chưa có hành trình nào đang chạy. Hành trình sẽ xuất hiện khi lead bắt đầu được theo dõi.'
+                  ? `${data.hidden} hành trình nằm ngoài phạm vi của bạn.`
+                  : 'Chưa có hành trình nào đang chạy.'
             }
             action={
               filter

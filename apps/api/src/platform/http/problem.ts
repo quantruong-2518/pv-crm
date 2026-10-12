@@ -102,7 +102,7 @@ export function conflict(title: string, fields?: Record<string, string[]>): PvEr
  *  "3 trường không hợp lệ" bắt người dùng tự dò lại cả form. */
 export function invalid(
   fields: Record<string, string[]>,
-  title = 'Dữ liệu gửi lên không hợp lệ.',
+  title = 'Dữ liệu không hợp lệ.',
 ): PvError {
   return new PvError({ kind: 'invalid', status: 400, title, fields })
 }
@@ -127,7 +127,7 @@ export function denied(reason: DenyReason, title?: string): PvError {
 }
 
 /** 429 — the public caller has exhausted a bounded intake budget. */
-export function rateLimited(title = 'Bạn gửi quá nhanh. Vui lòng thử lại sau.'): PvError {
+export function rateLimited(title = 'Bạn gửi quá nhanh. Thử lại sau.'): PvError {
   return new PvError({ kind: 'rate-limited', status: 429, title })
 }
 
@@ -162,7 +162,7 @@ export function passwordChangeRequired(): PvError {
 }
 
 const DENY_TITLE: Record<DenyReason, string> = {
-  unauthenticated: 'Phiên đã hết hạn. Đăng nhập lại để tiếp tục.',
+  unauthenticated: 'Đã hết thời gian đăng nhập. Đăng nhập lại để tiếp tục.',
   'branch-not-licensed': 'Công ty chưa mở nhánh này.',
   'permission-denied': 'Bạn không có quyền làm việc này.',
   'out-of-scope': 'Dữ liệu này nằm ngoài phạm vi của bạn.',

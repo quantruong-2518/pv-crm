@@ -312,7 +312,7 @@ export class OpportunityLifecycle {
 
     if (!found) {
       throw conflict(
-        `Lý do không có trong danh mục của cột "${OPPORTUNITY_STAGE_LABEL[from]}" — chọn lại lý do.`,
+        `Lý do không có trong danh mục của cột "${OPPORTUNITY_STAGE_LABEL[from]}". Chọn lại lý do.`,
       )
     }
   }
@@ -384,12 +384,11 @@ const refuse = (reason: string): { ok: false; reason: string } => ({ ok: false, 
  *  the stop, accept and assign doors and the profile's `acts` all read it. */
 export function boardVerdict(deal: DealAt, action: string): StageVerdict<StageKey> {
   const code = deal.row.code
-  if (deal.signed) return refuse(`Cơ hội ${code} đã ký hợp đồng — không ${action} được nữa.`)
-  if (deal.pendingSign)
-    return refuse(`Cơ hội ${code} đang chờ duyệt ký — không ${action} được lúc này.`)
+  if (deal.signed) return refuse(`Cơ hội ${code} đã ký hợp đồng, không ${action} được.`)
+  if (deal.pendingSign) return refuse(`Cơ hội ${code} đang chờ duyệt ký, không ${action} được.`)
   if (deal.row.state === 'lost') return refuse(lostSentence(code, action))
   if (deal.row.stage === null)
-    return refuse(`Cơ hội ${code} đã ra khỏi bảng nên không ${action} được.`)
+    return refuse(`Cơ hội ${code} đã ra khỏi bảng, không ${action} được.`)
   return { ok: true, stage: deal.row.stage }
 }
 
@@ -400,12 +399,12 @@ export function careVerdict(deal: DealAt, door: CareDoor): StageVerdict<StageKey
   const code = deal.row.code
   if (deal.row.state === 'lost') return refuse(lostSentence(code, 'ghi hoạt động hay báo giá'))
   if (deal.signed) return { ok: true, stage: null }
-  if (deal.row.stage === null) return refuse(`Cơ hội ${code} đã ra khỏi bảng nên không ghi được.`)
+  if (deal.row.stage === null) return refuse(`Cơ hội ${code} đã ra khỏi bảng, không ghi được.`)
   if (deal.row.stage !== 'new') return { ok: true, stage: deal.row.stage }
   return refuse(
     door === 'activity'
-      ? 'Cơ hội chưa được nhận PIC — chưa ghi hoạt động được.'
-      : `Cơ hội ${code} chưa được nhận PIC nên chưa ghi hoạt động hay báo giá được — chờ trưởng phòng bấm Nhận PIC trước.`,
+      ? 'Cơ hội chưa nhận PIC, chưa ghi hoạt động được.'
+      : `Cơ hội ${code} chưa nhận PIC, chưa ghi hoạt động hay báo giá được. Chờ trưởng phòng bấm Nhận PIC.`,
   )
 }
 
@@ -413,7 +412,7 @@ export type CareDoor = 'activity' | 'quotation'
 export type CareFloors = Record<CareDoor, Date>
 
 const lostSentence = (code: string, action: string) =>
-  `Cơ hội ${code} đã dừng — không ${action} được nữa. Muốn chăm lại thì đi từ lead.`
+  `Cơ hội ${code} đã dừng, không ${action} được. Muốn chăm lại thì đi từ lead.`
 
 /** A VN calendar day, `YYYY-MM-DD` — how the profile prints a floor. */
 export const vnDay = (at: Date): string => VN_DAY.format(at)
@@ -429,7 +428,7 @@ function effectiveAt(step: Step, floor: Date, floorName: string): Date {
   const { asked, now } = step
   if (asked === undefined) return now
   const day = VN_DAY.format(asked)
-  if (day > VN_DAY.format(now)) throw invalid({ at: ['Ngày ghi không được ở tương lai.'] })
+  if (day > VN_DAY.format(now)) throw invalid({ at: ['Ngày ghi không được sau hôm nay.'] })
   if (day < VN_DAY.format(floor)) {
     throw invalid({
       at: [`Ngày ghi không được trước ${floorName} (${VN_DAY_SHOWN.format(floor)}).`],
@@ -449,4 +448,4 @@ const between =
 /** Nobody saw this row while it moved: the WHERE named the column the deal was
  *  standing in one statement ago, and it is not standing there any more. */
 const raced = (code: string) =>
-  conflict(`Cơ hội ${code} vừa được ai đó chuyển cột — tải lại rồi thử lại.`)
+  conflict(`Cơ hội ${code} vừa được người khác chuyển cột. Tải lại rồi thử lại.`)

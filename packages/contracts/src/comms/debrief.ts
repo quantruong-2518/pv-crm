@@ -79,7 +79,7 @@ export const DebriefClose = z.object({
   answers: z
     .array(DebriefAnswerInput)
     .refine((a) => new Set(a.map((x) => x.criterionId)).size === a.length, {
-      message: 'Mỗi câu hỏi chỉ chọn một câu trả lời',
+      message: 'Mỗi câu hỏi chỉ chọn một câu trả lời.',
     }),
   step: DebriefStepInput.optional(),
 })

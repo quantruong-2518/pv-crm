@@ -94,7 +94,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
   if (error) {
     return (
       <p className="text-warning text-[12.5px] leading-[1.6]">
-        Không đọc được tệp của lượt liên hệ này. {isApiError(error) ? userMessage(error) : ''}
+        Không đọc được tệp. {isApiError(error) ? userMessage(error) : ''}
       </p>
     )
   }
@@ -121,7 +121,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
       </ul>
       {data.rows.some((file) => file.url === null) && (
         <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
-          Vai của bạn không mở được nội dung tệp, chỉ xem được tên và dung lượng.
+          Vai của bạn chỉ xem được tên và dung lượng tệp.
         </p>
       )}
       <DeleteConfirm
@@ -171,7 +171,7 @@ function DeleteConfirm({
       }
     >
       <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-        Tệp bị xoá khỏi lượt liên hệ và không khôi phục được.
+        Xoá rồi không khôi phục được.
       </p>
     </Modal>
   )

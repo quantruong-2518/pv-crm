@@ -31,7 +31,7 @@ export class GmailMailDriver implements MailPort {
         kind: 'permanent',
         code: 'gmail-misrouted',
         summary:
-          'Thư không đủ thông tin người gửi để đi qua Gmail cá nhân — báo quản trị hệ thống.',
+          'Thiếu thông tin người gửi nên không gửi được qua Gmail cá nhân. Báo quản trị viên.',
       }
     }
 
@@ -46,8 +46,7 @@ export class GmailMailDriver implements MailPort {
         ok: false,
         kind: 'permanent',
         code: 'gmail-rejected',
-        summary:
-          'Thư có địa chỉ người gửi hoặc người nhận không hợp lệ nên không gửi được — kiểm tra lại danh sách địa chỉ rồi soạn thư mới.',
+        summary: 'Địa chỉ người gửi hoặc người nhận không hợp lệ. Kiểm tra lại rồi soạn thư mới.',
       }
     }
 
@@ -74,7 +73,7 @@ const UNVERIFIED: PersonalFailure = {
   kind: 'permanent',
   code: 'gmail-unverified',
   summary:
-    'Không xác nhận được thư đã gửi hay chưa vì tài khoản Google của người gửi đã ngắt kết nối — kiểm tra hộp Thư đã gửi trước khi gửi lại.',
+    'Chưa rõ thư đã gửi chưa vì tài khoản Google của người gửi đã ngắt kết nối. Kiểm tra hộp Thư đã gửi trước khi gửi lại.',
 }
 
 /** Vietnamese, for the person who pressed send: what happened and what to do.
@@ -86,7 +85,7 @@ function failureOf(failure: GmailFailure): PersonalFailure {
         ok: false,
         kind: 'permanent',
         code: 'gmail-unlinked',
-        summary: 'Tài khoản Google của người gửi đã ngắt kết nối — kết nối lại rồi soạn thư mới.',
+        summary: 'Tài khoản Google của người gửi đã ngắt kết nối. Kết nối lại rồi soạn thư mới.',
       }
     case 'no_consent':
       return {
@@ -94,14 +93,14 @@ function failureOf(failure: GmailFailure): PersonalFailure {
         kind: 'permanent',
         code: 'gmail-no-consent',
         summary:
-          'Tài khoản Google của người gửi chưa cấp quyền gửi thư — kết nối lại và chọn đủ quyền Gmail.',
+          'Tài khoản Google của người gửi chưa cấp quyền gửi thư. Kết nối lại và chọn đủ quyền Gmail.',
       }
     case 'transient':
       return {
         ok: false,
         kind: 'retry',
         code: 'gmail-unavailable',
-        summary: 'Gmail tạm thời không nhận thư — hệ thống sẽ thử lại.',
+        summary: 'Gmail tạm thời không nhận thư. Sẽ thử lại.',
       }
     case 'rejected':
       return {

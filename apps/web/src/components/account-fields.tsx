@@ -41,7 +41,7 @@ export function AccountFields({
           label="Tên công ty"
           required
           errors={errors.name}
-          hint="Tên gọi trong sổ. Nếu chưa có mã số thuế, ĐÂY là thứ hệ dùng để nhận ra công ty đã có trong sổ hay chưa."
+          hint="Dùng để kiểm tra trùng khi chưa có mã số thuế."
           className="sm:col-span-2"
         >
           <Input
@@ -54,11 +54,7 @@ export function AccountFields({
           />
         </Field>
 
-        <Field
-          label="Tên trên giấy tờ"
-          errors={errors.legalName}
-          hint="Tên đầy đủ trên hoá đơn. Không dùng để tìm, nên khác tên gọi cũng không sao."
-        >
+        <Field label="Tên trên giấy tờ" errors={errors.legalName} hint="Tên đầy đủ trên hoá đơn.">
           <Input
             value={draft.legalName}
             maxLength={200}
@@ -71,7 +67,7 @@ export function AccountFields({
         <Field
           label="Mã số thuế"
           errors={errors.taxCode}
-          hint="Có mã số thuế thì nó THẮNG tên: hai dòng cùng mã số thuế là một công ty, dù tên viết khác nhau."
+          hint="Trùng mã số thuế là cùng một công ty."
         >
           <Input
             value={draft.taxCode}
@@ -100,7 +96,7 @@ export function AccountFields({
           label="Ngành"
           plain
           errors={errors.category}
-          hint="Ngành quyết định lead mới rơi vào tay ai — xem Thiết lập · Ngành và Sale phụ trách."
+          hint="Ngành quyết định ai nhận lead mới. Xem Thiết lập · Ngành và Sale phụ trách."
         >
           <Select
             label="Ngành"
@@ -116,11 +112,7 @@ export function AccountFields({
           />
         </Field>
 
-        <Field
-          label="Số nhân sự"
-          errors={errors.headcount}
-          hint="Bỏ trống = chưa ai đếm. Khác 0 = công ty không còn ai."
-        >
+        <Field label="Số nhân sự" errors={errors.headcount} hint="Để trống nếu chưa biết.">
           <Input
             type="number"
             min={0}
@@ -132,11 +124,7 @@ export function AccountFields({
         </Field>
       </div>
 
-      <Field
-        label="Ghi chú"
-        errors={errors.note}
-        hint="Thứ đội bán hàng biết mà không ô nào hỏi — ai là người quyết, mùa nào họ mua, đã hụt lần nào."
-      >
+      <Field label="Ghi chú" errors={errors.note}>
         <Textarea
           autoGrow
           rows={3}

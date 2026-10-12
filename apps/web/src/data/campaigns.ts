@@ -455,7 +455,7 @@ function rowOf(s: CampaignSource, period: { fromISO: string; toISO: string }): S
     active: s.active,
     /* Nguồn chưa ai đứng tên in ra một câu, không in ra chuỗi rỗng: một ô
        trống trên cột "PIC" đọc như lỗi tải, còn "chưa ai" là một câu trả lời. */
-    owner: s.ownerName ?? 'Chưa ai đứng tên',
+    owner: s.ownerName ?? 'Chưa có người phụ trách',
     ownerId: s.ownerId,
     followers: s.followers.map((f) => f.name),
 

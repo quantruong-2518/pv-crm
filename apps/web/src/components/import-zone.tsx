@@ -405,7 +405,7 @@ export function ImportZone({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-muted-foreground text-[11.5px]">
               {phase === 'done'
-                ? 'Nạp xong — đóng panel để về sổ.'
+                ? 'Nạp xong. Đóng để về sổ.'
                 : missing.length > 0
                   ? `Còn thiếu cột: ${missing.join(' · ')}`
                   : (extra?.missing ?? trust.blurb)}
@@ -571,9 +571,7 @@ function StepPick({
           </dd>
 
           <dt className="text-muted-foreground text-[11.5px]">Cột khác</dt>
-          <dd className="text-glass-foreground text-[11.5px] leading-[1.7]">
-            Thiếu thì bỏ qua, không chặn việc nạp.
-          </dd>
+          <dd className="text-glass-foreground text-[11.5px] leading-[1.7]">Thiếu thì bỏ qua.</dd>
 
           <dt className="text-muted-foreground text-[11.5px]">Tệp mẫu</dt>
           <dd className="flex flex-wrap items-center gap-3">
@@ -612,12 +610,12 @@ function sourceNote(spec: ImportSpec, sheet: Sheet, mapping: ColumnMapping): str
   if (!spec.fields.some((f) => f.key === 'source')) return `Cả ${n} dòng lấy nguồn chọn ở đây.`
 
   const at = mapping.source ?? -1
-  if (at < 0) return `Tệp chưa khớp cột Nguồn — cả ${n} dòng lấy nguồn chọn ở đây.`
+  if (at < 0) return `Tệp chưa khớp cột Nguồn. Cả ${n} dòng lấy nguồn chọn ở đây.`
 
   const blank = sheet.rows.filter((r) => (r[at] ?? '').trim() === '').length
   return blank === 0
-    ? `Cả ${n} dòng đã có nguồn sẵn trong tệp — lựa chọn này không dùng tới.`
-    : `${blank} trên ${n} dòng bỏ trống cột Nguồn, và sẽ lấy lựa chọn này.`
+    ? `Cả ${n} dòng đã có nguồn trong tệp. Lựa chọn này không áp dụng.`
+    : `${blank}/${n} dòng bỏ trống cột Nguồn sẽ lấy nguồn chọn ở đây.`
 }
 
 /** One group of mapping selects. Two groups and not one flat grid — see `StepMap`. */
@@ -759,7 +757,7 @@ function StepMap({
 
       <SectionTitle
         size="lg"
-        hint={`Đã tự khớp ${hit}/${spec.fields.length} trường · đoán sai thì đổi cột`}
+        hint={`Đã tự khớp ${hit}/${spec.fields.length} trường. Sai thì đổi cột.`}
       >
         Khớp cột
       </SectionTitle>

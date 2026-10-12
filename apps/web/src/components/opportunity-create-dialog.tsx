@@ -82,7 +82,7 @@ function LeadPicker({
          as the panel jerking wider rather than as one form moving on. */
       width="lg"
       title="Mở cơ hội"
-      subtitle="Một cơ hội mọc ra từ một lead. Chọn lead trước — phiếu điền mở ngay sau, đã mồi sẵn tên, tiền và người bán của khách đó."
+      subtitle="Chọn lead để mở cơ hội."
       footer={
         <div className="flex justify-end">
           <Button size="md" variant="ghost" onClick={onClose}>
@@ -142,7 +142,7 @@ function ConvertStep({
         <EmptyState
           icon={TriangleAlert}
           message={`Không mở được hồ sơ lead ${lead.code}. ${
-            isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+            isApiError(error) ? userMessage(error) : 'Thử lại.'
           }`}
           action={{ label: 'Thử lại', onClick: () => void refetch() }}
           className="py-12"

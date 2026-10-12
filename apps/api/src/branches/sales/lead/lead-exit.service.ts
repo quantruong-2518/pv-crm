@@ -57,7 +57,7 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') {
         throw conflict(
-          `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS} — không ghi cuộc gọi mới được.`,
+          `Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS}. Không ghi được cuộc gọi.`,
         )
       }
 
@@ -75,11 +75,11 @@ export class LeadExitService {
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
-      if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu rồi.`)
+      if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu.`)
       if (held.openDeal) {
-        throw conflict(`Lead ${code} còn cơ hội đang mở — đóng cơ hội trước khi cho lead rời phễu.`)
+        throw conflict(`Lead ${code} còn cơ hội đang mở. Đóng cơ hội trước.`)
       }
-      if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng — không cho rời phễu được.`)
+      if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng, không rời phễu được.`)
       await this.assertReason(tx, body.reasonKey)
 
       await this.states.move(tx, code, 'disqualified', {
@@ -111,7 +111,7 @@ export class LeadExitService {
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'disqualified') {
-        throw conflict(`Lead ${code} chưa rời phễu nên không có gì để mở lại.`)
+        throw conflict(`Lead ${code} chưa rời phễu.`)
       }
 
       await this.states.move(tx, code, stateOnReopen(held), { exitReason: null, exitedAt: null })
@@ -130,7 +130,7 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'verifying' && held.state !== 'working') {
         throw conflict(
-          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” — chỉ hai bước đó chuyển sang “${LEAD_STATE_LABEL.nurturing}” được.`,
+          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” nên không chuyển sang “${LEAD_STATE_LABEL.nurturing}” được.`,
         )
       }
       await this.assertReason(tx, body.reasonKey)
@@ -162,7 +162,7 @@ export class LeadExitService {
       const held = await this.lockRow(tx, who, code)
       if (held.state !== 'nurturing') {
         throw conflict(
-          `Lead ${code} không ở “${LEAD_STATE_LABEL.nurturing}” nên không có gì để chăm lại.`,
+          `Lead ${code} không ở “${LEAD_STATE_LABEL.nurturing}” nên không chăm lại được.`,
         )
       }
 
@@ -198,7 +198,7 @@ export class LeadExitService {
   private async assertReason(tx: Db, reasonKey: string): Promise<void> {
     if (reasonKey === LEAD_STOP_REASON_OTHER) return
     if (!(await this.repo.stopReasonLive(tx, reasonKey))) {
-      throw conflict('Lý do không có trong danh mục lý do dừng chăm sóc — chọn lại lý do.')
+      throw conflict('Không tìm thấy lý do này. Chọn lại.')
     }
   }
 
@@ -207,7 +207,7 @@ export class LeadExitService {
     const found = await this.leads.byCode(who, code)
     if (!found) throw notFound('lead', code)
     if (!found.holds) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     return found
   }
@@ -219,7 +219,7 @@ export class LeadExitService {
     const row = await this.repo.lockForMove(tx, code)
     if (!row) throw notFound('lead', code)
     if (who.ownOnly && row.ownerId !== who.id) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     return row
   }

@@ -29,7 +29,7 @@ export function ContextRail({ objects, max, className }: ContextRailProps) {
         'pointer-coarse:gap-x-2 pointer-coarse:gap-y-6 flex flex-wrap gap-1.5',
         className,
       )}
-      aria-label="Chuỗi object liên quan"
+      aria-label="Mục liên quan"
     >
       {shown.map((o) => (
         <Chip key={o.code} variant={o.source ? 'source' : 'object'} onOpen={o.onOpen}>

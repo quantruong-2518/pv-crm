@@ -137,8 +137,8 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     hints.push({
       id: 'slots',
       tone: 'warn',
-      text: 'Còn chỗ trống của mẫu chưa điền',
-      detail: `${slots.join(' · ')} — mẫu chỉ là gợi ý, xoá hoặc thay bằng câu của bạn đều được.`,
+      text: 'Mẫu còn chỗ trống chưa điền',
+      detail: `${slots.join(' · ')}. Điền hoặc xoá.`,
     })
   }
 
@@ -154,7 +154,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'link-slot',
       tone: 'warn',
       text: 'Link của nút còn chỗ trống chưa điền',
-      detail: `${linkSlots.join(' · ')} — phải thay bằng địa chỉ thật, để nguyên thì nút dẫn tới trang không tồn tại.`,
+      detail: `${linkSlots.join(' · ')}. Thay bằng địa chỉ thật.`,
     })
   }
 
@@ -171,8 +171,8 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       tone: 'warn',
       /* The strongest hint in the file: this one is invisible in the letter.
          The others leave something odd on the page; this leaves a gap. */
-      text: 'Biến trộn không có thật, sẽ thành khoảng trống',
-      detail: `${unknown.map((key) => `{{${key}}}`).join(' · ')} — chỉ ${MAIL_MERGE_KEYS.map((key) => `{{${key}}}`).join(' · ')} là có dữ liệu.`,
+      text: 'Biến không hợp lệ, sẽ để trống',
+      detail: `${unknown.map((key) => `{{${key}}}`).join(' · ')}. Chỉ dùng ${MAIL_MERGE_KEYS.map((key) => `{{${key}}}`).join(' · ')}.`,
     })
   }
 
@@ -181,7 +181,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'missing-merge',
       tone: 'warn',
       text: 'Lead đang xem trước chưa có dữ liệu cho biến',
-      detail: `${draft.missing.map((key) => `{{${key}}}`).join(' · ')} — chỗ đó sẽ trống trong thư gửi người này.`,
+      detail: `${draft.missing.map((key) => `{{${key}}}`).join(' · ')} sẽ để trống trong thư gửi người này.`,
     })
   }
 
@@ -189,15 +189,15 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     hints.push({
       id: 'subject-long',
       tone: 'tip',
-      text: 'Tiêu đề dài hơn chỗ hộp thư hiển thị',
-      detail: `${subject.length} ký tự — phần lớn hộp thư cắt quanh ${SUBJECT_CUT}, phần đuôi không ai đọc.`,
+      text: 'Tiêu đề quá dài',
+      detail: `${subject.length} ký tự. Hộp thư thường cắt ở khoảng ${SUBJECT_CUT}.`,
     })
   } else if (subject !== '' && subject.length < SUBJECT_THIN) {
     hints.push({
       id: 'subject-thin',
       tone: 'tip',
-      text: 'Tiêu đề hơi trống nghĩa',
-      detail: 'Nói được một điều cụ thể thì tỉ lệ mở khác hẳn một tiêu đề chung chung.',
+      text: 'Tiêu đề quá ngắn',
+      detail: 'Tiêu đề nên nói một điều cụ thể.',
     })
   }
 
@@ -208,7 +208,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'subject-caps',
       tone: 'tip',
       text: 'Tiêu đề có cụm viết hoa toàn bộ',
-      detail: 'Bộ lọc thư rác chấm điểm cụm viết hoa, và người đọc thấy như bị quát.',
+      detail: 'Viết hoa cả cụm dễ bị vào hộp thư rác.',
     })
   }
 
@@ -218,7 +218,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'exclamations',
       tone: 'tip',
       text: `Có ${bangs} dấu chấm than`,
-      detail: 'Thư chào B2B giữ một dấu là nhiều nhất — nhiều hơn nghe như quảng cáo.',
+      detail: 'Chỉ nên dùng một dấu.',
     })
   }
 
@@ -227,7 +227,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'no-personalisation',
       tone: 'tip',
       text: 'Thư không gọi tên người nhận',
-      detail: 'Chèn {{contactName}} hoặc {{account}} để mỗi người thấy tên mình, tên công ty mình.',
+      detail: 'Chèn {{contactName}} hoặc {{account}} để thư có tên người nhận.',
     })
   }
 
@@ -237,14 +237,14 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'body-long',
       tone: 'tip',
       text: 'Thư dài',
-      detail: `${words} từ — thư chào quá ${BODY_LONG} từ thường chỉ được đọc lướt đoạn đầu.`,
+      detail: `${words} từ. Thư quá ${BODY_LONG} từ thường chỉ được đọc lướt.`,
     })
   } else if (words > 0 && words < BODY_SHORT) {
     hints.push({
       id: 'body-short',
       tone: 'tip',
       text: 'Thư ngắn',
-      detail: 'Chưa đủ chỗ để nói vì sao người nhận nên dành thời gian trả lời.',
+      detail: 'Chưa đủ để nói vì sao người nhận nên trả lời.',
     })
   }
 
@@ -253,7 +253,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'no-ask',
       tone: 'tip',
       text: 'Chưa có câu hỏi nào',
-      detail: 'Một câu hỏi cụ thể ở cuối thư là thứ tạo ra lượt trả lời, không phải lời chào.',
+      detail: 'Nên kết thư bằng một câu hỏi cụ thể.',
     })
   }
 
@@ -265,8 +265,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
          the string in a text node, so a pasted URL is not an `<a>`. Several
          desktop clients — Outlook among them — do not linkify it either. */
       text: 'Link dán trong thân thư có thể không bấm được',
-      detail:
-        'Thân thư dựng thành chữ thuần. Đưa địa chỉ xuống ô nút bên dưới để chắc chắn bấm được.',
+      detail: 'Đặt địa chỉ vào ô nút bên dưới.',
     })
   }
 
@@ -276,8 +275,8 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     hints.push({
       id: 'link-insecure',
       tone: 'warn',
-      text: 'Link của nút đi qua http, không phải https',
-      detail: 'Trang mở ra bị trình duyệt gắn cảnh báo, và thứ khách gõ vào đó đi không mã hoá.',
+      text: 'Link của nút dùng http thay vì https',
+      detail: 'Trình duyệt sẽ cảnh báo khi khách mở trang.',
     })
   }
 
@@ -286,8 +285,7 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
       id: 'wall',
       tone: 'tip',
       text: 'Thân thư là một khối chữ đặc',
-      detail:
-        'Một dòng trống là một đoạn trong thư gửi đi — cách đoạn ra thì thư dễ đọc hơn nhiều.',
+      detail: 'Cách một dòng trống giữa các đoạn cho dễ đọc.',
     })
   }
 
@@ -296,8 +294,8 @@ export function mailHints(draft: MailDraft): MailHint[] | null {
     hints.push({
       id: 'spam-words',
       tone: 'tip',
-      text: 'Có từ hay bị hộp thư rác chấm điểm',
-      detail: `${found.join(' · ')} — dùng được, chỉ là nên cân nhắc trong thư gửi lần đầu.`,
+      text: 'Có từ dễ bị vào hộp thư rác',
+      detail: `${found.join(' · ')}. Nên cân nhắc trong thư gửi lần đầu.`,
     })
   }
 

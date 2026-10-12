@@ -262,7 +262,7 @@ function BrandFooter({
       <Hr style={{ borderColor: COLOR_SURFACE, margin: '18px 0 12px' }} />
 
       <Text style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: COLOR_MUTED, ...TEXT }}>
-        {note ?? `Thư này do hệ thống ${BRAND.product} gửi tự động, không cần trả lời.`}
+        {note ?? `Thư gửi tự động từ ${BRAND.product}, không cần trả lời.`}
       </Text>
     </Section>
   )

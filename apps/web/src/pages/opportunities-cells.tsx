@@ -123,11 +123,7 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
       tone={overdue ? 'warning' : STATE_TONE[op.state]}
       /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
       className={cn('min-w-0 max-w-full', !overdue && op.state === 'lost' && BADGE_INK)}
-      title={
-        stage && clock
-          ? `Giai đoạn "${stage}" · ${clock.label}`
-          : 'Cơ hội đã kết thúc — không còn trong quy trình đang theo đuổi'
-      }
+      title={stage && clock ? `Giai đoạn "${stage}" · ${clock.label}` : 'Cơ hội đã kết thúc'}
     >
       <span className="min-w-0 truncate">
         {standingLabel(op)}
@@ -238,11 +234,7 @@ export function LastActivityCell({ op }: { op: OpportunityBookRow }) {
         'flex min-w-0 items-center gap-1',
         op.activityFreshness && FRESHNESS_INK[op.activityFreshness],
       )}
-      title={
-        at
-          ? `Hoạt động cuối ${dm(at)}`
-          : 'Chưa có cuộc gọi, cuộc gặp, email, Zalo, Telegram, WhatsApp, hoạt động chăm sóc hay báo giá nào'
-      }
+      title={at ? `Hoạt động cuối ${dm(at)}` : 'Chưa có hoạt động nào'}
     >
       {word && <Flag icon={Timer} word={word} />}
       <span className="truncate">{at ? activityAgo(at) : 'Chưa có'}</span>

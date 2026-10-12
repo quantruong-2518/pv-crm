@@ -169,9 +169,7 @@ export class CommRecordService {
         record.closedAt === null &&
         (by.ownerId === null || record.ownerId === by.ownerId))
     if (!clean) {
-      throw conflict(
-        'Cuộc họp đã có trao đổi hoặc liên hệ khác ghi trên đó nên không xoá được — đổi lịch, hoặc chốt “Họp xong”.',
-      )
+      throw conflict('Không xoá được cuộc họp đã có liên hệ khác. Đổi lịch hoặc chốt “Họp xong”.')
     }
     const keys = record ? await this.debriefs.dropFiles(tx, record.id) : []
     if (threadId) await this.threads.deleteThread(tx, threadId)
@@ -220,9 +218,7 @@ export class CommRecordService {
     if (taken) {
       throw invalid(
         {
-          contactCode: [
-            `Địa chỉ ${mint.address} trong sổ định danh thuộc người khác, không phải ${person.code}.`,
-          ],
+          contactCode: [`Địa chỉ ${mint.address} đang thuộc người khác.`],
         },
         'Địa chỉ của người liên hệ đang thuộc người khác.',
       )
@@ -244,7 +240,7 @@ export class CommRecordService {
     const address = normaliseAddress('email', mailbox)
     if (await this.threads.identityByAddress('email', address)) {
       throw conflict(
-        `Hòm thư ${address} của người ghi liên hệ đang thuộc người khác trong sổ định danh — báo người giữ sổ định danh sửa lại.`,
+        `Hòm thư ${address} của người ghi liên hệ đang thuộc người khác. Báo người giữ sổ định danh sửa lại.`,
       )
     }
     return { channel: 'email', address, side: 'member', actorId: ownerId }
@@ -265,9 +261,7 @@ function mintFor(channel: ThreadChannel, contact: CommContact): Mint {
     channel === 'meeting' ? 'số điện thoại hay email' : byMail ? 'email' : 'số điện thoại'
   throw invalid(
     {
-      contactCode: [
-        `${contact.code} chưa có ${missing} — thêm vào hồ sơ của ${contact.code} trước khi ghi liên hệ.`,
-      ],
+      contactCode: [`${contact.code} chưa có ${missing}. Thêm vào hồ sơ trước khi ghi liên hệ.`],
     },
     'Người liên hệ chưa có địa chỉ cho kênh này.',
   )

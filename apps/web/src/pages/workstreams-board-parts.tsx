@@ -223,7 +223,7 @@ function StepCard({
         type="button"
         aria-pressed={current}
         aria-label={`Bước ${index + 1} · ${group.step.label} · ${
-          bookless ? 'chưa dựng sổ' : PHASE_NOTE[phase]
+          bookless ? 'chưa có sổ' : PHASE_NOTE[phase]
         }${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`}
         onClick={onSelect}
         style={{ clipPath: index > 0 ? STEP_CLIP : STEP_CLIP_FIRST }}
@@ -343,9 +343,7 @@ export function LockedColumn({ label, blockNumber }: { label: string; blockNumbe
   return (
     <ColumnShell label={label} count={DASH} dim>
       <div className={COLUMN_BODY}>
-        <ColumnNote icon={Lock}>
-          {`Khối ${blockNumber} chưa dựng sổ — chưa thẻ nào tới được đây`}
-        </ColumnNote>
+        <ColumnNote icon={Lock}>{`Khối ${blockNumber} chưa có sổ`}</ColumnNote>
       </div>
     </ColumnShell>
   )
@@ -425,7 +423,7 @@ export function BoardColumn({
           ) : error ? (
             <ColumnNote>Không lấy được cột này. Thử lại sau.</ColumnNote>
           ) : rows.length === 0 ? (
-            <ColumnNote>Không có gì ở cột này</ColumnNote>
+            <ColumnNote>Cột này trống</ColumnNote>
           ) : (
             <>
               {rows.map((row) => (
@@ -524,7 +522,7 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
         )}
         <span
           className="tnum font-num text-muted-foreground shrink-0 text-[10.5px]"
-          title="Tổng dấu chân liên lạc · lần gần nhất"
+          title="Tổng số lần liên lạc · lần gần nhất"
         >
           {footprintTotal(row.footprint)} · {last === null ? 'chưa liên lạc' : dm(last)}
         </span>

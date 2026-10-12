@@ -54,10 +54,7 @@ function CreateBody({ draft }: { draft: LeadDraft }) {
       {/* Stated, not asked: `LeadCreate` names its holder by `ownerId` and this
           draft carries no box that speaks it, so a picker here would swallow
           whoever was picked. Handing the lead over is its own door. */}
-      <Block
-        label="Lead PIC"
-        hint="Lead mới nằm ở kho chung. Giao người phụ trách là một việc riêng."
-      >
+      <Block label="Lead PIC" hint="Lead mới nằm ở kho chung.">
         <MetaPill title={NO_OWNER_TITLE}>Chưa ai nhận</MetaPill>
       </Block>
 
@@ -104,7 +101,7 @@ function OriginBlock({ draft }: { draft: LeadDraft }) {
   return (
     <Block
       label="Nguồn *"
-      hint="Chọn nguồn đã có; tên mới chỉ được tạo khi lưu lead."
+      hint="Chọn nguồn đã có hoặc nhập tên mới."
       error={draft.fieldError('origin')}
     >
       <OriginPicker
@@ -130,7 +127,7 @@ function CampaignBlock({ draft }: { draft: LeadDraft }) {
   return (
     <Block
       label="Chiến dịch *"
-      hint="Chỉ chiến dịch còn nhận lead. Nguồn của lead lấy theo chiến dịch, lead vào luôn danh sách của nó."
+      hint="Chỉ chiến dịch còn nhận lead. Nguồn lấy theo chiến dịch."
       error={draft.fieldError('campaignCode')}
     >
       <CampaignPicker
@@ -160,7 +157,7 @@ function ReferrerBlock({ draft }: { draft: LeadDraft }) {
       hint={
         shown?.originName
           ? `Nguồn lấy theo mã giới thiệu: ${shown.originName}.`
-          : 'Nguồn của lead lấy theo mã giới thiệu.'
+          : 'Nguồn lấy theo mã giới thiệu.'
       }
       error={draft.fieldError('refCode')}
     >

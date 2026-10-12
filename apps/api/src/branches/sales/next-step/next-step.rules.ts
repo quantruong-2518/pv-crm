@@ -24,8 +24,8 @@ export function assertNextDiffers(
 ): void {
   if (next?.text !== closing.text || next.due !== closing.due) return
   throw invalid(
-    { [field]: ['Việc tiếp theo mới trùng với việc vừa xong — đổi nội dung hoặc hạn.'] },
-    'Việc tiếp theo mới trùng với việc vừa xong.',
+    { [field]: ['Việc tiếp theo mới trùng việc vừa xong. Đổi nội dung hoặc hạn.'] },
+    'Việc tiếp theo mới trùng việc vừa xong.',
   )
 }
 
@@ -40,7 +40,7 @@ export async function liveKind(
   const row = await repo.stepKind(kindId, handle)
   if (row?.active) return { id: row.id, name: row.name }
   throw invalid(
-    { [field]: ['Loại việc không có trong danh mục hoặc đã tắt — chọn loại việc khác.'] },
+    { [field]: ['Loại việc này không có hoặc đã tắt. Chọn loại việc khác.'] },
     'Loại việc không hợp lệ.',
   )
 }

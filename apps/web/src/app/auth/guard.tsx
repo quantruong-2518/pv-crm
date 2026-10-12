@@ -157,10 +157,10 @@ function AccessLocked({ verdict }: { verdict: Extract<Verdict, { ok: false }> })
 
   const said =
     verdict.reason === 'branch-not-licensed'
-      ? 'Công ty chưa mở nhánh này. Xin quyền để mở, hoặc đăng nhập bằng vai khác.'
+      ? 'Công ty chưa mở nhánh này.'
       : verdict.reason === 'out-of-scope'
-        ? 'Dữ liệu này không đứng tên bạn. Nhờ người đang giữ nó mở giúp.'
-        : 'Vai hiện tại không có quyền vào màn này. Xin quyền để mở.'
+        ? 'Dữ liệu này không do bạn phụ trách. Nhờ người phụ trách mở giúp.'
+        : 'Vai của bạn chưa có quyền vào màn này.'
 
   return (
     <AuroraField>

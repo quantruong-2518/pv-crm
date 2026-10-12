@@ -78,11 +78,7 @@ export function MailGuideDrawer({
          stops being scannable. */
       width="lg"
       title={only ? `Hướng dẫn · ${only.label}` : 'Hướng dẫn gửi email'}
-      subtitle={
-        only
-          ? 'Không cần nhớ hết — mở lại bảng này bất cứ lúc nào.'
-          : 'Hai bước — người nhận, rồi nội dung thư với tuỳ chọn gửi ở cuối. Không cần nhớ hết — mở lại bất cứ lúc nào.'
-      }
+      subtitle={only ? undefined : 'Hai bước: người nhận, rồi nội dung thư và tuỳ chọn gửi.'}
     >
       <div className="flex min-w-0 flex-col gap-6">
         {tabs.length > 1 && (
@@ -121,17 +117,17 @@ const RECIPIENT_FACTS: { icon: IconGlyph; title: string; body: string }[] = [
   {
     icon: Mail,
     title: 'Thư đi từ noreply',
-    body: 'Địa chỉ gửi do cấu hình máy chủ đặt — phiếu này không đổi được địa chỉ gửi, nên không có ô chọn hộp thư.',
+    body: 'Phiếu này không đổi được địa chỉ gửi.',
   },
   {
     icon: Reply,
-    title: 'Khách bấm Trả lời thì máy ghi nhận',
-    body: 'Mỗi thư mang một địa chỉ trả lời theo dõi riêng. Khách trả lời thì máy ghi vào hồ sơ và báo người giữ.',
+    title: 'Khách bấm Trả lời',
+    body: 'Thư trả lời được ghi vào hồ sơ và báo cho người giữ.',
   },
   {
     icon: Users,
     title: 'Mỗi người nhận một email riêng',
-    body: 'Không ai thấy tên người khác trong danh sách, tên và công ty được điền tự động cho từng người. Người liên hệ chính đã được chọn sẵn — gõ tên, công ty hoặc email để tìm thêm người nhận.',
+    body: 'Không ai thấy tên người khác. Tên và công ty tự điền cho từng người. Người liên hệ chính được chọn sẵn; gõ tên, công ty hoặc email để thêm người nhận.',
   },
 ]
 
@@ -139,22 +135,22 @@ const DELIVERY_FACTS: { icon: IconGlyph; title: string; body: string }[] = [
   {
     icon: Megaphone,
     title: 'Chỉ gắn được chiến dịch đang chạy',
-    body: 'Gắn đợt vào một chiến dịch còn nháp thì thư đi ngay trong khi chiến dịch vẫn là nháp — nút bắt đầu của nó sau đó vẫn chạy và gửi cho cả tập khách một lần nữa. Chiến dịch còn nháp thì bắt đầu từ hồ sơ chiến dịch.',
+    body: 'Chiến dịch còn nháp không gắn được. Hãy bắt đầu nó từ hồ sơ chiến dịch.',
   },
   {
     icon: Route,
     title: 'Tên chuỗi gửi',
-    body: 'Không gắn chiến dịch thì các đợt vẫn thuộc một chuỗi riêng, và tên này là thứ gom chúng lại khi xem lại lịch sử gửi.',
+    body: 'Không gắn chiến dịch thì các đợt thuộc một chuỗi riêng. Tên chuỗi dùng để gom chúng trong lịch sử gửi.',
   },
   {
     icon: Inbox,
     title: 'sales@ nhận một bản lưu mỗi lô',
-    body: `Hộp thư chung ${SALES_INBOX} nhận một bản BCC cho mỗi lô, không phải một bản cho từng người. Khách không thấy địa chỉ này.`,
+    body: `Hộp thư chung ${SALES_INBOX} nhận một bản BCC cho mỗi lô. Khách không thấy địa chỉ này.`,
   },
   {
     icon: MailOpen,
     title: 'Ghi nhận lượt mở và lượt bấm',
-    body: 'Bật thì tín hiệu mở thư và bấm nút hiện ở Lịch sử của hồ sơ. Tắt thì lô này không ghi nhận lượt mở và lượt bấm nào.',
+    body: 'Bật thì lượt mở thư và lượt bấm nút hiện ở Lịch sử của hồ sơ. Tắt thì không ghi.',
   },
 ]
 
@@ -196,13 +192,13 @@ function ContentPart() {
         <Note
           icon={Link}
           title="Dán link vào thân thư thì bấm không được"
-          body="Thân thư được dựng thành chữ thuần, nên một địa chỉ dán vào giữa câu đi ra ngoài dưới dạng chữ — nhiều hòm thư, trong đó có Outlook, không tự biến nó thành link bấm được. Đưa địa chỉ xuống ô “Nút trong email” ở cuối bước Nội dung: chỗ đó chắc chắn bấm được, và người nhận thấy một nút thật."
+          body="Nhiều hộp thư, trong đó có Outlook, không tự biến địa chỉ dán giữa câu thành link bấm được. Hãy đưa địa chỉ xuống ô “Nút trong email” ở cuối bước Nội dung để người nhận thấy một nút bấm được."
         />
 
         <Note
           icon={Paperclip}
           title="Chưa đính kèm được tệp"
-          body="Hệ thống chưa có chỗ chứa tệp cho thư đi hàng loạt, nên phiếu này không có ô chọn tệp. Cách đang dùng: tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link đó vào ô “Nút trong email”. Ô đó chỉ có một đích đến, nên chọn một thứ đáng bấm nhất."
+          body="Thư gửi hàng loạt chưa đính kèm được tệp. Hãy tải tài liệu lên Google Drive, mở quyền xem cho người ngoài, rồi dán link vào ô “Nút trong email”. Ô đó chỉ nhận một link, nên chọn tài liệu quan trọng nhất."
         />
       </div>
     </div>

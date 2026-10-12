@@ -87,10 +87,7 @@ export function OpportunityLostEmail(data: OpportunityLostData) {
 
       <Divider />
 
-      <Para>
-        Cơ hội này không mở lại được. Khách vẫn còn trong sổ — chăm lại thì đi từ lead, và đọc lại
-        lý do trên trước lần chào tiếp theo.
-      </Para>
+      <Para>Cơ hội này không mở lại được. Muốn chăm lại khách, hãy bắt đầu từ lead.</Para>
       {/* The button opens the deal, not the customer: the reason is read in the
           deal's full context first. One button, one job. */}
       <CtaButton href={data.opUrl}>Xem hồ sơ đơn {data.opCode}</CtaButton>

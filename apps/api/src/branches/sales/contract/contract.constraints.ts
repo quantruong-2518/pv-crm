@@ -16,7 +16,7 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
    *  cùng một đơn trong cùng một khoảnh khắc — và đó chính là lúc nó phải ăn. */
   contract_pkey: {
     kind: 'conflict',
-    message: 'Mã hợp đồng này đã tồn tại — thử lại, máy chủ sẽ cấp số kế tiếp.',
+    message: 'Mã hợp đồng này đã có. Thử lại.',
   },
 
   /** Cặp `(opportunity_code, lead_code)` không khớp dòng cơ hội nào. Chỉ ăn khi
@@ -24,19 +24,19 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
    *  dòng đơn nên hai cột không lệch nhau được. */
   contract_opportunity_fk: {
     kind: 'invalid',
-    message: 'Không có cơ hội nào khớp — hợp đồng phải mọc ra từ một đơn có thật.',
+    message: 'Không tìm thấy cơ hội của hợp đồng này.',
   },
 
   contract_money_pair: {
     kind: 'invalid',
     fields: ['amount', 'currency'],
-    message: 'Giá trị hợp đồng phải đi kèm đơn vị tiền: điền cả hai ô, hoặc bỏ trống cả hai.',
+    message: 'Giá trị hợp đồng cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
   },
 
   contract_owner_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['ownerId'],
-    message: 'Người ăn hoa hồng không còn trong sổ nhân sự — chọn lại người ký.',
+    message: 'Không tìm thấy người hưởng hoa hồng. Chọn lại.',
   },
 
   /** The signing-day snapshot (ADR 0086) is copied from `opportunity_owner`,

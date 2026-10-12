@@ -24,9 +24,9 @@ import type { OpportunityRead } from './opportunity.repository'
  *  Plain functions over `tx`, like `opportunity-handover.ts`: every door that
  *  writes owners calls them; the import check repeats rules 1 and 2 per row. */
 
-export const NOT_SELLER = 'Chỉ người vai Sale hoặc Account Executive đứng làn Sale được.'
-export const NO_OWNER = 'Cơ hội cần ít nhất một người đứng đơn — BD hoặc Sale.'
-export const ASSIGN_ONLY = 'Đã nhận PIC — đổi Sale qua nút Giao Sale.'
+export const NOT_SELLER = 'Sale đứng đơn phải có vai Sale hoặc Account Executive.'
+export const NO_OWNER = 'Cơ hội cần ít nhất một Sale đứng đơn hoặc BD mở cửa.'
+export const ASSIGN_ONLY = 'Đã nhận PIC. Đổi Sale bằng nút Giao Sale.'
 export const PRIMARY_OFF_LANE = 'Sale chính phải là một người trong danh sách Sale đứng đơn'
 export const PRIMARY_NOT_SELLER = 'Sale chính phải là người vai Sale hoặc Account Executive.'
 

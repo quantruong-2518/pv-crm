@@ -459,7 +459,7 @@ export class MailRunRepository {
            SET "state" = 'dead',
                "next_attempt_at" = NULL,
                "last_error_code" = 'mas-cancelled',
-               "last_error_summary" = 'lô bị huỷ bằng tay: thư chưa gửi đã bị giữ lại',
+               "last_error_summary" = 'Lô đã huỷ nên thư này không gửi.',
                "updated_at" = now()
          WHERE d."state" = 'pending'
            AND d."mail_run_id" IN (SELECT "id" FROM stopped)
@@ -620,7 +620,7 @@ export class MailRunRepository {
            SET "state" = 'withheld',
                "next_attempt_at" = NULL,
                "last_error_code" = h.reason_code,
-               "last_error_summary" = 'đợt sau: người nhận được giữ lại ở cổng xét',
+               "last_error_summary" = 'Người nhận bị giữ lại, chưa gửi.',
                "updated_at" = now()
           FROM holds h
          WHERE d."mail_run_id" IN (SELECT "id" FROM released)
@@ -634,7 +634,7 @@ export class MailRunRepository {
            SET "state" = 'withheld',
                "next_attempt_at" = NULL,
                "last_error_code" = 'mas-no-recipient-left',
-               "last_error_summary" = 'đợt sau: mọi người nhận bị giữ lại nên không gửi bản lưu',
+               "last_error_summary" = 'Mọi người nhận bị giữ lại, không gửi bản lưu.',
                "updated_at" = now()
          WHERE d."mail_run_id" IN (SELECT "id" FROM released)
            AND d."role" = 'run_copy'
@@ -686,7 +686,7 @@ export class MailRunRepository {
            SET "state" = 'withheld',
                "next_attempt_at" = NULL,
                "last_error_code" = 'mas-no-recipient-left',
-               "last_error_summary" = 'mọi người nhận bị giữ lại nên không gửi bản lưu',
+               "last_error_summary" = 'Mọi người nhận bị giữ lại, không gửi bản lưu.',
                "updated_at" = now()
          WHERE d."role" = 'run_copy'
            AND d."state" = 'pending'
@@ -895,7 +895,7 @@ export class MailRunRepository {
            SET "state" = 'dead',
                "next_attempt_at" = NULL,
                "last_error_code" = 'mas-bounce-ceiling',
-               "last_error_summary" = 'lô bị cầu dao dừng: tỉ lệ bounce vượt trần',
+               "last_error_summary" = 'Lô dừng vì bounce vượt trần.',
                "updated_at" = now()
          WHERE d."state" = 'pending'
            AND d."mail_run_id" IN (SELECT run_id FROM tripped)

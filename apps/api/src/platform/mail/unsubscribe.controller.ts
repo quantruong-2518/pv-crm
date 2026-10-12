@@ -216,8 +216,8 @@ function shell(heading: string, body: string): string {
 const DONE_PAGE = shell(
   'Đã huỷ đăng ký.',
   `<p>Địa chỉ email này đã được gỡ khỏi danh sách nhận thư giới thiệu của Pebble Vina.</p>
-  <p>Bạn sẽ không nhận thêm thư quảng bá nào nữa. Các thư liên quan trực tiếp tới
-  giao dịch hoặc tài khoản của bạn — nếu có — vẫn được gửi như bình thường.</p>
+  <p>Bạn sẽ không nhận thêm thư quảng bá nào nữa. Thư liên quan trực tiếp tới
+  giao dịch hoặc tài khoản của bạn (nếu có) vẫn được gửi.</p>
   <p><small>Bấm lại liên kết này cũng không sao: kết quả vẫn như trên.</small></p>`,
 )
 
@@ -225,5 +225,5 @@ const BAD_TOKEN_PAGE = shell(
   'Liên kết không dùng được.',
   `<p>Liên kết huỷ đăng ký này không hợp lệ hoặc đã hết hiệu lực.</p>
   <p>Hãy mở lại thư gần nhất bạn nhận được và bấm vào liên kết huỷ đăng ký ở cuối thư.
-  Nếu vẫn không được, trả lời thẳng vào thư đó — chúng tôi sẽ gỡ địa chỉ của bạn.</p>`,
+  Nếu vẫn không được, trả lời thư đó. Chúng tôi sẽ gỡ địa chỉ của bạn.</p>`,
 )

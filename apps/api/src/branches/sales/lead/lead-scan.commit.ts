@@ -37,8 +37,8 @@ import { LEAD_GONE_STATES } from './lead-state'
  *  No campaign enrolment: membership is a campaign's MAS audience, and a
  *  scanned card is no opt-in (ADR 0041) — the lead keeps the attribution. */
 
-export const COMMIT_FAILED = 'Không tạo xong lead từ lô này — lead đã tạo vẫn giữ nguyên.'
-const CREATOR_REVOKED = 'Người tải lô này không còn quyền tạo lead — lô không ghi gì.'
+export const COMMIT_FAILED = 'Không tạo xong lead từ lô này. Lead đã tạo vẫn được giữ.'
+const CREATOR_REVOKED = 'Người tải lô này không còn quyền tạo lead.'
 
 /** The sweeper failed the batch mid-commit: roll the group back and stop. */
 class NoLongerCommitting extends Error {}
@@ -92,7 +92,7 @@ export class LeadScanCommit {
       await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], CREATOR_REVOKED)
       return
     }
-    const { plan } = await this.scans.planOf(creator, await this.repo.files(code))
+    const plan = await this.scans.planOf(creator, await this.repo.files(code))
     /* A campaign closed since upload loses the attribution, not the batch. */
     const campaign = batch.campaignCode
       ? await this.campaigns.pickableOne(batch.campaignCode)

@@ -98,8 +98,8 @@ export function InstallmentDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: 'Hợp đồng không tồn tại, không đứng tên bạn, hoặc số đợt sai.',
-            fallback: 'Hợp đồng không tồn tại, không đứng tên bạn, hoặc số đợt sai.',
+            notFound: 'Không có hợp đồng hoặc đợt này, hoặc hợp đồng không do bạn phụ trách.',
+            fallback: 'Không có hợp đồng hoặc đợt này, hoặc hợp đồng không do bạn phụ trách.',
             back: { label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') },
           }}
         />
@@ -236,15 +236,14 @@ function ConditionsTodo({
           <div className="flex flex-col items-start gap-2">
             <SideTag side={blocking.side} long />
             <p className="m-0 text-[12.5px] leading-[1.6]">
-              Đây là việc duy nhất còn thiếu. Xong nó thì đợt này đến hạn và kế toán xuất được hoá
-              đơn.
+              Đây là việc duy nhất còn thiếu. Xong là kế toán xuất được hoá đơn.
             </p>
             <Button
               size="sm"
               variant="ghost"
               className="pointer-coarse:h-12"
               disabled={!canRecord}
-              title={canRecord ? undefined : 'Vai của bạn không ghi nhận được — việc của kế toán'}
+              title={canRecord ? undefined : 'Vai của bạn không ghi nhận được. Việc của kế toán.'}
               onClick={() => toast('Ghi nhận cần một lượt duyệt trước khi ghi vào sổ.')}
             >
               Ghi nhận đã xong
@@ -298,9 +297,7 @@ function DocsCard({ installment }: { installment: Installment }) {
   return (
     <RunBlock title="Giấy tờ">
       {installment.docs.length === 0 ? (
-        <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
-          Chưa có tệp nào — đợt này còn xa, giấy tờ chỉ sinh ra khi tới lượt.
-        </p>
+        <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">Chưa có tệp nào.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {installment.docs.map((doc) => (
@@ -326,16 +323,13 @@ function DocsCard({ installment }: { installment: Installment }) {
 function RecordsCard({ installment }: { installment: Installment }) {
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
-      <SectionTitle
-        size="detail"
-        hint="Đã nhắc gì, khách trả lời gì, còn nhắc gì nữa — một danh sách, không tách lịch sử với kế hoạch."
-      >
+      <SectionTitle size="detail" hint="Gồm lượt đã nhắc, khách trả lời và lượt sắp nhắc.">
         {installment.records.length} lượt chạm
       </SectionTitle>
 
       {installment.records.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
-          Chưa chạm lượt nào. Nhịp nhắc dựng sẵn sẽ bắt đầu 14 ngày trước hạn.
+          Chưa có lượt nào. Lịch nhắc bắt đầu 14 ngày trước hạn.
         </p>
       ) : (
         <Timeline
@@ -376,14 +370,13 @@ function NotesCard({ installment }: { installment: Installment }) {
       <div className="bg-accent flex flex-col gap-2 rounded-md p-3 shadow-[inset_0_1px_0_var(--sheen-b)]">
         <span className="text-on-tint-primary text-[12.5px] font-semibold">Lời hứa của khách</span>
         <p className="text-on-tint-primary-muted m-0 text-[12px] leading-[1.6]">
-          Chưa có dòng nào. Gọi xong thì ghi lại: khách hẹn ngày nào, ai hẹn, hẹn qua kênh nào — để
-          lần sau không phải nhớ.
+          Chưa có dòng nào. Ghi lại ngày khách hẹn, ai hẹn và hẹn qua kênh nào.
         </p>
         <Button
           size="sm"
           variant="secondary"
           className="pointer-coarse:h-12 self-start"
-          onClick={() => toast('Ô ghi lời hứa nối ở lượt sau.')}
+          onClick={() => toast('Chưa dùng được.')}
         >
           <Icon icon={PenLine} size={16} />
           Ghi lời hứa
@@ -393,7 +386,7 @@ function NotesCard({ installment }: { installment: Installment }) {
       <button
         type="button"
         className="text-muted-foreground motion-std bg-surface-ink/6 hover:bg-surface-ink/12 flex min-h-12 items-center gap-2 rounded-md p-3 text-[12.5px]"
-        onClick={() => toast('Ô ghi chú nối ở lượt sau.')}
+        onClick={() => toast('Chưa dùng được.')}
       >
         <Icon icon={Paperclip} size={16} />
         Viết ghi chú mới…

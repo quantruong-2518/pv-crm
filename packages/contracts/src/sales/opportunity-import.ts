@@ -89,10 +89,10 @@ export const OpportunityImportField = z.enum(OPPORTUNITY_IMPORT_FIELDS)
  *  for the same reason: typing a cell here turns one unconvertible value into a
  *  whole rejected batch carrying one message at the root. Conversion happens in
  *  the check, per row, per field, where the failure can name a line. */
-const importCell = z.string().max(1_000, 'Ô dài quá 1.000 ký tự').transform(collapseSpaces)
+const importCell = z.string().max(1_000, 'Ô dài quá 1.000 ký tự.').transform(collapseSpaces)
 
 export const OpportunityImportRow = z.object({
-  line: z.number().int().min(2, 'Dòng 1 là dòng tiêu đề'),
+  line: z.number().int().min(2, 'Dòng 1 là dòng tiêu đề.'),
   /** The row's first non-empty cell, so an error can name a row a human
    *  recognises rather than a line number alone. */
   first: textInputOptional(200),
@@ -108,8 +108,8 @@ export const OpportunityImportBody = z.object({
   fileName: textInput(255),
   rows: z
     .array(OpportunityImportRow)
-    .min(1, 'Không có dòng nào để nạp')
-    .max(MAX_IMPORT_OPS, `Một lô tối đa ${MAX_IMPORT_OPS} dòng`),
+    .min(1, 'Không có dòng nào để nạp.')
+    .max(MAX_IMPORT_OPS, `Một lô tối đa ${MAX_IMPORT_OPS} dòng.`),
 })
 
 // ---------------------------------------------------------------------------

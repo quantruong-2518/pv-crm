@@ -38,8 +38,7 @@ import { MailTemplateDrawer } from './mail-templates-parts'
  *  asks for the edit permission and not the one that fires mail. */
 const NO_ROWS: MailTemplateRow[] = []
 
-const EMPTY_MESSAGE =
-  'Chưa có mẫu thư nào. Hãy tạo mẫu để người soạn có nội dung khởi đầu và vẫn có thể chỉnh sửa trước khi gửi.'
+const EMPTY_MESSAGE = 'Chưa có mẫu thư nào.'
 
 /** Where a template is listed (G4), a default door marked on its own tag —
  *  the one fact the book must show, since only one template holds each door.
@@ -118,7 +117,7 @@ export function MailTemplatesPage() {
             error
               ? {
                   message: `Không tải được danh sách mẫu thư. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }

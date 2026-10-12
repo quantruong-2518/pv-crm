@@ -124,7 +124,7 @@ export const MAX_IMPORT_GROUP = 64
 
 const importCell = z
   .string()
-  .max(MAX_IMPORT_CELL, `Ô dài quá ${MAX_IMPORT_CELL.toLocaleString('vi-VN')} ký tự`)
+  .max(MAX_IMPORT_CELL, `Ô dài quá ${MAX_IMPORT_CELL.toLocaleString('vi-VN')} ký tự.`)
   .transform(collapseSpaces)
 
 /** One row of the file after the columns have been mapped.
@@ -140,7 +140,7 @@ export const LeadImportRow = z.object({
    *  reason it is worth carrying at all — it is what makes "17 rows failed"
    *  into something a person can act on. Starts at 2 because line 1 is the
    *  header. */
-  line: z.number().int().min(2, 'Dòng 1 là dòng tiêu đề'),
+  line: z.number().int().min(2, 'Dòng 1 là dòng tiêu đề.'),
   /** The first cell of the row, as it appeared in the file.
    *
    *  Sent by the client because the server cannot reconstruct it: once the
@@ -173,7 +173,7 @@ export const LeadImportBody = z.object({
    *  does not mean "not supported"; it means it does not happen, so it fails at
    *  the gate on the `motion` field rather than being stored and then
    *  disbelieved by every report that reads it. */
-  motion: z.enum(MOTION_BY_CHANNEL.IMPORT, 'Thế này không đi qua cửa nạp tệp được'),
+  motion: z.enum(MOTION_BY_CHANNEL.IMPORT, 'Phương án tiếp cận này không dùng được khi nạp tệp.'),
   /** Source code for the WHOLE batch — the campaign's code when the load is
    *  started from inside a campaign profile. Optional: a file brought in on its
    *  own belongs to no campaign.
@@ -197,8 +197,8 @@ export const LeadImportBody = z.object({
   campaignCode: ObjectCode.optional(),
   rows: z
     .array(LeadImportRow)
-    .min(1, 'Không có dòng nào để nạp')
-    .max(MAX_IMPORT_ROWS, `Một lô tối đa ${MAX_IMPORT_ROWS} dòng`),
+    .min(1, 'Không có dòng nào để nạp.')
+    .max(MAX_IMPORT_ROWS, `Một lô tối đa ${MAX_IMPORT_ROWS} dòng.`),
 })
 
 // ---------------------------------------------------------------------------

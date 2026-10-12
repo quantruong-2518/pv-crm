@@ -61,7 +61,7 @@ export default function WorkstreamDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Mã ${code} không có trong sổ, hoặc hành trình nằm ngoài phạm vi của bạn.`,
+            notFound: `Không có hành trình mã ${code} trong phạm vi của bạn.`,
             fallback: 'Không mở được hành trình.',
             back: { label: 'Về sổ hành trình', onClick: () => navigate('/sales/workstreams') },
           }}

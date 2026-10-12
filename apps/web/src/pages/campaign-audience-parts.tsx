@@ -64,7 +64,7 @@ function AudienceDrawer({
       onClose={onClose}
       width="lg"
       title="Thêm người nhận"
-      subtitle="Chỉ hiện lead chưa có trong danh sách của chiến dịch."
+      subtitle="Chỉ hiện lead chưa có trong danh sách."
       footer={
         <div className="flex justify-end gap-2">
           <Button size="lg" variant="ghost" onClick={onClose} disabled={pending}>
@@ -144,12 +144,12 @@ function MemberCard({
         onSuccess: (res) =>
           toast('Đã gỡ khỏi danh sách người nhận', {
             tone: 'success',
-            detail: `Danh sách người nhận nay có ${res.audienceCount} người.`,
+            detail: `Còn ${res.audienceCount} người nhận.`,
           }),
         onError: (err) =>
           toast('Không gỡ được người nhận', {
             tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
           }),
       },
     )
@@ -180,9 +180,9 @@ function MemberCard({
         className="flex flex-col items-center gap-2 px-6 py-12 text-center"
       >
         <Icon icon={Users} size={24} className="text-muted-foreground" />
-        <h3 className="m-0 text-[14px] font-semibold">Danh sách người nhận còn rỗng</h3>
+        <h3 className="m-0 text-[14px] font-semibold">Chưa có người nhận</h3>
         <p className="text-muted-foreground m-0 max-w-[440px] text-pretty text-[12px] leading-[1.6]">
-          Người nhận lấy từ sổ lead. Lead chưa có email vẫn thêm được, nhưng sẽ không nhận thư.
+          Lead chưa có email vẫn thêm được nhưng không nhận thư.
         </p>
       </GlassCard>
     )
@@ -223,7 +223,7 @@ function MemberCard({
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              message="Không có người nhận nào khớp bộ lọc hiện tại."
+              message="Không có người nhận nào khớp bộ lọc."
               action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
               className="py-8"
             />
@@ -243,8 +243,7 @@ function MemberCard({
 
       {rows.length < total && (
         <p className="text-muted-foreground text-[12px]">
-          Đang hiện {rows.length} trên {total} người trong danh sách — {total - rows.length} dòng
-          còn lại chưa nạp ở màn này.
+          Đang hiện {rows.length} trên {total} người.
         </p>
       )}
     </div>
@@ -381,16 +380,16 @@ export function AudienceTab({
       { add: [...selected] },
       {
         onSuccess: (res) => {
-          toast(`Danh sách người nhận nay có ${res.audienceCount} người`, {
+          toast(`Đã thêm ${res.added} lead`, {
             tone: 'success',
-            detail: `Đã thêm ${res.added} lead.`,
+            detail: `Danh sách có ${res.audienceCount} người nhận.`,
           })
           onAdding(false)
         },
         onError: (err) =>
           toast('Không thêm được người nhận', {
             tone: 'danger',
-            detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+            detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
           }),
       },
     )

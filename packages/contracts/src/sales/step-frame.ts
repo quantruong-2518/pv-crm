@@ -112,7 +112,7 @@ export const StepTemplatePatch = z
     active: z.boolean().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
-    message: 'Không có trường nào để sửa',
+    message: 'Không có gì để sửa.',
   })
 
 /** The FULL id list of one state in its new order, for the reason
@@ -120,7 +120,7 @@ export const StepTemplatePatch = z
 export const StepTemplateOrderPatch = z
   .object({ address: StateAddress, ids: z.array(StepTemplateId).min(1) })
   .refine((p) => new Set(p.ids).size === p.ids.length, {
-    message: 'Có mã lặp lại trong thứ tự mới',
+    message: 'Thứ tự có mục bị lặp.',
     path: ['ids'],
   })
 

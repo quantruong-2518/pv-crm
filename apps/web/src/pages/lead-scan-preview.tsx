@@ -107,14 +107,14 @@ export function PreviewStep({
     <>
       <ScanHeader
         title={`Đọc xong ${batch.files.length} tệp`}
-        description="Xem trước bên dưới. Chưa có gì được ghi vào sổ cho tới khi bấm tạo."
+        description="Chỉ ghi vào sổ khi bạn bấm tạo."
         rail={scanRail(batch, navigate)}
         cancel={cancel}
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Tile label="Công ty (account)" value={totals.accounts} />
-        <Tile label="Người liên hệ (contact)" value={totals.contacts} />
+        <Tile label="Công ty" value={totals.accounts} />
+        <Tile label="Người liên hệ" value={totals.contacts} />
         <Tile label="Lead sẽ tạo" value={totals.leadsToCreate} brand />
       </div>
 
@@ -149,7 +149,7 @@ export function PreviewStep({
         {shown.length === 0 && groups.length > 0 ? (
           <EmptyState
             icon={Inbox}
-            message="Không có công ty nào phù hợp với bộ lọc hiện tại."
+            message="Không có công ty nào khớp bộ lọc."
             action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
             className="px-5 py-8"
           />
@@ -182,10 +182,10 @@ export function PreviewStep({
         </Button>
         <p className="text-muted-foreground tnum text-[12.5px]">
           {nothing
-            ? 'Lô này không có gì để tạo hay nhập.'
+            ? 'Không có gì để tạo hay nhập.'
             : merges > 0
-              ? `Bấm là tạo và sang màn kết quả, đồng thời nhập ${merges} công ty vào lead có sẵn.`
-              : 'Bấm là tạo và sang màn kết quả.'}
+              ? `Bấm để tạo và nhập ${merges} công ty vào lead có sẵn.`
+              : 'Bấm để tạo lead.'}
         </p>
       </div>
     </>

@@ -8,10 +8,10 @@ import { dm } from '@/lib/date'
 
 /** The one sentence for a deal with no seller, worded with the button it blocks. */
 export function noSellerSentence(won: boolean, canAssign: boolean): string {
-  const base = `Chưa có Sale đứng đơn — cần một người vai Sale hoặc AE trước khi ${
+  const base = `Chưa có Sale đứng đơn. Cần một người vai Sale hoặc AE trước khi ${
     won ? 'Ký thêm hợp đồng' : 'Chốt thắng'
   }`
-  return canAssign ? `${base}.` : `${base} — nhờ trưởng phòng Kinh doanh giao.`
+  return canAssign ? `${base}.` : `${base}. Nhờ trưởng phòng Kinh doanh giao.`
 }
 
 /** A reader who holds `lead.edit` yet may not write THIS lead: they reach it

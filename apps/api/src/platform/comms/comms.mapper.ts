@@ -138,7 +138,7 @@ export function normaliseAddress(channel: CommsChannel, raw: string): Normalised
       throw invalid(
         {
           address: [
-            'Số điện thoại phải viết đủ dạng quốc tế E.164: dấu +, mã nước, rồi số thuê bao — ví dụ +84912345678.',
+            'Số điện thoại phải viết dạng quốc tế: dấu +, mã nước, số thuê bao. Ví dụ +84912345678.',
           ],
         },
         'Số điện thoại sai dạng.',
@@ -301,7 +301,7 @@ export function refuseNonSubject(row: ObjectRow, field: string): void {
   if (SUBJECT_KINDS.includes(row.kind)) return
   throw invalid(
     {
-      [field]: ['Mỗi liên hệ chỉ thuộc một lead, cơ hội hoặc hợp đồng — chọn mã của một trong ba.'],
+      [field]: ['Mỗi liên hệ chỉ thuộc một lead, cơ hội hoặc hợp đồng. Chọn mã của một trong ba.'],
     },
     'Không ghi được liên hệ trên mã này.',
   )

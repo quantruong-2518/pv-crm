@@ -88,7 +88,7 @@ export const COMM_SUBJECT_NOUN: Record<MailSubjectKind, string> = {
 /** One wording for "this caller could not confirm a comm here", shared by the
  *  buttons and the dialog so the two never say it differently. */
 export const notConfirmableReason = (kind: MailSubjectKind) =>
-  `Bạn không xác nhận được lượt liên hệ trên ${COMM_SUBJECT_NOUN[kind]} này, nên không ghi lại ở đây được.`
+  `Bạn không xác nhận được lượt liên hệ trên ${COMM_SUBJECT_NOUN[kind]} này.`
 
 /** A lead's own contact person, as the comm buttons take it — no `code`, since
  *  that person has no `sales.contact` row. */

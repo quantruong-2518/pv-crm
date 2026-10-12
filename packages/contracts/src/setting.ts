@@ -105,35 +105,35 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     defaultValue: 30,
     min: 1,
     max: 365,
-    description: 'Thư chưa nối được vào ai thì giữ bao lâu trước khi xoá.',
+    description: 'Số ngày giữ thư chưa gắn với ai trước khi xoá.',
   },
   'comms.blob.retention-days': {
     unit: 'days',
     defaultValue: 90,
     min: 1,
     max: 730,
-    description: 'Ghi âm, ghi hình, tệp đính kèm giữ bao lâu.',
+    description: 'Số ngày giữ ghi âm, ghi hình và tệp đính kèm.',
   },
   'sequence.step.default-wait-days': {
     unit: 'days',
     defaultValue: 2,
     min: 1,
     max: 30,
-    description: 'Khoảng chờ mặc định giữa hai bước của một nhịp gửi.',
+    description: 'Số ngày chờ mặc định giữa hai bước của một nhịp gửi.',
   },
   'sequence.max-steps': {
     unit: 'count',
     defaultValue: 10,
     min: 1,
     max: 50,
-    description: 'Trần số bước một nhịp gửi được phép có.',
+    description: 'Số bước tối đa của một nhịp gửi.',
   },
   'content.share.expires-days': {
     unit: 'days',
     defaultValue: 14,
     min: 1,
     max: 90,
-    description: 'Link theo dõi nội dung hết hạn sau bao nhiêu ngày.',
+    description: 'Số ngày link theo dõi nội dung còn dùng được.',
   },
   /* The pair is written together through `ActivityFreshnessPatch`
      (`./sales/config`), which holds alert > warn; neither is in `SettingPatch`
@@ -143,22 +143,21 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     defaultValue: 6,
     min: 1,
     max: 89,
-    description: 'Cơ hội không có hoạt động bao nhiêu ngày thì bắt đầu nhắc.',
+    description: 'Số ngày cơ hội không có hoạt động thì bắt đầu nhắc.',
   },
   'sales.activity.alert-days': {
     unit: 'days',
     defaultValue: 9,
     min: 2,
     max: 90,
-    description: 'Cơ hội không có hoạt động bao nhiêu ngày thì báo động.',
+    description: 'Số ngày cơ hội không có hoạt động thì báo động.',
   },
   'auth.session.remembered-days': {
     unit: 'days',
     defaultValue: 15,
     min: 1,
     max: 90,
-    description:
-      'Phiên đăng nhập có tick Ghi nhớ sống bao nhiêu ngày. Chỉ áp cho phiên mở sau khi đổi.',
+    description: 'Số ngày giữ đăng nhập khi chọn Ghi nhớ. Chỉ áp cho lần đăng nhập sau.',
   },
 }
 
@@ -210,8 +209,8 @@ function boundedValue(key: SettingKey) {
      is named in the sentence — being told a number is wrong without being told
      what would be right sends the reader back to the source. */
   return z
-    .number('Giá trị phải là một con số.')
-    .int('Giá trị phải là số nguyên.')
+    .number('Nhập một con số.')
+    .int('Nhập số nguyên.')
     .min(def.min, `Thấp nhất là ${def.min} ${unit}.`)
     .max(def.max, `Cao nhất là ${def.max} ${unit}.`)
 }

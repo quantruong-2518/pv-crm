@@ -45,8 +45,8 @@ export function MotionSection() {
     return (
       <EmptyState
         icon={TriangleAlert}
-        message={`Không đọc được thiết lập luồng. ${
-          isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+        message={`Không tải được thiết lập luồng. ${
+          isApiError(error) ? userMessage(error) : 'Thử lại.'
         }`}
         action={{ label: 'Thử lại', onClick: () => void refetch() }}
         className="py-12"
@@ -186,7 +186,7 @@ function MotionRow({ row }: { row: MotionPolicy }) {
             className={SELECT_FILL}
             value={cold}
             onChange={setCold}
-            options={TRI('được', 'KHÔNG được')}
+            options={TRI('được', 'không được')}
           />
         </MotionCell>
 

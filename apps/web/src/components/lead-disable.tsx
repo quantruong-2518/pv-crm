@@ -74,9 +74,8 @@ export function DisableLeadsDialog({
       }
     >
       <p className="m-0 text-[13px] leading-[1.6]">
-        Lead sẽ không còn hiện với bất kỳ ai và không thao tác được nữa, kể cả cơ hội và hợp đồng đi
-        kèm. Thư đang chờ gửi cho các lead này bị giữ lại và không tự gửi lại khi khôi phục. Có thể
-        khôi phục ở mục Đã vô hiệu.
+        Lead, cơ hội và hợp đồng đi kèm sẽ ẩn với mọi người. Thư đang chờ gửi bị giữ lại. Khôi phục
+        ở mục Đã vô hiệu, thư đã giữ không tự gửi lại.
       </p>
     </Modal>
   )

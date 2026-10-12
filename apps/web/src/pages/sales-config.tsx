@@ -79,7 +79,7 @@ export function SalesConfigPage() {
       <ScreenLayout>
         <ScreenHeader
           title="Cấu hình phòng kinh doanh"
-          description="Mọi thay đổi là một đề nghị, có hiệu lực sau khi được duyệt."
+          description="Thay đổi có hiệu lực sau khi được duyệt."
           actions={<PendingLink />}
         />
 
@@ -101,8 +101,8 @@ export function SalesConfigPage() {
             <GlassCard className="p-5 lg:p-6">
               <EmptyState
                 icon={TriangleAlert}
-                message={`Không đọc được cấu hình. ${
-                  isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                message={`Không tải được cấu hình. ${
+                  isApiError(error) ? userMessage(error) : 'Thử lại.'
                 }`}
                 action={{ label: 'Thử lại', onClick: () => void refetch() }}
                 className="py-12"

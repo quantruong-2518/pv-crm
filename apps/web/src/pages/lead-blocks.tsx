@@ -37,7 +37,7 @@ export function LeadHeader({ lead, readOnly }: { lead: LeadProfile; readOnly: bo
         <span className="tnum">tạo {dmy(lead.createdAt)}</span>,
         /* `lead.canEdit` is false for a reader who reaches the lead only
            through one of its live deals (ADR 0071). */
-        readOnly && 'Bạn tham gia một cơ hội của lead này, không giữ lead — chỉ xem',
+        readOnly && 'Bạn tham gia một cơ hội của lead này nên chỉ xem được',
       ]}
     />
   )

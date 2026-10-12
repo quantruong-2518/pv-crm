@@ -89,7 +89,7 @@ export function screenPicked(files: readonly File[]): { accepted: Picked[]; reje
     else if (accepted.length >= SCAN_MAX_FILES) overflow += 1
     else accepted.push({ file, mime })
   }
-  if (overflow > 0) rejected.push(`${overflow} tệp vượt trần ${SCAN_MAX_FILES} tệp một lô`)
+  if (overflow > 0) rejected.push(`${overflow} tệp vượt quá ${SCAN_MAX_FILES} tệp một lô`)
   return { accepted, rejected }
 }
 

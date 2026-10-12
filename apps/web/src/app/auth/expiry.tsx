@@ -22,7 +22,7 @@ import { useSession } from './session'
  *  chưa lưu" và "còn hiện trên màn của người ngồi sau", chọn cái thứ nhất.
  *
  *  Cái dải này vì thế quan trọng hơn trước: hai phút cảnh báo nay là cơ hội duy
- *  nhất để người dùng bấm lưu trước khi bị đá ra. Nút "Gia hạn phiên" trên dải
+ *  nhất để người dùng bấm lưu trước khi bị đá ra. Nút "Gia hạn đăng nhập" trên dải
  *  là đường tránh, và nó chỉ hiện khi gia hạn được thật.
  *
  *  Thang tầng của app: nav 40 · drawer 50 · **dải cảnh báo 55 · hộp xác nhận
@@ -69,12 +69,12 @@ export function ExpiryWarning() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="m-0 text-[12.5px] font-semibold">
-              Phiên hết sau {countdown(deadline - now)}
+              Hết thời gian đăng nhập sau {countdown(deadline - now)}
             </p>
             <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
               {renewable
-                ? 'Không thao tác thì hệ tự đóng phiên trên máy này.'
-                : 'Hết ca làm việc — lưu lại việc đang dở trước khi phải đăng nhập lại.'}
+                ? 'Không thao tác thì sẽ tự đăng xuất.'
+                : 'Hết ca làm việc. Lưu việc đang dở trước khi đăng nhập lại.'}
             </p>
           </div>
           <button
@@ -88,7 +88,7 @@ export function ExpiryWarning() {
         </div>
         {renewable && (
           <Button size="sm" onClick={() => void renewSession()}>
-            Gia hạn phiên
+            Gia hạn đăng nhập
           </Button>
         )}
       </GlassCard>

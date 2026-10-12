@@ -164,7 +164,7 @@ export function AudiencePicker({
         pending={isPending}
         failure={
           error
-            ? `Không tải được danh sách lead. ${isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}`
+            ? `Không tải được danh sách lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`
             : undefined
         }
         onRetry={() => void refetch()}
@@ -182,7 +182,7 @@ export function AudiencePicker({
         onPaint={paintSelection}
       />
       <p className="text-muted-foreground text-[11px]">
-        Hiện tới {AUDIENCE_PAGE_SIZE} lead khớp lọc, mới nhất trước.
+        Hiện tối đa {AUDIENCE_PAGE_SIZE} lead mới nhất.
       </p>
     </div>
   )
@@ -352,11 +352,11 @@ function PickerTable({
           message={
             alreadyOnPage > 0
               ? wholeMatchShown
-                ? 'Mọi lead khớp bộ lọc đều đã có trong danh sách người nhận rồi.'
-                : `${alreadyOnPage} lead mới nhất khớp bộ lọc đều đã có trong danh sách người nhận. Thu hẹp bằng ô tìm hoặc bộ lọc để thấy lead cũ hơn.`
+                ? 'Mọi lead khớp bộ lọc đã có trong danh sách.'
+                : `${alreadyOnPage} lead mới nhất đã có trong danh sách. Thu hẹp bộ lọc để thấy lead cũ hơn.`
               : filtered
-                ? 'Không có lead nào khớp bộ lọc đang chọn.'
-                : 'Sổ lead chưa có lead nào ở trạng thái Đang hoạt động.'
+                ? 'Không có lead nào khớp bộ lọc.'
+                : 'Chưa có lead nào ở trạng thái Đang hoạt động.'
           }
           action={
             dirty

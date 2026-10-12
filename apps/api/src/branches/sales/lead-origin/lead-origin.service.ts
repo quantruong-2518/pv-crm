@@ -86,7 +86,7 @@ export class LeadOriginService {
     await this.repo.run(async (tx) => {
       const row = await this.repo.byId(tx, id)
       if (!row) throw notFound('nguồn', id)
-      if (row.mergedInto) throw conflict(`Nguồn ${id} đã được gộp vào ${row.mergedInto}.`)
+      if (row.mergedInto) throw conflict(`Nguồn ${id} đã gộp vào ${row.mergedInto}.`)
 
       if (body.name !== undefined) await this.rename(tx, row, body.name, who)
       if (body.motions !== undefined) {
@@ -108,9 +108,9 @@ export class LeadOriginService {
       const [from, to] = await Promise.all([this.repo.byId(tx, id), this.repo.byId(tx, into)])
       if (!from) throw notFound('nguồn', id)
       if (!to) throw notFound('nguồn', into)
-      if (from.mergedInto) throw conflict(`Nguồn ${id} đã được gộp vào ${from.mergedInto}.`)
+      if (from.mergedInto) throw conflict(`Nguồn ${id} đã gộp vào ${from.mergedInto}.`)
       if (to.mergedInto || !to.active) {
-        throw conflict(`Nguồn ${into} đang tắt hoặc đã bị gộp — chọn một nguồn đang dùng.`)
+        throw conflict(`Nguồn ${into} đang tắt hoặc đã gộp. Chọn nguồn đang dùng.`)
       }
 
       const moved = await this.repo.repointLeads(tx, id, into)
@@ -146,11 +146,10 @@ export class LeadOriginService {
       'id' in pick
         ? await this.repo.byId(tx, pick.id)
         : await this.repo.byId(tx, (await this.findOrCreate(tx, pick.name, [motion], who)).id)
-    if (!found) throw invalid({ origin: ['Nguồn không có trong danh mục.'] })
+    if (!found) throw invalid({ origin: ['Không tìm thấy nguồn này.'] })
 
     const live = await this.survivor(tx, found)
-    if (!live.active)
-      throw invalid({ origin: [`Nguồn "${live.name}" đang tắt — chọn nguồn khác.`] })
+    if (!live.active) throw invalid({ origin: [`Nguồn "${live.name}" đang tắt. Chọn nguồn khác.`] })
 
     await this.fileUnder(tx, live.id, [motion], who)
     return { id: live.id, name: live.name, raw: 'name' in pick ? pick.name : null }
@@ -282,12 +281,9 @@ export class LeadOriginService {
     const aliasOf = await this.repo.aliasOwner(tx, key)
     const clash = own?.id ?? (aliasOf !== row.id ? aliasOf : null)
     if (clash) {
-      throw conflict(
-        `Tên "${name}" trùng với nguồn ${clash} — hãy gộp hai nguồn thay vì đổi tên.`,
-        {
-          name: [`Trùng với nguồn ${clash}. Dùng "Gộp nguồn" để gộp vào đó.`],
-        },
-      )
+      throw conflict(`Tên "${name}" trùng với nguồn ${clash}. Hãy gộp hai nguồn.`, {
+        name: [`Trùng với nguồn ${clash}. Hãy gộp vào nguồn đó.`],
+      })
     }
 
     if (aliasOf === row.id) await this.repo.dropAlias(tx, key)

@@ -254,7 +254,7 @@ export function PartnersPage() {
             error
               ? {
                   message: `Không tải được danh sách đối tác. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -264,7 +264,7 @@ export function PartnersPage() {
             rows.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có đối tác nào phù hợp với bộ lọc hiện tại.',
+                    message: 'Không có đối tác nào khớp bộ lọc.',
                     action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
                   }
                 : {

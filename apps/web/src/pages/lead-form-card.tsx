@@ -112,7 +112,7 @@ export function LeadForm({
           against the boxes themselves — this line only says so out loud. */}
       {draft.mode === 'create' && (
         <span className="text-muted-foreground text-[12.5px] leading-[1.5]">
-          Ô có dấu sao là bắt buộc. Ô bỏ trống không được ghi xuống sổ.
+          Ô có dấu sao là bắt buộc.
         </span>
       )}
 
@@ -170,7 +170,7 @@ function NoteBox({ code }: { code: string | null }) {
   if (code === null) {
     return (
       <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-        Ghi chú mở sau khi tạo lead.
+        Tạo lead xong mới ghi chú được.
       </p>
     )
   }
@@ -186,7 +186,7 @@ function NoteBox({ code }: { code: string | null }) {
         placeholder="Ví dụ: chỉ gọi trước 9h; người duyệt mới chưa tham gia buổi trao đổi…"
       />
       <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Ghi chú chỉ lưu trên máy này. Đồng nghiệp mở lead sẽ không thấy.
+        Ghi chú chỉ lưu trên máy này, đồng nghiệp không thấy.
       </span>
     </div>
   )

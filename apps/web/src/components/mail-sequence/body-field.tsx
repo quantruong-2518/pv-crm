@@ -83,7 +83,7 @@ export function BodyField({
           caret.current = { start: e.target.selectionStart, end: e.target.selectionEnd }
         }}
         rows={7}
-        placeholder="Thân thư. **đậm**, _nghiêng_, đầu dòng `- ` thành danh sách. Bấm Chèn nhanh để điền tên từng người nhận."
+        placeholder="Nội dung thư. **đậm**, _nghiêng_, `- ` đầu dòng thành danh sách."
       />
     </div>
   )

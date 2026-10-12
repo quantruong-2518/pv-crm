@@ -121,7 +121,7 @@ export function SourceDetailPage() {
         <GlassCard className="p-5 lg:p-6">
           <EmptyState
             icon={TriangleAlert}
-            message={`Không có nguồn dẫn nào mang mã ${code} trong kỳ này.`}
+            message={`Không có nguồn dẫn mã ${code} trong kỳ này.`}
             action={{
               label: 'Về sổ nguồn dẫn',
               onClick: () => navigate('/sales/campaigns/sources'),
@@ -145,20 +145,23 @@ export function SourceDetailPage() {
     const run = await loadFile({ rows, motion, fileName, source: source.code })
     const { report } = run
 
-    toast(run.failure ?? `${report.rows.length} người nhận vào sổ lead, gắn nguồn ${source.code}`, {
-      tone: run.failure ? 'danger' : 'success',
-      detail: [
-        report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
-        report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
-        report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
-      ]
-        .filter(Boolean)
-        .join(' · '),
-      action: {
-        label: 'Mở sổ lead',
-        onClick: () => navigate(`/sales/leads?campaign=${source.code}`),
+    toast(
+      run.failure ?? `Đã thêm ${report.rows.length} người nhận vào sổ lead, nguồn ${source.code}`,
+      {
+        tone: run.failure ? 'danger' : 'success',
+        detail: [
+          report.duplicates > 0 && `${report.duplicates} dòng trùng sổ, đã nạp và gắn cờ`,
+          report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
+          report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        action: {
+          label: 'Mở sổ lead',
+          onClick: () => navigate(`/sales/leads?campaign=${source.code}`),
+        },
       },
-    })
+    )
 
     return report
   }
@@ -213,15 +216,12 @@ export function SourceDetailPage() {
           <span className="tnum font-num">{w.bounced}</span>
         </span>
         <span className="text-muted-foreground text-[11px]">
-          {w.expected !== null
-            ? `kỳ vọng ${w.expected} lead — hệ không quy lead về từng đợt, phép so nằm ở cả chuỗi`
-            : 'đợt này không ai đặt kỳ vọng'}
+          {w.expected !== null ? `kỳ vọng ${w.expected} lead` : 'chưa đặt kỳ vọng'}
         </span>
         {sendsViaE4(w.channel) ? null : (
           <span className="text-warning flex items-start gap-2 text-[11px] leading-[1.5]">
             <Icon icon={TriangleAlert} size={16} />
-            Hệ chưa nối đường gửi cho {CHANNEL_LABEL[w.channel]} — đợt này người tự đăng, số ở trên
-            là số nhập tay.
+            Chưa gửi tự động qua {CHANNEL_LABEL[w.channel]}. Đợt này đăng tay, số liệu nhập tay.
           </span>
         )}
       </div>
@@ -348,7 +348,7 @@ export function SourceDetailPage() {
                 icon={Mail}
                 value={grouped(source.sent)}
                 label="Người nhận"
-                hint={`${source.waves.length} đợt · chuỗi trải ${source.runDays} ngày`}
+                hint={`${source.waves.length} đợt trong ${source.runDays} ngày`}
               />
               <StatCard
                 size="compact"
@@ -375,7 +375,7 @@ export function SourceDetailPage() {
                 label="Tỉ lệ mail hỏng"
                 hint={
                   source.bounced === 0
-                    ? 'không đợt nào gửi tới một địa chỉ — bài đăng không dội được'
+                    ? 'không có địa chỉ bị trả lại'
                     : `${source.bounced} địa chỉ không nhận được`
                 }
               />
@@ -388,7 +388,7 @@ export function SourceDetailPage() {
                 size="sm"
                 hint={
                   source.costByKind.total > 0
-                    ? `${source.costByKind.rows.length} loại chi tiền mặt · cộng đúng ${millions(source.costByKind.total)}, bằng chi phí của chiến dịch. Giờ người KHÔNG có ở đây: đây là tiền đã ra khỏi tài khoản.`
+                    ? `${source.costByKind.rows.length} loại chi tiền mặt · tổng ${millions(source.costByKind.total)} · không gồm giờ công`
                     : undefined
                 }
               >
@@ -397,8 +397,7 @@ export function SourceDetailPage() {
 
               {source.costByKind.rows.length === 0 ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chiến dịch này không tốn đồng tiền mặt nào, nên không có dòng chi nào để phân rã —
-                  đó là nội dung của nó, không phải chỗ thiếu dữ liệu.
+                  Chiến dịch này không chi tiền mặt.
                 </p>
               ) : (
                 <>
@@ -433,17 +432,12 @@ export function SourceDetailPage() {
                   />
                   {source.costByKind.absent.length > 0 ? (
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Không có dòng nào thuộc {source.costByKind.absent.join(', ')} — chiến dịch này
-                      không tiêu tiền ở{' '}
-                      {source.costByKind.absent.length > 1 ? 'những loại' : 'loại'} đó, khác hẳn với
-                      chưa ai nhập số.
+                      Không chi tiền cho {source.costByKind.absent.join(', ')}.
                     </p>
                   ) : null}
                   {source.enough ? null : (
                     <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                      Dải giá ở trên chưa đủ chắc để so với chiến dịch khác — {source.why}. Con số
-                      vẫn hiện vì tiền đã tiêu thật; thứ chưa đứng vững là câu so sánh, không phải
-                      chi phí.
+                      Dải giá ở trên chưa đủ chắc để so với chiến dịch khác: {source.why}.
                     </p>
                   )}
                 </>
@@ -451,17 +445,14 @@ export function SourceDetailPage() {
             </GlassCard>
 
             <GlassCard variant="b" className="flex flex-col gap-4 p-5">
-              <SectionTitle
-                size="sm"
-                hint={`${source.waves.length} đợt · mọi lần gửi đi qua hệ gửi chung, màn không tự gọi nền tảng nào`}
-              >
+              <SectionTitle size="sm" hint={`${source.waves.length} đợt`}>
                 Chuỗi đợt
               </SectionTitle>
               <Timeline items={items} />
               {stopped ? (
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Chiến dịch đã dừng — các đợt chưa gửi đã rút khỏi hàng đợi và chuỗi không nhận
-                  thêm đợt. Chạy lại thì dùng nút Nhân bản.
+                  Chiến dịch đã dừng, các đợt chưa gửi sẽ không gửi nữa. Muốn chạy lại thì dùng Nhân
+                  bản.
                 </p>
               ) : (
                 <Button
@@ -495,9 +486,8 @@ export function SourceDetailPage() {
                 <span className="text-muted-foreground text-[11.5px]">người ở đợt mở màn</span>
               </span>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chiến dịch này chạy trước khi hệ có nhóm người nhận, nên chỉ còn số đếm của từng đợt
-                — không dựng lại được danh sách. Bấm <b className="text-foreground">Nhân bản</b> để
-                chọn nhóm mới bằng bộ lọc trên sổ lead.
+                Không còn danh sách người nhận, chỉ còn số đếm từng đợt. Bấm{' '}
+                <b className="text-foreground">Nhân bản</b> để chọn nhóm mới từ sổ lead.
               </p>
               {/* Đường thứ hai cho đúng chỗ thiếu vừa thú nhận ở trên: nếu danh
                 sách còn nằm trong một tệp ở máy ai đó, nạp thẳng vào đây và nó
@@ -518,10 +508,10 @@ export function SourceDetailPage() {
               <h3 className="text-[12.5px] font-semibold">Điều kiện dừng</h3>
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
                 {stopped
-                  ? 'Đã dừng tay. Các đợt chưa gửi không còn trong hàng đợi.'
+                  ? 'Đã dừng. Các đợt chưa gửi sẽ không gửi nữa.'
                   : running
-                    ? 'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Chống trùng người nhận do hệ giữ: một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng cửa sổ.'
-                    : 'Chuỗi đã chạy hết — không còn đợt nào trong hàng đợi để dừng.'}
+                    ? 'Chuỗi chạy hết các đợt đã soạn, trừ khi có người bấm Dừng. Một người nằm trong hai chiến dịch không bị gửi hai lần trong cùng một khoảng thời gian.'
+                    : 'Chuỗi đã chạy hết, không còn đợt nào để dừng.'}
               </p>
             </div>
 

@@ -97,7 +97,7 @@ export class SalesConfigService implements ApprovalApplier {
     }
     this.assertAttrs(list, body)
     if (list === 'COMM_ANSWER' && body.criterionId === undefined) {
-      throw invalid({ criterionId: ['Câu trả lời phải thuộc một câu hỏi — chọn câu hỏi.'] })
+      throw invalid({ criterionId: ['Chọn câu hỏi cho câu trả lời.'] })
     }
     const rows = await this.repo.list(list)
     this.assertShapeKept(change, rows)
@@ -395,9 +395,7 @@ export class SalesConfigService implements ApprovalApplier {
       (change.patch.active !== undefined &&
         rows.find((r) => r.id === change.id)?.active !== change.patch.active)
     if (!reshapes) return
-    throw conflict(
-      `Danh mục ${change.list} có cấu trúc cố định — chỉ đổi được tên và số ngày giới hạn của từng chặng, không thêm, tắt hay xếp lại chặng.`,
-    )
+    throw conflict(`Danh mục ${change.list} chỉ đổi được tên và số ngày giới hạn của từng chặng.`)
   }
 
   /** The new order must name every id of the list and nothing else.
@@ -417,7 +415,7 @@ export class SalesConfigService implements ApprovalApplier {
           ...(strange.length > 0 ? [`Không thuộc danh mục này: ${strange.join(', ')}`] : []),
         ],
       },
-      'Thứ tự mới phải liệt kê đúng và đủ các mục của danh mục.',
+      'Thứ tự mới phải có đủ các mục của danh mục.',
     )
   }
 
@@ -456,13 +454,13 @@ export class SalesConfigService implements ApprovalApplier {
    *  Any `COMM_CRITERION` row, off ones included — config rows are never deleted. */
   private async assertCriterionReal(id: string | undefined): Promise<void> {
     if (id === undefined || (await this.repo.byId('COMM_CRITERION', id))) return
-    throw invalid({ criterionId: [`Không có câu hỏi nào mang mã "${id}".`] })
+    throw invalid({ criterionId: [`Không tìm thấy câu hỏi "${id}".`] })
   }
 
   /** Người phụ trách phải có trong sổ nhân sự. */
   private async assertOwnerReal(ownerId: string | null | undefined): Promise<void> {
     if (!ownerId) return
     if (await this.repo.actorExists(ownerId)) return
-    throw invalid({ ownerId: [`Không có người nào mang mã "${ownerId}".`] })
+    throw invalid({ ownerId: [`Không tìm thấy người "${ownerId}".`] })
   }
 }

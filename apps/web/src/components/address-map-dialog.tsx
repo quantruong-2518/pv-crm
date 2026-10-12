@@ -30,14 +30,14 @@ type Choice = { kind: 'ref'; refId: string } | { kind: 'point'; at: MapPoint }
 
 const SEARCH_PLACEHOLDER = 'Tìm địa chỉ: số nhà, đường, phường…'
 const SEARCHING_TEXT = 'Đang tìm…'
-const HINT_TEXT = 'Tìm ở ô trên, hoặc chạm vào bản đồ để chọn một điểm.'
+const HINT_TEXT = 'Tìm địa chỉ hoặc chạm vào bản đồ để chọn.'
 const FETCHING_TEXT = 'Đang lấy địa chỉ…'
-const LOOKUP_FAILED_TEXT = 'Không lấy được địa chỉ — thử lại.'
-const NO_ADDRESS_TEXT = 'Không có địa chỉ ở điểm vừa chọn — thử điểm khác.'
+const LOOKUP_FAILED_TEXT = 'Không lấy được địa chỉ. Thử lại.'
+const NO_ADDRESS_TEXT = 'Điểm này không có địa chỉ. Chọn điểm khác.'
 const CONFIRM_TEXT = 'Dùng địa chỉ này'
 const CANCEL_TEXT = 'Huỷ'
 const TITLE_TEXT = 'Chọn địa chỉ trên bản đồ'
-const SUBTITLE_TEXT = 'Chỉ địa chỉ và tỉnh/thành được lưu — toạ độ chỉ dùng để chỉ chỗ trên bản đồ.'
+const SUBTITLE_TEXT = 'Chỉ lưu địa chỉ và tỉnh/thành.'
 
 export type AddressMapDialogProps = {
   open: boolean

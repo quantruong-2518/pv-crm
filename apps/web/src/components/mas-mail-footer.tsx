@@ -10,11 +10,11 @@ import { sendLabel } from '@/data/mas-mail-draft'
 /** What the footer says when nothing is wrong — one fact per step. */
 function footerNote(step: number, picked: number, sendable: number | null): string {
   if (step === 0) {
-    return `${picked} người nhận · thư đi từ noreply; khách bấm Trả lời thì máy ghi nhận và báo người giữ.`
+    return `${picked} người nhận · thư đi từ noreply. Khách trả lời được ghi vào hồ sơ và báo người giữ.`
   }
   return sendable === null
     ? 'Đang kiểm tra người nhận…'
-    : `${sendable} người sẽ nhận · xem bản bên phải trước khi gửi.`
+    : `${sendable} người sẽ nhận. Xem bản bên phải trước khi gửi.`
 }
 
 export function MailFooter({

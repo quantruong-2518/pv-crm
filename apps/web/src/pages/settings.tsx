@@ -17,7 +17,7 @@ export function SettingsPage() {
         <ScreenHeader
           kicker="One Core"
           title="Cài đặt & quản trị"
-          description="Người dùng, vai trò và các danh mục định hình cách cả đội làm việc."
+          description="Người dùng, vai trò và danh mục."
         />
         {chrome.settings.length === 0 ? (
           <EmptyState

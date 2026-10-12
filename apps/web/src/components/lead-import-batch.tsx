@@ -42,7 +42,7 @@ export function useLeadImportBatch() {
     if (asked === undefined) {
       return {
         node: null,
-        missing: 'Phương án tiếp cận chưa sẵn sàng — đang tải hoặc đã tắt.',
+        missing: 'Phương án tiếp cận đang tải hoặc đã tắt.',
         hideFields: PICKED_NOT_FILED,
       }
     }
@@ -85,7 +85,7 @@ export function useLeadImportBatch() {
     return {
       node: (
         <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-          Nguồn chi tiết lấy theo cột Nguồn của từng dòng trong tệp.
+          Nguồn chi tiết lấy từ cột Nguồn trong tệp.
         </p>
       ),
       hideFields: CAMPAIGN_ONLY,

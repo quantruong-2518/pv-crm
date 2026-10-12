@@ -183,9 +183,9 @@ export default CommLogPage
 /** The content is the comm's summary, so it carries the summary's cap. */
 function contentBlockerOf(text: string): string | null {
   const length = text.trim().length
-  if (length === 0) return 'Chưa ghi nội dung trao đổi — đây là tóm tắt của lượt liên hệ.'
+  if (length === 0) return 'Chưa ghi nội dung trao đổi.'
   return length > DEBRIEF_SUMMARY_MAX
-    ? `Nội dung dài ${length.toLocaleString('vi-VN')} ký tự, tóm tắt tối đa ${DEBRIEF_SUMMARY_MAX.toLocaleString('vi-VN')} ký tự — rút gọn lại.`
+    ? `Nội dung dài ${length.toLocaleString('vi-VN')} ký tự, tối đa ${DEBRIEF_SUMMARY_MAX.toLocaleString('vi-VN')} ký tự. Rút gọn lại.`
     : null
 }
 
@@ -213,10 +213,10 @@ function SaveStep({
 
   const blocker = !target.data
     ? target.error
-      ? 'Không đọc được điều kiện xác nhận của lượt liên hệ này.'
-      : 'Đang đọc điều kiện xác nhận.'
+      ? 'Không tải được điều kiện xác nhận.'
+      : 'Đang tải điều kiện xác nhận.'
     : !target.data.confirmable
-      ? `Bạn không xác nhận được lượt liên hệ trên ${kind.toLowerCase()} ${subjectCode}, nên không lưu được ở đây.`
+      ? `Bạn không xác nhận được lượt liên hệ trên ${kind.toLowerCase()} ${subjectCode}.`
       : (evaluationBlockerOf(vocab, picked) ?? (step ? stepBlockerOf(draft, options) : null))
 
   const save = () =>
@@ -312,7 +312,7 @@ function useSaveLog() {
       await confirm.mutateAsync({ id, body })
       onDone(id)
     } catch (error) {
-      setFailure(isApiError(error) ? commCreateFailure(error) : 'Chưa lưu xong. Thử lại.')
+      setFailure(isApiError(error) ? commCreateFailure(error) : 'Không lưu được. Thử lại.')
     } finally {
       setBusy(false)
     }

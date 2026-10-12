@@ -288,16 +288,11 @@ export class MasService {
        to ask for a permission that would change nothing — the answer is a
        variable on the server, so the message names the variable. */
     if (!this.env.PV_MAS_ENABLED) {
-      throw conflict(
-        'Đường gửi hàng loạt đang tắt trên máy chủ này — cần bật PV_MAS_ENABLED. Mail giao dịch không bị ảnh hưởng.',
-      )
+      throw conflict('Chưa bật gửi hàng loạt. Báo quản trị viên.')
     }
 
     if (body.campaignCode !== undefined && !this.access.allows(who, 'campaign.broadcast')) {
-      throw denied(
-        'permission-denied',
-        'Bắn một đợt của chiến dịch cần quyền “campaign.broadcast” — quyền gửi cho lead của mình không đủ.',
-      )
+      throw denied('permission-denied', 'Bạn không có quyền gửi đợt của chiến dịch.')
     }
 
     validateSequenceChoice(body)
@@ -314,10 +309,10 @@ export class MasService {
       throw invalid(
         {
           'audience.codes': [
-            `Một lô tối đa ${this.env.PV_MAS_BATCH_MAX} đối tượng — lô này có ${picked.length}.`,
+            `Một lô tối đa ${this.env.PV_MAS_BATCH_MAX} đối tượng, lô này có ${picked.length}.`,
           ],
         },
-        `Lô vượt trần: ${picked.length} đối tượng, trần hiện tại là ${this.env.PV_MAS_BATCH_MAX}.`,
+        `Lô có ${picked.length} đối tượng, tối đa ${this.env.PV_MAS_BATCH_MAX}.`,
       )
     }
 
@@ -493,7 +488,7 @@ export class MasService {
       sequence.audienceCount !== codes.length
     ) {
       throw conflict(
-        'Chuỗi gửi này đã tồn tại với tên, người tạo hoặc nhóm destination khác — hãy mở một chuỗi mới.',
+        'Chuỗi gửi này đã có với tên, người tạo hoặc nhóm người nhận khác. Hãy tạo chuỗi mới.',
       )
     }
 
@@ -501,7 +496,7 @@ export class MasService {
     if (existing) {
       if (!sameSequenceWave(existing, body, scheduledAt)) {
         throw conflict(
-          `Đợt ${body.sequence.waveNo} của chuỗi này đã tồn tại với nội dung hoặc cách gửi khác.`,
+          `Đợt ${body.sequence.waveNo} của chuỗi này đã có với nội dung hoặc cách gửi khác.`,
         )
       }
       return {
@@ -588,12 +583,12 @@ export class MasService {
     if (!run) throw notFound('lô gửi', id)
 
     if (run.createdBy !== who.id) {
-      throw denied('out-of-scope', 'Chỉ người tạo lô sửa hay dừng được lô này từ đây.')
+      throw denied('out-of-scope', 'Chỉ người tạo lô mới sửa hay dừng được lô này.')
     }
     if (await this.repo.campaignOfRun(id)) {
       throw denied(
         'permission-denied',
-        'Lô này là một đợt của chiến dịch — sửa hay dừng cần quyền “campaign.broadcast”, ở Sổ lô gửi.',
+        'Lô này thuộc một chiến dịch. Nhờ người có quyền gửi chiến dịch sửa hay dừng ở Sổ lô gửi.',
       )
     }
 
@@ -632,7 +627,7 @@ export class MasService {
     if (!run) throw notFound('lô gửi', id)
 
     if (who.ownOnly && run.createdBy !== who.id) {
-      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+      throw denied('out-of-scope', `Lô gửi này do người khác tạo.`)
     }
 
     return this.cancelRun(who, run, patch)
@@ -647,7 +642,7 @@ export class MasService {
   ): Promise<MailRunPatchResponse> {
     const id = run.id
     if (run.state === 'SENT') {
-      throw conflict('Lô này đã gửi xong — không còn thư nào để giữ lại.')
+      throw conflict('Lô này đã gửi xong.')
     }
 
     if (run.state === patch.state) {
@@ -672,7 +667,7 @@ export class MasService {
       const now = await this.runs.byId(id)
       if (!now) throw notFound('lô gửi', id)
       if (now.state === 'SENT') {
-        throw conflict('Lô này vừa gửi xong — không còn thư nào để giữ lại.')
+        throw conflict('Lô này vừa gửi xong.')
       }
       return MailRunPatchResponse.parse({ id, state: now.state, held: 0 })
     }
@@ -695,7 +690,7 @@ export class MasService {
     if (!run) throw notFound('lô gửi', id)
 
     if (who.ownOnly && run.createdBy !== who.id) {
-      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+      throw denied('out-of-scope', `Lô gửi này do người khác tạo.`)
     }
 
     return this.editRun(who, run, patch)
@@ -731,16 +726,12 @@ export class MasService {
       const now = await this.runs.byId(id)
       if (!now) throw notFound('lô gửi', id)
       if (now.state === 'SENT') {
-        throw conflict(
-          'Lô này đã gửi xong — thư đã rời máy chủ, sửa ở đây không đổi được thứ người nhận đã đọc.',
-        )
+        throw conflict('Lô này đã gửi xong, không sửa được nữa.')
       }
       if (now.state === 'CANCELLED') {
-        throw conflict('Lô này đã huỷ — soạn một lô mới thay vì sửa lô đã dừng.')
+        throw conflict('Lô này đã huỷ. Soạn lô mới để gửi.')
       }
-      throw conflict(
-        'Lô này đã bắt đầu gửi — chỉ còn dừng được phần chưa gửi, sửa thì không kịp nữa.',
-      )
+      throw conflict('Lô này đã bắt đầu gửi. Chỉ dừng được phần chưa gửi.')
     }
 
     /* `rescheduled` rides on THIS branch only. A cancel moves no clock, and a
@@ -774,7 +765,7 @@ export class MasService {
     if (!run) throw notFound('lô gửi', id)
 
     if (who.ownOnly && run.createdBy !== who.id) {
-      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+      throw denied('out-of-scope', `Lô gửi này do người khác tạo.`)
     }
 
     const rows = await this.repo.recipients(id)
@@ -794,10 +785,7 @@ export class MasService {
   async detail(who: Actor, id: string): Promise<MailRunDetail> {
     const run = await this.ownedRun(who, id)
     if (run.kind === 'group' && run.createdBy !== who.id) {
-      throw denied(
-        'permission-denied',
-        'Đây là thư nhóm gửi đích danh khách — chỉ người gửi đọc được nội dung ở đây; người có quyền "comm.view-content" mở qua cửa nội dung.',
-      )
+      throw denied('permission-denied', 'Nội dung thư nhóm này chỉ người gửi xem được ở đây.')
     }
     return this.detailOf(who, run)
   }
@@ -819,7 +807,7 @@ export class MasService {
     if (!run) throw notFound('lô gửi', id)
 
     if (who.ownOnly && run.createdBy !== who.id) {
-      throw denied('out-of-scope', `Lô gửi này không do bạn tạo — hỏi người đã bấm gửi.`)
+      throw denied('out-of-scope', `Lô gửi này do người khác tạo.`)
     }
     return run
   }
@@ -1109,14 +1097,14 @@ function sequenceSubjectOf(
 function validateSequenceChoice(body: MasSendRequest): void {
   if (body.campaignCode !== undefined && body.sequence !== undefined) {
     throw invalid(
-      { sequence: ['Một lượt gửi không thể đồng thời thuộc chiến dịch và chuỗi dùng chung.'] },
+      { sequence: ['Một lượt gửi chỉ thuộc chiến dịch hoặc chuỗi dùng chung.'] },
       'Chỉ chọn một nơi quản lý chuỗi gửi.',
     )
   }
   if (body.campaignCode !== undefined && body.audience.subjectType !== 'lead') {
     throw invalid(
-      { campaignCode: ['Chiến dịch chỉ nhận destination từ sổ lead.'] },
-      'Không thể gắn một lượt gửi Opportunity vào chiến dịch lead.',
+      { campaignCode: ['Chiến dịch chỉ nhận người nhận từ sổ lead.'] },
+      'Không gắn được lượt gửi của cơ hội vào chiến dịch.',
     )
   }
   if (body.campaignCode === undefined && body.sequence === undefined) {

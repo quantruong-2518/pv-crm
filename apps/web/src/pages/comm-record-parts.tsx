@@ -365,13 +365,13 @@ export function ScheduledMeeting({
   const started = !startsAt || now >= Date.parse(startsAt)
   /* The close-out sends who attended; without the booked list it would guess. */
   const listMissing = !canRead
-    ? `Cần quyền xem ${subjectKindLabel(record.subject.code).toLowerCase()} để đọc danh sách người dự trước khi ghi kết quả.`
+    ? `Cần quyền xem ${subjectKindLabel(record.subject.code).toLowerCase()} để ghi kết quả.`
     : list.isLoading
-      ? 'Đang đọc danh sách người dự…'
+      ? 'Đang tải danh sách người dự…'
       : list.error
-        ? `Không đọc được danh sách người dự. ${isApiError(list.error) ? userMessage(list.error) : 'Vui lòng thử lại.'}`
+        ? `Không tải được danh sách người dự. ${isApiError(list.error) ? userMessage(list.error) : 'Thử lại.'}`
         : meeting === undefined
-          ? 'Không tìm thấy lịch họp này trong danh sách người dự.'
+          ? 'Không tìm thấy lịch họp này.'
           : null
 
   return (
@@ -402,7 +402,7 @@ export function ScheduledMeeting({
                 >
                   {started
                     ? listMissing
-                    : `Nút Họp xong hiện khi buổi họp bắt đầu, lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`}
+                    : `Nút Họp xong hiện lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`}
                 </p>
               )}
               {movable && (
@@ -419,8 +419,7 @@ export function ScheduledMeeting({
             </>
           ) : (
             <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-              Chỉ {record.owner.name}, người đặt lịch, hoặc cấp trên của người này ghi được kết quả
-              buổi họp.
+              Chỉ {record.owner.name} hoặc cấp trên ghi được kết quả buổi họp.
             </p>
           )}
         </GlassCard>

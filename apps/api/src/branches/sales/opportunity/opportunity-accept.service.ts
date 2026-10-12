@@ -142,6 +142,6 @@ function alreadyAccepted(found: OpportunityRead): string {
   const { acceptedBy } = found
   const at = found.row.acceptedAt
   return acceptedBy && at
-    ? `Cơ hội đã được ${acceptedBy.name} nhận PIC ngày ${DAY_MONTH.format(at)}`
-    : `Cơ hội ${found.row.code} đã qua bước nhận PIC — không nhận lại được.`
+    ? `Cơ hội đã được ${acceptedBy.name} nhận PIC ngày ${DAY_MONTH.format(at)}.`
+    : `Cơ hội ${found.row.code} đã nhận PIC rồi.`
 }

@@ -11,7 +11,7 @@ export const NEXT_STEP_CONSTRAINTS: ConstraintBook = {
    *  never hits this; a writer that inserts blindly does. */
   next_step_pkey: {
     kind: 'conflict',
-    message: 'Việc tiếp theo của mục này vừa được người khác đặt — tải lại để xem.',
+    message: 'Việc tiếp theo của mục này vừa được người khác đặt. Tải lại để xem.',
   },
 
   next_step_subject_known: {
@@ -36,14 +36,14 @@ export const NEXT_STEP_CONSTRAINTS: ConstraintBook = {
   next_step_doer_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['doerId'],
-    message: 'Người làm không còn trong sổ nhân sự — chọn lại người làm.',
+    message: 'Không tìm thấy người làm. Chọn lại.',
   },
 
   /** Unknown id, or a row of another list (`kind_list` folds the list in). */
   next_step_kind_fk: {
     kind: 'invalid',
     fields: ['kindId'],
-    message: 'Loại việc không có trong danh mục — chọn lại loại việc.',
+    message: 'Không tìm thấy loại việc này. Chọn lại.',
   },
 
   next_step_created_by_actor_id_fk: {
@@ -55,6 +55,6 @@ export const NEXT_STEP_CONSTRAINTS: ConstraintBook = {
   next_step_template_id_step_template_id_fk: {
     kind: 'invalid',
     fields: ['templateId'],
-    message: 'Việc đã chọn không có trong danh sách — tải lại và chọn lại.',
+    message: 'Việc đã chọn không có trong danh sách. Tải lại và chọn lại.',
   },
 }

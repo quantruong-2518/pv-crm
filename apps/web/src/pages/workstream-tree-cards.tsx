@@ -473,13 +473,12 @@ type DoorProps = Track & { box: Box }
 const DOOR_TEXT = {
   arose: 'Phát sinh từ',
   whyNewTitle: 'Vì sao là hành trình mới',
-  whyNew:
-    'Nhu cầu nảy ra khi khách đang triển khai hoặc đang dùng thì mở hành trình mới, kể cả thay đổi nhỏ.',
+  whyNew: 'Khách đang triển khai hoặc đang dùng mà có nhu cầu mới thì mở hành trình mới.',
   wakeAny:
-    'Đưa lead vào chiến dịch hoặc bấm tay "Chăm lại" là chính lead này quay lại chăm sóc, vẫn trong hành trình này và vẫn do người giữ cũ phụ trách.',
+    'Đưa lead vào chiến dịch hoặc bấm "Chăm lại" thì lead này quay lại chăm sóc, vẫn trong hành trình này, do người giữ cũ phụ trách.',
   wakeManual:
-    'Chỉ bấm tay "Chăm lại": chính lead này quay lại chăm sóc trong hành trình này. Lead này không bao giờ được đưa vào chiến dịch hay nhận mail.',
-  wakeUnknown: 'Chưa ghi nhận khách có đồng ý được liên hệ lại hay không.',
+    'Chỉ bấm "Chăm lại" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
+  wakeUnknown: 'Chưa biết khách có đồng ý liên hệ lại không.',
 } as const
 
 /** The anchor's code, then its rung's label when the ladder knows it. */

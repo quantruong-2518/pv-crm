@@ -80,8 +80,7 @@ export function LetterSenderLine({ line }: { line: ReturnType<typeof useLetterSe
         }
       >
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
-          Trang kết nối Google mở thay cho màn hình này và quay về trang chủ. Thư đang soạn không
-          được lưu.
+          Kết nối xong bạn về trang chủ và mất thư đang soạn.
         </p>
       </Modal>
     </div>

@@ -14,7 +14,7 @@ export const ACCOUNT_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['taxCode', 'name'],
     message:
-      'Công ty này đã có trong sổ — trùng mã số thuế, hoặc trùng tên khi cả hai đều chưa có mã số thuế. Mở dòng đang có thay vì tạo dòng thứ hai.',
+      'Công ty này đã có trong sổ: trùng mã số thuế, hoặc trùng tên khi cả hai chưa có mã số thuế. Mở công ty đang có.',
   },
   account_name_not_blank: {
     kind: 'invalid',
@@ -27,8 +27,7 @@ export const ACCOUNT_CONSTRAINTS: ConstraintBook = {
   },
   account_code_code_fk: {
     kind: 'invalid',
-    message:
-      'Mã công ty chưa có dòng gương trong đồ thị object — đây là lỗi máy chủ, không phải lỗi phiếu.',
+    message: 'Hệ thống gặp sự cố. Báo quản trị viên.',
   },
   /** Fired from the LEAD side, not from this book: attaching an enquiry to a
    *  company that has since gone. Lives here because the constraint belongs to

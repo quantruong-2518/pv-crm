@@ -66,9 +66,9 @@ function nextText(created: Created): string {
   const first =
     row.stage === 'new'
       ? `Cơ hội chờ trưởng phòng Nhận PIC và giao Sale${
-          days === null ? '' : `, trong hạn cột Khởi tạo ở Thiết lập (${days} ngày)`
+          days === null ? '' : `, hạn ${days} ngày`
         }. Trên bảng lượt bán, thẻ ${ws ?? 'lượt bán'} đã chuyển sang cơ hội · Khởi tạo${
-          days === null ? '' : ' và hiện trễ nếu quá hạn'
+          days === null ? '' : ', quá hạn thì hiện trễ'
         }.`
       : `Cơ hội đã nhận PIC và nằm ở cột ${OPPORTUNITY_STAGE_LABEL.assigned}. Trên bảng lượt bán, thẻ ${
           ws ?? 'lượt bán'

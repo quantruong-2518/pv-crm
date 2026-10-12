@@ -48,9 +48,6 @@ export function DoorsField({
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-3 p-4">
       <span className="text-[13px] font-semibold leading-5">Dùng ở</span>
-      <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-        Mẫu chỉ hiện trong ô chọn khi thư mở từ những cửa được đánh dấu.
-      </span>
       <div role="group" aria-label="Dùng ở" className="flex flex-wrap gap-x-6">
         {MailDoor.options.map((door) => (
           <Checkbox
@@ -64,9 +61,7 @@ export function DoorsField({
       </div>
       <Problem lines={errors.doors} />
       {doors.length === 0 && !errors.doors?.length && (
-        <span className="text-warning text-[11.5px] leading-[1.5]">
-          Chọn ít nhất một cửa, không thì mẫu không hiện ở đâu.
-        </span>
+        <span className="text-warning text-[11.5px] leading-[1.5]">Chọn ít nhất một nơi dùng.</span>
       )}
 
       {doors.length > 0 && (
@@ -85,7 +80,7 @@ export function DoorsField({
           </div>
           <Problem lines={errors.defaultFor} />
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Mỗi cửa một mẫu mặc định. Chọn ở đây thì mẫu đang mặc định ở cửa đó thôi.
+            Mỗi nơi chỉ có một mẫu mặc định. Chọn ở đây sẽ thay mẫu mặc định cũ.
           </span>
         </div>
       )}
@@ -94,7 +89,7 @@ export function DoorsField({
           is kept so no migration is needed later, and the note says so. */}
       {doors.includes('quote') && (
         <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Cửa báo giá chưa mở — mẫu đánh dấu Báo giá sẽ hiện ở đó khi cửa này có.
+          Mẫu thư chưa dùng được ở báo giá.
         </span>
       )}
     </GlassCard>

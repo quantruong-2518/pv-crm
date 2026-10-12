@@ -120,39 +120,39 @@ export const LEAD_STATE_LABEL: Record<LeadState, string> = {
  *  without a hint is a compile error. */
 export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; next: string }> = {
   new: {
-    does: 'Lead vừa được tạo, chưa có ai nhận.',
-    who: 'Hệ thống hoặc người nhập lead',
+    does: 'Lead vừa tạo, chưa có người nhận.',
+    who: 'Tự động hoặc người nhập lead',
     next: 'Có người nhận PIC thì sang Nhận PIC.',
   },
   assigned: {
-    does: 'Một người nhận phụ trách lead và chịu trách nhiệm liên hệ.',
-    who: 'Người phụ trách (PIC); với mail hẹn giờ là bất kỳ ai hẹn',
-    next: 'Có lịch chăm sóc (họp sắp tới, mail hẹn giờ) thì sang Tạo chiến lược chăm sóc; có lần chạm thật thì sang thẳng Tình trạng chăm sóc.',
+    does: 'Một người nhận phụ trách lead.',
+    who: 'Người phụ trách (PIC); với mail hẹn giờ là người hẹn',
+    next: 'Có lịch chăm sóc thì sang Tạo chiến lược chăm sóc. Đã liên hệ khách thì sang Tình trạng chăm sóc.',
   },
   verifying: {
-    does: 'Chăm sóc đã được lên lịch nhưng chưa chạm khách (họp sắp tới, mail hẹn giờ).',
+    does: 'Đã lên lịch chăm sóc (họp sắp tới, mail hẹn giờ), chưa liên hệ khách.',
     who: 'PIC',
-    next: 'Có lần chạm thật đầu tiên (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc.',
+    next: 'Liên hệ khách lần đầu (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc.',
   },
   working: {
-    does: 'Đang chăm sóc: mỗi lần chạm thật được ghi vào lịch sử liên hệ.',
+    does: 'Đang chăm sóc. Mỗi lần liên hệ được ghi vào lịch sử.',
     who: 'PIC',
-    next: 'Tạm gác thì sang Nhóm chờ chăm sóc; có người bấm ngừng thì sang Ngừng chăm sóc; mở cơ hội thì sang Thành cơ hội (làm được từ mọi trạng thái còn mở).',
+    next: 'Tạm gác thì sang Nhóm chờ chăm sóc. Bấm ngừng thì sang Ngừng chăm sóc. Mở cơ hội thì sang Thành cơ hội.',
   },
   nurturing: {
-    does: 'Lead tạm gác, không hết hạn, vẫn giữ PIC.',
+    does: 'Lead tạm gác, vẫn giữ PIC.',
     who: 'PIC',
-    next: 'Có lần chạm thật (gọi, nhắn, họp, gửi mail) hoặc bấm tay "Chăm lại" thì quay về Tình trạng chăm sóc, cùng lead, cùng người giữ.',
+    next: 'Liên hệ khách lại hoặc bấm "Chăm lại" thì về Tình trạng chăm sóc.',
   },
   converted: {
-    does: 'Cơ hội đầu tiên đã được mở từ lead này.',
-    who: 'Người có quyền tạo cơ hội và sửa được lead',
-    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên và vẫn mở thêm được cơ hội; cơ hội cuối cùng bị dừng mà chưa ký thì lead về Nhóm chờ chăm sóc.',
+    does: 'Đã mở cơ hội đầu tiên từ lead này.',
+    who: 'Người có quyền tạo cơ hội và sửa lead',
+    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Cơ hội cuối bị dừng mà chưa ký thì về Nhóm chờ chăm sóc.',
   },
   disqualified: {
-    does: 'Một người đã bấm ngừng chăm sóc; lead rời vòng lặp, không chiến dịch hay mail nào tìm lại.',
+    does: 'Có người bấm ngừng chăm sóc. Chiến dịch và mail không đưa lead này trở lại.',
     who: 'Người bấm ngừng chăm sóc',
-    next: 'Chỉ người có quyền mới mở lại được; không có lần chạm nào tự kéo lead về.',
+    next: 'Chỉ người có quyền mới mở lại được.',
   },
 }
 
@@ -289,9 +289,9 @@ export const MOTION_ASKS_LABEL: Record<MotionAsks, string> = {
 
 /** The refusal when the asked field is missing, identical in browser and server. */
 export const MOTION_ASKS_MISSING: Record<MotionAsks, string> = {
-  ORIGIN: 'Phương án tiếp cận này cần chọn nguồn chi tiết',
-  CAMPAIGN: 'Phương án tiếp cận này cần gắn một chiến dịch đang chạy',
-  REFERRER: 'Phương án tiếp cận này cần mã giới thiệu',
+  ORIGIN: 'Cần chọn nguồn chi tiết.',
+  CAMPAIGN: 'Cần gắn một chiến dịch đang chạy.',
+  REFERRER: 'Cần mã giới thiệu.',
 }
 
 /** Kênh gọi lại được khách — ô 5 của cổng init data.

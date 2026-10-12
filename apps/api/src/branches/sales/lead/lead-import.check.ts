@@ -296,7 +296,7 @@ type Survivor = { row: LeadImportRow; out: LeadImportRowOut; write: ImportCheck[
 const GROUP_MIXED = 'Các dòng gộp chung một lead phải cùng công ty'
 
 const mainGone = (line: number): string =>
-  `Liên hệ chính của lead chung (dòng ${line}) không vào hệ thống — xử lý dòng đó rồi nạp lại`
+  `Dòng ${line} là người liên hệ chính của lead chung nhưng không nạp được. Sửa dòng đó rồi nạp lại.`
 
 /** Group → the line the person meant as its main contact: the flagged row,
  *  else the group's first row. Read off EVERY row, before any check, so a
@@ -470,7 +470,7 @@ function checkRow(
   if (batch.onlyOwner !== undefined && owner.value && owner.value.id !== batch.onlyOwner) {
     return fail(
       'owner',
-      `${LABEL.owner} "${cells.owner}": bạn chỉ nhập lead đứng tên mình được. Giao cho người khác là việc của trưởng phòng.`,
+      `${LABEL.owner} "${cells.owner}": bạn chỉ nhập được lead do bạn phụ trách. Liên hệ trưởng phòng để giao cho người khác.`,
     )
   }
   const held = owner.value ?? batch.blankOwner
@@ -485,7 +485,7 @@ function checkRow(
      person picked one campaign for the whole file and that campaign is not in
      the book, so no row of the file has a home. */
   if (source !== undefined && !campaigns.has(source)) {
-    return fail('source', `${LABEL.source} "${source}" không có trong sổ chiến dịch`)
+    return fail('source', `Không tìm thấy chiến dịch "${source}"`)
   }
   if (source !== undefined) out.source = source
 
@@ -604,7 +604,7 @@ function closedList<T extends string>(
 function readHeadcount(cell: string | undefined): Read<number | undefined> {
   if (cell === undefined || cell === '') return { ok: true, value: undefined }
   if (!GROUPED_INT.test(cell)) {
-    return { ok: false, reason: `${LABEL.headcount} "${cell}" không phải một số` }
+    return { ok: false, reason: `${LABEL.headcount} "${cell}" phải là số` }
   }
   const n = Number(cell.replace(/\D/g, ''))
   /* Same bounds as `LeadCreate.headcount` — read from the same table, so the
@@ -613,7 +613,7 @@ function readHeadcount(cell: string | undefined): Read<number | undefined> {
   if (!Number.isSafeInteger(n) || n <= 0 || n > LEAD_NUM.headcountMax) {
     return {
       ok: false,
-      reason: `${LABEL.headcount} "${cell}" nằm ngoài khoảng 1…${LEAD_NUM.headcountMax.toLocaleString('vi-VN')}`,
+      reason: `${LABEL.headcount} "${cell}" phải từ 1 đến ${LEAD_NUM.headcountMax.toLocaleString('vi-VN')}`,
     }
   }
   return { ok: true, value: n }
@@ -633,12 +633,12 @@ function readOwner(
 
   const hits = staff.get(fold(cell)) ?? []
   if (hits.length === 0) {
-    return { ok: false, reason: `Không có ai tên "${cell}" trong sổ nhân sự` }
+    return { ok: false, reason: `Không tìm thấy người tên "${cell}"` }
   }
   if (hits.length > 1) {
     return {
       ok: false,
-      reason: `Có ${hits.length} người tên "${cell}" trong sổ nhân sự — không đoán được ai giữ lead này`,
+      reason: `Có ${hits.length} người tên "${cell}". Sửa tệp cho rõ.`,
     }
   }
   return { ok: true, value: hits[0] }
@@ -653,10 +653,9 @@ function readOrigin(
   const pick = cell !== undefined ? { name: cell } : batch.origin
   if (!pick || 'id' in pick) return { ok: true, value: pick }
   const key = originKey(pick.name)
-  if (key === '')
-    return { ok: false, reason: `${LABEL.origin} "${pick.name}" không còn chữ hoặc số` }
+  if (key === '') return { ok: false, reason: `${LABEL.origin} "${pick.name}" phải có chữ hoặc số` }
   if (batch.origins.byKey.get(key)?.active === false) {
-    return { ok: false, reason: `${LABEL.origin} "${pick.name}" đang tắt trong danh mục` }
+    return { ok: false, reason: `${LABEL.origin} "${pick.name}" đang tắt` }
   }
   return { ok: true, value: pick }
 }

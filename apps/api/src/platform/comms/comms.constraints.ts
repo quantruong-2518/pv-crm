@@ -11,26 +11,26 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
   identity_channel_address_unique: {
     kind: 'conflict',
     fields: ['address'],
-    message: 'Địa chỉ này đã có trong sổ định danh — một địa chỉ chỉ thuộc về một người.',
+    message: 'Địa chỉ này đã thuộc về một người.',
   },
 
   identity_channel_known: {
     kind: 'invalid',
     fields: ['channel'],
-    message: 'Kênh không nằm trong danh sách hệ nhận.',
+    message: 'Kênh này chưa được hỗ trợ.',
   },
 
   identity_side_known: {
     kind: 'invalid',
     fields: ['side'],
-    message: 'Định danh phải đứng về phía người của ta hoặc phía khách.',
+    message: 'Định danh phải thuộc nhân viên hoặc khách.',
   },
 
   identity_one_side_only: {
     kind: 'invalid',
     fields: ['actorId', 'objectCode'],
     message:
-      'Định danh của người mình phải có mã nhân sự, của khách phải có mã object — đúng một trong hai.',
+      'Định danh của nhân viên phải có mã nhân sự, của khách phải có mã hồ sơ. Chỉ một trong hai.',
   },
 
   identity_no_blank: {
@@ -45,13 +45,13 @@ export const IDENTITY_CONSTRAINTS: ConstraintBook = {
   identity_actor_id_actor_id_fk: {
     kind: 'invalid',
     fields: ['actorId'],
-    message: 'Người này không còn trong sổ nhân sự.',
+    message: 'Không tìm thấy người này. Chọn lại.',
   },
 
   identity_object_code_object_code_fk: {
     kind: 'invalid',
     fields: ['objectCode'],
-    message: 'Mã object này không có trong sổ.',
+    message: 'Không tìm thấy hồ sơ có mã này.',
   },
 }
 
@@ -75,7 +75,7 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   link_object_code_object_code_fk: {
     kind: 'invalid',
     fields: ['objectCode'],
-    message: 'Mã object này không có trong sổ.',
+    message: 'Không tìm thấy hồ sơ có mã này.',
   },
 
   /** Two people on one turn in one role, sent twice in one body. The caller
@@ -90,13 +90,13 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   message_party_identity_id_identity_id_fk: {
     kind: 'invalid',
     fields: ['parties'],
-    message: 'Có người trong danh sách không còn trong sổ định danh.',
+    message: 'Không tìm thấy một người trong danh sách. Chọn lại.',
   },
 
   message_from_identity_id_identity_id_fk: {
     kind: 'invalid',
     fields: ['fromIdentityId'],
-    message: 'Người gửi không còn trong sổ định danh.',
+    message: 'Không tìm thấy người gửi. Chọn lại.',
   },
 
   message_direction_known: {
@@ -108,7 +108,7 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
   message_body_not_blank: {
     kind: 'invalid',
     fields: ['bodyText'],
-    message: 'Thân thư để trống thì bỏ hẳn ô này, đừng gửi một chuỗi rỗng.',
+    message: 'Nội dung không hợp lệ. Điền nội dung hoặc bỏ ô này.',
   },
 
   message_duration_nonneg: {
@@ -121,14 +121,14 @@ export const THREAD_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['channel'],
     message:
-      'Kênh không nằm trong danh sách hệ nhận (email, Zalo OA, Telegram, WhatsApp, điện thoại, trong app, họp).',
+      'Kênh phải là một trong: email, Zalo OA, Telegram, WhatsApp, điện thoại, trong app, họp.',
   },
 
   /** Reachable since meeting minutes write `external_id` = the meeting id. */
   thread_channel_external_unique: {
     kind: 'conflict',
     fields: ['meetingId'],
-    message: 'Cuộc họp này đã có luồng biên bản — ghi tiếp vào luồng đó.',
+    message: 'Cuộc họp này đã có luồng biên bản. Ghi tiếp vào luồng đó.',
   },
 }
 
@@ -152,13 +152,13 @@ export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['step'],
     message:
-      'Việc tiếp theo phải đủ loại việc, nội dung (tối đa 200 ký tự) và hạn — hoặc bỏ trống cả.',
+      'Việc tiếp theo phải đủ loại việc, nội dung (tối đa 200 ký tự) và hạn, hoặc để trống cả ba.',
   },
 
   debrief_subject_code_object_code_fk: {
     kind: 'invalid',
     fields: ['subjectCode'],
-    message: 'Mã object này không có trong sổ.',
+    message: 'Không tìm thấy hồ sơ có mã này.',
   },
 
   debrief_answer_pk: {

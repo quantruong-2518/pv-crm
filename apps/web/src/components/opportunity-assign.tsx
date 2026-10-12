@@ -112,18 +112,16 @@ export function AssignSaleButton({
           </>
         }
         fieldLabel={SALE_LANE.label}
-        fieldHint="Chỉ người vai Sale hoặc AE. Bỏ một người khỏi danh sách là người đó thôi đứng đơn."
+        fieldHint="Chỉ người vai Sale hoặc AE."
         sellers={sellers}
         onChange={setSellers}
         names={new Map(lane.map((o) => [o.id, o.name]))}
         primary={{ lane: sellers, value: primary, onChange: setPrimaryPick }}
         note={
           unchanged
-            ? sellers.length > 1
-              ? 'Chưa có gì thay đổi — thêm người, bỏ người hoặc đổi Sale chính rồi mới lưu được.'
-              : 'Danh sách chưa đổi — thêm hoặc bỏ một người để lưu.'
+            ? 'Chưa có gì thay đổi.'
             : sellers.length === 0
-              ? 'Danh sách trống — cơ hội sẽ không còn Sale, và chưa Chốt thắng được.'
+              ? 'Danh sách trống: cơ hội không còn Sale, chưa Chốt thắng được.'
               : ''
         }
         error={assign.error}

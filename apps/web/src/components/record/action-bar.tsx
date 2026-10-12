@@ -110,7 +110,7 @@ export function ActionBar({
                 className="pointer-coarse:h-12"
                 label="Liên hệ"
                 icon={Contact}
-                ariaLabel="Liên hệ — chọn cách và người liên hệ"
+                ariaLabel="Chọn cách và người liên hệ"
                 choices={
                   people.length === 0
                     ? choicesOf('phone')
@@ -142,7 +142,7 @@ export function ActionBar({
                     title={brand ? verb : undefined}
                     mark={brand && <BrandMark brand={brand} size={20} />}
                     icon={COMMS_CHANNEL_ICON[channel]}
-                    ariaLabel={`${verb} — chọn người liên hệ`}
+                    ariaLabel={`${verb}: chọn người liên hệ`}
                     choices={choicesOf(channel)}
                   />
                 )

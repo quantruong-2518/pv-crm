@@ -23,7 +23,7 @@ import { currentPick, num, stepPick, type PeriodPick } from './home-model'
 
 /** Both screens open on the same sentence about what a verdict is measured against. */
 export const DESCRIPTION =
-  'Số do hệ thống tự tính, cập nhật mỗi lần mở màn. Trạng thái so với mức cần đạt đến hôm nay; chỉ số tỷ lệ và thời gian so với chỉ tiêu cả tháng.'
+  'Số tự tính, cập nhật mỗi lần mở. Trạng thái so với mức cần đạt đến hôm nay. Chỉ số tỷ lệ và thời gian so với chỉ tiêu cả tháng.'
 
 /** KPI is agreed per month, so the overview's picker is pinned to that grain. */
 export const monthPick = (): PeriodPick => ({ ...currentPick(), grain: 'month' })

@@ -243,9 +243,9 @@ function useFireWave(
 ) {
   const busy = start.isPending || waveAdd.isPending
   const failed = (err: unknown) =>
-    toast('Không bắn được đợt', {
+    toast('Không gửi được đợt', {
       tone: 'danger',
-      detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+      detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
     })
   const skipped = (n: number) => (n > 0 ? `, ${n} bị bỏ qua` : '')
 
@@ -260,7 +260,7 @@ function useFireWave(
             toast('Chiến dịch đã bắt đầu chạy', {
               tone: 'success',
               detail: first
-                ? `${first.queued} thư vào hàng đợi${skipped(first.skipped)}.`
+                ? `${first.queued} thư đang chờ gửi${skipped(first.skipped)}.`
                 : undefined,
             })
             onClose()
@@ -274,9 +274,9 @@ function useFireWave(
       { wave: composerDraftInput(composer) },
       {
         onSuccess: (res) => {
-          toast(`Đã bắn đợt ${campaign.waveCount + 1}`, {
+          toast(`Đã tạo đợt ${campaign.waveCount + 1}`, {
             tone: 'success',
-            detail: `${res.queued} thư vào hàng đợi${skipped(res.skipped)}.`,
+            detail: `${res.queued} thư đang chờ gửi${skipped(res.skipped)}.`,
           })
           onClose()
         },
@@ -329,7 +329,7 @@ function LetterPreview({
   if (!ready)
     return (
       <p className="text-muted-foreground m-0 px-1 text-[12px] leading-[1.6]">
-        Bản xem trước hiện ở đây ngay khi đợt có tiêu đề và nội dung.
+        Nhập tiêu đề và nội dung để xem trước.
       </p>
     )
   return (
@@ -341,7 +341,7 @@ function LetterPreview({
         { label: 'Từ', value: preview.letter?.from ?? 'noreply · Pebble Vina' },
         { label: 'Tới', value: to },
       ]}
-      caption="Tên và công ty trong bản này là dữ liệu mẫu — mỗi người nhận được thay tên riêng. Bố cục đúng như thư gửi đi."
+      caption="Tên và công ty trong bản này là mẫu. Mỗi người nhận sẽ thấy tên của mình."
     />
   )
 }
@@ -418,8 +418,7 @@ function AudienceStep({
       <div className="flex flex-col gap-2">
         <SectionTitle size="md">Ai sẽ nhận đợt này?</SectionTitle>
         <p className="text-muted-foreground m-0 max-w-[720px] text-[12.5px] leading-[1.65]">
-          Đợt đi tới mọi người ở tab Người nhận của chiến dịch. Danh sách không sửa ở đây — muốn
-          thêm hay bớt ai thì đóng cửa sổ này và sửa ở tab đó.
+          Đợt gửi tới mọi người ở tab Người nhận. Muốn thêm hoặc bớt, đóng cửa sổ và sửa ở tab đó.
         </p>
       </div>
       {preflight && <WavePreflight report={preflight} />}
@@ -436,11 +435,11 @@ function recipientBlocker(
   preflight: CampaignPreflightResponse | undefined,
 ): string | null {
   if (campaign.audienceCount === 0)
-    return 'Chưa có người nhận nào — thêm ở tab Người nhận trước khi bắn.'
+    return 'Chưa có người nhận. Thêm ở tab Người nhận trước khi gửi.'
   if (campaign.audienceCount > campaign.batchCeiling)
     return ceilingNote(campaign.audienceCount, campaign.batchCeiling)
   if (preflight?.sendable === 0)
-    return 'Không người nhận nào nhận được thư: tất cả đều đã rơi khỏi phễu, đã chặn, thiếu email hoặc trùng địa chỉ. Sửa ở tab Người nhận rồi quay lại.'
+    return 'Không ai nhận được thư: đã rơi khỏi phễu, đã chặn, thiếu email hoặc trùng địa chỉ. Sửa ở tab Người nhận.'
   return null
 }
 
@@ -451,12 +450,12 @@ function stepNote(
   preflight: CampaignPreflightResponse | undefined,
   failed: boolean,
 ): string {
-  if (step === 1) return 'Xem lại bản xem trước rồi hãy sang bước kiểm lại.'
+  if (step === 1) return 'Xem bản xem trước rồi sang bước Kiểm lại.'
   if (failed)
-    return 'Không kiểm được người nhận nên số trên nút là toàn bộ người nhận — bắn vẫn chạy, máy chủ tự bỏ qua những người không gửi được.'
+    return 'Không kiểm được người nhận. Vẫn gửi được, ai không nhận được thư sẽ bị bỏ qua.'
   if (!preflight) return 'Đang kiểm người nhận…'
   if (step === 0) return `${preflight.sendable} người sẽ nhận đợt này.`
-  return 'Bấm là thư vào hàng đợi thật — đợt đã đi không gọi về được.'
+  return 'Đợt đã gửi không thu hồi được.'
 }
 
 /** The chain's live wave as the preview reads it — the button only travels

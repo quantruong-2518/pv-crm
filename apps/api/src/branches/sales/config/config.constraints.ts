@@ -12,39 +12,38 @@ export const CONFIG_CONSTRAINTS: ConstraintBook = {
   config_name_live: {
     kind: 'conflict',
     fields: ['name'],
-    message: 'Tên này đã có trong danh mục (với câu trả lời: trong cùng câu hỏi) — đặt tên khác.',
+    message: 'Tên này đã có. Đặt tên khác.',
   },
 
   config_criterion_only_answer: {
     kind: 'invalid',
     fields: ['criterionId'],
-    message:
-      'Chỉ câu trả lời mới gắn với câu hỏi, và câu trả lời nào cũng phải gắn với một câu hỏi.',
+    message: 'Câu trả lời phải thuộc một câu hỏi, mục khác thì không.',
   },
 
   config_criterion_fk: {
     kind: 'invalid',
     fields: ['criterionId'],
-    message: 'Câu hỏi này không có trong danh mục — chọn lại câu hỏi.',
+    message: 'Không tìm thấy câu hỏi này. Chọn lại.',
   },
 
   step_template_name_live: {
     kind: 'conflict',
     fields: ['name'],
-    message: 'Trạng thái này đã có mẫu việc tiếp theo cùng tên đang bật — đặt tên khác.',
+    message: 'Trạng thái này đã có mẫu việc tiếp theo đang bật trùng tên. Đặt tên khác.',
   },
 
   /** Unknown id, or a row of another list (`kind_list` folds the list in). */
   step_template_kind_fk: {
     kind: 'invalid',
     fields: ['kindId'],
-    message: 'Loại việc không có trong danh mục — chọn lại loại việc.',
+    message: 'Không tìm thấy loại việc này. Chọn lại.',
   },
 
   step_template_state_known: {
     kind: 'invalid',
     fields: ['address'],
-    message: 'Trạng thái này không nhận mẫu việc tiếp theo — chọn lại trạng thái.',
+    message: 'Trạng thái này không dùng mẫu việc tiếp theo. Chọn trạng thái khác.',
   },
 
   step_template_object_kind_known: {
@@ -56,7 +55,7 @@ export const CONFIG_CONSTRAINTS: ConstraintBook = {
   state_rule_state_known: {
     kind: 'invalid',
     fields: ['address'],
-    message: 'Trạng thái này không có thiết lập việc tiếp theo — chọn lại trạng thái.',
+    message: 'Trạng thái này không dùng thiết lập việc tiếp theo. Chọn trạng thái khác.',
   },
 
   state_rule_object_kind_known: {

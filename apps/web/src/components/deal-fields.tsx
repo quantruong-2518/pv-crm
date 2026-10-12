@@ -206,8 +206,8 @@ export function ProductTagsField({
      pointed below itself, where only the button stood. */
   const hint =
     shown.length === 0
-      ? 'Danh mục Sản phẩm/dịch vụ chưa có mục nào — vào Thiết lập để nhập, rồi quay lại chọn.'
-      : `Đã chọn ${picked.length} / ${shown.length} thẻ · bấm Thêm thẻ để mở danh mục của phòng, sửa nó ở Thiết lập.`
+      ? 'Danh mục Sản phẩm/dịch vụ chưa có mục nào. Nhập ở Thiết lập.'
+      : `Đã chọn ${picked.length} / ${shown.length} thẻ.`
 
   return (
     <Field label="Sản phẩm / dịch vụ quan tâm" plain errors={errors} hint={hint}>
@@ -262,7 +262,7 @@ export function ProductTagsField({
                 <button
                   key={p.id}
                   type="button"
-                  title={p.active ? undefined : 'Mục này đã tắt — giữ lại vì đơn đang chọn nó'}
+                  title={p.active ? undefined : 'Mục đã tắt, đơn này vẫn đang chọn.'}
                   onClick={() => onToggle(p.id)}
                   className={cn(
                     'motion-std bg-surface-ink/9 hover:bg-surface-ink/16 pointer-coarse:h-12 flex h-10 items-center rounded-md px-3 text-[12px]',

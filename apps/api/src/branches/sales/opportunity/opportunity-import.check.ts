@@ -205,26 +205,26 @@ function checkRow(
   if (input.ambiguousCompany.has(folded)) {
     return {
       field: 'company',
-      reason: `Có nhiều lead cùng tên "${company}" — mở đơn tay để chọn đúng hồ sơ`,
+      reason: `Có nhiều lead tên "${company}". Mở cơ hội từ đúng lead đó.`,
     }
   }
   const leadCode = input.leadByCompany.get(folded)
   if (leadCode === undefined && input.exitedCompany.has(folded)) {
     return {
       field: 'company',
-      reason: `Lead "${company}" đang ở trạng thái ${LEAD_GONE_WORDS} — không tạo được cơ hội`,
+      reason: `Lead "${company}" đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`,
     }
   }
   if (leadCode === undefined) {
     return {
       field: 'company',
-      reason: `Không có lead nào tên "${company}" — nạp lead trước, rồi nạp cơ hội`,
+      reason: `Không có lead tên "${company}". Nạp lead trước.`,
     }
   }
   if (input.outOfScope.has(leadCode)) {
     return {
       field: 'company',
-      reason: `Lead "${company}" không đứng tên bạn — hỏi người đang giữ nó.`,
+      reason: `Lead "${company}" không do bạn phụ trách.`,
     }
   }
 
@@ -233,7 +233,7 @@ function checkRow(
   keep('amount', rawAmount)
   const amount = digitsOf(rawAmount)
   if (amount === null) {
-    return { field: 'amount', reason: `${LABEL.amount} "${rawAmount}" không phải một con số` }
+    return { field: 'amount', reason: `${LABEL.amount} "${rawAmount}" phải là số` }
   }
 
   const rawCurrency = cell('currency')
@@ -242,7 +242,7 @@ function checkRow(
   if (!CurrencyCode.safeParse(currency).success) {
     return {
       field: 'currency',
-      reason: `${LABEL.currency} "${rawCurrency}" không nằm trong danh sách`,
+      reason: `${LABEL.currency} "${rawCurrency}" không có trong danh sách`,
     }
   }
 
@@ -371,7 +371,7 @@ function personOf(
 ): ActorLite | { reason: string } {
   const found = staffByName.get(fold(raw)) ?? []
   const first = found[0]
-  if (!first) return { reason: `Không có ai tên "${raw}" trong sổ nhân sự` }
-  if (found.length > 1) return { reason: `Có nhiều người tên "${raw}" — sửa tệp cho rõ` }
+  if (!first) return { reason: `Không tìm thấy người tên "${raw}"` }
+  if (found.length > 1) return { reason: `Có nhiều người tên "${raw}". Sửa tệp cho rõ.` }
   return first
 }

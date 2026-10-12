@@ -295,9 +295,7 @@ export class ContactService {
     if (row.isPrimary) {
       const all = await this.repo.byLead(leadCode)
       if (all.length > 1) {
-        throw conflict(
-          'Đây là người liên hệ chính. Đặt người khác làm chính trước, rồi mới xoá người này.',
-        )
+        throw conflict('Đây là người liên hệ chính. Đặt người khác làm chính trước khi xoá.')
       }
     }
 

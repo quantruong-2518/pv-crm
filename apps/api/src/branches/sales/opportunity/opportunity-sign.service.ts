@@ -112,7 +112,7 @@ export class OpportunitySign implements ApprovalApplier {
        are frozen while the request waits (`saleLaneMoved`). */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
       throw invalid(
-        { ownerId: ['Người hưởng hoa hồng phải là một Sale đứng tên cơ hội này.'] },
+        { ownerId: ['Người hưởng hoa hồng phải là Sale đứng đơn của cơ hội.'] },
         'Người hưởng hoa hồng không hợp lệ.',
       )
     }
@@ -250,9 +250,9 @@ export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts 
  *  back-dated column could fake. */
 export function signableVerdict(f: SignFacts): OpportunityAct {
   if (f.lost)
-    return refuse(`Cơ hội ${f.code} đã dừng — không ký được. Muốn chăm lại thì đi từ lead.`)
+    return refuse(`Cơ hội ${f.code} đã dừng, không ký được. Muốn chăm lại thì đi từ lead.`)
   if (!f.signed && !f.quoted) {
-    return refuse(`Cơ hội ${f.code} chưa gửi quotation — ghi mốc Quotation trước khi ký.`)
+    return refuse(`Cơ hội ${f.code} chưa gửi quotation. Ghi mốc Quotation trước khi ký.`)
   }
   return { ok: true }
 }
@@ -267,12 +267,10 @@ export function signVerdict(
   const signable = signableVerdict(f)
   if (!signable.ok) return signable
   if (!f.hasSeller)
-    return refuse('Cơ hội chưa có Sale đứng đơn — thêm một Sale trước khi đề nghị ký.')
-  if (f.pendingSign) return refuse(`Cơ hội ${f.code} đã có một yêu cầu ký đang chờ duyệt.`)
+    return refuse('Cơ hội chưa có Sale đứng đơn. Thêm một Sale trước khi đề nghị ký.')
+  if (f.pendingSign) return refuse(`Cơ hội ${f.code} đã có yêu cầu ký đang chờ duyệt.`)
   if (f.approverSeat) {
-    return refuse(
-      'Bạn đang giữ ghế duyệt ký nên không tự gửi đề nghị ký được — nhờ một sale đứng đơn gửi.',
-    )
+    return refuse('Người duyệt ký không tự gửi đề nghị ký được. Nhờ Sale đứng đơn gửi.')
   }
   return { ok: true }
 }

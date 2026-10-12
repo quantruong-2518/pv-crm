@@ -54,8 +54,8 @@ export function CampaignDetailPage() {
           skeleton={{ rail: false }}
           failure={{
             error,
-            notFound: `Không có chiến dịch nào mang mã ${code}.`,
-            fallback: 'Không đọc được hồ sơ chiến dịch này.',
+            notFound: `Không có chiến dịch ${code}.`,
+            fallback: 'Không mở được hồ sơ chiến dịch.',
             back: { label: 'Về sổ chiến dịch', onClick: () => navigate('/sales/campaigns') },
           }}
         />
