@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { paged } from './pagination'
+import { PageQuery, paged } from './pagination'
 import { Moment } from './primitives'
 
 /** The in-app bell: `GET /notifications` pages the caller's own rows newest
@@ -82,6 +82,56 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'google-link-broken': 'Tài khoản Google bị mất kết nối',
 }
 
+/** The filter chips on the bell screen. */
+export const NotificationGroup = z.enum([
+  'lead',
+  'opportunity',
+  'next-step',
+  'approval',
+  'mail',
+  'account',
+])
+export type NotificationGroup = z.infer<typeof NotificationGroup>
+
+export const NOTIFICATION_GROUP_LABEL: Record<NotificationGroup, string> = {
+  lead: 'Lead',
+  opportunity: 'Cơ hội',
+  'next-step': 'Việc tiếp theo',
+  approval: 'Phê duyệt',
+  mail: 'Thư',
+  account: 'Tài khoản',
+}
+
+/** One kind maps to exactly one group; `Record` makes a new kind fail to
+ *  compile until it is grouped. */
+export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup> = {
+  'lead-pooled': 'lead',
+  'lead-received': 'lead',
+  'lead-removed': 'lead',
+  'lead-re-entered': 'lead',
+  'lead-stopped': 'lead',
+  'lead-scan-ready': 'lead',
+  'lead-scan-committed': 'lead',
+  'lead-scan-failed': 'lead',
+  'opportunity-awaiting-accept': 'opportunity',
+  'opportunity-lost': 'opportunity',
+  'opportunity-accepted': 'opportunity',
+  'opportunity-assigned': 'opportunity',
+  'opportunity-unassigned': 'opportunity',
+  'next-step-assigned': 'next-step',
+  'next-step-done': 'next-step',
+  'approval-waiting': 'approval',
+  'approval-approved': 'approval',
+  'approval-rejected': 'approval',
+  'mail-run-sent': 'mail',
+  'mail-run-cancelled': 'mail',
+  'mail-failed': 'mail',
+  'customer-replied': 'mail',
+  'access-changed': 'account',
+  'password-reset-by-admin': 'account',
+  'google-link-broken': 'account',
+}
+
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
  *  subject's own screen. */
@@ -100,9 +150,16 @@ export const NotificationRow = z.object({
 })
 export type NotificationRow = z.infer<typeof NotificationRow>
 
-/** Same paging as every book; `hidden` is always 0 here because no permission
- *  cut applies to a person's own bell. */
-export { PageQuery as NotificationListQuery } from './pagination'
+/** Same paging as every book, plus three optional filters: `unread` (only `1`,
+ *  since a coerced boolean would read "0" as true), `group`, and a text `q`.
+ *  `hidden` is always 0 here because no permission cut applies to a person's
+ *  own bell. */
+export const NotificationListQuery = PageQuery.extend({
+  unread: z.enum(['1']).optional(),
+  group: NotificationGroup.optional(),
+  q: z.string().trim().min(1).max(120).optional(),
+})
+export type NotificationListQuery = z.infer<typeof NotificationListQuery>
 export const NotificationListResponse = paged(NotificationRow)
 export type NotificationListResponse = z.infer<typeof NotificationListResponse>
 

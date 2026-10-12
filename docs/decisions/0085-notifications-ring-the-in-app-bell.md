@@ -88,6 +88,19 @@ through the normal expiry. The requests list is cut at the server's cap, with a
 sentence on screen. Known limit: connecting Google from `/account` returns to
 the home page (the server's callback target is fixed).
 
+### 7 · The full list
+
+`/notifications` is the bell's whole list: the drawer stays the quick look and
+ends in "Xem tất cả". The same `GET /notifications` takes `unread=1`, `group`
+(one of six, from `NOTIFICATION_KIND_GROUP`, a total map so a new kind cannot
+ship without a group) and `q`, all inside `recipient_id = caller`. Search reads
+the subject label, plus the printed sentence for rows that have no label
+(account and Google rows); the actor and the reason are not searched, and
+accents are not folded, as in every book. Filters live in the address, rows
+arrive by scroll, and no migration or index was added. "Đánh dấu đã đọc hết" is
+global, so the page hides it under a group or a search. Ship the API before the
+web: an old API drops the three parameters without error.
+
 ## Shape
 
 - E4 stays the pure decider (ADR 0010 #4): `plan()` turns an event and the

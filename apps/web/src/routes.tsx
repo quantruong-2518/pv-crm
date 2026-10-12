@@ -99,6 +99,13 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/account'),
   },
   {
+    /** One Core · the bell's whole list. No `branch` and no `permission`: the
+     *  server scopes every row to the caller, so there is nothing to gate. */
+    path: '/notifications',
+    name: 'Thông báo',
+    load: () => import('@/pages/notifications'),
+  },
+  {
     /** One Core · the approval inbox — E3's queue, pipeline #10.
      *
      *  NO `branch`, like the two admin screens below it and for the same

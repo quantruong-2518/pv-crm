@@ -1,10 +1,12 @@
 import {
   infiniteQueryOptions,
+  keepPreviousData,
   queryOptions,
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query'
 import type {
+  NotificationListQuery,
   NotificationListResponse,
   NotificationReadBody,
   NotificationReadResponse,
@@ -18,7 +20,7 @@ import { bookQueryParams } from '@/app/book-query'
 
 /** The in-app bell — the caller's own rows, nothing wider.
  *
- *      GET  /notifications?page&size     newest first
+ *      GET  /notifications?page&size     newest first; `unread`, `group`, `q` narrow it
  *      GET  /notifications/unread-count  the number on the bell
  *      POST /notifications/read          `{ ids }` or `{ all: true }`
  *
@@ -45,13 +47,21 @@ export const unreadNotificationsQuery = () =>
     ...FRESH,
   })
 
-export const notificationListQuery = () =>
+/** The filter is part of the key. `{}` and an all-`undefined` filter hash
+ *  alike, so the drawer and the unfiltered page share one entry; the
+ *  mutation's prefix invalidation on `KEY` reaches every one.
+ *
+ *  Polling stops once a second page is loaded: a deep scroll would otherwise
+ *  re-read N pages a minute for rows nobody is looking at. */
+export const notificationListQuery = (
+  filter: Pick<NotificationListQuery, 'unread' | 'group' | 'q'> = {},
+) =>
   infiniteQueryOptions({
-    queryKey: [...KEY, 'list'] as const,
+    queryKey: [...KEY, 'list', filter] as const,
     initialPageParam: 1,
     queryFn: ({ pageParam, signal }) =>
       api.read<NotificationListResponse>(
-        `/notifications?${bookQueryParams({ page: pageParam, size: PAGE_SIZE })}`,
+        `/notifications?${bookQueryParams({ ...filter, page: pageParam, size: PAGE_SIZE })}`,
         { need: NEED, signal },
       ),
     /* An empty page ends the list whatever `total` says, as in `workstreams.ts`. */
@@ -61,14 +71,21 @@ export const notificationListQuery = () =>
       return got < last.total ? lastParam + 1 : undefined
     },
     /* A row that arrives between two page reads shifts the next page by one,
-       so the same id can come back twice; keep the first. */
-    select: (data): NotificationRow[] => {
+       so the same id can come back twice; keep the first. `total` is the last
+       page's, the freshest read. */
+    select: (data): { rows: NotificationRow[]; total: number } => {
       const seen = new Set<string>()
-      return data.pages
-        .flatMap((page) => page.rows)
-        .filter((row) => !seen.has(row.id) && seen.add(row.id))
+      return {
+        rows: data.pages
+          .flatMap((page) => page.rows)
+          .filter((row) => !seen.has(row.id) && seen.add(row.id)),
+        total: data.pages[data.pages.length - 1]?.total ?? 0,
+      }
     },
-    ...FRESH,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    refetchInterval: (q) => ((q.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
+    refetchOnWindowFocus: (q) => (q.state.data?.pages.length ?? 0) <= 1,
   })
 
 /** One row or everything. Invalidation and the failure toast sit on the hook,
@@ -94,6 +111,7 @@ export function useMarkNotificationsRead() {
 
 /** Kept as literals: `app/chrome.tsx` imports this file, so reading its path
  *  constants back would be an import cycle. */
+export const NOTIFICATIONS_PATH = '/notifications'
 const ACCOUNT = '/account'
 const RUN_BOOK = '/sales/campaigns/mail-runs'
 

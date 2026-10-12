@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  NOTIFICATION_KIND_GROUP,
+  NOTIFICATION_KIND_LABEL,
+  NotificationKind,
   NotificationListResponse,
   NotificationReadResponse,
   NotificationUnreadCount,
+  type NotificationListQuery,
   type NotificationReadBody,
-  type PageQuery,
 } from '@pv/contracts'
 import { toContract } from './notification.mapper'
 import { NotificationRepository } from './notification.repository'
@@ -16,8 +19,18 @@ import { NotificationRepository } from './notification.repository'
 export class NotificationService {
   constructor(private readonly repo: NotificationRepository) {}
 
-  async list(who: Actor, q: PageQuery): Promise<NotificationListResponse> {
-    const { rows, total } = await this.repo.page(who.id, q)
+  async list(who: Actor, q: NotificationListQuery): Promise<NotificationListResponse> {
+    const kinds = q.group
+      ? NotificationKind.options.filter((k) => NOTIFICATION_KIND_GROUP[k] === q.group)
+      : undefined
+    const needle = q.q?.toLocaleLowerCase('vi')
+    const labelKinds = needle
+      ? NotificationKind.options.filter((k) =>
+          NOTIFICATION_KIND_LABEL[k].toLocaleLowerCase('vi').includes(needle),
+        )
+      : []
+    const filter = { unread: q.unread === '1', kinds, text: q.q, labelKinds }
+    const { rows, total } = await this.repo.page(who.id, q, filter)
     return NotificationListResponse.parse({ rows: rows.map(toContract), total, hidden: 0 })
   }
 

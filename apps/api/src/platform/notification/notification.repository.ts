@@ -5,13 +5,16 @@ import {
   count,
   desc,
   eq,
+  ilike,
   inArray,
   isNull,
   lt,
+  or,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { PageQuery } from '@pv/contracts'
+import type { NotificationKind, PageQuery } from '@pv/contracts'
 import type { Branch, RoleId } from '@pv/engines'
+import { contains } from '@api/platform/db/like'
 import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
 import {
@@ -21,6 +24,16 @@ import {
 } from './notification.schema'
 
 export type NotificationWithActor = { row: NotificationRowDb; actorName: string | null }
+
+/** `labelKinds` are the kinds whose printed sentence matches `text`: rows about
+ *  a user or a Google link carry no `subject_label`, so the sentence is all
+ *  there is to search. */
+export type NotificationFilter = {
+  unread: boolean
+  kinds?: readonly NotificationKind[]
+  text?: string
+  labelKinds: readonly NotificationKind[]
+}
 
 /** The only SQL on `platform.notification`. Every read and every "mark read"
  *  takes the recipient id and filters on it — the routes carry no permission
@@ -73,18 +86,40 @@ export class NotificationRepository {
   async page(
     recipientId: string,
     q: PageQuery,
+    f: NotificationFilter,
   ): Promise<{ rows: NotificationWithActor[]; total: number }> {
-    const mine = eq(notification.recipientId, recipientId)
+    const where = this.where(recipientId, f)
     const rows = await this.db
       .select({ row: notification, actorName: actor.name })
       .from(notification)
       .leftJoin(actor, eq(actor.id, notification.actorId))
-      .where(mine)
+      .where(where)
       .orderBy(desc(notification.createdAt), desc(notification.id))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
-    const [n] = await this.db.select({ n: count() }).from(notification).where(mine)
+    const [n] = await this.db.select({ n: count() }).from(notification).where(where)
     return { rows, total: n?.n ?? 0 }
+  }
+
+  /** One predicate for the rows and for `total`, so the two cannot drift. The
+   *  `or` for text sits inside the `and`, so `mine` fences every branch. */
+  private where(recipientId: string, f: NotificationFilter) {
+    return and(
+      eq(notification.recipientId, recipientId),
+      f.unread ? isNull(notification.readAt) : undefined,
+      f.kinds ? inArray(notification.kind, [...f.kinds]) : undefined,
+      f.text
+        ? or(
+            ilike(notification.subjectLabel, contains(f.text)),
+            f.labelKinds.length
+              ? and(
+                  isNull(notification.subjectLabel),
+                  inArray(notification.kind, [...f.labelKinds]),
+                )
+              : undefined,
+          )
+        : undefined,
+    )
   }
 
   async unread(recipientId: string): Promise<number> {
