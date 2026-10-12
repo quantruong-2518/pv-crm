@@ -1,3 +1,4 @@
+import { useEffect, useSyncExternalStore } from 'react'
 import {
   infiniteQueryOptions,
   keepPreviousData,
@@ -17,6 +18,8 @@ import type {
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { toast } from '@/app/toast'
 import { bookQueryParams } from '@/app/book-query'
+import { useSession } from '@/app/auth'
+import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './notification-stream'
 
 /** The in-app bell — the caller's own rows, nothing wider.
  *
@@ -28,15 +31,43 @@ import { bookQueryParams } from '@/app/book-query'
  *  need is empty (a live session) because the server scopes all three to the
  *  caller, the same posture as `GET /approvals/pending`.
  *
- *  No push (ADR 0085): both reads re-ask every minute and on window focus
- *  instead of inheriting the app-wide `staleTime: Infinity`. */
+ *  Live, not polled: `useNotificationStream` holds the SSE stream and every
+ *  signal invalidates `KEY`. Polling every minute is only the fallback while
+ *  the stream is not live; window focus always re-asks. Neither inherits the
+ *  app-wide `staleTime: Infinity`. */
 const NEED: ApiNeed = {}
 
 const KEY = ['platform', 'notifications'] as const
 
-const FRESH = { staleTime: 60_000, refetchInterval: 60_000, refetchOnWindowFocus: true } as const
+const POLL_MS = 60_000
 
-const PAGE_SIZE = 20
+const fallbackPoll = () => (streamIsLive() ? false : POLL_MS)
+
+const FRESH = {
+  staleTime: 60_000,
+  refetchInterval: fallbackPoll,
+  refetchOnWindowFocus: true,
+} as const
+
+export const NOTIFICATION_PAGE_SIZE = 20
+
+/** Called by `useAppChrome`, so one stream serves every screen. Returns
+ *  whether it is live, which re-renders the chrome so the queries re-read
+ *  their polling rule. */
+export function useNotificationStream(): boolean {
+  const client = useQueryClient()
+  const userId = useSession((s) => (s.status === 'signed-in' ? s.actor?.id : undefined))
+
+  useEffect(
+    () =>
+      userId
+        ? holdNotificationStream(userId, () => void client.invalidateQueries({ queryKey: KEY }))
+        : undefined,
+    [client, userId],
+  )
+
+  return useSyncExternalStore(subscribeStreamLive, streamIsLive)
+}
 
 export const unreadNotificationsQuery = () =>
   queryOptions({
@@ -60,7 +91,7 @@ export const notificationListQuery = (
     initialPageParam: 1,
     queryFn: ({ pageParam, signal }) =>
       api.read<NotificationListResponse>(
-        `/notifications?${bookQueryParams({ ...filter, page: pageParam, size: PAGE_SIZE })}`,
+        `/notifications?${bookQueryParams({ ...filter, page: pageParam, size: NOTIFICATION_PAGE_SIZE })}`,
         { need: NEED, signal },
       ),
     /* An empty page ends the list whatever `total` says, as in `workstreams.ts`. */
@@ -83,7 +114,7 @@ export const notificationListQuery = (
     },
     placeholderData: keepPreviousData,
     staleTime: 60_000,
-    refetchInterval: (q) => ((q.state.data?.pages.length ?? 0) > 1 ? false : 60_000),
+    refetchInterval: (q) => ((q.state.data?.pages.length ?? 0) > 1 ? false : fallbackPoll()),
     refetchOnWindowFocus: (q) => (q.state.data?.pages.length ?? 0) <= 1,
   })
 

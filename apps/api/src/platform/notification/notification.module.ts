@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { RolesModule } from '../roles/roles.module'
 import { NotificationController } from './notification.controller'
 import { NotificationHub } from './notification.hub'
+import { NotificationListener } from './notification.listener'
 import { NotificationRepository } from './notification.repository'
 import { NotificationService } from './notification.service'
 import { NotificationSweeper } from './notification.sweeper'
@@ -16,7 +17,13 @@ import { NotificationSweeper } from './notification.sweeper'
 @Module({
   imports: [RolesModule],
   controllers: [NotificationController],
-  providers: [NotificationRepository, NotificationHub, NotificationService, NotificationSweeper],
+  providers: [
+    NotificationRepository,
+    NotificationHub,
+    NotificationListener,
+    NotificationService,
+    NotificationSweeper,
+  ],
   exports: [NotificationHub],
 })
 export class NotificationModule {}

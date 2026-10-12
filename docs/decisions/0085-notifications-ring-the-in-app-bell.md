@@ -1,6 +1,6 @@
 # 0085 · Notifications ring the in-app bell; the three internal mails are dropped
 
-Status: accepted (partially supersedes 0010 on the internal lead-intake mail and its mailbox, 0069 §13)
+Status: accepted (partially supersedes 0010 on the internal lead-intake mail and its mailbox, 0069 §13; §5 and the "Push delivery" line superseded by 0089, §7's bell sentence superseded by 0089)
 Source: owner decisions 27/09/2026 (flow H, `.claude/HANDOFF-workstream-loop.md`) and 11/10/2026 (wave 1 scope; session notes)
 
 ## Context
@@ -39,10 +39,11 @@ There is no recipient table to maintain: the permission is the list.
 
 No on/off switch, per person or org-wide. Every kind is on.
 
-### 5 · Browser delivery
+### 5 · Browser delivery — superseded by 0089
 
 The browser refetches every 60 seconds and on window focus, like
-`pendingApprovalsQuery`. No SSE, no websocket, no push.
+`pendingApprovalsQuery`. No SSE, no websocket, no push _(superseded by 0089:
+push is the main road, this refetch is the fallback)_.
 
 ### 6 · Defaults
 
@@ -91,7 +92,8 @@ the home page (the server's callback target is fixed).
 ### 7 · The full list
 
 `/notifications` is the bell's list: a press on the bell goes there, and the
-drawer of the first wave is gone. The same `GET /notifications` takes
+drawer of the first wave is gone _(this sentence superseded by 0089: the bell
+opens a dropdown whose "Xem tất cả" goes there)_. The same `GET /notifications` takes
 `unread=1`, `group` (one of six, from `NOTIFICATION_KIND_GROUP`, a total map so
 a new kind cannot ship without a group) and `q`, all inside
 `recipient_id = caller`. Search reads
@@ -151,7 +153,7 @@ follow-up after the Neon queue is checked.
 
 - Clock-driven reminders (wave 2).
 - Per-user preferences.
-- Push delivery.
+- Push delivery _(superseded by 0089)_.
 - Notifications whose recipient the data cannot name: the campaign owner is
   free text, and "operator" does not exist as a role. Open question 62.
 - Contract instalment and milestone events: their tables have no writer.
@@ -159,12 +161,12 @@ follow-up after the Neon queue is checked.
 
 ## Alternatives rejected
 
-| Alternative                    | Why not                                                                      |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| Keep the mails beside the bell | Two channels for one fact; the shared mailbox tells no one in particular     |
-| Per-person on/off switch       | Owner: every kind is on; a switch is config nobody asked for                 |
-| A domain-event table           | Audit and touch already hold the facts                                       |
-| Push (SSE / websocket)         | A standing connection per API machine is compute that never sleeps (0010 #2) |
+| Alternative                    | Why not                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Keep the mails beside the bell | Two channels for one fact; the shared mailbox tells no one in particular                          |
+| Per-person on/off switch       | Owner: every kind is on; a switch is config nobody asked for                                      |
+| A domain-event table           | Audit and touch already hold the facts                                                            |
+| Push (SSE / websocket)         | A standing connection per API machine is compute that never sleeps (0010 #2) _(reversed by 0089)_ |
 
 ## Rollout
 

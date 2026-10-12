@@ -242,7 +242,7 @@ có `notify`, `PV_QUEUE_DATABASE_URL` chưa được nhận hoặc vẫn là poo
 
 Direct và pooled endpoint vẫn trỏ vào **một compute/storage**, không tạo database
 thứ hai. Direct chỉ dành cho session state của pg-boss (`LISTEN`, advisory lock);
-API request vẫn qua PgBouncer.
+API request vẫn qua PgBouncer. Ngoại lệ: API giữ thêm một kết nối `LISTEN` trực tiếp cho luồng thông báo (ADR 0089), cùng endpoint direct.
 
 Connection budget hiện tại:
 
@@ -453,7 +453,7 @@ Nếu CU vẫn cao hơn forecast, tìm theo thứ tự:
 1. compute min có lớn hơn 0,25 không;
 2. query nào làm autoscaling tăng CPU/RAM;
 3. có hơn một worker active không;
-4. browser tab nào còn poll 60 giây hoặc màn mail poll 5 giây;
+4. browser tab nào còn poll 60 giây hoặc màn mail poll 5 giây (chuông thông báo chỉ poll 60 giây khi luồng SSE không sống — ADR 0089; kết nối `LISTEN` của luồng đó cũng giữ compute thức);
 5. external integration/BI/SQL editor nào giữ workload;
 6. branch/read replica nào đang có compute riêng.
 

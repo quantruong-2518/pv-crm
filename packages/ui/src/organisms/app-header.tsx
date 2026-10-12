@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Lock, type IconGlyph } from '../icons'
 import type { SearchFieldProps } from '../patterns/search-field'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
 import { markBlue, markLight, wordmarkBlue, wordmarkLight } from '../assets'
 import { useThemeMode } from '../ui/theme-switch'
-import { AccountMenu } from './account-menu'
+import { AccountMenu, MenuCaret } from './account-menu'
 import { AppNav } from './app-nav'
 import { HeaderSearch, type SearchRecords } from './header-search'
 
@@ -69,6 +69,10 @@ export type AppHeaderProps = {
   /** Account rows at the bottom of the avatar menu, below the theme row. Data,
    *  not a ReactNode, so every row keeps the menu's one shape. */
   accountActions?: HeaderAction[]
+  /** Body of the dropdown under the bell. With it the bell toggles the panel
+   *  instead of calling its action's `onClick`. `close` shuts the panel. The
+   *  panel does not scroll: the body decides which of its parts does. */
+  notificationsMenu?: (close: () => void) => ReactNode
   onOpenAssistant?: () => void
   className?: string
   /** Width and side padding of the row inside the full-bleed bar — the shell
@@ -101,11 +105,22 @@ function Hairline({ className }: { className?: string }) {
  *  `locked` follows `patterns/nav-item.tsx`: disabled, no hover, a padlock where
  *  the badge would sit, and the dimming on the ICON alone — dimming the whole
  *  button measured 2.29:1, under law 13's 4.5:1. */
-function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean }) {
+function CoreButton({
+  action,
+  unread,
+  expanded,
+}: {
+  action: HeaderAction
+  unread?: boolean
+  /** Set when the button opens a panel; `undefined` for a plain link. */
+  expanded?: boolean
+}) {
   return (
     <button
       type="button"
       title={action.label}
+      aria-expanded={expanded}
+      aria-haspopup={expanded === undefined ? undefined : 'dialog'}
       aria-label={
         action.count
           ? `${action.label} · ${action.count} ${action.slot === 'notifications' ? 'chưa đọc' : 'đang chờ'}`
@@ -115,8 +130,9 @@ function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean
       disabled={action.locked}
       onClick={action.onClick}
       className={cn(
-        'motion-std pointer-coarse:size-12 relative flex size-10 shrink-0 items-center justify-center rounded-md',
+        'motion-std focus-visible:outline-ring pointer-coarse:size-12 relative flex size-10 shrink-0 items-center justify-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2',
         action.active ? 'bg-primary/15 text-on-tint-primary' : 'text-foreground/80',
+        expanded && !action.active && 'bg-surface-ink/10 text-foreground',
         action.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10 hover:text-foreground',
       )}
     >
@@ -141,6 +157,61 @@ function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean
   )
 }
 
+/** The bell and the panel under it — the avatar menu's shell around a body the
+ *  app supplies. A dialog, not a menu: its rows are links with their own
+ *  buttons, which `role="menu"` would flatten for a screen reader. */
+function BellMenu({
+  action,
+  unread,
+  children,
+}: {
+  action: HeaderAction
+  unread?: boolean
+  children: (close: () => void) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <CoreButton
+        action={{ ...action, onClick: () => setOpen((o) => !o) }}
+        unread={unread}
+        expanded={open}
+      />
+      {open ? <MenuCaret className="left-1/2 top-[calc(100%+7px)]" /> : null}
+      {/* 72px = the avatar trigger (64) plus the row gap: the panel ends where the
+          avatar's does, so a 343px panel still fits a 375px screen. Below `lg`
+          the height also clears BottomNav (84px), which paints over the header. */}
+      {open ? (
+        <div
+          role="dialog"
+          aria-label={action.label}
+          className="glass-overlay absolute -right-[72px] top-[calc(100%+12px)] z-50 flex max-h-[min(640px,calc(100vh-88px))] w-[min(376px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg p-2 max-lg:max-h-[calc(100vh-172px-env(safe-area-inset-bottom))]"
+        >
+          {children(() => setOpen(false))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 /** What the rest of the row does while the search is open (from `lg`). */
 const dim =
   'transition-[filter,opacity] duration-300 lg:group-data-[search=open]/hd:pointer-events-none lg:group-data-[search=open]/hd:opacity-35 lg:group-data-[search=open]/hd:blur-[6px]'
@@ -155,6 +226,7 @@ export function AppHeader({
   assistantLabel = 'Trợ lý',
   search,
   accountActions,
+  notificationsMenu,
   onOpenAssistant,
   className,
   frameClassName,
@@ -230,7 +302,13 @@ export function AppHeader({
 
         <div className={cn('flex shrink-0 items-center justify-end gap-2', dim)}>
           {approvals ? <CoreButton action={approvals} /> : null}
-          {notificationAction ? <CoreButton action={notificationAction} unread={unread} /> : null}
+          {notificationAction && notificationsMenu ? (
+            <BellMenu action={notificationAction} unread={unread}>
+              {notificationsMenu}
+            </BellMenu>
+          ) : notificationAction ? (
+            <CoreButton action={notificationAction} unread={unread} />
+          ) : null}
           {unread ? <span className="sr-only">có thông báo chưa đọc</span> : null}
           <AccountMenu
             user={user}

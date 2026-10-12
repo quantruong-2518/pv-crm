@@ -180,3 +180,14 @@ export type NotificationReadBody = z.infer<typeof NotificationReadBody>
 /** Rows that flipped from unread to read; already-read rows are not counted. */
 export const NotificationReadResponse = z.object({ changed: z.number().int().nonnegative() })
 export type NotificationReadResponse = z.infer<typeof NotificationReadResponse>
+
+/**
+ * Server-Sent Events stream signals notification row changes. The stream
+ * carries only event names—never row data—because permission cuts and row
+ * mapping stay in one place: the existing GET endpoints. The browser
+ * refetches on each signal to read fresh, authorized rows.
+ */
+export const NotificationStreamEvent = z.enum(['ready', 'changed'])
+export type NotificationStreamEvent = z.infer<typeof NotificationStreamEvent>
+
+export const NOTIFICATION_STREAM_PATH = '/notifications/stream'

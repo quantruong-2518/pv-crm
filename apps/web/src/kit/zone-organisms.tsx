@@ -180,7 +180,7 @@ export function ZoneOrganisms() {
             name="AppHeader"
             note="tầng 1 h-16 · tầng 2 h-12"
             bodyClassName="p-4"
-            footer="Tầng 1: thương hiệu · ô tìm căn giữa · Thông báo + Avatar (tên, vai từ lg); menu avatar: lối vào Core · Giao diện · tài khoản. Tầng 2: ứng dụng theo nhóm, căn giữa, cách nhau bằng vạch mảnh; role thiếu quyền không thấy mục; mục có module con xổ dropdown có mũi tên (glass-overlay, đục hẳn)"
+            footer="Tầng 1: thương hiệu · ô tìm căn giữa · Thông báo (xổ panel, thân do ứng dụng đưa vào) + Avatar (tên, vai từ lg); menu avatar: lối vào Core · Giao diện · tài khoản. Tầng 2: ứng dụng theo nhóm, căn giữa, cách nhau bằng vạch mảnh; role thiếu quyền không thấy mục; mục có module con xổ dropdown có mũi tên (glass-overlay, đục hẳn)"
           >
             <AppHeader
               product="PV One"
@@ -190,6 +190,11 @@ export function ZoneOrganisms() {
               accountActions={HEADER_ACCOUNT}
               user={{ name: 'Nguyễn Văn Thắng' }}
               unread
+              notificationsMenu={() => (
+                <p className="text-muted-foreground px-3 py-2 text-[13px]">
+                  Danh sách thông báo do ứng dụng đưa vào
+                </p>
+              )}
               search={{
                 placeholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',
                 records: {

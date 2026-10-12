@@ -82,10 +82,14 @@ min_machines_running = 1
 # Đo tải theo request HTTP. Khi một máy chạm hard_limit, Fly Proxy ngừng đưa
 # thêm request vào máy đó; limiter riêng của intake vẫn chặn chặt hơn ở route
 # công khai và dùng Postgres để đồng bộ giữa nhiều máy.
+#
+# Each open bell stream (`GET /notifications/stream`, ADR 0089) is ONE request
+# for as long as it lives, so the limits count people with the app on screen
+# plus real requests. At 30/50 the streams alone would have filled the machine.
 [http_service.concurrency]
 type = "requests"
-soft_limit = 30
-hard_limit = 50
+soft_limit = 200
+hard_limit = 250
 
 [[http_service.checks]]
 grace_period = "20s"

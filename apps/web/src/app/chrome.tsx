@@ -22,16 +22,22 @@ import {
   Users,
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { meetingTodayQuery } from '@/data/meeting-today'
-import { NOTIFICATIONS_PATH, unreadNotificationsQuery } from '@/data/notifications'
+import {
+  NOTIFICATIONS_PATH,
+  notificationListQuery,
+  unreadNotificationsQuery,
+  useNotificationStream,
+} from '@/data/notifications'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
+import { NotificationMenu } from '@/components/notification-menu'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -100,8 +106,9 @@ type NavEntry = {
  *
  *  Phê duyệt and Thông báo each carry a count because each has a real table
  *  behind it (`platform.approval`, `platform.notification`); a badge is a
- *  claim. The bell is the one door to the notification list: a press goes to
- *  `/notifications` like any entry, and the unread count rides its `slot`. */
+ *  claim. The bell keeps a `path` only so it is neither locked nor dark on
+ *  `/notifications`; a press opens the dropdown (`header.notificationsMenu`),
+ *  whose "Xem tất cả" is what goes to that page. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/', slot: 'home' },
   { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' },
@@ -363,6 +370,9 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     refetchOnWindowFocus: true,
   })
   const { data: unreadNotifications } = useQuery(unreadNotificationsQuery())
+  /* Preload the dropdown's rows with the header; the stream refreshes them. */
+  useNotificationStream()
+  useInfiniteQuery(notificationListQuery())
   const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
@@ -464,6 +474,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       ],
     ],
     user: { name: actor?.name ?? 'Khách', role: actor?.role },
+    notificationsMenu: (close) => <NotificationMenu close={close} unread={unreadNotifications} />,
     assistantLabel: 'Trợ lý',
     search: {
       placeholder: opts.searchPlaceholder ?? 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…',

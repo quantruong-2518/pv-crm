@@ -708,6 +708,13 @@
       "when": 1792047900000,
       "tag": "0102_sale_opens_deal",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1792134300000,
+      "tag": "0103_notification_push",
+      "breakpoints": true
     }
   ]
 }

@@ -62,7 +62,7 @@ export const notification = platform.table(
     unique('notification_recipient_event_uq').on(t.recipientId, t.eventKey),
     /** "My bell, newest first" — `GET /notifications`, filter and order in one. */
     index('notification_recipient_recent_idx').on(t.recipientId, t.createdAt.desc()),
-    /** "How many have I not read" — the badge, asked every 60 s per open tab.
+    /** "How many have I not read" — the badge, re-asked on every stream signal.
      *  Partial: read rows are the bulk of the table and never counted. */
     index('notification_recipient_unread_idx')
       .on(t.recipientId)
