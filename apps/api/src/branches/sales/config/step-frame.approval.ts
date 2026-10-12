@@ -55,9 +55,9 @@ export function frameConsequenceOf(change: FrameChange): string {
   }
   if (change.kind === 'state-rule') {
     const where = stateWords(change.rule.address)
-    if (change.rule.freeEntry) return `Cho phép tự gõ việc tiếp theo ngoài danh sách ở ${where}`
+    if (change.rule.freeEntry) return `Cho phép tự điền việc khác ngoài danh sách ở ${where}`
     /* The count is the consequence: sellers there are left with exactly these. */
-    return `Không cho phép tự gõ việc tiếp theo ngoài danh sách ở ${where} — người làm chỉ còn chọn trong ${change.activeTemplates} mẫu đang bật của trạng thái này`
+    return `Không cho phép tự điền việc khác ngoài danh sách ở ${where}. Người làm chỉ chọn trong ${change.activeTemplates} mẫu đang bật`
   }
   const { patch, was } = change
   const said: string[] = []

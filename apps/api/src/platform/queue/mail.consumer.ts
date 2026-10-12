@@ -147,7 +147,7 @@ export class MailConsumer {
       return {
         kind: 'permanent',
         code: EXPIRED,
-        summary: 'Quá cửa sổ chống trùng — không gửi lại.',
+        summary: 'Quá hạn gửi lại, thư không được gửi nữa.',
       }
     }
     const delivery = await this.frozen(claimed)
@@ -158,7 +158,7 @@ export class MailConsumer {
       return {
         kind: 'retry',
         code: 'queue-parked',
-        summary: `Cửa hàng đợi đang đóng thêm ${Math.ceil(parkedMs / 1_000)}s.`,
+        summary: `Tạm dừng gửi, thử lại sau ${Math.ceil(parkedMs / 1_000)} giây.`,
       }
     }
 
@@ -186,7 +186,7 @@ export class MailConsumer {
       return {
         kind: 'retry',
         code: 'rate-window',
-        summary: `Hết token nhịp trong cửa sổ hiện tại (${this.env.PV_EMAIL_RATE_PER_SECOND}/giây).`,
+        summary: `Gửi quá nhanh (giới hạn ${this.env.PV_EMAIL_RATE_PER_SECOND} thư/giây), sẽ thử lại.`,
       }
     }
 

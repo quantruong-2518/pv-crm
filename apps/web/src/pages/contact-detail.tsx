@@ -43,7 +43,7 @@ export default function ContactDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không mở được ${code}: mã này không có trong sổ, hoặc thuộc một lead không đứng tên bạn.`,
+            notFound: `Không mở được ${code}. Mã không có trong sổ, hoặc lead không do bạn phụ trách.`,
             fallback: `Không mở được ${code}.`,
             back: { label: 'Về sổ người liên hệ', onClick: () => navigate('/sales/contacts') },
           }}
@@ -82,17 +82,13 @@ export default function ContactDetailPage() {
         }
         main={
           <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Liên lạc">
-            <SectionTitle
-              size="sm"
-              hint="Hộp thư ở đây là của người này. Luồng gửi thư của hệ dựa vào hộp thư của lead, không phải ô này."
-            >
+            <SectionTitle size="sm" hint="Thư gửi tới email của lead.">
               Gọi thế nào
             </SectionTitle>
 
             {reach.length === 0 ? (
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Chưa xin được email hay số điện thoại. Một người mình đã gặp mà chưa có kênh liên
-                lạc vẫn là một dòng đáng giữ — đó là lý do cả hai ô đều không bắt buộc.
+                Chưa có email hay số điện thoại.
               </p>
             ) : (
               <ul className="flex flex-col gap-3">
@@ -115,7 +111,7 @@ export default function ContactDetailPage() {
         }
         rail={
           <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Bối cảnh">
-            <SectionTitle size="sm" hint="Người liên hệ treo dưới lead; công ty suy ra từ lead đó.">
+            <SectionTitle size="sm" hint="Công ty lấy theo lead.">
               Ở đâu
             </SectionTitle>
 
@@ -126,8 +122,7 @@ export default function ContactDetailPage() {
               </p>
             ) : (
               <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                Lead này chưa được gắn vào công ty nào trong sổ khách, nên chỉ có tên công ty ghi
-                trên chính lead: {contact.company}.
+                Lead chưa gắn với công ty trong sổ. Tên công ty ghi trên lead: {contact.company}.
               </p>
             )}
 

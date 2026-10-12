@@ -33,7 +33,7 @@ const OPEN_ZOOM = 5
 const PLACE_ZOOM = 16
 
 const LOADING_TEXT = 'Đang mở bản đồ…'
-const FAILED_TEXT = 'Không tải được bản đồ — vẫn có thể tìm bằng ô tìm kiếm ở trên.'
+const FAILED_TEXT = 'Không tải được bản đồ. Dùng ô tìm kiếm ở trên.'
 
 async function loadVietmapGl(): Promise<VietmapGl> {
   const [mod] = await Promise.all([

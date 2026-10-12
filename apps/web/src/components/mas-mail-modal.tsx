@@ -182,7 +182,7 @@ export function MasMailModal({
 
   const stepBlockers: (string | null)[] = [
     chosen.length > MAS_MAX_RECIPIENTS
-      ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} người nhận — đang chọn ${chosen.length}.`
+      ? `Một lượt tối đa ${MAS_MAX_RECIPIENTS} người nhận. Đang chọn ${chosen.length}.`
       : chosen.length === 0
         ? 'Chưa chọn người nhận.'
         : null,
@@ -259,7 +259,7 @@ export function MasMailModal({
       const reason = isApiError(error) ? userMessage(error) : 'Không tạo được lượt gửi này.'
       setFailure(
         completed > 0
-          ? `${reason} Đợt 1–${completed} đã vào hàng đợi và không rút lại được; bấm gửi lại chỉ tiếp tục từ đợt ${completed + 1}.`
+          ? `${reason} Đợt 1–${completed} đã xếp hàng và không rút lại được. Gửi lại sẽ tiếp tục từ đợt ${completed + 1}.`
           : reason,
       )
       return
@@ -267,7 +267,7 @@ export function MasMailModal({
 
     toast(sendReport(waves.length, queuedTotal, done), {
       tone: 'success',
-      detail: 'Email sẽ rời hệ thống sau vài chục giây.',
+      detail: 'Email gửi đi sau vài chục giây.',
     })
     const last = waves.at(-1)
     if (draft.saveAsTemplate && canSaveTemplate && last) keepAsTemplate(last)
@@ -299,7 +299,7 @@ export function MasMailModal({
         onError: (error) =>
           toast(isApiError(error) ? userMessage(error) : 'Không lưu được mẫu email', {
             tone: 'warning',
-            detail: 'Thư vẫn đã được xếp hàng gửi.',
+            detail: 'Thư đã xếp hàng gửi.',
           }),
       },
     )
@@ -378,7 +378,7 @@ export function MasMailModal({
                     make "resume" send a different chain (see `goTo`). */}
                 {submittedWaves > 0 ? (
                   <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
-                    {`Đợt 1–${submittedWaves} đã vào hàng đợi và không rút lại được. Thư và tuỳ chọn gửi đã khoá — bấm gửi để tiếp tục từ đợt ${submittedWaves + 1}.`}
+                    {`Đợt 1–${submittedWaves} đã xếp hàng và không rút lại được. Thư và tuỳ chọn gửi đã khoá. Bấm gửi để tiếp tục từ đợt ${submittedWaves + 1}.`}
                   </p>
                 ) : (
                   <>

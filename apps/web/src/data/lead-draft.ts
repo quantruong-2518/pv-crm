@@ -244,7 +244,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     if (args.mode !== 'create' || admission.pending) return
     const asks = asksOf(live.current.motion)
     if (!asks) {
-      refuse({ motion: ['Chưa chọn phương án tiếp cận'] })
+      refuse({ motion: ['Chưa chọn phương án tiếp cận.'] })
       return
     }
     const built = buildLeadCreate(live.current, asks)

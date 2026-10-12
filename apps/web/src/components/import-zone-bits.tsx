@@ -146,7 +146,7 @@ function ResultList({
       {shown.length === 0 ? (
         <EmptyState
           icon={Inbox}
-          message="Không có dòng nào phù hợp với bộ lọc hiện tại."
+          message="Không có dòng khớp bộ lọc."
           action={{ label: 'Bỏ hết bộ lọc', onClick: clear }}
           className="py-6"
         />
@@ -162,7 +162,7 @@ function ResultList({
       )}
       {shown.length > LIST_CAP && (
         <p className="text-muted-foreground text-[11px] leading-[1.6]">
-          Đang hiện {LIST_CAP} dòng đầu trên tổng số {shown.length}.
+          Hiện {LIST_CAP} dòng đầu, trên tổng {shown.length}.
         </p>
       )}
     </GlassCard>
@@ -428,8 +428,8 @@ export function StepRun({
             <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
               <Icon icon={TriangleAlert} size={18} className="text-warning" />
               <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
-                {report.errors.length} dòng không nạp được. Tải tệp lỗi về, mở cạnh tệp gốc, sửa
-                đúng những dòng đó rồi nạp lại — phần đã vào sổ sẽ bị bắt trùng, không vào hai lần.
+                {report.errors.length} dòng không nạp được. Tải tệp lỗi, sửa các dòng đó trong tệp
+                gốc rồi nạp lại. Dòng đã vào sổ không bị nạp hai lần.
               </p>
               <Button
                 size="md"
@@ -613,7 +613,7 @@ export function WindowDropCatcher({
     <div className="pointer-events-none fixed inset-0 z-[45] flex items-center justify-center bg-[var(--scrim)] p-8">
       <div className="glass-ai animate-scrim-in flex flex-col items-center gap-4 rounded-lg px-12 py-8 text-center">
         <Icon icon={FileUp} size={26} strokeWidth={1.9} className="text-accent-foreground" />
-        <p className="font-display text-[18px] font-semibold">Thả tệp ra là nhận</p>
+        <p className="font-display text-[18px] font-semibold">Thả tệp vào đây</p>
         <p className="text-glass-foreground text-[11.5px]">
           {label} · {ACCEPT.join(' · ')}
         </p>
@@ -654,9 +654,8 @@ export function MojibakeNote({ column, sample }: { column: string; sample: strin
     <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
       <Icon icon={TriangleAlert} size={18} className="text-warning" />
       <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
-        Tệp lưu sai bảng mã — ví dụ cột &quot;{column}&quot; đang ra &quot;{sample}&quot;. Mọi cột
-        có dấu đều đang hỏng, không riêng cột này: lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc vẫn
-        nạp rồi sửa tay sau.
+        Tệp lưu sai bảng mã: cột &quot;{column}&quot; hiện &quot;{sample}&quot;, mọi cột có dấu đều
+        lỗi. Lưu lại tệp dạng CSV UTF-8 rồi chọn lại, hoặc nạp rồi sửa tay.
       </p>
     </GlassCard>
   )

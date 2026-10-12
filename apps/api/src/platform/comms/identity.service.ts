@@ -214,14 +214,14 @@ function refuseWrongHalf(row: IdentityRowDb, body: IdentityPatch): void {
   if (body.actorId !== undefined && row.side !== 'member') {
     throw invalid(
       { actorId: ['Định danh này là của khách, không gắn được mã nhân sự.'] },
-      'Không sửa được nửa của phía kia.',
+      'Không sửa được trường này.',
     )
   }
 
   if (body.objectCode !== undefined && row.side !== 'guest') {
     throw invalid(
-      { objectCode: ['Định danh này là của người mình, không gắn được mã object khách hàng.'] },
-      'Không sửa được nửa của phía kia.',
+      { objectCode: ['Định danh này là của nhân viên, không gắn được mã hồ sơ.'] },
+      'Không sửa được trường này.',
     )
   }
 }
@@ -231,20 +231,18 @@ function refuseWrongHalf(row: IdentityRowDb, body: IdentityPatch): void {
  *  which one is the whole question. */
 function refuseDifferentPeople(keep: IdentityRowDb, loser: IdentityRowDb): void {
   if (keep.side !== loser.side) {
-    throw conflict(
-      'Hai định danh này đứng hai phía khác nhau — một của người mình, một của khách — nên không gộp được.',
-    )
+    throw conflict('Không gộp được định danh của nhân viên với định danh của khách.')
   }
 
   if (keep.side === 'guest' && keep.objectCode !== loser.objectCode) {
     throw conflict(
-      `Hai định danh này thuộc hai khách khác nhau (${keep.objectCode} và ${loser.objectCode}) nên không gộp được — gộp là xoá mất đường nối địa chỉ của một trong hai.`,
+      `Không gộp được: hai định danh thuộc hai khách khác nhau (${keep.objectCode} và ${loser.objectCode}).`,
     )
   }
 
   if (keep.side === 'member' && keep.actorId !== loser.actorId) {
     throw conflict(
-      `Hai định danh này thuộc hai người khác nhau (${keep.actorId} và ${loser.actorId}) nên không gộp được — gộp là xoá mất đường nối địa chỉ của một trong hai.`,
+      `Không gộp được: hai định danh thuộc hai người khác nhau (${keep.actorId} và ${loser.actorId}).`,
     )
   }
 }

@@ -142,14 +142,14 @@ function assertDefaultsFit(
   if (outside.length > 0) {
     throw invalid(
       {
-        doors: [`Mẫu đang là mặc định của ${labels(outside)} — bỏ mặc định trước khi bỏ nơi dùng.`],
+        doors: [`Mẫu đang là mặc định của ${labels(outside)}. Bỏ mặc định trước khi bỏ nơi dùng.`],
       },
       'Mẫu mặc định chỉ đặt được cho nơi mẫu được dùng.',
     )
   }
   if (!active && defaults.length > 0) {
     throw invalid(
-      { active: [`Mẫu đang là mặc định của ${labels(defaults)} — chọn mẫu mặc định khác trước.`] },
+      { active: [`Mẫu đang là mặc định của ${labels(defaults)}. Chọn mẫu mặc định khác trước.`] },
       'Không ngừng dùng được một mẫu đang là mặc định.',
     )
   }

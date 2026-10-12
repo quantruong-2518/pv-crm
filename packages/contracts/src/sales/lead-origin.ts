@@ -75,7 +75,7 @@ export function originKey(text: string): string {
 // The catalog itself
 // ---------------------------------------------------------------------------
 
-export const LeadOriginId = z.string().regex(/^LO-\d{4,}$/, 'Mã nguồn sai dạng')
+export const LeadOriginId = z.string().regex(/^LO-\d{4,}$/, 'Mã nguồn sai dạng.')
 export type LeadOriginId = z.infer<typeof LeadOriginId>
 
 /** One catalog row. `aliases` are the OLD keys folded into this one by a
@@ -119,14 +119,14 @@ export const ORIGIN_NAME_MAX = 60
 
 const leadOriginName = textInput(ORIGIN_NAME_MAX).refine(
   (v) => originKey(v).length > 0,
-  'Tên nguồn phải còn chữ hoặc số sau khi chuẩn hoá',
+  'Tên nguồn phải có chữ hoặc số.',
 )
 
 /** `POST /sales/lead-origins`. Anyone with `lead.edit` may call this —
  *  it is how a Sale typing "Apollo" for the first time gets a real row. */
 export const LeadOriginCreate = z.object({
   name: leadOriginName,
-  motions: z.array(LeadMotion).min(1, 'Chọn ít nhất một thế'),
+  motions: z.array(LeadMotion).min(1, 'Chọn ít nhất một thế.'),
 })
 export type LeadOriginCreate = z.infer<typeof LeadOriginCreate>
 
@@ -142,11 +142,11 @@ export type LeadOriginCreateResponse = z.infer<typeof LeadOriginCreateResponse>
 export const LeadOriginPatch = z
   .object({
     name: leadOriginName.optional(),
-    motions: z.array(LeadMotion).min(1, 'Chọn ít nhất một thế').optional(),
+    motions: z.array(LeadMotion).min(1, 'Chọn ít nhất một thế.').optional(),
     active: z.boolean().optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
-    message: 'Không có ô nào để sửa',
+    message: 'Không có gì để sửa.',
   })
 export type LeadOriginPatch = z.infer<typeof LeadOriginPatch>
 

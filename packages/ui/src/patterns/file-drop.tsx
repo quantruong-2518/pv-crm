@@ -109,7 +109,7 @@ export function FileDrop({
     if (!files || files.length === 0) return
 
     if (files.length > 1) {
-      setOwn(`Thả ${files.length} tệp cùng lúc — mỗi lần một tệp thôi.`)
+      setOwn('Mỗi lần chỉ nhận một tệp.')
       return
     }
 
@@ -125,12 +125,12 @@ export function FileDrop({
     }
 
     if (file.size === 0) {
-      setOwn(`Tệp "${file.name}" rỗng — 0 byte.`)
+      setOwn(`Tệp "${file.name}" rỗng.`)
       return
     }
 
     if (file.size > maxBytes) {
-      setOwn(`Tệp nặng ${sizeText(file.size)}, trần là ${sizeText(maxBytes)}.`)
+      setOwn(`Tệp nặng ${sizeText(file.size)}, tối đa ${sizeText(maxBytes)}.`)
       return
     }
 
@@ -239,7 +239,7 @@ export function FileDrop({
             {busy
               ? 'Đang đọc tệp…'
               : over
-                ? 'Thả ra là nhận'
+                ? 'Thả để chọn tệp'
                 : fileName
                   ? fileName
                   : 'Kéo và thả tệp dữ liệu vào đây'}

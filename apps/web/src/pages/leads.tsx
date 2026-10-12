@@ -343,13 +343,13 @@ export function LeadsPage() {
        stays absent, and the panel then draws no code column at all. */
     const report = { ...run.report, ...(run.codes.length > 0 ? { codes: run.codes } : {}) }
 
-    toast(run.failure ?? `${report.rows.length} lead đã được thêm`, {
+    toast(run.failure ?? `Đã thêm ${report.rows.length} lead`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         report.attached &&
           report.attached.length > 0 &&
           `${report.attached.length} người gộp vào lead chung`,
-        report.duplicates > 0 && `${report.duplicates} dòng đã có trong hệ thống, không nạp`,
+        report.duplicates > 0 && `${report.duplicates} dòng đã có sẵn, không nạp`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
         report.origins && originTally(report.origins),
@@ -462,7 +462,7 @@ export function LeadsPage() {
   const failure = bookError
     ? {
         message: `Không tải được danh sách lead. ${
-          isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+          isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
         }`,
         onRetry: () => void refetchBook(),
       }
@@ -472,12 +472,12 @@ export function LeadsPage() {
     rows.length === 0
       ? pinnedView && pinCount === 0
         ? {
-            message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối một dòng để giữ nó ở đây.',
+            message: 'Chưa ghim lead nào. Bấm biểu tượng ghim ở cuối dòng để thêm vào đây.',
             action: { label: 'Xem tất cả lead', onClick: clearFilters },
           }
         : dirty
           ? {
-              message: 'Không có lead nào phù hợp với bộ lọc hiện tại.',
+              message: 'Không có lead nào khớp bộ lọc.',
               action: { label: 'Bỏ hết bộ lọc', onClick: clearFilters },
             }
           : disabledView
@@ -486,7 +486,7 @@ export function LeadsPage() {
                 action: { label: 'Tải lại', onClick: () => void refetchBook() },
               }
             : {
-                message: 'Chưa có lead nào. Hãy thêm lead đầu tiên để bắt đầu theo dõi.',
+                message: 'Chưa có lead nào.',
                 action: canWrite
                   ? { label: 'Thêm lead', onClick: () => navigate('/sales/leads/new') }
                   : { label: 'Tải lại', onClick: () => void refetchBook() },
@@ -593,7 +593,7 @@ export function LeadsPage() {
                 ? undefined
                 : `Sẽ gửi ${selectedEmailCount} email${
                     selectedEmailCount < selectedCodes.size
-                      ? ` · bỏ qua ${selectedCodes.size - selectedEmailCount} lead chưa có địa chỉ email`
+                      ? ` · bỏ qua ${selectedCodes.size - selectedEmailCount} lead chưa có email`
                       : ''
                   }`
             }

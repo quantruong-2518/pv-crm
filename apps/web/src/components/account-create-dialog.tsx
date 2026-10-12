@@ -67,7 +67,6 @@ export function AccountCreateDialog({
       onClose={onClose}
       width="lg"
       title="Mở công ty mới"
-      subtitle="Một dòng ở đây là MỘT khách. Lead, đơn và hợp đồng của họ đều treo về dòng này."
       footer={
         <div className="flex flex-wrap items-center justify-between gap-4">
           <span
@@ -81,7 +80,7 @@ export function AccountCreateDialog({
               ? userMessage(create.error)
               : draft.name.trim() === ''
                 ? 'Còn thiếu tên công ty.'
-                : 'Chỉ tên là bắt buộc — tám ô còn lại điền được lúc nào cũng được.'}
+                : 'Chỉ tên là bắt buộc.'}
           </span>
           <div className="flex items-center gap-3">
             <Button size="md" variant="ghost" onClick={onClose}>

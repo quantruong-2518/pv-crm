@@ -52,7 +52,7 @@ export const SCAN_ACCEPT_MIME = [
 /** What actually gets uploaded: images are re-encoded to WebP, or JPEG where
  *  the browser (WebKit) cannot encode WebP; thumbnails are always JPEG. */
 export const SCAN_UPLOAD_MIME = ['image/webp', 'image/jpeg', 'application/pdf'] as const
-export const ScanUploadMime = z.enum(SCAN_UPLOAD_MIME, 'Loại tệp không nhận')
+export const ScanUploadMime = z.enum(SCAN_UPLOAD_MIME, 'Không nhận loại tệp này.')
 
 // ---------------------------------------------------------------------------
 // What the AI returns for ONE file — also the Gemini response schema, so
@@ -102,7 +102,7 @@ export const ScanExtraction = z.object({
 // ---------------------------------------------------------------------------
 
 /** Mirrors the shape of other object codes (`PartnerCode`), with a month. */
-export const ScanBatchCode = z.string().regex(/^SCN-\d{4}-\d{2,}$/, 'Mã lô quét sai dạng')
+export const ScanBatchCode = z.string().regex(/^SCN-\d{4}-\d{2,}$/, 'Mã lô quét sai dạng.')
 
 export const ScanFileId = z.string().min(1)
 
@@ -144,10 +144,10 @@ export const ScanFileDeclared = z.object({
   bytes: z
     .number()
     .int()
-    .positive('Tệp rỗng')
-    .max(SCAN_MAX_PDF_BYTES, `Tệp lớn hơn ${SCAN_MAX_PDF_BYTES / 1024 / 1024} MB`),
+    .positive('Tệp rỗng.')
+    .max(SCAN_MAX_PDF_BYTES, `Tệp tối đa ${SCAN_MAX_PDF_BYTES / 1024 / 1024} MB.`),
   /** Lower-case hex of the ORIGINAL picked bytes — stable across browsers, so it keys both in-batch dedupe and the read cache. */
-  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'sha256 sai dạng'),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'sha256 sai dạng.'),
   width: dimension.optional(),
   height: dimension.optional(),
   pages: dimension.optional(),
@@ -160,8 +160,8 @@ export const LeadScanCreateBody = z.object({
   campaignCode: ObjectCode.optional(),
   files: z
     .array(ScanFileDeclared)
-    .min(1, 'Chưa chọn tệp nào')
-    .max(SCAN_MAX_FILES, `Một lô tối đa ${SCAN_MAX_FILES} tệp`),
+    .min(1, 'Chưa chọn tệp nào.')
+    .max(SCAN_MAX_FILES, `Một lô tối đa ${SCAN_MAX_FILES} tệp.`),
 })
 
 /** One entry per declared file, in body order. A repeat sha256 gets no URL:
@@ -186,7 +186,7 @@ export const LeadScanParams = z.object({ code: ScanBatchCode })
  *  files it does not list; later calls (after `POST :code/files`) touch only
  *  what they name, so two replaces in flight never undo each other. */
 export const LeadScanStartBody = z.object({
-  files: z.array(ScanFileId).min(1, 'Chưa tệp nào tải lên xong').max(SCAN_MAX_FILES),
+  files: z.array(ScanFileId).min(1, 'Chưa có tệp nào tải lên xong.').max(SCAN_MAX_FILES),
   /** FAILED files these uploads replace — dropped only now, once the new bytes
    *  exist, so a failed replace upload leaves the old row to retry. */
   retire: z.array(ScanFileId).max(SCAN_MAX_FILES).optional(),
@@ -210,12 +210,12 @@ export const LeadScanCancelResponse = accepted
 
 export const LeadScanAddFilesBody = z
   .object({
-    files: z.array(ScanFileDeclared).min(1, 'Chưa chọn tệp nào').max(SCAN_MAX_FILES),
+    files: z.array(ScanFileDeclared).min(1, 'Chưa chọn tệp nào.').max(SCAN_MAX_FILES),
     /** Set only to replace one FAILED file already in the batch. */
     replaces: ScanFileId.optional(),
   })
   .refine((body) => !body.replaces || body.files.length === 1, {
-    message: 'Thay tệp chỉ nhận đúng một tệp mới',
+    message: 'Chỉ được thay bằng một tệp.',
     path: ['files'],
   })
 

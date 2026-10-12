@@ -134,9 +134,7 @@ export function MeetingsPanel({
         <Skeleton className="h-16 w-full" />
       ) : shown.length === 0 ? (
         <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
-          {rows.length === 0
-            ? 'Chưa có lịch họp với khách này.'
-            : 'Không còn buổi nào sắp tới — mở danh sách để xem các buổi đã gặp.'}
+          {rows.length === 0 ? 'Chưa có lịch họp với khách này.' : 'Không còn buổi nào sắp tới.'}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">

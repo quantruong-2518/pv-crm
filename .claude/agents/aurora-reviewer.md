@@ -38,6 +38,7 @@ English comments (`aurora/comments-in-english`).
 9. **Mail templates** — if `packages/mail-templates` changed, law 13 applies there
    too, and email has no tokens, so the hex has to be measured by hand. Say plainly
    that a human must open `pnpm mail:preview`; you cannot render it.
+10. **On-screen copy** — review every string a user sees against `docs/design-system/ui-copy.md`; nearly all of it is eyes-only.
 
 ## Return a table, ranked
 

@@ -271,8 +271,8 @@ export function ReadingStep({
         title={`Đang đọc ${rows.length} tệp`}
         description={
           uploading
-            ? 'Đang tải tệp lên — giữ trang này mở tới khi tải xong.'
-            : 'Đóng trang cũng không sao — lô chạy tiếp trên máy chủ.'
+            ? 'Đang tải tệp lên. Giữ trang mở tới khi xong.'
+            : 'Có thể đóng trang, lô vẫn chạy.'
         }
         rail={batch && scanRail(batch, navigate)}
         cancel={cancel}
@@ -345,7 +345,7 @@ export function ResultView({ batch, redirect }: { batch: LeadScanResponse; redir
               : `Đã nhập vào ${result.mergedInto.length} lead có sẵn`}
           </h2>
           <p className="text-muted-foreground max-w-[560px] text-[12.5px] leading-[1.65]">
-            Ảnh danh thiếp và hồ sơ đã nằm sẵn trong mục Tệp đính kèm của từng lead.
+            Ảnh và hồ sơ nằm trong mục Tệp đính kèm của từng lead.
           </p>
           <ContextRail objects={scanRail(batch, navigate)} className="justify-center" />
           {redirect && (

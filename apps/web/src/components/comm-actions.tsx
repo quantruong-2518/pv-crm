@@ -53,7 +53,7 @@ export function CommActions({
   const [asking, setAsking] = useState<CommActionChannel | null>(null)
 
   const blocked = (channel: CommActionChannel): string | undefined => {
-    if (!canRecord) return 'Vai của bạn không tạo được comm.'
+    if (!canRecord) return 'Vai của bạn không ghi được lượt liên hệ.'
     if (known && !known.confirmable) return notConfirmableReason(subject.kind)
     if (channel === 'email') {
       if (!canMail) return 'Cần quyền gửi email cho lead.'

@@ -45,7 +45,7 @@ function NextStepRow({ op }: { op: OpportunityProfileResponse }) {
   if (op.state === 'won') {
     return (
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Đã thành hợp đồng — cơ hội không còn việc tiếp theo.
+        Đã thành hợp đồng, không còn việc tiếp theo.
       </p>
     )
   }

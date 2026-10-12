@@ -428,7 +428,7 @@ export class MailWebhookController {
   /** 401, and the same 401 for every kind of failure.
    *
    *  Built inline rather than through the factories in `problem.ts` because
-   *  `denied()` maps to session language ("Phiên đã hết hạn...") and this
+   *  `denied()` maps to session language ("Đã hết thời gian đăng nhập...") and this
    *  caller has no session to expire — same reason `lead-intake.guard.ts`
    *  builds its origin refusal by hand. */
   private refuse(): PvError {

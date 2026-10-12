@@ -47,8 +47,8 @@ export function CommRecordPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: 'Không tìm thấy lượt liên hệ này. Có thể đường dẫn đã cũ.',
-            fallback: 'Không đọc được lượt liên hệ này.',
+            notFound: 'Không tìm thấy lượt liên hệ này.',
+            fallback: 'Không mở được lượt liên hệ này.',
             back: { label: 'Quay lại', onClick: () => navigate(-1) },
           }}
         />
@@ -128,7 +128,7 @@ function RecordBody({ record }: { record: DebriefView }) {
         open ? (
           <GlassCard className="p-5 lg:p-6">
             <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-              Chỉ {record.owner.name}, người ghi lại lượt liên hệ này, xác nhận được nó.
+              Chỉ {record.owner.name} xác nhận được lượt liên hệ này.
             </p>
           </GlassCard>
         ) : (
@@ -153,7 +153,7 @@ function Turns({ threadId }: { threadId: string }) {
         <Skeleton className="h-16 w-full" />
       ) : error ? (
         <p className="text-warning text-[12.5px]">
-          Không đọc được các lượt trao đổi. {isApiError(error) ? userMessage(error) : ''}
+          Không tải được các lượt trao đổi. {isApiError(error) ? userMessage(error) : ''}
         </p>
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground text-[12.5px]">Chưa có lượt nào.</p>
@@ -173,8 +173,8 @@ function Turn({ row }: { row: MessageRow }) {
     row.content.state === 'visible'
       ? row.content.bodyText
       : row.content.state === 'hidden'
-        ? 'Vai của bạn không đọc được nội dung lượt này.'
-        : 'Lượt này chưa có nội dung chữ.'
+        ? 'Vai của bạn không xem được nội dung lượt này.'
+        : 'Lượt này chưa có nội dung.'
   return (
     <li className={cn('flex flex-col gap-2 rounded-md p-3', COMM_CARD_SURFACE)}>
       <span className="text-muted-foreground tnum text-[11.5px]">

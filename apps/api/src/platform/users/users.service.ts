@@ -225,7 +225,7 @@ export class UsersService {
        it is a naming scheme that has run out. Say so plainly rather than
        looping forever or falling back to a random id nobody can read. */
     throw conflict(
-      `Không sinh được mã tài khoản từ tên này — đã có quá nhiều tài khoản mang mã "u-${seed}". Đổi cách viết tên, hoặc nhờ quản trị hệ thống đặt mã tay.`,
+      `Không tạo được mã tài khoản từ tên này vì đã có quá nhiều tài khoản mang mã "u-${seed}". Đổi cách viết tên.`,
       { name: ['Tên này trùng mã với quá nhiều tài khoản đã có.'] },
     )
   }
@@ -363,9 +363,7 @@ export class UsersService {
        look like success here and fail silently a day later in somebody else's
        browser, so the refusal belongs at the press of the button. */
     if (target.disabledAt) {
-      throw conflict(
-        `Tài khoản của ${target.name} đang bị khoá — thư đặt mật khẩu gửi đi cũng không dùng được. Mở khoá trước, rồi gửi lại.`,
-      )
+      throw conflict(`Tài khoản của ${target.name} đang bị khoá. Mở khoá trước rồi gửi lại.`)
     }
 
     const issued = await this.auth.sendInvite({
@@ -427,9 +425,7 @@ export class UsersService {
     if (!target) throw notFound('người dùng', id)
 
     if (who.id === id) {
-      throw conflict(
-        'Bạn không tự đặt lại mật khẩu của chính mình ở đây được — dùng màn đổi mật khẩu. Đặt lại ở đây sẽ khoá bạn vào màn đổi mật khẩu cho tới khi đổi xong.',
-      )
+      throw conflict('Bạn không tự đặt lại mật khẩu của chính mình ở đây. Dùng màn Đổi mật khẩu.')
     }
 
     await this.repo.run(async (tx) => {
@@ -515,7 +511,7 @@ export class UsersService {
 
     throw denied(
       'permission-denied',
-      `Bạn không tự đổi ${refused.join(' và ')} của chính mình được — nhờ một quản trị viên khác làm việc này. Một người tự hạ vai hoặc tự khoá mình có thể để lại một hệ thống không ai mở tài khoản được nữa.`,
+      `Bạn không tự đổi ${refused.join(' và ')} của chính mình. Nhờ quản trị viên khác làm.`,
     )
   }
 
@@ -568,7 +564,7 @@ export class UsersService {
       /* No `fields`: the lock button has no box to turn red, and the panel
          prints the title in its footer for exactly this case. */
       throw conflict(
-        `${target.name} là tài khoản cuối cùng còn hoạt động giữ ${key}. Mở hoặc mở khoá một tài khoản khác giữ quyền đó trước, rồi hãy hạ vai hoặc khoá tài khoản này — nếu không sẽ không còn ai dùng được quyền đó nữa.`,
+        `${target.name} là tài khoản cuối cùng còn hoạt động giữ ${key}. Mở hoặc mở khoá một tài khoản khác giữ quyền đó trước.`,
       )
     }
   }
@@ -608,7 +604,7 @@ export class UsersService {
     if (fromMailbox) return fromMailbox
 
     throw conflict('Không sinh được mã tài khoản từ tên này. Thêm phần tên viết bằng chữ Latinh.', {
-      name: ['Tên phải có ít nhất một chữ cái Latinh hoặc chữ số để sinh mã tài khoản.'],
+      name: ['Tên phải có ít nhất một chữ cái Latinh hoặc chữ số.'],
     })
   }
 

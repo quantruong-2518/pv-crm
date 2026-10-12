@@ -141,8 +141,8 @@ export function ScoreCards() {
       /* The server sums in dong and skips unpriced deals — then says how many. */
       hint:
         openBlank === 0
-          ? `Tổng giá trị dự kiến của ${openCount} cơ hội đang mở`
-          : `Tổng giá trị dự kiến của ${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
+          ? `${openCount} cơ hội đang mở`
+          : `${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
     },
     {
       icon: FileCheck,

@@ -141,9 +141,9 @@ export function channelCarries(
 // ---------------------------------------------------------------------------
 
 const landingPage = z
-  .string('landingPage là bắt buộc')
+  .string('landingPage là bắt buộc.')
   .trim()
-  .min(1, 'landingPage là bắt buộc')
+  .min(1, 'landingPage là bắt buộc.')
   .max(64, 'landingPage tối đa 64 ký tự')
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'landingPage chỉ gồm chữ thường, số và dấu gạch ngang')
 
@@ -151,7 +151,7 @@ const campaignParam = (max = 120) =>
   z
     .string()
     .trim()
-    .max(max, `Tối đa ${max} ký tự`)
+    .max(max, `Tối đa ${max} ký tự.`)
     .transform((value) => (value === '' ? undefined : value))
     .optional()
 

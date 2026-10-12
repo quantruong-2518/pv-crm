@@ -37,7 +37,7 @@ export function KioskTile({
         )}
       >
         <div className="text-glass-foreground mb-2.5 font-mono text-[10px] tracking-[.14em]">
-          TƯƠNG PHẢN CAO
+          Tương phản cao
         </div>
         <div className="tnum font-num text-[36px] font-bold tracking-[-1px] text-white">
           {value}

@@ -109,7 +109,7 @@ export const MailEngagementKind = z.enum(['OPEN', 'CLICK', 'UNSUBSCRIBE'])
  *  is identified on screen by its `label` and its date. Declared once here
  *  because three schemas below carry it, and three hand-written `z.string()`
  *  are three chances for one of them to start accepting anything. */
-export const MailRunId = z.uuid('Mã lô gửi phải là UUID')
+export const MailRunId = z.uuid('Mã lô gửi không hợp lệ.')
 
 // ---------------------------------------------------------------------------
 // Templates — pre-filled text, not a rendering engine
@@ -128,9 +128,9 @@ export const MailRunId = z.uuid('Mã lô gửi phải là UUID')
  *  transactional path already fills with `'lead-intake-internal'`; this keeps
  *  one spelling convention across both. */
 export const MailTemplateCode = z
-  .string('Mã mẫu mail là bắt buộc')
-  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Mã mẫu chỉ gồm chữ thường, số và dấu nối')
-  .max(64, 'Mã mẫu tối đa 64 ký tự')
+  .string('Mã mẫu mail là bắt buộc.')
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Mã mẫu chỉ gồm chữ thường, số và dấu gạch ngang.')
+  .max(64, 'Mã mẫu tối đa 64 ký tự.')
 
 /** Hard cap on a subject line, and on the names a run or a template is filed
  *  under. Declared rather than written `200` at each door because the compose
@@ -181,8 +181,11 @@ export const MAIL_NAME_MAX = 200
  *  because the panel's whole job is to carry one into the other. */
 function webUrl(what: string) {
   return z
-    .url(`${what} phải là một URL đầy đủ`)
-    .refine((u) => /^https?:$/.test(new URL(u).protocol), `${what} phải bắt đầu bằng http/https`)
+    .url(`${what} phải là địa chỉ web đầy đủ.`)
+    .refine(
+      (u) => /^https?:$/.test(new URL(u).protocol),
+      `${what} phải bắt đầu bằng http hoặc https.`,
+    )
 }
 
 export const MailCta = z.object({
@@ -230,10 +233,10 @@ export const MailTemplateRow = z.object({
  *  would pre-fill a composer whose own picker cannot show what it chose. */
 const defaultsWithinDoors = (doors: readonly MailDoor[], defaults: readonly MailDoor[] = []) =>
   defaults.every((d) => doors.includes(d))
-const DEFAULTS_OUTSIDE_DOORS = 'Mẫu mặc định chỉ đặt được cho nơi mẫu được dùng'
+const DEFAULTS_OUTSIDE_DOORS = 'Chỉ đặt mặc định cho nơi dùng mẫu này.'
 const DoorDefaults = z
   .array(MailDoor)
-  .refine((ds) => new Set(ds).size === ds.length, 'Cửa mặc định bị lặp')
+  .refine((ds) => new Set(ds).size === ds.length, 'Nơi mặc định bị lặp.')
 
 /** EVERY `{{key}}` A MAS LETTER MAY NAME. Five names, three values.
  *
@@ -354,8 +357,8 @@ export const MAS_MAX_RECIPIENTS = 200
  *  opportunity codes inside `MasAudience`. */
 const leadCodes = z
   .array(ObjectCode)
-  .min(1, 'Chưa chọn đối tượng nào')
-  .max(MAS_MAX_RECIPIENTS, `Một lô tối đa ${MAS_MAX_RECIPIENTS} đối tượng`)
+  .min(1, 'Chưa chọn đối tượng nào.')
+  .max(MAS_MAX_RECIPIENTS, `Một lô tối đa ${MAS_MAX_RECIPIENTS} đối tượng.`)
 
 /** WHOM a Quick-MAS run is sent to — polymorphic on purpose.
  *
@@ -490,15 +493,15 @@ export const MasPreflightResponse = z.object({
  *   · trailing spaces at end of line, and blank space at both ends of the whole
  *     body — invisible to the person typing, visible to `=` and to any diff. */
 export const mailBody = z
-  .string('Nội dung mail là bắt buộc')
-  .max(20_000, 'Nội dung mail tối đa 20.000 ký tự')
+  .string('Nội dung mail là bắt buộc.')
+  .max(20_000, 'Nội dung mail tối đa 20.000 ký tự.')
   .transform((s) =>
     s
       .replace(/\r\n/g, '\n')
       .replace(/[ \t]+$/gm, '')
       .trim(),
   )
-  .pipe(z.string().min(1, 'Nội dung mail không được để trống'))
+  .pipe(z.string().min(1, 'Nội dung mail không được để trống.'))
 
 /** One reusable sequence outside a campaign. The browser mints the id once
  *  when the composer opens and repeats it on every wave; the server fences the
@@ -995,7 +998,7 @@ export const MailRunEdit = z
       v.cta !== undefined ||
       v.bookingUrl !== undefined ||
       v.scheduledAt !== undefined,
-    { message: 'Cần sửa ít nhất một trường' },
+    { message: 'Không có gì để sửa.' },
   )
 
 /** Cancel first: it is the narrower shape, and the one the union must not let
@@ -1288,7 +1291,7 @@ export const MailTemplatePatch = z
       v.active !== undefined ||
       v.doors !== undefined ||
       v.defaultFor !== undefined,
-    { message: 'Cần sửa ít nhất một trường' },
+    { message: 'Không có gì để sửa.' },
   )
   .refine((v) => v.doors === undefined || defaultsWithinDoors(v.doors, v.defaultFor), {
     message: DEFAULTS_OUTSIDE_DOORS,

@@ -58,8 +58,8 @@ export function OpportunityDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Sổ của bạn không có đơn nào mang mã ${code}. Có thể mã sai, hoặc đơn không đứng tên bạn — hỏi người giữ đơn, hoặc mở lại từ sổ.`,
-            fallback: 'Không đọc được hồ sơ cơ hội này.',
+            notFound: `Không có cơ hội mã ${code} trong sổ của bạn.`,
+            fallback: 'Không mở được hồ sơ cơ hội.',
             back: { label: 'Về sổ cơ hội', onClick: () => navigate('/sales/opportunities') },
           }}
         />

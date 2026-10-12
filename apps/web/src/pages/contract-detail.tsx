@@ -59,8 +59,7 @@ export function ContractDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound:
-              'Có thể mã sai, hoặc hợp đồng không đứng tên bạn — hỏi người giữ nó, hoặc mở lại từ sổ.',
+            notFound: 'Có thể mã sai, hoặc hợp đồng không do bạn phụ trách. Mở lại từ sổ hợp đồng.',
             fallback: 'Không mở được hợp đồng này.',
             back: { label: 'Về sổ hợp đồng', onClick: () => navigate('/sales/contracts') },
           }}
@@ -134,12 +133,12 @@ function ContractScreen({ contract }: { contract: Contract }) {
             <AiAction
               suggestion={
                 <>
-                  Soạn thư nhắc {contract.contact} làm nốt {next.blocking.what.toLowerCase()}, gộp
-                  luôn câu xin ngày chuyển tiền đợt {next.installment.no}?
+                  Soạn thư nhắc {contract.contact} làm nốt {next.blocking.what.toLowerCase()}, kèm
+                  xin ngày chuyển tiền đợt {next.installment.no}?
                 </>
               }
               basis={aiBasis(next, now)}
-              empty="Chưa tạo gì cả — trợ lý chờ bạn bấm."
+              empty="Chưa tạo gì. Trợ lý chờ bạn bấm."
               confirmLabel="Soạn thư"
               onConfirm={() => setMailing(addressee)}
               onInspect={() => openInstallment(next.installment.no)}

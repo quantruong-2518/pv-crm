@@ -31,9 +31,7 @@ export function CommEvaluation({
           {isApiError(vocab.error) ? userMessage(vocab.error) : 'Tải lại trang.'}
         </p>
       ) : criteria.length === 0 ? (
-        <p className="text-muted-foreground text-[12px] leading-[1.6]">
-          Chưa có câu hỏi đánh giá nào đang bật — phần này để trống.
-        </p>
+        <p className="text-muted-foreground text-[12px] leading-[1.6]">Chưa có câu hỏi đánh giá.</p>
       ) : (
         criteria.map((c) => (
           <fieldset

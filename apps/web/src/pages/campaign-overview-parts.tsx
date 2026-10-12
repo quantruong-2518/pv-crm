@@ -194,14 +194,14 @@ function CampaignStanding({
 
   const sentence =
     state === 'STOPPED'
-      ? 'Chiến dịch đã dừng. Muốn gửi tiếp thì tạo một chiến dịch mới.'
+      ? 'Chiến dịch đã dừng. Muốn gửi tiếp, tạo chiến dịch mới.'
       : sending
-        ? `Đợt ${sending.waveNo} đang gửi — đã gửi ${n(sending.run.sent)} trên ${n(sending.run.audienceCount)} thư.`
+        ? `Đợt ${sending.waveNo} đang gửi: ${n(sending.run.sent)} trên ${n(sending.run.audienceCount)} thư.`
         : audienceCount === 0
-          ? `Chiến dịch chưa có người nhận. Thêm người nhận từ sổ lead rồi mới gửi được đợt ${waveCount + 1}.`
+          ? `Chưa có người nhận. Thêm người nhận để gửi đợt ${waveCount + 1}.`
           : state === 'DONE'
-            ? `Mọi đợt đã gửi xong. Danh sách người nhận hiện có ${n(audienceCount)} người.`
-            : `Danh sách người nhận hiện có ${n(audienceCount)} người.`
+            ? `Mọi đợt đã gửi xong. Có ${n(audienceCount)} người nhận.`
+            : `Có ${n(audienceCount)} người nhận.`
 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 py-4 lg:px-6">
@@ -254,9 +254,7 @@ export function WavesEmpty({ stopped }: { stopped: boolean }) {
     <GlassCard className="flex flex-col items-center gap-2 px-5 py-12 text-center">
       <h3 className="m-0 text-[14px] font-semibold">Chưa có đợt gửi nào</h3>
       <p className="text-muted-foreground m-0 max-w-[440px] text-pretty text-[12px] leading-[1.6]">
-        {stopped
-          ? 'Chiến dịch đã dừng trước khi gửi đợt nào.'
-          : 'Các đợt đã gửi và kết quả của từng đợt sẽ hiện tại đây.'}
+        {stopped ? 'Chiến dịch đã dừng trước khi gửi đợt nào.' : 'Kết quả từng đợt sẽ hiện ở đây.'}
       </p>
     </GlassCard>
   )

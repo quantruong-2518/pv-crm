@@ -49,10 +49,10 @@ const PROBE_STALE_MS = 30 * 60 * 1000
  *  runs the same search in a list of its own — two copies of a sentence are
  *  two sentences that will drift. Built from the contract's floor, so neither
  *  can promise a number the search does not use. */
-export const SUGGEST_EMPTY_TEXT = 'Không thấy địa chỉ — thử gõ thêm số nhà, đường hoặc phường'
+export const SUGGEST_EMPTY_TEXT = 'Không thấy địa chỉ. Thử gõ thêm số nhà, đường hoặc phường.'
 /** The search itself was refused or failed — most often the per-person or daily
  *  ceiling — and "not found" would send the typist hunting for a typo. */
-export const SUGGEST_FAILED_TEXT = 'Tra cứu địa chỉ đang bận — bạn nhập tay giúp nhé'
+export const SUGGEST_FAILED_TEXT = 'Chưa tra được địa chỉ. Hãy nhập tay.'
 export const SUGGEST_TOO_SHORT_TEXT = `Gõ ít nhất ${ADDRESS_SUGGEST_MIN_CHARS} ký tự để tìm địa chỉ`
 
 /** `keepPreviousData` so the menu does not flash empty between keystrokes; no

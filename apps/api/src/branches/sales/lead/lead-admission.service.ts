@@ -41,7 +41,7 @@ type Caller = Pick<Actor, 'id' | 'name' | 'ownOnly'>
 export type TypedAdmission = { accountCode: string | null; reentered: string | null }
 
 const KNOWN = 'Khách này đã có trong sổ. Xem kết quả đối chiếu rồi chọn cách ghi.'
-const MOVED = 'Sổ đã thay đổi từ lúc bạn xem. Xem lại kết quả đối chiếu rồi chọn lại.'
+const MOVED = 'Sổ vừa thay đổi. Xem lại kết quả đối chiếu rồi chọn lại.'
 
 /** THE ONE GATE EVERY LEAD DOOR PASSES BEFORE IT WRITES: normalise keys, load
  *  the book slice in six statements whatever the batch size, ask the engine.
@@ -212,7 +212,7 @@ export class LeadAdmissionService {
     if (!target?.inScope) {
       if (choice.leadCode) throw this.refusal(assessed, MOVED)
       throw invalid({
-        admission: ['Chỉ thêm người liên hệ được vào lead đang mở trong phạm vi của bạn.'],
+        admission: ['Chỉ thêm được người liên hệ vào lead đang mở trong phạm vi của bạn.'],
       })
     }
     const fresh = target.newPeople.map(() => ({

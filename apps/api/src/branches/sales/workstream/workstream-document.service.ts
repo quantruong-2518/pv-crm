@@ -51,7 +51,7 @@ export class WorkstreamDocumentService {
     await this.fence(who, code)
     const { kept, pending } = await this.repo.load(code, who.id)
     if (kept >= MAX_DOCUMENTS || pending >= MAX_PENDING) {
-      throw invalid({ name: ['Hành trình đã đủ số tài liệu cho phép — xoá bớt trước khi thêm.'] })
+      throw invalid({ name: ['Hành trình đã đủ số tài liệu cho phép. Xoá bớt trước khi thêm.'] })
     }
     const id = randomUUID()
     const storageKey = keyOf(code, id)

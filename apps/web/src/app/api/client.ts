@@ -141,7 +141,7 @@ const requireLiveSession: BeforeSend = (req) => {
   throw new ApiError({
     kind: 'unauthenticated',
     path: req.path,
-    message: 'Phiên không còn hiệu lực.',
+    message: 'Hết thời gian đăng nhập.',
   })
 }
 
@@ -161,7 +161,7 @@ const requireAccess: BeforeSend = (req) => {
   throw new ApiError({
     kind: verdict.reason === 'unauthenticated' ? 'unauthenticated' : 'forbidden',
     path: req.path,
-    message: verdict.reason === 'unauthenticated' ? 'Phiên chưa đăng nhập.' : verdict.note,
+    message: verdict.reason === 'unauthenticated' ? 'Bạn chưa đăng nhập.' : verdict.note,
     status: verdict.reason === 'unauthenticated' ? 401 : 403,
     reason: verdict.reason,
   })

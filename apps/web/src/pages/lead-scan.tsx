@@ -86,7 +86,7 @@ export function LeadScanPage() {
   const onCommit = () =>
     commit.mutate(undefined, {
       onError: (error) =>
-        toastFail('Chưa tạo được lead', isApiError(error) ? userMessage(error) : undefined),
+        toastFail('Không tạo được lead', isApiError(error) ? userMessage(error) : undefined),
     })
   /* No code yet means nothing on the server to cancel; the local run is
      dropped too, so its remaining uploads and its `start` stand down. */
@@ -101,7 +101,7 @@ export function LeadScanPage() {
                 if (useScanRun.getState().run?.code === code) useScanRun.setState({ run: null })
               },
               onError: (error) =>
-                toastFail('Chưa huỷ được lô', isApiError(error) ? userMessage(error) : undefined),
+                toastFail('Không huỷ được lô', isApiError(error) ? userMessage(error) : undefined),
             }),
         }
 
@@ -179,7 +179,7 @@ function DropStep() {
     <>
       <ScanHeader
         title="Nạp lead từ ảnh & hồ sơ"
-        description="AI đọc từng tệp, gom theo công ty, cho bạn xem trước rồi mới tạo."
+        description="AI đọc tệp và gom theo công ty. Bạn xem trước rồi mới tạo."
       />
       <GlassCard className="flex flex-col gap-5 p-5">
         <div className="flex flex-wrap items-end gap-4">

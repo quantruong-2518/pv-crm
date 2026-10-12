@@ -263,12 +263,11 @@ export function SourcesPage() {
     const run = await loadFile({ rows, motion, fileName, source: scope })
     const { report } = run
 
-    toast(run.failure ?? `${report.rows.length} người nhận đã được thêm vào sổ lead`, {
+    toast(run.failure ?? `Đã thêm ${report.rows.length} người nhận vào sổ lead`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         scope && `Gắn với nguồn dẫn ${scope}`,
-        report.duplicates > 0 &&
-          `${report.duplicates} dòng đã có trong hệ thống, vẫn nhập và đánh dấu`,
+        report.duplicates > 0 && `${report.duplicates} dòng đã có trong sổ, vẫn nhập và đánh dấu`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]
@@ -355,7 +354,7 @@ export function SourcesPage() {
                     icon={MailOpen}
                     value={percent(rate(totals.opened, totals.sent))}
                     label="Tỷ lệ mở email"
-                    hint={`${grouped(totals.opened)}/${grouped(totals.sent)} email đã được mở`}
+                    hint={`${grouped(totals.opened)}/${grouped(totals.sent)} email đã mở`}
                   />
                   <StatCard
                     size="compact"
@@ -370,11 +369,10 @@ export function SourcesPage() {
                     không đi được, nguồn tự nhiên đứng ngoài sổ này, và phần cơ hội
                     không chiến dịch nào được ghi công. */}
                 <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Hai tỷ lệ trên đều được tính trên {grouped(totals.sent)} email đã gửi. Chênh lệch
-                  so với {grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả
-                  lại hoặc gửi không thành công. {totals.natural.count} nguồn tự nhiên với{' '}
-                  {totals.natural.leads} lead được thống kê tại Sổ lead. {totals.ops}/
-                  {totals.opsBook}
+                  Hai tỷ lệ trên tính trên {grouped(totals.sent)} email đã gửi. Chênh so với{' '}
+                  {grouped(totals.audience)} lượt người nhận dự kiến là email bị chặn, bị trả lại
+                  hoặc gửi không thành công. {totals.natural.count} nguồn tự nhiên với{' '}
+                  {totals.natural.leads} lead tính ở Sổ lead. {totals.ops}/{totals.opsBook}
                   cơ hội trong kỳ đến từ các nguồn dẫn bên dưới.
                 </p>
               </div>
@@ -430,7 +428,7 @@ export function SourcesPage() {
             error
               ? {
                   message: `Không tải được danh sách nguồn dẫn. ${
-                    isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                    isApiError(error) ? userMessage(error) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -440,11 +438,11 @@ export function SourcesPage() {
             visible.length === 0
               ? book.dirty
                 ? {
-                    message: 'Không có nguồn dẫn nào phù hợp với bộ lọc hiện tại.',
+                    message: 'Không có nguồn dẫn nào khớp bộ lọc.',
                     action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
                   }
                 : {
-                    message: 'Chưa có nguồn dẫn nào. Hãy thêm nguồn dẫn đầu tiên.',
+                    message: 'Chưa có nguồn dẫn nào.',
                     action: { label: 'Thêm nguồn dẫn', onClick: () => setMode('create') },
                   }
               : undefined

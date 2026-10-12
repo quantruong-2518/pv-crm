@@ -7,11 +7,11 @@ import { conflict, invalid, type PvError } from './problem'
  *  VÌ SAO PHẢI CÓ TẦNG NÀY
  *  ------------------------------------------------------------------
  *  `ProblemFilter` chỉ hiểu `PvError` và `HttpException`; mọi thứ khác rơi vào
- *  nhánh cuối và thành 500 "Máy chủ gặp sự cố.". Nhưng phần lớn lỗi Postgres
+ *  nhánh cuối và thành 500 "Hệ thống gặp sự cố.". Nhưng phần lớn lỗi Postgres
  *  KHÔNG phải máy chủ hỏng — đó là dữ liệu người dùng vừa gửi không qua được
  *  một ràng buộc mà chính hệ đã dựng. Nộp lại form landing với email đã có là
  *  chuyện thường ngày nhất của một landing page, và người gửi phải nhận
- *  "email này đã có trong sổ" chứ không phải "máy chủ gặp sự cố" — câu thứ hai
+ *  "email này đã có trong sổ" chứ không phải "hệ thống gặp sự cố" — câu thứ hai
  *  vừa sai, vừa khiến họ bấm gửi thêm ba lần nữa.
  *
  *  ------------------------------------------------------------------
@@ -117,7 +117,7 @@ export function registerConstraints(book: ConstraintBook): void {
  *  lên thành 500 kèm stack để có người đi sửa. */
 const BY_SQLSTATE: Record<string, ConstraintNote> = {
   /* 23505 unique_violation */
-  '23505': { kind: 'conflict', message: 'Dữ liệu này đã có trong hệ thống.' },
+  '23505': { kind: 'conflict', message: 'Dữ liệu này đã có.' },
   /* 23503 foreign_key_violation — hai chiều: trỏ vào thứ không có, hoặc xoá
      thứ nơi khác còn dùng. Phân biệt hai chiều phải đọc chữ tiếng Anh trong
      `message` của Postgres, thứ không có gì bảo đảm ổn định giữa các bản; câu
@@ -125,11 +125,10 @@ const BY_SQLSTATE: Record<string, ConstraintNote> = {
      vào sổ. */
   '23503': {
     kind: 'conflict',
-    message:
-      'Dữ liệu liên quan không còn khớp: mục được chọn không tồn tại, hoặc đang được dùng nơi khác.',
+    message: 'Mục đã chọn không còn, hoặc đang được dùng ở nơi khác.',
   },
   /* 23514 check_violation */
-  '23514': { kind: 'invalid', message: 'Dữ liệu gửi lên vi phạm một quy tắc của hệ.' },
+  '23514': { kind: 'invalid', message: 'Dữ liệu không hợp lệ.' },
   /* 23502 not_null_violation — Postgres có báo về `column`, nhưng đó là tên
      CỘT, và tên cột là nội thất. Không có sổ khai thì nói chung chung. */
   '23502': { kind: 'invalid', message: 'Thiếu một ô bắt buộc.' },
@@ -140,7 +139,7 @@ const BY_SQLSTATE: Record<string, ConstraintNote> = {
   /* 22003 numeric_value_out_of_range — 99 tỷ vào một cột `integer`. */
   '22003': { kind: 'invalid', message: 'Có ô số vượt quá giới hạn cho phép.' },
   /* 22001 string_data_right_truncation */
-  '22001': { kind: 'invalid', message: 'Có ô nhập dài quá mức cho phép.' },
+  '22001': { kind: 'invalid', message: 'Có ô nhập quá dài.' },
 }
 
 export type DbTranslation = {

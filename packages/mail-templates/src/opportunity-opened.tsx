@@ -99,7 +99,7 @@ export function OpportunityOpenedEmail(data: OpportunityOpenedData) {
 
       <Divider />
 
-      <Para>Đơn đang chờ gật. Mở đơn để xem hồ sơ đầy đủ hoặc đổi trạng thái.</Para>
+      <Para>Mở đơn để xem hồ sơ đầy đủ hoặc đổi trạng thái.</Para>
       <CtaButton href={data.opUrl}>Mở cơ hội {data.opCode}</CtaButton>
       <FallbackLink url={data.opUrl} />
     </BrandShell>

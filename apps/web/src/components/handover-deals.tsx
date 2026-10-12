@@ -8,8 +8,8 @@ export function HandoverDeals({ choice }: { choice: HandoverChoice }) {
   if (choice.failed) {
     return (
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Chưa đọc được cơ hội của lead. Nếu xác nhận, mọi cơ hội đang mở người cũ đứng tên Sale sẽ đi
-        cùng lead.
+        Chưa đọc được cơ hội của lead. Xác nhận thì mọi cơ hội đang mở mà người cũ làm Sale đi cùng
+        lead.
       </p>
     )
   }
@@ -33,11 +33,12 @@ export function HandoverDeals({ choice }: { choice: HandoverChoice }) {
       </div>
       {choice.hidden > 0 && (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Còn {choice.hidden} cơ hội bạn không xem được — chỉ đi cùng lead khi bạn giữ mọi ô.
+          Còn {choice.hidden} cơ hội bạn không xem được. Chúng chỉ đi cùng lead khi bạn chọn hết các
+          ô.
         </p>
       )}
       <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        Cơ hội đang chờ duyệt ký sẽ ở lại với người cũ và có ghi chú trên dòng thời gian của cơ hội.
+        Cơ hội đang chờ duyệt ký ở lại với người cũ.
       </p>
     </section>
   )

@@ -66,7 +66,7 @@ export default function AccountDetailPage() {
           pending={isPending}
           failure={{
             error,
-            notFound: `Không có công ty ${code} trong sổ. Có thể nó đã được gộp vào một công ty khác.`,
+            notFound: `Không có công ty ${code} trong sổ.`,
             fallback: 'Không mở được hồ sơ công ty.',
             back: { label: 'Về sổ công ty', onClick: () => navigate('/sales/accounts') },
           }}
@@ -160,13 +160,11 @@ function RunsCard({
         <Skeleton height={96} />
       ) : isError ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Không đọc được các lượt của công ty này.
+          Không tải được các lượt.
         </p>
       ) : data.rows.length === 0 ? (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          {data.hidden > 0
-            ? 'Công ty này có lượt, nhưng vai của bạn không xem được lượt nào.'
-            : 'Chưa có lượt nào gắn với công ty này.'}
+          {data.hidden > 0 ? 'Vai của bạn không xem được lượt nào.' : 'Chưa có lượt nào.'}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -199,7 +197,7 @@ function RunsCard({
       )}
       {data && data.rows.length > 0 && data.hidden > 0 && (
         <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Còn lượt khác của công ty này mà vai của bạn không xem được.
+          Còn lượt khác mà vai của bạn không xem được.
         </p>
       )}
     </GlassCard>
@@ -255,8 +253,8 @@ function AccountCard({ account }: { account: AccountProfile }) {
       tone="reference"
       hint={
         canWrite
-          ? 'Đây là bản ghi duy nhất về công ty này. Sửa ở đây là sửa cho mọi lead, mọi đơn và mọi hợp đồng bên dưới.'
-          : 'Vai của bạn đọc được sổ công ty nhưng không sửa được.'
+          ? 'Sửa ở đây là sửa cho mọi lead, cơ hội và hợp đồng của công ty.'
+          : 'Vai của bạn chỉ được xem.'
       }
     >
       <AccountFields draft={work} onSet={set} errors={errors} />
@@ -311,7 +309,7 @@ function LeadsCard({
 }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Lead của công ty">
-      <SectionTitle size="sm" hint="Mỗi dòng là một lần công ty này hỏi hàng.">
+      <SectionTitle size="sm">
         <span className="flex items-center gap-2">
           <Icon icon={Inbox} size={16} />
           Lead · {account.leadRows.length}
@@ -319,9 +317,7 @@ function LeadsCard({
       </SectionTitle>
 
       {account.leadRows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa có lead nào — công ty này được mở bằng tay, chưa qua lần hỏi hàng nào.
-        </p>
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">Chưa có lead nào.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {account.leadRows.map((l) => {
@@ -364,10 +360,7 @@ function DealsCard({
 }) {
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Đơn của công ty">
-      <SectionTitle
-        size="sm"
-        hint="Cả đơn đã đóng — thứ mình đã chào cho khách này gồm cả những lần trượt."
-      >
+      <SectionTitle size="sm" hint="Gồm cả cơ hội đã đóng.">
         <span className="flex items-center gap-2">
           <Icon icon={BriefcaseDollar} size={16} />
           Cơ hội · {account.dealRows.length}
@@ -375,9 +368,7 @@ function DealsCard({
       </SectionTitle>
 
       {account.dealRows.length === 0 ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
-          Chưa có đơn nào mở cho công ty này.
-        </p>
+        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">Chưa có cơ hội nào.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {account.dealRows.map((d) => (

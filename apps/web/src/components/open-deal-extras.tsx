@@ -50,7 +50,7 @@ export function ExtrasSection({
       >
         <span className="text-[14px] font-semibold">Bổ sung</span>
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[12px]">
-          {refused ? 'Mở sẵn vì máy chủ từ chối một ô ở đây' : countText(draft, seed)}
+          {refused ? 'Có ô cần sửa' : countText(draft, seed)}
         </span>
         <Icon
           icon={ChevronDown}
@@ -74,7 +74,7 @@ export function ExtrasSection({
               invalid={Boolean(errors.description)}
               value={draft.description}
               aria-label="Mô tả cơ hội"
-              placeholder="Việc khách muốn giải — một hai câu là đủ."
+              placeholder="Khách cần gì, viết một hai câu."
               onChange={(e) => onSet('description', e.target.value)}
             />
           </Field>

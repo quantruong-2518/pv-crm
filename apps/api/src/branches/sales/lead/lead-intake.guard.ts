@@ -45,7 +45,7 @@ export class LeadIntakeGuard implements CanActivate {
 
     if (this.active >= this.env.PV_INTAKE_MAX_INFLIGHT) {
       reply.header('Retry-After', '5')
-      throw rateLimited('Cửa nhận lead đang bận. Vui lòng thử lại sau vài giây.')
+      throw rateLimited('Đang có nhiều lượt gửi cùng lúc. Thử lại sau vài giây.')
     }
 
     this.active++

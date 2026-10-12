@@ -97,8 +97,8 @@ function StepFrame({ catalog, draft }: AreaProps) {
       <>
         <EmptyState
           icon={TriangleAlert}
-          message={`Không đọc được khung hành trình. ${
-            isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+          message={`Không tải được khung hành trình. ${
+            isApiError(error) ? userMessage(error) : 'Thử lại.'
           }`}
           action={{ label: 'Thử lại', onClick: () => void refetch() }}
           className="py-12"

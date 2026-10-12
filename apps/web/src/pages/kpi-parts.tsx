@@ -177,9 +177,7 @@ export function ReadingTile({
         <PaceBar item={item} />
         {(target || def.snapshot) && (
           <span className={cn(NOTE, 'tnum font-num')}>
-            {[target, def.snapshot && 'Số tại thời điểm này, không riêng tháng đang xem']
-              .filter(Boolean)
-              .join(' · ')}
+            {[target, def.snapshot && 'Số tại thời điểm hiện tại'].filter(Boolean).join(' · ')}
           </span>
         )}
         {shortfall && (
@@ -237,7 +235,7 @@ export function QueryBlock<T>({
         {query.isRefetchError && !quiet && (
           <p className={cn(NOTE, 'flex flex-wrap items-center gap-2')}>
             <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
-            Số đang hiển thị là của lần tải trước; lần tải lại vừa rồi không thành công.
+            Đang hiện số của lần tải trước. Tải lại không thành công.
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
               Thử lại
             </Button>
@@ -249,11 +247,11 @@ export function QueryBlock<T>({
   }
 
   if (query.error && quiet) {
-    return <p className={NOTE}>Không tải được {what}. Xem lỗi và nút Thử lại ở mục phía trên.</p>
+    return <p className={NOTE}>Không tải được {what}. Bấm Thử lại ở mục phía trên.</p>
   }
 
   if (query.error) {
-    const detail = isApiError(query.error) ? userMessage(query.error) : 'Vui lòng thử lại.'
+    const detail = isApiError(query.error) ? userMessage(query.error) : 'Thử lại.'
     return (
       <GlassCard variant={variant} className={TILE}>
         <EmptyState

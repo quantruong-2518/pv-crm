@@ -71,7 +71,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
     return (
       <p className="text-warning px-3 py-4 text-[12px]">
         Không đọc được danh sách người nhận của đợt này.{' '}
-        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )
   }
@@ -80,7 +80,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
     return (
       <div className="text-muted-foreground flex items-center gap-2 px-3 py-4 text-[12px]">
         <Icon icon={Inbox} size={16} />
-        Đợt này chưa có lá thư nào rời hàng đợi.
+        Đợt này chưa gửi thư nào.
       </div>
     )
   }

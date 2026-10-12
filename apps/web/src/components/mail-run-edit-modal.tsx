@@ -47,14 +47,13 @@ import { dmhm } from '@/lib/date'
  *  tracking are exactly what `RunFacts` says cannot be touched here. */
 const GUIDE_PARTS: MailGuideSection[] = ['content']
 
-const PREVIEW_CAPTION =
-  'Tên và công ty là dữ liệu mẫu. Người nhận của lô này đã chốt lúc tạo lô và không đổi được.'
+const PREVIEW_CAPTION = 'Tên và công ty là dữ liệu mẫu. Người nhận đã chốt lúc tạo lô.'
 /** `/sales/mail/preview` always renders a sample unsubscribe footer — it has no
  *  `delivery_id` to sign yet and cannot know the letter is bound for a GROUP
  *  door. A group letter never carries that footer when it actually sends
  *  (`mas-letter.ts`), so the note replaces the caption rather than letting the
  *  preview promise a link the real letter will not have. */
-const GROUP_PREVIEW_CAPTION = `${PREVIEW_CAPTION} Dòng huỷ đăng ký dưới thư chỉ hiện ở bản xem trước — thư gộp gửi thật không có dòng đó.`
+const GROUP_PREVIEW_CAPTION = `${PREVIEW_CAPTION} Dòng huỷ đăng ký chỉ có ở bản xem trước, thư gộp gửi đi không có.`
 
 export function MailRunEditModal({
   runId,
@@ -153,7 +152,7 @@ export function MailRunEditModal({
           inFlight.current = false
           const reason = isApiError(error) ? userMessage(error) : 'Không lưu được thay đổi.'
           setFailure(reason)
-          toast('Máy chủ từ chối sửa lô này', { tone: 'danger', detail: reason })
+          toast('Không sửa được lô này', { tone: 'danger', detail: reason })
         },
       },
     )
@@ -288,7 +287,7 @@ function EditBody({
           />
         ) : (
           <p className="text-muted-foreground m-0 px-1 text-[11.5px] leading-[1.6]">
-            Bản xem trước hiện ở đây khi thư có tiêu đề và nội dung.
+            Bản xem trước hiện khi thư có tiêu đề và nội dung.
           </p>
         )}
       </section>
@@ -322,7 +321,7 @@ function SaveConfirm({
     <MailSendConfirm
       open={open}
       title="Xác nhận lưu"
-      subtitle="Chỉ những ô bạn sửa được lưu. Người nhận giữ nguyên."
+      subtitle="Chỉ lưu những ô bạn sửa. Người nhận giữ nguyên."
       rows={[
         {
           label: 'Người nhận',
@@ -412,7 +411,7 @@ const footerNote = (locked: boolean, changed: number) =>
   locked
     ? 'Lô này chỉ còn xem được.'
     : changed === 0
-      ? 'Chưa đổi gì. Chỉ những ô bạn sửa mới được gửi đi.'
+      ? 'Chưa đổi gì.'
       : `${changed} mục sẽ được lưu. Người nhận giữ nguyên.`
 
 /** Which batch is open, in one line. `waveNo` first because a chain is the case
@@ -462,8 +461,8 @@ function LockedNote({ run }: { run: MailRunDetail }) {
         {run.editable
           ? 'Chỉ người tạo lô hoặc người có quyền phát chiến dịch mới sửa được lô này.'
           : run.state === 'SCHEDULED'
-            ? 'Thư của lô đã bắt đầu rời máy, nên nội dung chốt từ lúc đó. Muốn dừng phần chưa gửi thì dùng nút Dừng ở sổ lô gửi.'
-            : `Lô đang ở trạng thái "${MAIL_RUN_STATE_LABEL[run.state]}" — chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`}
+            ? 'Lô đã bắt đầu gửi nên không sửa được. Muốn dừng phần chưa gửi, bấm Dừng ở sổ lô gửi.'
+            : `Lô đang ở trạng thái "${MAIL_RUN_STATE_LABEL[run.state]}". Chỉ lô còn hẹn giờ và chưa gửi thư nào mới sửa được.`}
       </p>
     </GlassCard>
   )

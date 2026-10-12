@@ -83,7 +83,7 @@ export function LeadAdmissionPanel({
 
         {bookChanged && (
           <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.5]">
-            Sổ vừa thay đổi sau lần kiểm tra trước. Dưới đây là kết quả mới.
+            Sổ vừa thay đổi. Đây là kết quả mới.
           </p>
         )}
 
@@ -183,8 +183,8 @@ function verdictOf(
               {leads.length <= 1
                 ? 'đã có lead đang mở trong sổ.'
                 : held
-                  ? 'có nhiều lead đang mở, nhưng bạn không có quyền mở lead nào. Bạn có thể tạo lead mới cho công ty này.'
-                  : 'có nhiều lead đang mở. Chọn một lead bên dưới, hoặc tạo lead mới cho công ty này.'}
+                  ? 'có nhiều lead đang mở. Bạn không có quyền mở lead nào trong số đó.'
+                  : 'có nhiều lead đang mở. Chọn một lead, hoặc tạo lead mới.'}
             </>
           ),
           rows: leads,
@@ -238,7 +238,7 @@ function verdictOf(
       }
     case 'needs-review':
       return {
-        said: 'Chưa chắc đây là khách mới: trong sổ có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
+        said: 'Trong sổ có hồ sơ gần giống thông tin vừa nhập. Xem lại trước khi tạo.',
         rows: [],
         choices: [createLead('Vẫn tạo lead mới')],
       }

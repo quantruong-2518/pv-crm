@@ -180,7 +180,7 @@ function refused(message: string, rows: readonly ImportableRow[]): LeadImportRun
 export async function runLeadImport(input: LeadImportInput): Promise<LeadImportRun> {
   const motion = WIRE_MOTION[input.motion]
   if (motion === undefined) {
-    return refused(`Thế "${input.motion}" không đi qua cửa nạp tệp được.`, input.rows)
+    return refused(`Phương án "${input.motion}" không nạp từ tệp được.`, input.rows)
   }
 
   const body = buildLeadImportBody(input.rows, {

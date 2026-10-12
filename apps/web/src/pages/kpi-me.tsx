@@ -79,7 +79,7 @@ export function KpiMePage() {
           {(data) => (
             <>
               {data.closed && (
-                <p className={NOTE}>Tháng đã kết thúc nên chỉ tiêu của tháng không còn thay đổi.</p>
+                <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
               )}
               {data.scorecards.map((card) => (
                 <RoleBoard key={card.role} period={data.period} closed={data.closed} card={card} />

@@ -107,6 +107,6 @@ export function assignVerdict(deal: DealAt): OpportunityAct {
   const board = boardVerdict(deal, 'giao Sale')
   if (!board.ok) return board
   return board.stage === 'new'
-    ? { ok: false, reason: 'Cơ hội chưa được nhận PIC — nhận trước rồi giao Sale.' }
+    ? { ok: false, reason: 'Cơ hội chưa nhận PIC. Nhận PIC trước rồi giao Sale.' }
     : { ok: true }
 }

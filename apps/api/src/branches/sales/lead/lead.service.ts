@@ -148,7 +148,7 @@ export class LeadService {
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
     /* The ladder, the open approvals and the object chain, side by side: none
@@ -212,7 +212,7 @@ export class LeadService {
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
     const rows = await this.repo.mailTimeline(code)
@@ -234,7 +234,7 @@ export class LeadService {
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
     const rows = await this.repo.mailEvents(code, runId)
@@ -266,7 +266,7 @@ export class LeadService {
     if (!found) throw notFound('lead', code)
 
     if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
     return this.touch.timeline(code)
@@ -389,7 +389,7 @@ export class LeadService {
     if (!found) throw notFound('lead', code)
 
     if (!(edit ? found.holds : found.inScope)) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
   }
 

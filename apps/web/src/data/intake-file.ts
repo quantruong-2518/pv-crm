@@ -177,17 +177,17 @@ function toSheet(table: string[][], fileName: string): Sheet {
 
   const headers = (table[0] ?? []).map((h) => h.trim())
   if (headers.every((h) => h === '')) {
-    throw new SheetError('Dòng đầu tiên trống — cần một dòng tiêu đề cột.')
+    throw new SheetError('Dòng đầu tiên trống. Cần một dòng tiêu đề cột.')
   }
 
   const rows = table.slice(1)
   if (rows.length === 0) {
-    throw new SheetError('Tệp chỉ có dòng tiêu đề, không có dòng dữ liệu nào.')
+    throw new SheetError('Tệp chỉ có dòng tiêu đề.')
   }
 
   if (rows.length > MAX_ROWS) {
     throw new SheetError(
-      `Tệp có ${rows.length.toLocaleString('vi-VN')} dòng, trần là ${MAX_ROWS.toLocaleString('vi-VN')}. Cắt tệp ra rồi nạp từng phần.`,
+      `Tệp có ${rows.length.toLocaleString('vi-VN')} dòng, tối đa ${MAX_ROWS.toLocaleString('vi-VN')}. Chia tệp ra rồi nạp từng phần.`,
     )
   }
 
@@ -215,9 +215,7 @@ export async function readSheet(file: File): Promise<Sheet> {
   const lower = file.name.toLowerCase()
 
   if (lower.endsWith('.xls')) {
-    throw new SheetError(
-      'Đây là Excel đời cũ (.xls) — mở bằng Excel rồi lưu lại thành .xlsx hoặc .csv.',
-    )
+    throw new SheetError('Chưa đọc được tệp .xls. Mở bằng Excel rồi lưu thành .xlsx hoặc .csv.')
   }
 
   if (lower.endsWith('.xlsx')) {
@@ -237,7 +235,7 @@ export async function readSheet(file: File): Promise<Sheet> {
     try {
       sheets = await readXlsxFile(file)
     } catch {
-      throw new SheetError('Không mở được tệp xlsx — tệp hỏng, hoặc đang đặt mật khẩu.')
+      throw new SheetError('Không mở được tệp xlsx. Tệp hỏng hoặc đang đặt mật khẩu.')
     }
 
     const first = sheets[0]

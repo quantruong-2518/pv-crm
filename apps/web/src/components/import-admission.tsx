@@ -38,7 +38,7 @@ export function AdmissionTally({ rows }: { rows: readonly BuiltRow[] }) {
 
   return (
     <p className="text-glass-foreground tnum text-[11.5px] leading-[1.7]">
-      Trong số dòng vào sổ —{' '}
+      Dòng vào sổ:{' '}
       {counts.map((entry, i) => (
         <span key={entry.verdict}>
           {i > 0 && ' · '}

@@ -50,7 +50,7 @@ export const MeetingDurationMinutes = z.literal(MEETING_DURATION_MINUTES)
  *  on screen it is a date and a title. Declared once because three routes carry
  *  it, and three hand-written `z.string()` are three chances for one of them to
  *  start accepting anything and hand it to a `::uuid` cast. */
-export const MeetingId = z.uuid('Mã cuộc họp phải là UUID')
+export const MeetingId = z.uuid('Mã cuộc họp không hợp lệ.')
 
 /** Which side of the table somebody sat on.
  *
@@ -111,8 +111,8 @@ export const MeetingAttendee = z.object({
 export const MeetingLink = z
   .string()
   .trim()
-  .max(MEETING_LINK_MAX, `Tối đa ${MEETING_LINK_MAX} ký tự`)
-  .regex(/^https?:\/\/\S+$/, 'Link họp phải bắt đầu bằng http:// hoặc https://')
+  .max(MEETING_LINK_MAX, `Tối đa ${MEETING_LINK_MAX} ký tự.`)
+  .regex(/^https?:\/\/\S+$/, 'Link họp phải bắt đầu bằng http:// hoặc https://.')
 
 /** Event page in the booker's Google Calendar. https only: Google always serves
  *  it over TLS, and the value is read-only output that ends up behind an anchor. */
@@ -128,7 +128,10 @@ export const MeetingEventUrl = z
 export const MeetingCalendarState = z.enum(['synced', 'not_connected', 'failed', 'off'])
 
 /** The object a meeting hangs off: a lead or an opportunity, never a contract. */
-export const MeetingSubjectCode = ObjectCode.regex(/^(LD|OP)-/, 'Cuộc họp chỉ gắn lead hoặc cơ hội')
+export const MeetingSubjectCode = ObjectCode.regex(
+  /^(LD|OP)-/,
+  'Cuộc họp chỉ gắn với lead hoặc cơ hội.',
+)
 
 export const MeetingRow = z.object({
   id: z.string().min(1),
@@ -224,10 +227,7 @@ export const MeetingCreate = z.object({
    *  drawer stops the typist AT them, and a form that stops at a different
    *  number than the one this gate refuses is a form that fills up and then
    *  loses. */
-  hosts: z
-    .array(MeetingHostInput)
-    .min(1, 'Phải có ít nhất một người chủ trì')
-    .max(MEETING_MAX_HOSTS),
+  hosts: z.array(MeetingHostInput).min(1, 'Cần ít nhất một người chủ trì.').max(MEETING_MAX_HOSTS),
   guests: z.array(MeetingGuestInput).max(MEETING_MAX_GUESTS),
 })
 

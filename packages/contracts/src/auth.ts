@@ -161,9 +161,9 @@ export const PASSWORD_MIN = 10
  *  The cap is not a security control, it is a denial-of-service one: hashing
  *  cost grows with input length, so an unbounded field is a free CPU burner. */
 export const password = z
-  .string('Mật khẩu là bắt buộc')
-  .min(PASSWORD_MIN, `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự`)
-  .max(200, 'Mật khẩu tối đa 200 ký tự')
+  .string('Mật khẩu là bắt buộc.')
+  .min(PASSWORD_MIN, `Mật khẩu tối thiểu ${PASSWORD_MIN} ký tự.`)
+  .max(200, 'Mật khẩu tối đa 200 ký tự.')
 
 // ---------------------------------------------------------------------------
 // Who is signed in

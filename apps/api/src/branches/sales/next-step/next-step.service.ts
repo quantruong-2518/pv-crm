@@ -96,9 +96,7 @@ export class NextStepService {
     if (op.closing) {
       const current = (await this.repo.slot(code, tx))?.step
       if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
-        throw conflict(
-          `Việc tiếp theo của lead ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
-        )
+        throw conflict(`Việc tiếp theo của lead ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
       }
       const [touchId] = await this.touch.record(tx, [
         {
@@ -149,19 +147,19 @@ export class NextStepService {
     const doerId = body.doerId ?? holderId
     if (doerId === null) {
       throw invalid(
-        { doerId: [`Lead ${code} chưa có người giữ — chọn người làm việc tiếp theo.`] },
+        { doerId: [`Lead ${code} chưa có người phụ trách. Chọn người làm việc tiếp theo.`] },
         'Chưa có người làm việc tiếp theo.',
       )
     }
     if (doerId !== holderId && !this.access.allows(who, 'lead.assign')) {
       throw denied(
         'out-of-scope',
-        'Bạn chỉ đặt việc tiếp theo cho người đang giữ lead. Giao việc cho người khác là việc của trưởng phòng.',
+        'Bạn chỉ đặt việc tiếp theo cho người phụ trách lead. Muốn giao người khác, nhờ trưởng phòng.',
       )
     }
     if (!(await this.repo.isLiveSalesActor(tx, doerId))) {
       throw invalid(
-        { doerId: ['Người làm phải là nhân sự Sales đang hoạt động — chọn lại người làm.'] },
+        { doerId: ['Người làm phải là nhân sự Sales đang hoạt động.'] },
         'Người làm không hợp lệ.',
       )
     }
@@ -173,7 +171,7 @@ export class NextStepService {
       throw invalid(
         {
           doerId: [
-            'Người này chỉ thấy lead đứng tên mình nên sẽ không mở được việc này — chọn người khác hoặc giao lead cho họ.',
+            'Người này chỉ thấy lead do họ phụ trách. Chọn người khác hoặc giao lead cho họ.',
           ],
         },
         'Người làm không mở được lead này.',
@@ -209,11 +207,11 @@ export class NextStepService {
     const row = await this.repo.lockLead(tx, code)
     if (!row) throw notFound('lead', code)
     if (who.ownOnly && row.ownerId !== who.id) {
-      throw denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     if (!isOpen(row.state)) {
       throw conflict(
-        `Lead ${code} đang ở “${LEAD_STATE_LABEL[row.state]}” — chỉ lead còn trong phễu mới có việc tiếp theo.`,
+        `Lead ${code} đang ở “${LEAD_STATE_LABEL[row.state]}”, không đặt được việc tiếp theo.`,
       )
     }
     return { ownerId: row.ownerId, address: leadAddress(row.state), company: row.company }

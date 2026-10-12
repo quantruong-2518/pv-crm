@@ -388,7 +388,7 @@ export class ThreadService {
     if (codes.length === 0) {
       throw denied(
         'out-of-scope',
-        'Luồng giao tiếp này chưa gắn vào hồ sơ nào nên không ai đọc được — gắn nó vào một hồ sơ trước.',
+        'Luồng giao tiếp này chưa gắn vào hồ sơ nào. Gắn vào một hồ sơ trước.',
       )
     }
 
@@ -397,7 +397,7 @@ export class ThreadService {
 
     throw denied(
       'out-of-scope',
-      'Luồng giao tiếp này chỉ gắn vào những hồ sơ ngoài phạm vi của bạn — hỏi người đang giữ chúng.',
+      'Luồng giao tiếp này thuộc hồ sơ ngoài phạm vi của bạn. Hỏi người phụ trách.',
     )
   }
 
@@ -426,7 +426,7 @@ export class ThreadService {
       const found = new Set(rows.map((r) => r.id))
       throw invalid(
         { parties: [`Không có định danh ${wanted.filter((id) => !found.has(id)).join(', ')}.`] },
-        'Có người trong lượt này không còn trong sổ định danh.',
+        'Không tìm thấy một số người trong lượt này.',
       )
     }
 
@@ -442,7 +442,7 @@ export class ThreadService {
     if (visible.length === codes.length) return
     throw denied(
       'out-of-scope',
-      'Lượt này có người thuộc một hồ sơ ngoài phạm vi của bạn — hỏi người đang giữ hồ sơ đó.',
+      'Lượt này có người thuộc hồ sơ ngoài phạm vi của bạn. Hỏi người phụ trách hồ sơ đó.',
     )
   }
 

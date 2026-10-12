@@ -32,7 +32,7 @@ export function RunLabel({ run }: { run: MailRunRow }) {
  *  says nothing; the row does not carry the addresses, so it names the kind. */
 export function RunAudience({ run }: { run: MailRunRow }) {
   if (run.kind === 'group') {
-    return <span title="Một thư, mọi người nhận cùng thấy To/CC">Thư nhóm</span>
+    return <span title="Một thư, mọi người nhận thấy địa chỉ của nhau">Thư nhóm</span>
   }
   return <span>{num(run.audienceCount)}</span>
 }
@@ -46,7 +46,7 @@ export function RunSent({ run }: { run: MailRunRow }) {
       {run.withheld > 0 && (
         <span
           className="text-muted-foreground text-[11px]"
-          title="Đã trả lời hoặc đã có cuộc gặp sau đợt 1, nên không gửi đợt này."
+          title="Đã trả lời hoặc đã có cuộc gặp sau đợt 1."
         >
           {SKIPPED_MAIL_LABEL} {num(run.withheld)}
         </span>

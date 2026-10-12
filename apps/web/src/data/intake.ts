@@ -75,13 +75,13 @@ export const MOTION_FACE: Record<LeadMotion, MotionFace> = {
   inbound: {
     label: 'Inbound',
     icon: PhoneIncoming,
-    blurb: 'Khách tự tìm tới mình.',
+    blurb: 'Khách tự tìm đến.',
     example: 'Form landing · hotline gọi vào · thư về info@ · nhắn Zalo OA',
   },
   outbound: {
     label: 'Outbound',
     icon: PhoneOutgoing,
-    blurb: 'Mình đi tìm khách, khách chưa biết mình là ai.',
+    blurb: 'Công ty chủ động tìm khách, khách chưa biết đến công ty.',
     example: 'Chuỗi email lạnh · cold call · prospect LinkedIn · danh sách mua về',
   },
   event: {
@@ -93,19 +93,19 @@ export const MOTION_FACE: Record<LeadMotion, MotionFace> = {
   referral: {
     label: 'Giới thiệu',
     icon: Handshake,
-    blurb: 'Khách cũ chỉ sang, không qua đợt nào.',
+    blurb: 'Khách cũ giới thiệu, không qua đợt nào.',
     example: 'Giám đốc nhà máy giới thiệu sang nhà máy anh em cùng tập đoàn',
   },
   partner: {
     label: 'Đối tác',
     icon: ArrowLeftRight,
-    blurb: 'Đại lý hoặc nhà tích hợp đẩy khách sang.',
-    example: 'Nhà tích hợp hệ thống chuyển lại phần phần mềm cho mình',
+    blurb: 'Đại lý hoặc nhà tích hợp chuyển khách sang.',
+    example: 'Nhà tích hợp hệ thống chuyển lại phần phần mềm cho công ty',
   },
   recycle: {
     label: 'Đánh thức lại',
     icon: RefreshCw,
-    blurb: 'Lead cũ đã ra khỏi luồng, nay có cớ để quay lại.',
+    blurb: 'Lead đã ngừng chăm sóc, nay có lý do quay lại.',
     example: 'Đơn thua vì hết ngân sách năm ngoái, sang năm mở lại',
   },
 }
@@ -131,31 +131,31 @@ export const INTAKE_FACE: Record<LeadIntake, IntakeFace> = {
   sync: {
     label: 'Đợt tự đổ về',
     icon: Megaphone,
-    blurb: 'Chiến dịch chạy xong, lead từ đợt rơi thẳng vào sổ.',
+    blurb: 'Lead từ chiến dịch tự vào sổ.',
     built: true,
   },
   file: {
     label: 'Nạp tệp',
     icon: FileSpreadsheet,
-    blurb: 'Kéo một tệp CSV hoặc Excel vào sổ, khớp cột rồi nạp cả lô.',
+    blurb: 'Kéo tệp CSV hoặc Excel vào, khớp cột rồi nạp cả lô.',
     built: true,
   },
   manual: {
     label: 'Gõ tay',
     icon: PenLine,
-    blurb: 'Một dòng một lần, người gõ chịu trách nhiệm từng ô.',
+    blurb: 'Nhập từng dòng, người nhập chịu trách nhiệm.',
     built: false,
   },
   scan: {
     label: 'Quét thẻ',
     icon: ScanLine,
-    blurb: 'Quét mã tại quầy sự kiện — khách đang đứng trước mặt.',
+    blurb: 'Quét thẻ của khách ngay tại sự kiện.',
     built: false,
   },
   api: {
     label: 'Hệ khác đẩy sang',
     icon: Plug,
-    blurb: 'Webhook từ form ngoài, tổng đài hoặc nền tảng marketing.',
+    blurb: 'Form ngoài, tổng đài hoặc nền tảng marketing tự gửi sang.',
     built: false,
   },
 }
@@ -173,17 +173,17 @@ export const TRUST_FACE: Record<
   VERIFIED: {
     label: 'Có khách xác nhận',
     tone: 'success',
-    blurb: 'Người bên khách đã tự tay đưa thông tin.',
+    blurb: 'Khách tự cung cấp thông tin.',
   },
   DECLARED: {
     label: 'Có người mình đứng tên',
     tone: 'running',
-    blurb: 'Một người bên mình chịu trách nhiệm dòng này.',
+    blurb: 'Có người trong công ty chịu trách nhiệm dòng này.',
   },
   RAW: {
     label: 'Chưa ai xác nhận',
     tone: 'draft',
-    blurb: 'Mới là một dòng dữ liệu — chưa ai chạm khách.',
+    blurb: 'Mới là dòng dữ liệu, chưa ai liên hệ khách.',
   },
 }
 
@@ -364,7 +364,7 @@ export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSp
 export const LEAD_SPEC: ImportSpec = {
   key: 'lead',
   title: 'Nạp lead vào sổ',
-  blurb: 'Mỗi dòng của tệp thành một lead. Cột nào khớp được thì tính luôn vào cổng init data.',
+  blurb: 'Mỗi dòng của tệp thành một lead.',
   intake: 'file',
   motions: ['outbound', 'event', 'partner', 'recycle'],
   defaultMotion: 'outbound',
@@ -662,7 +662,7 @@ export const RECIPIENT_SPEC: ImportSpec = {
 export const OP_SPEC: ImportSpec = {
   key: 'op',
   title: 'Nạp cơ hội vào sổ',
-  blurb: 'Mang pipeline đang giữ trong Excel vào sổ cơ hội, mỗi dòng một đơn.',
+  blurb: 'Mang cơ hội đang giữ trong Excel vào sổ, mỗi dòng một đơn.',
   intake: 'file',
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-co-hoi',
@@ -1043,7 +1043,7 @@ export async function buildRows(
       if (limit !== undefined && cell.length > limit) {
         bad ??= {
           field: field.key,
-          reason: `${field.label} dài ${cell.length} ký tự, trần là ${limit}`,
+          reason: `${field.label} dài ${cell.length} ký tự, tối đa ${limit}`,
         }
         continue
       }

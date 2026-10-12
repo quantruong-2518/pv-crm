@@ -119,7 +119,7 @@ export function OpportunitiesPage() {
             bookError
               ? {
                   message: `Không tải được danh sách cơ hội. ${
-                    isApiError(bookError) ? userMessage(bookError) : 'Vui lòng thử lại.'
+                    isApiError(bookError) ? userMessage(bookError) : 'Thử lại.'
                   }`,
                   onRetry: () => void refetch(),
                 }
@@ -255,7 +255,7 @@ function useCommitOps() {
   return async ({ rows, fileName }: ImportCommit & { scope?: string }) => {
     const run = await loadFile({ rows, fileName })
     const { report } = run
-    toast(run.failure ?? `${report.rows.length} cơ hội đã được thêm`, {
+    toast(run.failure ?? `Đã thêm ${report.rows.length} cơ hội`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
         report.duplicates > 0 && `${report.duplicates} lead đã có cơ hội đang mở, bỏ qua`,

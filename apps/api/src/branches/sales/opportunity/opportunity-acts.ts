@@ -30,7 +30,7 @@ export function editDetailsVerdict(row: OpportunityRowDb): OpportunityAct {
   return row.state === 'lost'
     ? {
         ok: false,
-        reason: `Cơ hội ${row.code} đã dừng — không sửa được nữa. Muốn chăm lại thì đi từ lead.`,
+        reason: `Cơ hội ${row.code} đã dừng, không sửa được. Muốn chăm lại thì đi từ lead.`,
       }
     : { ok: true }
 }
@@ -42,12 +42,12 @@ export function editTermsVerdict(deal: DealAt): OpportunityAct {
   const terms = 'giá trị, ngày dự kiến chốt và sản phẩm'
   if (deal.row.state === 'lost') return editDetailsVerdict(deal.row)
   if (deal.signed) {
-    return { ok: false, reason: `Cơ hội ${code} đã ký hợp đồng — ${terms} không sửa được nữa.` }
+    return { ok: false, reason: `Cơ hội ${code} đã ký hợp đồng, ${terms} không sửa được.` }
   }
   if (deal.pendingSign) {
     return {
       ok: false,
-      reason: `Cơ hội ${code} đang chờ duyệt ký — chờ duyệt hoặc từ chối đề nghị trước khi sửa ${terms}.`,
+      reason: `Cơ hội ${code} đang chờ duyệt ký. Chờ duyệt hoặc từ chối đề nghị rồi sửa ${terms}.`,
     }
   }
   return { ok: true }

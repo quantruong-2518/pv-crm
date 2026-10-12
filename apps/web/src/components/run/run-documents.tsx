@@ -41,7 +41,7 @@ function Documents({ code }: { code: string }) {
         <Skeleton className="h-16 w-full" />
       ) : error ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+          Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </p>
       ) : rows.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
@@ -136,7 +136,7 @@ function DropZone({ code }: { code: string }) {
     const failed: string[] =
       picked.length > files.length
         ? [
-            `Mỗi lần tối đa ${MAX_PER_DROP} tệp — ${picked.length - files.length} tệp còn lại chưa tải.`,
+            `Mỗi lần tối đa ${MAX_PER_DROP} tệp, ${picked.length - files.length} tệp còn lại chưa tải.`,
           ]
         : []
     for (const file of files) {
@@ -183,7 +183,7 @@ function DropZone({ code }: { code: string }) {
       >
         <Icon icon={FileUp} size={24} className="text-muted-foreground" />
         <p className="m-0 text-[13px] font-semibold">
-          {busy ? 'Đang tải lên…' : over ? 'Thả ra là nhận' : 'Kéo thả tài liệu vào đây'}
+          {busy ? 'Đang tải lên…' : over ? 'Thả để tải lên' : 'Kéo thả tài liệu vào đây'}
         </p>
         <Button
           size="sm"

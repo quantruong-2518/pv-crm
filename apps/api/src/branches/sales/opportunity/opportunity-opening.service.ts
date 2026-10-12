@@ -18,7 +18,7 @@ export const holds = (who: Actor, ownerId: string | null): boolean =>
   !who.ownOnly || ownerId === who.id
 
 export const foreignLead = (code: string) =>
-  denied('out-of-scope', `Lead ${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+  denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
 
 const STRANGER = 'Người liên hệ phải thuộc lead này hoặc một lead khác của cùng công ty.'
 

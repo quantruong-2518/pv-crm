@@ -181,10 +181,10 @@ export function AssignMenu({
   const door = assignDoorOf(held, mayAssign, readOnly, me !== undefined)
   const blocked = door.shut
   const blockedWhy = readOnly
-    ? 'Bạn tham gia một cơ hội của lead này nhưng không giữ lead — không giao được lead.'
+    ? 'Bạn không giữ lead này nên không giao được.'
     : heldByMe
-      ? 'Lead đang đứng tên bạn. Chuyển tay là việc của trưởng phòng.'
-      : 'Lead đã có người nhận — hỏi trưởng phòng nếu cần chuyển tay.'
+      ? 'Lead đang do bạn giữ. Chỉ trưởng phòng được đổi người giữ.'
+      : 'Lead đã có người giữ. Hỏi trưởng phòng nếu cần đổi.'
   const triggerLabel = door.label
   /* `ArrowLeftRight` reads as "change hands"; `UserRoundPlus` only fits the
      first-assign case — an unheld lead has no hands to change yet. */
@@ -225,7 +225,7 @@ export function AssignMenu({
                 <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
-                    : 'Chưa đưa về kho được. Thử lại nhé.'}
+                    : 'Chưa đưa về kho được. Thử lại.'}
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -256,7 +256,7 @@ export function AssignMenu({
                 <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
-                    : 'Không ghi được. Vui lòng thử lại.'}
+                    : 'Không lưu được. Thử lại.'}
                 </p>
               )}
               {held !== null && <HandoverDeals choice={handover} />}
@@ -352,15 +352,14 @@ export function AssignMenu({
                 {shown.length === 0 && (
                   <p className="text-muted-foreground m-0 px-3 py-4 text-[12.5px] leading-[1.6]">
                     {query.trim() === ''
-                      ? 'Chưa có nhân sự khác trong danh sách giao việc.'
-                      : `Không tìm thấy người phù hợp với "${query}".`}
+                      ? 'Chưa có người khác để giao.'
+                      : `Không tìm thấy "${query}".`}
                   </p>
                 )}
               </>
             ) : (
               <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-                Giao lead cho người khác là quyền của trưởng phòng — phần chốt của hoa hồng chia
-                theo người đang giữ. Bạn nhận được lead chưa ai giữ về cho mình.
+                Chỉ trưởng phòng được giao lead cho người khác. Bạn nhận được lead chưa ai giữ.
               </p>
             )}
 

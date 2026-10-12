@@ -92,8 +92,8 @@ export function StopDrawer({
       title="Dừng cơ hội"
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account} — dừng là không mở lại được.
-          Muốn chăm lại thì đi từ lead.
+          <span className="font-mono">{op.code}</span> · {op.account}. Dừng rồi không mở lại được,
+          muốn chăm lại thì đi từ lead.
         </>
       }
       footer={
@@ -110,10 +110,10 @@ export function StopDrawer({
               : busy
                 ? 'Đang dừng cơ hội…'
                 : ready
-                  ? `Nếu đây là cơ hội cuối còn chạy của lead và chưa ký gì, lead về "${LEAD_STATE_LABEL.nurturing}".`
+                  ? `Nếu là cơ hội cuối còn chạy và chưa ký gì, lead về "${LEAD_STATE_LABEL.nurturing}".`
                   : noteNeeded
-                    ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải ghi rõ lý do.`
-                    : 'Chọn một lý do trong danh mục.'}
+                    ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
+                    : 'Chọn một lý do.'}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button
@@ -141,12 +141,7 @@ export function StopDrawer({
       }
     >
       <div className="flex flex-col gap-6">
-        <Field
-          label="Lý do"
-          required
-          plain
-          hint="Danh mục lý do ở màn Thiết lập, cắt theo đúng bậc cơ hội đang đứng. Thiếu lý do nào thì thêm ở đó."
-        >
+        <Field label="Lý do" required plain>
           <Select
             label="Lý do dừng"
             hideLabel
@@ -161,17 +156,13 @@ export function StopDrawer({
         {flagged.has(reasonKey) && (
           <span className="flex">
             <Badge tone="warning" className="whitespace-normal">
-              Cờ “{LOSS_REASON_DO_NOT_CONTACT_LABEL}” chỉ được ghi vào nhật ký dừng — chưa chặn việc
-              gọi hay gửi mail cho lead.
+              Cờ “{LOSS_REASON_DO_NOT_CONTACT_LABEL}” chỉ ghi vào nhật ký dừng, chưa chặn gọi hay
+              gửi mail cho lead.
             </Badge>
           </span>
         )}
 
-        <Field
-          label="Ghi chú"
-          required={noteNeeded}
-          hint="Câu của riêng cơ hội này — khách nói gì, ai đổi ý."
-        >
+        <Field label="Ghi chú" required={noteNeeded}>
           <Textarea
             autoGrow
             rows={3}
@@ -215,20 +206,13 @@ export function FailLogCard({ op }: { op: OpportunityRow }) {
     { term: 'Ghi chú', value: op.stopNote ?? 'Không có ghi chú' },
     {
       term: 'Người kết luận',
-      value: history.isPending ? (
-        <Skeleton className="h-4 w-32" />
-      ) : (
-        (exit?.by ?? 'Sổ đổi bậc chưa ghi lượt dừng này.')
-      ),
+      value: history.isPending ? <Skeleton className="h-4 w-32" /> : (exit?.by ?? 'Chưa ghi'),
     },
   ]
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Nhật ký dừng">
-      <SectionTitle
-        size="detail"
-        hint={`Cơ hội đã dừng, không mở lại được. Muốn chăm lại thì đi từ lead — lead có thể đang ở "${LEAD_STATE_LABEL.nurturing}".`}
-      >
+      <SectionTitle size="detail" hint="Cơ hội đã dừng, không mở lại được.">
         Nhật ký dừng
       </SectionTitle>
       <dl className="grid gap-x-6 gap-y-3 text-[12.5px] leading-[1.6] sm:grid-cols-[auto_1fr]">

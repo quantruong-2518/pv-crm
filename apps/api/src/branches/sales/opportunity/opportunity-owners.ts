@@ -25,9 +25,9 @@ import type { OpportunityRead } from './opportunity.repository'
  *  PATCH, accept and assign doors call them, and the import check repeats rule
  *  1 and 2 per row from the staff book it already holds. */
 
-export const NOT_SELLER = 'Chỉ người vai Sale hoặc Account Executive đứng làn Sale được.'
-export const NO_OWNER = 'Cơ hội cần ít nhất một người đứng đơn — BD hoặc Sale.'
-export const ASSIGN_ONLY = 'Đã nhận PIC — đổi Sale qua nút Giao Sale.'
+export const NOT_SELLER = 'Sale đứng đơn phải có vai Sale hoặc Account Executive.'
+export const NO_OWNER = 'Cơ hội cần ít nhất một Sale đứng đơn hoặc BD mở cửa.'
+export const ASSIGN_ONLY = 'Đã nhận PIC. Đổi Sale bằng nút Giao Sale.'
 
 /** The roles of each actor — what the holder rule and the sign door turn on.
  *  A key a decision reads, kept apart from `actorNames`, the label a screen prints. */

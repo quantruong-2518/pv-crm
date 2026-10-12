@@ -167,7 +167,7 @@ export function WorkstreamsBoard() {
             <EmptyState
               icon={TriangleAlert}
               message={`Không lấy được các cột của sổ hành trình. ${
-                isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'
+                isApiError(error) ? userMessage(error) : 'Thử lại.'
               }`}
               action={{ label: 'Thử lại', onClick: () => void refetch() }}
               className="py-12"

@@ -41,7 +41,7 @@ export class MailTimelineService {
           : await this.contracts.byCode(who, code)
     if (!found) throw notFound(MAIL_DOOR_LABEL[kind].toLowerCase(), code)
     if (!found.inScope) {
-      throw denied('out-of-scope', `${code} không đứng tên bạn — hỏi người đang giữ nó.`)
+      throw denied('out-of-scope', `${code} không do bạn phụ trách.`)
     }
 
     const rows = await this.repo.of(kind, code)
@@ -112,7 +112,7 @@ function failureOf(row: SubjectLetterRead, state: MailLetterState): string | nul
   if (!failed || row.transport !== 'gmail' || !row.error_code) return null
   if (READABLE[row.error_code]) return row.error_summary
   return row.error_code === 'gmail-unavailable' && gaveUp
-    ? 'Gmail không nhận thư sau nhiều lần thử — thư chưa được gửi.'
+    ? 'Gmail không nhận thư sau nhiều lần thử. Thư chưa gửi.'
     : null
 }
 

@@ -154,7 +154,7 @@ export function CommActionConfirm({
               onClick={confirm}
             >
               <Icon icon={COMMS_CHANNEL_ICON[shown]} size={16} />
-              {create.isPending ? 'Đang ghi lại…' : target.isPending ? 'Đang kiểm tra…' : copy.cta}
+              {create.isPending ? 'Đang ghi…' : target.isPending ? 'Đang kiểm tra…' : copy.cta}
             </Button>
           </div>
         </div>
@@ -163,10 +163,9 @@ export function CommActionConfirm({
       <p className="bg-surface-ink/5 text-muted-foreground m-0 flex gap-3 rounded-md p-3 text-[13px] leading-[1.6]">
         <Icon icon={Info} size={16} className="mt-1 shrink-0" />
         <span>
-          Khi xác nhận, PV One ghi lại lượt liên hệ {COMMS_CHANNEL_LABEL[shown]} này cho{' '}
+          Xác nhận sẽ ghi lượt liên hệ {COMMS_CHANNEL_LABEL[shown]} cho{' '}
           {COMM_SUBJECT_NOUN[subject.kind]} <span className="font-mono">{subject.code}</span> ở
-          trạng thái “{COMM_RECORD_STATE_LABEL.empty}”, rồi mới {copy.opens}. Sau đó bạn thêm nội
-          dung vào lượt liên hệ này.
+          trạng thái “{COMM_RECORD_STATE_LABEL.empty}”, rồi {copy.opens}.
         </span>
       </p>
     </Modal>

@@ -116,11 +116,11 @@ export function emptyOf(opts: {
   }
   return opts.dirty
     ? {
-        message: 'Không có cơ hội nào phù hợp với bộ lọc hiện tại.',
+        message: 'Không có cơ hội nào khớp bộ lọc.',
         action: { label: 'Bỏ hết bộ lọc', onClick: opts.onClear },
       }
     : {
-        message: 'Chưa có cơ hội nào. Hãy mở cơ hội từ một lead tiềm năng.',
+        message: 'Chưa có cơ hội nào. Mở cơ hội từ một lead tiềm năng.',
         action: { label: 'Xem sổ lead', onClick: opts.onSeeLeads },
       }
 }

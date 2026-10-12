@@ -641,9 +641,7 @@ export class AuthService {
   private refuseWhileThrottled(key: string): void {
     const waitMs = this.throttle.retryAfterMs(key)
     if (waitMs <= 0) return
-    throw rateLimited(
-      `Quá nhiều lần thử. Vui lòng đợi ${Math.ceil(waitMs / 1_000)} giây rồi thử lại.`,
-    )
+    throw rateLimited(`Thử quá nhiều lần. Đợi ${Math.ceil(waitMs / 1_000)} giây rồi thử lại.`)
   }
 
   private async usableTicket(token: string) {

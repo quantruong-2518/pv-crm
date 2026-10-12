@@ -795,7 +795,7 @@ export class MailRepository implements MailLedger {
                          END,
                "next_attempt_at" = NULL,
                "last_error_code" = 'worker-stalled',
-               "last_error_summary" = 'dòng kẹt ở sending: tiến trình gửi chết giữa chừng',
+               "last_error_summary" = 'Gửi bị gián đoạn giữa chừng.',
                "updated_at" = now()
          WHERE d."state" = 'sending'
            AND d."updated_at" < now() - make_interval(secs => ${opts.olderThanSeconds}::int)

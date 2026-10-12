@@ -127,11 +127,7 @@ export function AddOriginModal({ open, onClose }: { open: boolean; onClose: () =
       { name: name.trim(), motions },
       {
         onSuccess: ({ origin, created }) => {
-          toastDone(
-            created
-              ? `Đã thêm nguồn “${origin.name}”`
-              : `“${origin.name}” đã có sẵn — không thêm bản thứ hai`,
-          )
+          toastDone(created ? `Đã thêm nguồn “${origin.name}”` : `“${origin.name}” đã có sẵn`)
           onClose()
         },
       },
@@ -142,7 +138,7 @@ export function AddOriginModal({ open, onClose }: { open: boolean; onClose: () =
       open={open}
       onClose={onClose}
       title="Thêm nguồn"
-      subtitle="Nguồn là nơi lead đến từ — LinkedIn, Apollo, một đối tác. Chọn những phương án tiếp cận được dùng nguồn này."
+      subtitle="Nguồn là nơi lead đến từ. Chọn phương án tiếp cận dùng nguồn này."
       footer={
         <div className="flex flex-wrap items-center justify-end gap-3">
           {failed(create.error) && (
@@ -170,7 +166,7 @@ export function AddOriginModal({ open, onClose }: { open: boolean; onClose: () =
           />
           {exact && (
             <span className="text-warning text-[11.5px]">
-              Đã có nguồn “{exact.name}” — thêm sẽ dùng lại nguồn đó.
+              Đã có nguồn “{exact.name}”. Thêm sẽ dùng lại nguồn đó.
             </span>
           )}
         </label>
@@ -270,7 +266,7 @@ function EditOriginBody({ origin, onDone }: { origin: LeadOrigin; onDone: () => 
       <section className="flex flex-col gap-3">
         <SectionTitle
           size="sm"
-          hint="Ẩn thì nguồn thôi hiện ở ô chọn. Lead đang mang nguồn này giữ nguyên."
+          hint="Ẩn thì không chọn được nguồn này nữa. Lead đang dùng nguồn này giữ nguyên."
         >
           {origin.active ? 'Ẩn nguồn' : 'Hiện lại nguồn'}
         </SectionTitle>
@@ -333,9 +329,8 @@ function MergeSection({
       {target && into && (
         <div className="flex flex-col gap-3">
           <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
-            {origin.leadCount} lead đang mang “{origin.name}” sẽ chuyển sang “{target.name}”. Tên “
-            {origin.name}” thành tên gọi khác của “{target.name}”, và “{origin.name}” thôi hiện ở ô
-            chọn.
+            {origin.leadCount} lead đang mang “{origin.name}” sẽ chuyển sang “{target.name}”. “
+            {origin.name}” thành tên gọi khác của “{target.name}” và không còn để chọn.
           </p>
           <div>
             <Button

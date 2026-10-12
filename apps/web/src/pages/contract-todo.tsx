@@ -40,8 +40,8 @@ const rungOf = (rung: JourneyContractRung): TodoRung => ({
 
 /* Both muted: neither is something the reader can act on. */
 const NO_RUNGS: Partial<Record<RunRead, string>> = {
-  denied: 'Vai của bạn không có quyền xem hành trình của hợp đồng này.',
-  unread: 'Không đọc được các bậc của hợp đồng từ lượt của nó.',
+  denied: 'Vai của bạn không xem được hành trình của hợp đồng.',
+  unread: 'Không tải được các bậc của hợp đồng.',
 }
 
 export function ContractTodo({

@@ -49,15 +49,15 @@ export function StopModal({
           tone: 'success',
           detail:
             res.cancelled.length === 0
-              ? 'Không đợt nào còn thư để giữ lại.'
-              : `${res.cancelled.length} đợt bị huỷ · ${held} thư chưa gửi đã được giữ lại.`,
+              ? 'Không còn thư chưa gửi.'
+              : `Đã huỷ ${res.cancelled.length} đợt, giữ lại ${held} thư chưa gửi.`,
         })
         onClose()
       },
       onError: (err) =>
         toast('Không dừng được chiến dịch', {
           tone: 'danger',
-          detail: isApiError(err) ? userMessage(err) : 'Vui lòng thử lại.',
+          detail: isApiError(err) ? userMessage(err) : 'Thử lại.',
         }),
     })
 
@@ -80,13 +80,9 @@ export function StopModal({
       }
     >
       <div className="flex max-w-[640px] flex-col gap-4 text-[13px] leading-[1.65]">
-        <p>
-          Mọi đợt chưa gửi bị rút khỏi hàng đợi, những lá thư còn trong đó được giữ lại. Đợt đã gửi
-          xong thì không gọi về được.
-        </p>
+        <p>Các đợt chưa gửi bị huỷ, thư chưa gửi bị giữ lại. Thư đã gửi không thu hồi được.</p>
         <p className="text-warning">
-          Dừng là vĩnh viễn: chiến dịch đã dừng không bắt đầu chạy lại được và cũng không nối thêm
-          đợt được — muốn gửi tiếp thì phải mở chiến dịch mới.
+          Dừng rồi không chạy lại được. Muốn gửi tiếp, tạo chiến dịch mới.
         </p>
         <p className="text-muted-foreground">
           {campaign.waveCount} đợt đã gửi · {campaign.audienceCount.toLocaleString('vi-VN')} người
@@ -248,8 +244,7 @@ function WaveCard({
             <div className="flex flex-col gap-2">
               <SendProgress run={run} label={`Tiến độ gửi đợt ${waveNo}`} />
               <p className="text-muted-foreground tnum m-0 text-[12px]">
-                Đã gửi {n(run.sent)} trên {n(run.audienceCount)} thư · còn {n(queued)} thư trong
-                hàng đợi
+                Đã gửi {n(run.sent)} trên {n(run.audienceCount)} thư, còn {n(queued)} thư chờ gửi
               </p>
             </div>
           )}

@@ -242,7 +242,7 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Công ty',
     path: '/sales/accounts',
     permission: 'account.view',
-    question: 'Một dòng một công ty — khách này đã hỏi mấy lần và mua mấy lần',
+    question: 'Mỗi công ty một dòng: đã hỏi và mua mấy lần',
     group: 'customer',
   },
   {
@@ -272,7 +272,7 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'Đối tác',
     path: '/admin/partners',
     permission: 'lead-origin.manage',
-    question: 'Ai giới thiệu lead cho mình, và giới thiệu được bao nhiêu',
+    question: 'Ai giới thiệu lead cho công ty, và được bao nhiêu',
     group: 'customer',
   },
   {
@@ -326,7 +326,7 @@ export const SALES_MODULES: SalesModule[] = [
     label: 'KPI công ty',
     path: '/sales/kpi/company',
     permission: 'performance.view',
-    question: 'Ai đang chậm nhịp, chỉ tiêu từng vai trò đã duyệt chưa',
+    question: 'Ai đang chậm, chỉ tiêu từng vai trò đã duyệt chưa',
     group: 'manage',
   },
   {

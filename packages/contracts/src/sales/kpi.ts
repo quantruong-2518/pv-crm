@@ -269,7 +269,7 @@ export const KpiProposeBody = z.object({
     .array(z.object({ key: KpiMetricKey, value: targetValue }))
     .min(1)
     .refine((t) => new Set(t.map((x) => x.key)).size === t.length, {
-      message: 'Chỉ tiêu bị trùng.',
+      message: 'Chỉ tiêu bị lặp.',
     }),
 })
 

@@ -89,9 +89,7 @@ export class OpportunityStepService {
     if (op.closing) {
       const current = (await this.deals.slot(who, code, tx))?.step
       if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
-        throw conflict(
-          `Việc tiếp theo của cơ hội ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
-        )
+        throw conflict(`Việc tiếp theo của cơ hội ${code} đã xong hoặc đã đổi. Tải lại để xem.`)
       }
       const [touchId] = await this.touch.record(tx, [
         {
@@ -144,7 +142,7 @@ export class OpportunityStepService {
     const doerId = body.doerId ?? holderId
     if (!(await this.steps.isLiveSalesActor(tx, doerId))) {
       throw invalid(
-        { doerId: ['Người làm phải là nhân sự Sales đang hoạt động — chọn lại người làm.'] },
+        { doerId: ['Người làm phải là nhân sự Sales đang hoạt động.'] },
         'Người làm không hợp lệ.',
       )
     }
@@ -155,7 +153,7 @@ export class OpportunityStepService {
         throw invalid(
           {
             doerId: [
-              'Người này không mở được cơ hội này — chọn người đứng tên cơ hội hoặc thêm họ vào cơ hội trước.',
+              'Người này không mở được cơ hội. Chọn người đứng đơn hoặc thêm họ vào cơ hội trước.',
             ],
           },
           'Người làm không mở được cơ hội này.',
@@ -201,7 +199,7 @@ export class OpportunityStepService {
     if (!row?.inScope) throw notFound('cơ hội', code)
     if (!row.open) {
       throw conflict(
-        `Cơ hội ${code} ${row.signed ? 'đã thành hợp đồng' : 'đã dừng'} — chỉ cơ hội đang chạy mới có việc tiếp theo.`,
+        `Cơ hội ${code} ${row.signed ? 'đã thành hợp đồng' : 'đã dừng'}, không đặt được việc tiếp theo.`,
       )
     }
     return { address: dealAddress(row), name: row.name }

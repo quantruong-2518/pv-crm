@@ -43,8 +43,7 @@ export function WorkstreamComms({ workstreamCode }: { workstreamCode: string }) 
   if (error) {
     return (
       <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
-        Không đọc được các lượt liên hệ.{' '}
-        {isApiError(error) ? userMessage(error) : 'Vui lòng thử lại.'}
+        Không đọc được các lượt liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )
   }

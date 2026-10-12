@@ -159,7 +159,7 @@ export class DebriefService {
   async close(who: Actor, id: string, body: DebriefClose): Promise<DebriefView> {
     const found = await this.owned(who, id, true)
     if (found.row.booked) {
-      throw conflict('Đây là cuộc họp đã hẹn — dùng “Họp xong” để chốt cuộc họp.')
+      throw conflict('Đây là cuộc họp đã hẹn. Dùng “Họp xong” để chốt.')
     }
     return this.confirm(who, found, body)
   }

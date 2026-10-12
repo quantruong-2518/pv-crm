@@ -29,7 +29,7 @@ export const COMM_ATTACHMENT_MIME = [
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
 ] as const
-export const CommAttachmentMime = z.enum(COMM_ATTACHMENT_MIME, 'Loại tệp không nhận')
+export const CommAttachmentMime = z.enum(COMM_ATTACHMENT_MIME, 'Loại tệp này không nhận được.')
 
 export const COMM_MAX_AUDIO_BYTES = 50 * 1024 * 1024
 export const COMM_MAX_FILE_BYTES = 15 * 1024 * 1024
@@ -40,12 +40,12 @@ export const CommAttachmentDeclareBody = z
   .object({
     name: textInput(255),
     mime: CommAttachmentMime,
-    bytes: z.number().int().positive('Tệp rỗng'),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/, 'sha256 sai dạng'),
+    bytes: z.number().int().positive('Tệp rỗng.'),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Tệp chưa đọc được. Chọn lại tệp.'),
   })
   .refine(
     (f) => f.bytes <= (f.mime.startsWith('audio/') ? COMM_MAX_AUDIO_BYTES : COMM_MAX_FILE_BYTES),
-    { message: 'Tệp vượt dung lượng cho phép', path: ['bytes'] },
+    { message: 'Tệp quá lớn.', path: ['bytes'] },
   )
 
 export const CommAttachmentDeclareResponse = z.object({ id: z.uuid(), putUrl: z.url() })

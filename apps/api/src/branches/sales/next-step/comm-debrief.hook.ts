@@ -118,10 +118,9 @@ export class NextStepDebriefHook implements CommDebriefHook {
     const wrong: string[] = []
     for (const a of given) {
       const question = criteria.find((c) => c.id === a.criterionId)
-      if (!question)
-        wrong.push(`Câu hỏi ${a.criterionId} không có hoặc đã tắt — tải lại bộ câu hỏi.`)
+      if (!question) wrong.push(`Câu hỏi ${a.criterionId} không còn. Tải lại bộ câu hỏi.`)
       else if (!question.answers.some((o) => o.id === a.answerId)) {
-        wrong.push(`Câu trả lời ${a.answerId} không thuộc câu hỏi “${question.name}” hoặc đã tắt.`)
+        wrong.push(`Câu trả lời ${a.answerId} không dùng được cho câu hỏi “${question.name}”.`)
       }
     }
     for (const c of criteria) {
@@ -147,7 +146,7 @@ export class NextStepDebriefHook implements CommDebriefHook {
       if (await this.steps.isOpenSubject(input.subjectCode)) throw unconfirmable(input.subjectCode)
       if (!step) return null
       throw invalid({
-        step: ['Liên hệ này thuộc hợp đồng hoặc lead/cơ hội đã đóng — bỏ việc tiếp theo.'],
+        step: ['Liên hệ này thuộc hợp đồng hoặc lead/cơ hội đã đóng. Bỏ việc tiếp theo.'],
       })
     }
     if (!step) {
@@ -169,7 +168,9 @@ export class NextStepDebriefHook implements CommDebriefHook {
     if (doerId === null) {
       throw invalid(
         {
-          'step.doerId': [`Lead ${subjectCode} chưa có người giữ — chọn người làm việc tiếp theo.`],
+          'step.doerId': [
+            `Lead ${subjectCode} chưa có người phụ trách. Chọn người làm việc tiếp theo.`,
+          ],
         },
         'Chưa có người làm việc tiếp theo.',
       )

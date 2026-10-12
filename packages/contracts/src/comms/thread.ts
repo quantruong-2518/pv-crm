@@ -26,8 +26,8 @@ import { CommsChannel, IdentityId, LinkableCode } from './identity'
 // SHARED ENUMS AND IDS
 // ---------------------------------------------------------------------------
 
-export const ThreadId = z.uuid('Mã luồng phải là UUID')
-export const MessageId = z.uuid('Mã lượt phải là UUID')
+export const ThreadId = z.uuid('Mã luồng không hợp lệ.')
+export const MessageId = z.uuid('Mã lượt không hợp lệ.')
 
 export const ThreadState = z.enum(['open', 'archived'])
 export type ThreadState = z.infer<typeof ThreadState>
@@ -69,7 +69,7 @@ export type ThreadChannel = z.infer<typeof ThreadChannel>
 
 /** Declared here, not in `./debrief`, because `MessageRow` points at a debrief
  *  and `./debrief` reads `ThreadRow` — one of the two files has to hold the id. */
-export const DebriefId = z.uuid('Mã phiên chốt phải là UUID')
+export const DebriefId = z.uuid('Mã phiên chốt không hợp lệ.')
 
 /** A comm record's state (ADR 0075 §2), always server-derived: `empty` is an
  *  open debrief whose turn has neither text nor a file, `done` a closed one,
@@ -259,7 +259,7 @@ const MessageCreateFields = z.object({
    *  the server has decided to withhold an existing body from. */
   bodyText: textInputOptional(MESSAGE_BODY_MAX),
   durationSec: z.number().int().nonnegative().optional(),
-  parties: z.array(MessagePartyCreate).min(1, 'Cần ít nhất một người có mặt trong lượt này.'),
+  parties: z.array(MessagePartyCreate).min(1, 'Cần ít nhất một người có mặt.'),
 })
 
 /** A discriminated union on `thread`, not one shape with `threadId` optional
@@ -289,7 +289,7 @@ export const MessageCreate = z.discriminatedUnion('thread', [
      *  needs the database, so `LeadCommsHook.afterLogged` makes it. */
     meetingId: MeetingId.optional(),
   }).refine((b) => (b.channel === 'meeting') === (b.meetingId !== undefined), {
-    message: 'Biên bản họp phải gắn đúng một cuộc họp, và chỉ kênh họp mới gắn cuộc họp.',
+    message: 'Chỉ biên bản họp mới gắn cuộc họp, và phải gắn đúng một cuộc.',
     path: ['meetingId'],
   }),
   MessageCreateFields.extend({
