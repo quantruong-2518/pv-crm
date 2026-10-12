@@ -28,6 +28,7 @@ import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
+import { RunSigners } from '@/components/run/run-signers'
 import { RunContacts } from '@/components/run/run-contacts'
 import { InstallmentChart, InstallmentList, MoneySummary } from './contract-money'
 import { ContractTodo } from './contract-todo'
@@ -151,6 +152,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
       rail={
         <>
           <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
+          <RunSigners people={contract.participants} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
           <RunDocuments workstreamCode={run.workstreamCode} />

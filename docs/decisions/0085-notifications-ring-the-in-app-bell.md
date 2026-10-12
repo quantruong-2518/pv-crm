@@ -139,9 +139,9 @@ follow-up after the Neon queue is checked.
 - Per-user preferences.
 - Push delivery.
 - Notifications whose recipient the data cannot name: the campaign owner is
-  free text, and "operator" does not exist as a role. Open question 57.
+  free text, and "operator" does not exist as a role. Open question 62.
 - Contract instalment and milestone events: their tables have no writer.
-  Open question 58.
+  Open question 63.
 
 ## Alternatives rejected
 
@@ -156,16 +156,16 @@ follow-up after the Neon queue is checked.
 
 Hazards no file in git records.
 
-1. Migration `0099_notification` must reach a database BEFORE the code deploys.
+1. Migration `0101_notification` must reach a database BEFORE the code deploys.
    Every emitter writes to that table; failures are swallowed by the savepoint,
    but the bell stays empty. Replies are worse: code deployed first would have a
    reply's activity row refused by the touch CHECK, so the reply rolls back and
    is retried until the migration lands. It ALSO widens `sales.touch`'s kind CHECK, so it
    takes a brief exclusive lock on a live table, and code that writes
    `customer-replied` must not deploy before it.
-2. Drizzle skips by timestamp, and `0099` rewrites the touch-kind CHECK that
+2. Drizzle skips by timestamp, and `0101` rewrites the touch-kind CHECK that
    `0097` (ADR 0084) also rewrote: a database must already hold `0097`/`0098`
-   before `0099` runs. `0099` keeps `re-entered` in the list.
+   before `0101` runs. `0101` keeps `re-entered` in the list.
 3. Replies only arrive when reply tracking is on: on the Gmail path, the worker
    running with mail enabled and the Google link configured; on Resend inbound,
    `PV_MAS_REPLY_TRACKING_ENABLED` and its webhook secret.

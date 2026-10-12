@@ -8,7 +8,14 @@ import {
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
-import { namesOf, refusalOf, saleOwnersOf, toggled } from '@/data/opportunities'
+import {
+  BD_LANE,
+  SALE_LANE,
+  laneText,
+  refusalOf,
+  saleOwnersOf,
+  toggled,
+} from '@/data/opportunities'
 import { noSellerSentence } from '@/data/deal-sale'
 import { draftOf } from '@/data/opportunities-write'
 import { useDealDraft, type DealDraft, type DealEditPart } from '@/data/deal-draft'
@@ -223,12 +230,12 @@ function DetailsFields({ draft }: { draft: DealDraft }) {
 /** The swap hint only where the more menu offers the swap (`dealMoreChoices`). */
 function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileResponse }) {
   const { work, set, errors } = draft
-  const sellers = namesOf(saleOwnersOf(op))
+  const sellers = saleOwnersOf(op)
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PersonPickField
-        label="BD mở cửa"
+        label={BD_LANE.label}
         hint="Người mở được khách, được ghi công."
         picked={work.bdOwners}
         errors={errors.bdOwners}
@@ -236,17 +243,19 @@ function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileR
       />
       <Field
         plain
-        label="Sale đứng đơn"
+        label={SALE_LANE.label}
         hint={
           sellers.length === 0
             ? noSellerSentence(op.state === 'won', op.acts.assign.ok)
             : op.state === 'open' && op.acts.assign.ok
-              ? 'Đổi Sale qua mục Đổi Sale trong menu Khác.'
+              ? op.pendingSign
+                ? 'Đang chờ duyệt ký: không thêm, bớt Sale được. Đổi Sale chính trong menu Khác.'
+                : 'Đổi Sale qua mục Đổi Sale trong menu Khác.'
               : undefined
         }
       >
         <p className="text-foreground m-0 text-[13px] leading-[1.5]">
-          {sellers.length > 0 ? sellers.join(', ') : 'Chưa có'}
+          {sellers.length > 0 ? laneText(sellers) : 'Chưa có'}
         </p>
       </Field>
     </div>

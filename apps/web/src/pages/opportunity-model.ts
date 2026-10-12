@@ -7,7 +7,13 @@ import {
   type OpportunityStageSpan,
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
-import { OVERDUE_WORD, eventOfferOf, refusalOf, type EventKind } from '@/data/opportunities'
+import {
+  CHANGE_SALE_PRIMARY,
+  OVERDUE_WORD,
+  eventOfferOf,
+  refusalOf,
+  type EventKind,
+} from '@/data/opportunities'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { TodoRung } from '@/components/record/todo-card'
 
@@ -186,7 +192,11 @@ export function dealMoreChoices(
     })
   }
   if (op.state === 'open' && op.hasSeller && op.acts.assign.ok) {
-    choices.push({ key: 'assign', label: 'Đổi Sale', onSelect: doors.onAssign })
+    choices.push({
+      key: 'assign',
+      label: op.pendingSign ? CHANGE_SALE_PRIMARY : 'Đổi Sale',
+      onSelect: doors.onAssign,
+    })
   }
   if (op.acts.stop.ok) {
     choices.push({ key: 'stop', label: 'Dừng cơ hội', tone: 'danger', onSelect: doors.onStop })

@@ -11,6 +11,7 @@ import { dealOpen, dealSignWaiting } from '../open-deal'
 import type { TouchService } from '../touch/touch.service'
 import { announceOwners } from './opportunity-bell'
 import { acceptorOf, holderOf, NOTE, toRef } from './opportunity.mapper'
+import { primaryOf, salePrimaryOf } from './opportunity-owners'
 import { ACCEPTOR_NAME } from './opportunity.repository'
 import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
 
@@ -29,7 +30,14 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *  `OpportunityModule` provider there would be a module cycle. The deals are
  *  locked AFTER the lead — the order the stop door takes. */
 
-type Person = { code: string; id: string; name: string; role: 'SALE' | 'BD'; roleIds: RoleId[] }
+type Person = {
+  code: string
+  id: string
+  name: string
+  role: 'SALE' | 'BD'
+  primary: boolean
+  roleIds: RoleId[]
+}
 
 export async function handDealsOver(
   tx: Db,
@@ -176,7 +184,7 @@ async function swapSale(
 ): Promise<void> {
   if (deals.length === 0) return
   const codes = deals.map((r) => r.code)
-  await tx
+  const gone = await tx
     .delete(opportunityOwner)
     .where(
       and(
@@ -185,6 +193,8 @@ async function swapSale(
         eq(opportunityOwner.role, 'SALE'),
       ),
     )
+    .returning({ code: opportunityOwner.opportunityCode, primary: opportunityOwner.isPrimary })
+  const wasPrimary = new Set(gone.filter((r) => r.primary).map((r) => r.code))
   /* The new holder may already stand on the deal as SALE: one row, not two. */
   await tx
     .insert(opportunityOwner)
@@ -196,6 +206,22 @@ async function swapSale(
       })),
     )
     .onConflictDoNothing()
+  /* The taker inherits the giver's primary seat when fit for it, and a lane
+     left without a primary gets one — `salePrimaryOf` judges both. Clear, then
+     set: the one-primary index is checked per row. */
+  const after = await peopleOf(tx, codes)
+  for (const code of codes) {
+    const lane = after.filter((p) => p.code === code && p.role === 'SALE')
+    const stored = primaryOf(lane)
+    const next = salePrimaryOf(lane, wasPrimary.has(code) ? move.to.actorId : stored)
+    if (next === stored || next === null) continue
+    const onDeal = eq(opportunityOwner.opportunityCode, code)
+    await tx.update(opportunityOwner).set({ isPrimary: false }).where(onDeal)
+    await tx
+      .update(opportunityOwner)
+      .set({ isPrimary: true })
+      .where(and(onDeal, eq(opportunityOwner.actorId, next), eq(opportunityOwner.role, 'SALE')))
+  }
   for (const { code, name } of deals) {
     const bell = { hub, label: name, ...(move.by.actorId ? { actorId: move.by.actorId } : {}) }
     await handStepOver(tx, code, move.from.actorId, move.to.actorId, bell)
@@ -210,6 +236,7 @@ async function peopleOf(tx: Db, codes: readonly string[]): Promise<Person[]> {
       id: opportunityOwner.actorId,
       name: actor.name,
       role: opportunityOwner.role,
+      primary: opportunityOwner.isPrimary,
       roleIds: actor.roleIds,
     })
     .from(opportunityOwner)

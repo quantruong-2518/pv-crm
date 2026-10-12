@@ -2,7 +2,7 @@ import type { RoleId } from '@pv/engines'
 import {
   CurrencyCode,
   isSellerRole,
-  OpportunityCreate,
+  OpportunityCreateShape,
   type OpportunityImportDup,
   type OpportunityImportError,
   type OpportunityImportField,
@@ -16,7 +16,7 @@ import type { OpportunityDraft } from './opportunity.mapper'
 
 /** The typed door's schema without its contacts: a spreadsheet row has no such
  *  column, so the import writes a deal and no contact rows. Derived, not forked. */
-const ImportDraft = OpportunityCreate.omit({ contacts: true })
+const ImportDraft = OpportunityCreateShape.omit({ contacts: true })
 
 /** Bộ kiểm của lô nạp cơ hội — THUẦN. Không DB, không promise, không clock.
  *

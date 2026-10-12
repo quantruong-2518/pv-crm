@@ -17,6 +17,7 @@ import { daysUntil, type ObjectRef, type RoleId } from '@pv/engines'
 import { stageLabel } from './opportunity.labels'
 import type {
   opportunity,
+  opportunityOwner,
   OpportunityRowDb,
   OpportunityStageEventRowDb,
 } from './opportunity.schema'
@@ -269,6 +270,10 @@ export const NOTE = {
     ]
       .filter((part) => part !== null)
       .join(' · '),
+
+  /** The SALE primary moved and the mover said why (assign door, ADR 0086). */
+  salePrimary: (from: string | null, to: string, reason: string) =>
+    `Đổi Sale chính: ${from ?? 'chưa ai'} → ${to}. Lý do: ${reason}`,
 } as const
 
 /** One sentence per milestone. NOT the column label: a milestone is a thing
@@ -306,16 +311,19 @@ export function milestoneNoteOf(kind: OpportunityMilestoneKind, note: string): s
   return note.startsWith(`${word} · `) ? note.slice(word.length + 3) : note
 }
 
-/** Dòng của bảng nối, cho một đơn vừa được cấp mã. */
+/** Join-table rows for a deal's two lanes. `salePrimary` is what
+ *  `salePrimaryOf` chose: the one SALE row that carries `is_primary`. */
 export function ownerRowsOf(
   code: string,
   write: Pick<OpportunityWrite, 'saleOwners' | 'bdOwners'>,
-): { opportunityCode: string; actorId: string; role: 'SALE' | 'BD' }[] {
+  salePrimary: string | null,
+): (typeof opportunityOwner.$inferInsert)[] {
   return [
     ...write.saleOwners.map((actorId) => ({
       opportunityCode: code,
       actorId,
       role: 'SALE' as const,
+      isPrimary: actorId === salePrimary,
     })),
     ...write.bdOwners.map((actorId) => ({ opportunityCode: code, actorId, role: 'BD' as const })),
   ]
@@ -449,26 +457,26 @@ export function toRef(row: OpportunityRowDb, owner: RefOwner | null): ObjectRef 
 /** The person a ref names: the label E1 prints and the id E2 compares. */
 export type RefOwner = { id: string; name: string }
 
-/** THE holder of a deal (ADR 0071 §5, refining 0069 §10): the first SALE owner
- *  who is a seller (`isSellerRole`); else the acceptor; else the first BD owner.
- *  "First" is ONE order whatever the caller's: actor name, then id, compared by
- *  code point — `opportunity_owner` has no order column, so no body order and
- *  no database collation can pick a different person. Every holder is picked
- *  here: mirror row, book row, sign fallback, contract owner, next step's doer. */
+/** THE holder of a deal (ADR 0071 §5, ADR 0086): the SALE primary when that
+ *  person is a seller (`isSellerRole`); else the first seller on SALE — rows
+ *  written before 0100's writers, or a legacy head as primary; else the
+ *  acceptor; else the first BD owner. "First" is ONE order whatever the
+ *  caller's: actor name, then id, by code point. Every holder is picked here:
+ *  mirror row, book row, sign fallback, contract owner, next step's doer. */
 export function holderOf(
   owners: readonly {
     id: string
     name: string
     role: OpportunityOwnerRole
+    primary: boolean
     roleIds: readonly RoleId[] | null
   }[],
   acceptor: RefOwner | null,
 ): RefOwner | null {
   const sorted = [...owners].sort(byNameThenId)
+  const sellers = sorted.filter((o) => o.role === 'SALE' && isSellerRole(o.roleIds))
   const pick =
-    sorted.find((o) => o.role === 'SALE' && isSellerRole(o.roleIds)) ??
-    acceptor ??
-    sorted.find((o) => o.role === 'BD')
+    sellers.find((o) => o.primary) ?? sellers[0] ?? acceptor ?? sorted.find((o) => o.role === 'BD')
   return pick ? { id: pick.id, name: pick.name } : null
 }
 
@@ -494,7 +502,7 @@ export function peopleOf(
 } {
   const acceptedBy = acceptorOf(row, acceptorName)
   return {
-    owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role })),
+    owners: list.map((r) => ({ id: r.id, name: r.name, role: r.role, primary: r.primary })),
     holder: holderOf(list, acceptedBy),
     acceptedBy,
     hasSeller: hasSellerOf(list),
@@ -507,7 +515,7 @@ export const hasSellerOf = (
   owners: readonly { role: OpportunityOwnerRole; roleIds: readonly RoleId[] | null | undefined }[],
 ): boolean => owners.some((o) => o.role === 'SALE' && isSellerRole(o.roleIds))
 
-const byNameThenId = (a: RefOwner, b: RefOwner): number =>
+export const byNameThenId = (a: RefOwner, b: RefOwner): number =>
   a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0
 
 /** Both keys or neither: E2 reads an `owner` without `ownerId` as somebody

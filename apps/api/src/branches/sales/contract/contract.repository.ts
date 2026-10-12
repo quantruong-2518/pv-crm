@@ -4,6 +4,7 @@ import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
 import {
   OWNER_NONE,
   type ContractBookQuery,
+  type ContractParticipant,
   type ContractMonthPoint,
   type ContractSummary,
 } from '@pv/contracts'
@@ -13,6 +14,8 @@ import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
+import { opportunityOwner } from '../opportunity/opportunity.schema'
+import { contractParticipant } from './contract-participant.schema'
 import {
   contract,
   contractCondition,
@@ -32,6 +35,8 @@ import {
 export type ContractRead = {
   row: ContractRowDb
   ownerName: string | null
+  /** The deal's lanes frozen at signing (ADR 0086), SALE primary first. */
+  participants: ContractParticipant[]
 }
 
 /** One book line: the row plus the LEAN schedule the table paints.
@@ -143,10 +148,42 @@ export class ContractRepository {
     return code
   }
 
+  /** The ONE insert into `sales.contract`, so the one place the deal's lanes
+   *  are frozen onto the paper (ADR 0086): same statement order, same `tx`.
+   *  Nothing writes `contract_participant` afterwards. */
   async insert(tx: Db, row: typeof contract.$inferInsert): Promise<ContractRowDb> {
     const [written] = await tx.insert(contract).values(row).returning()
     if (!written) throw new Error(`sales.contract: INSERT ${row.code} không trả về dòng nào`)
+    await tx.execute(
+      sql`INSERT INTO ${contractParticipant} ("contract_code", "actor_id", "role", "is_primary")
+          SELECT ${written.code}, w."actor_id", w."role", w."is_primary"
+            FROM ${opportunityOwner} w
+           WHERE w."opportunity_code" = ${written.opportunityCode}`,
+    )
     return written
+  }
+
+  /** Participants of a batch of contracts, one query for the page: lane, then
+   *  the primary, then name — the order `ownersOf` prints a deal's lanes in. */
+  private async participantsOf(
+    codes: readonly string[],
+  ): Promise<Map<string, ContractParticipant[]>> {
+    const byCode = new Map<string, ContractParticipant[]>()
+    if (codes.length === 0) return byCode
+    const rows = await this.db
+      .select({
+        code: contractParticipant.contractCode,
+        id: contractParticipant.actorId,
+        name: actor.name,
+        role: contractParticipant.role,
+        primary: contractParticipant.isPrimary,
+      })
+      .from(contractParticipant)
+      .innerJoin(actor, eq(actor.id, contractParticipant.actorId))
+      .where(inArray(contractParticipant.contractCode, [...codes]))
+      .orderBy(contractParticipant.role, desc(contractParticipant.isPrimary), actor.name, actor.id)
+    for (const { code, ...who } of rows) byCode.set(code, [...(byCode.get(code) ?? []), who])
+    return byCode
   }
 
   /** Carry a signed deal's edited money or commission holder onto its contract
@@ -172,12 +209,14 @@ export class ContractRepository {
    *  neo, và đọc bằng cả cặp là cách câu truy vấn nói lại đúng bất biến bảng
    *  đang giữ (cùng lý lẽ với `OpportunityRepository.signed`). */
   async byOpportunity(opportunityCode: string, leadCode: string): Promise<ContractRead[]> {
-    return this.db
+    const rows = await this.db
       .select({ row: contract, ownerName: actor.name })
       .from(contract)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
       .where(and(eq(contract.opportunityCode, opportunityCode), eq(contract.leadCode, leadCode)))
       .orderBy(asc(contract.signedAt), asc(contract.code))
+    const people = await this.participantsOf(rows.map((r) => r.row.code))
+    return rows.map((r) => ({ ...r, participants: people.get(r.row.code) ?? [] }))
   }
 
   // -- read ------------------------------------------------------------------
@@ -211,10 +250,18 @@ export class ContractRepository {
       .limit(q.size)
       .offset((q.page - 1) * q.size)
 
-    const schedule = await this.installmentsOf(rows.map((r) => r.row.code))
+    const codes = rows.map((r) => r.row.code)
+    const [schedule, people] = await Promise.all([
+      this.installmentsOf(codes),
+      this.participantsOf(codes),
+    ])
 
     return {
-      rows: rows.map((r) => ({ ...r, installments: schedule.get(r.row.code) ?? [] })),
+      rows: rows.map((r) => ({
+        ...r,
+        participants: people.get(r.row.code) ?? [],
+        installments: schedule.get(r.row.code) ?? [],
+      })),
       total: scopedTotal,
       hidden: all === null ? 0 : all - scopedTotal,
     }
@@ -247,8 +294,9 @@ export class ContractRepository {
     /* One query per child table for the WHOLE contract, then grouped in
        memory. Six installments times four tables is 24 round trips the other
        way, and every one of them rides the same index this one does. */
-    const [schedule, conditions, docs, records, notes] = await Promise.all([
+    const [schedule, people, conditions, docs, records, notes] = await Promise.all([
       this.installmentsOf([code]),
+      this.participantsOf([code]),
       this.db
         .select()
         .from(contractCondition)
@@ -283,6 +331,7 @@ export class ContractRepository {
 
     return {
       ...found,
+      participants: people.get(code) ?? [],
       installments: (schedule.get(code) ?? []).map((row) => ({
         row,
         conditions: byNo.conditions.get(row.no) ?? [],

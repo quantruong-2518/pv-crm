@@ -158,6 +158,7 @@ export class WorkstreamLanesRepository {
               id: opportunityOwner.actorId,
               name: actor.name,
               role: opportunityOwner.role,
+              primary: opportunityOwner.isPrimary,
               roleIds: actor.roleIds,
             })
             .from(opportunityOwner)
@@ -311,6 +312,7 @@ export type DealOwnerRow = {
   id: string
   name: string
   role: OpportunityOwnerRole
+  primary: boolean
   roleIds: RoleId[]
 }
 

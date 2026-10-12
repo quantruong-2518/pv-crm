@@ -12,16 +12,27 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
 import { announceOwners } from './opportunity-bell'
-import { assertSellers, NO_OWNER, recordSaleLane } from './opportunity-owners'
+import {
+  assertSellers,
+  lanePeople,
+  NO_OWNER,
+  PRIMARY_REASON_NEEDED,
+  primaryOf,
+  recordSaleLane,
+  salePrimaryOf,
+} from './opportunity-owners'
 import { ownerRowsOf, toRef } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
-import { OpportunityRepository } from './opportunity.repository'
+import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
 /** The assign door (ADR 0071): the head gives an accepted deal its seller, or
  *  changes them. REPLACES the SALE lane — reassigning is the point — where the
- *  accept door only adds. An unchanged lane is a no-op; an ADDED id must be an
+ *  accept door only adds. An unchanged lane with the same primary (ADR 0086) is
+ *  a no-op; an ADDED id must be an
  *  active seller (a migrated head already on the lane may stay); an empty lane
  *  is fine while someone still holds the deal (the acceptor, after accept).
+ *  While a sign request waits the people are frozen (they are its commission
+ *  holders) and only the primary may move, with a reason (owner, 12/10/2026).
  *
  *  SCOPED like every deal door, so an `ownOnly` holder of this grant would reach
  *  only its own deals. Head, director and the account-executive seat are not
@@ -51,13 +62,26 @@ export class OpportunityAssign {
       const lock = await this.deals.lockDeal(tx, code)
       const found = lock ? await this.deals.byCode(who, code, tx) : null
       if (!lock || !found || !found.inScope) throw notFound('cơ hội', code)
-      const verdict = assignVerdict(dealAtOf(found, lock.pendingSign))
+      const before = found.owners.filter((o) => o.role === 'SALE')
+      const verdict = assignVerdict(dealAtOf(found, lock.pendingSign), before.length)
       if (!verdict.ok) throw conflict(verdict.reason)
 
-      const before = found.owners.filter((o) => o.role === 'SALE')
       const removed = before.filter((o) => !body.saleOwners.includes(o.id))
       const addedIds = body.saleOwners.filter((id) => !before.some((o) => o.id === id))
-      if (removed.length === 0 && addedIds.length === 0) return
+      const kept = removed.length === 0 && addedIds.length === 0
+      if (lock.pendingSign && !kept) {
+        throw conflict(`Cơ hội ${code} đang chờ duyệt ký, chỉ đổi được Sale chính.`)
+      }
+      const salePrimary = salePrimaryOf(
+        await lanePeople(tx, body.saleOwners),
+        primaryOf(found.owners),
+        body.salePrimary,
+      )
+      const same = salePrimary === primaryOf(found.owners)
+      if (kept && same) return
+      if (lock.pendingSign && body.reason === undefined) {
+        throw invalid({ reason: [PRIMARY_REASON_NEEDED] }, PRIMARY_REASON_NEEDED)
+      }
       await assertSellers(tx, addedIds)
 
       /* The BD lane is written back as read under the lock: this door owns SALE only. */
@@ -65,7 +89,7 @@ export class OpportunityAssign {
       await this.deals.replaceOwners(
         tx,
         code,
-        ownerRowsOf(code, { saleOwners: body.saleOwners, bdOwners }),
+        ownerRowsOf(code, { saleOwners: body.saleOwners, bdOwners }, salePrimary),
       )
       const fresh = await this.deals.byCode(null, code, tx)
       if (!fresh) throw notFound('cơ hội', code)
@@ -83,6 +107,7 @@ export class OpportunityAssign {
           to: fresh.holder,
           by,
           at,
+          primary: same ? undefined : primaryMove(found, fresh, body.reason),
         },
       )
       await announceOwners(tx, this.hub, {
@@ -102,9 +127,20 @@ export class OpportunityAssign {
   }
 }
 
-/** On the board and past `new` — the door's guard and `acts.assign`, one rule. */
-export function assignVerdict(deal: DealAt): OpportunityAct {
-  const board = boardVerdict(deal, 'giao Sale')
+/** The primary's name before and after, for the timeline row carrying the
+ *  reason; nothing when no reason was given or the lane was emptied. */
+function primaryMove(found: OpportunityRead, fresh: OpportunityRead, reason?: string) {
+  const nameOf = (read: OpportunityRead) => read.owners.find((o) => o.primary)?.name ?? null
+  const to = nameOf(fresh)
+  return reason === undefined || to === null ? undefined : { from: nameOf(found), to, reason }
+}
+
+/** On the board and past `new` — the door's guard and `acts.assign`, one rule.
+ *  A waiting sign request leaves the door open for the primary alone, so only
+ *  when the SALE lane (`saleCount` people) has someone else to name. */
+export function assignVerdict(deal: DealAt, saleCount: number): OpportunityAct {
+  const waiting = deal.pendingSign && saleCount < 2
+  const board = boardVerdict({ ...deal, pendingSign: waiting }, 'giao Sale')
   if (!board.ok) return board
   return board.stage === 'new'
     ? { ok: false, reason: 'Cơ hội chưa nhận PIC. Nhận PIC trước rồi giao Sale.' }

@@ -100,7 +100,7 @@ checked against `git show` if the original is ever needed.
     marketing, bd, presales, sale, account-executive). Until the owner
     decides, the PIC-driven transitions in ADR 0058 use the existing
     permissions (`lead.edit` scoped for the PIC's own moves, `lead.disqualify`
-    for disqualify/reopen). _(see ADR 0058)_
+    for disqualify/reopen). _(see ADR 0058; ADR 0086)_
 
 ## Shared flows (added 28/09/2026)
 
@@ -171,7 +171,7 @@ Raised while recording the KPI framework (ADR 0082).
     deleted, the two KPI screens replace it, ADR 0082 Consequences.**
 36. **Is KPI linked to pay, and how is commission split?** v1 has no pay, bonus
     or commission maths. The split between SALE, BD and head was already out
-    of scope in ADR 0071. _(see ADR 0082 §1, §8)_
+    of scope in ADR 0071. _(see ADR 0082 §1, §8; ADR 0086)_
 37. **Do accountant and delivery become roles?** Neither has a seat, and a
     payment records no actor and no partial amount, so nothing of theirs can
     be scored. _(see ADR 0082 §8)_
@@ -249,33 +249,69 @@ Raised while recording the admission gate (ADR 0084).
     when the uploader's own lead and a colleague's fit equally, while the import
     joins the uploader's. Default: any two open leads tie. _(see ADR 0084 §5)_
 
+## Person in charge (added 11/10/2026)
+
+Raised while recording the per-stage people rules (ADR 0086).
+
+57. **Should presales get a lane on the opportunity later?** Default: no
+    (owner 11/10: "chưa cần"). _(see ADR 0086 §3)_
+    **Answered 12/10/2026 (delegated to the assistant by the owner: "do what
+    matches real practice"): no lane; revisit only if presales starts being
+    credited on deals.**
+58. **Should BD (or every lane) also carry a primary once commission split is
+    modelled?** Default: no. _(see ADR 0086 §2)_
+    **Answered 12/10/2026 (delegated by the owner): no. BD credit is shared,
+    and one accountable person per deal is the Sale chính. Revisit with
+    commission split (question 36).**
+59. **Who is the accountable Sale on existing deals with several sellers — is
+    the name-order backfill acceptable, or should the head of sales review
+    them?** Default: the backfill stands. _(see ADR 0086 Consequences)_
+    **Answered 12/10/2026 (delegated by the owner): the name-order backfill
+    stands (it keeps every existing holder unchanged); the head of sales
+    corrects any deal through the Giao Sale dialog. Before migration 0100
+    reaches production, list the deals with several sellers on the SALE lane
+    so the head can review them.**
+60. **Should the wording for the two lanes be unified?** Screens say
+    `Sale PIC` / `BD PIC`, `BD đứng đơn`, `BD mở cửa`, `Sale đứng đơn` in
+    different places; `PIC_RULES` uses "Sale đứng đơn" / "BD mở cửa". Default:
+    leave as is. _(see ADR 0086)_
+    **Answered 12/10/2026 (delegated by the owner): two registers stay on
+    purpose. Seat names on profile rails use the product word "PIC" ("Sale
+    PIC", "BD PIC", "PIC lúc ký"); form field labels describe the job ("Sale
+    đứng đơn", "BD mở cửa"). No rename.**
+61. **Should the contract snapshot also freeze names, not only ids?**
+    Default: no. _(see ADR 0086 §4)_
+    **Answered 12/10/2026 (delegated by the owner): no; ids only. Actor rows
+    are never deleted, so the name stays readable; a renamed person shows
+    under the current name.**
+
 ## Notifications (added 11/10/2026)
 
 Raised while recording the notification hub (ADR 0085).
 
-57. **Who is told about a campaign, and who is the "operator"?** The campaign
+62. **Who is told about a campaign, and who is the "operator"?** The campaign
     owner is free text, not an actor, and no "operator" role exists, so a
     notification for either has no recipient the data can name.
     _(see ADR 0085, Not in wave 1)_
-58. **Who writes contract instalment and milestone events?** Their tables have
+63. **Who writes contract instalment and milestone events?** Their tables have
     no writer, so there is no moment to notify on. _(see ADR 0085, Not in
     wave 1)_
-59. **Which touch kind records a customer reply on a lead that is `working`,
+64. **Which touch kind records a customer reply on a lead that is `working`,
     `nurturing`, `converted` or in the pool, and on every opportunity?** Today
     only the `assigned`/`verifying` → `working` move writes an activity row.
     _(see ADR 0085, Defaults)_
     **Answered 11/10/2026: a new touch kind `customer-replied`, written by the
     system on every new reply — ADR 0085 Defaults.**
-60. **Should a bounce reported after the provider accepted the letter ring
+65. **Should a bounce reported after the provider accepted the letter ring
     `mail-failed`?** Today only a letter the worker gives up on does.
     _(see ADR 0085, Defaults)_
     **Answered 11/10/2026: yes for a 1-to-1 group letter only; a bulk run's
     bounces ring nobody individually — ADR 0085 Defaults.**
-61. **Where does a press go for run sent, run cancelled, access changed,
+66. **Where does a press go for run sent, run cancelled, access changed,
     password reset, Google link broken, and a decided approval?** They open
     nothing today. _(see ADR 0085, Defaults)_
     **Answered 11/10/2026: the "Tài khoản của tôi" screen at `/account`; a
     mail-run row opens the mail-run book at that run — ADR 0085 Defaults.**
-62. **Should the deal book's last-activity / freshness read count a customer
+67. **Should the deal book's last-activity / freshness read count a customer
     reply?** It ignores `customer-replied`, so a deal the customer just
     answered can still read as stale. _(see ADR 0085, Defaults)_

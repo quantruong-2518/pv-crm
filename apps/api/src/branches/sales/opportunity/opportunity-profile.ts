@@ -75,13 +75,14 @@ export function stageSpansOf(
 
 /** Signed papers, oldest first as `byOpportunity` already orders them. */
 export function profileContractsOf(rows: readonly ContractRead[]): OpportunityProfileContract[] {
-  return rows.map(({ row, ownerName }) => ({
+  return rows.map(({ row, ownerName, participants }) => ({
     code: row.code,
     kind: row.kind,
     amount: row.amount,
     currency: row.currency,
     signedAt: row.signedAt.toISOString(),
     owner: row.ownerId && ownerName ? { id: row.ownerId, name: ownerName } : null,
+    participants,
   }))
 }
 

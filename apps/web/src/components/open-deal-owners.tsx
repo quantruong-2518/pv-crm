@@ -10,11 +10,12 @@ import {
 import type { Actor } from '@pv/engines'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { FieldErrors } from '@/app/api'
-import { useSalesPeople } from '@/data/directory'
-import { toggled } from '@/data/opportunities'
+import { useDirectory, useSalesPeople } from '@/data/directory'
+import { BD_LANE, SALE_LANE, SALE_PRIMARY_LABEL, primaryFit, toggled } from '@/data/opportunities'
 import { bornStage, lastBdLocked } from '@/data/opportunity-open'
 import { SectionHead } from './open-deal-basics'
 import { PersonTokenField } from './person-token-field'
+import { SalePrimaryPick } from './sale-primary-pick'
 import type { SetDraft } from './ops-fields'
 
 /** The owners section — the BD lane, the Sale lane, and where the deal is born
@@ -22,7 +23,8 @@ import type { SetDraft } from './ops-fields'
  *
  *  The lanes keep the semantics of `PersonPickField` (ids, multi-select,
  *  sellers only suggested on the Sale lane) and only change how they read:
- *  a label on the left, the chosen people as chips beside it. */
+ *  a label on the left, the chosen people as chips beside it. With two or more
+ *  on the Sale lane, one more control asks which of them is the primary. */
 
 const Lane = ({ label, children }: { label: string; children: ReactNode }) => (
   <div className="grid items-start gap-2 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:gap-4">
@@ -37,6 +39,8 @@ export function OwnersSection({
   me,
   canAccept,
   accountOwner,
+  salePrimary,
+  onSalePrimary,
   onSet,
 }: {
   draft: OpportunityDraft
@@ -44,12 +48,17 @@ export function OwnersSection({
   me: Actor | null
   canAccept: boolean
   accountOwner: NonNullable<OpportunityOpenContext['account']>['owner'] | undefined
+  /** The lane's primary as the form stands; absent on an empty lane. */
+  salePrimary: string | undefined
+  onSalePrimary: (id: string) => void
   onSet: SetDraft
 }) {
   const people = useSalesPeople()
+  const fitIds = primaryFit(draft.saleOwners, useDirectory())
   const byId = (id: string) => people.find((a) => a.id === id)
   const locked = lastBdLocked(draft, canAccept)
   const suggested = accountOwner ? byId(accountOwner.id) : undefined
+  const sellers = draft.saleOwners.map((id) => ({ id, name: byId(id)?.name ?? id }))
   const offerSuggested =
     suggested && isSellerRole(suggested.roleIds) && !draft.saleOwners.includes(suggested.id)
 
@@ -71,10 +80,10 @@ export function OwnersSection({
           </Lane>
         )}
 
-        <Lane label="BD mở cửa">
+        <Lane label={BD_LANE.label}>
           <PersonTokenField
             variant="inline"
-            label="BD mở cửa"
+            label={BD_LANE.label}
             placeholder="Gõ tên để tìm…"
             tokens={draft.bdOwners.map((id) => ({
               id,
@@ -93,14 +102,17 @@ export function OwnersSection({
           {errors.bdOwners && <Refusal text={errors.bdOwners.join(' · ')} />}
         </Lane>
 
-        <Lane label="Sale đứng đơn">
+        <Lane label={SALE_LANE.label}>
           <PersonTokenField
             variant="inline"
-            label="Sale đứng đơn"
+            label={SALE_LANE.label}
             placeholder={
               canAccept ? 'Gõ tên Sale để tìm…' : 'Để trống, trưởng phòng giao khi Nhận PIC'
             }
-            tokens={draft.saleOwners.map((id) => ({ id, name: byId(id)?.name ?? id }))}
+            tokens={sellers.map((s) => ({
+              ...s,
+              ...(fitIds.length > 1 && s.id === salePrimary && { tag: SALE_PRIMARY_LABEL }),
+            }))}
             suggestions={people
               .filter((a) => !draft.saleOwners.includes(a.id) && isSellerRole(a.roleIds))
               .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
@@ -109,6 +121,14 @@ export function OwnersSection({
             emptyNote="Không còn Sale nào để thêm."
           />
           {errors.saleOwners && <Refusal text={errors.saleOwners.join(' · ')} />}
+          <div className="pt-2 empty:hidden">
+            <SalePrimaryPick
+              people={sellers.filter((s) => fitIds.includes(s.id))}
+              value={salePrimary}
+              errors={errors.salePrimary}
+              onChange={onSalePrimary}
+            />
+          </div>
           {offerSuggested && (
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <Button

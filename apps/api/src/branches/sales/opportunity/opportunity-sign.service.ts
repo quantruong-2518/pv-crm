@@ -19,6 +19,7 @@ import { dropStep } from '../next-step/next-step.handover'
 import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
+import { lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
 /** Signing a deal, through E3 (ADR 0057 §7).
@@ -107,8 +108,9 @@ export class OpportunitySign implements ApprovalApplier {
     const quoted = await this.deals.hasTouch(handle, found.row.code, 'quotation-sent')
     const verdict = signVerdict({ ...signFactsOf(found, quoted), pendingSign, approverSeat })
     if (!verdict.ok) throw conflict(verdict.reason)
-    /* Commission follows a Sale standing on the deal, never a stranger. Owners
-       are frozen while the request waits (`saleLaneMoved`). */
+    /* Commission follows a Sale standing on the deal, never a stranger. The
+       lane's people are frozen while the request waits; only its primary may
+       move, through the assign door with a reason. */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
       throw invalid(
         { ownerId: ['Người hưởng hoa hồng phải là Sale đứng đơn của cơ hội.'] },
@@ -162,6 +164,11 @@ export class OpportunitySign implements ApprovalApplier {
       ...(ownerId && ownerName ? { owner: ownerName, ownerId } : {}),
       amount: body.amount,
     })
+    /* A lane old code left without a primary gets one before it is frozen. */
+    const sale = found.owners.filter((o) => o.role === 'SALE').map((o) => o.id)
+    if (sale.length > 0 && primaryOf(found.owners) === null) {
+      await this.deals.setSalePrimary(tx, code, salePrimaryOf(await lanePeople(tx, sale), null))
+    }
     await this.contracts.insert(tx, values)
     if (row.workstreamCode) await this.workstreams.syncClosed(tx, [row.workstreamCode])
     if (!found.signed) await this.leaveBoard(tx, found, row, contractCode, by, signedAt)

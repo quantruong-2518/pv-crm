@@ -131,16 +131,19 @@ function dealBody(draft: OpportunityDraft) {
 
 /** Draft → `POST` body. `contacts` travel beside the draft, not in it: the
  *  server wants at least one and exactly one primary, and the 14-cell draft
- *  has no room for them. */
+ *  has no room for them. `salePrimary` rides the same way (ADR 0086); absent
+ *  on an empty SALE lane, where the contract refuses any id. */
 export function createBodyOf(
   leadCode: ObjectCode,
   draft: OpportunityDraft,
   contacts: OpportunityContactPick[],
+  salePrimary?: string,
 ): OpportunityCreate {
   return {
     leadCode,
     contacts,
     ...dealBody(draft),
+    ...(salePrimary !== undefined && { salePrimary }),
   }
 }
 
@@ -160,7 +163,8 @@ export function withCreatorOwners(
   return seed
 }
 
-/** Phiếu → thân `PATCH`. */
+/** Phiếu → thân `PATCH`. No `salePrimary`, here or in `echoBodyOf`: no drawer
+ *  edits the SALE lane, and absent keeps the stored primary (ADR 0086). */
 export function updateBodyOf(draft: OpportunityDraft): OpportunityUpdate {
   return dealBody(draft)
 }
@@ -250,12 +254,13 @@ export function draftOf(op: OpportunityRow): OpportunityDraft {
  *  duplicate arrives under — are dropped rather than renamed. They are not
  *  lost: they never had a cell to sit in, so the footer sentence carries them,
  *  and for a 409 that sentence is the server's own. */
-const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft | 'contacts'> = {
+const DRAFT_FIELD_OF_WIRE: Record<string, keyof OpportunityDraft | 'contacts' | 'salePrimary'> = {
   name: 'name',
   expectedClose: 'closedDate',
   amount: 'amount',
   currency: 'currency',
   saleOwners: 'saleOwners',
+  salePrimary: 'salePrimary',
   bdOwners: 'bdOwners',
   probability: 'probability',
   products: 'products',
@@ -548,6 +553,8 @@ export function useAssignSale(code: ObjectCode) {
       void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
       void client.invalidateQueries({ queryKey: nextStepKey(code) })
     },
+    /* A refusal may mean the deal changed under the dialog (a sign request). */
+    onError: () => void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true }),
   })
 }
 

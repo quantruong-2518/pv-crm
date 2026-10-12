@@ -3,7 +3,7 @@ import { Button, Icon, type IconGlyph } from '@pv/ui'
 import { campaignLabel, type LeadProfile, type OpportunityProfileResponse } from '@pv/contracts'
 import { dmy } from '@/lib/date'
 import { acceptorText, noSellerSentence } from '@/data/deal-sale'
-import { bdOwnersOf, namesOf, saleOwnersOf } from '@/data/opportunities'
+import { bdOwnersOf, laneText, namesOf, saleOwnersOf } from '@/data/opportunities'
 import { RecordHeader } from '@/components/record/record-header'
 import { customerTagOf } from './opportunity-model'
 
@@ -26,7 +26,7 @@ export function DealHeader({
   onRename: () => void
 }) {
   const bd = namesOf(bdOwnersOf(op))
-  const sellers = namesOf(saleOwnersOf(op))
+  const sellers = saleOwnersOf(op)
   const pic = acceptorText(op)
 
   return (
@@ -37,7 +37,7 @@ export function DealHeader({
         bd.length > 0 && `BD ${bd.join(', ')}`,
         pic && `PIC ${pic}`,
         sellers.length > 0 ? (
-          `Sale ${sellers.join(', ')}`
+          `Sale ${laneText(sellers)}`
         ) : op.state === 'lost' ? (
           'Chưa có Sale'
         ) : (

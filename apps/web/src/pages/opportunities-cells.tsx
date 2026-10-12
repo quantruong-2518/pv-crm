@@ -198,7 +198,7 @@ export function SaleCell({ op, canAccept }: { op: OpportunityBookRow; canAccept:
       {(owners.length > 0 || (!accepting && !assigning)) && (
         <PeopleCell owners={owners} missing="Chưa có Sale phụ trách" />
       )}
-      {accept && <RowAccept code={op.code} show={accepting} />}
+      {accept && <RowAccept code={op.code} owners={op.owners} show={accepting} />}
       {assigning && (
         <RowAct>
           <AssignSaleButton
@@ -281,7 +281,15 @@ function RowAct({ children }: { children: ReactNode }) {
 }
 
 /** Accept from the row; focus then moves to the next row, else the queue chip. */
-function RowAccept({ code, show }: { code: string; show: boolean }) {
+function RowAccept({
+  code,
+  owners,
+  show,
+}: {
+  code: string
+  owners: OpportunityOwner[]
+  show: boolean
+}) {
   const box = useRef<HTMLSpanElement>(null)
   const next = useRef<HTMLElement | null>(null)
   const nextRow = () => {
@@ -296,6 +304,7 @@ function RowAccept({ code, show }: { code: string; show: boolean }) {
       <RowAct>
         <AcceptDealButton
           code={code}
+          owners={owners}
           show={show}
           size="sm"
           variant="ghost"

@@ -116,6 +116,8 @@ export const OPPORTUNITY_NAME_MAX = 200
 export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
 export const OPPORTUNITY_STOP_REASON_MAX = 120
 export const OPPORTUNITY_STOP_NOTE_MAX = 1_000
+/** Cap of the reason a SALE primary change carries while a sign request waits. */
+export const OPPORTUNITY_SALE_PRIMARY_REASON_MAX = 500
 /** The one stop reason key with a rule attached: picking it demands a note.
  *  Declared here so the form and the door test the same string. */
 export const OPPORTUNITY_STOP_REASON_OTHER = 'other'
@@ -136,6 +138,18 @@ const ownerIds = z
   .array(textInput(64))
   .max(20, 'Tối đa 20 người.')
   .transform((ids) => [...new Set(ids)])
+
+/** The SALE lane's primary, on every body that carries `saleOwners`. Absent is
+ *  legal: the server keeps the current primary while that person is still on
+ *  the lane, else picks by its existing holder order. Sent together with
+ *  `saleOwners`, it must be one of them (`PIC_RULES.opportunity`, `./pic`). */
+const salePrimary = textInputOptional(64)
+const salePrimaryOnLane = (v: { saleOwners?: string[]; salePrimary?: string }) =>
+  v.salePrimary === undefined || v.saleOwners === undefined || v.saleOwners.includes(v.salePrimary)
+const SALE_PRIMARY_OFF_LANE = {
+  error: 'Sale chính phải là một người trong danh sách Sale đứng đơn',
+  path: ['salePrimary'],
+}
 
 /** One contact attached to a deal at create. `role: null` = nobody has said yet. */
 export const OpportunityContactPick = z.object({
@@ -191,6 +205,7 @@ const dealFields = {
   /** May be empty until signing — `assigned` is a head's accept, not a PIC
    *  count (ADR 0071). */
   saleOwners: ownerIds.optional().default([]),
+  salePrimary,
   bdOwners: ownerIds.optional().default([]),
 
   /** How likely the seller thinks this is to close, 0–100.
@@ -237,7 +252,7 @@ const dealFields = {
  *  `state` and `stage` are absent for a different one: a deal opens at `new`,
  *  or at `assigned` when its creator may accept deals (ADR 0071), so a body
  *  naming a stage could only contradict it. */
-export const OpportunityCreate = z.object({
+export const OpportunityCreateShape = z.object({
   /** The lead this deal came out of. One lead may produce many. */
   leadCode: ObjectCode,
   // No `accountCode`: the server copies the lead's own, never a client's.
@@ -245,6 +260,14 @@ export const OpportunityCreate = z.object({
   contacts: contactPicks,
   ...dealFields,
 })
+
+/** The door's schema. `OpportunityCreateShape` above is the same object before
+ *  the refinement, exported because zod refuses `.omit()` on a refined object
+ *  and the import draft is derived that way. */
+export const OpportunityCreate = OpportunityCreateShape.refine(
+  salePrimaryOnLane,
+  SALE_PRIMARY_OFF_LANE,
+)
 
 /** `PATCH /sales/opportunities/:code` — the opportunity profile's save button.
  *
@@ -274,6 +297,7 @@ export const OpportunityUpdate = z
     error: 'Giá trị đơn cần có đơn vị tiền. Điền cả hai ô hoặc để trống cả hai.',
     path: ['currency'],
   })
+  .refine(salePrimaryOnLane, SALE_PRIMARY_OFF_LANE)
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -300,6 +324,9 @@ export const OpportunityOwner = z.object({
   id: textInput(64),
   name: textInput(120),
   role: OpportunityOwnerRole,
+  /** True on at most one `SALE` row — exactly one once a door has written the
+   *  lane (rows older than migration 0100's deploy may have none); never on `BD`. */
+  primary: z.boolean(),
 })
 
 /** One person on the deal's own contact list (`sales.opportunity_contact`). */
@@ -342,9 +369,9 @@ export const OpportunityRow = z.object({
    *  sign again (licence beside deployment). Empty exactly when not `won`.
    *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`; see `primitives.ts`. */
   contractCodes: z.array(ContractCode),
-  /** The accountable person: first seller (`isSellerRole`) on the SALE lane,
-   *  else the acceptor, else the first BD (ADR 0071) — computed by the server so
-   *  no screen re-derives it. */
+  /** The accountable person: the SALE primary if a seller (`isSellerRole`), else
+   *  the first seller on that lane, else the acceptor, else the first BD (ADR
+   *  0086 refining 0071) — computed by the server so no screen re-derives it. */
   holder: WorkstreamHolder.nullable(),
   /** A seller-role person (`isSellerRole`) stands on the SALE lane — judged by
    *  the server, which holds the roles, so no screen re-derives it. */
@@ -798,19 +825,24 @@ export const OpportunityStopBody = z
 /** `POST /sales/opportunities/:code/accept` — a head-of-sales or director
  *  takes a `new` deal to `assigned`. Permission `opportunity.accept`.
  *  `saleOwners` is ADDED to the SALE lane in the same act, never replaces it:
- *  accepting must not silently drop someone already on the deal (ADR 0071). */
-export const OpportunityAcceptBody = z.object({
-  saleOwners: ownerIds.optional(),
-})
+ *  accepting must not silently drop someone already on the deal (ADR 0071).
+ *  So `salePrimary` is judged by the server against the MERGED lane, not here. */
+export const OpportunityAcceptBody = z.object({ saleOwners: ownerIds.optional(), salePrimary })
 
 /** `POST /sales/opportunities/:code/sale-owners` — assign a seller: sets the SALE
  *  lane of an accepted deal. Permission `opportunity.assign` (head, director,
  *  AE). Once a deal is past `new` this is the ONLY door to that lane — the
  *  profile PATCH refuses it for everyone (ADR 0071). REPLACES the lane, unlike
- *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op. */
-export const OpportunitySaleOwnersBody = z.object({
-  saleOwners: ownerIds,
-})
+ *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op.
+ *  While a sign request waits the lane's people are frozen and only the
+ *  primary may move — the server then demands `reason` (ADR 0086 §2). */
+export const OpportunitySaleOwnersBody = z
+  .object({
+    saleOwners: ownerIds,
+    salePrimary,
+    reason: textInputOptional(OPPORTUNITY_SALE_PRIMARY_REASON_MAX),
+  })
+  .refine(salePrimaryOnLane, SALE_PRIMARY_OFF_LANE)
 
 /** The three doors answer with the whole book row, like the write doors above:
  *  stage, state, the stop fields and the clock are all recomputed, and a screen

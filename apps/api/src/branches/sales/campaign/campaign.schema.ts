@@ -51,8 +51,12 @@ export const campaign = sales.table(
 
     /** Who owns the campaign. Nullable — a campaign drafted before anyone is
      *  assigned is a real state, and inventing an owner to fill the column is
-     *  how a report grows a person who never ran anything. */
-    ownerId: text('owner_id'),
+     *  how a report grows a person who never ran anything.
+     *
+     *  A real fence from 0100: every actor is its own `platform.actor` row, so
+     *  no legitimate write can miss the target. No `ON DELETE`, like
+     *  `lead.owner_id` — the app disables an actor and never deletes one. */
+    ownerId: text('owner_id').references(() => actor.id),
 
     /** Nguồn được quy công cho chiến dịch mail này — `config_entry.id` của một
      *  dòng `SOURCE`, cùng thứ mà `lead.campaign_id` trỏ vào.

@@ -5,6 +5,7 @@ import { Badge, Button, GlassCard, Icon, MetaPill, SectionTitle } from '@pv/ui'
 import { CONTRACT_KIND_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dm, dmhm, dmy } from '@/lib/date'
+import { lanesText } from '@/data/opportunities'
 import { moneyText } from './opportunity-model'
 
 /** Module 3 · the deal's working cards — its value and its contracts (ADR
@@ -100,6 +101,7 @@ export function ContractsCard({
             code={<span className="font-mono">{c.code}</span>}
             kind={c.kind ? CONTRACT_KIND_LABEL[c.kind] : 'Chưa ghi loại'}
             when={[`ký ${dm(c.signedAt)}`, c.owner?.name].filter(Boolean).join(' · ')}
+            signers={lanesText(c.participants)}
             amount={c.amount === null ? '—' : moneyText(c.amount, c.currency)}
             status={<Badge tone="success">Đã ký</Badge>}
             action={
@@ -147,6 +149,7 @@ function ContractLine({
   code,
   kind,
   when,
+  signers,
   amount,
   status,
   action,
@@ -154,6 +157,8 @@ function ContractLine({
   code: ReactNode
   kind: string
   when: string
+  /** The deal's people frozen at signing; absent on a request not yet signed. */
+  signers?: string
   amount: string
   status: ReactNode
   action: ReactNode
@@ -166,6 +171,9 @@ function ContractLine({
           <span className="text-foreground">{kind}</span>
         </span>
         <span className="text-muted-foreground tnum text-[11.5px]">{when}</span>
+        {signers && (
+          <span className="text-muted-foreground text-[11.5px]">PIC lúc ký: {signers}</span>
+        )}
       </span>
       <span className="tnum font-semibold sm:text-right">{amount}</span>
       <span className="flex">{status}</span>

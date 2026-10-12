@@ -1,4 +1,4 @@
--- 0099 - the in-app bell's ledger: `platform.notification`, one row per
+-- 0101 - the in-app bell's ledger: `platform.notification`, one row per
 -- (recipient, event key).
 --
 -- Private to the recipient: every read filters by `recipient_id`. CASCADEs
@@ -19,7 +19,8 @@
 -- deploy-then-migrate are both safe for old code; NEW code must not write the
 -- kind before this has run.
 --
--- Numbered 0099 on purpose: 0097 and 0098 are taken in another tree.
+-- Numbered 0101 and stamped after 0100: that one reached Neon first, and
+-- drizzle skips any migration stamped earlier than the last one applied.
 -- Hand-written for 0047's reason: `generate`'s baseline is still stuck at 0026.
 CREATE TABLE "platform"."notification" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
