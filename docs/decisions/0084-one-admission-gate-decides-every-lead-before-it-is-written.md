@@ -1,7 +1,7 @@
 # 0084 · One admission gate decides every lead before it is written; each door chooses its own reaction to the verdict
 
-Status: accepted (replaces 0070 §B where it says file-import duplicates are written and flagged)
-Source: project owner's decisions in chat, 11/10/2026
+Status: accepted (replaces 0070 §B where it says file-import duplicates are written and flagged); amended in place 11/10/2026, second round — §3, §5, §9
+Source: project owner's decisions in chat, 11/10/2026; second round, same day: question 39 answered, no owner of an account, questions 44 and 50 closed
 
 ## Context
 
@@ -41,6 +41,13 @@ there. Five verdicts — `new-account`, `same-lead`, `new-contact`,
 `returning-account`, `needs-review`. Their definitions are the engine file in
 §2, not here.
 
+Amended 11/10/2026: one account may hold several open leads at once. On one
+strongly matched account with open leads the verdict is always `same-lead` or
+`new-contact`, and the decision carries every open lead of the account as
+ranked choices; a door that cannot ask acts on the first. `needs-review` now
+means only unsure evidence: weak keys only, two strongly matched accounts, or a
+tax-root clash. There is no owner of an account, only of a lead.
+
 ### 4 · Strong and weak evidence
 
 Tax-code root, folded company name (when the two sides do not carry different
@@ -51,30 +58,44 @@ when it is all they came with.
 ### 5 · Reaction per door
 
 - **Manual form** asks the user: check first, then create with the choice it
-  saw. The server re-decides under the lock and refuses a stale choice. A
-  seller cannot open a second lead on a customer held by someone else; that
-  goes to the head of sales. `needs-review` does not bypass the fence: a caller
-  who may not assign leads cannot `create-lead` when any candidate lead belongs
-  to someone else.
+  saw. The server re-decides under the lock and refuses a stale choice. Amended
+  11/10/2026: when the company and contact already sit on a lead the form asks
+  the person to confirm — merge into that lead, or create a new lead. It offers
+  merge / add a contact to any open lead in the caller's scope, or a new lead on
+  the same company. Any caller who may create leads may open another lead on
+  the same company; the earlier fence (a seller cannot open a second lead on a
+  customer held by someone else, and `needs-review` does not bypass it) is
+  withdrawn. A merge that adds nobody still leaves the `re-entered` touch.
+  Picking a lead that can no longer be joined is refused as "the book moved",
+  the same refusal as a stale `seen`, so the form re-asks.
 - **Landing** never refuses and never asks. An exact repeat by a known person
   (`same-lead`) leaves a `re-entered` touch, no new lead and no second alert. A
   new person at a known company (`new-contact`) opens a new lead attached to
   the matched account, so the normal internal alert goes out — an enquiry is
   never silent. Uncertain evidence still becomes a new lead.
 - **File import** keeps "a row already in the book is dropped and reported", so
-  re-importing a file is idempotent. A `needs-review` row that the caller's
-  fence forbids is dropped and reported, not written. It now also attaches a new lead to an
-  existing account, or adds a new person to an open lead in the importer's
-  scope.
+  re-importing a file is idempotent; a row already on a lead never opens a
+  second lead. It also attaches a new lead to an existing account. Amended
+  11/10/2026: the fence that dropped a `needs-review` row is withdrawn, and each
+  person of a row group is treated on their own. (a) Already on any open lead of
+  the matched company: dropped and reported as a duplicate with that lead's
+  code. (b) New, and the importer has an open lead on that company in scope:
+  joins the first-ranked in-scope lead. (c) New, and no open lead of that
+  company is in the importer's scope: opens one new lead on the matched account
+  (one per company per file), never reported as a duplicate. (c) follows the
+  owner's "anyone may open another lead on the same company" and mirrors the
+  landing door; (b) and (c) are the assistant's reading for the file door, not
+  an owner decision (question 54).
 - **Scan** decides through the same gate: `planLeadScan` in
   `packages/engines/src/lead-scan.ts` takes the same book slice and calls the
   same decision, and its outcomes map from the verdicts. A person already in
   scope merges into that lead and leaves a `re-entered` touch; out of scope the
-  group is held; a new company becomes a new lead; a company already in the book
+  group is held (and when two open leads fit equally it still holds the group
+  for a person — `admissionTied` in the engine); a new company becomes a new lead; a company already in the book
   with no open lead gets a new lead on that account; `needs-review` is held,
   nothing written, and a person types it. The commit re-decides under the gate
   lock per group and holds a group when the book no longer supports the planned
-  outcome. Two scanned groups returning to one company open one lead between
+  outcome, or when the re-decision under the lock is a tie. Two scanned groups returning to one company open one lead between
   them.
 
 ### 6 · Who added it
@@ -97,17 +118,16 @@ can reach one account through different keys.
 Production may already hold accounts equal under the new folding, so
 tightening it waits for a clean-up of existing duplicates (question 43).
 
-### 9 · What a match in someone else's book reveals
+### 9 · What a match reports
 
-A match in someone else's book is reported without the lead code and never
-with the owner's name. The account is withheld too whenever the matched lead is
-out of the caller's scope. An account code is shown only when the caller holds
-a live lead on that account, or no lead of it — open, closed, switched off or
-unowned — lies outside the caller's scope; an anonymous caller is shown
-nothing. The rule is in
-`apps/api/src/branches/sales/lead/lead-admission.mapper.ts`. The reason: the
-account profile lists the account's leads, owners and contacts without a scope
-filter, so an account code is as good as the lead code.
+Amended 11/10/2026: the redaction this section once described is withdrawn. A
+match reports the lead code, the company and the lead owner's name to every
+caller. `outOfScope` now means only that the caller cannot open or join that
+lead. A switched-off lead is absent, not out of scope: it is never listed as a
+candidate, though its account may still be listed. Joining (merging, adding a contact) stays limited to a lead in the
+caller's scope — that limit is the assistant's default, not an owner decision
+(question 53). The rule is in
+`apps/api/src/branches/sales/lead/lead-admission.mapper.ts`.
 
 ## Consequences
 
@@ -143,7 +163,8 @@ filter, so an account code is as good as the lead code.
 - `contact.name_key` was removed before shipping; the gate folds names from the
   raw columns.
 - The account profile's unscoped listing of leads, owners and contacts predates
-  this change and is the reason for §9's rule.
+  this change and is as intended (question 50, answered 11/10/2026): every role
+  may view and add leads.
 - Debt: the `/ship` skill (`.claude/skills/ship/SKILL.md`) has no backfill step
   yet.
 - Debt: a `needs-review` that resolves to no single account still opens an
@@ -162,17 +183,21 @@ filter, so an account code is as good as the lead code.
 
 Not decided; each is a numbered question in `open-questions.md`:
 
-- Two open leads on one company (question 39).
 - A re-entry through file import leaving a touch (question 40).
 - Landing auto-attach (question 41).
 - Sourcing credit on a duplicate (question 42).
 - Tightening `account_identity_uniq` (question 43).
-- A seller's request to the head of sales (question 44).
 - Claiming a customer whose leads are unowned (question 49).
-- Filtering the account profile by scope (question 50).
 - Rate-limiting or auditing the check door (question 51).
 - Downgrading an email-only match with an unmatched company name (question 52).
 - A scan that adds nothing new leaving a `re-entered` row every time (question 45).
 - A company-record mailbox as evidence against the book (question 46).
 - Where a `re-entered` touch shows on the lead profile (question 47).
 - A file-import row with uncertain evidence waiting for a person (question 48).
+- Joining limited to a lead in the caller's scope (question 53).
+- File import: which open lead a new person joins when the company has several
+  (question 54).
+
+Answered 11/10/2026, second round: question 39 (yes, several open leads),
+question 50 (the unscoped account profile is as intended); question 44 is
+withdrawn.

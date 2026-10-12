@@ -4,6 +4,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { LeadState } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { contact } from '../contact/contact.schema'
 import { leadLive, leadScope } from './lead-scope'
@@ -23,8 +24,8 @@ export type BookSlice = {
     /** Not switched off. */
     live: boolean
     inScope: boolean
-    /** Outside the caller's scope — somebody else's or nobody's — live or not. */
-    barred: boolean
+    /** Null = nobody holds the lead. Every caller is told: only a lead has an owner. */
+    ownerName: string | null
   }[]
   contacts: { leadCode: string; name: string; email: string | null; phone: string | null }[]
 }
@@ -117,12 +118,10 @@ export class LeadAdmissionRepository {
         inScope: who
           ? sql<boolean>`COALESCE(${and(leadScope(who, true), leadLive)}, false)`
           : sql<boolean>`false`,
-        /* An unowned lead is NULL on the scope test, and still not the caller's. */
-        barred: who
-          ? sql<boolean>`NOT COALESCE(${leadScope(who, true) ?? sql`true`}, false)`
-          : sql<boolean>`true`,
+        ownerName: actor.name,
       })
       .from(lead)
+      .leftJoin(actor, eq(actor.id, lead.ownerId))
       .where(inArray(lead.accountCode, codes))
     const contacts = await db
       .select({

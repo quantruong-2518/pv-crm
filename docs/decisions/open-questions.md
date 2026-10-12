@@ -185,6 +185,9 @@ Raised while recording the admission gate (ADR 0084).
 39. **Can one company legitimately have two open leads at once?** Default in
     code: exactly one open lead → a new person is attached to it; two or more
     → `needs-review`. _(see ADR 0084 §3)_
+    **Answered 11/10/2026: yes — several open leads on one account; the manual
+    form asks merge or new lead, `needs-review` now means only unsure evidence,
+    ADR 0084 §3.**
 40. **Should a re-entry through file import leave a `re-entered` touch when the
     row is an exact repeat?** Default: no, the row is dropped and reported.
     _(see ADR 0084 §5)_
@@ -201,6 +204,9 @@ Raised while recording the admission gate (ADR 0084).
 44. **Should a seller who hits someone else's customer be able to raise a
     request to the head of sales from the form?** Default: the form only tells
     them to contact the head. _(see ADR 0084 §5)_
+    **Withdrawn 11/10/2026: moot — there is no owner of an account, only of a
+    lead, and any caller who may create leads may open another one, ADR 0084
+    §5.**
 45. **Should scanning a card that adds nothing new leave a `re-entered` row
     every time?** Default: yes. _(see ADR 0084 §5; ties to question 40)_
 46. **Should a company-record mailbox count as evidence against the book?**
@@ -212,12 +218,33 @@ Raised while recording the admission gate (ADR 0084).
     new lead and marked in the result. _(see ADR 0084 §5)_
 49. **May a seller claim a customer whose leads are unowned through the
     form?** Default: no — unowned leads count as outside an own-only seller's
-    scope. _(see ADR 0084 §9)_
+    scope. _(see ADR 0084 §9)_ After 11/10/2026 nobody holds a customer and
+    any caller may open a lead on the company, so the owner should confirm
+    whether this is withdrawn.
 50. **Should the account profile filter its leads, owners and contacts by the
     reader's scope?** Default: no filter — existing behaviour. _(see ADR 0084
     §9)_
+    **Answered 11/10/2026: as intended — every role may view and add leads, ADR
+    0084 Consequences.**
 51. **Should the check door be rate-limited or audited?** Default: neither.
     _(see ADR 0084 Consequences)_
 52. **Should an email-only match be downgraded to `needs-review` when the
     incoming company name is different and unmatched?** Default: no.
     _(see ADR 0084 Consequences)_
+53. **Should joining a lead (merging, adding a contact) stay limited to a lead
+    in the caller's scope?** Default: yes — the assistant's choice, not an owner
+    decision; opening a new lead on the same company is not limited.
+    _(see ADR 0084 §5, §9)_
+54. **File import: which open lead does a new person join when the company has
+    several, and should a new person with no open lead of the company in the
+    importer's scope open one?** Default: joins the first-ranked open lead in
+    the importer's scope; with none in scope, opens one new lead on the matched
+    account per company per file, never reported as a duplicate — the
+    assistant's reading, mirroring the landing door, not an owner decision.
+    _(see ADR 0084 §5)_
+55. **Should the scan preview name the lead and its owner for a group held as
+    HELD_OTHER_OWNER, as the form and the import report now do?** Default: no,
+    unchanged. _(see ADR 0084 §5)_
+56. **Should a tie count only leads the caller can join?** Today the scan holds
+    when the uploader's own lead and a colleague's fit equally, while the import
+    joins the uploader's. Default: any two open leads tie. _(see ADR 0084 §5)_

@@ -198,7 +198,7 @@ export class LeadWriteService {
     const run = await this.runs.nextCode()
 
     const row = await this.repo.run(async (tx) => {
-      const admitted = await this.gate.typed(tx, who, mayAssign, body)
+      const admitted = await this.gate.typed(tx, who, body)
       if (admitted.reentered) return admitted.reentered
       /* No pick = the motion derives it: the partner's origin, else the campaign's. */
       const origin = body.origin
@@ -958,7 +958,7 @@ export class LeadWriteService {
     const assessed = lock
       ? await this.gate.admitAll(handle, who, items)
       : await this.gate.assess(handle, who, items)
-    return planImport(checked, assessed, checked.origins, this.access.allows(who, 'lead.assign'))
+    return planImport(checked, assessed, checked.origins)
   }
 }
 

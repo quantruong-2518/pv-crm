@@ -233,7 +233,7 @@ export const ScanOutcome = z.enum([
   'HELD_MISSING_CONTACT',
   'HELD_OTHER_OWNER',
   /** The admission gate would not decide (weak or contradictory evidence, or
-   *  several open leads on the company): nothing is written, a person types it. */
+   *  two open leads that fit equally): nothing is written, a person types it. */
   'HELD_NEEDS_REVIEW',
 ])
 
@@ -261,7 +261,7 @@ const groupBase = {
 }
 
 /** Split on `outcome` so only a merge can carry `leadCode`: a match outside
- *  the uploader's scope must not leak a code, and parsing strips one. */
+ *  the uploader's scope cannot be joined, and parsing strips its code. */
 export const ScanGroup = z.discriminatedUnion('outcome', [
   z.object({ ...groupBase, outcome: z.literal('MERGE_INTO_LEAD'), leadCode: ObjectCode }),
   z.object({ ...groupBase, outcome: ScanOutcome.exclude(['MERGE_INTO_LEAD']) }),

@@ -21,7 +21,7 @@ import {
   taxRoot,
   websiteHost,
 } from './lead-keys'
-import { decideLeadAdmission } from './lead-admission'
+import { admissionTied, decideLeadAdmission } from './lead-admission'
 import type { AdmissionBook, AdmissionDecision, AdmissionIncoming } from './lead-admission'
 
 /* Callers still import the normalisers from here; they now live in lead-keys. */
@@ -329,11 +329,13 @@ export function incomingOfScan(group: ScanPlanGroupBase): AdmissionIncoming {
 }
 
 /** A lead needs somebody to write to, so a company without a person email is
- *  held however the gate placed it. Only a merge carries a lead code: a match
- *  outside the uploader's scope must not leak one. */
+ *  held however the gate placed it. Only a merge carries a lead code: a lead
+ *  outside the uploader's scope is one they may not join. */
 function withOutcome(group: ScanPlanGroupBase, decision: AdmissionDecision): ScanPlanGroup {
   const { verdict, leadCode, accountCode } = decision
-  if (verdict === 'needs-review') return { ...group, outcome: 'HELD_NEEDS_REVIEW' }
+  if (verdict === 'needs-review' || admissionTied(decision)) {
+    return { ...group, outcome: 'HELD_NEEDS_REVIEW' }
+  }
   if (leadCode) {
     return decision.outOfScope
       ? { ...group, outcome: 'HELD_OTHER_OWNER' }

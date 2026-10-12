@@ -11,9 +11,9 @@ import { LEAD_MAX, taxCodeOptional } from './lead-fields'
  *  server-side question and get one of five verdicts; each door then reacts in
  *  its own way. The check door only answers, it writes nothing.
  *
- *  A match outside the caller's scope reports `outOfScope` and drops the lead
- *  `code`: the caller learns "already in the book" and never whose customer it
- *  is. This file imports the field schemas from `./lead-fields` and
+ *  Nobody holds a company, only a lead: every caller is told which lead matched
+ *  and who holds it, and `outOfScope` says only that they cannot open or join
+ *  it. This file imports the field schemas from `./lead-fields` and
  *  `../primitives` rather than from `./lead`, which imports this file back. */
 
 export const AdmissionVerdict = z.enum([
@@ -56,8 +56,21 @@ const AccountRef = z.object({ code: ObjectCode, name: z.string() })
  *  cuts its list at the same number. */
 export const ADMISSION_CANDIDATE_CAP = 10
 
-/** `code` is optional on purpose: it is omitted when the lead is out of scope. */
-const LeadRef = z.object({ code: ObjectCode.optional() })
+/** Both optional so a web build that reaches production before its API still
+ *  parses the older answer, and does not read a missing owner as "nobody". */
+const LeadRef = z.object({
+  code: ObjectCode.optional(),
+  /** Null = nobody holds the lead yet. */
+  ownerName: z.string().nullable().optional(),
+})
+
+/** One open lead of the matched company the entry may join. */
+export const AdmissionLeadChoice = LeadRef.extend({
+  code: ObjectCode,
+  outOfScope: z.boolean(),
+  /** Incoming people this lead does not hold yet. */
+  newPeople: z.number().int().nonnegative(),
+})
 
 export const AdmissionCandidate = z.object({
   account: AccountRef.nullable(),
@@ -74,7 +87,10 @@ export const AdmissionMatch = z.object({
   matchedOn: z.array(AdmissionMatchKey),
   /** Incoming people not yet on the matched lead. */
   newPeople: z.number().int().nonnegative(),
-  /** Filled for `needs-review` only; same scope rule as `lead`. */
+  /** Every open lead of the matched company, `lead` first; empty unless the
+   *  verdict is `same-lead` or `new-contact`. */
+  leads: z.array(AdmissionLeadChoice).max(ADMISSION_CANDIDATE_CAP).default([]),
+  /** Filled for `needs-review` only. */
   candidates: z.array(AdmissionCandidate).max(ADMISSION_CANDIDATE_CAP),
 })
 
@@ -97,6 +113,8 @@ export const LeadAdmissionCheckResponse = AdmissionMatch
  *  the server re-decides under a lock and refuses if the book has moved on. */
 export const AdmissionChoice = z.object({
   action: z.enum(['create-lead', 'add-contact']),
+  /** The open lead `add-contact` joins; absent = the one in `seen`. */
+  leadCode: ObjectCode.optional(),
   seen: z.object({
     verdict: AdmissionVerdict,
     leadCode: ObjectCode.optional(),
@@ -112,6 +130,7 @@ export const AdmissionRefusal = Problem.extend({ admission: AdmissionMatch })
 export type AdmissionVerdict = z.infer<typeof AdmissionVerdict>
 export type AdmissionMatchKey = z.infer<typeof AdmissionMatchKey>
 export type AdmissionCandidate = z.infer<typeof AdmissionCandidate>
+export type AdmissionLeadChoice = z.infer<typeof AdmissionLeadChoice>
 export type AdmissionMatch = z.infer<typeof AdmissionMatch>
 export type AdmissionPerson = z.infer<typeof AdmissionPerson>
 export type LeadAdmissionCheckBody = z.infer<typeof LeadAdmissionCheckBody>

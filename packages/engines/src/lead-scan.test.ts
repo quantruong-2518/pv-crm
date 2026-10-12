@@ -110,7 +110,7 @@ describe('planLeadScan', () => {
     expect(plan.groups[0]!.people).toHaveLength(1)
   })
 
-  it('holds a match outside scope without leaking its code', () => {
+  it('holds a match outside scope without carrying its code', () => {
     const plan = planLeadScan(
       [file('a', { people: [person({ name: 'An', email: 'AN@delta.vn ' })] })],
       { accounts: [account('AC-0001')], leads: [lead('LD-0001', { inScope: false })] },

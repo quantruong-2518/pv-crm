@@ -26,27 +26,24 @@ export const toEngineVerdict = (v: ContractVerdict): EngineVerdict => v
 export const toContractKey = (k: AdmissionKeyKind): AdmissionMatchKey => k
 export const toEngineKey = (k: AdmissionMatchKey): AdmissionKeyKind => k
 
-/** A decision with the names of the accounts the caller MAY BE SHOWN — an
- *  account absent from `names` never leaves the server (`shownAccounts`). */
-export type Assessed = AdmissionDecision & { names: ReadonlyMap<string, string> }
-
-/** An account code opens the account profile, which lists every lead on it.
- *  So it is shown only where that reveals nothing new: the caller already
- *  holds a live lead there, or no lead there is outside their scope. */
-export function shownAccounts(slice: BookSlice): Map<string, string> {
-  const held = new Set(slice.leads.filter((l) => l.inScope).map((l) => l.accountCode))
-  const barred = new Set(slice.leads.filter((l) => l.barred).map((l) => l.accountCode))
-  return new Map(
-    slice.accounts
-      .filter((a) => held.has(a.code) || !barred.has(a.code))
-      .map((a) => [a.code, a.name]),
-  )
+/** A decision with what the wire answer prints beside its codes: account
+ *  names by account code, lead owners by lead code (null = nobody holds it). */
+export type Assessed = AdmissionDecision & {
+  names: ReadonlyMap<string, string>
+  owners: ReadonlyMap<string, string | null>
+  /** Leads not switched off. A switched-off lead is absent, never listed. */
+  live: ReadonlySet<string>
 }
 
-/** The fence of ADR 0084 §5 for a verdict that names no single lead: some
- *  lead the evidence points at is one the caller may not see. */
-export const onOthers = (a: AdmissionDecision): boolean =>
-  a.outOfScope || a.candidateLeads.some((l) => !l.inScope)
+/** Nobody holds a company, only a lead: every account and every lead owner of
+ *  the slice is shown to every caller. */
+export function labelsOf(slice: BookSlice): Pick<Assessed, 'names' | 'owners' | 'live'> {
+  return {
+    names: new Map(slice.accounts.map((a) => [a.code, a.name])),
+    owners: new Map(slice.leads.map((l) => [l.code, l.ownerName])),
+    live: new Set(slice.leads.filter((l) => l.live).map((l) => l.code)),
+  }
+}
 
 /** The company and people of one form, in the engine's spelling. */
 export function incomingOf(
@@ -159,20 +156,23 @@ export function bookOf(slice: BookSlice, gone: readonly string[]): AdmissionBook
   return { accounts, leads }
 }
 
-/** The wire answer. A lead outside the caller's scope keeps its place and
- *  loses its code AND its account; no owner is ever named. `candidates` carry
- *  the decision's `matchedOn`: the engine reports kinds per decision. */
+/** The wire answer. A lead outside the caller's scope is still named, with its
+ *  owner, so the caller knows whom to ask; `outOfScope` only says they cannot
+ *  open or join it. `candidates` carry the decision's `matchedOn`: the engine
+ *  reports kinds per decision. */
 export function toMatch(a: Assessed): AdmissionMatch {
   const accountOf = (code: string | null) => {
     const name = code ? a.names.get(code) : undefined
     return code && name !== undefined ? { code, name } : null
   }
+  const leadOf = (code: string) => ({ code, ownerName: a.owners.get(code) ?? null })
   const matchedOn = a.matchedOn.map(toContractKey)
-  const withLead = new Set(a.candidateLeads.map((l) => l.accountCode))
+  const listed = a.candidateLeads.filter((l) => a.live.has(l.code))
+  const withLead = new Set(listed.map((l) => l.accountCode))
   const candidates = [
-    ...a.candidateLeads.map((l) => ({
-      account: l.inScope ? accountOf(l.accountCode) : null,
-      lead: l.inScope ? { code: l.code } : {},
+    ...listed.map((l) => ({
+      account: accountOf(l.accountCode),
+      lead: leadOf(l.code),
       outOfScope: !l.inScope,
       matchedOn,
     })),
@@ -181,17 +181,22 @@ export function toMatch(a: Assessed): AdmissionMatch {
       .map((code) => ({
         account: accountOf(code),
         lead: null,
-        outOfScope: !a.names.has(code),
+        outOfScope: false,
         matchedOn,
       })),
   ]
   return {
     verdict: toContractVerdict(a.verdict),
-    account: a.outOfScope ? null : accountOf(a.accountCode),
-    lead: a.leadCode ? (a.outOfScope ? {} : { code: a.leadCode }) : null,
+    account: accountOf(a.accountCode),
+    lead: a.leadCode ? leadOf(a.leadCode) : null,
     outOfScope: a.outOfScope,
     matchedOn,
     newPeople: a.newPeople.length,
+    leads: a.leadChoices.slice(0, ADMISSION_CANDIDATE_CAP).map((l) => ({
+      ...leadOf(l.code),
+      outOfScope: !l.inScope,
+      newPeople: l.newPeople.length,
+    })),
     candidates: a.verdict === 'needs-review' ? candidates.slice(0, ADMISSION_CANDIDATE_CAP) : [],
   }
 }

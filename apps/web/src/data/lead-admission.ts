@@ -104,10 +104,7 @@ export function useLeadAdmission(on: {
       },
       onError: (error) => {
         if (error.kind === 'conflict') return ask(body, error)
-        /* The gate's own 403 says who to turn to; `userMessage` would replace
-           it with the generic permission line. */
-        const own = admission && error.kind === 'forbidden' ? error.serverTitle : undefined
-        on.refused(error, own ?? userMessage(error))
+        on.refused(error, userMessage(error))
       },
     })
 
@@ -116,12 +113,14 @@ export function useLeadAdmission(on: {
     pending: check.isPending || create.isPending,
     /** Submit: ask the gate, create only on `new-account`. */
     start: (body: LeadCreate) => ask(body),
-    /** A button on the panel: create with what the person was shown. */
-    choose: (action: AdmissionAction) => {
+    /** A button on the panel: create with what the person was shown.
+     *  `leadCode` = the open lead an `add-contact` joins. */
+    choose: (action: AdmissionAction, leadCode?: string) => {
       if (!held) return
       const { body, match } = held
       send(body, {
         action,
+        ...(action === 'add-contact' && leadCode ? { leadCode } : {}),
         seen: {
           verdict: match.verdict,
           leadCode: match.lead?.code,

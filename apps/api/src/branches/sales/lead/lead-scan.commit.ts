@@ -92,7 +92,7 @@ export class LeadScanCommit {
       await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], CREATOR_REVOKED)
       return
     }
-    const { plan } = await this.scans.planOf(creator, await this.repo.files(code))
+    const plan = await this.scans.planOf(creator, await this.repo.files(code))
     /* A campaign closed since upload loses the attribution, not the batch. */
     const campaign = batch.campaignCode
       ? await this.campaigns.pickableOne(batch.campaignCode)

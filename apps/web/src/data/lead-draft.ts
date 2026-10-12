@@ -64,7 +64,7 @@ export type LeadDraft = {
    *  not chosen yet. `null` = nothing to choose. */
   admission: AdmissionPanel | null
   /** Create door only: POST with the choice made on the admission panel. */
-  chooseAdmission: (action: AdmissionAction) => void
+  chooseAdmission: (action: AdmissionAction, leadCode?: string) => void
   pending: boolean
   saveState: SaveState
   /** The complaint aimed at ONE box, so a red sentence can sit under the box
@@ -258,11 +258,11 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     admission.start(built.body)
   }
 
-  const chooseAdmission = (action: AdmissionAction) => {
+  const chooseAdmission = (action: AdmissionAction, leadCode?: string) => {
     if (admission.pending) return
     setFailed(null)
     setSaveState({ kind: 'saving' })
-    admission.choose(action)
+    admission.choose(action, leadCode)
   }
 
   const reset = () => {

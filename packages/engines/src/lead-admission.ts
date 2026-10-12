@@ -69,14 +69,14 @@ export type AdmissionBookLead = {
   accountCode: string
   /** False = disqualified or closed: it never receives a contact. */
   open: boolean
-  /** Whether the caller may see this lead. Reported, never acted on. */
+  /** Whether the caller may open and join this lead; it also ranks the choices. */
   inScope: boolean
   /** The primary person plus every extra contact, keyed by `leadKeys`. */
   people: readonly LeadPersonKeys[]
 }
 
 /** The slice must hold EVERY lead of every account it reaches, not only the
- *  leads a key hit: three verdicts turn on how many open leads an account has. */
+ *  leads a key hit: the verdict turns on which open leads an account has. */
 export type AdmissionBook = {
   accounts: readonly AdmissionBookAccount[]
   leads: readonly AdmissionBookLead[]
@@ -84,17 +84,24 @@ export type AdmissionBook = {
 
 export type AdmissionCandidateLead = { code: string; accountCode: string; inScope: boolean }
 
+/** One open lead of the matched account an entry may join. `newPeople` indexes
+ *  the incoming people that lead does not hold yet. */
+export type AdmissionLeadChoice = { code: string; inScope: boolean; newPeople: number[] }
+
 export type AdmissionDecision = {
   ref: string
   verdict: AdmissionVerdict
-  /** Set whenever exactly one account matched, `needs-review` included. */
+  /** The one account matched on strong evidence; null for `needs-review`. */
   accountCode: string | null
   leadCode: string | null
-  /** The matched lead is one the caller may not see. */
+  /** The matched lead is one the caller may not open or join. */
   outOfScope: boolean
   matchedOn: AdmissionKeyKind[]
   /** Indexes into the item's people that the door still has to write. */
   newPeople: number[]
+  /** Every open lead of the matched account, `leadCode` first: a company may
+   *  hold several, and only a door that can ask a person picks another. */
+  leadChoices: AdmissionLeadChoice[]
   /** Filled for `needs-review` only. */
   candidateAccounts: string[]
   candidateLeads: AdmissionCandidateLead[]
@@ -227,6 +234,7 @@ function decide(ref: string, keys: LeadKeys, idx: BookIndex): AdmissionDecision 
     outOfScope: false,
     matchedOn: [],
     newPeople: [],
+    leadChoices: [],
     candidateAccounts: [],
     candidateLeads: [],
     batchGroup: null,
@@ -237,14 +245,10 @@ function decide(ref: string, keys: LeadKeys, idx: BookIndex): AdmissionDecision 
   const everyone = keys.people.flatMap((p, i) => (p.email || p.phone || p.name ? [i] : []))
   const evidence = accountEvidence(keys, idx)
   const kindsOf = (code: string) => [...(evidence.kinds.get(code) ?? [])]
-  const review = (
-    accounts: string[],
-    leads: Iterable<AdmissionBookLead>,
-    personKinds: AdmissionKeyKind[] = [],
-  ): AdmissionDecision => ({
+  const review = (accounts: string[], leads: Iterable<AdmissionBookLead>): AdmissionDecision => ({
     ...base,
     verdict: 'needs-review',
-    matchedOn: inKindOrder([...accounts.flatMap(kindsOf), ...personKinds]),
+    matchedOn: inKindOrder(accounts.flatMap(kindsOf)),
     candidateAccounts: accounts,
     candidateLeads: [...leads]
       .filter((l) => accounts.includes(l.accountCode))
@@ -271,13 +275,24 @@ function decide(ref: string, keys: LeadKeys, idx: BookIndex): AdmissionDecision 
     return { ...base, verdict: 'returning-account', accountCode, matchedOn, newPeople: everyone }
   }
   const hits = keys.people.map((p) => findPerson(p, accountCode, idx))
-  const onLeads = new Set(hits.flatMap((h) => h?.leads ?? []))
-  const personKinds = hits.flatMap((h) => (h ? [h.kind] : []))
-  if (onLeads.size > 1 || (onLeads.size === 0 && open.length > 1)) {
-    return { ...review([accountCode], onLeads.size ? onLeads : open, personKinds), accountCode }
-  }
-  const lead = onLeads.size ? [...onLeads][0]! : open[0]!
-  const newPeople = everyone.filter((i) => !hits[i])
+  const holds = (lead: AdmissionBookLead) => hits.filter((h) => h?.leads.includes(lead)).length
+  /* A company may hold several open leads. The first is the one a door that
+     cannot ask acts on: the lead already holding these people, then one the
+     caller may see, then the newest code. */
+  const ranked = [...open].sort(
+    (a, b) =>
+      holds(b) - holds(a) ||
+      Number(b.inScope) - Number(a.inScope) ||
+      b.code.localeCompare(a.code, undefined, { numeric: true }),
+  )
+  const leadChoices = ranked.map((lead) => ({
+    code: lead.code,
+    inScope: lead.inScope,
+    newPeople: everyone.filter((i) => !hits[i]?.leads.includes(lead)),
+  }))
+  const lead = ranked[0]!
+  const newPeople = leadChoices[0]!.newPeople
+  const personKinds = hits.flatMap((h) => (h?.leads.includes(lead) ? [h.kind] : []))
   return {
     ...base,
     verdict: newPeople.length ? 'new-contact' : 'same-lead',
@@ -286,8 +301,14 @@ function decide(ref: string, keys: LeadKeys, idx: BookIndex): AdmissionDecision 
     outOfScope: !lead.inScope,
     matchedOn: inKindOrder([...kindsOf(accountCode), ...personKinds]),
     newPeople,
+    leadChoices,
   }
 }
+
+/** Two open leads fit the entry equally well, so only a person can say which
+ *  one it joins — a door that cannot ask must hold instead of picking. */
+export const admissionTied = ({ leadChoices: [first, second] }: AdmissionDecision): boolean =>
+  !!first && !!second && first.newPeople.length === second.newPeople.length
 
 /** Groups the new companies of a batch on strong keys only, then flags people
  *  an earlier item already named — within one new company or one matched
