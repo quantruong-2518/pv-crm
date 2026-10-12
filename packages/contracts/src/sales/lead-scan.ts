@@ -232,6 +232,9 @@ export const ScanOutcome = z.enum([
   'MERGE_INTO_LEAD',
   'HELD_MISSING_CONTACT',
   'HELD_OTHER_OWNER',
+  /** The admission gate would not decide (weak or contradictory evidence, or
+   *  two open leads that fit equally): nothing is written, a person types it. */
+  'HELD_NEEDS_REVIEW',
 ])
 
 export const ScanGroupField = z.object({
@@ -253,10 +256,12 @@ const groupBase = {
     z.object({ name: z.string(), title: z.string().nullable(), email: z.string().nullable() }),
   ),
   fields: z.array(ScanGroupField),
+  /** Set on a `NEW_LEAD` that lands on a company already in the book. */
+  accountCode: ObjectCode.optional(),
 }
 
 /** Split on `outcome` so only a merge can carry `leadCode`: a match outside
- *  the uploader's scope must not leak a code, and parsing strips one. */
+ *  the uploader's scope cannot be joined, and parsing strips its code. */
 export const ScanGroup = z.discriminatedUnion('outcome', [
   z.object({ ...groupBase, outcome: z.literal('MERGE_INTO_LEAD'), leadCode: ObjectCode }),
   z.object({ ...groupBase, outcome: ScanOutcome.exclude(['MERGE_INTO_LEAD']) }),

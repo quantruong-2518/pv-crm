@@ -139,12 +139,9 @@ follow-up after the Neon queue is checked.
 - Per-user preferences.
 - Push delivery.
 - Notifications whose recipient the data cannot name: the campaign owner is
-  free text, and "operator" does not exist as a role. Open question 39.
-- `LEAD_RE_ENTERED` / `lead-re-entered` has a rule and a kind but no emitter on
-  this branch: the code that writes a re-entry lives in another branch
-  (`lead-admission`), to be wired at merge.
+  free text, and "operator" does not exist as a role. Open question 57.
 - Contract instalment and milestone events: their tables have no writer.
-  Open question 40.
+  Open question 58.
 
 ## Alternatives rejected
 
@@ -166,14 +163,10 @@ Hazards no file in git records.
    is retried until the migration lands. It ALSO widens `sales.touch`'s kind CHECK, so it
    takes a brief exclusive lock on a live table, and code that writes
    `customer-replied` must not deploy before it.
-2. Drizzle skips by timestamp: `0099` carries a later `when` than the
-   `0097`/`0098` waiting on branch `lead-admission`. If 0099 reaches a database
-   first, those two are silently skipped. Ship them first or raise their `when`.
-3. Merging `lead-admission`: its `lead-intake.service.ts` still uses the removed
-   E4 exports (`AUDIENCE_INTERNAL`, `LEAD_INTAKE_ACCEPTED`, one-argument
-   `plan()`) and the removed env key, so it will not compile until rewired to
-   `NotificationHub`. `_journal.json` will conflict.
-4. Replies only arrive when reply tracking is on: on the Gmail path, the worker
+2. Drizzle skips by timestamp, and `0099` rewrites the touch-kind CHECK that
+   `0097` (ADR 0084) also rewrote: a database must already hold `0097`/`0098`
+   before `0099` runs. `0099` keeps `re-entered` in the list.
+3. Replies only arrive when reply tracking is on: on the Gmail path, the worker
    running with mail enabled and the Google link configured; on Resend inbound,
    `PV_MAS_REPLY_TRACKING_ENABLED` and its webhook secret.
-5. `GET /approvals/mine` has no index on `raised_by_id` yet (a later migration).
+4. `GET /approvals/mine` has no index on `raised_by_id` yet (a later migration).

@@ -15,7 +15,10 @@
  *  adapter gọi API — interface không đổi, màn không phải sửa dòng nào. */
 
 export * from './types'
+export * from './lead-admission'
 export * from './lead-intake'
+export { companyDomain, groupByLinks, leadKeys, websiteHost } from './lead-keys'
+export type { LeadKeyCompany, LeadKeyPerson, LeadKeys, LeadPersonKeys } from './lead-keys'
 export * from './lead-scan'
 export * from './e1-object-graph'
 export * from './e2-access'

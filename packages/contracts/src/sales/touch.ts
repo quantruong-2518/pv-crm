@@ -118,6 +118,10 @@ export const TouchKind = z.enum([
   /** A mail reached the customer but the lead's state could not be moved
    *  after retries; the holder moves it by hand (ADR 0068). */
   'mail-sync-failed',
+  /** The same customer came into the book again through some door and no new
+   *  lead was made; the row sits on the existing lead, `by` names who entered
+   *  it and `note` the door. */
+  're-entered',
   /** The customer answered a letter. Written by the system on every new reply,
    *  for a lead in any state and for a deal; it moves nothing by itself, and it
    *  is not the holder's own contact — no rung or KPI count may read it as one. */

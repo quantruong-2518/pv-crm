@@ -5,7 +5,8 @@ import {
   type MotionAsks,
 } from '@pv/contracts'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
-import { buildLeadCreate, emptyDraft, ROOT_FIELD, useCreateLead } from '@/data/lead-create'
+import { useLeadAdmission, type AdmissionAction, type AdmissionPanel } from '@/data/lead-admission'
+import { buildLeadCreate, emptyDraft, ROOT_FIELD } from '@/data/lead-create'
 import { buildLeadPatch, useUpdateLeadProfile, type SaveState } from '@/data/lead-patch'
 import { profileForm } from '@/data/lead-profile'
 import {
@@ -57,8 +58,13 @@ export type LeadDraft = {
   dirty: FieldKey[]
   /** Create door only: drops everything typed. */
   reset: () => void
-  /** Create door only: POST. */
+  /** Create door only: ask the admission gate, then POST on a new company. */
   submit: () => void
+  /** Create door only: what the gate found in the book, while the person has
+   *  not chosen yet. `null` = nothing to choose. */
+  admission: AdmissionPanel | null
+  /** Create door only: POST with the choice made on the admission panel. */
+  chooseAdmission: (action: AdmissionAction, leadCode?: string) => void
   pending: boolean
   saveState: SaveState
   /** The complaint aimed at ONE box, so a red sentence can sit under the box
@@ -106,7 +112,11 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   /* Both doors opened up front: a hook cannot sit behind a branch, and a
      mutation nobody calls costs nothing. */
   const save = useUpdateLeadProfile()
-  const create = useCreateLead()
+  const admission = useLeadAdmission({
+    done: (code) => args.mode === 'create' && args.onCreated(code),
+    refused: (error, message) => refuse(error.errors ?? { [ROOT_FIELD]: [message] }),
+    stopped: () => setSaveState({ kind: 'idle' }),
+  })
   const motions = useMotionChoices(MOTION_BY_CHANNEL.MANUAL, mode === 'create')
   const asksOf = (motion: string | undefined): MotionAsks | undefined =>
     motions.find((m) => m.motion === motion)?.asks
@@ -184,6 +194,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     live.current = next
     setValues(next)
     dropComplaint(field.key)
+    if (mode === 'create') admission.clear()
   }
 
   const commit = (field: FormField) => {
@@ -230,7 +241,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   }
 
   const submit = () => {
-    if (args.mode !== 'create' || create.isPending) return
+    if (args.mode !== 'create' || admission.pending) return
     const asks = asksOf(live.current.motion)
     if (!asks) {
       refuse({ motion: ['Chưa chọn phương án tiếp cận'] })
@@ -244,10 +255,14 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
 
     setFailed(null)
     setSaveState({ kind: 'saving' })
-    create.mutate(built.body, {
-      onSuccess: (lead) => args.onCreated(lead.code),
-      onError: refuseCall,
-    })
+    admission.start(built.body)
+  }
+
+  const chooseAdmission = (action: AdmissionAction, leadCode?: string) => {
+    if (admission.pending) return
+    setFailed(null)
+    setSaveState({ kind: 'saving' })
+    admission.choose(action, leadCode)
   }
 
   const reset = () => {
@@ -255,6 +270,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     setValues(base)
     setFailed(null)
     setSaveState({ kind: 'idle' })
+    admission.clear()
   }
 
   /* Complaints that name no box of this form stay visible as ONE line under the
@@ -276,7 +292,9 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     dirty: changedFields(base, values),
     reset,
     submit,
-    pending: mode === 'create' ? create.isPending : save.isPending,
+    admission: admission.panel,
+    chooseAdmission,
+    pending: mode === 'create' ? admission.pending : save.isPending,
     saveState,
     fieldError: (key) => failed?.[wireOf(key)]?.[0],
     formError,

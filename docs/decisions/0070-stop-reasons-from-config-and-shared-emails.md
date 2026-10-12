@@ -1,6 +1,6 @@
 # 0070 · Stop reasons become one admin-editable catalogue shared by both stop doors; a lead's email carries no live-uniqueness; E2 compares the holder by id
 
-Status: accepted (narrows 0057 §2's six closed exit reasons to an
+Status: accepted (§B partly superseded by 0084 on file-import duplicates; narrows 0057 §2's six closed exit reasons to an
 admin-editable catalogue; settles 0067 §4's open question of whether the
 catalogue also covers `nurturing` entries — yes; resolves 0068's Open item on
 the stop record/reason catalogue; implements 0067 §9 (D4) as described; pays
@@ -54,7 +54,9 @@ which other live leads share the same email and shows it as a warning
 ("Trùng email với LD-x") rather than refusing the write. This now also
 covers the door 0067 §9 left as future work: CSV import rows whose email
 already has a live lead are imported and flagged the same way the landing
-door already does, not skipped. Merging duplicate leads by hand is unchanged.
+door already does, not skipped. _(Superseded by 0084 for file import: a row
+already in the book is dropped and reported, and 0084 governs duplicate
+handling at intake. The email-twin flag in the book below still stands.)_ Merging duplicate leads by hand is unchanged.
 Campaign and group-mail audiences still dedupe per mailbox, so one mailbox
 with two live leads is never mailed twice even though both leads are allowed
 to exist.
@@ -84,7 +86,8 @@ display name no longer read or refuse each other's rows off the name alone.
   key), the same shape opportunity care reasons already use.
 - The unique index over live-lead email is dropped; a duplicate email is a
   book-level warning computed at read time, not a write-time refusal,
-  everywhere a lead can be created (landing, CSV import, manual create).
+  everywhere a lead can be created (landing, CSV import, manual create). _(File
+  import: see 0084, which drops and reports a row already in the book.)_
 - `platform.object.owner_id` becomes a real column, backfilled from the
   objects that already carried an owner id (lead, contract) and, where a name
   matched exactly one actor, from that match; an unmatched owner is left

@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   ContactCreate,
   LeadAccountAttach,
+  LeadAdmissionCheckBody,
   LeadBookQuery,
   LeadCreate,
   LeadDisableBody,
@@ -21,6 +22,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { LeadAdmissionService } from './lead-admission.service'
 import { LeadDisableService } from './lead-disable.service'
 import { LeadService } from './lead.service'
 import { LeadExitService } from './lead-exit.service'
@@ -58,6 +60,7 @@ export class LeadController {
     private readonly write: LeadWriteService,
     private readonly exits: LeadExitService,
     private readonly disabling: LeadDisableService,
+    private readonly admission: LeadAdmissionService,
   ) {}
 
   @Get()
@@ -117,6 +120,19 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.disable' })
   setDisabled(@CurrentActor() who: Actor, @Body(zod(LeadDisableBody)) body: LeadDisableBody) {
     return this.disabling.set(who, body)
+  }
+
+  /** What the gate would say about this company and these people. Writes
+   *  nothing, so 200; above every `:code` route like `disabled`. Same
+   *  permission as the create door it previews. */
+  @Post('admission/check')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'lead.edit' })
+  checkAdmission(
+    @CurrentActor() who: Actor,
+    @Body(zod(LeadAdmissionCheckBody)) body: LeadAdmissionCheckBody,
+  ) {
+    return this.admission.check(who, body)
   }
 
   /** Hồ sơ một lead — mọi thứ dòng sổ cố tình không chở.

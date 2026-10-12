@@ -27,7 +27,9 @@
     "//db:reset:data": "XOÁ mọi dữ liệu nghiệp vụ (lead và mọi thứ treo dưới nó), GIỮ tài khoản, quyền, cấu hình và các danh mục migration trồng. Mặc định xem trước từng bảng sẽ mất bao nhiêu dòng; phải thêm --apply mới xoá.",
     "db:reset:data": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-data.ts",
     "//db:reset:staff": "XOÁ SẠCH sales + platform rồi dựng lại sổ nhân sự thật từ src/staff.ts — bảy tài khoản, mỗi vai một người, cùng DEFAULT_PASSWORD. Destructive hơn db:seed: không nạp lại dữ liệu nào cả. Mặc định xem trước; phải thêm --apply mới ghi.",
-    "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts"
+    "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts",
+    "//db:backfill:admission-keys": "Fills the admission key columns (migration 0097) on rows written before the gate. Preview by default; --apply writes. Idempotent.",
+    "db:backfill:admission-keys": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/lead/lead-admission.backfill.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

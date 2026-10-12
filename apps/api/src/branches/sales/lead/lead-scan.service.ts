@@ -1,13 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import {
-  LEAD_SCAN_READY,
-  normaliseEmail,
-  planLeadScan,
-  taxRoot,
-  type Actor,
-  type ScanPlan,
-} from '@pv/engines'
+import { LEAD_SCAN_READY, planLeadScan, type Actor, type ScanPlan } from '@pv/engines'
 import {
   LeadAttachmentsResponse,
   LeadScanAddFilesResponse,
@@ -41,12 +34,13 @@ import { LeadScanRepository, type ScanFileJoined } from './lead-scan.repository'
 import {
   isEmpty,
   noteOf,
+  scanNeedlesOf,
   toAttachment,
   toPreview,
   toReadFiles,
   toScanFile,
 } from './lead-scan.mapper'
-import { LeadRepository } from './lead.repository'
+import { LeadAdmissionService } from './lead-admission.service'
 import { LeadService } from './lead.service'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadWriteService } from './lead-write.service'
@@ -77,7 +71,7 @@ export class LeadScanService {
 
   constructor(
     private readonly repo: LeadScanRepository,
-    private readonly leads: LeadRepository,
+    private readonly gate: LeadAdmissionService,
     private readonly profiles: LeadService,
     private readonly write: LeadWriteService,
     private readonly writeRepo: LeadWriteRepository,
@@ -259,7 +253,7 @@ export class LeadScanService {
         queued: count(['QUEUED']),
         failed: count(['FAILED']),
       },
-      ...(previewed ? { preview: toPreview(await this.planOf(who, files), files) } : {}),
+      ...(previewed ? { preview: await this.previewOf(who, files) } : {}),
       ...(batch.state === 'DONE' && batch.result ? { result: batch.result } : {}),
     })
   }
@@ -295,6 +289,10 @@ export class LeadScanService {
     return LeadAttachmentsResponse.parse({ rows: out })
   }
 
+  private async previewOf(who: Actor, files: readonly ScanFileJoined[]) {
+    return toPreview(await this.planOf(who, files), files)
+  }
+
   /** The plan over the files as they stand, matched against the book as the
    *  uploader sees it. Recomputed every time: the book moves between polls. */
   async planOf(
@@ -303,18 +301,8 @@ export class LeadScanService {
     db?: Db,
   ): Promise<ScanPlan> {
     const read = toReadFiles(files)
-    const emails = read.flatMap((f) => [
-      ...f.people.map((p) => p.email),
-      ...f.companies.flatMap((c) => c.emails),
-    ])
-    const taxes = read.flatMap((f) => f.companies.map((c) => c.taxCode))
-    const book = await this.leads.scanBook(
-      who,
-      unique(emails.map((e) => e && normaliseEmail(e))),
-      unique(taxes.map((t) => t && taxRoot(t))),
-      db,
-    )
-    return planLeadScan(read, book)
+    const needles = scanNeedlesOf(read)
+    return planLeadScan(read, await this.gate.bookFor(db ?? this.repo.pool, who, needles))
   }
 
   /** Job: read one file. A re-delivered job on a finished file is a no-op.
@@ -460,7 +448,3 @@ function isFinal(error: unknown): boolean {
     error instanceof StorageObjectMissingError
   )
 }
-
-const unique = (values: readonly (string | null | undefined)[]): string[] => [
-  ...new Set(values.filter((v): v is string => !!v)),
-]

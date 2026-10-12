@@ -51,4 +51,4 @@ ALTER TABLE "sales"."touch" ADD CONSTRAINT "touch_kind_known" CHECK ("kind" IN (
                      'entered-pipeline', 'stage-changed', 'signed', 'exited',
                      'reopened', 'sample-sent', 'poc-run', 'demo-held', 'site-visited',
                      'quotation-sent', 'care-left', 'next-step-done',
-                     'mail-failed', 'mail-sync-failed', 'customer-replied'));
+                     'mail-failed', 'mail-sync-failed', 're-entered', 'customer-replied'));

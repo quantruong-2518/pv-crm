@@ -218,6 +218,7 @@ export type LeadImportPanelReport = {
   codes?: string[]
   /** Optional: a refusal built in the browser has no such list. */
   attached?: LeadImportReport['attached']
+  joined?: LeadImportReport['joined']
   origins?: LeadImportReport['origins']
 }
 
@@ -236,6 +237,8 @@ export function toPanelReport(report: LeadImportReport): LeadImportPanelReport {
       line: row.line,
       values: { ...row.values },
       key: row.key,
+      admission: row.admission,
+      accountCode: row.accountCode,
     })),
     errors: report.errors.map((err) => ({
       line: err.line,
@@ -249,6 +252,7 @@ export function toPanelReport(report: LeadImportReport): LeadImportPanelReport {
     dupWithBook: report.dupWithBook,
     dupWithinFile: report.dupWithinFile,
     attached: report.attached,
+    joined: report.joined,
     origins: report.origins,
   }
 }

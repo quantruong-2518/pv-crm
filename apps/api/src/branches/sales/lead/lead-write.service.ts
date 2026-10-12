@@ -30,7 +30,8 @@ import type { Db } from '@api/platform/db/db.module'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { ContactService } from '../contact/contact.service'
 import type { LeadContactMirror } from '../contact/contact.repository'
-import { checkBatch, keyOf, type ImportCheck } from './lead-import.check'
+import { checkBatch, type ImportCheck } from './lead-import.check'
+import { incomingOfImport, planImport, type ImportPlan } from './lead-admission.import'
 import {
   fromCreate,
   fromPatch,
@@ -45,6 +46,7 @@ import { toContract } from './lead.mapper'
 import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
+import { LeadAdmissionService } from './lead-admission.service'
 import {
   LEAD_GONE_STATES,
   LEAD_GONE_WORDS,
@@ -52,7 +54,7 @@ import {
   stateAfterOwnerChange,
 } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { LeadOriginService } from '../lead-origin/lead-origin.service'
+import { LeadOriginService, type OriginIndex } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
 import { PartnerService } from '../partner/partner.service'
 import { referrerOf, refuseByAsks } from './lead-motion-asks'
@@ -149,6 +151,8 @@ export class LeadWriteService {
     /* One read per hand-over: can the receiver open deals (`opportunity.view`)? */
     private readonly actors: ActorRepository,
     private readonly hub: NotificationHub,
+    /* Every door asks the gate before it writes; the gate never asks back. */
+    private readonly gate: LeadAdmissionService,
   ) {}
 
   /** One lead changed hands, or was born in someone's name (ADR 0085). An
@@ -224,6 +228,8 @@ export class LeadWriteService {
     const run = await this.runs.nextCode()
 
     const row = await this.repo.run(async (tx) => {
+      const admitted = await this.gate.typed(tx, who, body)
+      if (admitted.reentered) return admitted.reentered
       /* No pick = the motion derives it: the partner's origin, else the campaign's. */
       const origin = body.origin
         ? await this.origins.resolveOrigin(tx, body.origin, body.motion, who.id)
@@ -241,10 +247,18 @@ export class LeadWriteService {
         who,
         owner,
         note: LEAD_NOTE.typed,
+        accountCode: admitted.accountCode,
       })
       if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, [code])
       return { written, originName: origin.name }
     })
+    /* The entry joined a lead already in the book: answer with that lead's
+       row, read after the commit because the pool is one connection on PGlite. */
+    if (typeof row === 'string') {
+      const found = await this.leads.byCode(who, row)
+      if (!found) throw notFound('lead', row)
+      return LeadCreateResponse.parse(toContract(found))
+    }
 
     /* `daysHere` is 0 and `signed` is false by construction, not by guesswork:
        `state_since` defaulted to now a millisecond ago, and a lead that has
@@ -279,6 +293,8 @@ export class LeadWriteService {
       who: { id: string; name: string } | null
       owner: { id: string; name: string; roleIds: RoleId[] } | null
       note: string
+      /** The admission gate's account; absent = find or open one by identity. */
+      accountCode?: string | null
     },
   ): Promise<LeadRowDb> {
     const { code, run, write, who, owner } = b
@@ -286,7 +302,8 @@ export class LeadWriteService {
     /* The company is resolved BEFORE the lead row, in the same transaction:
        `lead.account_code` is a foreign key into `sales.account`, so the other
        order kills the lead insert because its target does not exist yet. */
-    const accountCode = await this.accounts.resolveForLead(tx, write.values)
+    const accountCode =
+      b.accountCode ?? (await this.accounts.resolveForLead(tx, write.values, who?.id ?? null))
     /* The lead BELONGS TO the company, so the arrow runs lead → company and
        the rail climbs from the lead to the customer it is part of. Written
        after `resolveForLead` and not before: that call is what puts the
@@ -644,7 +661,8 @@ export class LeadWriteService {
    *  happen", and a question that changes the thing it asks about is not that
    *  question. */
   async preview(who: Actor, body: LeadImportBody): Promise<LeadImportPreviewResponse> {
-    const { report } = await this.check(this.repo.readonlyHandle, body, who)
+    const handle = this.repo.readonlyHandle
+    const { report } = await this.admitted(handle, who, await this.check(handle, body, who), false)
     return LeadImportPreviewResponse.parse(report)
   }
 
@@ -663,7 +681,9 @@ export class LeadWriteService {
    *  of the more useful things a log can say six months later. */
   async commit(who: Actor, body: LeadImportBody): Promise<LeadImportCommitResponse> {
     const handle = this.repo.readonlyHandle
-    const { report, writes } = await this.check(handle, body, who)
+    const checked = await this.check(handle, body, who)
+    /* Unlocked, so only a count: how many codes to mint before the transaction. */
+    const minted = (await this.admitted(handle, who, checked, false)).writes.length
 
     /* One code per accepted row, all of them before the transaction opens —
        see the note at the top of this class.
@@ -680,22 +700,32 @@ export class LeadWriteService {
        row. A 5.000-row file spends 5.000 of them here. The fix is a single
        `nextval(seq, n)` call minting a block at once, which belongs in
        `lead.repository.ts` next to the sequence it reads. */
-    const codes = (await Promise.all(writes.map(() => this.leads.nextCode()))).sort(
+    const minting = Array.from({ length: minted }, () => this.leads.nextCode())
+    const codes = (await Promise.all(minting)).sort(
       (a, b) => Number(a.slice(3)) - Number(b.slice(3)),
     )
-    const runs = await this.runs.nextCodes(writes.length)
+    const runs = await this.runs.nextCodes(minted)
     const openedAt = new Date()
 
-    /* Row and mirror row are built together, from the same draft and the same
-       code, so the two can never drift apart by an index. */
-    const ready = writes.map((write, i) => ({
-      row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
-      ref: refOf(codes[i]!, write),
-      origin: write.origin,
-      extras: write.extras,
-    }))
-
-    const batch = await this.repo.run(async (tx) => {
+    const done = await this.repo.run(async (tx) => {
+      /* The decision that is written on: every key of the file locked in one
+         sorted statement, then the whole file assessed again on this `tx`. */
+      const plan = await this.admitted(tx, who, checked, true)
+      if (plan.writes.length > minted) {
+        throw conflict('Sổ lead vừa thay đổi trong lúc nạp. Nạp lại tệp này.')
+      }
+      /* Row and mirror row are built together, from the same draft and the same
+         code, so the two can never drift apart by an index. */
+      const ready = plan.writes.map((write, i) => ({
+        row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
+        ref: refOf(codes[i]!, write),
+        origin: write.origin,
+        extras: write.extras,
+        accountCode: write.accountCode,
+        company: write.company,
+      }))
+      /* Batch-wide: drafts the gate grouped as one new company share its account. */
+      const seen = new Map<string, string>()
       /* Each distinct origin resolved ONCE per batch, before any row needs it. */
       const originIds = new Map<string, string>()
       for (const { origin } of ready) {
@@ -729,7 +759,6 @@ export class LeadWriteService {
            Memoised because a five thousand row import file is usually thirty
            companies: without `seen`, every row is a read that returns a code
            this loop already knew. */
-        const seen = new Map<string, string>()
         const rows: (typeof slice)[number]['row'][] = []
         /* Same edge the single-lead door writes, collected HERE rather than
            re-read off `rows`: the row type comes from `$inferInsert`, where the
@@ -738,9 +767,9 @@ export class LeadWriteService {
         const links: Edge[] = []
         const opened: { code: string; accountCode: string; openedAt: Date }[] = []
         for (const p of slice) {
-          const key = identityOfLead(p.row)
-          const known = seen.get(key)
-          const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row))
+          const key = p.company === null ? identityOfLead(p.row) : `group:${p.company}`
+          const known = p.accountCode ?? seen.get(key)
+          const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row, who.id))
           if (!known) seen.set(key, accountCode)
           rows.push({
             ...p.row,
@@ -810,9 +839,14 @@ export class LeadWriteService {
         }
       }
 
+      /* People the file adds to leads already in the book: no new lead. */
+      for (const [leadCode, people] of plan.joins) {
+        await this.gate.reenter(tx, leadCode, people, who, 'IMPORT')
+      }
+      const used = codes.slice(0, ready.length)
       const batch = await this.repo.writeBatchNote(tx, {
         actorId: who.id,
-        note: noteOf(body, codes),
+        note: noteOf(body, used),
       })
       /* ONE pool line for the file, keyed by its receipt — not one per lead. */
       const count = ready.filter((p) => !p.row.ownerId).length
@@ -820,17 +854,17 @@ export class LeadWriteService {
         const subject = { kind: 'lead-pool' as const, code: batch.id, label: body.fileName }
         await this.states.pooled(tx, { subject, actorId: who.id, count })
       }
-      return batch
+      return { batch, report: plan.report, codes: used }
     })
 
     return LeadImportCommitResponse.parse({
-      ...report,
-      batchId: batch.id,
-      at: batch.at.toISOString(),
+      ...done.report,
+      batchId: done.batch.id,
+      at: done.batch.at.toISOString(),
       intake: 'IMPORT',
       motion: body.motion,
-      accepted: codes.length,
-      codes,
+      accepted: done.codes.length,
+      codes: done.codes,
     })
   }
 
@@ -909,7 +943,11 @@ export class LeadWriteService {
    *  preview said it was clean" and "the commit reported errors" cannot become
    *  two different sentences about one file. The reads are identical too: the
    *  same staff book, the same live mailboxes, the same lookup. */
-  private async check(handle: Db, body: LeadImportBody, who: Actor): Promise<ImportCheck> {
+  private async check(
+    handle: Db,
+    body: LeadImportBody,
+    who: Actor,
+  ): Promise<ImportCheck & { origins: OriginIndex }> {
     /* The create door's motion rules, asked here so preview and commit agree.
        Batch-wide: one file is one motion, so one answer for every row. */
     const asks = await this.asksOf(handle, body.motion)
@@ -938,10 +976,8 @@ export class LeadWriteService {
       ),
     ]
 
-    const [staff, book, live, origins] = await Promise.all([
+    const [staff, live, origins] = await Promise.all([
       this.repo.staff(handle),
-      /* The book's own scope verdict, so a duplicate never leaks a code the caller cannot open. */
-      this.leads.importBook(who, handle),
       this.repo.campaignCodes(handle, campaigns),
       this.origins.index(),
     ])
@@ -950,7 +986,7 @@ export class LeadWriteService {
     }
 
     const mayAssign = this.access.allows(who, 'lead.assign')
-    return checkBatch({
+    const checked = checkBatch({
       rows: body.rows,
       motion: body.motion,
       ...(source === undefined ? {} : { source }),
@@ -963,10 +999,24 @@ export class LeadWriteService {
       ...(mayAssign ? {} : { onlyOwner: who.id }),
       ...(mayAssign || !who.ownOnly ? {} : { blankOwner: { id: who.id, name: who.name } }),
       campaigns: live,
-      /* One `keyOf` on both sides: the file's rows and the book's leads are
-         folded by the same function, so neither side needs a translation. */
-      book: new Map(book.map((b) => [keyOf(b), b.inScope ? b.code : null])),
     })
+    return { ...checked, origins }
+  }
+
+  /** The checked file against the book: the gate asked once for the whole
+   *  file, its verdicts applied by `planImport`. `lock` is the commit's, on
+   *  its own transaction; the preview and the code count go unlocked. */
+  private async admitted(
+    handle: Db,
+    who: Actor,
+    checked: ImportCheck & { origins: OriginIndex },
+    lock: boolean,
+  ): Promise<ImportPlan> {
+    const items = incomingOfImport(checked.writes)
+    const assessed = lock
+      ? await this.gate.admitAll(handle, who, items)
+      : await this.gate.assess(handle, who, items)
+    return planImport(checked, assessed, checked.origins)
   }
 }
 

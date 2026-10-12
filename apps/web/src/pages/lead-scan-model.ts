@@ -1,3 +1,4 @@
+import { ADMISSION_VERDICT_LABEL } from '@pv/contracts'
 import type {
   LeadScanResponse,
   ScanBatchState,
@@ -145,17 +146,28 @@ export function progressOf(run: ScanRun | null, counts: Record<Bucket, number>, 
   return { label: 'Đã đọc', value: (counts.read + counts.failed) / total }
 }
 
+/** The gate's own label for an undecided match, set mid-sentence. */
+const REVIEW_WORDS =
+  ADMISSION_VERDICT_LABEL['needs-review'].charAt(0).toLocaleLowerCase('vi') +
+  ADMISSION_VERDICT_LABEL['needs-review'].slice(1)
+
 export const OUTCOME_FACE: Record<ScanOutcome, { tone: BadgeTone; text: string }> = {
   NEW_LEAD: { tone: 'success', text: 'Tạo 1 lead mới' },
   MERGE_INTO_LEAD: { tone: 'running', text: 'Nhập vào lead' },
   HELD_MISSING_CONTACT: { tone: 'warning', text: 'Không tạo — thiếu email người liên hệ' },
   HELD_OTHER_OWNER: { tone: 'draft', text: 'Ngoài phạm vi của bạn' },
+  HELD_NEEDS_REVIEW: { tone: 'warning', text: `Không tạo — ${REVIEW_WORDS}` },
 }
 
+/** A new lead on a company already in the book says so in the gate's own
+ *  words, and drops the people count: the badge cannot wrap, and the people
+ *  are in the next column. */
 export const outcomeText = (group: ScanGroup) =>
-  group.outcome === 'NEW_LEAD'
-    ? `${OUTCOME_FACE.NEW_LEAD.text} · ${group.people.length} contact`
-    : OUTCOME_FACE[group.outcome].text
+  group.outcome !== 'NEW_LEAD'
+    ? OUTCOME_FACE[group.outcome].text
+    : group.accountCode
+      ? `${OUTCOME_FACE.NEW_LEAD.text} · ${ADMISSION_VERDICT_LABEL['returning-account']}`
+      : `${OUTCOME_FACE.NEW_LEAD.text} · ${group.people.length} contact`
 
 /** Step 3's view filter: outcomes picked in the column header, plus free text
  *  over company, province, people and the lead a group merges into. A view
@@ -169,7 +181,7 @@ export function filterGroups(
     if (f.outcome.length > 0 && !f.outcome.includes(g.outcome)) return false
     if (!needle) return true
     const people = g.people.flatMap((p) => [p.name, p.title ?? '', p.email ?? ''])
-    const code = g.outcome === 'MERGE_INTO_LEAD' ? g.leadCode : ''
+    const code = g.outcome === 'MERGE_INTO_LEAD' ? g.leadCode : (g.accountCode ?? '')
     return normalise([g.company, g.meta, code, ...people].join(' ')).includes(needle)
   })
 }
@@ -189,6 +201,7 @@ export function notCreatedPills(batch: LeadScanResponse): string[] {
     [count('MERGE_INTO_LEAD'), 'công ty — nhập vào lead có sẵn'],
     [count('HELD_MISSING_CONTACT'), 'công ty — thiếu email người liên hệ, không tạo'],
     [count('HELD_OTHER_OWNER'), 'công ty — đã có trong sổ, ngoài phạm vi của bạn'],
+    [count('HELD_NEEDS_REVIEW'), `công ty — ${REVIEW_WORDS}, không tạo`],
     [skipped.noLead, 'tệp không chứa lead'],
     [skipped.unreadable, 'tệp không đọc được'],
   ]

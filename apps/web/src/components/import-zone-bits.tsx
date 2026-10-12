@@ -22,6 +22,7 @@ import {
   cn,
   type TableColumn,
 } from '@pv/ui'
+import { ADMISSION_VERDICT_LABEL } from '@pv/contracts'
 import type { LeadMotion } from '@pv/engines'
 import { ACCEPT, downloadCsv, type Sheet } from '@/data/intake-file'
 import {
@@ -35,7 +36,9 @@ import {
   type ImportSpec,
   type RowError,
 } from '@/data/intake'
+import { admissionMarkText, hasAdmissionMarks } from '@/data/import-admission'
 import { BookCount } from '@/components/book-page'
+import { AdmissionMark, AdmissionTally } from '@/components/import-admission'
 
 /** THE EDGES OF THE IMPORT PANEL — the file strip and encoding warning above
  *  the mapping, the batch-wide card, the result lists after a load, and the
@@ -70,12 +73,15 @@ function ResultList({
   columns,
   items,
   kinds,
+  wide = false,
 }: {
   kicker: string
   columns: TableColumn[]
   items: ResultItem[]
   /** Reason kinds for a `ColumnFilter` on the LAST column; absent = search only. */
   kinds?: { value: string; label: string }[]
+  /** A fixed-width extra column is present: scroll sooner rather than crush it. */
+  wide?: boolean
 }) {
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState<string[]>([])
@@ -147,7 +153,7 @@ function ResultList({
       ) : (
         <div className="overflow-x-auto">
           <DataTable
-            className="min-w-[480px]"
+            className={wide ? 'min-w-[640px]' : 'min-w-[480px]'}
             columns={heads}
             rowHeight="min-h-10 py-2"
             rows={shown.slice(0, LIST_CAP).map((item) => ({ id: item.id, cells: item.cells }))}
@@ -193,6 +199,8 @@ export function DoneRows({
   /* The spec's FIRST field, not a hardcoded `company`: this panel loads three
      books and the opportunity one leads with the deal name. */
   const id = spec.fields[0]
+  /* Same rule as the code column: no admission verdicts, no column. */
+  const marked = hasAdmissionMarks(rows)
 
   /* The code column only appears after a real write. On a run that never
      committed there is no code, and an empty column would read as "this row
@@ -201,18 +209,20 @@ export function DoneRows({
     LINE_COLUMN,
     { header: id?.label ?? '', width: 'minmax(0,1fr)' },
     ...(codes ? [{ header: 'Mã lead', width: '120px' }] : []),
+    ...(marked ? [{ header: 'Kết quả đối chiếu', width: '240px' }] : []),
   ]
 
   return (
     <ResultList
       kicker="Đã vào sổ"
+      wide={marked}
       columns={columns}
       items={rows.map((row, i) => {
         const first = (id ? row.values[id.key] : undefined) ?? '—'
         const code = codes?.[i] ?? '—'
         return {
           id: String(row.line),
-          haystack: `${row.line} ${first} ${codes ? code : ''}`,
+          haystack: `${row.line} ${first} ${codes ? code : ''} ${admissionMarkText(row)}`,
           cells: [
             <Line key="l" n={row.line} />,
             <Text key="f" value={first} />,
@@ -223,6 +233,7 @@ export function DoneRows({
                   </span>,
                 ]
               : []),
+            ...(marked ? [<AdmissionMark key="a" row={row} />] : []),
           ],
         }
       })}
@@ -325,7 +336,7 @@ export function Tally({
   tone?: 'success' | 'danger'
 }) {
   return (
-    <div className="glass-b flex flex-col gap-2 rounded-lg p-4">
+    <div className="glass-b flex h-full flex-col gap-2 rounded-lg p-4">
       <span
         className={cn(
           'font-num tnum text-[24px] font-semibold leading-none',
@@ -345,6 +356,10 @@ export function Tally({
 // The load itself: progress, then the result
 // ---------------------------------------------------------------------------
 
+/** Tally grid by how many optional tiles (grouped, joined) are drawn. Six
+ *  tiles go three to a row: six across is unreadable inside the drawer. */
+const TALLY_COLUMNS = ['lg:grid-cols-4', 'lg:grid-cols-5', 'lg:grid-cols-3']
+
 export function StepRun({
   done,
   total,
@@ -363,6 +378,8 @@ export function StepRun({
   /* An empty list draws nothing: the recipient door gets one from the server
      too, and a zero there would be a tally about a step it never had. */
   const attached = report?.attached ?? []
+  const joined = report?.joined ?? []
+  const extraTiles = Number(attached.length > 0) + Number(joined.length > 0)
 
   return (
     <section className="flex flex-col gap-4">
@@ -382,19 +399,24 @@ export function StepRun({
 
       {report && (
         <>
-          <div
-            className={`grid grid-cols-2 gap-3 ${attached.length > 0 ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}
-          >
+          <div className={cn('grid grid-cols-2 gap-3', TALLY_COLUMNS[extraTiles])}>
             <Tally label="Vào sổ" value={report.rows.length} tone="success" />
             <Tally label="Đã có trong hệ thống" value={report.duplicates} />
             <Tally label="Trùng trong tệp" value={report.dupInFile} />
             <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
             {attached.length > 0 && (
-              <div className="max-lg:col-span-2">
+              <div className={cn(extraTiles === 1 && 'max-lg:col-span-2')}>
                 <Tally label="Gộp vào lead chung" value={attached.length} />
               </div>
             )}
+            {joined.length > 0 && (
+              <div className={cn(extraTiles === 1 && 'max-lg:col-span-2')}>
+                <Tally label="Thêm vào lead đang mở" value={joined.length} />
+              </div>
+            )}
           </div>
+
+          <AdmissionTally rows={report.rows} />
 
           {report.origins && (
             <p className="text-glass-foreground text-[11.5px] leading-[1.7]">
@@ -438,6 +460,26 @@ export function StepRun({
                 <Line key="l" n={a.line} />,
                 <Text key="f" value={a.first || '—'} />,
                 <Line key="i" n={a.into} />,
+              ],
+            }))}
+          />
+          {/* Went in too, as a person on a lead the book already held. */}
+          <ResultList
+            kicker={ADMISSION_VERDICT_LABEL['new-contact']}
+            columns={[
+              LINE_COLUMN,
+              { header: 'Ô đầu dòng', width: 'minmax(0,1fr)' },
+              { header: 'Vào lead', width: '132px' },
+            ]}
+            items={joined.map((j) => ({
+              id: String(j.line),
+              haystack: `${j.line} ${j.first} ${j.code}`,
+              cells: [
+                <Line key="l" n={j.line} />,
+                <Text key="f" value={j.first || '—'} />,
+                <span key="c" className="font-mono">
+                  {j.code}
+                </span>,
               ],
             }))}
           />

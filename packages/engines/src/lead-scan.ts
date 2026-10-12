@@ -1,5 +1,5 @@
 /** Scan door rule — what an AI read from N files becomes company groups, and
- *  each group gets its outcome against the lead book.
+ *  each group gets its outcome from the admission gate every door shares.
  *
  *  Pure and deterministic on purpose: the model reads ONE file at a time and
  *  never decides grouping or matching, so the preview a seller approves is
@@ -10,6 +10,29 @@
  *  depends on engines), so the API maps `ScanExtraction` in and `ScanPreview`
  *  out. Linking is union-find over shared keys — tax root, email, phone,
  *  company email domain, folded company name — so order of links is moot. */
+
+import {
+  companyDomain,
+  foldCompanyName,
+  foldText,
+  groupByLinks,
+  normaliseEmail,
+  normalisePhone,
+  taxRoot,
+  websiteHost,
+} from './lead-keys'
+import { admissionTied, decideLeadAdmission } from './lead-admission'
+import type { AdmissionBook, AdmissionDecision, AdmissionIncoming } from './lead-admission'
+
+/* Callers still import the normalisers from here; they now live in lead-keys. */
+export {
+  FREE_MAIL_DOMAINS,
+  foldCompanyName,
+  foldText,
+  normaliseEmail,
+  normalisePhone,
+  taxRoot,
+} from './lead-keys'
 
 export type ScanReadPerson = {
   name: string | null
@@ -41,15 +64,6 @@ export type ScanReadFile = {
   unsure?: readonly string[]
 }
 
-/** A live lead that shares an email or tax code with the batch. `inScope`
- *  = the uploader may see it; outside scope its code must not leak. */
-export type ScanBookLead = {
-  code: string
-  emailLower: string | null
-  taxCode: string | null
-  inScope: boolean
-}
-
 export type ScanFieldConfidence = 'SURE' | 'INFERRED' | 'CONFLICT'
 
 export type ScanMergedField = {
@@ -79,7 +93,9 @@ type ScanPlanGroupBase = {
 export type ScanPlanGroup = ScanPlanGroupBase &
   (
     | { outcome: 'MERGE_INTO_LEAD'; leadCode: string }
-    | { outcome: 'NEW_LEAD' | 'HELD_MISSING_CONTACT' | 'HELD_OTHER_OWNER' }
+    /** `accountCode` = the company already in the book this lead attaches to. */
+    | { outcome: 'NEW_LEAD'; accountCode?: string }
+    | { outcome: 'HELD_MISSING_CONTACT' | 'HELD_OTHER_OWNER' | 'HELD_NEEDS_REVIEW' }
   )
 
 export type ScanPlan = {
@@ -88,85 +104,8 @@ export type ScanPlan = {
   noLeadFileIds: string[]
 }
 
-/** A shared domain here says nothing about the employer, so it never links. */
-export const FREE_MAIL_DOMAINS: ReadonlySet<string> = new Set([
-  'gmail.com',
-  'googlemail.com',
-  'yahoo.com',
-  'yahoo.com.vn',
-  'outlook.com',
-  'hotmail.com',
-  'live.com',
-  'icloud.com',
-  'me.com',
-  'aol.com',
-  'yandex.com',
-  'yandex.ru',
-  'proton.me',
-  'protonmail.com',
-  'zoho.com',
-])
-
 /** Shown instead of a province when no card backs the company. */
 export const SCAN_PROFILE_ONLY_META = 'chỉ có hồ sơ'
-
-// ---------------------------------------------------------------------------
-// Normalisers — each returns null when the input cannot serve as a key
-// ---------------------------------------------------------------------------
-
-export function foldText(raw: string): string {
-  return raw
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[đĐ]/g, 'd')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-
-/** Longer phrases first: the alternation is tried left to right. */
-const LEGAL_WORDS =
-  /\b(cong ty|co phan|trach nhiem huu han|mot thanh vien|joint stock company|tnhh|mtv|cp|jsc|company|corporation|corp|co|ltd|limited)\b/g
-
-export function foldCompanyName(raw: string): string | null {
-  const folded = foldText(raw).replace(LEGAL_WORDS, ' ').replace(/\s+/g, ' ').trim()
-  return folded || null
-}
-
-export function normaliseEmail(raw: string): string | null {
-  const email = raw.trim().toLowerCase()
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
-}
-
-/** VN numbers to one national form: `+84`, `84`, `0084` and a stray `(0)`
- *  after the country code all become a single leading `0`. */
-export function normalisePhone(raw: string): string | null {
-  let digits = raw.replace(/\D/g, '')
-  if (digits.startsWith('0084')) digits = digits.slice(2)
-  if (digits.startsWith('84') && digits.length >= 11)
-    digits = `0${digits.slice(2).replace(/^0/, '')}`
-  return /^0\d{9,10}$/.test(digits) ? digits : null
-}
-
-/** A branch (`0312345678-001`) is the same company as its root. */
-export function taxRoot(raw: string): string | null {
-  const match = raw.replace(/[^\d-]/g, '').match(/^(\d{10})(?:-?\d{3})?$/)
-  return match ? match[1]! : null
-}
-
-function websiteHost(raw: string): string | null {
-  const host = raw
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]!
-  return host.includes('.') ? host : null
-}
-
-function companyDomain(host: string | null): string | null {
-  return host && !FREE_MAIL_DOMAINS.has(host) ? host : null
-}
 
 // ---------------------------------------------------------------------------
 // Entities — one per company or person record that carries anything
@@ -260,25 +199,11 @@ function readEntities(files: readonly ScanReadFile[]): Entity[] {
   })
 }
 
-/** Union-find where the smaller index always wins the root, so a group's
- *  root is its earliest entity and group order falls out of Map order. */
 function groupEntities(entities: Entity[]): Entity[][] {
-  const parent = entities.map((_, i) => i)
-  const find = (i: number): number => {
-    while (parent[i] !== i) i = parent[i] = parent[parent[i]!]!
-    return i
-  }
-  const firstByLink = new Map<string, number>()
-  entities.forEach((e, i) => {
-    for (const link of e.links) {
-      const seen = firstByLink.get(link)
-      if (seen === undefined) firstByLink.set(link, i)
-      else parent[Math.max(find(seen), find(i))] = Math.min(find(seen), find(i))
-    }
-  })
+  const roots = groupByLinks(entities.map((e) => e.links))
   const groups = new Map<number, Entity[]>()
   entities.forEach((e, i) => {
-    const root = find(i)
+    const root = roots[i]!
     groups.set(root, [...(groups.get(root) ?? []), e])
   })
   return [...groups.values()]
@@ -378,23 +303,11 @@ function groupKey(members: Entity[]): string {
   return `slot:${members[0]!.slot}`
 }
 
-/** An in-scope match wins over any out-of-scope one: the seller can act on
- *  it, and holding would strand the batch on a lead nobody here may see.
- *  Within a pool, tax code outranks email — an email names one person who
- *  may have moved on. */
-function matchBook(members: Entity[], book: readonly ScanBookLead[]): ScanBookLead | undefined {
-  const links = new Set(members.flatMap((e) => e.links))
-  const pick = (pool: readonly ScanBookLead[]) =>
-    pool.find((b) => b.taxCode && links.has(`tax:${taxRoot(b.taxCode)}`)) ??
-    pool.find((b) => b.emailLower && links.has(`email:${b.emailLower}`))
-  return pick(book.filter((b) => b.inScope)) ?? pick(book)
-}
-
-function buildGroup(members: Entity[], book: readonly ScanBookLead[]): ScanPlanGroup {
+function buildGroup(members: Entity[]): ScanPlanGroupBase {
   const fields = FIELD_SPECS.map((s) => mergeField(s, members)).filter(present)
   const value = (field: string) => fields.find((f) => f.field === field)?.value
   const people = dedupePeople(members)
-  const base: ScanPlanGroupBase = {
+  return {
     key: groupKey(members),
     company: value('name') ?? value('legalName') ?? '',
     meta: people.length === 0 ? SCAN_PROFILE_ONLY_META : (value('province') ?? ''),
@@ -402,32 +315,58 @@ function buildGroup(members: Entity[], book: readonly ScanBookLead[]): ScanPlanG
     fields,
     fileIds: [...new Set(members.map((e) => e.fileId))],
   }
-  const hit = matchBook(members, book)
-  if (hit) {
-    return hit.inScope
-      ? { ...base, outcome: 'MERGE_INTO_LEAD', leadCode: hit.code }
-      : { ...base, outcome: 'HELD_OTHER_OWNER' }
+}
+
+/** The group as the gate reads it. A person offers the first phone only: the
+ *  gate keys one phone per person, and the first is the one the door stores. */
+export function incomingOfScan(group: ScanPlanGroupBase): AdmissionIncoming {
+  const value = (field: string) => group.fields.find((f) => f.field === field)?.value
+  return {
+    ref: group.key,
+    company: { name: group.company, taxCode: value('taxCode'), website: value('website') },
+    people: group.people.map((p) => ({ name: p.name, email: p.email, phone: p.phones[0] })),
   }
-  return { ...base, outcome: people.some((p) => p.email) ? 'NEW_LEAD' : 'HELD_MISSING_CONTACT' }
+}
+
+/** A lead needs somebody to write to, so a company without a person email is
+ *  held however the gate placed it. Only a merge carries a lead code: a lead
+ *  outside the uploader's scope is one they may not join. */
+function withOutcome(group: ScanPlanGroupBase, decision: AdmissionDecision): ScanPlanGroup {
+  const { verdict, leadCode, accountCode } = decision
+  if (verdict === 'needs-review' || admissionTied(decision)) {
+    return { ...group, outcome: 'HELD_NEEDS_REVIEW' }
+  }
+  if (leadCode) {
+    return decision.outOfScope
+      ? { ...group, outcome: 'HELD_OTHER_OWNER' }
+      : { ...group, outcome: 'MERGE_INTO_LEAD', leadCode }
+  }
+  if (!group.people.some((p) => p.email)) return { ...group, outcome: 'HELD_MISSING_CONTACT' }
+  return verdict === 'returning-account' && accountCode
+    ? { ...group, outcome: 'NEW_LEAD', accountCode }
+    : { ...group, outcome: 'NEW_LEAD' }
 }
 
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
-export function planLeadScan(
-  files: readonly ScanReadFile[],
-  book: readonly ScanBookLead[],
-): ScanPlan {
+export function planLeadScan(files: readonly ScanReadFile[], book: AdmissionBook): ScanPlan {
   const entities = readEntities(files)
-  const groups = groupEntities(entities).map((members) => buildGroup(members, book))
+  const bases = groupEntities(entities).map(buildGroup)
+  /* One call for the whole batch: decisions come back in the order given. */
+  const decisions = decideLeadAdmission(bases.map(incomingOfScan), book)
+  const groups = bases.map((group, i) => withOutcome(group, decisions[i]!))
   const yielded = new Set(entities.map((e) => e.fileId))
   return {
     groups,
     totals: {
       accounts: groups.length,
       contacts: groups.reduce((n, g) => n + g.people.length, 0),
-      leadsToCreate: groups.filter((g) => g.outcome === 'NEW_LEAD').length,
+      /* Groups returning to one company open ONE lead between them. */
+      leadsToCreate: new Set(
+        groups.flatMap((g) => (g.outcome === 'NEW_LEAD' ? [g.accountCode ?? g.key] : [])),
+      ).size,
     },
     noLeadFileIds: files.map((f) => f.fileId).filter((id) => !yielded.has(id)),
   }

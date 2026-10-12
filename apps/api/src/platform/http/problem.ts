@@ -10,6 +10,9 @@ export class PvError extends HttpException {
   readonly kind: ProblemKind
   readonly reason?: DenyReason
   readonly fields?: Record<string, string[]>
+  /** Structured data a door adds beside the Problem fields, e.g. the admission
+   *  match on a 409 — the client needs it to offer a choice, not just a sentence. */
+  readonly extra?: Record<string, unknown>
 
   constructor(init: {
     kind: ProblemKind
@@ -39,6 +42,7 @@ export const STATUS_OF: Record<ProblemKind, number> = {
 
 export function toProblem(e: PvError, ctx: { instance: string; traceId?: string }): Problem {
   return {
+    ...(e.extra ?? {}),
     type: e.kind,
     title: e.message,
     status: STATUS_OF[e.kind],

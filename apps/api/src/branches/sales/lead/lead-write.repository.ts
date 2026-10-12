@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import { normalisePhone } from '@pv/engines'
 import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
@@ -211,10 +212,13 @@ export class LeadWriteRepository {
     createdBy: string | null,
   ): Promise<LeadRowDb[]> {
     if (rows.length === 0) return []
-    return tx
-      .insert(lead)
-      .values(rows.map((r) => ({ ...r, createdBy })))
-      .returning()
+    /* `phone_key` here, the one insert every door reaches, so none can skip it. */
+    const keyed = rows.map((r) => ({
+      ...r,
+      createdBy,
+      phoneKey: r.phone ? normalisePhone(r.phone) : null,
+    }))
+    return tx.insert(lead).values(keyed).returning()
   }
 
   /** The four things a hand-over needs to know about the lead it is moving,
