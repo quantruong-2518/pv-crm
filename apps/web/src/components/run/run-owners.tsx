@@ -32,7 +32,7 @@ type Row = {
 
 const name = (holder: WorkstreamHolder | null) => holder?.name ?? null
 const idOf = (holder: WorkstreamHolder | null) => holder?.id ?? null
-const LANE_SEAT = { BD: 'BD PIC', SALE: 'Sale PIC' } as const
+export const LANE_SEAT = { BD: 'BD PIC', SALE: 'Sale PIC' } as const
 
 /** Keyed by object code: the one record on screen offers its own assign door. */
 export type OwnerDoors = Record<string, { label: string; onClick: () => void }>

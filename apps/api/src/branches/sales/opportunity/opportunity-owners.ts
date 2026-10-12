@@ -29,6 +29,7 @@ export const NO_OWNER = 'Cơ hội cần ít nhất một Sale đứng đơn ho�
 export const ASSIGN_ONLY = 'Đã nhận PIC. Đổi Sale bằng nút Giao Sale.'
 export const PRIMARY_OFF_LANE = 'Sale chính phải là một người trong danh sách Sale đứng đơn'
 export const PRIMARY_NOT_SELLER = 'Sale chính phải là người vai Sale hoặc Account Executive.'
+export const PRIMARY_REASON_NEEDED = 'Nêu lý do đổi Sale chính.'
 
 /** One person of a SALE lane as `salePrimaryOf` reads them. */
 export type LanePerson = RefOwner & { roleIds: readonly RoleId[] | null }
@@ -121,7 +122,8 @@ export function assertSaleLaneKept(
  *  given and who was taken off the SALE lane, if anyone was; and whenever the
  *  holder changes, a `handed-over` touch with both ends (the holder chain, as
  *  `opportunity-handover.ts` writes it) and the old holder's open step follows
- *  the new one. */
+ *  the new one. `primary` = the primary moved with a stated reason: its own
+ *  touch, because a lane with no seller changes primary without changing holder. */
 export async function recordSaleLane(
   tx: Db,
   touch: TouchService,
@@ -133,6 +135,7 @@ export async function recordSaleLane(
     to: RefOwner | null
     by: RefOwner
     at: Date
+    primary?: { from: string | null; to: string; reason: string } | undefined
   },
 ): Promise<void> {
   if (change.added.length > 0 || change.removed.length > 0) {
@@ -151,7 +154,20 @@ export async function recordSaleLane(
       },
     ])
   }
-  const { from, to } = change
+  const { from, to, primary } = change
+  if (primary) {
+    await touch.record(tx, [
+      {
+        subjectCode: change.code,
+        subjectKind: 'opportunity',
+        kind: 'field-filled',
+        by: change.by.name,
+        actorId: change.by.id,
+        note: NOTE.salePrimary(primary.from, primary.to, primary.reason),
+        at: change.at,
+      },
+    ])
+  }
   if (to && from?.id !== to.id) {
     /* `touch.to_role` holds one role: the receiver's first. */
     const role = (await actorRoles(tx, [to.id])).get(to.id)?.[0]

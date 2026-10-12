@@ -95,9 +95,6 @@ export type DealDraft = {
   submit: (onSaved?: () => void) => void
 }
 
-/** Printed on the profile's value strip and on the locked boxes alike. */
-export const WAITING_SIGN = 'Giá trị và Sale đứng đơn tạm khoá trong lúc chờ duyệt ký.'
-
 export type UseDealDraftArgs = {
   /** The server's copy of the form. */
   saved: OpportunityDraft

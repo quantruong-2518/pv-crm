@@ -1,7 +1,7 @@
 # 0086 · Each stage names its people from one fixed rule table; the SALE lane of an opportunity has exactly one primary
 
-Status: accepted (refines 0071 §5)
-Source: project owner's decisions in chat, 11/10/2026
+Status: accepted (refines 0071 §5); amended in place 12/10/2026 — §2, §4, §6
+Source: project owner's decisions in chat, 11/10/2026; 12/10/2026: Sale chính while a sign request waits, lead hand-over confirmed, picker rule, questions 57–61 answered
 
 ## Context
 
@@ -33,6 +33,17 @@ Whenever the SALE lane holds a seller, the primary must be a seller; a request
 naming a non-seller is refused. So "Sale chính" and the holder are the same
 person except on legacy lanes with no seller at all.
 
+Amended 12/10/2026 (owner): while a contract-sign request waits, the SALE
+lane's people stay frozen (they are the request's commission holders), but the
+primary may be changed through the assign door (`POST …/sale-owners`) with a
+mandatory reason, written to the deal's timeline. The signing snapshot is taken
+from the live lane at approval, so it marks the new primary. The contract's
+owner (the commission holder) is the person the sign request named and does
+not follow the change; only a request that named nobody falls back to the
+holder at approval. So a contract's owner and its snapshot's primary may be two
+people. The PATCH door is unchanged. The assign action is offered in that state
+only when the lane has two or more people.
+
 ### 3 · Presales has no lane on the opportunity
 
 Owner: "chưa cần". Not modelled.
@@ -47,7 +58,8 @@ exist: the sign transaction (`contract.repository.ts#insert`) and the dev seed
 door (hand-over only touches open deals; PATCH and assign refuse); only the BD
 lane can still change, so the snapshot's value is the BD lane and the record
 itself. It stores actor ids, so a renamed person shows
-under the current name.
+under the current name. The snapshot block is titled "PIC lúc ký" with seats
+"Sale PIC" / "BD PIC", matching the owners block beside it.
 
 ### 5 · The holder — refines 0071 §5
 
@@ -60,19 +72,26 @@ deal changed holder.
 ### 6 · One chooser, and which door may move the primary
 
 `salePrimaryOf` (`opportunity-owners.ts`) is the one chooser every door uses:
-requested, else the current one if still on the lane, else the first seller by
+requested, else the current one if still fit (on the lane, and a seller when
+the lane holds one), else the first seller by
 name/id, else the first person.
 
 - Past `new`, only the assign door (`POST …/sale-owners`) may move the primary;
   PATCH refuses with 409. One named exception: the lead hand-over
   (`opportunity-handover.ts`), which runs under the lead's permission. When the
   giver was primary the taker inherits it if the taker is a seller (or the lane
-  has no seller); otherwise the chooser picks.
+  has no seller); otherwise the chooser picks. Owner decision 12/10/2026, not
+  an assistant default: the receiver becomes Sale chính (if a seller) and
+  therefore the holder.
 - Accept judges `salePrimary` against the merged lane.
 - A PATCH that changes only the primary counts as a lane change, so it is
   frozen while a sign request waits.
 - The dialogs send `salePrimary` only when the user chose one (the create
   drawer sends its visible default); otherwise the server chooses.
+- The Sale chính picker shows what will be saved; when the current primary
+  leaves a lane that keeps two or more people, the screen requires an explicit
+  choice instead of letting the server choose. The server chooser stays as the
+  fallback for doors without a screen: import, seed, old rows.
 
 Storage and backfill rules: `apps/api/drizzle/0100_person_in_charge.sql`
 (its comments are the record).
@@ -101,10 +120,16 @@ Storage and backfill rules: `apps/api/drizzle/0100_person_in_charge.sql`
 
 ## Open
 
-Not decided; each is a numbered question in `open-questions.md`:
+Each was a numbered question in `open-questions.md`; the owner delegated all
+five on 12/10/2026 ("do what matches real practice") and they are answered
+there:
 
-- Presales getting a lane later (question 53).
-- A primary on BD or every lane once commission split is modelled (question 54).
-- Who is accountable on existing multi-seller deals (question 55).
-- Unifying the lane wording on screens (question 56).
-- Freezing names, not only ids, in the contract snapshot (question 57).
+- Presales getting a lane later (question 57): no lane; revisit only if
+  presales starts being credited on deals.
+- A primary on BD or every lane (question 58): no; revisit with commission
+  split (question 36).
+- Who is accountable on existing multi-seller deals (question 59): the
+  backfill stands, the head of sales corrects through the Giao Sale dialog.
+- Unifying the lane wording on screens (question 60): two registers stay on
+  purpose.
+- Freezing names, not only ids, in the contract snapshot (question 61): no.

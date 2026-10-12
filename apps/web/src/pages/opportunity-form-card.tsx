@@ -248,7 +248,9 @@ function OwnersFields({ draft, op }: { draft: DealDraft; op: OpportunityProfileR
           sellers.length === 0
             ? noSellerSentence(op.state === 'won', op.acts.assign.ok)
             : op.state === 'open' && op.acts.assign.ok
-              ? 'Đổi Sale qua mục Đổi Sale trong menu Khác.'
+              ? op.pendingSign
+                ? 'Đang chờ duyệt ký: không thêm, bớt Sale được. Đổi Sale chính trong menu Khác.'
+                : 'Đổi Sale qua mục Đổi Sale trong menu Khác.'
               : undefined
         }
       >

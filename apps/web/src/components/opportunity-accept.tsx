@@ -4,7 +4,8 @@ import { Button, Icon } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL, type OpportunityOwner } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
 import { focusSoon } from '@/lib/focus'
-import { salePrimaryIn } from '@/data/opportunities'
+import { useDirectory } from '@/data/directory'
+import { SALE_LANE, primaryFit, salePrimaryIn } from '@/data/opportunities'
 import { useAcceptDeal } from '@/data/opportunities-write'
 import { SellerModal } from './seller-modal'
 
@@ -15,8 +16,9 @@ import { SellerModal } from './seller-modal'
  *  The Sale pick is OPTIONAL and ADDS to the lane, never replaces it — the
  *  contract's own rule; replacing is the assign act (`opportunity-assign.tsx`).
  *  Both pick through `SellerModal`, sellers only. The primary is chosen from
- *  the lane as it will stand — who is on it plus who is added (ADR 0086) — and
- *  is sent only when it moves, so a plain accept keeps the stored one.
+ *  the lane as it will stand — who is on it plus who is added (ADR 0086),
+ *  offering only people the server accepts. Two or more of them with none
+ *  chosen keeps Save shut; the primary is sent only when it moves.
  *
  *  `show` hides the button but keeps the modal mounted: the accept moves the
  *  stage before the call settles, and an unmounted modal would lose its exit
@@ -53,11 +55,15 @@ export function AcceptDealButton({
   const [open, setOpen] = useState(false)
   const [sellers, setSellers] = useState<string[]>([])
   const [primaryPick, setPrimaryPick] = useState<string | null>(null)
+  const directory = useDirectory()
   const accept = useAcceptDeal(code)
   const standing = owners.filter((o) => o.role === 'SALE')
   const lane = [...new Set([...standing.map((o) => o.id), ...sellers])]
   const storedPrimary = standing.find((o) => o.primary)?.id
-  const primary = salePrimaryIn(lane, primaryPick, storedPrimary)
+  /* Only the fit people can be primary; a stored one who is not fit counts as none. */
+  const fit = primaryFit(lane, directory)
+  const primary = salePrimaryIn(fit, primaryPick, storedPrimary)
+  const needsPrimary = SALE_LANE.primary && fit.length > 1 && primary === undefined
 
   const close = () => {
     setOpen(false)
@@ -114,12 +120,17 @@ export function AcceptDealButton({
         sellers={sellers}
         onChange={setSellers}
         names={new Map(standing.map((o) => [o.id, o.name]))}
-        primary={{ lane, value: primary, onChange: setPrimaryPick }}
+        primary={{ lane: fit, value: primary, onChange: setPrimaryPick }}
         note={
-          sellers.length === 0 ? 'Giao Sale sau cũng được. Cần có Sale trước khi Chốt thắng.' : ''
+          needsPrimary
+            ? 'Chọn Sale chính.'
+            : sellers.length === 0
+              ? 'Giao Sale sau cũng được. Cần có Sale trước khi Chốt thắng.'
+              : ''
         }
         error={accept.error}
         busy={accept.isPending}
+        submitDisabled={needsPrimary}
         icon={UserPlus}
         submitLabel="Nhận PIC"
         busyLabel="Đang nhận…"

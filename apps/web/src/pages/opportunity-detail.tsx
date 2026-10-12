@@ -7,6 +7,7 @@ import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import type { DealEditPart } from '@/data/deal-draft'
 import {
+  CHANGE_SALE_PRIMARY,
   eventOfferOf,
   opportunityProfileQuery,
   railOf,
@@ -150,7 +151,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
               op.state === 'open' && op.acts.assign.ok
                 ? {
                     [op.code]: {
-                      label: op.hasSeller ? 'Đổi Sale' : 'Giao Sale',
+                      label: op.pendingSign
+                        ? CHANGE_SALE_PRIMARY
+                        : op.hasSeller
+                          ? 'Đổi Sale'
+                          : 'Giao Sale',
                       onClick: () => setAssigning(true),
                     },
                   }

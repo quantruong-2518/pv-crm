@@ -5,7 +5,8 @@ import { SALE_LANE, SALE_PRIMARY_LABEL } from '@/data/opportunities'
  *  open-deal form and the seller modal. Draws nothing for a lane of one: there
  *  is nothing to choose, and the server takes that person. Whether the lane has
  *  a primary at all is read from the PIC rule table, not decided here.
- *  No `value` means nobody is named yet and the server will choose. */
+ *  What it shows is what will be saved: with no `value` it shows a placeholder
+ *  and the caller keeps its save shut until one is chosen. */
 export function SalePrimaryPick({
   people,
   value,
@@ -28,7 +29,9 @@ export function SalePrimaryPick({
         /* Not a filter: no choice here is "the active one", so none lights up. */
         neutralValue={value ?? ''}
         valueContent={
-          value === undefined ? <span className="text-muted-foreground">Chưa chọn</span> : undefined
+          value === undefined ? (
+            <span className="text-muted-foreground">Chọn Sale chính</span>
+          ) : undefined
         }
         options={people.map((p) => ({ value: p.id, label: p.name }))}
         onChange={onChange}

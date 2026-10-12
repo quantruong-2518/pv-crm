@@ -1,8 +1,8 @@
 import { Avatar, MetaPill } from '@pv/ui'
 import type { ContractParticipant } from '@pv/contracts'
-import { BD_LANE, SALE_LANE, SALE_PRIMARY_LABEL, marksPrimary } from '@/data/opportunities'
+import { SALE_PRIMARY_LABEL, marksPrimary } from '@/data/opportunities'
 import { RunBlock } from './run-block'
-import { SEAT } from './run-owners'
+import { LANE_SEAT, SEAT } from './run-owners'
 
 /** Who stood on the deal when the contract was signed — the server's frozen
  *  copy of its SALE and BD lanes (ADR 0086), read-only. Separate from
@@ -13,7 +13,7 @@ export function RunSigners({ people }: { people: ContractParticipant[] }) {
   const sale = people.filter((o) => o.role === 'SALE')
 
   return (
-    <RunBlock title="Người đứng đơn lúc ký">
+    <RunBlock title="PIC lúc ký">
       <ul className="m-0 flex list-none flex-col gap-3 p-0">
         {people.map((o) => (
           <li key={`${o.role}-${o.id}`} className="flex min-w-0 items-center gap-3">
@@ -22,7 +22,7 @@ export function RunSigners({ people }: { people: ContractParticipant[] }) {
               <span className="truncate text-[14px] font-medium leading-[1.5]" title={o.name}>
                 {o.name}
               </span>
-              <span className={SEAT}>{(o.role === 'SALE' ? SALE_LANE : BD_LANE).label}</span>
+              <span className={SEAT}>{LANE_SEAT[o.role]}</span>
             </span>
             {marksPrimary(o, sale) && (
               <MetaPill className="shrink-0">{SALE_PRIMARY_LABEL}</MetaPill>

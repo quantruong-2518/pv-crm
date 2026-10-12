@@ -172,9 +172,7 @@ function ContractLine({
         </span>
         <span className="text-muted-foreground tnum text-[11.5px]">{when}</span>
         {signers && (
-          <span className="text-muted-foreground text-[11.5px]">
-            Người đứng đơn lúc ký: {signers}
-          </span>
+          <span className="text-muted-foreground text-[11.5px]">PIC lúc ký: {signers}</span>
         )}
       </span>
       <span className="tnum font-semibold sm:text-right">{amount}</span>

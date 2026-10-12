@@ -116,6 +116,8 @@ export const OPPORTUNITY_NAME_MAX = 200
 export const OPPORTUNITY_DESCRIPTION_MAX = 2_000
 export const OPPORTUNITY_STOP_REASON_MAX = 120
 export const OPPORTUNITY_STOP_NOTE_MAX = 1_000
+/** Cap of the reason a SALE primary change carries while a sign request waits. */
+export const OPPORTUNITY_SALE_PRIMARY_REASON_MAX = 500
 /** The one stop reason key with a rule attached: picking it demands a note.
  *  Declared here so the form and the door test the same string. */
 export const OPPORTUNITY_STOP_REASON_OTHER = 'other'
@@ -831,9 +833,15 @@ export const OpportunityAcceptBody = z.object({ saleOwners: ownerIds.optional(),
  *  lane of an accepted deal. Permission `opportunity.assign` (head, director,
  *  AE). Once a deal is past `new` this is the ONLY door to that lane — the
  *  profile PATCH refuses it for everyone (ADR 0071). REPLACES the lane, unlike
- *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op. */
+ *  accept; only ids it adds must be sellers, and an unchanged lane is a no-op.
+ *  While a sign request waits the lane's people are frozen and only the
+ *  primary may move — the server then demands `reason` (ADR 0086 §2). */
 export const OpportunitySaleOwnersBody = z
-  .object({ saleOwners: ownerIds, salePrimary })
+  .object({
+    saleOwners: ownerIds,
+    salePrimary,
+    reason: textInputOptional(OPPORTUNITY_SALE_PRIMARY_REASON_MAX),
+  })
   .refine(salePrimaryOnLane, SALE_PRIMARY_OFF_LANE)
 
 /** The three doors answer with the whole book row, like the write doors above:

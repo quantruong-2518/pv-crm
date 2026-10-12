@@ -513,8 +513,9 @@ export class OpportunityService {
     const pendingSign = await this.pendingSign(code)
     const terms = editTermsVerdict(dealAtOf(found, pendingSign))
     if (!terms.ok && touchesTerms(found, body)) throw conflict(terms.reason)
-    /* SALE owners are the sign request's commission holders: frozen while it
-       waits, and on a signed deal they need the sign door's permission. */
+    /* SALE people are the sign request's commission holders: frozen while it
+       waits (the assign door may still move the primary, with a reason), and
+       on a signed deal they need the sign door's permission. */
     if (saleLaneMoved(found, body)) {
       if (pendingSign) throw frozenForSign()
       if (found.signed) {

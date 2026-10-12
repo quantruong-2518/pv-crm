@@ -9,7 +9,7 @@ import { isApiError, userMessage, type ApiError, type FieldErrors } from '@/app/
 import { useCan, useSession } from '@/app/auth'
 import { useDirectory } from '@/data/directory'
 import { profileForm } from '@/data/lead-profile'
-import { chainPath, salePrimaryIn } from '@/data/opportunities'
+import { chainPath, primaryFit, salePrimaryIn } from '@/data/opportunities'
 import {
   createBodyOf,
   draftErrorsOf,
@@ -75,7 +75,9 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   const [picks, setPicks] = useState<OpportunityContactPick[]>([])
   /* Beside the draft like `picks`: the 14-cell draft has no room for it. */
   const [primaryPick, setPrimaryPick] = useState<string | null>(null)
-  const salePrimary = salePrimaryIn(draft.saleOwners, primaryPick) ?? draft.saleOwners[0]
+  /* Only people the server accepts as primary; the first of them shows until another is picked. */
+  const fitOwners = primaryFit(draft.saleOwners, staff)
+  const salePrimary = salePrimaryIn(fitOwners, primaryPick) ?? fitOwners[0]
   const [errors, setErrors] = useState<FieldErrors>({})
   const [created, setCreated] = useState<Created | null>(null)
   const [ready, setReady] = useState(false)

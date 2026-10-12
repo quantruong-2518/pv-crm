@@ -553,6 +553,8 @@ export function useAssignSale(code: ObjectCode) {
       void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
       void client.invalidateQueries({ queryKey: nextStepKey(code) })
     },
+    /* A refusal may mean the deal changed under the dialog (a sign request). */
+    onError: () => void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true }),
   })
 }
 

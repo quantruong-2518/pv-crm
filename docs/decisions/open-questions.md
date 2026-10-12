@@ -255,14 +255,32 @@ Raised while recording the per-stage people rules (ADR 0086).
 
 57. **Should presales get a lane on the opportunity later?** Default: no
     (owner 11/10: "chưa cần"). _(see ADR 0086 §3)_
+    **Answered 12/10/2026 (delegated to the assistant by the owner: "do what
+    matches real practice"): no lane; revisit only if presales starts being
+    credited on deals.**
 58. **Should BD (or every lane) also carry a primary once commission split is
     modelled?** Default: no. _(see ADR 0086 §2)_
+    **Answered 12/10/2026 (delegated by the owner): no. BD credit is shared,
+    and one accountable person per deal is the Sale chính. Revisit with
+    commission split (question 36).**
 59. **Who is the accountable Sale on existing deals with several sellers — is
     the name-order backfill acceptable, or should the head of sales review
     them?** Default: the backfill stands. _(see ADR 0086 Consequences)_
+    **Answered 12/10/2026 (delegated by the owner): the name-order backfill
+    stands (it keeps every existing holder unchanged); the head of sales
+    corrects any deal through the Giao Sale dialog. Before migration 0100
+    reaches production, list the deals with several sellers on the SALE lane
+    so the head can review them.**
 60. **Should the wording for the two lanes be unified?** Screens say
     `Sale PIC` / `BD PIC`, `BD đứng đơn`, `BD mở cửa`, `Sale đứng đơn` in
     different places; `PIC_RULES` uses "Sale đứng đơn" / "BD mở cửa". Default:
     leave as is. _(see ADR 0086)_
+    **Answered 12/10/2026 (delegated by the owner): two registers stay on
+    purpose. Seat names on profile rails use the product word "PIC" ("Sale
+    PIC", "BD PIC", "PIC lúc ký"); form field labels describe the job ("Sale
+    đứng đơn", "BD mở cửa"). No rename.**
 61. **Should the contract snapshot also freeze names, not only ids?**
     Default: no. _(see ADR 0086 §4)_
+    **Answered 12/10/2026 (delegated by the owner): no; ids only. Actor rows
+    are never deleted, so the name stays readable; a renamed person shows
+    under the current name.**

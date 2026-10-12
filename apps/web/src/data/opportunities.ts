@@ -10,6 +10,8 @@ import {
   OpportunityProfileResponse,
   OpportunityScorecard,
   PIC_RULES,
+  isSellerRole,
+  type RoleId,
   type OpportunityAct,
   type OpportunityFacetsQuery,
   type OpportunityOwner,
@@ -297,6 +299,18 @@ const laneRule = (role: OpportunityOwner['role']) =>
 export const SALE_LANE = laneRule('SALE')
 export const BD_LANE = laneRule('BD')
 export const SALE_PRIMARY_LABEL = 'Sale chính'
+export const CHANGE_SALE_PRIMARY = 'Đổi Sale chính'
+
+/** Who the server accepts as the SALE primary: only sellers while the lane
+ *  holds one, everyone otherwise. A person the directory lacks counts as no
+ *  seller, the same as the server's own read of a roleless actor. */
+export const primaryFit = (
+  lane: readonly string[],
+  people: readonly { id: string; roleIds: readonly RoleId[] }[],
+): string[] => {
+  const seller = (id: string) => isSellerRole(people.find((p) => p.id === id)?.roleIds)
+  return lane.some(seller) ? lane.filter(seller) : [...lane]
+}
 
 /** Whether to SAY who the primary is: a lane of one already names them. */
 export const marksPrimary = (owner: OpportunityOwner, lane: readonly OpportunityOwner[]) =>
@@ -318,7 +332,8 @@ export function lanesText(people: OpportunityOwner[]): string {
 
 /** The primary a form stands on: the user's pick while that person is still on
  *  the lane, else the stored primary. NO further fallback — with neither, the
- *  server chooses by its own rule, so a form must not name someone for it. */
+ *  form shows a placeholder and keeps Save shut until the user chooses.
+ *  Callers pass the lane already narrowed by `primaryFit`. */
 export const salePrimaryIn = (
   lane: readonly string[],
   picked: string | null,

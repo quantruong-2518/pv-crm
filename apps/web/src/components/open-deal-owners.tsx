@@ -10,8 +10,8 @@ import {
 import type { Actor } from '@pv/engines'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { FieldErrors } from '@/app/api'
-import { useSalesPeople } from '@/data/directory'
-import { BD_LANE, SALE_LANE, SALE_PRIMARY_LABEL, toggled } from '@/data/opportunities'
+import { useDirectory, useSalesPeople } from '@/data/directory'
+import { BD_LANE, SALE_LANE, SALE_PRIMARY_LABEL, primaryFit, toggled } from '@/data/opportunities'
 import { bornStage, lastBdLocked } from '@/data/opportunity-open'
 import { SectionHead } from './open-deal-basics'
 import { PersonTokenField } from './person-token-field'
@@ -54,6 +54,7 @@ export function OwnersSection({
   onSet: SetDraft
 }) {
   const people = useSalesPeople()
+  const fitIds = primaryFit(draft.saleOwners, useDirectory())
   const byId = (id: string) => people.find((a) => a.id === id)
   const locked = lastBdLocked(draft, canAccept)
   const suggested = accountOwner ? byId(accountOwner.id) : undefined
@@ -110,7 +111,7 @@ export function OwnersSection({
             }
             tokens={sellers.map((s) => ({
               ...s,
-              ...(sellers.length > 1 && s.id === salePrimary && { tag: SALE_PRIMARY_LABEL }),
+              ...(fitIds.length > 1 && s.id === salePrimary && { tag: SALE_PRIMARY_LABEL }),
             }))}
             suggestions={people
               .filter((a) => !draft.saleOwners.includes(a.id) && isSellerRole(a.roleIds))
@@ -122,7 +123,7 @@ export function OwnersSection({
           {errors.saleOwners && <Refusal text={errors.saleOwners.join(' · ')} />}
           <div className="pt-2 empty:hidden">
             <SalePrimaryPick
-              people={sellers}
+              people={sellers.filter((s) => fitIds.includes(s.id))}
               value={salePrimary}
               errors={errors.salePrimary}
               onChange={onSalePrimary}

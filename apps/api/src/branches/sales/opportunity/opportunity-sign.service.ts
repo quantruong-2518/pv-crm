@@ -108,8 +108,9 @@ export class OpportunitySign implements ApprovalApplier {
     const quoted = await this.deals.hasTouch(handle, found.row.code, 'quotation-sent')
     const verdict = signVerdict({ ...signFactsOf(found, quoted), pendingSign, approverSeat })
     if (!verdict.ok) throw conflict(verdict.reason)
-    /* Commission follows a Sale standing on the deal, never a stranger. Owners
-       are frozen while the request waits (`saleLaneMoved`). */
+    /* Commission follows a Sale standing on the deal, never a stranger. The
+       lane's people are frozen while the request waits; only its primary may
+       move, through the assign door with a reason. */
     if (body.ownerId !== undefined && !isSaleOwner(found, body.ownerId)) {
       throw invalid(
         { ownerId: ['Người hưởng hoa hồng phải là Sale đứng đơn của cơ hội.'] },

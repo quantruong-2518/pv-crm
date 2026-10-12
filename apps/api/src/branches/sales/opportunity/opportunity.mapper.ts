@@ -270,6 +270,10 @@ export const NOTE = {
     ]
       .filter((part) => part !== null)
       .join(' · '),
+
+  /** The SALE primary moved and the mover said why (assign door, ADR 0086). */
+  salePrimary: (from: string | null, to: string, reason: string) =>
+    `Đổi Sale chính: ${from ?? 'chưa ai'} → ${to}. Lý do: ${reason}`,
 } as const
 
 /** One sentence per milestone. NOT the column label: a milestone is a thing

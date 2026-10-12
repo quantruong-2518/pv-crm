@@ -72,6 +72,9 @@ export function touchesTerms(
 
 type Verdicts = Pick<OpportunityProfileResponse, 'acts' | 'floors'>
 
+const saleCountOf = (found: OpportunityRead): number =>
+  found.owners.filter((o) => o.role === 'SALE').length
+
 @Injectable()
 export class OpportunityActs {
   constructor(
@@ -86,7 +89,7 @@ export class OpportunityActs {
   canAssign(who: Actor, found: OpportunityRead, pendingSign: boolean): boolean {
     const ref = scopeRefOf(found.row, found.owners, who)
     const v = this.access.check(who, { branch: 'Sales', permission: 'opportunity.assign', ref })
-    return v.ok && assignVerdict(dealAtOf(found, pendingSign)).ok
+    return v.ok && assignVerdict(dealAtOf(found, pendingSign), saleCountOf(found)).ok
   }
 
   async of(who: Actor, found: OpportunityRead, pendingSign: boolean): Promise<Verdicts> {
@@ -114,7 +117,7 @@ export class OpportunityActs {
       ),
       stop: gate('opportunity.edit', boardVerdict(deal, 'dừng')),
       accept: gate('opportunity.accept', acceptVerdict(found, pendingSign), false),
-      assign: gate('opportunity.assign', assignVerdict(deal)),
+      assign: gate('opportunity.assign', assignVerdict(deal, saleCountOf(found))),
       editTerms: gate('opportunity.edit', editTermsVerdict(deal)),
       editDetails: gate('opportunity.edit', editDetailsVerdict(found.row)),
     }
