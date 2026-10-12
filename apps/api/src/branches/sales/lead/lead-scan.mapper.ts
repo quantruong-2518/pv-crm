@@ -1,4 +1,5 @@
 import {
+  admissionTied,
   companyDomain,
   foldCompanyName,
   normaliseEmail,
@@ -29,7 +30,8 @@ import { stateAtBirth, type LeadValues, type LeadWrite } from './lead-write.mapp
  *
  *  The engine keeps `fileIds` and phones on a group; the contract does not,
  *  so the preview drops them here. A held group is rebuilt field by field
- *  rather than spread, so a `leadCode` can never ride out on it. */
+ *  rather than spread: it carries no `leadCode`, its lead being one the
+ *  uploader cannot join. */
 
 export function toReadFiles(files: readonly ScanFileJoined[]): ScanReadFile[] {
   return files
@@ -104,9 +106,7 @@ export function toScanFile(f: ScanFileJoined): ScanFile {
   }
 }
 
-/** `shown` = the accounts the uploader may be pointed at; the commit attaches
- *  to the planned account either way, the preview only says so when allowed. */
-function toGroup(g: ScanPlanGroup, shown: ReadonlySet<string>): ScanGroup {
+function toGroup(g: ScanPlanGroup): ScanGroup {
   const base = {
     key: g.key,
     company: g.company,
@@ -115,19 +115,15 @@ function toGroup(g: ScanPlanGroup, shown: ReadonlySet<string>): ScanGroup {
     fields: g.fields,
   }
   if (g.outcome === 'MERGE_INTO_LEAD') return { ...base, outcome: g.outcome, leadCode: g.leadCode }
-  return g.outcome === 'NEW_LEAD' && g.accountCode && shown.has(g.accountCode)
+  return g.outcome === 'NEW_LEAD' && g.accountCode
     ? { ...base, outcome: g.outcome, accountCode: g.accountCode }
     : { ...base, outcome: g.outcome }
 }
 
-export function toPreview(
-  plan: ScanPlan,
-  files: readonly ScanFileJoined[],
-  shown: ReadonlySet<string>,
-): ScanPreview {
+export function toPreview(plan: ScanPlan, files: readonly ScanFileJoined[]): ScanPreview {
   return {
     totals: plan.totals,
-    groups: plan.groups.map((g) => toGroup(g, shown)),
+    groups: plan.groups.map(toGroup),
     skipped: {
       noLead: files.filter((f) => f.state === 'EMPTY').length + plan.noLeadFileIds.length,
       unreadable: files.filter((f) => f.state === 'FAILED').length,
@@ -233,6 +229,8 @@ export function scanActionOf(
   fresh: AdmissionDecision,
   opened: readonly string[],
 ): ScanAction {
+  /* Two open leads fit equally: the commit holds where a fresh plan would. */
+  if (admissionTied(fresh)) return null
   const onLead = fresh.leadCode && !fresh.outOfScope ? fresh.leadCode : null
   if (g.outcome === 'MERGE_INTO_LEAD') {
     return onLead === g.leadCode ? { kind: 'merge', leadCode: onLead } : null

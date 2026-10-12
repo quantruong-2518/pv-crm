@@ -278,22 +278,19 @@ export class LeadScanService {
   }
 
   private async previewOf(who: Actor, files: readonly ScanFileJoined[]) {
-    const { plan, shown } = await this.planOf(who, files)
-    return toPreview(plan, files, shown)
+    return toPreview(await this.planOf(who, files), files)
   }
 
   /** The plan over the files as they stand, matched against the book as the
-   *  uploader sees it, and the account codes a preview of it may print.
-   *  Recomputed every time: the book moves between polls. */
+   *  uploader sees it. Recomputed every time: the book moves between polls. */
   async planOf(
     who: Pick<Actor, 'id' | 'ownOnly'>,
     files: readonly ScanFileJoined[],
     db?: Db,
-  ): Promise<{ plan: ScanPlan; shown: ReadonlySet<string> }> {
+  ): Promise<ScanPlan> {
     const read = toReadFiles(files)
     const needles = scanNeedlesOf(read)
-    const { book, shown } = await this.gate.bookFor(db ?? this.repo.pool, who, needles)
-    return { plan: planLeadScan(read, book), shown }
+    return planLeadScan(read, await this.gate.bookFor(db ?? this.repo.pool, who, needles))
   }
 
   /** Job: read one file. A re-delivered job on a finished file is a no-op.

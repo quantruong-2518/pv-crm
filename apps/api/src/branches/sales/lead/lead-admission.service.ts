@@ -14,7 +14,7 @@ import {
   type LeadSourceKind,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, denied, invalid, type PvError } from '@api/platform/http/problem'
+import { conflict, invalid, type PvError } from '@api/platform/http/problem'
 import { ContactService, type ContactSeed } from '../contact/contact.service'
 import { byOf, TouchService } from '../touch/touch.service'
 import {
@@ -23,9 +23,8 @@ import {
   incomingOf,
   lockKeysOf,
   needlesOf,
-  onOthers,
+  labelsOf,
   pagesOf,
-  shownAccounts,
   toMatch,
   type Assessed,
   type Needles,
@@ -39,7 +38,6 @@ type Caller = Pick<Actor, 'id' | 'name' | 'ownOnly'>
  *  the company by identity), or nothing more because `reentered` took the entry. */
 export type TypedAdmission = { accountCode: string | null; reentered: string | null }
 
-const OTHERS = 'Khách này đã có trong sổ. Liên hệ trưởng phòng để được giao.'
 const KNOWN = 'Khách này đã có trong sổ. Xem kết quả đối chiếu rồi chọn cách ghi.'
 const MOVED = 'Sổ vừa thay đổi. Xem lại kết quả đối chiếu rồi chọn lại.'
 
@@ -74,23 +72,21 @@ export class LeadAdmissionService {
   ): Promise<Assessed[]> {
     const needles = needlesOf(items.map((item) => leadKeys(item.company, item.people)))
     const slice = await this.sliceFor(handle, who, needles)
-    const names = shownAccounts(slice)
+    const labels = labelsOf(slice)
     return decideLeadAdmission(items, bookOf(slice, LEAD_GONE_STATES)).map((decision) => ({
       ...decision,
-      names,
+      ...labels,
     }))
   }
 
   /** The book alone, for a door whose own engine asks the gate (the scan
-   *  plan), with the account codes that door may show its caller. `needles`
-   *  may be a superset of what that engine will ask. */
+   *  plan). `needles` may be a superset of what that engine will ask. */
   async bookFor(
     handle: Db,
     who: Pick<Actor, 'id' | 'ownOnly'> | null,
     needles: Needles,
-  ): Promise<{ book: AdmissionBook; shown: ReadonlySet<string> }> {
-    const slice = await this.sliceFor(handle, who, needles)
-    return { book: bookOf(slice, LEAD_GONE_STATES), shown: new Set(shownAccounts(slice).keys()) }
+  ): Promise<AdmissionBook> {
+    return bookOf(await this.sliceFor(handle, who, needles), LEAD_GONE_STATES)
   }
 
   /** THE one loading path: `reach`, then `slice`, each paged past `BIND_BUDGET`. */
@@ -171,8 +167,9 @@ export class LeadAdmissionService {
   }
 
   /** The typed door's rule. Without a choice only a new company goes in; with
-   *  one, the choice must have been made on the book as it stands now. */
-  async typed(tx: Db, who: Caller, mayAssign: boolean, body: LeadCreate): Promise<TypedAdmission> {
+   *  one, the choice must have been made on the book as it stands now. A
+   *  company may hold several open leads, so `create-lead` is never fenced. */
+  async typed(tx: Db, who: Caller, body: LeadCreate): Promise<TypedAdmission> {
     const person = { contactName: body.contactName, email: body.email, phone: body.phone }
     const assessed = await this.admit(tx, who, incomingOf('0', { ...body, people: [person] }))
     const choice = body.admission
@@ -180,8 +177,7 @@ export class LeadAdmissionService {
       if (assessed.verdict === 'new-account') return { accountCode: null, reentered: null }
       throw this.refusal(assessed)
     }
-    /* Against the MATCH, not the decision: an out-of-scope lead code never
-       reached the client, so `seen` cannot carry it. */
+    /* Against the MATCH: `seen` echoes what the client was shown. */
     const match = this.toMatch(assessed)
     const { seen } = choice
     if (
@@ -192,22 +188,26 @@ export class LeadAdmissionService {
       throw this.refusal(assessed, MOVED)
     }
     if (choice.action === 'create-lead') {
-      if (onOthers(assessed) && !mayAssign) throw denied('out-of-scope', OTHERS)
       return { accountCode: assessed.accountCode, reentered: null }
     }
-    if (!assessed.leadCode || assessed.outOfScope) {
+    /* The pick is checked against the re-decided list, never trusted. A row the
+       caller picked that is no longer joinable is a moved book: 409 re-asks. */
+    const code = choice.leadCode ?? assessed.leadCode
+    const target = assessed.leadChoices.find((l) => l.code === code)
+    if (!target?.inScope) {
+      if (choice.leadCode) throw this.refusal(assessed, MOVED)
       throw invalid({
         admission: ['Chỉ thêm được người liên hệ vào lead đang mở trong phạm vi của bạn.'],
       })
     }
-    const fresh = assessed.newPeople.map(() => ({
+    const fresh = target.newPeople.map(() => ({
       name: body.contactName,
       title: body.contactTitle,
       email: body.email,
       phone: body.phone,
       channel: body.contactChannel,
     }))
-    await this.reenter(tx, assessed.leadCode, fresh, who, 'MANUAL')
-    return { accountCode: null, reentered: assessed.leadCode }
+    await this.reenter(tx, target.code, fresh, who, 'MANUAL')
+    return { accountCode: null, reentered: target.code }
   }
 }
