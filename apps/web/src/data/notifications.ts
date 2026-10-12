@@ -47,8 +47,7 @@ export const unreadNotificationsQuery = () =>
     ...FRESH,
   })
 
-/** The filter is part of the key. `{}` and an all-`undefined` filter hash
- *  alike, so the drawer and the unfiltered page share one entry; the
+/** The filter is part of the key, so each filter reads its own entry; the
  *  mutation's prefix invalidation on `KEY` reaches every one.
  *
  *  Polling stops once a second page is loaded: a deep scroll would otherwise

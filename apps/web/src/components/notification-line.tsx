@@ -4,9 +4,8 @@ import { useAccess } from '@/app/auth'
 import { dmhm } from '@/lib/date'
 import { notificationPath } from '@/data/notifications'
 
-/** One notification, as the bell's drawer and the `/notifications` screen both
- *  draw it. The caller owns what a press does; the line only says whether there
- *  is a place to go.
+/** One notification, as the `/notifications` screen draws it. The caller owns
+ *  what a press does; the line only says whether there is a place to go.
  *
  *  Unread is said three ways so colour is never the only one: a text
  *  pill, heavier type, and brighter ink. Read rows use `--muted-foreground`

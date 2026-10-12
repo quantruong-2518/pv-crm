@@ -90,10 +90,11 @@ the home page (the server's callback target is fixed).
 
 ### 7 · The full list
 
-`/notifications` is the bell's whole list: the drawer stays the quick look and
-ends in "Xem tất cả". The same `GET /notifications` takes `unread=1`, `group`
-(one of six, from `NOTIFICATION_KIND_GROUP`, a total map so a new kind cannot
-ship without a group) and `q`, all inside `recipient_id = caller`. Search reads
+`/notifications` is the bell's list: a press on the bell goes there, and the
+drawer of the first wave is gone. The same `GET /notifications` takes
+`unread=1`, `group` (one of six, from `NOTIFICATION_KIND_GROUP`, a total map so
+a new kind cannot ship without a group) and `q`, all inside
+`recipient_id = caller`. Search reads
 the subject label, plus the printed sentence for rows that have no label
 (account and Google rows); the actor and the reason are not searched, and
 accents are not folded, as in every book. Filters live in the address, rows

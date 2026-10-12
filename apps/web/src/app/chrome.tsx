@@ -21,7 +21,6 @@ import {
   Target,
   Users,
 } from '@pv/ui'
-import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
@@ -30,10 +29,9 @@ import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { meetingTodayQuery } from '@/data/meeting-today'
-import { unreadNotificationsQuery } from '@/data/notifications'
+import { NOTIFICATIONS_PATH, unreadNotificationsQuery } from '@/data/notifications'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
-import { NotificationPanel } from '@/components/notification-panel'
 
 /** Khung app dùng chung cho MỌI màn.
  *
@@ -102,12 +100,12 @@ type NavEntry = {
  *
  *  Phê duyệt and Thông báo each carry a count because each has a real table
  *  behind it (`platform.approval`, `platform.notification`); a badge is a
- *  claim. The bell has no `path` on purpose: it opens a panel over whatever
- *  screen is showing, so `useAppChrome` unlocks it by `slot` instead. */
+ *  claim. The bell is the one door to the notification list: a press goes to
+ *  `/notifications` like any entry, and the unread count rides its `slot`. */
 const ONE_CORE: NavEntry[] = [
   { icon: House, label: 'Trang chủ', path: '/', slot: 'home' },
   { icon: SquareCheckBig, label: 'Phê duyệt', path: '/approvals', slot: 'approvals' },
-  { icon: Bell, label: 'Thông báo', slot: 'notifications' },
+  { icon: Bell, label: 'Thông báo', path: NOTIFICATIONS_PATH, slot: 'notifications' },
 ]
 
 /** Screens behind the avatar's single "Cài đặt & quản trị" door, listed on
@@ -365,7 +363,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     refetchOnWindowFocus: true,
   })
   const { data: unreadNotifications } = useQuery(unreadNotificationsQuery())
-  const [bellOpen, setBellOpen] = useState(false)
   const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
@@ -387,7 +384,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     !isParked(entry.permission) &&
     (!entry.permission || access.check(actor, { branch: null, permission: entry.permission }).ok)
   const plain = (entry: NavEntry): HeaderAction => {
-    const bell = entry.slot === 'notifications'
     return {
       icon: entry.icon,
       label: entry.label,
@@ -395,16 +391,12 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       count:
         entry.slot === 'approvals'
           ? pendingApprovals?.length
-          : bell
+          : entry.slot === 'notifications'
             ? unreadNotifications
             : entry.count,
-      locked: !entry.path && !bell,
+      locked: !entry.path,
       active: entry.path ? pathname === entry.path : false,
-      onClick: bell
-        ? () => setBellOpen(true)
-        : entry.path
-          ? () => navigate(entry.path!)
-          : undefined,
+      onClick: entry.path ? () => navigate(entry.path!) : undefined,
     }
   }
 
@@ -539,18 +531,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     activeNav,
     lockedNav: LOCKED_NAV,
     onNavigate,
-    /* The bell's panel rides this slot because it is the one node every screen
-       already mounts; `Drawer` portals to the body, so it takes no room here. */
-    subBar: (
-      <>
-        <MeetingCountdownBar today={meetingToday} />
-        <NotificationPanel
-          open={bellOpen}
-          onClose={() => setBellOpen(false)}
-          unread={unreadNotifications}
-        />
-      </>
-    ),
+    subBar: <MeetingCountdownBar today={meetingToday} />,
   }
 
   return { shell, settings }
