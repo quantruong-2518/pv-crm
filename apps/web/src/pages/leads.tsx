@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ImagePlus, Plus } from '@pv/ui'
+import { Contact, ImagePlus, Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -23,7 +23,7 @@ import {
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
@@ -39,6 +39,7 @@ import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { LeadDisableAction } from '@/components/lead-disable'
 import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { BookQueueButton } from '@/components/book-queue-button'
 import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import { CompanyCell } from '@/components/lead-cells'
@@ -138,6 +139,7 @@ export function LeadsPage() {
      never disagree. Precedent: `campaigns.tsx`'s `canWrite`. */
   const canWrite = useCan('lead.edit')
   const canDisable = useCan('lead.disable')
+  const meId = useSession((s) => s.actor?.id)
 
   /* The address is the source of truth; the hook owns patch, the debounced
      search box, the page reset and "clear all". `size` is PAGE_SIZE, kept off it. */
@@ -182,6 +184,9 @@ export function LeadsPage() {
   const { pageIndex } = useBookPageClamp(book, bookPage?.total)
 
   const pinnedView = query.pinned === true
+  /* Quick filter over the `owner` axis: pressed only while the book shows
+     exactly the viewer's own leads, so a hand-picked owner list stays as is. */
+  const mineOnly = meId !== undefined && query.owner === meId
   const disabledView = query.disabled === true
 
   /* One read answers every tab — `byState` under the current search and source
@@ -562,6 +567,15 @@ export function LeadsPage() {
                 onChange={setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
+              {meId && (
+                <BookQueueButton
+                  icon={Contact}
+                  label="Lead của tôi"
+                  count={undefined}
+                  active={mineOnly}
+                  onPress={() => patch({ owner: mineOnly ? undefined : meId })}
+                />
+              )}
               {dirty && (
                 <Button
                   size="md"
