@@ -1,13 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Info } from '@pv/ui'
-import { Badge, Chip, Icon, billions } from '@pv/ui'
-import {
-  OPPORTUNITY_STAGE_LABEL,
-  SOURCE_KIND_LABEL,
-  type LeadProfile,
-  type OpportunityOpenContext,
-} from '@pv/contracts'
+import { Badge, Chip, billions } from '@pv/ui'
+import { SOURCE_KIND_LABEL, type LeadProfile, type OpportunityOpenContext } from '@pv/contracts'
 import { chainPath } from '@/data/opportunities'
 
 /** The top of the "open an opportunity" drawer: which lead this deal grows out
@@ -15,8 +9,8 @@ import { chainPath } from '@/data/opportunities'
  *
  *  Every figure and code here arrives from `OpportunityOpenContext`, so the
  *  drawer reads the same answer the server will check the ticket against.
- *  Nothing in this file is a gate: a missing account and a run that already
- *  stands on another deal are both information for the person opening it. */
+ *  Nothing in this file is a gate: a missing account is information for the
+ *  person opening it. The lead's running deals are `open-deal-running.tsx`. */
 
 const MIL = 1_000_000
 
@@ -114,39 +108,6 @@ export function LeadCard({
           )}
         </Row>
       </div>
-    </div>
-  )
-}
-
-/** The run already stands on another deal. Said plainly, and never a gate:
- *  the new deal is made either way, only the board card waits. */
-export function StandingDealNote({ context }: { context: OpportunityOpenContext }) {
-  const { standingDeal, workstream } = context
-  if (!standingDeal) return null
-  const path = standingDeal.code ? chainPath('OP', standingDeal.code) : undefined
-  const standsAt = standingDeal.code ?? 'cơ hội đó'
-
-  return (
-    <div className="bg-primary/16 flex gap-3 rounded-md px-4 py-3 text-[12.5px] leading-[1.6]">
-      <Icon icon={Info} size={16} className="text-on-tint-primary mt-1 shrink-0" />
-      <span className="min-w-0 flex-1">
-        Lượt bán này đang ở{' '}
-        {path ? (
-          <Link
-            to={path}
-            className="text-on-tint-primary pointer-coarse:min-h-12 inline-flex items-center font-mono hover:underline"
-          >
-            {standingDeal.code}
-          </Link>
-        ) : standingDeal.code ? (
-          <span className="font-mono">{standingDeal.code}</span>
-        ) : (
-          'một cơ hội khác'
-        )}{' '}
-        · {OPPORTUNITY_STAGE_LABEL[standingDeal.stage]}. Cơ hội mới vẫn được tạo. Thẻ{' '}
-        {workstream ? <span className="font-mono">{workstream.code}</span> : 'lượt bán'} trên bảng
-        lượt bán vẫn ở {standsAt} cho tới khi cơ hội mới đi xa hơn.
-      </span>
     </div>
   )
 }

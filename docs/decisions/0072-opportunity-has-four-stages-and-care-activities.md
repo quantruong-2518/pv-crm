@@ -91,4 +91,5 @@ Counts per kind show on the profile.
 ## Out of scope
 
 - Presales on a deal (presales turn).
-- Do-not-contact enforcement (0067 D5, separate turn).
+- Do-not-contact enforcement (0067 D5, separate turn). Settled by 0088 §23:
+  warn only.

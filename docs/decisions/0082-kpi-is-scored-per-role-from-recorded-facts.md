@@ -1,6 +1,6 @@
 # 0082 · KPI is scored per role from recorded facts, against an agreed, versioned monthly target
 
-Status: accepted
+Status: accepted (§2's "no poller, no worker, no snapshot table" and two Consequences bullets partially superseded by 0088; §3 and §3a amended by 0088)
 Source: project owner's decisions in chat, 09/10/2026
 
 ## Context
@@ -41,6 +41,8 @@ a contract code.
 - "Won" has ONE definition everywhere in KPI: the deal has a contract row.
 - Compute on read. No poller, no worker, no snapshot table (Neon compute
   quota).
+  > Partially superseded by 0088 §8 (decided, not built): compute on read
+  > stands; a weekly capture and a manual capture are added beside it.
 - The period is one calendar month, edges on Vietnam days, the same edges as
   `apps/api/src/branches/sales/performance/performance-period.ts`.
 - If a definition cannot be built from real columns it is not approximated
@@ -71,6 +73,11 @@ In workflow order. Own = filtered on the actor; room = the whole Sales book.
   stops moving.
 - A snapshot metric (`overdue-receivables`) carries a figure only for the
   running month; a closed or future month reads `no-data`.
+
+> Amended by 0088: `opportunity-accept-rate` and `accept-lag-days` leave out
+> deals opened by a head or director (§18); the first response is the shared
+> "Đã liên hệ lần đầu" definition, where a meeting not yet held does not count
+> (§21).
 
 The definition of each metric, its unit, direction and whether it is paced are
 the catalog in code, not here: `packages/contracts/src/sales/kpi.ts` and the
@@ -189,12 +196,16 @@ data on 09/10/2026:
   page, its route and its nav row are gone, and the two KPI screens (§7)
   replace it. The overview's exits donut now reads `frozenExitsQuery` in
   `apps/web/src/data/home-charts.ts`. The parked Plan screen stays.
+  > Superseded by 0088 §22 for the exits donut: one live reasons chart
+  > replaces it.
 - Debt: the fixture's KPI model exports in
   `packages/engines/src/fixtures/das-vina.ts` (`ROLE_KPI_MODEL`, `KPI_LAYERS`,
   `HANDOFF_SLA`, `SLA_WATCH_MARGIN`) are no longer read by the web and were
   left in place.
 - The leaderboard and the workstream scorecard keep their own "won"; only KPI
   is bound to §2's definition.
+  > Partially superseded by 0088 §7: any figure labelled "Tỷ lệ thắng" uses
+  > the KPI definition, on every screen.
 - Debt: money metrics drop a contract with no amount or an unknown currency,
   unlike the overview, which reports them as blank.
 - Debt: two managers who each hold a pending row of the same role block each

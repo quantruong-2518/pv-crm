@@ -63,12 +63,12 @@ const BOOK_PATH = '/sales/opportunities'
 /** The CREATE door and both BATCH doors — `@Need({ …, permission: 'opportunity.create',
  *  scoped: true })`, mirroring the controller.
  *
- *  Its own permission, not `opportunity.edit`: a Sale is handed deals and edits
- *  them, but only BD-side seats and heads open one (ADR 0071 §1). Declared here
- *  so the button turns off BEFORE the form is filled, not after.
+ *  Its own permission, not `opportunity.edit`. BD, Sale, account-executive and
+ *  the heads open a deal (ADR 0088 §16); presales and marketing do not.
+ *  Declared here so the button turns off BEFORE the form is filled.
  *
  *  `scoped` because the deal is opened ON a lead: an ownOnly caller may only
- *  convert a lead they hold, and the server checks it under the lead lock. */
+ *  open on a lead they hold or one nobody holds (ADR 0088 §17). */
 export const OPPORTUNITY_WRITE_NEED: ApiNeed = {
   branch: 'Sales',
   permission: 'opportunity.create',
@@ -132,32 +132,38 @@ function dealBody(draft: OpportunityDraft) {
 /** Draft → `POST` body. `contacts` travel beside the draft, not in it: the
  *  server wants at least one and exactly one primary, and the 14-cell draft
  *  has no room for them. `salePrimary` rides the same way (ADR 0086); absent
- *  on an empty SALE lane, where the contract refuses any id. */
+ *  on an empty SALE lane, where the contract refuses any id.
+ *  `acknowledgedDeals` is the codes the form listed, `[]` when it listed none
+ *  (ADR 0088 §9): the server refuses any other list. */
 export function createBodyOf(
   leadCode: ObjectCode,
   draft: OpportunityDraft,
   contacts: OpportunityContactPick[],
+  acknowledgedDeals: ObjectCode[],
   salePrimary?: string,
 ): OpportunityCreate {
   return {
     leadCode,
     contacts,
+    acknowledgedDeals,
     ...dealBody(draft),
     ...(salePrimary !== undefined && { salePrimary }),
   }
 }
 
-/** The creator's prefill (ADR 0071 §2), by actor id and still editable.
- *  Decided by permission, not role, so the matrix screen stays the source: an
- *  acceptor is recorded as such by the server, so only the lead's BD carries
- *  over; any other creator opens on their own BD lane. SALE starts empty. */
+/** The creator's prefill (ADR 0071 §2, 0088 §16), by actor id and still editable.
+ *  An acceptor is recorded as such by the server, so only the lead's BD carries
+ *  over. A Sale opens as the SALE primary beside the lead's BD, whatever else
+ *  they hold; any other creator opens on their own BD lane. */
 export function withCreatorOwners(
   seed: OpportunityDraft,
   me: Actor | null,
   lead: LeadProfile,
 ): OpportunityDraft {
+  const leadBd = lead.bdOwnerId ? [lead.bdOwnerId] : []
   if (me?.permissions.includes('opportunity.accept'))
-    return { ...seed, saleOwners: [], bdOwners: lead.bdOwnerId ? [lead.bdOwnerId] : [] }
+    return { ...seed, saleOwners: [], bdOwners: leadBd }
+  if (me?.roleIds.includes('sale')) return { ...seed, saleOwners: [me.id], bdOwners: leadBd }
   if (me?.permissions.includes('opportunity.create'))
     return { ...seed, saleOwners: [], bdOwners: [me.id] }
   return seed

@@ -1,6 +1,6 @@
 # 0073 · An opportunity is opened from the lead with its customer contacts; the customer type is derived, the account is copied
 
-Status: accepted
+Status: accepted (§1 import contacts, §2 renewal start and §4's refusal on an unheld lead partially superseded by 0088)
 Source: project owner's decisions in chat, 01/10/2026; design canvas https://claude.ai/artifact/NPU6Fbbkhw2xMYYGRLMc8p
 
 ## Context
@@ -22,12 +22,18 @@ the same account within the creator's lead scope.
 
 Only the create door writes contacts. The import door writes none.
 
+> Partially superseded by 0088 §19: the import file carries contact and
+> product columns.
+
 ### 2 · No stored deal type
 
 New vs returning customer is derived from `sales.workstream` history at the
 account: another WON run means returning; no account means unknown. Renewal and
 expansion are Block 5 (ADR 0054) and start from the account, not from the lead
 drawer.
+
+> Partially superseded by 0088 §6 (decided, not built): a repeat deal for a
+> signed customer opens from the original lead.
 
 ### 3 · The account is one fact
 
@@ -43,6 +49,9 @@ deal the run stands on (code and name hidden when the reader may not open it,
 stage only), the contacts, and the configured ladder limit of stage `new` as
 the Nhận PIC deadline; no new threshold. 404 only for a missing lead, 403 for
 a lead not held.
+
+> Narrowed by 0088 §17: opening a deal on a lead nobody holds makes the
+> opener its holder.
 
 ### 5 · UI
 

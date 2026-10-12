@@ -7,14 +7,13 @@ import {
   type Decidable,
 } from '@pv/engines'
 import {
+  isSellerRole,
   OpportunityBookResponse,
   OpportunityCreateResponse,
   OpportunityFacetsResponse,
   OpportunityProfileResponse,
   OpportunityStopReasons,
   OpportunityHistogram,
-  OpportunityImportCommitResponse,
-  OpportunityImportPreviewResponse,
   OpportunityLiveDeal,
   OpportunityScorecard,
   OpportunityStageHistory,
@@ -25,7 +24,6 @@ import {
   type OpportunityBookQuery,
   type OpportunityCreate,
   type OpportunityFacetsQuery,
-  type OpportunityImportBody,
   type OpportunityUpdate,
   type MeetingCreate,
   type MeetingListResponse,
@@ -44,7 +42,7 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { LeadStateWriter } from '../lead/lead-state'
 import { MeetingService } from '../meeting/meeting.service'
 import {
   editDetailsVerdict,
@@ -61,13 +59,13 @@ import {
 } from './opportunity-profile'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
-import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import { editTrail } from './opportunity-trail'
 import { announceOpened, announceOwners } from './opportunity-bell'
-import { foreignLead, holds, OpportunityOpening } from './opportunity-opening.service'
+import { foreignLead, leadGone, opens, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorRoles,
   assertHeld,
+  assertOwnSaleLane,
   assertSaleLaneKept,
   assertSellers,
   holderOfIds,
@@ -361,9 +359,9 @@ export class OpportunityService {
       actorRoles(handle, pic),
     ])
     if (lead === null) throw notFound('lead', body.leadCode)
-    if (!holds(who, lead.ownerId)) throw foreignLead(body.leadCode)
-    if (lead.exited)
-      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
+    if (!opens(who, lead.ownerId)) throw foreignLead(body.leadCode)
+    if (lead.exited) throw leadGone()
+    assertOwnSaleLane(this.onlySaleAtCreate(who), body.saleOwners)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
        `fromCreate` call, which was enough while one place needed it; the column
@@ -383,7 +381,8 @@ export class OpportunityService {
     const code = await this.repo.nextCode()
 
     const row = await this.repo.run(async (tx) => {
-      const accounts = await this.assertLeadsLive(tx, who, [body.leadCode])
+      const accounts = await this.opening.lockLeads(tx, who, [body.leadCode])
+      await this.opening.assertAcknowledged(tx, body.leadCode, body.acknowledgedDeals)
       const ref = refOf(code, write, { label: write.values.name, owner })
       await this.mirror.put(tx, ref)
       /* The lead BEGAT this deal, so the arrow runs lead → deal. Written here
@@ -643,247 +642,19 @@ export class OpportunityService {
     if (!found || !found.inScope) throw notFound('cơ hội', code)
   }
 
-  // ── nạp từ tệp ───────────────────────────────────────────────────────────
-
-  /** Chạy thử. KHÔNG ghi gì — kể cả một con số của dãy mã. */
-  async importPreview(
-    who: Actor,
-    body: OpportunityImportBody,
-  ): Promise<OpportunityImportPreviewResponse> {
-    const { report } = await this.check(this.repo.readonlyHandle, who, body)
-    return OpportunityImportPreviewResponse.parse(report)
-  }
-
-  /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào.
-   *
-   *  Nửa lô đã ghi rồi máy chủ chết là trạng thái không ai gỡ được bằng tay —
-   *  người ta sẽ nạp lại cả tệp, và lần này nửa đầu thành trùng. Một
-   *  transaction, và bản báo cáo là thứ nói cho biết những gì KHÔNG vào. */
-  async importCommit(
-    who: Actor,
-    body: OpportunityImportBody,
-  ): Promise<OpportunityImportCommitResponse> {
-    const handle = this.repo.readonlyHandle
-    const { report, writes, workstreamByLead } = await this.check(handle, who, body)
-
-    /* Mã cấp TRƯỚC khi mở transaction, một câu cho cả lô — lý do đầy đủ ở
-       `nextCodes`. Dãy trả theo thứ tự tăng nên thứ tự của tệp cũng là thứ tự
-       của mã, không cần sắp lại như lô nạp lead phải làm. */
-    const codes = await this.repo.nextCodes(writes.length)
-    const now = new Date()
-    const acceptor = this.acceptorAtCreate(who)
-
-    const everyone = writes.flatMap((w) => [...w.saleOwners, ...w.bdOwners])
-    const [names, roles] = await Promise.all([
-      this.repo.actorNames(handle, everyone),
-      actorRoles(handle, everyone),
-    ])
-
-    /* Dòng, dòng gương, bảng nối và lần chạm dựng CÙNG một lượt, từ cùng một
-       bản nháp và cùng một mã — bốn thứ không lệch nhau bằng một chỉ số được. */
-    const ready = writes.map((write, i) => {
-      const code = codes[i] ?? ''
-      /* The typed door's column rule, through the same function: `new`, or
-         `assigned` when the importer may accept (ADR 0071). The file carries
-         no stage column, so this is the only way an imported deal gets one. */
-      const draft = fromCreate(
-        write,
-        now,
-        workstreamByLead.get(write.leadCode) ?? null,
-        acceptor?.id ?? null,
-      )
-      const salePrimary = salePrimaryOf(saleLaneOf(write.saleOwners, names, roles), null)
-      return {
-        code,
-        row: { ...draft.values, code },
-        ref: refOf(code, draft, {
-          label: draft.values.name,
-          owner: holderOfIds(write, names, roles, acceptor, salePrimary),
-        }),
-        owners: ownerRowsOf(code, draft, salePrimary),
-        /* THE "ENTERED THE BOARD" ROW — the same row the single-deal create
-           door writes, for the same reason. This door forgot it until 03/09,
-           and the omission was invisible on every screen: an imported deal
-           shows up in the book, moves column, signs. Only the funnel counts
-           short, because the denominator of every conversion rate is how many
-           deals STEPPED INTO the first column. A 300-line file was 300 deals
-           the report could not see, and nothing surfaces that until somebody
-           compares two numbers.
-
-           `stageSince: null`, not `now`: this row leaves no column, so
-           `days_in_from` must be NULL — `opportunity_stage_event_clock` pins
-           that pair. Unconditional since ADR 0064, like the single-deal door:
-           every imported deal enters a column. */
-        stageEvent: stageEventOf({
-          code,
-          from: null,
-          to: draft.values.stage ?? null,
-          stageSince: null,
-          at: now,
-          by: { id: who.id, name: who.name },
-          note: NOTE.opened(write.leadCode),
-        }),
-        touches: [
-          {
-            subjectCode: code,
-            subjectKind: 'opportunity' as const,
-            kind: 'entered-pipeline' as const,
-            ...byOf(who),
-            note: NOTE.opened(write.leadCode),
-          },
-          {
-            subjectCode: write.leadCode,
-            subjectKind: 'lead' as const,
-            kind: 'entered-pipeline' as const,
-            ...byOf(who),
-            note: NOTE.promoted(code, write.name),
-          },
-          ...acceptTouches(code, acceptor, now),
-        ] satisfies TouchEntry[],
-      }
-    })
-
-    const batch = await this.repo.run(async (tx) => {
-      const accounts = await this.assertLeadsLive(tx, who, [
-        ...new Set(ready.map((p) => p.row.leadCode)),
-      ])
-      /* Cắt khúc, và vẫn nguyên tử — mọi câu dưới đây chạy trong đúng
-         transaction này. Cắt khúc là chuyện trần 65.535 tham số ràng buộc của
-         Postgres, không phải chuyện bền vững.
-
-         Dòng gương TRƯỚC trong mỗi khúc. Với lead thì khoá ngoại ép thứ tự đó;
-         với cơ hội thì `opportunity.code` chưa trỏ về `platform.object` nên
-         đây là kỷ luật — giữ đúng thứ tự để ngày khoá ngoại đó được thêm vào,
-         cửa này không phải sửa. */
-      const CHUNK = 500
-      for (let i = 0; i < ready.length; i += CHUNK) {
-        const slice = ready.slice(i, i + CHUNK)
-        if (slice.length === 0) continue
-        await this.mirror.putMany(
-          tx,
-          slice.map((p) => p.ref),
-        )
-        /* Same edge the single-deal door writes, for the same reason — a deal
-           that arrived in a file has exactly the same story as one typed by
-           hand, and a rail that depends on which door was used is a rail
-           nobody can trust. */
-        await this.mirror.linkMany(
-          tx,
-          slice.map((p) => ({ from: p.row.leadCode, to: p.code, kind: 'spawned' as const })),
-        )
-        await this.repo.insertMany(
-          tx,
-          slice.map((p) => ({ ...p.row, accountCode: accounts.get(p.row.leadCode) ?? null })),
-        )
-        await this.repo.insertOwners(
-          tx,
-          slice.flatMap((p) => p.owners),
-        )
-        /* AFTER `insertMany` — the `opportunity_code` foreign key demands the
-           deal row first, and both statements sit in one transaction, so the
-           order written here is the order Postgres enforces rather than a
-           convention someone could reorder. */
-        await this.repo.insertStageEvents(
-          tx,
-          slice.map((p) => p.stageEvent),
-        )
-        const touchIds = await this.touch.record(
-          tx,
-          slice.flatMap((p) => p.touches),
-        )
-        /* Each deal's entry touch leads its own run of rows in the batch. */
-        let at = 0
-        for (const p of slice) {
-          const after = p.owners.map((o) => o.actorId)
-          const born = { code: p.code, label: p.row.name, actorId: who.id, before: [], after }
-          await announceOwners(tx, this.hub, { ...born, occurrence: touchIds[at] })
-          at += p.touches.length
-        }
-      }
-      await this.leadStates.converted(tx, [...new Set(ready.map((p) => p.row.leadCode))])
-      await this.workstreams.syncClosed(tx, [
-        ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
-      ])
-      /* One bell event per deal; the role audience is read once for the file. */
-      const acceptors = await this.hub.holding(tx, 'opportunity.accept', 'Sales')
-      for (const { code, row } of ready) {
-        const told = { code, name: row.name, actorId: who.id }
-        const deal = { ...told, accepted: acceptor !== null, lost: false }
-        await announceOpened(tx, this.hub, deal, acceptors)
-      }
-
-      /* Biên lai được ghi KỂ CẢ khi không dòng nào vào. Một lô toàn lỗi vẫn là
-         một việc đã xảy ra, và "tôi có bấm nạp mà chẳng thấy gì" là câu chỉ trả
-         lời được nếu có dòng này. */
-      return this.repo.writeBatchNote(tx, {
-        actorId: who.id,
-        note: JSON.stringify({
-          kind: 'opportunity-import',
-          file: body.fileName,
-          accepted: codes.length,
-          codes,
-        }),
-      })
-    })
-
-    return OpportunityImportCommitResponse.parse({
-      ...report,
-      batchId: batch.id,
-      at: batch.at.toISOString(),
-      accepted: codes.length,
-      codes,
-    })
-  }
-
-  /** Nửa dùng chung của hai cửa nạp — lý do "chạy thử nói sạch, nạp thật báo
-   *  lỗi" không xảy ra được.
-   *
-   *  Ba lượt đọc, và lượt thứ ba phụ thuộc hai lượt đầu: phải dịch xong tên
-   *  công ty sang mã lead mới biết hỏi đơn đang mở của những lead NÀO. Dịch
-   *  bằng đúng `fold` mà bộ kiểm dùng — không phải một bản chép, mà chính hàm
-   *  đó — nên tập mã hỏi ở đây và tập mã bộ kiểm phân giải không lệch nhau. */
-  private async check(
-    handle: Db,
-    who: Actor,
-    body: OpportunityImportBody,
-  ): Promise<ImportCheck & { workstreamByLead: ReadonlyMap<string, string | null> }> {
-    const [staff, leads] = await Promise.all([
-      this.repo.staff(handle),
-      this.repo.leadsByCompany(handle),
-    ])
-
-    const candidates = [
-      ...new Set(
-        body.rows
-          .map((r) => leads.byCompany.get(fold(r.values.company ?? '')))
-          .filter((c): c is string => c !== undefined),
-      ),
-    ]
-
-    const liveDealByLead = await this.repo.liveDealsByLead(handle, candidates)
-
-    return {
-      ...checkBatch({
-        rows: body.rows,
-        staff,
-        leadByCompany: leads.byCompany,
-        ambiguousCompany: leads.ambiguous,
-        liveDealByLead,
-        exitedCompany: leads.exited,
-        outOfScope: new Set(
-          [...leads.ownerByLead].filter(([, owner]) => !holds(who, owner)).map(([code]) => code),
-        ),
-        importerAccepts: this.acceptorAtCreate(who) !== null,
-      }),
-      workstreamByLead: leads.workstreamByLead,
-    }
-  }
-
   /** A creator who may accept (ADR 0071 §3, head of sales or director by the
    *  default matrix) accepts the deal at birth. Asked of E2 rather than of
    *  `roleIds`, so it follows the same grant as the accept door itself. */
-  private acceptorAtCreate(who: Actor): RefOwner | null {
+  acceptorAtCreate(who: Actor): RefOwner | null {
     return this.access.allows(who, 'opportunity.accept') ? { id: who.id, name: who.name } : null
+  }
+
+  /** The one id a SELLER may put on the SALE lane at open: their own, unless
+   *  they hold the assign door's grant. `null` = anyone; a BD opener still
+   *  proposes the seller, as before ADR 0088 — `assertOwnSaleLane`. */
+  onlySaleAtCreate(who: Actor): string | null {
+    const free = !isSellerRole(who.roleIds) || this.access.allows(who, 'opportunity.assign')
+    return free ? null : who.id
   }
 
   /** The owner rules on the deal as it stands UNDER the row lock — an accept
@@ -935,27 +706,6 @@ export class OpportunityService {
     ) {
       throw conflict(`Cơ hội ${code} vừa được ký, gửi duyệt ký hoặc dừng. Tải lại rồi thử lại.`)
     }
-  }
-
-  /** Lock the leads a deal write lands on (`lockLeads`), so an exit or a
-   *  hand-over racing it waits, then re-check scope and liveness on the locked
-   *  rows — the pre-reads ran outside the tx. Returns each lead's company, read
-   *  under that lock: the deal copies it, a body never names one. */
-  private async assertLeadsLive(
-    tx: Db,
-    who: Actor,
-    leadCodes: readonly string[],
-  ): Promise<ReadonlyMap<string, string | null>> {
-    const rows = await this.repo.lockLeads(tx, leadCodes)
-    /* Absent under the lock = switched off (or never there): a 404, to anyone. */
-    const live = new Set(rows.map((r) => r.code))
-    const gone = leadCodes.find((code) => !live.has(code))
-    if (gone) throw notFound('lead', gone)
-    const foreign = rows.find((r) => !holds(who, r.ownerId))
-    if (foreign) throw foreignLead(foreign.code)
-    if (rows.some((r) => r.exited))
-      throw conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
-    return new Map(rows.map((r) => [r.code, r.accountCode]))
   }
 
   /** A signed deal's edit carries its commission holder onto each contract, in
@@ -1038,7 +788,7 @@ function saleLaneMoved(found: OpportunityRead, body: OpportunityUpdate): boolean
 
 /** A deal born accepted tells its timeline the same fact the accept door
  *  writes through `OpportunityLifecycle.assigned`: same kind, same note. */
-function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): TouchEntry[] {
+export function acceptTouches(code: string, acceptor: RefOwner | null, at: Date): TouchEntry[] {
   if (acceptor === null) return []
   const note = NOTE.moved('new', 'assigned')
   return [

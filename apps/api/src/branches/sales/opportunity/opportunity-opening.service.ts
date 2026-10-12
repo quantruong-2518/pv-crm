@@ -4,23 +4,47 @@ import {
   OpportunityOpenContext,
   type ObjectCode,
   type OpportunityContactPick,
+  type OpportunityRunningDeal,
   type WorkstreamCustomer,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { denied, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound, type PvError } from '@api/platform/http/problem'
 import { stageConfigOf } from '../ladder'
+import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
+import { peopleOf } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 
-/** Lead scope by id, the lead doors' rule (`LeadExitService.lockRow`): an
- *  `ownOnly` caller converts only a lead they hold — never a pool lead. */
-export const holds = (who: Actor, ownerId: string | null): boolean =>
-  !who.ownOnly || ownerId === who.id
+/** Who may open a deal on a lead: its holder, a reader the scope does not cut,
+ *  and anyone when nobody holds it — the opener then takes it (ADR 0088 §17).
+ *  A lead somebody else holds stays closed to an `ownOnly` caller. */
+export const opens = (who: Actor, ownerId: string | null): boolean =>
+  !who.ownOnly || ownerId === null || ownerId === who.id
 
 export const foreignLead = (code: string) =>
   denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
 
-const STRANGER = 'Người liên hệ phải thuộc lead này hoặc một lead khác của cùng công ty.'
+export const leadGone = () =>
+  conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
+
+export const STRANGER = 'Người liên hệ phải thuộc lead này hoặc một lead khác của cùng công ty.'
+
+/** `acknowledged` names exactly the running deals — the one rule of a second
+ *  deal on a lead, and of a double submit (ADR 0088 §9). */
+export const acknowledges = (
+  running: readonly { code: string }[],
+  acknowledged: readonly string[],
+): boolean =>
+  running.length === new Set(acknowledged).size &&
+  running.every((d) => acknowledged.includes(d.code))
+
+/** The 409 of `OpportunityOpenRefusal`: the Problem filter spreads `extra`
+ *  into the body, so the list as it stands travels with the refusal. */
+export const runningChanged = (leadCode: string, running: readonly unknown[]): PvError =>
+  Object.assign(
+    conflict(`Cơ hội đang chạy của lead ${leadCode} đã thay đổi. Xem lại rồi xác nhận.`),
+    { extra: { runningDeals: running } },
+  )
 
 /** New or returning: a run with no account cannot say; one whose account won
  *  another run before (`wonElsewhere`) is returning. The drawer and the deal row
@@ -37,6 +61,7 @@ export class OpportunityOpening {
   constructor(
     private readonly repo: OpportunityOpenRepository,
     private readonly deals: OpportunityRepository,
+    private readonly leadStates: LeadStateWriter,
   ) {}
 
   /** `GET /sales/opportunities/open-context`. Same two answers as the create
@@ -45,15 +70,16 @@ export class OpportunityOpening {
     const db = this.repo.readonlyHandle
     const found = await this.repo.leadFacts(db, leadCode)
     if (!found) throw notFound('lead', leadCode)
-    if (!holds(who, found.ownerId)) throw foreignLead(leadCode)
+    if (!opens(who, found.ownerId)) throw foreignLead(leadCode)
     const { accountCode, workstreamCode } = found
 
-    const [owningAccount, previousWon, standing, contacts, ladder] = await Promise.all([
+    const [owningAccount, previousWon, standing, contacts, ladder, running] = await Promise.all([
       accountCode ? this.repo.accountWithOwner(db, accountCode) : null,
       accountCode ? this.repo.previousWon(db, who, accountCode, workstreamCode) : null,
       workstreamCode ? this.repo.standingDeal(db, who, workstreamCode) : null,
       this.repo.reachableContacts(db, who, leadCode),
       this.deals.stageRows(),
+      this.running(db, [leadCode]),
     ])
 
     return OpportunityOpenContext.parse({
@@ -77,9 +103,72 @@ export class OpportunityOpening {
         name: standing.inScope ? standing.name : null,
         stage: standing.stage,
       },
+      runningDeals: running.get(leadCode) ?? [],
       contacts,
       newStageLimitDays: stageConfigOf(ladder).get('new')?.limitDays ?? null,
     })
+  }
+
+  /** Lead code → its running deals as the wire names them, oldest first. The
+   *  holder is the book row's (`peopleOf`), so both screens name one person.
+   *  "Running" is `runningRows`' `dealOpen` alone — open, not lost, not signed. */
+  async running(
+    db: Db,
+    leadCodes: readonly string[],
+  ): Promise<Map<string, OpportunityRunningDeal[]>> {
+    const rows = await this.repo.runningRows(db, leadCodes)
+    const owners = await this.deals.ownersOf(
+      db,
+      rows.map((r) => r.code),
+    )
+    const byLead = new Map<string, OpportunityRunningDeal[]>()
+    for (const r of rows) {
+      /* Narrows the type, drops nothing: only a stop or a signature nulls
+         `stage`, and `dealOpen` has already left both out. */
+      if (!r.stage) continue
+      const { holder } = peopleOf(r, r.acceptorName, owners.get(r.code))
+      const deal = { code: r.code, name: r.name, stage: r.stage, holder }
+      byLead.set(r.leadCode, [...(byLead.get(r.leadCode) ?? []), deal])
+    }
+    return byLead
+  }
+
+  /** Lock the leads a deal write lands on (`lockLeads`), so an exit or a
+   *  hand-over racing it waits, then re-check scope and liveness on the locked
+   *  rows — the pre-reads ran outside the tx — and hand the opener every lead
+   *  nobody holds (ADR 0088 §17). Returns each lead's company, read under that
+   *  lock: the deal copies it, a body never names one. */
+  async lockLeads(
+    tx: Db,
+    who: Actor,
+    leadCodes: readonly string[],
+  ): Promise<ReadonlyMap<string, string | null>> {
+    const rows = await this.deals.lockLeads(tx, leadCodes)
+    /* Absent under the lock = switched off (or never there): a 404, to anyone. */
+    const live = new Set(rows.map((r) => r.code))
+    const gone = leadCodes.find((code) => !live.has(code))
+    if (gone) throw notFound('lead', gone)
+    const foreign = rows.find((r) => !opens(who, r.ownerId))
+    if (foreign) throw foreignLead(foreign.code)
+    if (rows.some((r) => r.exited)) throw leadGone()
+    await this.leadStates.claimed(
+      tx,
+      rows.filter((r) => r.ownerId === null),
+      who,
+    )
+    return new Map(rows.map((r) => [r.code, r.accountCode]))
+  }
+
+  /** Under the lead lock: the body must name exactly the lead's running deals,
+   *  else 409 with the list as it stands. A repeated submit carries a list
+   *  without the deal the first one minted, so it stops here too. */
+  async assertAcknowledged(
+    tx: Db,
+    leadCode: string,
+    acknowledged: readonly string[],
+  ): Promise<void> {
+    const running = (await this.running(tx, [leadCode])).get(leadCode) ?? []
+    if (!acknowledges(running, acknowledged)) throw runningChanged(leadCode, running)
   }
 
   /** Refuse any pick outside `reachableContacts` unless `kept` (already on the
@@ -102,7 +191,10 @@ export class OpportunityOpening {
     ])
     if (picks.some((p) => !reach.has(p.contactCode)))
       throw invalid({ contacts: [STRANGER] }, STRANGER)
-    await this.repo.insertContacts(tx, code, picks)
+    await this.repo.insertContacts(
+      tx,
+      picks.map((p) => ({ ...p, opportunityCode: code })),
+    )
     return [...picks]
       .sort((a, b) => Number(b.primary) - Number(a.primary))
       .map((p) => reach.get(p.contactCode) ?? p.contactCode)

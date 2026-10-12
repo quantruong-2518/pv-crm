@@ -122,7 +122,6 @@ export const PERMISSIONS = [
    *  (`AssignMenu`). NOT a change of owner: changing the owner re-splits the
    *  commission, so that goes through an approval of its own. */
   'lead.assign',
-  'lead.convert',
   /** Take a lead out of the funnel (`ExitDialog`). Rare, and one-way. */
   'lead.disqualify',
   /** Switch a lead OFF for everybody (and back on): hidden from every list

@@ -3,6 +3,7 @@ import {
   OpportunityImportBody,
   type OpportunityImportDup,
   type OpportunityImportField,
+  type OpportunityImportHeld,
   type OpportunityImportReport,
 } from '@pv/contracts'
 import type { BuiltRow, RowError } from '@/data/intake'
@@ -60,9 +61,9 @@ export type ImportableOpRow = BuiltRow & { first: string }
 
 /** Keep only the keys the wire understands.
  *
- *  `OP_SPEC` puts six of the nine on screen; the other three (`state`,
- *  `currency`, `description`) exist on the table and are accepted by the
- *  contract, so a spec that grows a column later needs no change here.
+ *  `OP_SPEC` puts ten of the twelve on screen; `currency` and `description`
+ *  exist on the table and are accepted by the contract, so a spec that grows
+ *  a column later needs no change here.
  *  Filtering through the closed set rather than casting is what keeps a row
  *  built from the WRONG spec — `BuiltRow.values` is an open
  *  `Record<string, string>`, shared by three loaders — from reaching the server
@@ -103,6 +104,7 @@ export function buildOpportunityImportBody(
       line: row.line,
       first: row.first,
       values: pickImportValues(row.values),
+      ...(row.acknowledgedDeals && { acknowledgedDeals: row.acknowledgedDeals }),
     })),
   }
 
@@ -124,13 +126,13 @@ export function buildOpportunityImportBody(
  *  side carries its own extras. */
 export type OpportunityImportPanelReport = {
   /** `leadCode` is the one thing the browser could not have known: which
-   *  customer the `Account` cell named. */
+   *  lead the lead-code or `Account` cell named. */
   rows: (BuiltRow & { leadCode: string })[]
   errors: (RowError & { field?: OpportunityImportField })[]
   duplicates: number
   dupInFile: number
   total: number
-  dupWithBook: OpportunityImportDup[]
+  dupWithBook: OpportunityImportHeld[]
   dupWithinFile: OpportunityImportDup[]
 }
 

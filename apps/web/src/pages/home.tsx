@@ -13,10 +13,9 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { CHARTS_FROZEN_AT, frozenExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
+import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
 import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
-import { dm } from '@/lib/date'
-import { ExitsTile, MonthsTile } from './home-charts'
+import { MonthsTile, ReasonsTile } from './home-charts'
 import { PriorityList } from './home-list'
 import {
   currentPick,
@@ -31,6 +30,7 @@ import {
 import {
   ChartsFailed,
   FunnelTile,
+  LeadToContractTile,
   OpenValueTile,
   OverdueTile,
   SignedTile,
@@ -40,10 +40,8 @@ import {
 
 /** Screen 01 · Overview — a bento of sales figures over a short live list.
  *
- *  TWO SOURCES, AND THE SCREEN SAYS WHICH IS WHICH. Only the exits donut is
- *  still the frozen DAS Vina scenario (`frozenExitsQuery`, still `load:`),
- *  pinned to the scenario's own period: the live picker runs on the calendar
- *  and leaves that window. Every other tile and the list are live reads.
+ *  Every tile and the list are live reads; the reasons tile follows the
+ *  picked period like the figures beside it.
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
@@ -55,12 +53,13 @@ import {
  *  would describe a run nobody picked. It returns once a row can be chosen. */
 
 /* Row two is three-up only from `xl`; below that the funnel and the months
-   chart pair up and the donut takes the full row, so no cell is left empty.
+   chart pair up and the reasons tile takes the full row, so no cell is left empty.
    One floor height for the row, skeletons included, so nothing grows on load. */
 const BENTO = 'grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12'
-const SIGNED = 'md:col-span-6 xl:col-span-5'
 const PAIRED = 'min-h-72 md:col-span-3 xl:col-span-4'
 const WIDE = 'md:col-span-6 xl:col-span-4 xl:min-h-72'
+/** Beside a failed figures tile nothing shares the row, so the reasons take it whole. */
+const WIDE_ALONE = 'md:col-span-6 xl:col-span-12 xl:min-h-72'
 
 const GRAINS: { value: HomeGrain; label: string }[] = [
   { value: 'month', label: 'Tháng' },
@@ -127,7 +126,11 @@ export function HomePage() {
     enabled: canCharts,
     placeholderData: keepPreviousData,
   })
-  const frozen = useQuery({ ...frozenExitsQuery, enabled: canCharts })
+  const exitsRead = useQuery({
+    ...salesExitsQuery(keyOf(pick)),
+    enabled: canCharts,
+    placeholderData: keepPreviousData,
+  })
   const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
   const list = useQuery({
     ...workstreamBookQuery(listQueryOf(filter)),
@@ -144,11 +147,10 @@ export function HomePage() {
     listRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' })
   }
 
-  const frozenDay = dm(CHARTS_FROZEN_AT)
-  /* Without the Overdue tile the two beside it widen to close the row; the
+  /* Without the Overdue tile the figures beside it widen to close the row; the
      skeletons take the same spans so nothing shifts when the figures land. */
-  const openSpan = canRuns ? 'md:col-span-2 xl:col-span-3' : 'md:col-span-3 xl:col-span-4'
-  const winSpan = canRuns ? 'md:col-span-2' : 'md:col-span-3'
+  const signedSpan = canRuns ? 'md:col-span-6 xl:col-span-4' : 'md:col-span-6 xl:col-span-6'
+  const span = canRuns ? 'md:col-span-3 xl:col-span-2' : 'md:col-span-2 xl:col-span-2'
   const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
 
   const overdue = canRuns && (
@@ -159,33 +161,30 @@ export function HomePage() {
       scoped={(list.data?.hidden ?? 0) > 0}
       active={filter?.by === 'overdue'}
       onToggle={() => applyFilter(filter?.by === 'overdue' ? null : { by: 'overdue' })}
-      className="md:col-span-2"
+      className={span}
     />
   )
 
-  /* Its fixture read does not depend on the live one, so it also stands
-     beside the failure tile: the caption above names it either way. */
-  const exits = frozen.data ? (
-    <ExitsTile data={frozen.data} frozenDay={frozenDay} className={WIDE} />
-  ) : (
-    <TileSkeleton className={WIDE} />
-  )
+  /* Its read does not depend on the figures', so it also stands beside the
+     failure tile. */
+  const exitsTile = (className: string) =>
+    exitsRead.data ? (
+      <ReasonsTile data={exitsRead.data} className={className} />
+    ) : exitsRead.error ? (
+      <ChartsFailed
+        detail={isApiError(exitsRead.error) ? userMessage(exitsRead.error) : 'Thử lại.'}
+        onRetry={() => void exitsRead.refetch()}
+        className={className}
+      />
+    ) : (
+      <TileSkeleton className={className} />
+    )
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
           title="Tổng quan"
-          description={
-            canCharts ? (
-              <>
-                Ô Lý do lead rời luồng là số mẫu, chốt lúc{' '}
-                <span className="tnum font-num">{CHARTS_FROZEN_AT.slice(11, 16)}</span> ngày{' '}
-                <span className="tnum font-num">{frozenDay}</span>, không đổi theo kỳ. Các ô còn lại
-                là số thật.
-              </>
-            ) : undefined
-          }
           actions={canCharts ? <PeriodPicker pick={pick} onPick={setPick} /> : undefined}
         />
 
@@ -197,26 +196,28 @@ export function HomePage() {
               <ChartsFailed
                 detail={isApiError(charts.error) ? userMessage(charts.error) : 'Thử lại.'}
                 onRetry={() => void charts.refetch()}
-                className={canRuns ? 'md:col-span-4 xl:col-span-10' : 'col-span-full'}
+                className={canRuns ? 'md:col-span-3 xl:col-span-10' : 'col-span-full'}
               />
               {overdue}
-              {exits}
+              {exitsTile(WIDE_ALONE)}
             </>
           ) : charts.data ? (
             <>
-              <SignedTile data={charts.data} className={SIGNED} />
-              <OpenValueTile data={charts.data} className={openSpan} />
-              <WinRateTile data={charts.data} className={winSpan} />
+              <SignedTile data={charts.data} className={signedSpan} />
+              <OpenValueTile data={charts.data} className={span} />
+              <WinRateTile data={charts.data} className={span} />
+              <LeadToContractTile data={charts.data} className={span} />
               {overdue}
               <FunnelTile data={charts.data} className={PAIRED} />
               <MonthsTile data={charts.data} className={PAIRED} />
-              {exits}
+              {exitsTile(WIDE)}
             </>
           ) : (
             <>
-              <TileSkeleton className={SIGNED} />
-              <TileSkeleton className={openSpan} />
-              <TileSkeleton className={winSpan} />
+              <TileSkeleton className={signedSpan} />
+              <TileSkeleton className={span} />
+              <TileSkeleton className={span} />
+              <TileSkeleton className={span} />
               {overdue}
               <TileSkeleton className={PAIRED} />
               <TileSkeleton className={PAIRED} />

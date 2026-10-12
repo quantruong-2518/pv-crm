@@ -1,11 +1,13 @@
 import { GlassCard, cn, percent } from '@pv/ui'
-import type { SalesPerformanceResponse } from '@pv/contracts'
-import { foldExits, type FrozenExits } from '@/data/home-charts'
-import { monthInPeriod, num, periodShort } from './home-model'
-import { GROW_HEIGHT, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
+import {
+  OPPORTUNITY_STAGE_LABEL,
+  type SalesExitsResponse,
+  type SalesPerformanceResponse,
+} from '@pv/contracts'
+import { monthInPeriod, num, periodShort, stopsByStage } from './home-model'
+import { GROW_HEIGHT, GROW_WIDTH, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
 
-/** The chart tiles of row two: the months chart reads live period figures,
- *  the exits donut is still frozen scenario figures. */
+/** The chart tiles of row two: both read live figures of the picked period. */
 
 function Swatch({ className, label }: { className: string; label: string }) {
   return (
@@ -78,118 +80,84 @@ export function MonthsTile({
   )
 }
 
-/* Donut geometry, in viewBox units: the stroke's centre line sits at RADIUS. */
-const BOX = 112
-const RADIUS = 44
-const STROKE = 16
-const ROUND = 2 * Math.PI * RADIUS
-/** Card-coloured space left between two slices, along the arc. */
-const SLICE_GAP = 2
+/** One reason and how many left for it, as a bar scaled to the longest of its list. */
+function ReasonRow({ label, count, top }: { label: string; count: number; top: number }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline gap-2 text-[12.5px]">
+        <span className="line-clamp-2 min-w-0 flex-1" title={label}>
+          {label}
+        </span>
+        <span className="tnum font-num font-semibold">{num(count)}</span>
+      </div>
+      <div
+        className={cn('bg-primary h-2 min-w-1 rounded-sm', GROW_WIDTH)}
+        style={{ width: `${(count / top) * 100}%` }}
+      />
+    </div>
+  )
+}
 
-/* One hue in sequential steps, largest slice strongest: the token table has
-   no categorical chart hues. The folded remainder takes the neutral mark. */
-const RAMP = [
-  { stroke: 'stroke-primary', fill: 'bg-primary' },
-  { stroke: 'stroke-primary/80', fill: 'bg-primary/80' },
-  { stroke: 'stroke-primary/60', fill: 'bg-primary/60' },
-  { stroke: 'stroke-primary/40', fill: 'bg-primary/40' },
-]
-const REST = { stroke: 'stroke-muted-foreground', fill: NEUTRAL_MARK }
+/** Rows a reason list prints before it folds the rest into one line: the tile
+ *  shares a row with two others, so an unbounded list would stretch the row. */
+const REASON_ROWS = 5
 
-/** Why leads left the flow. The legend carries identity (label,
- *  count, share), so no slice is told apart by colour alone. Still the frozen
- *  scenario, on its own period: the head says so, the picker does not move it. */
-export function ExitsTile({
-  data,
-  frozenDay,
-  className,
+/** The top rows of one reason list, then how many more reasons there are. */
+function ReasonList({
+  reasons,
+  top,
 }: {
-  data: FrozenExits
-  frozenDay: string
-  className?: string
+  reasons: readonly { key: string; label: string; count: number }[]
+  top: number
 }) {
-  const { total } = data
-  const { slices, folded } = foldExits(data.exits, total)
-  let run = 0
-  const arcs = slices.map((s, i) => {
-    const length = total > 0 ? (s.count / total) * ROUND : 0
-    const arc = {
-      ...s,
-      tone: (s.key === 'rest' ? REST : RAMP[i]) ?? REST,
-      dash: `${Math.max(length - SLICE_GAP, 0)} ${ROUND}`,
-      offset: -run,
-    }
-    run += length
-    return arc
-  })
+  const rest = reasons.length - REASON_ROWS
+  return (
+    <>
+      {reasons.slice(0, REASON_ROWS).map((r) => (
+        <ReasonRow key={r.key} label={r.label} count={r.count} top={top} />
+      ))}
+      {rest > 0 && <span className={NOTE}>và {num(rest)} lý do khác</span>}
+    </>
+  )
+}
+
+/** Why leads and deals left in the picked period: two short lists in one card,
+ *  most frequent first, deal stops split by the column the deal stood in. The
+ *  count beside each bar carries the number, so no bar is read by colour alone. */
+export function ReasonsTile({ data, className }: { data: SalesExitsResponse; className?: string }) {
+  const stops = stopsByStage(data.dealStops)
+  const leadTop = Math.max(1, ...data.leadExits.map((r) => r.count))
+  const dealTop = Math.max(1, ...data.dealStops.map((r) => r.count))
+
+  if (data.leadExits.length === 0 && stops.length === 0)
+    return (
+      <GlassCard className={cn(TILE, className)}>
+        <TileHead title="Lý do dừng" aside={periodShort(data.period)} />
+        <p className={NOTE}>Kỳ này chưa có lead ngừng chăm sóc hay cơ hội dừng.</p>
+      </GlassCard>
+    )
 
   return (
     <GlassCard className={cn(TILE, className)}>
-      <TileHead
-        title="Lý do lead rời luồng"
-        aside={`${data.periodLabel} · tính tới ${frozenDay}`}
-      />
-      {arcs.length === 0 ? (
-        <p className={NOTE}>Không lead nào rời luồng trong {data.periodLabel.toLowerCase()}.</p>
-      ) : (
-        /* Wraps on its own: the legend drops under the donut when the tile is
-           too narrow for both, with no breakpoint to keep in step. */
-        <div className="flex flex-1 flex-wrap items-center justify-center gap-4">
-          <div className="size-26 relative shrink-0">
-            <svg
-              viewBox={`0 0 ${BOX} ${BOX}`}
-              role="img"
-              aria-label={`Lý do lead rời luồng: ${num(total)} lead`}
-              className="size-full -rotate-90 fill-none"
-            >
-              {arcs.map((a, i) => (
-                /* Keyed by position so an arc slides to its new length when
-                   the rows change instead of being replaced. */
-                <circle
-                  key={i}
-                  cx={BOX / 2}
-                  cy={BOX / 2}
-                  r={RADIUS}
-                  strokeWidth={STROKE}
-                  strokeDasharray={a.dash}
-                  strokeDashoffset={a.offset}
-                  className={cn(
-                    a.tone.stroke,
-                    'duration-(--motion-duration) ease-(--motion-ease) transition-[stroke-dasharray,stroke-dashoffset]',
-                  )}
-                >
-                  <title>{`${a.label}: ${num(a.count)} trên ${num(total)} lead`}</title>
-                </circle>
-              ))}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="tnum font-num text-[20px] font-semibold leading-6">
-                {num(total)}
-              </span>
-              <span className={NOTE}>lead</span>
+      {data.leadExits.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <TileHead title="Lý do lead ngừng chăm sóc" aside={periodShort(data.period)} />
+          <ReasonList reasons={data.leadExits} top={leadTop} />
+        </section>
+      )}
+      {stops.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <TileHead
+            title="Lý do dừng cơ hội"
+            aside={data.leadExits.length === 0 ? periodShort(data.period) : undefined}
+          />
+          {stops.map(({ stage, reasons }) => (
+            <div key={stage} className="flex flex-col gap-2">
+              <span className={NOTE}>Dừng ở {OPPORTUNITY_STAGE_LABEL[stage]}</span>
+              <ReasonList reasons={reasons} top={dealTop} />
             </div>
-          </div>
-
-          <div className="flex min-w-44 flex-1 flex-col gap-2">
-            {arcs.map((a) => (
-              <div key={a.key} className="flex min-w-0 items-center gap-2 text-[12.5px]">
-                <span aria-hidden className={cn('rounded-xs size-2 shrink-0', a.tone.fill)} />
-                <span className="min-w-0 flex-1 truncate" title={a.label}>
-                  {a.label}
-                </span>
-                <span className="tnum font-num font-semibold">{num(a.count)}</span>
-                <span className={cn(NOTE, 'tnum font-num w-10 text-right')}>
-                  {percent(a.share)}
-                </span>
-              </div>
-            ))}
-            {folded.length > 0 && (
-              <p className={cn(NOTE, 'tnum font-num')}>
-                Còn lại: {folded.map((e) => `${e.label} ${num(e.count)}`).join(' · ')}
-              </p>
-            )}
-          </div>
-        </div>
+          ))}
+        </section>
       )}
     </GlassCard>
   )

@@ -78,7 +78,6 @@ export const Permission = z.enum([
   'workstream.view',
   'lead.send-email',
   'lead.assign',
-  'lead.convert',
   'lead.disqualify',
   'lead.disable',
   'account.view',

@@ -261,17 +261,6 @@ export class LeadWriteRepository {
     return row ?? null
   }
 
-  /** Move `owner_id`. `null` puts the lead back in the common pool.
-   *
-   *  No `where owner_id = <expected>` guard on the statement: the caller has
-   *  already locked the row with `lockForOwnerChange` inside this same
-   *  transaction, so nothing can have moved underneath it. A second guard here
-   *  would fail SILENTLY — zero rows updated reads the same as success unless
-   *  every call site remembers to count — while the lock fails loudly. */
-  async setOwner(tx: Db, code: string, ownerId: string | null): Promise<void> {
-    await tx.update(lead).set({ ownerId }).where(eq(lead.code, code))
-  }
-
   /** What a lifecycle door (contacted, exit, reopen, nurture, resume) must know,
    *  read under a row lock for the reason `lockForOwnerChange` gives: two
    *  presses would otherwise both see the old state and both write a touch.

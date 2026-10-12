@@ -1,7 +1,8 @@
 # 0071 · `assigned` is an explicit accept by a head of sales; creating an opportunity is a permission of its own
 
 Status: accepted (partially supersedes 0064 §3 `new` → `assigned` row, §4 and
-§5 for the new doors; refines 0069 §10's holder; the `assigned` label "Nhận PIC" relabelled by 0072)
+§5 for the new doors; refines 0069 §10's holder; the `assigned` label "Nhận PIC" relabelled by 0072;
+§1 partially superseded by 0088: Sale may create)
 Source: project owner's decisions in chat, 01/10/2026
 
 ## Context
@@ -16,6 +17,9 @@ mainstream CRMs, and at every moment one person is accountable.
 ## Decision
 
 ### 1 · Who may create
+
+> Partially superseded by 0088 §16: Sale may create too; presales and
+> marketing still may not.
 
 Only BD (and the account-executive seat, which includes BD), head-of-sales
 and director. Sale, presales and marketing may not. New permission
@@ -133,6 +137,12 @@ Per-stage next-step suggestions are display data in the web.
 
 - Import does not queue the new-deal mail.
 - PATCH owners leaves no touch or audit.
+  **Corrected 12/10/2026 against the code: the touch half does not hold —
+  the PATCH writes a touch for a SALE-lane change (`recordSaleLane` in
+  `apps/api/src/branches/sales/opportunity/opportunity-owners.ts`) and for a
+  BD-lane change (`editTrail` in
+  `apps/api/src/branches/sales/opportunity/opportunity-trail.ts`). The audit
+  half was not re-checked.**
 - The accept door is unscoped; this matters only if an admin grants accept to
   an `ownOnly` role.
 - The mirror owner of migrated deals keeps the 0069 holder until the next

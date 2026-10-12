@@ -55,6 +55,8 @@ these rules.
 0067 D5 enforcement is not part of this. Until it lands, the stop dialog states
 only what happens now and does not promise the lead will not be contacted.
 
+> Settled by 0088 §23: there is no enforcement turn — the flag warns only.
+
 ### 6 · Stop reasons readable by whoever may stop
 
 Readable with `opportunity.edit`, not only by `config.view` holders.

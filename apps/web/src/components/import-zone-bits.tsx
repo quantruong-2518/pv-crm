@@ -36,6 +36,7 @@ import {
   type ImportSpec,
   type RowError,
 } from '@/data/intake'
+import { dealLine } from '@/data/import-held'
 import { admissionMarkText, hasAdmissionMarks } from '@/data/import-admission'
 import { BookCount } from '@/components/book-page'
 import { AdmissionMark, AdmissionTally } from '@/components/import-admission'
@@ -248,6 +249,32 @@ const REJECT_KINDS = [
   { value: 'file', label: 'Trùng trong tệp' },
 ]
 
+/** One refused row; `deals` are the codes a held row can be sent again with and
+ *  `codes` the ones drawn in mono inside its reason lines. */
+type Rejected = {
+  line: number
+  first: string
+  why: string[]
+  kind: string
+  deals?: string[]
+  codes?: string[]
+}
+
+/** A reason line with its codes in mono, as codes are drawn everywhere else. */
+function withCodes(line: string, codes: readonly string[] = []): ReactNode {
+  if (codes.length === 0) return line
+  const escaped = codes.map((code) => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  return line.split(new RegExp(`(${escaped.join('|')})`)).map((part, i) =>
+    codes.includes(part) ? (
+      <span key={i} className="font-mono">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  )
+}
+
 /** Every row that stayed out, in ONE table with the reason beside it: broken
  *  cells, rows the system already holds, repeats inside the file. One list
  *  because the person asks one question — "which rows did not go in, and why".
@@ -259,39 +286,49 @@ export function RejectedRows({
   withBook,
   withinFile,
   spec,
+  resending = false,
+  onResend,
 }: {
   errors: RowError[]
   withBook?: DupRow[]
   withinFile?: DupRow[]
   spec: ImportSpec
+  resending?: boolean
+  /** Send a held row again naming the deals it listed (ADR 0088 §9). */
+  onResend?: (line: number, deals: string[]) => void
 }) {
   /* The header the user is looking at, not the wire name `contactName`. */
   const labelOf = (key: string | undefined) =>
     key === undefined ? undefined : (spec.fields.find((f) => f.key === key)?.label ?? key)
 
-  const rows = [
+  const bookLabel = spec.bookDupLabel ?? 'Đã có trong hệ thống'
+  const rows: Rejected[] = [
     ...errors.map((e) => {
       const column = labelOf(e.field)
-      const why = column ? `${column}: ${e.reason}` : e.reason
+      const why = [column ? `${column}: ${e.reason}` : e.reason]
       return { line: e.line, first: e.first, why, kind: 'broken' }
     }),
     ...(withBook ?? []).map((d) => ({
       line: d.line,
       first: d.first,
-      why: d.code ? `Đã có trong hệ thống (${d.code})` : 'Đã có trong hệ thống',
+      why: d.deals
+        ? [`Lead ${d.leadCode} có cơ hội đang chạy`, ...d.deals.map(dealLine)]
+        : [d.code ? `${bookLabel} (${d.code})` : bookLabel],
       kind: 'book',
+      deals: d.deals?.map((deal) => deal.code),
+      codes: d.deals && [d.leadCode, ...d.deals.map((deal) => deal.code)],
     })),
     ...(withinFile ?? []).map((d) => ({
       line: d.line,
       first: d.first,
-      why: 'Trùng một dòng khác trong tệp',
+      why: ['Trùng một dòng khác trong tệp'],
       kind: 'file',
     })),
   ].sort((a, b) => a.line - b.line)
   /* Only the kinds this run produced, so the filter never offers an empty pick. */
   const kinds = REJECT_KINDS.filter((k) => rows.some((r) => r.kind === k.value)).map((k) => ({
     value: k.value,
-    label: `${k.label} · ${rows.filter((r) => r.kind === k.value).length}`,
+    label: `${k.value === 'book' ? bookLabel : k.label} · ${rows.filter((r) => r.kind === k.value).length}`,
   }))
 
   return (
@@ -303,10 +340,11 @@ export function RejectedRows({
         { header: 'Vấn đề', width: 'minmax(0,1.6fr)' },
       ]}
       kinds={kinds}
+      wide={Boolean(onResend)}
       items={rows.map((r) => ({
-        id: `${r.line}-${r.why}`,
+        id: `${r.line}-${r.why[0]}`,
         kind: r.kind,
-        haystack: `${r.line} ${r.first} ${r.why}`,
+        haystack: `${r.line} ${r.first} ${r.why.join(' ')}`,
         cells: [
           <Line key="l" n={r.line} />,
           <Text key="f" value={r.first || '—'} />,
@@ -318,7 +356,22 @@ export function RejectedRows({
               r.kind === 'broken' && 'text-destructive-foreground',
             )}
           >
-            {r.why}
+            {r.why.map((line) => (
+              <span key={line} className="block">
+                {withCodes(line, r.codes)}
+              </span>
+            ))}
+            {onResend && r.deals && (
+              <Button
+                size="md"
+                variant="ghost"
+                className="pointer-coarse:h-12 mt-2"
+                disabled={resending}
+                onClick={() => onResend(r.line, r.deals ?? [])}
+              >
+                Vẫn nạp, đây là nhu cầu khác
+              </Button>
+            )}
           </span>,
         ],
       }))}
@@ -365,6 +418,8 @@ export function StepRun({
   total,
   report,
   spec,
+  resending,
+  onResend,
   onSeeResult,
   onClose,
 }: {
@@ -372,6 +427,8 @@ export function StepRun({
   total: number
   report?: ImportReport
   spec: ImportSpec
+  resending?: boolean
+  onResend?: (line: number, deals: string[]) => void
   onSeeResult?: () => void
   onClose: () => void
 }) {
@@ -401,7 +458,7 @@ export function StepRun({
         <>
           <div className={cn('grid grid-cols-2 gap-3', TALLY_COLUMNS[extraTiles])}>
             <Tally label="Vào sổ" value={report.rows.length} tone="success" />
-            <Tally label="Đã có trong hệ thống" value={report.duplicates} />
+            <Tally label={spec.bookDupLabel ?? 'Đã có trong hệ thống'} value={report.duplicates} />
             <Tally label="Trùng trong tệp" value={report.dupInFile} />
             <Tally label="Không nạp được" value={report.errors.length} tone="danger" />
             {attached.length > 0 && (
@@ -488,6 +545,8 @@ export function StepRun({
             withBook={report.dupWithBook}
             withinFile={report.dupWithinFile}
             spec={spec}
+            resending={resending}
+            onResend={onResend}
           />
 
           {report.rows.length > 0 && onSeeResult && (

@@ -1,5 +1,11 @@
 import { billions, millions } from '@pv/ui'
-import type { SalesCohort, WorkstreamBookQuery, WorkstreamStandKind } from '@pv/contracts'
+import {
+  StageKey,
+  type SalesCohort,
+  type SalesStopReason,
+  type WorkstreamBookQuery,
+  type WorkstreamStandKind,
+} from '@pv/contracts'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQueryToParams } from '@/data/workstreams'
 
 /** Calculation behind the overview screen (`home.tsx`): which period is
@@ -104,7 +110,7 @@ export const rateOf = (part: number, whole: number): number | null =>
    The first does not: that strip's first card is the whole book, this is one cohort. */
 const COHORT_STEPS = [
   { key: 'leads', label: 'Lead vào sổ' },
-  { key: 'firstMeetings', label: 'Đã liên hệ lần đầu' },
+  { key: 'firstContacts', label: 'Đã liên hệ lần đầu' },
   { key: 'opportunities', label: 'Thành cơ hội' },
   { key: 'contracts', label: 'Đã ký hợp đồng' },
 ] as const
@@ -119,6 +125,14 @@ export const funnelOf = (cohort: SalesCohort) =>
       ratio: before ? rateOf(cohort[step.key], cohort[before.key]) : null,
     }
   })
+
+/** Deal stops regrouped by the column the deal stood in, in column order;
+ *  a column with no stop is left out. Counts are the server's. */
+export function stopsByStage(stops: readonly SalesStopReason[]) {
+  return StageKey.options
+    .map((stage) => ({ stage, reasons: stops.filter((s) => s.stage === stage) }))
+    .filter((group) => group.reasons.length > 0)
+}
 
 // ---------------------------------------------------------------------------
 // THE SHORT LIST — one filter at a time, set by a tile

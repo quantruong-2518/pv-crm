@@ -10,6 +10,7 @@ import {
 import type { Actor } from '@pv/engines'
 import type { OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { FieldErrors } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { useDirectory, useSalesPeople } from '@/data/directory'
 import { BD_LANE, SALE_LANE, SALE_PRIMARY_LABEL, primaryFit, toggled } from '@/data/opportunities'
 import { bornStage, lastBdLocked } from '@/data/opportunity-open'
@@ -59,8 +60,16 @@ export function OwnersSection({
   const locked = lastBdLocked(draft, canAccept)
   const suggested = accountOwner ? byId(accountOwner.id) : undefined
   const sellers = draft.saleOwners.map((id) => ({ id, name: byId(id)?.name ?? id }))
+  /* The server refuses a seller naming anyone else on the Sale lane without the
+     assign grant, so the form does not offer a name it would turn back. A BD
+     opener still proposes the seller. */
+  const mayAssign = useCan('opportunity.assign')
+  const canAssign = mayAssign || !isSellerRole(me?.roleIds)
   const offerSuggested =
-    suggested && isSellerRole(suggested.roleIds) && !draft.saleOwners.includes(suggested.id)
+    canAssign &&
+    suggested &&
+    isSellerRole(suggested.roleIds) &&
+    !draft.saleOwners.includes(suggested.id)
 
   return (
     <section className="flex flex-col gap-4" aria-label="Người chịu trách nhiệm">
@@ -114,7 +123,12 @@ export function OwnersSection({
               ...(fitIds.length > 1 && s.id === salePrimary && { tag: SALE_PRIMARY_LABEL }),
             }))}
             suggestions={people
-              .filter((a) => !draft.saleOwners.includes(a.id) && isSellerRole(a.roleIds))
+              .filter(
+                (a) =>
+                  !draft.saleOwners.includes(a.id) &&
+                  isSellerRole(a.roleIds) &&
+                  (canAssign || a.id === me?.id),
+              )
               .map((a) => ({ id: a.id, name: a.name, note: a.role }))}
             onPick={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}
             onRemove={(id) => onSet('saleOwners', toggled(draft.saleOwners, id))}

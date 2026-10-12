@@ -701,6 +701,13 @@
       "when": 1791961500000,
       "tag": "0101_notification",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1792047900000,
+      "tag": "0102_sale_opens_deal",
+      "breakpoints": true
     }
   ]
 }

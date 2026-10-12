@@ -4,6 +4,8 @@ Status: partially superseded by 0054 (the delivery/acceptance half of the
 "no sales order, delivery, acceptance, or real payment collection" line only —
 the other four exclusions stand) and by 0066 (the "no dedicated attachment
 store" half of the third bullet only — no server-side PDF generation stands)
+and by 0088 ("no cancelling a signature": cancel and appendix come into scope
+as approved proposals)
 Source: docs/tam-nhin-bao-gia-hop-dong.md — "§9 · Cố ý KHÔNG làm"
 
 ## Context
@@ -22,6 +24,8 @@ re-proposes them without reading why they were dropped.
   something that has already passed to accounting's hands and the customer's
   hands; undoing it must be a proposal someone approves (E3), not a direct
   call from whoever just made a mistake. This is the existing rule, unchanged.
+  > Partially superseded by 0088 §11 (decided, not built): cancel and appendix
+  > come into scope, both through director approval.
 - **No server-side PDF generation, no dedicated attachment store.** Debt #12
   is waiting on AWS; opening a temporary store in this module is adding one
   more thing to clean up later.

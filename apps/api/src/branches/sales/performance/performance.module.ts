@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common'
 import { OpportunityModule } from '../opportunity/opportunity.module'
 import { PerformanceController } from './performance.controller'
+import { PerformanceExitsRepository } from './performance-exits.repository'
 import { PerformanceRepository } from './performance.repository'
 import { PerformanceService } from './performance.service'
 
-/** The desk's period figures — one read-only door.
+/** The desk's period figures — two read-only doors.
  *
  *  `OpportunityModule` is imported, unlike the leaderboard's empty `imports`:
  *  the open pipeline is asked of `OpportunityService.scorecard` so the overview
@@ -15,6 +16,6 @@ import { PerformanceService } from './performance.service'
 @Module({
   imports: [OpportunityModule],
   controllers: [PerformanceController],
-  providers: [PerformanceService, PerformanceRepository],
+  providers: [PerformanceService, PerformanceRepository, PerformanceExitsRepository],
 })
 export class PerformanceModule {}

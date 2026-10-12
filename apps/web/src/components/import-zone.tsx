@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, Download, Upload } from '@pv/ui'
 import {
   Badge,
@@ -31,6 +31,7 @@ import {
   sampleRows,
   trustOf,
   unmappedRequired,
+  anyOfLabel,
   type BuiltRow,
   type ColumnMapping,
   type ImportField,
@@ -46,6 +47,7 @@ import {
   type BatchExtra,
 } from '@/components/import-zone-bits'
 import { StepGroup } from '@/components/import-group-step'
+import { mergeResent } from '@/data/import-held'
 import {
   EMPTY_PLAN,
   applyPlan,
@@ -199,6 +201,11 @@ export function ImportZone({
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(0)
   const [report, setReport] = useState<ImportReport>()
+  /** The rows last sent, so a held row can be sent again by its line. */
+  const [sent, setSent] = useState<BuiltRow[]>([])
+  const [resending, setResending] = useState(false)
+  /* A second click lands before `resending` re-renders; the ref closes that gap. */
+  const resendBusy = useRef(false)
   /** Optional fields shown in the mapping table with no column matched — the
    *  match-more button was pressed, or the user touched that select. Once shown
    *  they stay: a select vanishing on being set back to skip cannot be undone. */
@@ -222,6 +229,8 @@ export function ImportZone({
     setBusy(false)
     setDone(0)
     setReport(undefined)
+    setSent([])
+    setResending(false)
     setRevealed(new Set())
     setHeld(undefined)
     setPlan(EMPTY_PLAN)
@@ -358,8 +367,31 @@ export function ImportZone({
       }
     }
 
+    setSent(built.rows)
     setReport(final)
     setPhase('done')
+  }
+
+  /** Send one held row again with the deals it listed (ADR 0088 §9). */
+  const resend = async (line: number, deals: string[]) => {
+    const row = sent.find((r) => r.line === line)
+    if (!sheet || !report || !row || resendBusy.current) return
+    resendBusy.current = true
+    setResending(true)
+    try {
+      const written = await onCommit({
+        rows: [{ ...row, first: firstCellOf(sheet, line), acknowledgedDeals: deals }],
+        motion,
+        fileName: sheet.fileName,
+        report,
+        scope: effectiveScope,
+      })
+      /* A refused batch leaves the row held with its button; the screen's toast says why. */
+      if (written && !written.failure) setReport((prev) => prev && mergeResent(prev, written, line))
+    } finally {
+      resendBusy.current = false
+      setResending(false)
+    }
   }
 
   const resume = async () => {
@@ -508,6 +540,8 @@ export function ImportZone({
               total={sheet.rows.length}
               report={report}
               spec={spec}
+              resending={resending}
+              onResend={resend}
               onSeeResult={onSeeResult}
               onClose={close}
             />
@@ -568,6 +602,7 @@ function StepPick({
             {required.map((f) => (
               <Chip key={f.key}>{f.label}</Chip>
             ))}
+            {anyOfLabel(spec) && <Chip>{anyOfLabel(spec)}</Chip>}
           </dd>
 
           <dt className="text-muted-foreground text-[11.5px]">Cột khác</dt>

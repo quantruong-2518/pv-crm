@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from '../primitives'
+import { AcknowledgedDeals, OpportunityRunningDeal } from './opportunity'
 
 /** Loading deals from a file — TWO endpoints, one body.
  *
@@ -16,7 +17,8 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
  *  ------------------------------------------------------------------
  *  `sales.opportunity.lead_code` is `NOT NULL` and a foreign key. A deal cannot
  *  exist without a customer, so every row in the file must find a lead that is
- *  already in the book — the `Account` column is a LOOKUP, not a new record.
+ *  already in the book — the lead code and `Account` columns are LOOKUPS, not
+ *  new records, and so is the contact column.
  *
  *  This is the single most important thing to understand about the endpoint,
  *  and it is a deliberate refusal rather than a missing feature. A file that
@@ -36,23 +38,16 @@ import { ObjectCode, Moment, collapseSpaces, textInput, textInputOptional } from
  *  must not become a column invented to receive it.
  *
  *  ------------------------------------------------------------------
- *  DIFFERENCE 3 · THE DUPLICATE KEY IS THE LEAD, AND IT MEANS SOMETHING NARROWER
+ *  DIFFERENCE 3 · A LEAD WITH RUNNING DEALS NEEDS A YES, PER ROW
  *  ------------------------------------------------------------------
- *  `sales.lead` indexes `lower(email)` (`lead_email_idx`) for its own duplicate
- *  check, but since ADR 0070 that check FLAGS and imports rather than refuses —
- *  there was never a comparable unique index on `sales.opportunity`, and there
- *  should not be — one lead legitimately holds several deals, which is why
- *  `lead_code` moved onto this table in the first place.
+ *  One lead legitimately holds several deals, so a second one is legal — but a
+ *  file carries no intent, and a replayed file would double every deal. So this
+ *  door follows the typed door's rule: a row whose lead has running deals is
+ *  held in `dupWithBook`, with those deals, and skipped by the commit until the
+ *  same row comes back carrying their codes in `acknowledgedDeals`.
  *
- *  So `dupWithBook` here is a WARNING, not a prediction of refusal: the lead
- *  already has a deal that is still open. Loading it again is usually a file
- *  being replayed, and the commit skips those rows — but a second live deal for
- *  one customer is legal, and the day somebody genuinely wants one they will
- *  open it through `POST /sales/opportunities`, where there is a person to ask.
- *
- *  "Still open" excludes both ends: a stopped (`lost`) deal and a signed
- *  one are off the board, and a customer coming back next quarter is a new
- *  deal, not a duplicate of an old one. */
+ *  "Running" excludes both ends: a stopped (`lost`) deal and a signed one are
+ *  off the board, and a customer coming back next quarter is a new deal. */
 
 /** One batch, at most. Lower than the lead import's 5,000 on purpose: a lead
  *  file is a list bought or exported by the thousand, a pipeline is what one
@@ -64,14 +59,21 @@ export const MAX_IMPORT_OPS = 2_000
 // WHAT A COLUMN MAY BE
 // ---------------------------------------------------------------------------
 
-/** The closed field set. The first six are `OP_SPEC` verbatim; the last two are
- *  optional and exist because the columns exist on the table and a file that
- *  has them should not have to throw them away.
+/** The closed field set. The first six are `OP_SPEC` verbatim; `currency` and
+ *  `description` are optional and exist because the columns exist on the table
+ *  and a file that has them should not have to throw them away.
  *
  *  No `state` column: an imported deal enters at stage `new`, or at `assigned`
  *  when the importer may accept deals — the same rule as the create door
  *  (ADR 0071). A spreadsheet cell naming a state would be the one
- *  way to put a deal in a column no event put it in. */
+ *  way to put a deal in a column no event put it in.
+ *
+ *  The last four bring a row up to what the typed door asks for:
+ *   · `leadCode`    — the lead itself (`LD-…`); blank falls back to `company`.
+ *   · `contact`     — the CODE of one person reachable from that lead, the
+ *                     row's only contact; blank = the lead's primary contact.
+ *   · `contactRole` — an `OpportunityContactRole`; blank = nobody has said.
+ *   · `products`    — `PRODUCT` catalogue ids (`PD-…`) joined by commas. */
 export const OPPORTUNITY_IMPORT_FIELDS = [
   'name',
   'company',
@@ -81,6 +83,10 @@ export const OPPORTUNITY_IMPORT_FIELDS = [
   'bdOwner',
   'currency',
   'description',
+  'leadCode',
+  'contact',
+  'contactRole',
+  'products',
 ] as const
 
 export const OpportunityImportField = z.enum(OPPORTUNITY_IMPORT_FIELDS)
@@ -97,6 +103,9 @@ export const OpportunityImportRow = z.object({
    *  recognises rather than a line number alone. */
   first: textInputOptional(200),
   values: z.partialRecord(OpportunityImportField, importCell),
+  /** This row's yes to its lead's running deals, as `dupWithBook` listed them.
+   *  Absent = none shown. Not a cell: a file cannot carry it. */
+  acknowledgedDeals: AcknowledgedDeals.optional(),
 })
 
 /** ONE body for both endpoints.
@@ -121,10 +130,9 @@ export const OpportunityImportBody = z.object({
 export const OpportunityImportRowOut = z.object({
   line: z.number().int().min(2),
   values: z.partialRecord(OpportunityImportField, z.string()),
-  /** The customer this deal will hang off. Resolved server-side from the
-   *  `Account` cell — never accepted from the client, for the reason the lead
-   *  import refuses a client-sent `key`: a value the caller can edit is a value
-   *  the caller can use to walk past the check. */
+  /** The customer this deal will hang off, resolved server-side from the
+   *  `leadCode` cell, else the `Account` cell. A cell is a lookup like any
+   *  other: the server still checks the lead exists, is live and is in scope. */
   leadCode: ObjectCode,
   key: z.string(),
 })
@@ -141,8 +149,14 @@ export const OpportunityImportDup = z.object({
   line: z.number().int().min(2),
   first: z.string(),
   key: z.string(),
-  /** On `dupWithBook`, the open deal already standing on that customer. */
-  code: ObjectCode.optional(),
+})
+
+/** A row held because its lead has running deals the row did not acknowledge
+ *  — none sent, or a list the book has since outgrown. `deals` is the current
+ *  list; sending the row again with exactly those codes lets it through. */
+export const OpportunityImportHeld = OpportunityImportDup.extend({
+  leadCode: ObjectCode,
+  deals: z.array(OpportunityRunningDeal).min(1),
 })
 
 /** Kept as ARRAYS with no parallel counters.
@@ -154,13 +168,14 @@ export const OpportunityImportDup = z.object({
  *
  *  The two duplicate classes stay separate for the reason they do on the lead
  *  side: a collision inside the file is a defect in the file, a collision with
- *  the book is the ordinary result of loading the same list twice. */
+ *  the book is the ordinary result of loading the same list twice. `dupWithBook`
+ *  keeps the lead side's name so one panel reads both; here it can be answered. */
 export const OpportunityImportReport = z.object({
   rows: z.array(OpportunityImportRowOut),
   errors: z.array(OpportunityImportError),
   /** Rows EXAMINED, not rows accepted. */
   total: z.number().int().nonnegative(),
-  dupWithBook: z.array(OpportunityImportDup),
+  dupWithBook: z.array(OpportunityImportHeld),
   dupWithinFile: z.array(OpportunityImportDup),
 })
 
@@ -182,6 +197,7 @@ export type OpportunityImportBody = z.infer<typeof OpportunityImportBody>
 export type OpportunityImportRowOut = z.infer<typeof OpportunityImportRowOut>
 export type OpportunityImportError = z.infer<typeof OpportunityImportError>
 export type OpportunityImportDup = z.infer<typeof OpportunityImportDup>
+export type OpportunityImportHeld = z.infer<typeof OpportunityImportHeld>
 export type OpportunityImportReport = z.infer<typeof OpportunityImportReport>
 export type OpportunityImportPreviewResponse = z.infer<typeof OpportunityImportPreviewResponse>
 export type OpportunityImportCommitResponse = z.infer<typeof OpportunityImportCommitResponse>

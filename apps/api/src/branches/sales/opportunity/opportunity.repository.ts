@@ -312,7 +312,7 @@ export class OpportunityRepository {
    *  Thứ tự trong mỗi đơn là thứ tự cố định (`role` rồi `name`) vì màn in ra
    *  một hàng avatar — hai lần mở cùng một đơn mà hàng đó đảo chỗ thì đọc như
    *  dữ liệu vừa đổi. */
-  private async ownersOf(tx: Db, codes: string[]): Promise<Map<string, OwnerRow[]>> {
+  async ownersOf(tx: Db, codes: string[]): Promise<Map<string, OwnerRow[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await tx
@@ -471,8 +471,9 @@ export class OpportunityRepository {
    *  đã đi qua rồi.
    *
    *  Only leads not `disqualified` enter `byCompany` — the same
-   *  condition `lead_email_live_idx` carries; the rest go to `exited` so their
-   *  row is refused with the same "reopen the lead first" sentence.
+   *  condition `lead_email_live_idx` carries; the rest go to `exited` (name →
+   *  one such lead's code) so their row is refused with its own sentence.
+   *  `ownerByLead` holds exited leads too: scope is judged before liveness.
    *
    *  Trả về CẢ tập tên nhập nhằng, không lặng lẽ chọn dòng đầu. Hai lead cùng
    *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
@@ -482,7 +483,8 @@ export class OpportunityRepository {
     byCompany: Map<string, string>
     ambiguous: Set<string>
     workstreamByLead: Map<string, string | null>
-    exited: Set<string>
+    exited: Map<string, string>
+    exitedCodes: Set<string>
     ownerByLead: Map<string, string | null>
   }> {
     const rows = await tx
@@ -499,47 +501,24 @@ export class OpportunityRepository {
     const byCompany = new Map<string, string>()
     const ambiguous = new Set<string>()
     const workstreamByLead = new Map<string, string | null>()
-    const exited = new Set<string>()
+    const exited = new Map<string, string>()
+    const exitedCodes = new Set<string>()
     const ownerByLead = new Map<string, string | null>()
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
+      ownerByLead.set(r.code, r.ownerId)
       if (GONE.has(r.state)) {
-        exited.add(key)
+        if (!exited.has(key)) exited.set(key, r.code)
+        exitedCodes.add(r.code)
         continue
       }
       workstreamByLead.set(r.code, r.workstreamCode)
-      ownerByLead.set(r.code, r.ownerId)
       if (byCompany.has(key)) ambiguous.add(key)
       else byCompany.set(key, r.code)
     }
 
-    return { byCompany, ambiguous, workstreamByLead, exited, ownerByLead }
-  }
-
-  /** Lead code → every OPEN deal code of it, oldest first. A lead may hold
-   *  several; `code` only breaks ties, since 'OP-10000' sorts before 'OP-9999'.
-   *
-   *  "Đang mở" loại cả hai đầu cuối: `state = 'open'` bỏ đơn đã dừng, và
-   *  `NOT signed` bỏ đơn đã ký. Một khách quay lại quý sau là một đơn MỚI, không
-   *  phải bản trùng của một đơn đã xong — nên chỉ đơn còn sống mới làm một dòng
-   *  trong tệp thành trùng.
-   *
-   *  Đọc theo danh sách mã chứ không quét cả bảng: lô đã dịch xong tên công ty
-   *  nên nó biết chính xác hỏi về những lead nào. `IN` đi đúng
-   *  `opportunity_lead_idx`. */
-  async liveDealsByLead(tx: Db, leadCodes: readonly string[]): Promise<Map<string, string[]>> {
-    if (leadCodes.length === 0) return new Map()
-
-    const rows = await tx
-      .select({ leadCode: opportunity.leadCode, code: opportunity.code })
-      .from(opportunity)
-      .where(and(inArray(opportunity.leadCode, [...leadCodes]), this.live()))
-      .orderBy(opportunity.createdAt, opportunity.code)
-
-    const byLead = new Map<string, string[]>()
-    for (const r of rows) byLead.set(r.leadCode, [...(byLead.get(r.leadCode) ?? []), r.code])
-    return byLead
+    return { byCompany, ambiguous, workstreamByLead, exited, exitedCodes, ownerByLead }
   }
 
   /** The open deals of ONE lead with their owners, oldest first, in one
@@ -725,6 +704,7 @@ export class OpportunityRepository {
       .select({
         code: lead.code,
         state: lead.state,
+        company: lead.company,
         ownerId: lead.ownerId,
         accountCode: lead.accountCode,
       })
@@ -732,7 +712,7 @@ export class OpportunityRepository {
       .where(and(inArray(lead.code, [...leadCodes]), leadLive))
       .orderBy(asc(lead.code))
       .for('no key update')
-    return rows.map(({ state, ...r }) => ({ ...r, exited: GONE.has(state) }))
+    return rows.map((r) => ({ ...r, exited: GONE.has(r.state) }))
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */
@@ -971,6 +951,7 @@ export class OpportunityRepository {
       q.pinned ? pinnedBy(actorId, 'opportunity', opportunity.code) : undefined,
       q.leadCode ? eq(opportunity.leadCode, q.leadCode) : undefined,
       this.stateFilter(q.state),
+      q.stopReason ? eq(opportunity.stopReason, q.stopReason) : undefined,
       /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
       q.stage ? inArray(opportunity.stage, stagesOf(q.stage)) : undefined,
       /* Accepted = past `new` on the board (ADR 0071); `false` = the `new` queue. */

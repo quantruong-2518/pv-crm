@@ -154,7 +154,6 @@ describe('Ma trận vai → quyền', () => {
 
   it('Marketing mang khách về nhưng không định đoạt khách', () => {
     expect(has('marketing', 'campaign.edit')).toBe(true)
-    expect(has('marketing', 'lead.convert')).toBe(false)
     expect(has('marketing', 'lead.disqualify')).toBe(false)
   })
 

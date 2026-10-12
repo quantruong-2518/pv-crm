@@ -26,6 +26,8 @@ import type { OpportunityRead } from './opportunity.repository'
  *  writes owners calls them; the import check repeats rules 1 and 2 per row. */
 
 export const NOT_SELLER = 'Sale đứng đơn phải có vai Sale hoặc Account Executive.'
+export const SALE_LANE_SELF =
+  'Bạn chỉ ghi được chính mình vào Sale đứng đơn. Trưởng phòng giao người khác sau khi nhận PIC.'
 export const NO_OWNER = 'Cơ hội cần ít nhất một Sale đứng đơn hoặc BD mở cửa.'
 export const ASSIGN_ONLY = 'Đã nhận PIC. Đổi Sale bằng nút Giao Sale.'
 export const PRIMARY_OFF_LANE = 'Sale chính phải là một người trong danh sách Sale đứng đơn'
@@ -93,6 +95,14 @@ export async function assertSellers(tx: Db, added: readonly string[]): Promise<v
     .where(and(inArray(actor.id, [...added]), isNull(actor.disabledAt)))
   const sellers = new Set(rows.filter((r) => isSellerRole(r.roleIds)).map((r) => r.id))
   if (added.some((id) => !sellers.has(id))) throw invalid({ saleOwners: [NOT_SELLER] }, NOT_SELLER)
+}
+
+/** At OPEN, a seller without `opportunity.assign` names nobody but themselves
+ *  on the SALE lane — the lead door's credit fence. `only` = that one id,
+ *  `null` = anyone (assign holders, and a BD opener proposing the seller). */
+export function assertOwnSaleLane(only: string | null, saleOwners: readonly string[]): void {
+  if (only !== null && saleOwners.some((id) => id !== only))
+    throw invalid({ saleOwners: [SALE_LANE_SELF] }, SALE_LANE_SELF)
 }
 
 /** Refuses with 400 on `bdOwners` when the holder rule finds nobody. */

@@ -2,14 +2,14 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { Injectable, Module } from '@nestjs/common'
 import { LEAD_OPEN_STATES, LEAD_STATE_LABEL, type LeadState } from '@pv/contracts'
-import { LEAD_POOLED } from '@pv/engines'
+import { LEAD_HANDED_OVER, LEAD_POOLED, type Actor } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { NotificationHub, type Announcement } from '@api/platform/notification/notification.hub'
 import { NotificationModule } from '@api/platform/notification/notification.module'
-import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
+import { byOf, SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
 import { TouchModule } from '../touch/touch.module'
 import { toRef } from './lead.mapper'
 import { LEAD_NOTE } from './lead-write.mapper'
@@ -330,6 +330,63 @@ export class LeadStateWriter {
     await this.refresh(tx, [code])
     await syncLeadRuns(tx, [code])
     if (!isOpen(to)) await dropStep(tx, code)
+  }
+
+  /** THE owner write, on a row the caller has locked. The state follows the
+   *  owner in ONE statement — `lead_open_owner_matches` refuses a `new` lead
+   *  with a holder even between two — and a state that stays keeps its clock.
+   *  Returns the state the lead now stands in. */
+  async ownerSet(
+    tx: Db,
+    found: Pick<LeadRowDb, 'code' | 'state'>,
+    ownerId: string | null,
+  ): Promise<LeadState> {
+    const state = stateAfterOwnerChange(found.state, ownerId)
+    if (state !== found.state) {
+      await this.move(tx, found.code, state, { ownerId })
+      return state
+    }
+    await tx.update(lead).set({ ownerId }).where(eq(lead.code, found.code))
+    await this.refresh(tx, [found.code])
+    return state
+  }
+
+  /** A deal door's opener takes the leads nobody holds (ADR 0088 §17): the
+   *  owner door's claim out of the pool — same write, same `handed-over` row
+   *  with no giver, same bell event. Rows locked by the caller, before
+   *  `converted`. */
+  async claimed(
+    tx: Db,
+    leads: readonly Pick<LeadRowDb, 'code' | 'state' | 'company'>[],
+    who: Pick<Actor, 'id' | 'name' | 'roleIds'>,
+  ): Promise<void> {
+    for (const found of leads) await this.ownerSet(tx, found, who.id)
+    const [role] = who.roleIds
+    const dated = await this.touch.record(
+      tx,
+      leads.map((found) => ({
+        subjectCode: found.code,
+        subjectKind: 'lead' as const,
+        kind: 'handed-over' as const,
+        ...byOf(who),
+        to: { actorId: who.id, name: who.name, ...(role ? { role } : {}) },
+        note: `${LEAD_NOTE.handedTo} ${who.name}`,
+      })),
+    )
+    /* The lead door's claim event. The taker is the actor, so E4's own-action
+       rule rings nobody today; reported anyway so a new rule hears both doors. */
+    for (const [i, found] of leads.entries()) {
+      await this.hub.announce(tx, {
+        event: {
+          name: LEAD_HANDED_OVER,
+          ref: { code: found.code },
+          actorId: who.id,
+          audiences: { 'new-holder': [who.id], 'previous-holder': [] },
+          occurrence: dated[i],
+        },
+        subject: { kind: 'lead', code: found.code, label: found.company },
+      })
+    }
   }
 
   /** Re-put the mirror rows from the stored lead, after any write that moved

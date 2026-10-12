@@ -36,6 +36,7 @@ import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityAssign } from './opportunity-assign.service'
 import { OpportunityContacts } from './opportunity-contacts.service'
+import { OpportunityImport } from './opportunity-import.service'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunityOpening } from './opportunity-opening.service'
 import { OpportunitySign } from './opportunity-sign.service'
@@ -77,6 +78,7 @@ export class OpportunityController {
     private readonly assigns: OpportunityAssign,
     private readonly opening: OpportunityOpening,
     private readonly contacts: OpportunityContacts,
+    private readonly imports: OpportunityImport,
   ) {}
 
   @Get()
@@ -257,7 +259,7 @@ export class OpportunityController {
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
   ) {
-    return this.ops.importPreview(who, body)
+    return this.imports.preview(who, body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không đơn nào vào. */
@@ -267,7 +269,7 @@ export class OpportunityController {
     @CurrentActor() who: Actor,
     @Body(zod(OpportunityImportBody)) body: OpportunityImportBody,
   ) {
-    return this.ops.importCommit(who, body)
+    return this.imports.commit(who, body)
   }
 
   /** Ký — cửa DUY NHẤT làm một đơn đọc ra `won`.
@@ -316,8 +318,8 @@ export class OpportunityController {
    *  `lead_code` or code — while the body speaks of the FORM. `PUT` would
    *  promise that a missing field is deleted, which this door does not do.
    *
-   *  `opportunity.edit`, NOT `opportunity.create` (ADR 0071 §1): a Sale is
-   *  handed deals and edits them without being allowed to open one. */
+   *  `opportunity.edit`, NOT `opportunity.create`: presales edits the deals it
+   *  is handed without opening one. A Sale holds both grants (ADR 0088 §16). */
   @Patch(':code')
   @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
   update(

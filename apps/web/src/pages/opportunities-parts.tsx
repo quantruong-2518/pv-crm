@@ -4,6 +4,7 @@ import {
   CircleX,
   SearchField,
   SegmentedControl,
+  Select,
   FileCheck,
   StatCard,
   Target,
@@ -13,6 +14,8 @@ import {
 } from '@pv/ui'
 import {
   OPPORTUNITY_STATE_LABEL,
+  OPPORTUNITY_STOP_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   type OpportunityBookQuery,
   type OpportunityStatus,
 } from '@pv/contracts'
@@ -21,6 +24,8 @@ import {
   opportunityFacetQuery,
   opportunityScorecardQuery,
 } from '@/data/opportunities'
+import { useCan } from '@/app/auth'
+import { opportunityStopReasonsQuery } from '@/data/opportunities-write'
 import { usePins } from '@/data/pins'
 import { BookCount } from '@/components/book-page'
 import { ANY, stateTabs } from './opportunities-model'
@@ -47,9 +52,9 @@ export function BookTabs({
   hidden: number
   onPatch: Patch
 }) {
-  /* The state tabs count the book, not the pins — as the lead book's do. */
+  /* The tabs count the book, not the pins nor a stop reason — as the lead book's do. */
   const { data: facets } = useQuery(
-    opportunityFacetQuery(facetsQueryOf({ ...query, pinned: undefined })),
+    opportunityFacetQuery(facetsQueryOf({ ...query, pinned: undefined, stopReason: undefined })),
   )
   const pinCount = usePins('opportunity').codes.length
   return (
@@ -66,14 +71,16 @@ export function BookTabs({
         onChange={(value) =>
           onPatch(
             value === PINNED
-              ? { pinned: true, state: undefined }
+              ? { pinned: true, state: undefined, stopReason: undefined }
               : {
                   state: value === ANY ? undefined : (value as OpportunityStatus),
                   pinned: undefined,
+                  stopReason: undefined,
                 },
           )
         }
       />
+      <StopReasonFilter query={query} patch={onPatch} />
       <BookCount total={total} noun="cơ hội" hidden={hidden} />
     </div>
   )
@@ -182,5 +189,36 @@ export function ScoreCards() {
         ))}
       </div>
     </div>
+  )
+}
+
+/** One reason a stopped deal was stopped for. Offered with the stopped tab
+ *  only: beside any other state the server would answer an empty book. The
+ *  list is the stop dialog's, so a reader who cannot stop deals sees `other`. */
+export function StopReasonFilter({ query, patch }: { query: OpportunityBookQuery; patch: Patch }) {
+  const stopped = query.state === 'lost'
+  const canList = useCan('opportunity.edit')
+  const { data } = useQuery({ ...opportunityStopReasonsQuery, enabled: stopped && canList })
+  if (!stopped) return null
+
+  const options = [
+    { value: '', label: 'Tất cả' },
+    ...(data?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
+    { value: OPPORTUNITY_STOP_REASON_OTHER, label: OPPORTUNITY_STOP_REASON_OTHER_LABEL },
+  ]
+  /* A chosen reason still loading, unreadable or retired must not show as a raw id. */
+  if (query.stopReason && !options.some((o) => o.value === query.stopReason)) {
+    options.push({ value: query.stopReason, label: 'Lý do đã chọn' })
+  }
+
+  return (
+    <Select
+      label="Lý do dừng"
+      value={query.stopReason ?? ''}
+      neutralValue=""
+      options={options}
+      onChange={(value) => patch({ stopReason: value === '' ? undefined : value })}
+      className="pointer-coarse:[&>button]:h-12 max-w-[240px]"
+    />
   )
 }

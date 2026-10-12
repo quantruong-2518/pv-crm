@@ -123,6 +123,7 @@ are in `.claude/HANDOFF-workstream-loop.md`; the presale ones are ADR 0067.
     "Không phải khách của mình" and "Trùng opp khác" as placeholders.
     **Answered 28/09/2026: "Không phải khách của mình" and "Người liên hệ nghỉ
     việc" — ADR 0067 §4 (D5).**
+    What the flag does was changed 12/10/2026: it warns only, ADR 0088 §23.
 27. **What a customer reply on an opportunity or a contract moves.** A reply
     counts as a real exchange and moves the LEAD a rung; an opportunity or a
     contract has no rung it maps to. The canvas only rings the holder's bell.
@@ -221,6 +222,8 @@ Raised while recording the admission gate (ADR 0084).
     scope. _(see ADR 0084 §9)_ After 11/10/2026 nobody holds a customer and
     any caller may open a lead on the company, so the owner should confirm
     whether this is withdrawn.
+    See also ADR 0088 §17: opening a deal on a lead nobody holds makes the
+    opener its holder.
 50. **Should the account profile filter its leads, owners and contacts by the
     reader's scope?** Default: no filter — existing behaviour. _(see ADR 0084
     §9)_
@@ -315,3 +318,70 @@ Raised while recording the notification hub (ADR 0085).
 67. **Should the deal book's last-activity / freshness read count a customer
     reply?** It ignores `customer-replied`, so a deal the customer just
     answered can still read as stale. _(see ADR 0085, Defaults)_
+
+## Opportunity flow (added 12/10/2026)
+
+Raised while recording the opportunity flow decisions (ADR 0088).
+
+68. **Who are "the people who need to know" for the pause reminder, per
+    flow?** The owner set the reminder half a month ahead of the proposed
+    re-meet date and did not name its recipients. _(see ADR 0088 §10)_
+69. **How does the Sunday capture run, given the Neon compute quota?** A cron
+    on Fly, or on the first read after Sunday. _(see ADR 0088 §8; ADR 0082
+    §2)_
+70. **Do closed periods read the capture or the live number?**
+    _(see ADR 0088 §8)_
+71. **What does the signed-customer list show, and does one customer with
+    several leads appear once?** _(see ADR 0088 §4, §12)_
+72. **May the account-executive seat accept deals?** Default: no, unchanged —
+    the assistant's default, told to the owner and not objected to; not an
+    owner decision. _(see ADR 0088; ADR 0071 §3)_
+73. **Is the unused permission `lead.convert` removed?** Default: yes,
+    removed — the assistant's default, told to the owner and not objected to;
+    not an owner decision. _(see ADR 0088)_
+74. **May a lead exit reason also carry the do-not-contact flag?** Default:
+    yes — the assistant's default, told to the owner and not objected to; not
+    an owner decision. _(see ADR 0088 §23)_
+75. **Does every opener become holder of an unheld lead?** Default: yes —
+    including head-of-sales, director and account-executive; an importer
+    becomes holder of every unheld lead in the file, even when the row names
+    other people on the deal. The assistant's default, awaiting the owner.
+    _(see ADR 0088 §17)_
+76. **What does a blank contact cell in the opportunity file mean?** Default:
+    it takes the lead's primary contact; the row errors only when the lead has
+    none. The assistant's default, awaiting the owner. _(see ADR 0088 §19)_
+77. **What may the contact-role cell of the opportunity file hold?** Default:
+    the role key or its Vietnamese label. The assistant's default, awaiting
+    the owner. _(see ADR 0088 §19)_
+78. **What happens to an import when a lead's running deals changed between
+    the check and the write?** Default: commit refuses the whole batch with 409. The assistant's default, awaiting the owner. _(see ADR 0088 §9)_
+79. **What does the reasons chart count?** Default: leads where they stand
+    now, not exit events — a lead that was disqualified and reopened in the
+    period is not counted, and leads parked in the waiting group are not
+    exits. The assistant's default, awaiting the owner. _(see ADR 0088 §22)_
+80. **How does a file row say "this is a different need"?** Default: it is
+    sent again with `acknowledgedDeals` equal to the running deals the preview
+    showed. The assistant's default, awaiting the owner. _(see ADR 0088 §9)_
+81. **Who sees the running deals of a lead?** Default: whoever may open a deal
+    on that lead sees code, name, stage and holder of each, even deals outside
+    that reader's own deal scope — this overrides ADR 0071's deal scope for
+    this one list, on the strength of ADR 0084 (every role sees lead code and
+    holder). The assistant's default, awaiting the owner. _(see ADR 0088 §9)_
+82. **Which lanes does a Sale who opens a deal stand on?** Default: SALE lane
+    as Sale chính, BD lane from the lead's BD; an account-executive opener
+    keeps the earlier prefill. The assistant's default, awaiting the owner.
+    Answered 12/10 for the fence only: a Sale opener without the assign
+    permission names nobody but themselves on the SALE lane; a BD opener still
+    proposes the seller, as before. _(see ADR 0088 §16, §18)_
+83. **May an own-only Sale read the open form of a lead nobody holds before
+    claiming it?** Default: yes — contacts and running deals. The assistant's
+    default, awaiting the owner. _(see ADR 0088 §17)_
+84. **Does each imported deal ring its own bells?** Default: yes, the same
+    ones a deal opened on the form rings (acceptors and lane people), so a
+    large file rings once per deal. The assistant's default, awaiting the
+    owner. _(see ADR 0088 §19)_
+85. **When does a meeting count towards "Đã liên hệ lần đầu" on the home
+    funnel?** Default: only once it is marked held, so meetings that happened
+    before that mark existed stop counting; the lead book's score strip still
+    counts by meeting rows and was not moved to the shared definition. The
+    assistant's default, awaiting the owner. _(see ADR 0088 §21)_

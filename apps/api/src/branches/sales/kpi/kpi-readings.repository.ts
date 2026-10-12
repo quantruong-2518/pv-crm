@@ -6,6 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { toVndSql } from '../money'
 import { dealLost, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
+import { realExchanges } from '../performance/real-exchange'
 
 /** Every KPI figure, computed on read from the books' own tables — there is
  *  no snapshot to drift (`kpi.schema.ts`).
@@ -60,21 +61,33 @@ const sourced = (value: SQL): Fragment => {
     GROUP BY 1`
 }
 
+/** Accepted at birth (ADR 0088 §18): the deal ENTERED the board at `assigned`,
+ *  by the person recorded as its acceptor — the row both the create and the
+ *  import door write for an accept-holder. The `by_id` tie keeps out a deal
+ *  that entered at a pre-0071 column since renamed `assigned`, opened by
+ *  somebody else and credited to a head by 0072's backfill. */
+const BORN_ACCEPTED = sql`EXISTS (
+  SELECT 1 FROM sales.opportunity_stage_event ba
+   WHERE ba.opportunity_code = k.code AND ba.from_stage IS NULL
+     AND ba.to_stage = 'assigned' AND ba.by_id = k.accepted_by_id)`
+
 /** Deals with the actor on one lane (`null` = either), fenced on one of the
- *  deal's own dates. */
-const onLane = (lane: 'BD' | 'SALE' | null, date: SQL, value: SQL): Fragment => {
+ *  deal's own dates; `also` narrows which deals count. */
+const onLane = (lane: 'BD' | 'SALE' | null, date: SQL, value: SQL, also?: SQL): Fragment => {
   const seat = lane ? sql`w.role = ${lane} AND ` : sql``
+  const kept = also ? sql`${also} AND ` : sql``
   return (only) => sql`SELECT w.actor_id, ${value} AS value
     FROM sales.opportunity_owner w
     JOIN sales.opportunity k ON k.code = w.opportunity_code ${LIVE}
-    WHERE ${seat}${within(date)}${only(sql`w.actor_id`)}
+    WHERE ${seat}${kept}${within(date)}${only(sql`w.actor_id`)}
     GROUP BY 1`
 }
 
 /** A lead "reaches" an actor at the first hand-over to them, else at the
  *  `created` touch naming them, else at its creation when they hold it. A lead
  *  not answered yet counts up to now, or to the month's end once it has closed,
- *  so ignoring one cannot improve the figure and a closed month stops moving. */
+ *  so ignoring one cannot improve the figure and a closed month stops moving.
+ *  The answer is the actor's first real exchange (`realExchanges`). */
 const firstResponse: Fragment = (only) => sql`
   SELECT r.actor_id, ${median(sql`(COALESCE(f.at, LEAST(now(), (SELECT hi FROM span))) - r.at)`, 3600)} AS value
   FROM (
@@ -94,10 +107,8 @@ const firstResponse: Fragment = (only) => sql`
   ) r
   JOIN sales.lead l ON l.code = r.lead_code AND l.disabled_at IS NULL
   LEFT JOIN LATERAL (
-    SELECT min(t.at) AS at FROM sales.touch t
-     WHERE t.subject_code = r.lead_code AND t.subject_kind = 'lead'
-       AND t.kind IN ('contacted', 'exchange-logged', 'first-meeting')
-       AND t.actor_id = r.actor_id AND t.at >= r.at
+    SELECT min(x.at) AS at FROM (${realExchanges(sql`r.lead_code`)}) x
+     WHERE x.actor_id = r.actor_id AND x.at >= r.at
   ) f ON true
   WHERE ${within(sql`r.at`)}${only(sql`r.actor_id`)}
   GROUP BY 1`
@@ -117,6 +128,7 @@ const OWN: Partial<Record<KpiMetricKey, Fragment>> = {
     'BD',
     sql`k.created_at`,
     sql`count(k.accepted_at)::float8 / count(*)`,
+    sql`NOT ${BORN_ACCEPTED}`,
   ),
   'first-response-hours': firstResponse,
   'demos-joined': (only) => sql`
@@ -144,7 +156,7 @@ const OWN: Partial<Record<KpiMetricKey, Fragment>> = {
   'accept-lag-days': (only) => sql`
     SELECT k.accepted_by_id AS actor_id, ${median(sql`(k.accepted_at - k.created_at)`, 86400)} AS value
     FROM sales.opportunity k ${LIVE}
-    WHERE k.accepted_by_id IS NOT NULL
+    WHERE k.accepted_by_id IS NOT NULL AND NOT ${BORN_ACCEPTED}
       AND ${within(sql`k.accepted_at`)}${only(sql`k.accepted_by_id`)}
     GROUP BY 1`,
 }

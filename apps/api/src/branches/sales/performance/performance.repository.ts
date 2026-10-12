@@ -6,17 +6,21 @@ import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
+import { dealLost, dealWon } from '../open-deal'
 import type { PeriodSpan } from './performance-period'
+import { realExchanges } from './real-exchange'
 
 type Row = {
   key: string
   leads: number
-  first_meetings: number
+  first_contacts: number
   opportunities: number
   contracts: number
   signed_count: number
   signed_amount_vnd: number | string
   blank_amount: number
+  won_deals: number
+  lost_deals: number
 }
 
 /** The only SQL of the module: every span of one period read in ONE statement.
@@ -26,9 +30,10 @@ type Row = {
  *  three owns a figure that sets leads beside signatures.
  *
  *  The signing side is the first query of `ContractRepository.summary` with a
- *  fence added. The cohort links a meeting, deal or contract to its lead the
- *  way `LeadRepository.scorecard` does, but counts LEADS where that one counts
- *  rows — `SalesCohort` says why the two differ.
+ *  fence added. The cohort links a deal or contract to its lead the way
+ *  `LeadRepository.scorecard` does, but counts LEADS where that one counts
+ *  rows — `SalesCohort` says why the two differ. Won and lost are KPI
+ *  `win-rate`'s predicates and its close-moment fence, over the whole room.
  *
  *  Month edges are Vietnam calendar days, the form `createdWithin` spells
  *  (`platform/db/book-filter.ts`): the tiles sit beside the lead and contract
@@ -54,13 +59,12 @@ export class PerformanceRepository {
        cannot pass `opportunities` either. */
     const r = (await this.db.execute(sql`
       WITH span("key", "lo", "hi") AS (VALUES ${values})
-      SELECT s."key", c.*, g.*
+      SELECT s."key", c.*, g.*, d.*
       FROM span s
       LEFT JOIN LATERAL (
         SELECT count(*)::int                                                    AS leads,
-               count(*) FILTER (WHERE l."code" LIKE 'LD-%' AND EXISTS (
-                 SELECT 1 FROM "sales"."meeting" m
-                  WHERE m."subject_code" = l."code"))::int                      AS first_meetings,
+               count(*) FILTER (WHERE EXISTS (
+                 ${realExchanges(sql`l."code"`)}))::int                         AS first_contacts,
                count(*) FILTER (WHERE EXISTS (
                  SELECT 1 FROM "sales"."opportunity" o
                   WHERE o."lead_code" = l."code"))::int                         AS opportunities,
@@ -79,6 +83,14 @@ export class PerformanceRepository {
           FROM ${contract} JOIN ${lead} ON ${lead.code} = ${contract.leadCode} AND ${leadLive}
          WHERE ${contract.signedAt} >= s."lo" AND ${contract.signedAt} < s."hi"
       ) g ON true
+      LEFT JOIN LATERAL (
+        SELECT count(*) FILTER (WHERE ${dealWon(sql`o."code"`)})::int            AS won_deals,
+               count(*) FILTER (WHERE ${dealLost(sql`o."code"`, sql`o."state"`)})::int
+                                                                                AS lost_deals
+          FROM "sales"."opportunity" o
+          JOIN "sales"."lead" dl ON dl."code" = o."lead_code" AND dl."disabled_at" IS NULL
+         WHERE o."closed_at" >= s."lo" AND o."closed_at" < s."hi"
+      ) d ON true
     `)) as { rows: Row[] }
 
     /* `bigint` is a string from node-postgres and a number from PGlite. */
@@ -88,13 +100,15 @@ export class PerformanceRepository {
         {
           cohort: {
             leads: row.leads,
-            firstMeetings: row.first_meetings,
+            firstContacts: row.first_contacts,
             opportunities: row.opportunities,
             contracts: row.contracts,
           },
           signedCount: row.signed_count,
           signedAmountVnd: Number(row.signed_amount_vnd),
           blankAmount: row.blank_amount,
+          wonDeals: row.won_deals,
+          lostDeals: row.lost_deals,
         },
       ]),
     )

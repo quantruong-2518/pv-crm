@@ -47,12 +47,7 @@ import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadAdmissionService } from './lead-admission.service'
-import {
-  LEAD_GONE_STATES,
-  LEAD_GONE_WORDS,
-  LeadStateWriter,
-  stateAfterOwnerChange,
-} from './lead-state'
+import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadOriginService, type OriginIndex } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
@@ -463,16 +458,9 @@ export class LeadWriteService {
          inventing a giver. */
       const prev = found.ownerId ? await this.repo.actorById(tx, found.ownerId) : null
 
-      /* One statement when the state follows the owner: `lead_open_owner_matches`
-         refuses a `new` lead with a holder even for the instant between two. */
+      /* The one owner write, shared with the deal doors' claim (ADR 0088 §17). */
       const ownerId = body.ownerId ?? null
-      const state = stateAfterOwnerChange(found.state, ownerId)
-      if (state === found.state) {
-        await this.repo.setOwner(tx, code, ownerId)
-        await this.states.refresh(tx, [code])
-      } else {
-        await this.states.move(tx, code, state, { ownerId })
-      }
+      const state = await this.states.ownerSet(tx, found, ownerId)
       /* The outgoing holder's step goes with the lead (flow G1): to the new
          holder, or away on a release. A claim from the pool has none to carry. */
       if (found.ownerId !== null) {

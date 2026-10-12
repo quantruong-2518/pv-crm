@@ -138,7 +138,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     /* Reaching a lead they brought in is the job; `ownOnly` keeps the reach to
        exactly that. `campaign.broadcast` stays with marketing. */
     'lead.send-email',
-    'lead.convert',
     /* BD is the person who OPENS the door at a company, so also the first to
        learn what that company is called on paper. Read without write would make
        the company row wait for another role to type it in, and while it waits a
@@ -184,8 +183,10 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'comm.view-content',
     'lead.edit',
     'lead.send-email',
-    'lead.convert',
     'lead.disqualify',
+    /* A Sale opens a deal on a lead they hold (ADR 0088 §16); `ownOnly` keeps
+       the reach to their own leads. */
+    'opportunity.create',
     /* Write, because correcting the address or tax code of the customer one is
        actively selling to is daily work. Axis 3 cannot narrow this permission —
        a company is owned by no seller — so this is precisely where the `sale`
@@ -230,7 +231,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
     'lead.edit',
     'lead.send-email',
     'lead.assign',
-    'lead.convert',
     'lead.disqualify',
     'account.view',
     'account.edit',

@@ -1,16 +1,31 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { and, asc, desc, eq, isNotNull, ne, or, sql, type AnyColumn, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  sql,
+  type AnyColumn,
+  type SQL,
+} from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { Actor } from '@pv/engines'
 import type { OpportunityContactPick, StageKey } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
+import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive, leadScope } from '../lead/lead-scope'
-import { dealStoodBy } from '../open-deal'
+import { dealOpen, dealStoodBy } from '../open-deal'
 import { runBefore } from '../workstream/workstream.repository'
 import { workstream } from '../workstream/workstream.schema'
+import { ACCEPTOR_NAME } from './opportunity.repository'
 import { opportunity, opportunityContact } from './opportunity.schema'
 
 export type OpenLead = {
@@ -24,6 +39,8 @@ export type OpenContact = {
   name: string
   title: string | null
   source: 'lead' | 'account'
+  /** The primary contact of the lead ITSELF — the import's blank-cell pick. */
+  primary: boolean
 }
 
 /** WON runs at `accountCode` other than `current` — the one reading of "this
@@ -67,55 +84,100 @@ export class OpportunityOpenRepository {
     return row ?? null
   }
 
-  /** The lead's own contacts, then those of OTHER leads at the same account.
+  /** Every RUNNING deal of these leads (`dealOpen`: not lost, not signed),
+   *  oldest first, whatever the reader's scope — the list a second deal must
+   *  acknowledge (ADR 0088 §9). `code` only breaks ties. Takes the caller's
+   *  handle so the create door reads it under its lead lock. */
+  async runningRows(db: Db, leadCodes: readonly string[]) {
+    if (leadCodes.length === 0) return []
+    return db
+      .select({
+        leadCode: opportunity.leadCode,
+        code: opportunity.code,
+        name: opportunity.name,
+        stage: opportunity.stage,
+        acceptedById: opportunity.acceptedById,
+        acceptorName: ACCEPTOR_NAME,
+      })
+      .from(opportunity)
+      .where(
+        and(
+          inArray(opportunity.leadCode, [...leadCodes]),
+          dealOpen(opportunity.code, opportunity.state),
+        ),
+      )
+      .orderBy(asc(opportunity.createdAt), asc(opportunity.code))
+  }
+
+  /** Ids of the PRODUCT catalogue still switched on — what a file may name. */
+  async liveProducts(db: Db): Promise<Set<string>> {
+    const rows = await db
+      .select({ id: configEntry.id })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'PRODUCT'), eq(configEntry.active, true)))
+    return new Set(rows.map((r) => r.id))
+  }
+
+  /** Per lead: its own contacts, then those of OTHER leads at the same account.
    *
    *  The account half takes the lead book's scope (`leadScope`) on the SIBLING
    *  lead: an `ownOnly` reader sees account contacts only from leads they hold.
-   *  The create door checks picks against this same list, so the picker and the
-   *  server cannot disagree about who may be named. */
-  async reachableContacts(db: Db, who: Actor, leadCode: string): Promise<OpenContact[]> {
-    const mine = sql`(SELECT mine.account_code FROM sales.lead mine WHERE mine.code = ${leadCode})`
-    const scope = leadScope(who, true)
+   *  Both deal doors check picks against this same list, so the picker, the
+   *  file and the server cannot disagree about who may be named. */
+  async reachByLead(
+    db: Db,
+    who: Actor,
+    leadCodes: readonly string[],
+  ): Promise<Map<string, OpenContact[]>> {
+    const byLead = new Map<string, OpenContact[]>()
+    if (leadCodes.length === 0) return byLead
+    const mine = alias(lead, 'mine')
+    const own = sql<boolean>`${contact.leadCode} = ${mine.code}`
+    const sibling = and(
+      isNotNull(mine.accountCode),
+      eq(lead.accountCode, mine.accountCode),
+      leadScope(who, true),
+    )
     const rows = await db
       .select({
+        leadCode: mine.code,
         code: contact.code,
         name: contact.name,
         title: contact.title,
-        own: sql<boolean>`${contact.leadCode} = ${leadCode}`,
+        own,
+        isPrimary: contact.isPrimary,
       })
       .from(contact)
       .innerJoin(lead, eq(lead.code, contact.leadCode))
-      .where(
-        and(
-          leadLive,
-          or(
-            eq(contact.leadCode, leadCode),
-            and(isNotNull(lead.accountCode), sql`${lead.accountCode} = ${mine}`, scope),
-          ),
-        ),
-      )
-      .orderBy(
-        desc(sql`${contact.leadCode} = ${leadCode}`),
-        desc(contact.isPrimary),
-        asc(contact.name),
-        asc(contact.code),
-      )
-    return rows.map((r) => ({
-      code: r.code,
-      name: r.name,
-      title: r.title,
-      source: r.own ? 'lead' : 'account',
-    }))
+      .innerJoin(mine, and(inArray(mine.code, [...leadCodes]), or(own, sibling)))
+      .where(leadLive)
+      .orderBy(desc(own), desc(contact.isPrimary), asc(contact.name), asc(contact.code))
+    for (const r of rows) {
+      const list = byLead.get(r.leadCode) ?? []
+      list.push({
+        code: r.code,
+        name: r.name,
+        title: r.title,
+        source: r.own ? 'lead' : 'account',
+        primary: r.own && r.isPrimary,
+      })
+      byLead.set(r.leadCode, list)
+    }
+    return byLead
+  }
+
+  async reachableContacts(db: Db, who: Actor, leadCode: string): Promise<OpenContact[]> {
+    return (await this.reachByLead(db, who, [leadCode])).get(leadCode) ?? []
   }
 
   async insertContacts(
     tx: Db,
-    code: string,
-    picks: readonly OpportunityContactPick[],
+    picks: readonly (OpportunityContactPick & { opportunityCode: string })[],
   ): Promise<void> {
+    if (picks.length === 0) return
     await tx.insert(opportunityContact).values(
       picks.map((p) => ({
-        opportunityCode: code,
+        opportunityCode: p.opportunityCode,
         contactCode: p.contactCode,
         role: p.role,
         isPrimary: p.primary,

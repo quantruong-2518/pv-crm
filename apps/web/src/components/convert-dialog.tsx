@@ -16,13 +16,19 @@ import {
   usePromoteLead,
   withCreatorOwners,
 } from '@/data/opportunities-write'
-import { missingForOpen, openContextQuery, seededPicks } from '@/data/opportunity-open'
+import {
+  missingForOpen,
+  openContextQuery,
+  seededPicks,
+  useDealsConfirm,
+} from '@/data/opportunity-open'
 import { BasicsSection } from './open-deal-basics'
 import { ContactsSection } from './open-deal-contacts'
 import { CreatedPanel, type Created } from './open-deal-done'
 import { ExtrasSection } from './open-deal-extras'
-import { LeadCard, StandingDealNote } from './open-deal-lead'
+import { LeadCard } from './open-deal-lead'
 import { AfterCreate, OwnersSection } from './open-deal-owners'
+import { RunningDealsBlock } from './open-deal-running'
 
 /** Open an opportunity from a lead — a panel over the profile it reads from.
  *
@@ -113,11 +119,14 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
     clear('contacts')
   }
 
+  const shownCodes = ctx?.runningDeals.map((d) => d.code) ?? []
+  const { confirmed, confirm } = useDealsConfirm(shownCodes)
   const missing = missingForOpen(draft, picks, canAccept)
+  if (!confirmed) missing.push('xác nhận đây là nhu cầu khác')
 
   const submit = () => {
     if (!ctx) return
-    promote.mutate(createBodyOf(profile.code, draft, picks, salePrimary), {
+    promote.mutate(createBodyOf(profile.code, draft, picks, shownCodes, salePrimary), {
       onSuccess: (row) =>
         setCreated({
           row,
@@ -127,7 +136,13 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
           convertsLead: profile.state !== 'converted',
           leadCode: profile.code,
         }),
-      onError: (error) => setErrors(draftErrorsOf(error.errors)),
+      onError: (error) => {
+        setErrors(draftErrorsOf(error.errors))
+        /* A 409 may carry a new list of running deals: ask again, untick. */
+        if (error.kind !== 'conflict') return
+        confirm(false)
+        void context.refetch()
+      },
     })
   }
 
@@ -171,7 +186,15 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
       ) : ctx ? (
         <div className="flex min-w-0 flex-col gap-6">
           <LeadCard profile={profile} context={ctx} />
-          <StandingDealNote context={ctx} />
+          <RunningDealsBlock
+            deals={ctx.runningDeals}
+            confirmed={confirmed}
+            busy={context.isFetching}
+            onConfirm={(on) => {
+              confirm(on)
+              promote.reset()
+            }}
+          />
           <BasicsSection draft={draft} seed={seed} errors={errors} onSet={set} />
           <ContactsSection
             contacts={ctx.contacts}
@@ -210,8 +233,8 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
 }
 
 /** Skeleton while the context loads; a refusal with a retry when it cannot. The
- *  form is never drawn from a half-known context: contacts and the standing
- *  deal decide what the person is about to confirm. */
+ *  form is never drawn from a half-known context: contacts and the running
+ *  deals decide what the person is about to confirm. */
 function ContextGate({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   if (error)
     return (

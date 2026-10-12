@@ -91,7 +91,7 @@ export function daysInStageOf(row: Pick<OpportunityRowDb, 'stageSince'>, now: Da
 }
 
 /** The create body minus the people it names: what the deal ROW is built from.
- *  The import door has no contacts column, so it produces exactly this. */
+ *  Both create doors write the contact rows apart, through `insertContacts`. */
 export type OpportunityDraft = Omit<OpportunityCreate, 'contacts'>
 
 /** `POST /sales/opportunities` body → columns. No re-normalising: the

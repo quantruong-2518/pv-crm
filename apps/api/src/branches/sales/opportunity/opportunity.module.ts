@@ -17,6 +17,7 @@ import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityActs } from './opportunity-acts'
 import { OpportunityAssign } from './opportunity-assign.service'
 import { OpportunityContacts } from './opportunity-contacts.service'
+import { OpportunityImport } from './opportunity-import.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityFactsRepository } from './opportunity-facts.repository'
@@ -112,6 +113,7 @@ import { OpportunityService } from './opportunity.service'
     OpportunityFacetsRepository,
     OpportunityActs,
     OpportunityContacts,
+    OpportunityImport,
     OpportunitySign,
     ContractRepository,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không

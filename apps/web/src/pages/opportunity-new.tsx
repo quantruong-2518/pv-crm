@@ -44,8 +44,8 @@ export function OpportunityNewPage() {
   const shell = (children: ReactNode) => <AppShell {...chrome.shell}>{children}</AppShell>
   const canCreate = useCan('opportunity.create')
 
-  /* Only BD seats and heads open a deal (ADR 0071 §1). Asked here as well as at
-     the route, so a Sale who types the address meets a reason, not a form. */
+  /* Presales and marketing do not open a deal (ADR 0088 §16). Asked here as well
+     as at the route, so they meet a reason when they type the address. */
   if (!canCreate) {
     return shell(
       <ScreenLayout>

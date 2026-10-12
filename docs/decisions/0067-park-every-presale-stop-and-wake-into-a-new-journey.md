@@ -7,7 +7,8 @@ D3, D7 — `nurturing` now loops on the same lead instead of waking a new one,
 and `disqualified` is revived as its own terminal state); D2's separate stop
 record for opportunities superseded by 0069; §4's open question (whether the
 catalogue covers `nurturing`) settled and §9/D4 carried out as described,
-both by 0070
+both by 0070; §4's "never put into a campaign and never mailed" superseded by
+0088 (warn only)
 Source: project owner's answers to D1–D11 in session, 28/09/2026; the shared
 flows C, A2, D, G and H agreed 27/09 (`.claude/HANDOFF-workstream-loop.md`,
 "Luồng chung"); the presale plan page
@@ -112,6 +113,9 @@ is carried by "Không phải khách của mình" and "Người liên hệ nghỉ
 A stop with a flagged reason stays in the list (for statistics) but is never
 put into a campaign and never mailed. Address-level blocks (bounce,
 unsubscribe) keep running alongside (flow C4).
+
+> Superseded by 0088 §23 (decided, not built): the flag warns only — it is
+> shown, and picking such a lead into a campaign warns; no hard block.
 
 ### 5 · Wake
 

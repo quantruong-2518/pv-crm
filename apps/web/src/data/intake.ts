@@ -41,6 +41,7 @@ import {
   type AdmissionVerdict,
   type IntakeTrust,
   type LeadImportReport,
+  type OpportunityRunningDeal,
 } from '@pv/contracts'
 import { peopleIdOptions, peopleNameOptions } from '@/data/directory'
 import { CHANNEL_LABEL } from '@/data/sales-config'
@@ -292,10 +293,16 @@ export type ImportSpec = {
    *  giá trị, và màn nào không dùng tới thì bỏ nó ở đường dịch của mình. */
   defaultMotion: LeadMotion
   fields: ImportField[]
+  /** Field keys of which at least one must be mapped: the server refuses a
+   *  row that names none of them, so the file is stopped before it is sent. */
+  anyOf?: readonly string[]
   /** What one row BECOMES, printed in the batch-assign card: "apply to all 8
    *  <rowNoun>". The generic word for a row is true but never says what the row
    *  turns into, and that is what the person about to press the button needs. */
   rowNoun?: string
+  /** Name of the rows held back by the book, where "already in the system" is
+   *  not what happened. */
+  bookDupLabel?: string
   /** Default ceiling for a cell with no `max` of its own — the body-level
    *  ceiling of whatever contract this loader posts to. Absent means no check,
    *  exactly as before. */
@@ -666,6 +673,8 @@ export const OP_SPEC: ImportSpec = {
   intake: 'file',
   defaultMotion: 'outbound',
   sampleStem: 'mau-nap-co-hoi',
+  bookDupLabel: 'Lead có cơ hội đang chạy',
+  anyOf: ['leadCode', 'company'],
   fields: [
     {
       key: 'name',
@@ -677,7 +686,6 @@ export const OP_SPEC: ImportSpec = {
     {
       key: 'company',
       label: 'Account',
-      required: true,
       aliases: ['account', 'cong ty', 'khach hang', 'company'],
       sample: 'Điện tử Kỳ Anh',
     },
@@ -708,6 +716,30 @@ export const OP_SPEC: ImportSpec = {
       aliases: ['bd', 'bd owner', 'business development'],
       people: 'id',
       sample: 'Lê Hoàng Nam',
+    },
+    {
+      key: 'leadCode',
+      label: 'Mã lead',
+      aliases: ['ma lead', 'lead', 'lead code'],
+      sample: '',
+    },
+    {
+      key: 'contact',
+      label: 'Mã người liên hệ',
+      aliases: ['ma nguoi lien he', 'ma lien he', 'contact', 'contact code'],
+      sample: '',
+    },
+    {
+      key: 'contactRole',
+      label: 'Vai trò người liên hệ',
+      aliases: ['vai tro nguoi lien he', 'vai tro', 'contact role', 'role'],
+      sample: 'Người quyết định',
+    },
+    {
+      key: 'products',
+      label: 'Mã sản phẩm',
+      aliases: ['san pham', 'ma san pham', 'products', 'product'],
+      sample: 'PD-02, PD-05',
     },
   ],
 }
@@ -826,7 +858,18 @@ export function guessMapping(
  *  dòng — và nó trả về CHỮ chứ không `boolean`, cùng lý do với `missingOf` của
  *  sổ cơ hội: nút mờ không lý do là một ngõ cụt. */
 export function unmappedRequired(mapping: ColumnMapping, spec: ImportSpec): string[] {
-  return spec.fields.filter((f) => f.required && (mapping[f.key] ?? -1) < 0).map((f) => f.label)
+  const missing = spec.fields
+    .filter((f) => f.required && (mapping[f.key] ?? -1) < 0)
+    .map((f) => f.label)
+  const none = spec.anyOf?.every((key) => (mapping[key] ?? -1) < 0)
+  return none ? [...missing, anyOfLabel(spec) ?? ''] : missing
+}
+
+/** The one-of requirement as one phrase for chips and footer; absent when the spec has none. */
+export function anyOfLabel(spec: ImportSpec): string | undefined {
+  if (!spec.anyOf) return undefined
+  const keys = spec.anyOf
+  return keys.map((key) => spec.fields.find((f) => f.key === key)?.label ?? key).join(' hoặc ')
 }
 
 // ---------------------------------------------------------------------------
@@ -855,6 +898,9 @@ export type BuiltRow = {
   /** Set by the grouping step only — see `LeadImportRow.group` / `.primary`. */
   group?: string
   primary?: boolean
+  /** Opportunity door only: this row's yes to its lead's running deals, set
+   *  when a held row is sent again. Not a cell — a file cannot carry it. */
+  acknowledgedDeals?: string[]
   /** Lead door only, from the server: what the admission gate said about the
    *  row and the company it matched. Absent = the gate was not consulted. */
   admission?: AdmissionVerdict
@@ -893,6 +939,10 @@ export type DupRow = {
   /** The lead already holding the key. Only on a collision with the BOOK — a
    *  collision inside the file has no lead behind it yet. */
   code?: string
+  /** Opportunity door only: a row held because its lead has running deals,
+   *  with the lead and those deals. */
+  leadCode?: string
+  deals?: OpportunityRunningDeal[]
 }
 
 /** Khoá chống trùng: mã số thuế trước, không có thì tên + tỉnh.
@@ -943,6 +993,9 @@ export type ImportReport = {
    *  Absent on a browser-only report and on a preview — a row that went nowhere
    *  has no code, and inventing a blank column for it would suggest it does. */
   codes?: string[]
+  /** Why the whole batch was refused (network, permission, stale list), as opposed
+   *  to a single row's reason. Absent when the server answered row by row. */
+  failure?: string
   /** Lead book only: rows that went in as an extra contact of a grouped lead. */
   attached?: LeadImportReport['attached']
   /** Lead book only: rows whose person was added to a lead already in the book. */

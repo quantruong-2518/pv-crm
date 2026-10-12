@@ -31,7 +31,7 @@ import {
  *  Tiles are built on `GlassCard`, not `StatCard`: the compact `StatCard`
  *  prints its label in uppercase mono, and here the label is the tile's
  *  sentence-case title (law 6). Every figure arrives as a prop, and every
- *  tile's head says what it covers: a period, a frozen snapshot, or now.
+ *  tile's head says what it covers: a period, or now.
  *  The period tiles name the period of the DATA, not of the picker, so a
  *  placeholder kept across a period change is still labelled truthfully. */
 
@@ -58,7 +58,7 @@ export function TileHead({ title, aside }: { title: string; aside?: ReactNode })
 }
 
 const DELTA_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus }
-/* Up is good for all three deltas on this screen (contracts, win rate, funnel). */
+/* Up is good for every delta on this screen. */
 const DELTA_TONE = {
   up: 'text-success',
   down: 'text-warning',
@@ -164,13 +164,37 @@ export function OpenValueTile({ data, className }: Figures) {
   )
 }
 
-const winRate = ({ cohort }: SalesPerformanceResponse['current']) =>
+const leadToContract = ({ cohort }: SalesPerformanceResponse['current']) =>
   rateOf(cohort.contracts, cohort.opportunities)
 
-/** Read on the cohort, and the denominator is printed: the same label on the
- *  workstream book and on the KPI screens means won over closed. */
-export function WinRateTile({ data, className }: Figures) {
+/** Leads of the period's cohort that have a contract, over those that became
+ *  a deal. A lead rate, not a win rate: the denominator is printed. */
+export function LeadToContractTile({ data, className }: Figures) {
   const { cohort } = data.current
+  const rate = leadToContract(data.current)
+  return (
+    <GlassCard className={cn(TILE, className)}>
+      <TileHead title="Lead thành cơ hội đã ký" aside={periodShort(data.period)} />
+      <div className="mt-auto flex flex-col gap-2">
+        <span className={BIG}>{rate === null ? '—' : percent(rate)}</span>
+        <DeltaLine delta={deltaOf(rate, leadToContract(data.previous), 'points')}>
+          {versus(data)}
+        </DeltaLine>
+        <span className={cn(NOTE, 'tnum font-num')}>
+          {num(cohort.contracts)}/{num(cohort.opportunities)} lead thành cơ hội đã ký hợp đồng
+        </span>
+      </div>
+    </GlassCard>
+  )
+}
+
+const winRate = ({ wonDeals, lostDeals }: SalesPerformanceResponse['current']) =>
+  rateOf(wonDeals, wonDeals + lostDeals)
+
+/** Won over won plus lost, by the day each deal closed in the period
+ *  (ADR 0088 §7) — the KPI definition. A dash when nothing closed. */
+export function WinRateTile({ data, className }: Figures) {
+  const { wonDeals, lostDeals } = data.current
   const rate = winRate(data.current)
   return (
     <GlassCard className={cn(TILE, className)}>
@@ -181,8 +205,7 @@ export function WinRateTile({ data, className }: Figures) {
           {versus(data)}
         </DeltaLine>
         <span className={cn(NOTE, 'tnum font-num')}>
-          {num(cohort.contracts)} đã ký hợp đồng trên {num(cohort.opportunities)} lead của kỳ đã tạo
-          cơ hội
+          {num(wonDeals)} thắng · {num(lostDeals)} dừng
         </span>
       </div>
     </GlassCard>
@@ -277,8 +300,8 @@ export function OverdueTile({
 }
 
 /** Four steps of one cohort, each counted in leads, so no bar is wider than
- *  the first. A lead can become a deal with no meeting logged on it, so the
- *  third step is not bound by the second. */
+ *  the first. A lead can become a deal before any real exchange is logged on
+ *  it, so the third step is not bound by the second. */
 export function FunnelTile({ data, className }: Figures) {
   const steps = funnelOf(data.current.cohort)
   const leads = data.current.cohort.leads
@@ -294,7 +317,7 @@ export function FunnelTile({ data, className }: Figures) {
       {/* Rate and delta share one line: the tile is one bento row tall. */}
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className={BIG}>{rate === null ? '—' : percent(rate, 1)}</span>
-        <span className={NOTE}>lead thành hợp đồng</span>
+        <span className={NOTE}>lead vào sổ đã ký hợp đồng</span>
         <DeltaLine delta={deltaOf(rate, rateOf(before.contracts, before.leads), 'points')}>
           {versus(data)}
         </DeltaLine>

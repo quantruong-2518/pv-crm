@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { SalesPerformanceResponse, type SalesPeriodKey } from '@pv/contracts'
+import { SalesExitsResponse, SalesPerformanceResponse, type SalesPeriodKey } from '@pv/contracts'
 import { OpportunityService } from '../opportunity/opportunity.service'
 import { spansOf } from './performance-period'
+import { PerformanceExitsRepository } from './performance-exits.repository'
 import { PerformanceRepository } from './performance.repository'
 
 /** The overview's period figures — read only, and it holds no engine.
@@ -13,6 +14,7 @@ import { PerformanceRepository } from './performance.repository'
 export class PerformanceService {
   constructor(
     private readonly repo: PerformanceRepository,
+    private readonly exitsRepo: PerformanceExitsRepository,
     private readonly opportunities: OpportunityService,
   ) {}
 
@@ -37,5 +39,15 @@ export class PerformanceService {
       open: { count: card.open, amountVnd: card.openAmountVnd, blank: card.openBlank },
       months: months.map((m) => ({ key: m.key, ...figures.get(m.key) })),
     })
+  }
+
+  /** The selected period only: a reasons chart compares nothing with before. */
+  async exits(period: SalesPeriodKey): Promise<SalesExitsResponse> {
+    const { current } = spansOf(period)
+    const [leadExits, dealStops] = await Promise.all([
+      this.exitsRepo.leadExits(current),
+      this.exitsRepo.dealStops(current),
+    ])
+    return SalesExitsResponse.parse({ period, leadExits, dealStops })
   }
 }

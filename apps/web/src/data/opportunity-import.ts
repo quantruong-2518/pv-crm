@@ -61,8 +61,8 @@ const COMMIT_PATH = '/sales/opportunities/import'
  *
  *  The dry run asks for the create permission too, and that is not an oversight
  *  on either side: a preview reads the whole live lead book and the open deals
- *  standing on it. Sale, presales and marketing do not hold `opportunity.create`
- *  (ADR 0071 §1), so their call is refused at `requireAccess` before a byte
+ *  standing on it. Presales and marketing do not hold `opportunity.create`
+ *  (ADR 0088 §16), so their call is refused at `requireAccess` before a byte
  *  moves — same fence, one round trip earlier. */
 const IMPORT_NEED = OPPORTUNITY_WRITE_NEED
 
@@ -138,7 +138,7 @@ export async function runOpportunityImport(
     })
 
     /* Nothing survived the dry run — every row is broken, or every customer in
-       the file already has an open deal. Stop: a transaction for an empty batch
+       the file has running deals and awaits a yes. Stop: a transaction for an empty batch
        is a write with nothing to write, and the preview's report is already the
        whole answer. */
     if (preview.rows.length === 0) return { report: toPanelReport(preview), codes: [] }

@@ -128,6 +128,7 @@ export function emptyOf(opts: {
 /** The axes `useBookQuery` counts as filters — the keys its `clear` resets. */
 export const FILTER_KEYS = [
   'state',
+  'stopReason',
   'stage',
   'accepted',
   'overdue',

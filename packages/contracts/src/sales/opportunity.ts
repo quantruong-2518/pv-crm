@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { PipelinePositionView } from '../position'
 import { PageQuery, SortDir, paged } from '../pagination'
+import { Problem } from '../problem'
 import {
   MoneyVnd,
   ContractCode,
@@ -180,6 +181,30 @@ const contactPicks = z
     error: 'Chọn đúng một người liên hệ chính.',
   })
 
+/** One running deal of a lead — open, so neither `lost` nor signed (the import
+ *  door's `liveDealsByLead`). The code is always told, in or out of the
+ *  reader's scope: the open door asks for every one of them back by code. */
+export const OpportunityRunningDeal = z.object({
+  code: ObjectCode,
+  name: textInput(200),
+  stage: StageKey,
+  /** Same rule as `OpportunityRow.holder`. */
+  holder: WorkstreamHolder.nullable(),
+})
+
+/** A fence against a scripted body, far above any real lead's running deals. */
+export const OPPORTUNITY_ACKNOWLEDGED_MAX = 200
+
+/** Codes of the running deals the opener was shown, deduped; `[]` = none shown.
+ *  The server compares this SET with the lead's running deals under the lead
+ *  lock and refuses a mismatch with `OpportunityOpenRefusal`. That one rule
+ *  also refuses a double submit: the second body lacks the deal the first
+ *  minted. Shared by the typed door and each import row. */
+export const AcknowledgedDeals = z
+  .array(ObjectCode)
+  .max(OPPORTUNITY_ACKNOWLEDGED_MAX)
+  .transform((codes) => [...new Set(codes)])
+
 // ---------------------------------------------------------------------------
 // THE TWO WRITE DOORS
 // ---------------------------------------------------------------------------
@@ -258,6 +283,8 @@ export const OpportunityCreateShape = z.object({
   // No `accountCode`: the server copies the lead's own, never a client's.
   /** PATCH does not move contacts; `PUT …/:code/contacts` does. */
   contacts: contactPicks,
+  /** Required, never defaulted: a body that says nothing has confirmed nothing. */
+  acknowledgedDeals: AcknowledgedDeals,
   ...dealFields,
 })
 
@@ -268,6 +295,14 @@ export const OpportunityCreate = OpportunityCreateShape.refine(
   salePrimaryOnLane,
   SALE_PRIMARY_OFF_LANE,
 )
+
+/** The 409 of `POST /sales/opportunities` when `acknowledgedDeals` is not the
+ *  lead's running deals: the list as it stands now, for the form to show and
+ *  send back. Known from the door's other 409s by its `runningDeals` key, the
+ *  way `AdmissionRefusal` is known by `admission`. */
+export const OpportunityOpenRefusal = Problem.extend({
+  runningDeals: z.array(OpportunityRunningDeal),
+})
 
 /** `PATCH /sales/opportunities/:code` — the opportunity profile's save button.
  *
@@ -496,6 +531,10 @@ export const OpportunityBookQuery = PageQuery.extend({
    *  every read path does, by the existence of a `sales.contract` row, because
    *  no column spells it. */
   state: OpportunityStatus.optional(),
+  /** One `LOSS_REASON` key, or `other`: deals stopped for that reason. ANDed
+   *  with `state` like every filter here, so `state=open` beside it is empty.
+   *  A string for the reason `OpportunityStopBody.reasonKey` is one. */
+  stopReason: z.string().trim().min(1).max(OPPORTUNITY_STOP_REASON_MAX).optional(),
   /** The column a deal stands in — `new` is the head of sales' accept queue
    *  (ADR 0071), counted by the histogram's same bucket. One key, or several
    *  joined by commas. */
@@ -728,6 +767,9 @@ export const OpportunityOpenContext = z.object({
       stage: StageKey,
     })
     .nullable(),
+  /** Every running deal of THIS lead, oldest first; the form lists them and
+   *  sends their codes back as `acknowledgedDeals`. */
+  runningDeals: z.array(OpportunityRunningDeal),
   contacts: z.array(
     z.object({
       code: ObjectCode,
@@ -742,6 +784,8 @@ export const OpportunityOpenContext = z.object({
 
 export const OpportunityOpenContextQuery = z.object({ leadCode: ObjectCode })
 
+export type OpportunityRunningDeal = z.infer<typeof OpportunityRunningDeal>
+export type OpportunityOpenRefusal = z.infer<typeof OpportunityOpenRefusal>
 export type OpportunityOpenContext = z.infer<typeof OpportunityOpenContext>
 export type OpportunityOpenContextQuery = z.infer<typeof OpportunityOpenContextQuery>
 export type OpportunityContactPick = z.infer<typeof OpportunityContactPick>

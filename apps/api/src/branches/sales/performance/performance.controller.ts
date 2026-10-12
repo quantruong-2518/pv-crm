@@ -1,5 +1,5 @@
 import { Controller, Get, Param } from '@nestjs/common'
-import { SalesPerformanceParams } from '@pv/contracts'
+import { SalesExitsParams, SalesPerformanceParams } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { PerformanceService } from './performance.service'
@@ -21,5 +21,13 @@ export class PerformanceController {
   @Need({ branch: 'Sales', permission: 'performance.view' })
   read(@Param(zod(SalesPerformanceParams)) params: SalesPerformanceParams) {
     return this.performance.read(params.period)
+  }
+
+  /** A second door, not a field of the first: the chart loads after the tiles
+   *  and its two grouped counts have no part in the tiles' single statement. */
+  @Get(':period/exits')
+  @Need({ branch: 'Sales', permission: 'performance.view' })
+  exits(@Param(zod(SalesExitsParams)) params: SalesExitsParams) {
+    return this.performance.exits(params.period)
   }
 }

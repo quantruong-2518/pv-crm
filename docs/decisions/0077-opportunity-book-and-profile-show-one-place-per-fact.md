@@ -85,4 +85,4 @@ One place per fact, one place per action.
 ## Out of scope
 
 - Real attachment upload: attachments stay name-only until a storage decision.
-- Do-not-contact enforcement (0067 D5).
+- Do-not-contact enforcement (0067 D5). Settled by 0088 §23: warn only.

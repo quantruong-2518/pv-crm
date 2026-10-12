@@ -91,7 +91,7 @@ export function OpportunitiesPage() {
       : { key: query.sort, dir: query.dir }
 
   const [creating, setCreating] = useState(false)
-  /* Both write doors open a deal, which only BD seats and heads may (ADR 0071 §1). */
+  /* Both write doors open a deal (BD, Sale, account-executive and heads: ADR 0088 §16). */
   const canCreate = useCan('opportunity.create')
   const canAccept = useCan('opportunity.accept')
 
@@ -258,14 +258,14 @@ function useCommitOps() {
     toast(run.failure ?? `Đã thêm ${report.rows.length} cơ hội`, {
       tone: run.failure ? 'danger' : 'success',
       detail: [
-        report.duplicates > 0 && `${report.duplicates} lead đã có cơ hội đang mở, bỏ qua`,
+        report.duplicates > 0 && `${report.duplicates} dòng chưa nạp: lead có cơ hội đang chạy`,
         report.dupInFile > 0 && `${report.dupInFile} dòng trùng nhau trong tệp`,
         report.errors.length > 0 && `${report.errors.length} dòng không nạp được`,
       ]
         .filter(Boolean)
         .join(' · '),
     })
-    return report
+    return run.failure ? { ...report, failure: run.failure } : report
   }
 }
 

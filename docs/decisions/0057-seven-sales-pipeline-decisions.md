@@ -5,7 +5,8 @@ Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
 is removed outright, not scoped down); §5 amended by 0064 (loss reason becomes
 care reason, picked from a per-stage catalogue); §2 partially superseded by
 0067 (lead exit becomes a stop into `nurturing`; no reopen) and by 0070 (the
-six `EXIT_REASONS` are no longer a closed list — admin-editable config)
+six `EXIT_REASONS` are no longer a closed list — admin-editable config); §1's
+contract update partially superseded by 0088 (cancel and appendix only)
 Source: project owner's decision in session, 17/09/2026
 
 ## Context
@@ -21,6 +22,10 @@ record is the decisions, not the implementation.
 ## Decisions
 
 ### 1 · Editing a signed opportunity is normal, and never reopens the deal
+
+> Partially superseded by 0088 §11 (decided, not built): nobody edits a signed
+> contract directly; it changes only through cancel or appendix, with director
+> approval.
 
 A signed deal can be edited like any other row. The edit never reopens it —
 `state` stays `won`-equivalent and it stays off the board regardless of what

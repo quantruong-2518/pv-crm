@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { queryOptions } from '@tanstack/react-query'
 import {
   OpportunityOpenContext,
@@ -20,7 +21,7 @@ import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
 /** `GET /sales/opportunities/open-context` — same permission and scope as the
  *  create door it prepares for. Under the book key so a created deal refreshes
  *  it, and `staleTime: 0` because the app default is `Infinity` while this
- *  answer (the run's standing deal above all) changes with every deal opened. */
+ *  answer (the lead's running deals above all) changes with every deal opened. */
 export const openContextQuery = (leadCode: string, enabled: boolean) =>
   queryOptions({
     queryKey: [...OPPORTUNITY_BOOK_KEY, 'open-context', leadCode] as const,
@@ -93,6 +94,21 @@ export const rolePick = (
 export function seededPicks(context: OpportunityOpenContext): OpportunityContactPick[] {
   const only = context.contacts.length === 1 ? context.contacts[0] : undefined
   return only ? [{ contactCode: only.code, role: null, primary: true }] : []
+}
+
+// ---------------------------------------------------------------------------
+// The yes to the running deals
+// ---------------------------------------------------------------------------
+
+/** The tick belongs to the list it was made on: a re-read that brings another
+ *  list leaves it unticked, and so does `confirm(false)` after a refusal. */
+export function useDealsConfirm(shown: readonly string[]) {
+  const key = shown.join()
+  const [confirmedKey, setConfirmedKey] = useState<string | null>(null)
+  return {
+    confirmed: shown.length === 0 || confirmedKey === key,
+    confirm: (on: boolean) => setConfirmedKey(on ? key : null),
+  }
 }
 
 // ---------------------------------------------------------------------------
