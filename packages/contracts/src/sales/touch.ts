@@ -47,7 +47,8 @@ import { LeadTier } from './enums'
  *  a `contacted` row per delivery would put the same fact in two tables that then
  *  disagree the first time a send fails after being queued — the ledger would
  *  know, the timeline would not. Two streams, two questions, one screen free to
- *  draw them side by side. */
+ *  draw them side by side. The one exception is `customer-replied`: what the
+ *  CUSTOMER did is activity on the record, not a count of our own sends. */
 
 // ---------------------------------------------------------------------------
 // WHAT KIND OF THING HAPPENED
@@ -117,6 +118,10 @@ export const TouchKind = z.enum([
   /** A mail reached the customer but the lead's state could not be moved
    *  after retries; the holder moves it by hand (ADR 0068). */
   'mail-sync-failed',
+  /** The customer answered a letter. Written by the system on every new reply,
+   *  for a lead in any state and for a deal; it moves nothing by itself, and it
+   *  is not the holder's own contact — no rung or KPI count may read it as one. */
+  'customer-replied',
 ])
 
 /** Which book the row hangs off. A deal and its lead keep separate trails —

@@ -161,6 +161,9 @@ type SessionState = {
   expiredBy: ExpiryReason | null
   /** Hỏi `/auth/me` rồi kết luận trạng thái. BẤT ĐỒNG BỘ — xem docblock của nó. */
   bootstrap: () => Promise<void>
+  /** Ask `/auth/me` again inside a LIVE session and adopt the answer. For the
+   *  one screen a person opens because their access or password just changed. */
+  refresh: () => Promise<void>
   /** Form đã gửi — dùng để khoá nút và chặn gửi hai lần. */
   beginSignIn: () => void
   signIn: (
@@ -352,6 +355,22 @@ export const useSession = create<SessionState>()(
           })
 
         return booting
+      },
+
+      /* `bootstrap` settles locally once booted, so it cannot do this. A 401
+         ends the session the way a failed renewal does; no answer changes nothing. */
+      refresh: async () => {
+        if (get().status !== 'signed-in') return
+        const probe = await probeSession()
+        const { status, ticket, expire } = get()
+        if (status !== 'signed-in') return
+        if (probe.state === 'guest') return expire(ticketDeath(ticket, Date.now()) ?? 'revoked')
+        if (probe.state !== 'signed-in') return
+        set({
+          actor: probe.actor,
+          ticket: ticketOf(probe.session),
+          mustChangePassword: probe.mustChangePassword,
+        })
       },
 
       beginSignIn: () => set({ status: 'signing-in' }),

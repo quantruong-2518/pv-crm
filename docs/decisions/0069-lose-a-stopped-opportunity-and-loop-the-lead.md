@@ -2,7 +2,7 @@
 
 Status: accepted (partially supersedes 0064 §1/§2/§3/§6, 0067 D2, 0018
 default 5 and 0023's one-contract-per-opportunity rule; defers 0022 — exact
-paragraphs under "Superseded"; §7 and §8 partially superseded by 0072)
+paragraphs under "Superseded"; §7 and §8 partially superseded by 0072; §13 superseded by 0085)
 Source: project owner's decisions in chat, 29/09/2026
 (`.claude/HANDOFF-opp-loop.md`, "Đã chốt 29/09/2026" and "Chốt thêm 29/09");
 canvas https://claude.ai/artifact/GWVAqJSDxm87NwbgT6eGB5 (E-Model, E-Main,

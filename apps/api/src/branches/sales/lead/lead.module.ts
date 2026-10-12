@@ -5,6 +5,7 @@ import { AiModule } from '@api/platform/ai/ai.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { ScanQueueModule } from '@api/platform/queue/scan-enqueue'
 import { SCAN_JOB_HANDLER, type ScanJobHandler } from '@api/platform/queue/scan-jobs'
 import { SessionModule } from '@api/platform/session/session.module'
@@ -54,13 +55,11 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
  *  this line is how the next person learns that creating a lead touches the
  *  object graph.
  *
- *  `MailModule` joins for the same kind of reason, one level softer: accepting
- *  a lead from the landing page must also promise someone will be told, and
- *  that promise is a row written inside the SAME transaction as the lead
- *  (`lead-intake.service.ts#notify`). What this module gets from it is exactly
- *  one narrow token, `MAIL_ENQUEUE` — the write side. It does not get the
- *  ledger, the provider, or the queue: a branch may say "a mail is owed", it
- *  may not say "send this now".
+ *  `MailModule` is here for `MailRunRepository`: stopping or parking a lead
+ *  holds its unsent letters. `NotificationModule` is how someone is TOLD — a
+ *  lead landing in the pool, changing hands or being stopped rings a bell row
+ *  written inside the SAME transaction as the lead (ADR 0085); the internal
+ *  intake mail this module used to queue is gone.
  *
  *  `exports` cố tình chỉ có `LeadService`, KHÔNG có `LeadRepository`: module
  *  khác được hỏi "cho tôi sổ lead của người này", không được với thẳng vào
@@ -81,6 +80,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     EnginesModule,
     GraphModule,
     MailModule,
+    NotificationModule,
     TouchModule,
     MeetingModule,
     ContactModule,

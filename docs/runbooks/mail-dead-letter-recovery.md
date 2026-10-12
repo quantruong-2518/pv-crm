@@ -12,7 +12,7 @@ by putting it back to `pending`:
 ```sql
 UPDATE platform.email_delivery
 SET state = 'pending', next_attempt_at = NULL, attempt_count = 0
-WHERE event_key = 'lead-intake/internal/v1/LD-0233';
+WHERE event_key = '<event_key of the dead row>';
 ```
 
 The next poll picks it up. **Be careful with rows older than 24 hours:**

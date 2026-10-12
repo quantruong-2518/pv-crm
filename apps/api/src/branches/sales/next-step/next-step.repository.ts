@@ -24,6 +24,8 @@ export type NextStepRead = {
   kindName: string | null
   /** The template the step was picked from (ADR 0080); null on a typed one. */
   templateId: string | null
+  /** Who first set the row — the bell tells them when it is done (ADR 0085). */
+  createdBy: string
 }
 
 /** The columns of a step read, shared by every reader of the table. */
@@ -35,6 +37,7 @@ export const STEP_COLUMNS = {
   kindId: nextStep.kindId,
   kindName: configEntry.name,
   templateId: nextStep.templateId,
+  createdBy: nextStep.createdBy,
 }
 
 /** One object's step out of a batch. */
@@ -233,9 +236,12 @@ export class NextStepRepository {
 
   /** The lead row under lock: every write on its step is serialised behind it,
    *  so two "done" presses cannot both find the same step and both log a touch. */
-  async lockLead(tx: Db, code: string): Promise<Pick<LeadRowDb, 'state' | 'ownerId'> | null> {
+  async lockLead(
+    tx: Db,
+    code: string,
+  ): Promise<Pick<LeadRowDb, 'state' | 'ownerId' | 'company'> | null> {
     const [row] = await tx
-      .select({ state: lead.state, ownerId: lead.ownerId })
+      .select({ state: lead.state, ownerId: lead.ownerId, company: lead.company })
       .from(lead)
       .where(and(eq(lead.code, code), leadLive))
       .limit(1)
@@ -255,9 +261,11 @@ export class NextStepRepository {
     return row !== undefined
   }
 
-  /** Replacing keeps `created_*`: they describe the row, and no trigger moves `updated_at`. */
-  async put(tx: Db, values: NextStepValues): Promise<void> {
-    await tx
+  /** Replacing keeps `created_*`: they describe the row, and no trigger moves `updated_at`.
+   *  Answers the `updated_at` it wrote — the row has no id, so that instant is
+   *  what tells one setting of the step from the next on the bell. */
+  async put(tx: Db, values: NextStepValues): Promise<Date> {
+    const [row] = await tx
       .insert(nextStep)
       .values(values)
       .onConflictDoUpdate({
@@ -273,6 +281,9 @@ export class NextStepRepository {
           updatedAt: sql`now()`,
         },
       })
+      .returning({ updatedAt: nextStep.updatedAt })
+    if (!row) throw new Error(`sales.next_step: upsert ${values.subjectCode} returned no row`)
+    return row.updatedAt
   }
 }
 
@@ -280,13 +291,14 @@ export class NextStepRepository {
 export function stepOf(
   row: Partial<Record<keyof NextStepRead, string | null>>,
 ): NextStepRead | null {
-  const { text, due, doerId, doerName } = row
-  if (!text || !due || !doerId || !doerName) return null
+  const { text, due, doerId, doerName, createdBy } = row
+  if (!text || !due || !doerId || !doerName || !createdBy) return null
   return {
     text,
     due,
     doerId,
     doerName,
+    createdBy,
     kindId: row.kindId ?? null,
     kindName: row.kindName ?? null,
     templateId: row.templateId ?? null,

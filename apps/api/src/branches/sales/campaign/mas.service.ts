@@ -116,7 +116,7 @@ export const eventKeyOf = (audience: string, mailRunId: string, code: string): s
   `${MAS_FLOW}/${audience}/v${TEMPLATE_VERSION}/${mailRunId}:${code}`
 
 /** What caused the letter, for `email_delivery.event_type`. Dotted and prefixed
- *  by branch, the same spelling `LEAD_INTAKE_ACCEPTED` uses. Not an E4 constant
+ *  by branch, the same spelling E4's event names use. Not an E4 constant
  *  because there is no E4 rule to name — see the note above. */
 const MAS_EVENT = 'sales.mas.run.queued'
 

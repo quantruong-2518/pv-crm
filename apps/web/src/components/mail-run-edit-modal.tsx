@@ -160,6 +160,8 @@ export function MailRunEditModal({
   }
 
   const locked = base && (!base.editable || !route)
+  /* Nothing was read: no edit title and no loading line beside the refusal. */
+  const refused = !base && Boolean(detail.error)
   /* A refetch that fails AFTER the form is seeded must not replace it: the
      letter on screen is the one being typed, and the read already succeeded. */
   const body = !base ? (
@@ -180,15 +182,15 @@ export function MailRunEditModal({
         open={open}
         onClose={onClose}
         width="wide"
-        title={locked ? 'Chi tiết thư' : 'Sửa lô thư chưa gửi'}
-        subtitle={base ? runLine(base) : 'Đang mở lô…'}
+        title={refused ? 'Không mở được lô thư' : locked ? 'Chi tiết thư' : 'Sửa lô thư chưa gửi'}
+        subtitle={base ? runLine(base) : refused ? undefined : 'Đang mở lô…'}
         meta={base ? runBadge(base) : null}
         footer={
           <EditFooter
             ready={Boolean(base) && !locked}
             blocker={failure || blocker}
             warn={Boolean(failure || blocker)}
-            note={footerNote(Boolean(locked), changed)}
+            note={refused ? '' : footerNote(Boolean(locked), changed)}
             saveBlocked={changed === 0 || Boolean(blocker)}
             saving={save.isPending}
             aids={<MailFloatingAids hints={hints} onGuide={() => setGuideOpen(true)} />}

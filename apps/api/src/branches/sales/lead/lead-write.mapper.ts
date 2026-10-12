@@ -96,6 +96,9 @@ export const LEAD_NOTE = {
   carePlanned: 'Đặt lịch làm việc với khách',
   exchanged: 'Có trao đổi thật với khách',
   mailed: 'Thư đã gửi tới khách',
+  replied: 'Khách đã trả lời thư',
+  /** The RUNG row of a reply that moved the lead — beside `replied`, never instead of it. */
+  repliedIntoWork: 'Có trao đổi thật với khách · khách trả lời thư',
   /** The two mail troubles the worker reports (ADR 0068): the holder must see
    *  them on the trail, since nothing else on the lead would change. */
   mailFailed: (address: string, unknown: boolean) =>

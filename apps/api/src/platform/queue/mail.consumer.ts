@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { JobWithMetadata } from 'pg-boss'
 import { ENV, type Env } from '../config/env'
+import { DB, type Db } from '../db/db.module'
+import { MailBell } from '../mail/mail-bell'
 import {
   EMAIL_QUEUE,
   MAIL_LEDGER,
@@ -90,6 +92,8 @@ export class MailConsumer {
     private readonly gate: MailRateGate,
     private readonly queue: MailQueue,
     @Inject(MAIL_SENT_HOOK) private readonly sent: MailSentHook[],
+    @Inject(DB) private readonly db: Db,
+    private readonly bell: MailBell,
   ) {}
 
   /** pg-boss hands the handler a BATCH, always — one job here, because
@@ -345,7 +349,11 @@ export class MailConsumer {
     /* One try per hook: a branch that fails to report must not silence the next. */
     for (const hook of this.sent) {
       try {
-        await hook.afterTrouble(delivery, trouble)
+        /* The branch's trail row and the bell line commit together or not at all. */
+        await this.db.transaction(async (tx) => {
+          const people = await hook.afterTrouble(tx, delivery, trouble)
+          if (people && trouble.kind === 'failed') await this.bell.failed(tx, people, delivery)
+        })
       } catch (error) {
         this.log.error(
           `Could not report ${trouble.kind} on ${delivery.eventKey}: ${describe(error)}`,

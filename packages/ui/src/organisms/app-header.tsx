@@ -96,7 +96,7 @@ function Hairline({ className }: { className?: string }) {
 }
 
 /** A tool in the right-hand cluster: icon only, with the name in `title` and
- *  `aria-label`. Approvals wears its count as a badge, notifications a dot.
+ *  `aria-label`. Approvals and notifications wear their count as a badge.
  *
  *  `locked` follows `patterns/nav-item.tsx`: disabled, no hover, a padlock where
  *  the badge would sit, and the dimming on the ICON alone — dimming the whole
@@ -106,7 +106,11 @@ function CoreButton({ action, unread }: { action: HeaderAction; unread?: boolean
     <button
       type="button"
       title={action.label}
-      aria-label={action.count ? `${action.label} · ${action.count} đang chờ` : action.label}
+      aria-label={
+        action.count
+          ? `${action.label} · ${action.count} ${action.slot === 'notifications' ? 'chưa đọc' : 'đang chờ'}`
+          : action.label
+      }
       aria-current={action.active ? 'page' : undefined}
       disabled={action.locked}
       onClick={action.onClick}

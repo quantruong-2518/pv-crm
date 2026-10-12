@@ -4,6 +4,7 @@ import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { RolesModule } from '@api/platform/roles/roles.module'
 import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
@@ -43,12 +44,11 @@ import { OpportunityService } from './opportunity.service'
  *     về `platform.object` nên Postgres ÉP dòng gương, còn `opportunity.code`
  *     thì chưa, nên ở đây dòng gương là kỷ luật của service. Quên nó thì
  *     ContextRail của đơn mới mở ra trống mà không có gì đỏ (luật 10).
- *   · `MailModule` — mở một cơ hội là hứa rằng có người sẽ được báo, và lời hứa
- *     đó là một dòng ghi trong CHÍNH transaction đã ghi cơ hội
- *     (`OpportunityService#notify`). Module này lấy từ đó đúng một token hẹp,
- *     `MAIL_ENQUEUE` — nửa GHI. Nó không lấy sổ gửi, không lấy cổng ra, không
- *     lấy hàng đợi: một nhánh được nói "có một lá thư phải gửi", không được nói
- *     "gửi ngay bây giờ". Cùng đường mà `LeadModule` đi.
+ *   · `MailModule` — for `MailRunRepository` (a stop holds the parked lead's
+ *     unsent letters) and the mail composer and sent hook this module exports.
+ *   · `NotificationModule` — opening, accepting, re-staffing or losing a deal
+ *     rings the bell of whoever it concerns, inside the deal's own transaction
+ *     (ADR 0085). The internal ops mails this module used to queue are gone.
  *
  *   · `TouchModule` — mọi lượt ghi của sổ này để lại một dòng trên thẻ hoạt
  *     động, và dòng đó phải cùng vào hoặc cùng không với lượt ghi sinh ra nó.
@@ -83,6 +83,7 @@ import { OpportunityService } from './opportunity.service'
     EnginesModule,
     GraphModule,
     MailModule,
+    NotificationModule,
     TouchModule,
     WorkstreamModule,
     LeadStateModule,

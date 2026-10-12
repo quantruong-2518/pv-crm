@@ -29,7 +29,7 @@ const SHELL_HEADER = {
   core: [
     { icon: House, label: 'Trang chủ', active: true },
     { icon: SquareCheckBig, label: 'Phê duyệt', count: 7 },
-    { icon: Bell, label: 'Thông báo', locked: true },
+    { icon: Bell, label: 'Thông báo', slot: 'notifications' as const, count: 3 },
   ],
   apps: [
     [

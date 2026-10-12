@@ -102,6 +102,20 @@ export const ApprovalId = z.string().uuid()
  *  them. A queue that hides its own tail is a queue nobody trusts. */
 export const PendingApprovalsResponse = z.object({ rows: z.array(ApprovalRequestView) })
 
+/** `GET /approvals/mine` — the requests the caller raised, in any state, newest
+ *  first. Same `ApprovalRequestView` as the inbox: it already carries `state`,
+ *  `decidedAt`, `decidedBy` and `decidedReason`, so the requester sees the
+ *  outcome and the refusal reason without a second shape.
+ *
+ *  Not paged, like the queue above, but capped: unlike a queue, decided requests
+ *  never leave, so the list only grows. The cap is a ceiling the server applies,
+ *  not a page size — the screen is a recent-outcomes list, not an archive. */
+export const MY_APPROVALS_LIMIT = 50
+
+export const MyApprovalsResponse = z.object({
+  rows: z.array(ApprovalRequestView).max(MY_APPROVALS_LIMIT),
+})
+
 /** The decision. A reason is REQUIRED on the refusing branch and impossible on
  *  the approving one: "why was this turned down" is the question asked a month
  *  later, while "why was this allowed" is already answered by `consequence`.
@@ -118,5 +132,6 @@ export type ApprovalChainLink = z.infer<typeof ApprovalChainLink>
 export type ApprovalLink = z.infer<typeof ApprovalLink>
 export type ApprovalRequestView = z.infer<typeof ApprovalRequestView>
 export type PendingApprovalsResponse = z.infer<typeof PendingApprovalsResponse>
+export type MyApprovalsResponse = z.infer<typeof MyApprovalsResponse>
 export type ApprovalDecisionBody = z.infer<typeof ApprovalDecisionBody>
 export type ApprovalId = z.infer<typeof ApprovalId>

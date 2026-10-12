@@ -37,6 +37,15 @@ export class ApprovalController {
     return this.approvals.pendingFor(who)
   }
 
+  /** What I asked for, and how it ended — the reason included on a refusal.
+   *  Session only, for the reason above turned round: the list is cut by who
+   *  RAISED the request, so there is no wider set a permission could guard. */
+  @Get('mine')
+  @Need({})
+  mine(@CurrentActor() who: Actor) {
+    return this.approvals.raisedBy(who)
+  }
+
   /** Yes or no, from the person the chain is waiting on.
    *
    *  Two fences, not one. `approval.decide` says the ROLE may decide things at

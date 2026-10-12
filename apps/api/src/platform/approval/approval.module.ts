@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { registerConstraints } from '../http/db-error'
+import { NotificationModule } from '../notification/notification.module'
 import { APPROVAL_CONSTRAINTS } from './approval.constraints'
 import { ApprovalController } from './approval.controller'
 import { ApprovalRepository } from './approval.repository'
@@ -22,6 +23,7 @@ import { ApprovalAppliers, ApprovalService } from './approval.service'
 registerConstraints(APPROVAL_CONSTRAINTS)
 
 @Module({
+  imports: [NotificationModule],
   controllers: [ApprovalController],
   providers: [ApprovalRepository, ApprovalService, ApprovalAppliers],
   exports: [ApprovalService, ApprovalAppliers],

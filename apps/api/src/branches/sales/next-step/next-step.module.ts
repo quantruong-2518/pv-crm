@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { SessionModule } from '@api/platform/session/session.module'
 import { SalesConfigModule } from '../config/config.module'
 import { LeadModule } from '../lead/lead.module'
@@ -32,6 +33,8 @@ import { NextStepService } from './next-step.service'
     TouchModule,
     SalesConfigModule,
     MeetingModule,
+    /* A step set for, or finished for, someone else rings their bell (ADR 0085). */
+    NotificationModule,
   ],
   controllers: [NextStepController, OpportunityStepController],
   providers: [

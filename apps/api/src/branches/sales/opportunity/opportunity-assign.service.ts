@@ -8,8 +8,10 @@ import {
 } from '@pv/contracts'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
+import { announceOwners } from './opportunity-bell'
 import { assertSellers, NO_OWNER, recordSaleLane } from './opportunity-owners'
 import { ownerRowsOf, toRef } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
@@ -34,6 +36,7 @@ export class OpportunityAssign {
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     private readonly facts: OpportunityFacts,
+    private readonly hub: NotificationHub,
   ) {}
 
   async assign(
@@ -67,14 +70,28 @@ export class OpportunityAssign {
       const fresh = await this.deals.byCode(null, code, tx)
       if (!fresh) throw notFound('cơ hội', code)
       if (!fresh.holder) throw invalid({ saleOwners: [NO_OWNER] }, NO_OWNER)
-      await recordSaleLane(tx, this.touch, {
+      const label = fresh.row.name
+      const occurrence = await recordSaleLane(
+        tx,
+        { touch: this.touch, hub: this.hub },
+        {
+          code,
+          label,
+          added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
+          removed,
+          from: found.holder,
+          to: fresh.holder,
+          by,
+          at,
+        },
+      )
+      await announceOwners(tx, this.hub, {
         code,
-        added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
-        removed,
-        from: found.holder,
-        to: fresh.holder,
-        by,
-        at,
+        label,
+        actorId: who.id,
+        before: found.owners.map((o) => o.id),
+        after: fresh.owners.map((o) => o.id),
+        occurrence,
       })
       await this.mirror.put(tx, toRef(fresh.row, fresh.holder))
     })

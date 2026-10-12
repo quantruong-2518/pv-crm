@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, MailOpen, Send, CircleAlert } from '@pv/ui'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
@@ -199,6 +199,24 @@ export function MailRunsPage() {
   /* Which batch the edit panel is holding. The panel stays mounted on `null`
      so it can animate out with the batch still drawn in it. */
   const [editing, setEditing] = useState<{ id: string; viaContent: boolean } | null>(null)
+  /* `?run=<id>` opens one batch from the bell. Plain door: the bell rings the
+     sender. An id the reader may not open is refused inside the panel. */
+  const [params, setParams] = useSearchParams()
+  const linked = params.get('run')
+  const opened = editing ?? (linked ? { id: linked, viaContent: false } : null)
+  /* `replace`, so Back does not reopen the panel; the filters stay. */
+  const closeRun = () => {
+    setEditing(null)
+    if (!linked) return
+    setParams(
+      (now) => {
+        const next = new URLSearchParams(now)
+        next.delete('run')
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const stop = (run: MailRunRow, route: MailRunRoute) => {
     cancel.mutate(
@@ -428,9 +446,9 @@ export function MailRunsPage() {
         />
 
         <MailRunEditModal
-          runId={editing?.id ?? null}
-          viaContent={editing?.viaContent ?? false}
-          onClose={() => setEditing(null)}
+          runId={opened?.id ?? null}
+          viaContent={opened?.viaContent ?? false}
+          onClose={closeRun}
         />
       </ScreenLayout>
     </AppShell>

@@ -223,7 +223,14 @@ export type BounceTrip = {
   bounced: number
   /** `pending` rows this pass killed — letters that will now never leave. */
   held: number
+  /** For the bell only (`RunEnded`); the breaker's log line prints neither. */
+  created_by: string
+  label: string
 }
+
+/** A run the worker just closed, as its sender's bell needs it (ADR 0085). */
+export type RunEnded = { id: string; created_by: string; label: string }
+type RunSent = RunEnded & { kind: 'bulk' | 'group' }
 
 /** One row of the aggregate pass over `mail_event`. */
 type EngagementCounts = {
@@ -770,7 +777,7 @@ export class MailRunRepository {
    *  same tick is legitimately touched twice — the empty run and the wholly
    *  suppressed one always are — and summing the passes would report two runs
    *  where there is one. */
-  async sweepStates(): Promise<number> {
+  async sweepStates(finished?: (tx: Db, runs: RunSent[]) => Promise<void>): Promise<number> {
     const started = (await this.db.execute(sql`
       UPDATE "platform"."mail_run" AS r
          SET "state" = 'SENDING',
@@ -792,22 +799,28 @@ export class MailRunRepository {
       RETURNING r."id"
     `)) as { rows: { id: string }[] }
 
-    const finished = (await this.db.execute(sql`
-      UPDATE "platform"."mail_run" AS r
-         SET "state" = 'SENT',
-             "started_at" = COALESCE(r."started_at", now()),
-             "finished_at" = now(),
-             "updated_at" = now()
-       WHERE r."state" = 'SENDING'
-         AND NOT EXISTS (
-               SELECT 1 FROM "platform"."email_delivery" d
-                WHERE d."mail_run_id" = r."id"
-                  AND d."state" IN (${params(INFLIGHT_STATES)})
-             )
-      RETURNING r."id"
-    `)) as { rows: { id: string }[] }
+    /* `finished` rides the UPDATE's own transaction: a run is SENT and its
+       sender told, or neither. */
+    const ended = await this.db.transaction(async (tx) => {
+      const r = (await tx.execute(sql`
+        UPDATE "platform"."mail_run" AS r
+           SET "state" = 'SENT',
+               "started_at" = COALESCE(r."started_at", now()),
+               "finished_at" = now(),
+               "updated_at" = now()
+         WHERE r."state" = 'SENDING'
+           AND NOT EXISTS (
+                 SELECT 1 FROM "platform"."email_delivery" d
+                  WHERE d."mail_run_id" = r."id"
+                    AND d."state" IN (${params(INFLIGHT_STATES)})
+               )
+        RETURNING r."id", r."created_by", r."label", r."kind"
+      `)) as { rows: RunSent[] }
+      if (r.rows.length > 0) await finished?.(tx, r.rows)
+      return r.rows
+    })
 
-    return new Set([...started.rows, ...finished.rows].map((r) => r.id)).size
+    return new Set([...started.rows, ...ended].map((r) => r.id)).size
   }
 
   /** THE BOUNCE BREAKER, AS ONE STATEMENT. Cancels a run its own numbers have
@@ -829,9 +842,8 @@ export class MailRunRepository {
    *  provider — and those are precisely the letters this method exists to stop.
    *  The three data-modifying CTEs below all read `tripped`, which is evaluated
    *  once against one snapshot, so the run and its unposted rows change
-   *  together or not at all. (`stopped` is deliberately not referenced by the
-   *  final SELECT: a data-modifying CTE runs to completion whether or not the
-   *  primary query reads it.)
+   *  together or not at all. `tripped`, the caller's bell write, rides the same
+   *  transaction, so a run is cancelled and its sender told, or neither.
    *
    *  ------------------------------------------------------------------
    *  `live` COMES FIRST, AND THAT IS A COST DECISION
@@ -870,8 +882,22 @@ export class MailRunRepository {
    *  Returns one entry per run it tripped, WITHOUT any recipient address: the
    *  caller logs this, and a mailing list must not enter the log stream one
    *  line at a time. */
-  async tripBounced(opts: { ceilingPercent: number; minSample: number }): Promise<BounceTrip[]> {
-    const r = (await this.db.execute(sql`
+  async tripBounced(
+    opts: { ceilingPercent: number; minSample: number },
+    tripped?: (tx: Db, trips: BounceTrip[]) => Promise<void>,
+  ): Promise<BounceTrip[]> {
+    return this.db.transaction(async (tx) => {
+      const trips = await this.trip(tx, opts)
+      if (trips.length > 0) await tripped?.(tx, trips)
+      return trips
+    })
+  }
+
+  private async trip(
+    tx: Db,
+    opts: { ceilingPercent: number; minSample: number },
+  ): Promise<BounceTrip[]> {
+    const r = (await tx.execute(sql`
       WITH live AS (
         SELECT r."id" FROM "platform"."mail_run" r WHERE r."state" = 'SENDING'
       ),
@@ -908,13 +934,15 @@ export class MailRunRepository {
                "finished_at" = now(),
                "updated_at" = now()
          WHERE r."id" IN (SELECT run_id FROM tripped)
-        RETURNING r."id"
+        RETURNING r."id", r."created_by", r."label"
       ),
       held_per_run AS (
         SELECT run_id, count(*)::int AS held FROM held GROUP BY run_id
       )
-      SELECT t.run_id, t.sent, t.bounced, COALESCE(h.held, 0)::int AS held
+      SELECT t.run_id, t.sent, t.bounced, COALESCE(h.held, 0)::int AS held,
+             s."created_by", s."label"
         FROM tripped t
+        JOIN stopped s ON s."id" = t.run_id
         LEFT JOIN held_per_run h ON h.run_id = t.run_id
     `)) as { rows: BounceTrip[] }
 

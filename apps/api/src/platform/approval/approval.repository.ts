@@ -108,6 +108,18 @@ export class ApprovalRepository {
       .orderBy(desc(approval.raisedAt))
   }
 
+  /** One person's own requests, any state, newest first. Matched on the ID,
+   *  never the name snapshot: two people sharing a name must not read each
+   *  other's requests. `id` breaks a tie so the cut at `limit` is stable. */
+  async raisedBy(actorId: string, limit: number): Promise<ApprovalRowDb[]> {
+    return this.db
+      .select()
+      .from(approval)
+      .where(eq(approval.raisedById, actorId))
+      .orderBy(desc(approval.raisedAt), desc(approval.id))
+      .limit(limit)
+  }
+
   /** Requests still waiting that hang off ONE object.
    *
    *  The join goes through `approval_link`, which is why that is a table: an

@@ -1,5 +1,6 @@
 import type { MailEngagementKind } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
+import type { MailSent } from './mail-sent.hook'
 
 /** THE SHARED VOCABULARY OF THE MAIL PATH.
  *
@@ -319,6 +320,8 @@ export type DeliveryToSend = {
   /** The latest moment known to precede the first send (delivery, schedule
    *  or release): the idempotency window is measured from here. */
   sendableFrom: Date
+  /** Who pressed send on the run (`mail_run.created_by`); `null` for a one-off. */
+  sender: string | null
 }
 
 export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' | 'unknown-delivery'
@@ -326,7 +329,15 @@ export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' |
 /** What `applyWebhook` did, and which addresses a bounce/complaint is pinned
  *  on. `attributed` is empty when the event names nobody for certain (design
  *  §1): the caller suppresses exactly these and never the envelope's `to`. */
-export type WebhookApplied = { outcome: WebhookOutcome; attributed: string[] }
+export type WebhookApplied = {
+  outcome: WebhookOutcome
+  attributed: string[]
+  /** The letter the event is about; `null` when this ledger never sent it. */
+  deliveryId: string | null
+}
+
+/** A recipient letter of a 1-to-1 run, as the bell needs it (ADR 0085). */
+export type GroupLetter = MailSent & { id: string; sender: string }
 
 /** WHAT THE RECIPIENT DID — a SECOND, WEAKER axis, deliberately kept off
  *  `email_delivery.state`.
@@ -450,6 +461,12 @@ export interface MailLedger extends MailEnqueue {
     bounce: { addresses: string[]; reason: string; at: Date },
   ): Promise<number>
 
+  /** The letter, only if its run is `group` (a bulk run's bounce rings nobody,
+   *  the breaker speaks for it — ADR 0085) AND the ledger failed the LETTER.
+   *  Read off `state`, the one place that verdict is written: a bounced Cc, one
+   *  To of several, or an unpinned bounce leaves the letter standing. */
+  lostGroupLetter(deliveryId: string): Promise<GroupLetter | null>
+
   /** Idempotent by `svixId`: the same event replayed changes nothing.
    *  State only moves forward — see `advances`.
    *
@@ -479,7 +496,11 @@ export interface MailLedger extends MailEnqueue {
   /** Record a reply. Idempotent by `providerEmailId` — see `MailReply`'s own
    *  docblock for why that alone is enough here, unlike the three-column key
    *  `recordEngagement` needs. */
-  recordReply(reply: MailReply): Promise<ReplyOutcome>
+  recordReply(
+    reply: MailReply,
+    /** Runs once per NEW reply, on the transaction that wrote it. */
+    then?: (tx: Db, sent: MailSent, replyId: string) => Promise<void>,
+  ): Promise<ReplyOutcome>
 
   /** The address one delivery was written to, or `null` when no such row
    *  exists. The unsubscribe route needs it and has no other way in: a signed

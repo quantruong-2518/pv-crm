@@ -1,5 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
+import { MAIL_RUN_CANCELLED, MAIL_RUN_FINISHED } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
+import type { Db } from '@api/platform/db/db.module'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { MailRunRepository } from './mail-run.repository'
 
 /** THE BATCH-LEVEL PASS OF THE WORKER LOOP — the sibling of `MailRelay`.
@@ -48,6 +51,7 @@ export class MailRunSweeper {
 
   constructor(
     private readonly runs: MailRunRepository,
+    private readonly hub: NotificationHub,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -59,10 +63,18 @@ export class MailRunSweeper {
    *  thing. That is the same recovery story the ledger-as-outbox buys
    *  everywhere else. */
   async sweep(): Promise<{ tripped: number; held: number; moved: number }> {
-    const trips = await this.runs.tripBounced({
-      ceilingPercent: this.env.PV_MAS_BOUNCE_CEILING_PERCENT,
-      minSample: this.env.PV_MAS_BOUNCE_MIN_SAMPLE,
-    })
+    const trips = await this.runs.tripBounced(
+      {
+        ceilingPercent: this.env.PV_MAS_BOUNCE_CEILING_PERCENT,
+        minSample: this.env.PV_MAS_BOUNCE_MIN_SAMPLE,
+      },
+      (tx, tripped) =>
+        this.tell(
+          tx,
+          MAIL_RUN_CANCELLED,
+          tripped.map((t) => ({ ...t, id: t.run_id })),
+        ),
+    )
 
     for (const trip of trips) {
       const rate = ((trip.bounced / trip.sent) * 100).toFixed(1)
@@ -72,12 +84,36 @@ export class MailRunSweeper {
       )
     }
 
-    const moved = await this.runs.sweepStates()
+    /* A group run is one letter its sender just pressed Send on; telling them it
+       left is noise. Only a bulk run is news when it ends. */
+    const moved = await this.runs.sweepStates((tx, runs) =>
+      this.tell(
+        tx,
+        MAIL_RUN_FINISHED,
+        runs.filter((run) => run.kind === 'bulk'),
+      ),
+    )
 
     return {
       tripped: trips.length,
       held: trips.reduce((sum, trip) => sum + trip.held, 0),
       moved,
+    }
+  }
+
+  /** The sender's bell, on the transaction that closed the run (ADR 0085). No
+   *  `actorId`: the worker closed it, so the sender is told about their own
+   *  run. Keyed by run id alone — a run ends once. */
+  private async tell(
+    tx: Db,
+    name: string,
+    runs: { id: string; created_by: string; label: string }[],
+  ): Promise<void> {
+    for (const run of runs) {
+      await this.hub.announce(tx, {
+        event: { name, ref: { code: run.id }, audiences: { sender: [run.created_by] } },
+        subject: { kind: 'mail-run', code: run.id, label: run.label },
+      })
     }
   }
 }

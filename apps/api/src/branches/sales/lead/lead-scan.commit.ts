@@ -1,5 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { normaliseEmail, taxRoot, type AccessControl, type ScanPlanGroup } from '@pv/engines'
+import {
+  LEAD_SCAN_COMMITTED,
+  LEAD_SCAN_FAILED,
+  normaliseEmail,
+  taxRoot,
+  type AccessControl,
+  type ScanPlanGroup,
+} from '@pv/engines'
 import type { LeadState, ScanResult } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import type { ScanAttempt } from '@api/platform/queue/scan-jobs'
@@ -65,8 +72,17 @@ export class LeadScanCommit {
       const kind = error instanceof Error ? error.name : 'unknown'
       this.log.error(`scan ${code}: commit failed (${kind}) — ${String(error)}`)
       if (!attempt.final) throw new Error(`scan ${code}: transient commit failure (${kind})`)
-      await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], COMMIT_FAILED)
+      await this.fail(code, COMMIT_FAILED)
     }
+  }
+
+  /** FAILED and its bell line in one transaction, so the uploader is told
+   *  exactly when the batch really turned (ADR 0085). */
+  private async fail(code: string, error: string): Promise<void> {
+    await this.repo.run(async (tx) => {
+      const uploader = await this.repo.failBatch(tx, code, ['COMMITTING'], error)
+      if (uploader) await this.scans.tell(tx, LEAD_SCAN_FAILED, code, uploader)
+    })
   }
 
   private async commitOnce(code: string): Promise<void> {
@@ -78,7 +94,7 @@ export class LeadScanCommit {
     const caller = await this.actors.byId(batch.createdBy)
     const need = { branch: 'Sales', permission: 'lead.edit' } as const
     if (!creator || creator.disabledAt || !caller || !this.access.check(caller.actor, need).ok) {
-      await this.repo.failBatch(this.repo.pool, code, ['COMMITTING'], CREATOR_REVOKED)
+      await this.fail(code, CREATOR_REVOKED)
       return
     }
     const plan = await this.scans.planOf(creator, await this.repo.files(code))
@@ -120,6 +136,8 @@ export class LeadScanCommit {
     /* The codes live in `scan_batch.result`; the note only points at it. */
     await this.repo.run(async (tx) => {
       if (!(await this.repo.saveResult(tx, code, result, true))) return
+      const made = result.created.length
+      await this.scans.tell(tx, LEAD_SCAN_COMMITTED, code, batch.createdBy, made)
       await this.writeRepo.writeBatchNote(tx, {
         actorId: creator.id,
         note: JSON.stringify({ kind: 'lead-scan', batch: code }),

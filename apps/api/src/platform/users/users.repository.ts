@@ -193,7 +193,9 @@ export class UsersRepository {
    *  join: sending an invite writes its ticket through `AuthService`, which
    *  owns its own handle, so there is nothing for this line to be atomic with.
    *  Every other caller passes the handle — see the file docblock. */
-  async writeNote(entry: AuditEntry, tx: Db = this.db): Promise<void> {
-    await tx.insert(audit).values(entry)
+  async writeNote(entry: AuditEntry, tx: Db = this.db): Promise<string> {
+    const [row] = await tx.insert(audit).values(entry).returning({ id: audit.id })
+    if (!row) throw new Error('INSERT platform.audit returned no row')
+    return row.id
   }
 }

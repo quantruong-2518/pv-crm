@@ -36,7 +36,7 @@ import {
 const HEADER_CORE = [
   { icon: House, label: 'Trang chủ', active: true, slot: 'home' as const },
   { icon: SquareCheckBig, label: 'Phê duyệt', count: 7, slot: 'approvals' as const },
-  { icon: Bell, label: 'Thông báo', slot: 'notifications' as const },
+  { icon: Bell, label: 'Thông báo', count: 3, slot: 'notifications' as const },
   { icon: SlidersHorizontal, label: 'Thiết lập' },
 ]
 

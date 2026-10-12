@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import { NEXT_STEP_DONE, type AccessControl, type Actor } from '@pv/engines'
 import {
   LEAD_OPEN_STATES,
   LEAD_STATE_LABEL,
@@ -15,10 +15,11 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { StepFrameService } from '../config/step-frame.service'
 import { LeadService } from '../lead/lead.service'
 import { byOf, TouchService } from '../touch/touch.service'
-import { dropStep } from './next-step.handover'
+import { dropStep, ringDoer } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository, type NextStepSlot } from './next-step.repository'
 import { assertNextDiffers, leadAddress, liveKind } from './next-step.rules'
@@ -45,6 +46,7 @@ export class NextStepService {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly actors: ActorRepository,
     private readonly frame: StepFrameService,
+    private readonly hub: NotificationHub,
   ) {}
 
   async get(who: Actor, code: ObjectCode): Promise<NextStepResponse> {
@@ -98,7 +100,7 @@ export class NextStepService {
           `Việc tiếp theo của lead ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
         )
       }
-      await this.touch.record(tx, [
+      const [touchId] = await this.touch.record(tx, [
         {
           subjectCode: code,
           subjectKind: 'lead',
@@ -108,6 +110,16 @@ export class NextStepService {
           templateId: current.templateId,
         },
       ])
+      await this.hub.announce(tx, {
+        event: {
+          name: NEXT_STEP_DONE,
+          ref: { code },
+          actorId: who.id,
+          audiences: { setter: [current.createdBy] },
+          occurrence: touchId,
+        },
+        subject: { kind: 'lead', code, label: held.company },
+      })
     }
     if (op.next) await this.put(tx, who, code, held, op.next, reach, prefix)
     else await dropStep(tx, code)
@@ -128,7 +140,7 @@ export class NextStepService {
     tx: Db,
     who: Actor,
     code: ObjectCode,
-    held: { ownerId: string | null; address: StateAddress | null },
+    held: { ownerId: string | null; address: StateAddress | null; company: string },
     body: NextStepSetBody,
     reach: boolean,
     prefix: string,
@@ -167,7 +179,7 @@ export class NextStepService {
         'Người làm không mở được lead này.',
       )
     }
-    await this.repo.put(tx, {
+    const at = await this.repo.put(tx, {
       subjectCode: code,
       text: step.text,
       due: body.due,
@@ -176,6 +188,7 @@ export class NextStepService {
       kindId: step.kindId ?? null,
       templateId: step.templateId,
     })
+    await ringDoer(tx, { hub: this.hub, actorId: who.id, label: held.company }, code, doerId, at)
   }
 
   /** A doer who is not the holder must be able to open the lead to do the step:
@@ -203,7 +216,7 @@ export class NextStepService {
         `Lead ${code} đang ở “${LEAD_STATE_LABEL[row.state]}” — chỉ lead còn trong phễu mới có việc tiếp theo.`,
       )
     }
-    return { ownerId: row.ownerId, address: leadAddress(row.state) }
+    return { ownerId: row.ownerId, address: leadAddress(row.state), company: row.company }
   }
 }
 

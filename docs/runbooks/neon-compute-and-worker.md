@@ -266,7 +266,7 @@ pg-boss có direct `LISTEN/NOTIFY` sẽ thức ngay khi relay đã enqueue job.
 
 Theo dõi ít nhất một ngày:
 
-- lead-intake mail đến trong 35 giây;
+- một đợt MAS gửi tới một người nhận thử (xem `mail-verification.md`, ca 1) đến trong 35 giây — mail lead-intake nội bộ đã bỏ theo ADR 0085, nên không còn dùng làm mốc;
 - mail hẹn giờ bắt đầu trong 35 giây;
 - `sending` không kẹt quá 5 phút;
 - `mail_run` và campaign về terminal trong 60 giây;

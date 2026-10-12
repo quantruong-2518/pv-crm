@@ -128,21 +128,6 @@ const Env = z
      *  không có `.refine` nào đòi biến này. Nó chỉ phải thuộc domain đã verify
      *  trên Resend, y như `PV_EMAIL_FROM`. */
     PV_AUTH_EMAIL_FROM: z.string().default(''),
-    PV_LEAD_NOTIFICATION_TO: z.string().default(''),
-    /** Hộp thư nhận báo CƠ HỘI — mở đơn mới, và đơn thua.
-     *
-     *  Khoá riêng chứ không dùng lại `PV_LEAD_NOTIFICATION_TO`, vì hai luồng có
-     *  hai người đọc: báo lead mới là việc của người trực form landing page,
-     *  còn báo cơ hội là việc của người gật đơn. Cùng một hộp thư hôm nay
-     *  không có nghĩa là cùng một hộp thư mãi, và tách sau khi đã gộp thì phải
-     *  đi sửa cả rule table lẫn secret của Fly.
-     *
-     *  Bỏ trống = KHÔNG xếp hàng mail nào (E4 bỏ rule khi audience không có
-     *  địa chỉ). Đó là hành vi đúng của một máy chưa được bảo gửi đi đâu —
-     *  giống hệt `PV_LEAD_NOTIFICATION_TO`, và cũng vì thế nó KHÔNG nằm trong
-     *  `.refine` bắt buộc bên dưới: bật cửa gửi mà chưa dùng tới module Ops là
-     *  một trạng thái hợp lệ. */
-    PV_OPS_NOTIFICATION_TO: z.string().default(''),
     /** Vietmap Autocomplete key. Empty = address picker off, forms fall back to typing. */
     VIETMAP_API_KEY: z.string().default(''),
     /** Lookups the company lets itself spend a day (UTC). The default is the free plan's
@@ -463,10 +448,6 @@ const Env = z
   .refine((e) => !(e.PV_EMAIL_ENABLED && e.RESEND_API_KEY.length === 0), {
     message: 'PV_EMAIL_ENABLED=true thì phải có RESEND_API_KEY.',
     path: ['RESEND_API_KEY'],
-  })
-  .refine((e) => !(e.PV_EMAIL_ENABLED && e.PV_LEAD_NOTIFICATION_TO.length === 0), {
-    message: 'PV_EMAIL_ENABLED=true thì phải khai hộp thư nhận báo lead mới.',
-    path: ['PV_LEAD_NOTIFICATION_TO'],
   })
   .refine(
     (e) => e.NODE_ENV !== 'production' || !e.PV_EMAIL_ENABLED || e.RESEND_WEBHOOK_SECRET.length > 0,

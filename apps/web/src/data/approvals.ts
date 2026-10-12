@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import type {
   ApprovalDecisionBody,
   ApprovalRequestView,
+  MyApprovalsResponse,
   PendingApprovalsResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
@@ -36,6 +37,18 @@ export const pendingApprovalsQuery = () =>
     queryFn: ({ signal }) =>
       api.read<PendingApprovalsResponse>('/approvals/pending', { need: {}, signal }),
     select: (d: PendingApprovalsResponse) => d.rows,
+  })
+
+/** `GET /approvals/mine` — what the reader raised, in any state, newest first,
+ *  capped by the server. Session-only like the inbox. Never served from cache:
+ *  the bell sends a requester here for an outcome decided on another screen. */
+export const myApprovalsQuery = () =>
+  queryOptions({
+    queryKey: ['platform', 'approvals', 'mine'] as const,
+    queryFn: ({ signal }) => api.read<MyApprovalsResponse>('/approvals/mine', { need: {}, signal }),
+    select: (d: MyApprovalsResponse) => d.rows,
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   })
 
 /** Yes or no on one request.

@@ -1,14 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common'
 import {
-  AUDIENCE_INTERNAL,
-  OPPORTUNITY_OPENED,
   pipelinePosition,
-  plan,
   type AccessControl,
   type Actor,
   type RoleId,
   type Decidable,
-  type ObjectRef,
 } from '@pv/engines'
 import {
   OpportunityBookResponse,
@@ -37,7 +33,6 @@ import {
   type MeetingRow,
   type TouchTimelineResponse,
 } from '@pv/contracts'
-import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
@@ -45,7 +40,7 @@ import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { GraphService } from '@api/platform/graph/graph.service'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { ApprovalService } from '@api/platform/approval/approval.service'
-import { MAIL_ENQUEUE, type MailEnqueue } from '@api/platform/mail/mail.contract'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
@@ -68,6 +63,7 @@ import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { checkBatch, fold, type ImportCheck } from './opportunity-import.check'
 import { editTrail } from './opportunity-trail'
+import { announceOpened, announceOwners } from './opportunity-bell'
 import { foreignLead, holds, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorRoles,
@@ -138,8 +134,7 @@ export class OpportunityService {
        waiting on a deal. Applying `contract-sign` is `OpportunitySign`'s job. */
     private readonly approvals: ApprovalService,
     @Inject(ACCESS) private readonly access: AccessControl,
-    @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
-    @Inject(ENV) private readonly env: Env,
+    private readonly hub: NotificationHub,
     /* A deal opened on a lead converts it (ADR 0058), in the deal's own tx. */
     private readonly leadStates: LeadStateWriter,
     private readonly opening: OpportunityOpening,
@@ -421,7 +416,7 @@ export class OpportunityService {
          pipeline — và hai câu đó đọc khác nhau vì chúng trả lời cho hai người
          đang mở hai màn khác nhau. Gộp thành một dòng trên lead thì hồ sơ đơn
          mở ra trống trơn ngay ngày nó ra đời. */
-      await this.touch.record(tx, [
+      const [entry] = await this.touch.record(tx, [
         {
           subjectCode: code,
           subjectKind: 'opportunity',
@@ -439,9 +434,18 @@ export class OpportunityService {
         ...acceptTouches(code, acceptor, now),
       ])
 
-      /* Never the lost letter from this door: a deal is opened onto the board,
-         and the only way off it short of signing is the stop door (ADR 0069). */
-      await this.notify(tx, ref, false)
+      /* Never `lost` from this door: a deal is opened onto the board, and the
+         only way off it short of signing is the stop door (ADR 0069). */
+      await announceOpened(tx, this.hub, {
+        code,
+        name: written.name,
+        actorId: who.id,
+        accepted: acceptor !== null,
+        lost: false,
+      })
+      /* Keyed on the entry touch: whoever was written onto the new deal hears once. */
+      const born = { code, label: written.name, actorId: who.id, before: [], after: pic }
+      await announceOwners(tx, this.hub, { ...born, occurrence: entry })
       await this.leadStates.converted(tx, [body.leadCode])
       if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
       return written
@@ -535,10 +539,20 @@ export class OpportunityService {
       const { now, owner } = await this.ownersUnderLock(tx, code, body, names, roles)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write))
-      await recordSaleLane(tx, this.touch, saleLaneChange(now, body.saleOwners, names, owner, who))
+      const deps = { touch: this.touch, hub: this.hub }
+      const lane = saleLaneChange(now, body.saleOwners, names, owner, who)
+      const laneTouch = await recordSaleLane(tx, deps, lane)
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
       const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
-      await this.touch.record(tx, editTrail({ found, body, names, products, who }))
+      const trail = await this.touch.record(tx, editTrail({ found, body, names, products, who }))
+      await announceOwners(tx, this.hub, {
+        code,
+        label: written.name,
+        actorId: who.id,
+        before: now.owners.map((o) => o.id),
+        after: pic,
+        occurrence: laneTouch ?? trail[0],
+      })
       for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
 
       /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
@@ -776,15 +790,30 @@ export class OpportunityService {
           tx,
           slice.map((p) => p.stageEvent),
         )
-        await this.touch.record(
+        const touchIds = await this.touch.record(
           tx,
           slice.flatMap((p) => p.touches),
         )
+        /* Each deal's entry touch leads its own run of rows in the batch. */
+        let at = 0
+        for (const p of slice) {
+          const after = p.owners.map((o) => o.actorId)
+          const born = { code: p.code, label: p.row.name, actorId: who.id, before: [], after }
+          await announceOwners(tx, this.hub, { ...born, occurrence: touchIds[at] })
+          at += p.touches.length
+        }
       }
       await this.leadStates.converted(tx, [...new Set(ready.map((p) => p.row.leadCode))])
       await this.workstreams.syncClosed(tx, [
         ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
       ])
+      /* One bell event per deal; the role audience is read once for the file. */
+      const acceptors = await this.hub.holding(tx, 'opportunity.accept', 'Sales')
+      for (const { code, row } of ready) {
+        const told = { code, name: row.name, actorId: who.id }
+        const deal = { ...told, accepted: acceptor !== null, lost: false }
+        await announceOpened(tx, this.hub, deal, acceptors)
+      }
 
       /* Biên lai được ghi KỂ CẢ khi không dòng nào vào. Một lô toàn lỗi vẫn là
          một việc đã xảy ra, và "tôi có bấm nạp mà chẳng thấy gì" là câu chỉ trả
@@ -952,55 +981,6 @@ export class OpportunityService {
       ...(holder ? { owner: holder.name, ownerId: holder.id } : {}),
       ...(row.amount === null ? {} : { amount: row.amount }),
     })
-  }
-
-  /** Xếp hàng mail báo TRONG CÙNG đơn vị công việc với chính cơ hội.
-   *
-   *  Nằm trong `tx` có chủ ý, và đó là toàn bộ lý do `MailEnqueue` nhận một
-   *  transaction handle: một cơ hội tồn tại mà không có thư báo là một đơn
-   *  không ai được bảo phải gật, còn một thư báo tồn tại mà không có cơ hội thì
-   *  trỏ vào một mã đã rollback. Chỉ tránh được cả hai khi hai lượt ghi chung
-   *  một commit. Ở đây chưa có gì rời khỏi tiến trình — dòng vừa ghi là một lời
-   *  hứa gửi, và worker giữ lời hứa đó sau khi commit.
-   *
-   *  Nhánh EMIT một sự kiện, nó không chọn kênh cũng không chọn template. E4
-   *  giữ bảng ánh xạ đó, nên ở đây `plan()` được hỏi thay vì một tên template
-   *  được gõ ra. Thứ duy nhất nhánh đóng góp là điều engine không được biết:
-   *  bản triển khai này gửi vào hộp thư nào.
-   *
-   *  `lost` đi qua `data` chứ không thành một event name thứ hai — xem docblock
-   *  của `OPPORTUNITY_OPENED`. Hộp thư trống = KHÔNG xếp hàng gì, đúng hành vi
-   *  của một máy chưa được bảo gửi đi đâu; `PV_EMAIL_ENABLED` cố tình KHÔNG gác
-   *  chỗ này, vì một cửa gửi đang tắt vẫn phải ghi sổ, nó chỉ không cho thư rời
-   *  khỏi máy (xem `env.ts`).
-   *
-   *  CÔNG KHAI vì cửa dừng (`OpportunityMoves.stop`) cũng bắn lá này: hai cửa,
-   *  một lời hứa gửi. Chép `plan()` sang file kia là dựng câu trả lời thứ hai
-   *  cho "ai được biết một đơn vừa chết". */
-  async notify(tx: Db, ref: ObjectRef, lost: boolean): Promise<void> {
-    const intents = plan({
-      name: OPPORTUNITY_OPENED,
-      ref,
-      audiences: { [AUDIENCE_INTERNAL]: this.env.PV_OPS_NOTIFICATION_TO },
-      data: { lost },
-    })
-
-    for (const intent of intents) {
-      /* Email là kênh duy nhất hôm nay có cổng ra. Một intent Zalo hay Telegram
-         cần sổ gửi riêng của nó, nên nó bị BỎ QUA chứ không lặng lẽ đi nhờ sổ
-         của mail. */
-      if (intent.channel !== 'email') continue
-
-      await this.mail.enqueue(tx, {
-        eventKey: intent.eventKey,
-        eventType: OPPORTUNITY_OPENED,
-        aggregateType: 'opportunity',
-        aggregateId: ref.code,
-        template: intent.template,
-        templateVersion: intent.templateVersion,
-        recipient: intent.to,
-      })
-    }
   }
 }
 

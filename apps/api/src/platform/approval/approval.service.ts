@@ -1,6 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { decideOn, isPendingFor, type Actor, type ChainLink, type RoleId } from '@pv/engines'
 import {
+  APPROVAL_DECIDED,
+  APPROVAL_WAITING,
+  decideOn,
+  isPendingFor,
+  type Actor,
+  type ChainLink,
+  type RoleId,
+} from '@pv/engines'
+import {
+  MY_APPROVALS_LIMIT,
+  MyApprovalsResponse,
   PendingApprovalsResponse,
   type ApprovalDecisionBody,
   type ApprovalKind,
@@ -8,6 +18,7 @@ import {
 } from '@pv/contracts'
 import { conflict, denied, invalid, notFound, PvError } from '@api/platform/http/problem'
 import type { Db } from '../db/db.module'
+import { NotificationHub } from '../notification/notification.hub'
 import { toContract } from './approval.mapper'
 import { ApprovalRepository } from './approval.repository'
 import type { ApprovalRowDb } from './approval.schema'
@@ -79,6 +90,7 @@ export class ApprovalService {
   constructor(
     private readonly repo: ApprovalRepository,
     private readonly appliers: ApprovalAppliers,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** The approval chain for a list of roles, in the order given.
@@ -151,20 +163,59 @@ export class ApprovalService {
       throw new Error(`platform.approval: no applier registered for kind ${draft.kind}`)
     }
 
-    return this.repo.open(
-      {
-        kind: draft.kind,
-        raisedById: who.id,
-        raisedBy: who.name,
-        fromAi: draft.ai !== undefined,
-        basis: draft.ai?.basis ?? null,
-        consequence: draft.consequence,
-        payload: draft.payload,
-        chain: draft.chain,
+    const values = {
+      kind: draft.kind,
+      raisedById: who.id,
+      raisedBy: who.name,
+      fromAi: draft.ai !== undefined,
+      basis: draft.ai?.basis ?? null,
+      consequence: draft.consequence,
+      payload: draft.payload,
+      chain: draft.chain,
+    }
+    /* The bell line rides this transaction, so a request that rolls back
+       rings nobody. The reverse does not hold: the hub may drop a line. */
+    const write = async (inner: Db): Promise<ApprovalRowDb> => {
+      const row = await this.repo.open(values, draft.links ?? [], inner)
+      await this.ringTurn(inner, row, who)
+      return row
+    }
+    return tx ? write(tx) : this.repo.run(write)
+  }
+
+  /** Tell the person the chain now waits on. The link's index is the
+   *  occurrence, so each turn of one request rings once. A link stored before
+   *  `personId` existed names nobody by id and rings nobody. */
+  private async ringTurn(tx: Db, row: ApprovalRowDb, by: Actor): Promise<void> {
+    const turn = row.chain.findIndex((l) => l.state === 'waiting')
+    const approver = row.chain[turn]?.personId
+    if (!approver) return
+    await this.hub.announce(tx, {
+      event: {
+        name: APPROVAL_WAITING,
+        ref: { code: row.id },
+        actorId: by.id,
+        audiences: { approver: [approver] },
+        occurrence: String(turn),
       },
-      draft.links ?? [],
-      tx,
-    )
+      subject: { kind: 'approval', code: row.id, label: row.consequence },
+    })
+  }
+
+  /** Tell the raiser how it ended. Called after the applier, inside the
+   *  settling transaction: an apply that throws takes this line back too. */
+  private async ringDecided(tx: Db, row: ApprovalRowDb, by: Actor): Promise<void> {
+    await this.hub.announce(tx, {
+      event: {
+        name: APPROVAL_DECIDED,
+        ref: { code: row.id },
+        actorId: by.id,
+        audiences: { requester: [row.raisedById] },
+        data: { approved: row.state === 'approved' },
+      },
+      subject: { kind: 'approval', code: row.id, label: row.consequence },
+      detail: row.decidedReason ? { reason: row.decidedReason } : null,
+    })
   }
 
   /** The inbox: what is still waiting on this person. */
@@ -177,6 +228,23 @@ export class ApprovalService {
     const links = await this.repo.linksOf(rows.map((r) => r.id))
 
     return PendingApprovalsResponse.parse({
+      rows: rows.map((row) =>
+        toContract(
+          row,
+          links.filter((l) => l.requestId === row.id),
+        ),
+      ),
+    })
+  }
+
+  /** This person's own requests in any state, newest first. Not filtered by
+   *  the linked object's on/off switch: a decided request is history, and its
+   *  outcome stays readable after the object is gone. */
+  async raisedBy(who: Actor): Promise<MyApprovalsResponse> {
+    const rows = await this.repo.raisedBy(who.id, MY_APPROVALS_LIMIT)
+    const links = await this.repo.linksOf(rows.map((r) => r.id))
+
+    return MyApprovalsResponse.parse({
       rows: rows.map((row) =>
         toContract(
           row,
@@ -267,6 +335,8 @@ export class ApprovalService {
          leaves the request WAITING rather than approved-but-not-done. */
       if (after.state === 'approved' && applier) await applier.apply(tx, after)
 
+      if (after.state === 'waiting') await this.ringTurn(tx, after, who)
+      else await this.ringDecided(tx, after, who)
       return true
     })
 

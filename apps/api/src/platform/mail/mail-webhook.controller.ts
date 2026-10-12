@@ -15,6 +15,7 @@ import { Public } from '@api/platform/access/need.decorator'
 import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { PvError } from '@api/platform/http/problem'
+import { MailBell } from './mail-bell'
 import {
   MAIL_LEDGER,
   MAIL_QUEUE_STUCK_SECONDS,
@@ -147,6 +148,7 @@ export class MailWebhookController {
   constructor(
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly bell: MailBell,
   ) {}
 
   @Post('webhooks')
@@ -180,7 +182,7 @@ export class MailWebhookController {
        ledger, keyed by `svixId` and compared by state rank. Re-deciding either
        of them here would be a second implementation of the same rule, and the
        two would drift. */
-    const { outcome, attributed } = await this.ledger.applyWebhook({
+    const { outcome, attributed, deliveryId } = await this.ledger.applyWebhook({
       svixId,
       type: event.type,
       providerEmailId: signal.data.email_id || null,
@@ -198,6 +200,12 @@ export class MailWebhookController {
         await this.ledger.suppress(address, signal.suppress, 'resend')
       }
     }
+
+    /* The signal only says WHEN to ask; whether the letter is lost is the
+       ledger's verdict, read inside `bounced`. Asked on a replay too, but that
+       covers a process crash only: `bounced` never raises, so nothing retries it. */
+    const failure = signal.suppress === 'hard_bounce' || signal.state === 'failed_permanent'
+    if (failure && deliveryId) await this.bell.bounced(deliveryId)
 
     /* `email_id` is a provider identifier, not personal data — it is the one
        thing that makes a runbook able to follow a mail. No recipient, no
@@ -234,14 +242,17 @@ export class MailWebhookController {
       return { ok: true }
     }
 
-    const outcome = await this.ledger.recordReply({
-      svixId,
-      deliveryId,
-      fromAddress: event.data.from,
-      subject: event.data.subject ? event.data.subject.slice(0, 500) : null,
-      at: this.timeOf(event.data.created_at),
-      providerEmailId: event.data.email_id,
-    })
+    const outcome = await this.ledger.recordReply(
+      {
+        svixId,
+        deliveryId,
+        fromAddress: event.data.from,
+        subject: event.data.subject ? event.data.subject.slice(0, 500) : null,
+        at: this.timeOf(event.data.created_at),
+        providerEmailId: event.data.email_id,
+      },
+      (tx, sent, replyId) => this.bell.replied(tx, sent, replyId),
+    )
 
     this.log.log(`resend inbound email.received · ${deliveryId} · ${outcome}`)
     return { ok: true }

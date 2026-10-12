@@ -64,7 +64,7 @@ export function MenuRow({
         action.onClick?.()
       }}
       className={cn(
-        'motion-std flex h-9 w-full shrink-0 items-center gap-3 rounded-md px-3 text-left text-[13px]',
+        'motion-std pointer-coarse:h-12 flex h-9 w-full shrink-0 items-center gap-3 rounded-md px-3 text-left text-[13px]',
         action.active
           ? 'bg-primary/15 text-on-tint-primary font-semibold'
           : action.locked

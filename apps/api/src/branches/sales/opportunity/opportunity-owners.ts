@@ -4,6 +4,7 @@ import type { RoleId } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { conflict, invalid } from '@api/platform/http/problem'
+import type { NotificationHub } from '@api/platform/notification/notification.hub'
 import { handStepOver } from '../next-step/next-step.handover'
 import type { TouchService } from '../touch/touch.service'
 import { NOTE, type RefOwner } from './opportunity.mapper'
@@ -73,12 +74,15 @@ export function assertSaleLaneKept(
  *  given and who was taken off the SALE lane, if anyone was; and whenever the
  *  holder changes, a `handed-over` touch with both ends (the holder chain, as
  *  `opportunity-handover.ts` writes it) and the old holder's open step follows
- *  the new one. */
+ *  the new one. Answers the id of the touch it wrote, if any — the occurrence
+ *  `announceOwners` (`opportunity-bell.ts`) keys its bell line on. */
 export async function recordSaleLane(
   tx: Db,
-  touch: TouchService,
+  { touch, hub }: { touch: TouchService; hub: NotificationHub },
   change: {
     code: string
+    /** The deal's name, for the bell line of a step that follows the holder. */
+    label: string
     added: readonly RefOwner[]
     removed: readonly RefOwner[]
     from: RefOwner | null
@@ -86,9 +90,10 @@ export async function recordSaleLane(
     by: RefOwner
     at: Date
   },
-): Promise<void> {
+): Promise<string | undefined> {
+  let touchId: string | undefined
   if (change.added.length > 0 || change.removed.length > 0) {
-    await touch.record(tx, [
+    ;[touchId] = await touch.record(tx, [
       {
         subjectCode: change.code,
         subjectKind: 'opportunity',
@@ -107,7 +112,7 @@ export async function recordSaleLane(
   if (to && from?.id !== to.id) {
     /* `touch.to_role` holds one role: the receiver's first. */
     const role = (await actorRoles(tx, [to.id])).get(to.id)?.[0]
-    await touch.record(tx, [
+    const [handedId] = await touch.record(tx, [
       {
         subjectCode: change.code,
         subjectKind: 'opportunity',
@@ -120,8 +125,13 @@ export async function recordSaleLane(
         at: change.at,
       },
     ])
+    touchId ??= handedId
   }
-  if (from && to && from.id !== to.id) await handStepOver(tx, change.code, from.id, to.id)
+  if (from && to && from.id !== to.id) {
+    const bell = { hub, actorId: change.by.id, label: change.label }
+    await handStepOver(tx, change.code, from.id, to.id, bell)
+  }
+  return touchId
 }
 
 /** The PATCH's owners change as `recordSaleLane` reads it: SALE ids added and
@@ -136,6 +146,7 @@ export function saleLaneChange(
   const before = found.owners.filter((o) => o.role === 'SALE')
   return {
     code: found.row.code,
+    label: found.row.name,
     added: saleOwners
       .filter((id) => !before.some((o) => o.id === id))
       .map((id) => ({ id, name: names.get(id) ?? id })),

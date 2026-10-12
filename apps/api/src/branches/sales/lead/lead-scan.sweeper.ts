@@ -5,11 +5,12 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common'
+import { LEAD_SCAN_FAILED, LEAD_SCAN_READY } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import { StorageService } from '@api/platform/storage/storage.service'
 import { COMMIT_FAILED } from './lead-scan.commit'
 import { LeadScanRepository } from './lead-scan.repository'
-import { FILE_FAILED } from './lead-scan.service'
+import { FILE_FAILED, LeadScanService } from './lead-scan.service'
 
 /** Retention and dead-worker cleanup for the scan door. Self-timed like
  *  `SessionSweeper`, so it also runs in the worker; every statement is
@@ -44,6 +45,7 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
     private readonly repo: LeadScanRepository,
     private readonly storage: StorageService,
     @Inject(ENV) private readonly env: Env,
+    private readonly scans: LeadScanService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -87,13 +89,19 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
             FILE_UPLOAD_EXPIRED,
           )),
         ]
-        for (const code of new Set(reads)) await this.repo.readyIfDone(tx, code)
+        for (const code of new Set(reads)) {
+          const uploader = await this.repo.readyIfDone(tx, code)
+          if (uploader) await this.scans.tell(tx, LEAD_SCAN_READY, code, uploader)
+        }
         const commits = await this.repo.expireBatches(
           tx,
           'COMMITTING',
           new Date(now - WORK_STALE_MS),
           COMMIT_FAILED,
         )
+        for (const b of [...uploads, ...commits]) {
+          await this.scans.tell(tx, LEAD_SCAN_FAILED, b.code, b.createdBy)
+        }
         const touched = uploads.length + reads.length + commits.length
         if (touched > 0) this.log.log(`scan: expired ${touched} stuck batch(es)`)
       })

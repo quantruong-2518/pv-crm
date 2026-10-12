@@ -357,14 +357,14 @@ export class MeetingService {
   /** The timeline row: `first-meeting` when the book held no meeting of this
    *  LEAD before this one was typed, else `contacted` — on a deal always the
    *  latter, the customer was first met on its lead. */
-  private writeTouch(
+  private async writeTouch(
     tx: Db,
     who: Actor,
     m: { subjectCode: string; at: Date; title: string },
     already: number,
   ): Promise<void> {
     const first = already === 0 && m.subjectCode.startsWith('LD-')
-    return this.touch.record(tx, [
+    await this.touch.record(tx, [
       {
         subjectCode: m.subjectCode,
         subjectKind: m.subjectCode.startsWith('OP-') ? 'opportunity' : 'lead',

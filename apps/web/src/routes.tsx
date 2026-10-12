@@ -92,6 +92,13 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/settings'),
   },
   {
+    /** One Core · "my account". No permission: it is about the reader, and
+     *  the bell sends every signed-in person here. */
+    path: '/account',
+    name: 'Tài khoản của tôi',
+    load: () => import('@/pages/account'),
+  },
+  {
     /** One Core · the approval inbox — E3's queue, pipeline #10.
      *
      *  NO `branch`, like the two admin screens below it and for the same

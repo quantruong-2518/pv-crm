@@ -241,12 +241,13 @@ export class LeadWriteRepository {
   async lockForOwnerChange(
     tx: Db,
     code: string,
-  ): Promise<Pick<LeadRowDb, 'code' | 'state' | 'ownerId'> | null> {
+  ): Promise<Pick<LeadRowDb, 'code' | 'state' | 'ownerId' | 'company'> | null> {
     const [row] = await tx
       .select({
         code: lead.code,
         state: lead.state,
         ownerId: lead.ownerId,
+        company: lead.company,
       })
       .from(lead)
       .where(and(eq(lead.code, code), leadLive))

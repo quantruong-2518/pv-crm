@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { normaliseEmail, planLeadScan, taxRoot, type Actor, type ScanPlan } from '@pv/engines'
+import {
+  LEAD_SCAN_READY,
+  normaliseEmail,
+  planLeadScan,
+  taxRoot,
+  type Actor,
+  type ScanPlan,
+} from '@pv/engines'
 import {
   LeadAttachmentsResponse,
   LeadScanAddFilesResponse,
@@ -19,6 +26,7 @@ import {
 } from '@pv/contracts'
 import { ENV, type Env } from '@api/platform/config/env'
 import { conflict, invalid, notFound, rateLimited } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { StorageObjectMissingError, StorageService } from '@api/platform/storage/storage.service'
 import {
   SCAN_READER,
@@ -77,7 +85,18 @@ export class LeadScanService {
     @Inject(SCAN_READER) private readonly reader: ScanReader,
     @Inject(SCAN_ENQUEUE) private readonly queue: ScanEnqueue,
     @Inject(ENV) private readonly env: Env,
+    private readonly hub: NotificationHub,
   ) {}
+
+  /** The uploader hears what the worker or the sweeper did to their batch
+   *  (ADR 0085). No `actorId`: nobody at a keyboard did it. */
+  tell(tx: Db, name: string, code: string, uploader: string, count?: number): Promise<void> {
+    return this.hub.announce(tx, {
+      event: { name, ref: { code }, audiences: { uploader: [uploader] } },
+      subject: { kind: 'lead-scan', code },
+      detail: count === undefined ? null : { count },
+    })
+  }
 
   /** `POST /sales/leads/scan`. */
   async create(who: Actor, body: LeadScanCreateBody): Promise<LeadScanCreateResponse> {
@@ -337,7 +356,8 @@ export class LeadScanService {
     }
     await this.repo.run(async (tx) => {
       await this.repo.finishFile(tx, fileId, values)
-      await this.repo.readyIfDone(tx, claimed.batchCode)
+      const uploader = await this.repo.readyIfDone(tx, claimed.batchCode)
+      if (uploader) await this.tell(tx, LEAD_SCAN_READY, claimed.batchCode, uploader)
     })
   }
 

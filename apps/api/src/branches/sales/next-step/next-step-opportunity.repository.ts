@@ -98,6 +98,7 @@ export class OpportunityStepRepository {
         signed: signedOf(opportunity.code),
         inScope: this.inScope(who),
         stage: opportunity.stage,
+        name: opportunity.name,
       })
       .from(opportunity)
       .where(and(eq(opportunity.code, code), leadOn))

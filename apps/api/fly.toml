@@ -38,16 +38,6 @@ NODE_ENV = "production"
 # second interval after the relay enqueues it.
 PV_QUEUE_POLL_SECONDS = "30"
 
-# Hộp thư nhận báo "có lead mới từ landing page". KHÔNG phải secret — địa chỉ
-# công ty thì ai đọc repo cũng nên thấy, đúng luật đã ghi ở
-# `docs/van-hanh-mail.md` § "Secret trên Fly": chỉ RESEND_API_KEY và
-# RESEND_WEBHOOK_SECRET mới đi qua `fly secrets set`.
-#
-# ĐỂ TRỐNG LÀ TẮT CẢ ĐƯỜNG ỐNG, không phải "gửi cho không ai": E4 bỏ luôn ý
-# định gửi khi audience rỗng (`plan()` trả `[]`), nên intake chấp nhận lead mà
-# KHÔNG sinh dòng nào trong `platform.email_delivery` — worker có chạy cũng
-# không có gì để nhặt.
-#
 # ------------------------------------------------------------------
 # THƯ BAY RA NGOÀI THẬT. Sửa 03/09/2026.
 # ------------------------------------------------------------------
@@ -63,7 +53,6 @@ PV_QUEUE_POLL_SECONDS = "30"
 #
 # Muốn tắt: `fly secrets unset PV_EMAIL_ENABLED PV_MAS_ENABLED` — hai biến
 # tách nhau nên tắt được chiến dịch mà vẫn giữ thư giao dịch.
-PV_LEAD_NOTIFICATION_TO = "contact@pebblevina.com"
 
 # Scan uploads go to Tigris. The bucket's own variables (BUCKET_NAME,
 # AWS_ENDPOINT_URL_S3, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)

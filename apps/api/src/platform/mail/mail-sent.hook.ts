@@ -1,3 +1,4 @@
+import type { Branch, Permission } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import type { DeliveryToSend } from './mail.contract'
 
@@ -12,8 +13,16 @@ import type { DeliveryToSend } from './mail.contract'
 export interface MailSentHook {
   afterSent(tx: Db, sent: MailSent): Promise<void>
   /** A letter that will never arrive, or one that arrived without its state
-   *  move — told to the subject's people in the branch's own transaction. */
-  afterTrouble(sent: MailSent, trouble: MailTrouble): Promise<void>
+   *  move. The branch writes its trail on the caller's `tx` and names the
+   *  subject's people for the bell; `null` = not this branch's letter. */
+  afterTrouble(tx: Db, sent: MailSent, trouble: MailTrouble): Promise<MailSubjectPeople | null>
+  /** A counterparty answered this letter. Called once per NEW reply, on the
+   *  transaction that records it; `null` = not this branch's letter. */
+  afterReply(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null>
+  /** Read-only: who this letter is about, and nothing written. For a bounce
+   *  reported after the provider took the letter, a road that leaves no trail
+   *  row; `null` = not this branch's letter. */
+  peopleOf(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null>
 }
 
 /** What the branch needs to tell a customer letter from an internal one. */
@@ -22,6 +31,15 @@ export type MailSent = Pick<DeliveryToSend, 'aggregateType' | 'aggregateId' | 'm
 export type MailTrouble =
   /** `unknown`: given up past the resend window, so it may have arrived. */
   { kind: 'failed'; address: string; unknown: boolean } | { kind: 'sync-failed' }
+
+/** Whose subject a letter was about, as only the branch knows it (ADR 0085).
+ *  `watchers` names a role audience without resolving it: which permission
+ *  watches an unheld subject is branch knowledge, reading the matrix is not. */
+export type MailSubjectPeople = {
+  subject: { kind: 'lead' | 'opportunity'; code: string; label: string }
+  holders: string[]
+  watchers?: { permission: Permission; branch: Branch }
+}
 
 /** Resolves to `MailSentHook[]` — a registry, because more than one branch
  *  owns subjects (lead, opportunity) and Nest cannot merge two bindings of one

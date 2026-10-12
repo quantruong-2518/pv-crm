@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import { NEXT_STEP_DONE, type AccessControl, type Actor } from '@pv/engines'
 import {
   NextStepResponse,
   type NextStepDoneBody,
@@ -12,9 +12,10 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { StepFrameService } from '../config/step-frame.service'
 import { byOf, TouchService } from '../touch/touch.service'
-import { dropStep } from './next-step.handover'
+import { dropStep, ringDoer } from './next-step.handover'
 import { doneNote, toContract } from './next-step.mapper'
 import { NextStepRepository } from './next-step.repository'
 import { assertNextDiffers, dealAddress, liveKind } from './next-step.rules'
@@ -37,6 +38,7 @@ export class OpportunityStepService {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly actors: ActorRepository,
     private readonly frame: StepFrameService,
+    private readonly hub: NotificationHub,
   ) {}
 
   async get(who: Actor, code: ObjectCode): Promise<NextStepResponse> {
@@ -83,7 +85,7 @@ export class OpportunityStepService {
     reach: DoerReach | null,
     prefix = '',
   ): Promise<void> {
-    const address = await this.lockOpen(tx, who, code)
+    const deal = await this.lockOpen(tx, who, code)
     if (op.closing) {
       const current = (await this.deals.slot(who, code, tx))?.step
       if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
@@ -91,7 +93,7 @@ export class OpportunityStepService {
           `Việc tiếp theo của cơ hội ${code} đã được đánh dấu xong hoặc đã đổi — tải lại để xem việc hiện tại.`,
         )
       }
-      await this.touch.record(tx, [
+      const [touchId] = await this.touch.record(tx, [
         {
           subjectCode: code,
           subjectKind: 'opportunity',
@@ -101,8 +103,18 @@ export class OpportunityStepService {
           templateId: current.templateId,
         },
       ])
+      await this.hub.announce(tx, {
+        event: {
+          name: NEXT_STEP_DONE,
+          ref: { code },
+          actorId: who.id,
+          audiences: { setter: [current.createdBy] },
+          occurrence: touchId,
+        },
+        subject: { kind: 'opportunity', code, label: deal.name },
+      })
     }
-    if (op.next) await this.put(tx, who, code, address, op.next, reach, prefix)
+    if (op.next) await this.put(tx, who, code, deal, op.next, reach, prefix)
     else await dropStep(tx, code)
   }
 
@@ -123,7 +135,7 @@ export class OpportunityStepService {
     tx: Db,
     who: Actor,
     code: ObjectCode,
-    address: StateAddress | null,
+    deal: { address: StateAddress | null; name: string },
     body: NextStepSetBody,
     reach: DoerReach | null,
     prefix: string,
@@ -151,9 +163,9 @@ export class OpportunityStepService {
       }
     }
     /* Asked under the deal's lock, so the stage read is the one written on. */
-    const step = await this.frame.settle(tx, address, body, prefix)
+    const step = await this.frame.settle(tx, deal.address, body, prefix)
     if (step.kindId !== undefined) await liveKind(this.steps, step.kindId, tx, `${prefix}kindId`)
-    await this.steps.put(tx, {
+    const at = await this.steps.put(tx, {
       subjectCode: code,
       text: step.text,
       due: body.due,
@@ -162,6 +174,7 @@ export class OpportunityStepService {
       kindId: step.kindId ?? null,
       templateId: step.templateId,
     })
+    await ringDoer(tx, { hub: this.hub, actorId: who.id, label: deal.name }, code, doerId, at)
   }
 
   /** What the doer's role allows, asked BEFORE the transaction: `ActorRepository`
@@ -178,8 +191,12 @@ export class OpportunityStepService {
   }
 
   /** Exists, in scope, still open — refused in that order. Answers the frame
-   *  state read off the locked row. */
-  private async lockOpen(tx: Db, who: Actor, code: ObjectCode): Promise<StateAddress | null> {
+   *  state and the name read off the locked row. */
+  private async lockOpen(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+  ): Promise<{ address: StateAddress | null; name: string }> {
     const row = await this.deals.lock(tx, who, code)
     if (!row?.inScope) throw notFound('cơ hội', code)
     if (!row.open) {
@@ -187,7 +204,7 @@ export class OpportunityStepService {
         `Cơ hội ${code} ${row.signed ? 'đã thành hợp đồng' : 'đã dừng'} — chỉ cơ hội đang chạy mới có việc tiếp theo.`,
       )
     }
-    return dealAddress(row)
+    return { address: dealAddress(row), name: row.name }
   }
 }
 

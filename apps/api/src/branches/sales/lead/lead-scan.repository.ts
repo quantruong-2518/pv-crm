@@ -284,24 +284,25 @@ export class LeadScanRepository {
   }
 
   /** `from` → FAILED; `result` is left as the committed groups saved it.
-   *  False when the batch was not in `from`. */
+   *  Answers the uploader, or null when the batch was not in `from`. */
   async failBatch(
     db: Db,
     code: string,
     from: readonly ScanBatchState[],
     error: string,
-  ): Promise<boolean> {
-    const rows = await db
+  ): Promise<string | null> {
+    const [row] = await db
       .update(scanBatch)
       .set({ state: 'FAILED', error })
       .where(and(eq(scanBatch.code, code), inArray(scanBatch.state, [...from])))
-      .returning({ code: scanBatch.code })
-    return rows.length > 0
+      .returning({ createdBy: scanBatch.createdBy })
+    return row?.createdBy ?? null
   }
 
-  /** READING → READY once no file of the batch is still open. */
-  async readyIfDone(db: Db, code: string): Promise<void> {
-    await db
+  /** READING → READY once no file of the batch is still open. Answers the
+   *  uploader when it moved, null when it did not. */
+  async readyIfDone(db: Db, code: string): Promise<string | null> {
+    const [moved] = await db
       .update(scanBatch)
       .set({ state: 'READY' })
       .where(
@@ -315,6 +316,8 @@ export class LeadScanRepository {
                 )}))`,
         ),
       )
+      .returning({ createdBy: scanBatch.createdBy })
+    return moved?.createdBy ?? null
   }
 
   /** First writer wins: a card-sheet file feeds several groups, and
@@ -356,14 +359,13 @@ export class LeadScanRepository {
     state: 'UPLOADING' | 'COMMITTING',
     before: Date,
     error: string,
-  ): Promise<string[]> {
+  ): Promise<{ code: string; createdBy: string }[]> {
     const at = state === 'UPLOADING' ? scanBatch.createdAt : scanBatch.committedAt
-    const rows = await tx
+    return tx
       .update(scanBatch)
       .set({ state: 'FAILED', error })
       .where(and(eq(scanBatch.state, state), lt(at, before)))
-      .returning({ code: scanBatch.code })
-    return rows.map((r) => r.code)
+      .returning({ code: scanBatch.code, createdBy: scanBatch.createdBy })
   }
 
   /** READING files claimed before `before`; answers their batch codes. */

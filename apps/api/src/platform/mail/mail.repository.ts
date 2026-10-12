@@ -6,6 +6,7 @@ import {
   advances,
   type DeliveryToSend,
   type EngagementOutcome,
+  type GroupLetter,
   type MailEngagement,
   type MailFailure,
   type MailAddressIntent,
@@ -21,6 +22,7 @@ import {
   type WebhookOutcome,
 } from './mail.contract'
 import { letterAddresses, normalAddress, pinBlame } from './mail-address'
+import type { MailSent } from './mail-sent.hook'
 import {
   emailDelivery,
   emailDeliveryAddress,
@@ -203,7 +205,11 @@ export class MailRepository implements MailLedger {
       .orderBy(asc(emailDeliveryAddress.position))
     const [run] = row.mailRunId
       ? await this.db
-          .select({ scheduledAt: mailRun.scheduledAt, releasedAt: mailRun.releasedAt })
+          .select({
+            scheduledAt: mailRun.scheduledAt,
+            releasedAt: mailRun.releasedAt,
+            createdBy: mailRun.createdBy,
+          })
           .from(mailRun)
           .where(eq(mailRun.id, row.mailRunId))
       : []
@@ -214,6 +220,7 @@ export class MailRepository implements MailLedger {
         rows.map(({ outcomeAt: _, ...a }) => a),
       ),
       addressesFrozen: rows.some((a) => a.outcomeAt !== null),
+      sender: run?.createdBy ?? null,
       /* Each of these precedes any send, so the latest is a safe lower bound. */
       sendableFrom: new Date(
         Math.max(
@@ -426,14 +433,15 @@ export class MailRepository implements MailLedger {
       : event.to.map((address) => ({ address, role: 'to' as const }))
     const attributed = blames ? pinBlame(candidates, event.reason) : []
 
-    if (inserted.length === 0) return { outcome: 'ignored-duplicate', attributed }
-    if (!delivery) return { outcome: 'unknown-delivery', attributed }
+    const deliveryId = delivery?.id ?? null
+    if (inserted.length === 0) return { outcome: 'ignored-duplicate', attributed, deliveryId }
+    if (!delivery) return { outcome: 'unknown-delivery', attributed, deliveryId }
 
     const outcome =
       rows.length > 0
         ? await this.blameInGroup(delivery, event, attributed)
         : await this.advance(delivery, event)
-    return { outcome, attributed }
+    return { outcome, attributed, deliveryId }
   }
 
   /** A bounce/complaint on a group letter lands on the pinned address row;
@@ -543,6 +551,29 @@ export class MailRepository implements MailLedger {
       ON CONFLICT ("recipient") DO NOTHING
     `)
     return attributed.length
+  }
+
+  async lostGroupLetter(deliveryId: string): Promise<GroupLetter | null> {
+    const [row] = await this.db
+      .select({
+        id: emailDelivery.id,
+        aggregateType: emailDelivery.aggregateType,
+        aggregateId: emailDelivery.aggregateId,
+        mailRunId: emailDelivery.mailRunId,
+        role: emailDelivery.role,
+        sender: mailRun.createdBy,
+      })
+      .from(emailDelivery)
+      .innerJoin(mailRun, eq(mailRun.id, emailDelivery.mailRunId))
+      .where(
+        and(
+          eq(emailDelivery.id, deliveryId),
+          eq(mailRun.kind, 'group'),
+          inArray(emailDelivery.state, ['bounced', 'failed_permanent']),
+        ),
+      )
+      .limit(1)
+    return row ?? null
   }
 
   /** The ladder step itself — `advances()`, imported, never re-derived. */
@@ -682,28 +713,41 @@ export class MailRepository implements MailLedger {
    *  second `email_webhook_event` insert keyed by the SAME `svixId` column
    *  used for outbound events would conflate two different envelope streams
    *  under one guard for no benefit. */
-  async recordReply(reply: MailReply): Promise<ReplyOutcome> {
-    const [delivery] = await this.db
-      .select({ id: emailDelivery.id })
-      .from(emailDelivery)
-      .where(eq(emailDelivery.id, reply.deliveryId))
-      .limit(1)
-    if (!delivery) return 'unknown-delivery'
+  async recordReply(
+    reply: MailReply,
+    then?: (tx: Db, sent: MailSent, replyId: string) => Promise<void>,
+  ): Promise<ReplyOutcome> {
+    return this.db.transaction(async (tx) => {
+      const [delivery] = await tx
+        .select({
+          aggregateType: emailDelivery.aggregateType,
+          aggregateId: emailDelivery.aggregateId,
+          mailRunId: emailDelivery.mailRunId,
+          role: emailDelivery.role,
+        })
+        .from(emailDelivery)
+        .where(eq(emailDelivery.id, reply.deliveryId))
+        .limit(1)
+      if (!delivery) return 'unknown-delivery'
 
-    const written = await this.db
-      .insert(mailReply)
-      .values({
-        deliveryId: reply.deliveryId,
-        fromAddress: reply.fromAddress,
-        subject: reply.subject,
-        receivedAt: reply.at,
-        providerEmailId: reply.providerEmailId,
-        svixId: reply.svixId,
-      })
-      .onConflictDoNothing({ target: mailReply.providerEmailId })
-      .returning({ id: mailReply.id })
+      const [written] = await tx
+        .insert(mailReply)
+        .values({
+          deliveryId: reply.deliveryId,
+          fromAddress: reply.fromAddress,
+          subject: reply.subject,
+          receivedAt: reply.at,
+          providerEmailId: reply.providerEmailId,
+          svixId: reply.svixId,
+        })
+        .onConflictDoNothing({ target: mailReply.providerEmailId })
+        .returning({ id: mailReply.id })
+      if (!written) return 'ignored-duplicate'
 
-    return written.length === 0 ? 'ignored-duplicate' : 'recorded'
+      /* Only a NEW row reaches here, so a redelivered signal tells nobody twice. */
+      await then?.(tx, delivery, written.id)
+      return 'recorded'
+    })
   }
 
   /** Recipient letters only: a run copy's footer link would otherwise let a
@@ -836,7 +880,7 @@ export class MailRepository implements MailLedger {
   private toDeliveryToSend(
     row: typeof emailDelivery.$inferSelect,
     addresses: MailAddressIntent[],
-  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom'> {
+  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom' | 'sender'> {
     return {
       id: row.id,
       eventKey: row.eventKey,

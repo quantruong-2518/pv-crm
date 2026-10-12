@@ -4,6 +4,7 @@ import { ENV, type Env } from '@api/platform/config/env'
 import { GoogleGmail, type GmailMailbox } from '../google/google-gmail.client'
 import { addressOf, classifyThreadMessage } from './gmail-thread.classifier'
 import { GmailSweepRepository, type GmailWatch } from './gmail-sweep.repository'
+import { MailBell } from './mail-bell'
 import { MAIL_LEDGER, type MailLedger } from './mail.contract'
 
 /** READS WHAT CAME BACK ON LETTERS SENT FROM A PERSON'S OWN GMAIL.
@@ -40,6 +41,7 @@ export class GmailThreadSweeper {
     private readonly watch: GmailSweepRepository,
     private readonly gmail: GoogleGmail,
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly bell: MailBell,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -100,14 +102,24 @@ export class GmailThreadSweeper {
     for (const message of thread.messages) {
       const verdict = classifyThreadMessage(message.headers, box.email, COMPANY_MAIL_DOMAIN)
       if (verdict.kind === 'reply') {
-        const outcome = await this.ledger.recordReply({
-          svixId: null,
-          deliveryId: item.deliveryId,
-          fromAddress: verdict.from,
-          subject: message.headers['subject']?.slice(0, 500) ?? null,
-          at: message.at,
-          providerEmailId: message.id,
-        })
+        /* A reply that cannot be recorded is retried next pass; it must not
+           stop this loop, or a bounce later in the same thread is never read. */
+        const outcome = await this.ledger
+          .recordReply(
+            {
+              svixId: null,
+              deliveryId: item.deliveryId,
+              fromAddress: verdict.from,
+              subject: message.headers['subject']?.slice(0, 500) ?? null,
+              at: message.at,
+              providerEmailId: message.id,
+            },
+            (tx, sent, replyId) => this.bell.replied(tx, sent, replyId),
+          )
+          .catch((error: unknown) => {
+            this.log.error(`delivery ${item.deliveryId} reply not recorded: ${String(error)}`)
+            return null
+          })
         if (outcome === 'recorded') {
           result.replies += 1
           this.log.log(`delivery ${item.deliveryId} kind=reply`)
@@ -119,6 +131,9 @@ export class GmailThreadSweeper {
           at: message.at,
         })
         if (moved > 0) {
+          /* Asked only when an address ON this letter moved; the ledger then
+             decides whether the letter is lost. No retry if this call is lost. */
+          await this.bell.bounced(item.deliveryId)
           result.bounced += moved
           this.log.log(`delivery ${item.deliveryId} kind=bounce addresses=${moved}`)
         }

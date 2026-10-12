@@ -35,7 +35,13 @@ export class GoogleRepository {
       })
   }
 
-  async remove(actorId: string): Promise<void> {
-    await this.db.delete(googleLink).where(eq(googleLink.actorId, actorId))
+  run<T>(work: (tx: Db) => Promise<T>): Promise<T> {
+    return this.db.transaction((tx) => work(tx))
+  }
+
+  /** The row that was deleted, or null when there was none to delete. */
+  async remove(actorId: string, tx: Db = this.db): Promise<GoogleLinkRowDb | null> {
+    const [row] = await tx.delete(googleLink).where(eq(googleLink.actorId, actorId)).returning()
+    return row ?? null
   }
 }

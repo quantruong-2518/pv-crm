@@ -1,6 +1,6 @@
 # 0010 · Seven transactional mail infrastructure decisions — outbox, poll, pure E4
 
-Status: accepted
+Status: accepted (partially superseded by 0085 — the internal lead-intake mail and its mailbox)
 Source: docs/ban-giao-mail.md — table "Seven decisions locked in"
 
 ## Context

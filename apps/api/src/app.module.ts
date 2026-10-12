@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
 import { LeadCommsHook } from './branches/sales/lead/lead-comms.hook'
+import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
 import { LeadModule } from './branches/sales/lead/lead.module'
+import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
+import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { NextStepDebriefHook } from './branches/sales/next-step/comm-debrief.hook'
 import { NextStepModule } from './branches/sales/next-step/next-step.module'
 import { SalesModule } from './branches/sales/sales.module'
@@ -20,7 +23,8 @@ import { GoogleModule } from './platform/google/google.module'
 import { PinModule } from './platform/pin/pin.module'
 import { SalesPinReach } from './branches/sales/pin-reach'
 import { HealthModule } from './platform/health/health.module'
-import { MailModule } from './platform/mail/mail.module'
+import { MailHooksModule, MailModule } from './platform/mail/mail.module'
+import { NotificationModule } from './platform/notification/notification.module'
 import { CrossSiteGuard } from './platform/http/cross-site.guard'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
@@ -90,6 +94,8 @@ import { RolesModule } from './platform/roles/roles.module'
     /* Carries `/me/google`; listed here so the list shows every door. */
     GoogleModule,
     PinModule.withReach({ reach: SalesPinReach }),
+    /* Carries `/notifications`, the bell; emitters import it again by name. */
+    NotificationModule,
     /* Nhập TƯỜNG MINH dù `LeadModule` cũng đã nhập nó. Hai lý do: `MailModule`
        là của platform, không được đi nhờ qua một nhánh mới có mặt trong cây;
        và nó mang ba controller — cửa webhook của Resend, `/healthz/email` và
@@ -108,6 +114,12 @@ import { RolesModule } from './platform/roles/roles.module'
       debriefHook: NextStepDebriefHook,
     }),
     MailModule,
+    /* The inbound-reply door runs in THIS process and has to ask the branch
+       who holds the lead or deal a reply is about (ADR 0085). */
+    MailHooksModule.with({
+      imports: [LeadModule, OpportunityModule],
+      hooks: [LeadMailSentHook, OpportunityMailSentHook],
+    }),
     /* Explicit for `MailModule`'s reason: it carries `/storage/local/:token`,
        the disk driver's upload door, even though Sales imports it too. */
     StorageModule,

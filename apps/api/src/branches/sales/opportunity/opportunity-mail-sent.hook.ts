@@ -4,9 +4,11 @@ import { toActor } from '@api/platform/auth/auth.mapper'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { notFound, PvError } from '@api/platform/http/problem'
-import type { MailSent, MailSentHook } from '@api/platform/mail/mail-sent.hook'
+import type { MailSent, MailSentHook, MailSubjectPeople } from '@api/platform/mail/mail-sent.hook'
 import { RolePermissionRepository } from '@api/platform/roles/role-permission.repository'
 import { MasRepository } from '../campaign/mas.repository'
+import { LEAD_NOTE } from '../lead/lead-write.mapper'
+import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
 import { dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
 import { scopeRefOf } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
@@ -33,6 +35,7 @@ export class OpportunityMailSentHook implements MailSentHook {
     private readonly lifecycle: OpportunityLifecycle,
     private readonly templates: MasRepository,
     private readonly grants: RolePermissionRepository,
+    private readonly touch: TouchService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -72,9 +75,45 @@ export class OpportunityMailSentHook implements MailSentHook {
     }
   }
 
-  /** Nothing to report: a lost letter moves no rung, and the mail timeline
-   *  already shows the ledger's own state for it. */
-  async afterTrouble(): Promise<void> {}
+  /** Nothing is written: a lost letter moves no rung, and the mail timeline
+   *  already shows the ledger's own state for it. Only the holder is named. */
+  afterTrouble(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null> {
+    return this.people(tx, sent)
+  }
+
+  /** A reply never moves a rung (ADR 0069 §9): it leaves ONE `customer-replied`
+   *  row on the deal, by the system, in the lead trail's own words. A deal on
+   *  a switched-off lead reads as absent, so it takes no row either. */
+  async afterReply(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null> {
+    const people = await this.people(tx, sent)
+    if (!people) return null
+    await this.touch.record(tx, [
+      {
+        subjectCode: sent.aggregateId,
+        subjectKind: 'opportunity',
+        kind: 'customer-replied',
+        by: SYSTEM_ACTOR,
+        note: LEAD_NOTE.replied,
+      },
+    ])
+    return people
+  }
+
+  peopleOf(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null> {
+    return this.people(tx, sent)
+  }
+
+  /** The deal's one holder (ADR 0071 §5); a deal on a switched-off lead reads
+   *  as absent, so nobody is told about it. */
+  private async people(tx: Db, sent: MailSent): Promise<MailSubjectPeople | null> {
+    if (!toCustomer(sent)) return null
+    const read = await this.deals.byCode(null, sent.aggregateId, tx)
+    if (!read) return null
+    return {
+      subject: { kind: 'opportunity', code: sent.aggregateId, label: read.row.name },
+      holders: read.holder ? [read.holder.id] : [],
+    }
+  }
 }
 
 const toCustomer = (sent: MailSent): sent is MailSent & { mailRunId: string } =>

@@ -38,9 +38,10 @@ import { TouchRepository } from './touch.repository'
 export class TouchService {
   constructor(private readonly repo: TouchRepository) {}
 
-  /** Ghi một hoặc nhiều lần chạm TRONG transaction của người gọi. */
-  async record(tx: Db, entries: readonly TouchEntry[]): Promise<void> {
-    await this.repo.insert(
+  /** Ghi một hoặc nhiều lần chạm TRONG transaction của người gọi. Answers the
+   *  new row ids in `entries` order — a bell line names the touch it is about. */
+  record(tx: Db, entries: readonly TouchEntry[]): Promise<string[]> {
+    return this.repo.insert(
       tx,
       entries.map((e) => ({
         subjectCode: e.subjectCode,

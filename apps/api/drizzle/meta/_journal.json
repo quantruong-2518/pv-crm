@@ -673,6 +673,13 @@
       "when": 1789542300000,
       "tag": "0096_mail_transport_gmail",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1791788700000,
+      "tag": "0099_notification",
+      "breakpoints": true
     }
   ]
 }

@@ -22,8 +22,8 @@ export class TouchRepository {
    *  chạm nói về một lượt ghi, nên nó phải cùng vào hoặc cùng không với lượt
    *  ghi đó. Một dòng thời gian ghi "đơn vừa chuyển sang Đàm phán" cho một
    *  lượt UPDATE đã rollback là một dòng không ai gỡ được bằng tay. */
-  async insert(tx: Db, rows: readonly TouchValues[]): Promise<void> {
-    if (rows.length === 0) return
+  async insert(tx: Db, rows: readonly TouchValues[]): Promise<string[]> {
+    const ids: string[] = []
 
     /* Cắt khúc vì trần 65.535 tham số ràng buộc của Postgres, không vì bền
        vững — mọi khúc chạy trong đúng `tx` người gọi đưa vào. Một lô nạp 2.000
@@ -32,8 +32,12 @@ export class TouchRepository {
     const CHUNK = 1_000
     for (let i = 0; i < rows.length; i += CHUNK) {
       const slice = rows.slice(i, i + CHUNK)
-      if (slice.length > 0) await tx.insert(touch).values(slice)
+      if (slice.length === 0) continue
+      /* A plain multi-row VALUES insert returns its rows in VALUES order. */
+      const written = await tx.insert(touch).values(slice).returning({ id: touch.id })
+      ids.push(...written.map((r) => r.id))
     }
+    return ids
   }
 
   /** Cả dòng thời gian của một mã, mới nhất trước.

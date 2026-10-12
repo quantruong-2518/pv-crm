@@ -177,3 +177,34 @@ Raised while recording the KPI framework (ADR 0082).
     be scored. _(see ADR 0082 §8)_
 38. **Does the pace verdict get a tolerance margin?** v1 has none — a margin
     would be an invented threshold. _(see ADR 0082 §4)_
+
+## Notifications (added 11/10/2026)
+
+Raised while recording the notification hub (ADR 0085).
+
+39. **Who is told about a campaign, and who is the "operator"?** The campaign
+    owner is free text, not an actor, and no "operator" role exists, so a
+    notification for either has no recipient the data can name.
+    _(see ADR 0085, Not in wave 1)_
+40. **Who writes contract instalment and milestone events?** Their tables have
+    no writer, so there is no moment to notify on. _(see ADR 0085, Not in
+    wave 1)_
+41. **Which touch kind records a customer reply on a lead that is `working`,
+    `nurturing`, `converted` or in the pool, and on every opportunity?** Today
+    only the `assigned`/`verifying` → `working` move writes an activity row.
+    _(see ADR 0085, Defaults)_
+    **Answered 11/10/2026: a new touch kind `customer-replied`, written by the
+    system on every new reply — ADR 0085 Defaults.**
+42. **Should a bounce reported after the provider accepted the letter ring
+    `mail-failed`?** Today only a letter the worker gives up on does.
+    _(see ADR 0085, Defaults)_
+    **Answered 11/10/2026: yes for a 1-to-1 group letter only; a bulk run's
+    bounces ring nobody individually — ADR 0085 Defaults.**
+43. **Where does a press go for run sent, run cancelled, access changed,
+    password reset, Google link broken, and a decided approval?** They open
+    nothing today. _(see ADR 0085, Defaults)_
+    **Answered 11/10/2026: the "Tài khoản của tôi" screen at `/account`; a
+    mail-run row opens the mail-run book at that run — ADR 0085 Defaults.**
+44. **Should the deal book's last-activity / freshness read count a customer
+    reply?** It ignores `customer-replied`, so a deal the customer just
+    answered can still read as stale. _(see ADR 0085, Defaults)_

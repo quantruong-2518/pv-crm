@@ -1,5 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import { type Actor, type RoleId as EngineRoleId } from '@pv/engines'
+import {
+  USER_ACCESS_CHANGED,
+  USER_PASSWORD_RESET,
+  type Actor,
+  type RoleId as EngineRoleId,
+} from '@pv/engines'
 import {
   DirectoryResponse,
   InviteView,
@@ -17,6 +22,7 @@ import type { Db } from '../db/db.module'
 import type { ActorRow } from '../db/platform.schema'
 import { isDbConstraint } from '../http/db-error'
 import { conflict, denied, notFound } from '../http/problem'
+import { NotificationHub } from '../notification/notification.hub'
 import { toActorColumns, toActorDraft, toUserRow } from './users.mapper'
 import { UsersRepository } from './users.repository'
 
@@ -50,6 +56,14 @@ const holdsKeys = (
   disabledAt: Date | null,
   keyholders: readonly EngineRoleId[],
 ): boolean => disabledAt === null && roleIds.some((r) => keyholders.includes(r))
+
+/** Does this save touch what the person may see or do. A new display name or
+ *  job-title label is not access, so it rings no bell. */
+const changesAccess = (body: UserPatch): boolean =>
+  body.roleIds !== undefined ||
+  body.branches !== undefined ||
+  body.ownOnly !== undefined ||
+  body.disabled !== undefined
 
 /** Vietnamese text → an ASCII handle fit for a primary key, a URL and a log.
  *
@@ -108,6 +122,7 @@ export class UsersService {
     private readonly repo: UsersRepository,
     private readonly grants: RolePermissionRepository,
     private readonly auth: AuthService,
+    private readonly hub: NotificationHub,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -297,10 +312,13 @@ export class UsersService {
         this.log.log(`Khoá tài khoản · ${target.id} · thu hồi ${killed} phiên`)
       }
 
-      await this.repo.writeNote(
+      const noteId = await this.repo.writeNote(
         { actorId: who.id, action: 'edit', code: target.id, note: this.noteFor(target, body) },
         tx,
       )
+      /* One bell line per save, keyed by its audit row. A save that locks the
+         person rings nobody: the hub drops a recipient who cannot sign in. */
+      if (changesAccess(body)) await this.ring(tx, USER_ACCESS_CHANGED, who, target.id, noteId)
       return saved
     })
 
@@ -414,21 +432,48 @@ export class UsersService {
       )
     }
 
-    await this.auth.handDefaultPassword({ id: target.id, email: target.email })
+    await this.repo.run(async (tx) => {
+      await this.auth.handDefaultPassword({ id: target.id, email: target.email }, tx)
 
-    /* The note says a reset happened, never what the password is — the same
-       line `invite` draws, and it matters more here: this one IS a credential,
-       and `platform.audit` has an `audit-log.view` audience. */
-    await this.repo.writeNote({
-      actorId: who.id,
-      action: 'edit',
-      code: target.id,
-      note: `đặt lại mật khẩu mặc định cho ${target.email}`,
+      /* The note says a reset happened, never what the password is — the same
+         line `invite` draws, and it matters more here: this one IS a credential,
+         and `platform.audit` has an `audit-log.view` audience. */
+      const noteId = await this.repo.writeNote(
+        {
+          actorId: who.id,
+          action: 'edit',
+          code: target.id,
+          note: `đặt lại mật khẩu mặc định cho ${target.email}`,
+        },
+        tx,
+      )
+      await this.ring(tx, USER_PASSWORD_RESET, who, target.id, noteId)
     })
 
     const fresh = await this.repo.byId(id)
     if (!fresh) throw notFound('người dùng', id)
     return UserRow.parse(toUserRow(fresh))
+  }
+
+  /** Tell one person what an administrator did to their account. The audit
+   *  row id is the occurrence: two saves on one person are two bell lines. */
+  private async ring(
+    tx: Db,
+    name: string,
+    who: Actor,
+    targetId: string,
+    noteId: string,
+  ): Promise<void> {
+    await this.hub.announce(tx, {
+      event: {
+        name,
+        ref: { code: targetId },
+        actorId: who.id,
+        audiences: { user: [targetId] },
+        occurrence: noteId,
+      },
+      subject: { kind: 'user', code: targetId },
+    })
   }
 
   // -------------------------------------------------------------------------

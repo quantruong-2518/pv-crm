@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor, Edge } from '@pv/engines'
+import { LEAD_HANDED_OVER, type AccessControl, type Actor, type Edge } from '@pv/engines'
 import {
   LeadCreateResponse,
   LeadImportCommitResponse,
@@ -22,6 +22,7 @@ import {
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { AccountService } from '../account/account.service'
 import { identityOfLead } from '../account/account.mapper'
@@ -147,7 +148,36 @@ export class LeadWriteService {
     private readonly partners: PartnerService,
     /* One read per hand-over: can the receiver open deals (`opportunity.view`)? */
     private readonly actors: ActorRepository,
+    private readonly hub: NotificationHub,
   ) {}
+
+  /** One lead changed hands, or was born in someone's name (ADR 0085). An
+   *  absent end is the common pool; `occurrence` is the touch that dated it. */
+  private handedOver(
+    tx: Db,
+    move: {
+      code: string
+      label: string
+      actorId: string | undefined
+      to?: string | null
+      from?: string | null
+      occurrence: string | undefined
+    },
+  ): Promise<void> {
+    return this.hub.announce(tx, {
+      event: {
+        name: LEAD_HANDED_OVER,
+        ref: { code: move.code },
+        actorId: move.actorId,
+        audiences: {
+          'new-holder': move.to ? [move.to] : [],
+          'previous-holder': move.from ? [move.from] : [],
+        },
+        occurrence: move.occurrence,
+      },
+      subject: { kind: 'lead', code: move.code, label: move.label },
+    })
+  }
 
   // ── door 1 · one lead, typed by a person ─────────────────────────────────
 
@@ -285,7 +315,7 @@ export class LeadWriteService {
        would have to be inferred from `lead.owner_id`, which says who holds it
        TODAY and has no date to stand on. Same place `toTier` sits for a lead
        that entered the book already graded. */
-    await this.touch.record(tx, [
+    const [occurrence] = await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'lead',
@@ -295,6 +325,13 @@ export class LeadWriteService {
         note: b.note,
       },
     ])
+    /* Born in the pool, or born in a name: either way somebody must hear. */
+    const told = { code, label: write.values.company, actorId: who?.id, occurrence }
+    if (owner) await this.handedOver(tx, { ...told, to: owner.id })
+    else {
+      const subject = { kind: 'lead' as const, code, label: told.label }
+      await this.states.pooled(tx, { subject, actorId: told.actorId, occurrence })
+    }
     return written
   }
 
@@ -421,14 +458,17 @@ export class LeadWriteService {
       }
       /* The outgoing holder's step goes with the lead (flow G1): to the new
          holder, or away on a release. A claim from the pool has none to carry. */
-      if (found.ownerId !== null) await handStepOver(tx, code, found.ownerId, ownerId)
+      if (found.ownerId !== null) {
+        const bell = { hub: this.hub, actorId: who.id, label: found.company }
+        await handStepOver(tx, code, found.ownerId, ownerId, bell)
+      }
       /* The old holder's open deals follow A→B (ADR 0069 §10), narrowed by
          `dealCodes`; a release to the pool leaves them. A receiver who cannot
          hold a deal refuses the hand-over (400 on `ownerId`). */
       if (prev && next) {
         await handDealsOver(
           tx,
-          { mirror: this.mirror, touch: this.touch },
+          { mirror: this.mirror, touch: this.touch, hub: this.hub },
           {
             leadCode: code,
             from: { actorId: prev.id, name: prev.name },
@@ -441,7 +481,7 @@ export class LeadWriteService {
         )
       }
 
-      await this.touch.record(tx, [
+      const [occurrence] = await this.touch.record(tx, [
         {
           subjectCode: code,
           subjectKind: 'lead',
@@ -464,6 +504,12 @@ export class LeadWriteService {
           note: next ? `${LEAD_NOTE.handedTo} ${next.name}` : LEAD_NOTE.released,
         },
       ])
+      const told = { code, label: found.company, actorId: who.id, occurrence }
+      await this.handedOver(tx, { ...told, to: ownerId, from: found.ownerId })
+      if (state === 'new') {
+        const subject = { kind: 'lead' as const, code, label: found.company }
+        await this.states.pooled(tx, { subject, actorId: who.id, occurrence })
+      }
     })
 
     /* Read the row back through the ordinary read path rather than assembling
@@ -733,7 +779,7 @@ export class LeadWriteService {
            the batch receipt in `platform.audit` already holds the authoritative
            link and a second copy that can disagree with it is worse than a
            sentence that cannot. */
-        await this.touch.record(
+        const touchIds = await this.touch.record(
           tx,
           slice.map((p): TouchEntry => ({
             subjectCode: p.row.code,
@@ -756,12 +802,25 @@ export class LeadWriteService {
             note: LEAD_NOTE.imported(body.fileName),
           })),
         )
+        /* A row the file put in someone's name rings that person, one by one. */
+        for (const [j, { row }] of slice.entries()) {
+          if (!row.ownerId) continue
+          const told = { code: row.code, label: row.company, actorId: who.id }
+          await this.handedOver(tx, { ...told, to: row.ownerId, occurrence: touchIds[j] })
+        }
       }
 
-      return this.repo.writeBatchNote(tx, {
+      const batch = await this.repo.writeBatchNote(tx, {
         actorId: who.id,
         note: noteOf(body, codes),
       })
+      /* ONE pool line for the file, keyed by its receipt — not one per lead. */
+      const count = ready.filter((p) => !p.row.ownerId).length
+      if (count > 0) {
+        const subject = { kind: 'lead-pool' as const, code: batch.id, label: body.fileName }
+        await this.states.pooled(tx, { subject, actorId: who.id, count })
+      }
+      return batch
     })
 
     return LeadImportCommitResponse.parse({

@@ -529,14 +529,12 @@ export class AuthService {
    *  Every session dies, with no exception kept: unlike a self-service change,
    *  the person whose password this is did not ask for it and is not standing
    *  at the screen. */
-  async handDefaultPassword(person: { id: string; email: string }): Promise<void> {
+  async handDefaultPassword(person: { id: string; email: string }, tx: Db): Promise<void> {
     const hash = await hashPassword(DEFAULT_PASSWORD)
 
-    await this.repo.run(async (tx) => {
-      await this.repo.handTemporaryPassword(person.id, hash, new Date(), tx)
-      const killed = await this.repo.revokeAllForActor(person.id, tx)
-      this.log.log(`Đặt lại mật khẩu mặc định · ${person.id} · thu hồi ${killed} phiên`)
-    })
+    await this.repo.handTemporaryPassword(person.id, hash, new Date(), tx)
+    const killed = await this.repo.revokeAllForActor(person.id, tx)
+    this.log.log(`Đặt lại mật khẩu mặc định · ${person.id} · thu hồi ${killed} phiên`)
 
     /* A fresh password should not arrive behind a lockout built by whoever was
        guessing at the old one. Same courtesy `resetPassword` extends — and the

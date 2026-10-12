@@ -5,9 +5,11 @@ import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import type { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { invalid } from '@api/platform/http/problem'
+import type { NotificationHub } from '@api/platform/notification/notification.hub'
 import { handStepOver } from '../next-step/next-step.handover'
 import { dealOpen, dealSignWaiting } from '../open-deal'
 import type { TouchService } from '../touch/touch.service'
+import { announceOwners } from './opportunity-bell'
 import { acceptorOf, holderOf, NOTE, toRef } from './opportunity.mapper'
 import { ACCEPTOR_NAME } from './opportunity.repository'
 import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
@@ -31,7 +33,7 @@ type Person = { code: string; id: string; name: string; role: 'SALE' | 'BD'; rol
 
 export async function handDealsOver(
   tx: Db,
-  deps: { mirror: ObjectMirror; touch: TouchService },
+  deps: { mirror: ObjectMirror; touch: TouchService; hub: NotificationHub },
   move: {
     leadCode: string
     from: TouchHolder
@@ -101,8 +103,14 @@ export async function handDealsOver(
     if (signWaiting) skipped.set(row.code, 'cơ hội đang chờ duyệt ký')
   }
   const moving = chosen.filter((r) => !skipped.has(r.row.code))
+  /* Who stood on each deal before the swap: the bell tells real differences. */
+  const before = await peopleOf(
+    tx,
+    moving.map((r) => r.row.code),
+  )
   await swapSale(
     tx,
+    deps.hub,
     moving.map((r) => r.row),
     move,
   )
@@ -125,7 +133,7 @@ export async function handDealsOver(
       ),
     ),
   )
-  await deps.touch.record(tx, [
+  const touchIds = await deps.touch.record(tx, [
     ...moving.map(({ row }) => ({
       subjectCode: row.code,
       subjectKind: 'opportunity' as const,
@@ -145,12 +153,26 @@ export async function handDealsOver(
       note: NOTE.handOverSkipped(move.to.name, why),
     })),
   ])
+  /* The `handed-over` rows lead the batch, in `moving` order. */
+  for (const [i, { row }] of moving.entries()) {
+    const idsOf = (people: readonly Person[]) =>
+      people.filter((p) => p.code === row.code).map((p) => p.id)
+    await announceOwners(tx, deps.hub, {
+      code: row.code,
+      label: row.name,
+      actorId: move.by.actorId,
+      before: idsOf(before),
+      after: idsOf(after),
+      occurrence: touchIds[i],
+    })
+  }
 }
 
 async function swapSale(
   tx: Db,
+  hub: NotificationHub,
   deals: readonly OpportunityRowDb[],
-  move: { from: TouchHolder; to: TouchHolder },
+  move: { from: TouchHolder; to: TouchHolder; by: { actorId?: string } },
 ): Promise<void> {
   if (deals.length === 0) return
   const codes = deals.map((r) => r.code)
@@ -174,7 +196,10 @@ async function swapSale(
       })),
     )
     .onConflictDoNothing()
-  for (const code of codes) await handStepOver(tx, code, move.from.actorId, move.to.actorId)
+  for (const { code, name } of deals) {
+    const bell = { hub, label: name, ...(move.by.actorId ? { actorId: move.by.actorId } : {}) }
+    await handStepOver(tx, code, move.from.actorId, move.to.actorId, bell)
+  }
 }
 
 async function peopleOf(tx: Db, codes: readonly string[]): Promise<Person[]> {

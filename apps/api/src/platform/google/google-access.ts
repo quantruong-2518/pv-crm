@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { COMPANY_MAIL_DOMAIN, type GoogleMailReadiness } from '@pv/contracts'
+import { GOOGLE_LINK_BROKEN } from '@pv/engines'
+import type { Db } from '../db/db.module'
+import { NotificationHub } from '../notification/notification.hub'
 import { openToken } from './google-crypto'
 import { GMAIL_SCOPES, GoogleOAuth } from './google-oauth.client'
 import { GoogleRepository } from './google.repository'
@@ -24,6 +27,7 @@ export class GoogleAccess {
   constructor(
     private readonly oauth: GoogleOAuth,
     private readonly links: GoogleRepository,
+    private readonly hub: NotificationHub,
   ) {}
 
   get configured(): boolean {
@@ -55,10 +59,27 @@ export class GoogleAccess {
     }
     const access = await this.oauth.accessToken(config, refreshToken, signal)
     if (access === 'revoked') {
-      await this.links.remove(actorId)
+      await this.links.run((tx) => this.dropBroken(tx, actorId))
       return { state: 'not_connected' }
     }
     return access ? { state: 'ok', token: access, email: link.googleEmail } : { state: 'failed' }
+  }
+
+  /** Delete the revoked link and tell its owner, as one write. The deleted
+   *  row's `connectedAt` is the occurrence: it names THIS connection, so a
+   *  break after a reconnect rings again and two racing refreshes ring once. */
+  private async dropBroken(tx: Db, actorId: string): Promise<void> {
+    const gone = await this.links.remove(actorId, tx)
+    if (!gone) return
+    await this.hub.announce(tx, {
+      event: {
+        name: GOOGLE_LINK_BROKEN,
+        ref: { code: actorId },
+        audiences: { user: [actorId] },
+        occurrence: String(gone.connectedAt.getTime()),
+      },
+      subject: { kind: 'google-link', code: actorId, label: gone.googleEmail },
+    })
   }
 }
 

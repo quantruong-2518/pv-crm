@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { NotificationModule } from '../notification/notification.module'
 import { GoogleAccess } from './google-access'
 import { GoogleCalendar } from './google-calendar.client'
 import { GoogleGmail } from './google-gmail.client'
@@ -12,6 +13,7 @@ import { GoogleService } from './google.service'
  *  plumbing no branch owns; consumers go through the three exports and never
  *  read `platform.google_link` themselves. */
 @Module({
+  imports: [NotificationModule],
   controllers: [GoogleController],
   providers: [
     GoogleService,

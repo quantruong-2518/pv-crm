@@ -26,6 +26,6 @@ should see them there. Only the two keys above are real secrets.
 
 ## Canary
 
-Flip the flag, send **one** real lead into your own inbox, and check all four:
+Flip the flag, send **one** MAS run to a single recipient of your own (a lead intake no longer sends mail, ADR 0085), and check all four:
 the mail arrives, `state='delivered'`, the webhook leaves a row, and
-`/healthz/email` is clean. Only then open it to the real landing page.
+`/healthz/email` is clean. Only then send to real recipients.

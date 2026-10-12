@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { OPPORTUNITY_ACCEPTED, type Actor } from '@pv/engines'
 import {
   OpportunityAcceptResponse,
   type ObjectCode,
@@ -8,8 +8,10 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
+import { announceOwners } from './opportunity-bell'
 import { actorRoles, assertSellers, recordSaleLane } from './opportunity-owners'
 import { holderOf, type RefOwner } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
@@ -35,6 +37,7 @@ export class OpportunityAccept {
     private readonly lifecycle: OpportunityLifecycle,
     private readonly touch: TouchService,
     private readonly facts: OpportunityFacts,
+    private readonly hub: NotificationHub,
   ) {}
 
   async accept(
@@ -44,6 +47,9 @@ export class OpportunityAccept {
   ): Promise<OpportunityAcceptResponse> {
     const by = { id: who.id, name: who.name }
     const at = new Date()
+    /* Who opened the deal: the `by` of its entry stage event, the oldest row.
+       Read before the tx — it never changes, and this reader is on the pool. */
+    const opener = (await this.deals.stageEventsOf(code)).at(-1)?.byId
 
     await this.deals.run(async (tx) => {
       const lock = await this.deals.lockDeal(tx, code)
@@ -74,14 +80,39 @@ export class OpportunityAccept {
         at,
       )
       if (!moved) throw conflict(alreadyAccepted(found))
-      await recordSaleLane(tx, this.touch, {
+      const label = fresh.row.name
+      const occurrence = await recordSaleLane(
+        tx,
+        { touch: this.touch, hub: this.hub },
+        {
+          code,
+          label,
+          added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
+          removed: [],
+          from: found.holder,
+          to: owner,
+          by,
+          at,
+        },
+      )
+      const after = fresh.owners.map((o) => o.id)
+      await announceOwners(tx, this.hub, {
         code,
-        added: fresh.owners.filter((o) => o.role === 'SALE' && addedIds.includes(o.id)),
-        removed: [],
-        from: found.holder,
-        to: owner,
-        by,
-        at,
+        label,
+        actorId: who.id,
+        before: found.owners.map((o) => o.id),
+        after,
+        occurrence,
+      })
+      /* No occurrence: a deal is accepted once (`acceptVerdict`). */
+      await this.hub.announce(tx, {
+        event: {
+          name: OPPORTUNITY_ACCEPTED,
+          ref: { code },
+          actorId: who.id,
+          audiences: { holders: opener ? [...after, opener] : after },
+        },
+        subject: { kind: 'opportunity', code, label },
       })
     })
 

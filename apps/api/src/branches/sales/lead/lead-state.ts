@@ -2,10 +2,13 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { Injectable, Module } from '@nestjs/common'
 import { LEAD_OPEN_STATES, LEAD_STATE_LABEL, type LeadState } from '@pv/contracts'
+import { LEAD_POOLED } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { NotificationHub, type Announcement } from '@api/platform/notification/notification.hub'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
 import { TouchModule } from '../touch/touch.module'
 import { toRef } from './lead.mapper'
@@ -100,7 +103,34 @@ export class LeadStateWriter {
   constructor(
     private readonly mirror: ObjectMirror,
     private readonly touch: TouchService,
+    private readonly hub: NotificationHub,
   ) {}
+
+  /** Leads landed in the common pool — one lead, or a batch (`count`) — so
+   *  everyone who may hand leads out hears of it (ADR 0085). Here because the
+   *  pool IS the state `new`, and every door that lands a lead there holds
+   *  this writer. `occurrence` = the touch that dated the landing. */
+  async pooled(
+    tx: Db,
+    landing: {
+      subject: Announcement['subject']
+      actorId?: string | undefined
+      occurrence?: string | undefined
+      count?: number
+    },
+  ): Promise<void> {
+    await this.hub.announce(tx, {
+      event: {
+        name: LEAD_POOLED,
+        ref: { code: landing.subject.code },
+        actorId: landing.actorId,
+        audiences: { 'pool-watchers': await this.hub.holding(tx, 'lead.assign', 'Sales') },
+        occurrence: landing.occurrence,
+      },
+      subject: landing.subject,
+      detail: landing.count === undefined ? null : { count: landing.count },
+    })
+  }
 
   /** The holder booked a future meeting: `assigned` → `verifying`. */
   scheduled(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
@@ -131,6 +161,21 @@ export class LeadStateWriter {
    *  it moves the lead whoever sent it; a pool lead stays `new` (0067 D6). */
   mailed(tx: Db, codes: readonly string[]): Promise<void> {
     return this.touched(tx, codes, null, LEAD_NOTE.mailed)
+  }
+
+  /** The customer answered a letter (ADR 0067 §2): `assigned|verifying` →
+   *  `working`, credited to nobody so no holder's first-contact count is fed.
+   *  NOT `nurturing`, unlike `mailed`: the inbound door cannot tell an
+   *  auto-reply from a person, and it must not un-park a lead parked on
+   *  purpose. The row written here is the RUNG fact, for a lead that moved;
+   *  the reply itself is the caller's `customer-replied` row, on every reply. */
+  replied(tx: Db, codes: readonly string[]): Promise<void> {
+    return this.advance(tx, codes, null, {
+      to: 'working',
+      from: ['assigned', 'verifying'],
+      kind: 'exchange-logged',
+      note: LEAD_NOTE.repliedIntoWork,
+    })
   }
 
   /** `assigned|verifying` → `working`, and `nurturing` loops back to `working`
@@ -251,13 +296,13 @@ export class LeadStateWriter {
         stateSince: sql`now()`,
       })
       .where(and(eq(lead.code, code), eq(lead.state, 'converted'), leadLive))
-      .returning({ state: lead.state })
+      .returning({ state: lead.state, company: lead.company })
     if (!moved) return null
     const landed = moved.state === 'new' ? 'new' : 'nurturing'
 
     await this.refresh(tx, [code])
     await syncLeadRuns(tx, [code])
-    await this.touch.record(tx, [
+    const [occurrence] = await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'lead',
@@ -267,6 +312,10 @@ export class LeadStateWriter {
         note: notes[landed],
       },
     ])
+    if (landed === 'new') {
+      const subject = { kind: 'lead' as const, code, label: moved.company }
+      await this.pooled(tx, { subject, actorId: by.id, occurrence })
+    }
     return landed
   }
 
@@ -319,7 +368,7 @@ export class LeadStateWriter {
 }
 
 @Module({
-  imports: [GraphModule, TouchModule],
+  imports: [GraphModule, TouchModule, NotificationModule],
   providers: [LeadStateWriter],
   exports: [LeadStateWriter],
 })

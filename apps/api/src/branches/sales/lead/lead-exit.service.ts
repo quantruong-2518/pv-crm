@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { LEAD_STOPPED, type Actor } from '@pv/engines'
 import {
   LEAD_STATE_LABEL,
   LEAD_STOP_REASON_OTHER,
@@ -12,6 +12,7 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
@@ -44,6 +45,7 @@ export class LeadExitService {
     private readonly states: LeadStateWriter,
     private readonly runs: WorkstreamRepository,
     private readonly mailRuns: MailRunRepository,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
@@ -71,7 +73,7 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/exit` — from any open state, or from `converted`
    *  once its deals are lost (how a run closes LOST). */
   async exit(who: Actor, code: ObjectCode, body: LeadExitBody): Promise<LeadProfile> {
-    await this.inScope(who, code)
+    const label = (await this.inScope(who, code)).row.company
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
@@ -87,8 +89,24 @@ export class LeadExitService {
         /* The DB clock, same as the `state_since` this move stamps. */
         exitedAt: sql`now()`,
       })
-      await this.record(tx, who, code, 'exited', LEAD_NOTE.exited(body.reasonKey, body.note), {
-        reasonId: body.reasonKey,
+      const occurrence = await this.record(
+        tx,
+        who,
+        code,
+        'exited',
+        LEAD_NOTE.exited(body.reasonKey, body.note),
+        { reasonId: body.reasonKey },
+      )
+      /* The holder hears when somebody else stopped their lead (ADR 0085). */
+      await this.hub.announce(tx, {
+        event: {
+          name: LEAD_STOPPED,
+          ref: { code },
+          actorId: who.id,
+          audiences: { holder: held.ownerId ? [held.ownerId] : [] },
+          occurrence,
+        },
+        subject: { kind: 'lead', code, label },
       })
       /* A timed letter or a queued wave must not reach a customer a person just
          stopped caring for (ADR 0068 §5); reopen does not release them. */
@@ -106,7 +124,7 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/reopen` — the state is recomputed from facts
    *  (`stateOnReopen`), not restored. */
   async reopen(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    await this.inScope(who, code)
+    const label = (await this.inScope(who, code)).row.company
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
@@ -114,8 +132,13 @@ export class LeadExitService {
         throw conflict(`Lead ${code} chưa rời phễu nên không có gì để mở lại.`)
       }
 
-      await this.states.move(tx, code, stateOnReopen(held), { exitReason: null, exitedAt: null })
-      await this.record(tx, who, code, 'reopened', LEAD_NOTE.reopened)
+      const to = stateOnReopen(held)
+      await this.states.move(tx, code, to, { exitReason: null, exitedAt: null })
+      const occurrence = await this.record(tx, who, code, 'reopened', LEAD_NOTE.reopened)
+      if (to === 'new') {
+        const subject = { kind: 'lead' as const, code, label }
+        await this.states.pooled(tx, { subject, actorId: who.id, occurrence })
+      }
       if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
     })
 
@@ -180,8 +203,8 @@ export class LeadExitService {
     kind: TouchEntry['kind'],
     note: string,
     extra: Pick<TouchEntry, 'reasonId'> = {},
-  ): Promise<void> {
-    await this.touch.record(tx, [
+  ): Promise<string | undefined> {
+    const [id] = await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'lead',
@@ -191,6 +214,7 @@ export class LeadExitService {
         ...extra,
       },
     ])
+    return id
   }
 
   /** Both stop doors pick from the `EXIT_REASON` catalogue (ADR 0070); `other`

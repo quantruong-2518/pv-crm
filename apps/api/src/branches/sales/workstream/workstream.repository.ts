@@ -754,8 +754,8 @@ export const blankFootprint = (): WorkstreamFootprint => ({
  *  `platform.email_delivery.aggregate_type` carries no foreign key and no
  *  CHECK, so `<> 'opportunity'` would silently admit whatever third value a
  *  future mail door writes and read it out as customer contact. Only `'lead'`
- *  is a letter leaving the company; `'opportunity'` is an internal alert to
- *  `PV_OPS_NOTIFICATION_TO`.
+ *  is a letter leaving the company; `'opportunity'` was the internal ops alert
+ *  (dropped by ADR 0085, its old rows remain).
  *
  *  `accepted_at IS NOT NULL` is the mark of the letter having LEFT: a row still
  *  queued, or parked dead, is a promise rather than a contact. The same column

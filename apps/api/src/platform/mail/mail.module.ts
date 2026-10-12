@@ -1,16 +1,19 @@
-import { Module } from '@nestjs/common'
+import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nestjs/common'
 import { ENV, type Env } from '@api/platform/config/env'
 import { GoogleGmail } from '@api/platform/google/google-gmail.client'
 import { GoogleModule } from '@api/platform/google/google.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { ConsoleMailDriver } from './console.driver'
 import { GmailMailDriver } from './gmail.driver'
 import { GmailSweepRepository } from './gmail-sweep.repository'
 import { GmailThreadSweeper } from './gmail-thread.sweeper'
+import { MailBell } from './mail-bell'
 import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.contract'
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
 import { MailRunRepository } from './mail-run.repository'
 import { MailRunSweeper } from './mail-run.sweeper'
+import { MAIL_SENT_HOOK, type MailSentHook } from './mail-sent.hook'
 import { MasMailComposer } from './mas.composer'
 import { ResendMailDriver } from './resend.driver'
 import { UnsubscribeController } from './unsubscribe.controller'
@@ -63,7 +66,9 @@ import { UnsubscribeController } from './unsubscribe.controller'
  *  to hold it — cancelling a run because its bounce rate is over the ceiling is
  *  a decision about the SENDING ACCOUNT, not about anybody's leads. */
 @Module({
-  imports: [GoogleModule],
+  /* `NotificationModule` for the hub: a finished run, a dead letter and a
+     customer reply each ring the bell from here (ADR 0085). */
+  imports: [GoogleModule, NotificationModule],
   controllers: [MailWebhookController, MailHealthController, UnsubscribeController],
   providers: [
     MailRepository,
@@ -72,6 +77,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
     GmailSweepRepository,
     GmailThreadSweeper,
     MasMailComposer,
+    MailBell,
     { provide: MAIL_LEDGER, useExisting: MailRepository },
     { provide: MAIL_ENQUEUE, useExisting: MailRepository },
     {
@@ -99,6 +105,33 @@ import { UnsubscribeController } from './unsubscribe.controller'
     MailRunSweeper,
     GmailThreadSweeper,
     MasMailComposer,
+    /* For `MailConsumer`, which rings a dead letter through it. */
+    MailBell,
   ],
 })
 export class MailModule {}
+
+/** The hook registry for a process that has no `QueueModule.forWorker` — the
+ *  HTTP one, whose inbound-reply door also has to ask the branch who holds a
+ *  subject. Same hand-over as `CommsModule.withHook` (ADR 0049), and a module
+ *  of its own because `MailModule` is imported statically by the very branches
+ *  whose hooks this names. */
+@Module({})
+export class MailHooksModule {
+  static with(wiring: {
+    imports: ModuleMetadata['imports']
+    hooks: Type<MailSentHook>[]
+  }): DynamicModule {
+    return {
+      module: MailHooksModule,
+      imports: wiring.imports ?? [],
+      providers: [
+        {
+          provide: MAIL_SENT_HOOK,
+          useFactory: (...resolved: MailSentHook[]): MailSentHook[] => resolved,
+          inject: wiring.hooks,
+        },
+      ],
+    }
+  }
+}
