@@ -5,15 +5,20 @@ import {
   CONTRACT_KIND_LABEL,
   CURRENCIES,
   ContractKind,
+  ContractSign,
   toMoneyVnd,
-  type ContractSign,
   type CurrencyCode,
-  type OpportunityRow,
+  type InstallmentDraft,
+  type OpportunityMoneyNegotiation,
+  type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { peopleIdOptions, useSalesPeople } from '@/data/directory'
 import { useSignContract } from '@/data/opportunities-write'
+import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/money'
+import { ScheduleEditor } from '@/components/deal-pay'
+import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
 import { Field } from './ops-fields'
 import { dmy } from '@/lib/date'
 
@@ -40,6 +45,10 @@ type SignForm = {
   signedDate: string
   /** Seeded from the row's `holder`; `''` = no override is sent. */
   ownerId: string
+  /** The pending quotation round this signature wins; `''` = none picked. */
+  quotationId: string
+  /** The payment schedule proposed with the signature; empty = none. */
+  installments: InstallmentDraft[]
 }
 
 /** Today on the USER'S calendar — slicing `toISOString()` is a day off for
@@ -70,7 +79,25 @@ function bodyOf(form: SignForm): ContractSign | null {
     currency,
     ...(form.signedDate === '' ? {} : { signedAt: signedAtOf(form.signedDate) }),
     ...(form.ownerId === '' ? {} : { ownerId: form.ownerId }),
+    ...(form.quotationId === '' ? {} : { quotationId: form.quotationId }),
+    ...(form.installments.length === 0 ? {} : { installments: form.installments }),
   }
+}
+
+const NO_QUOTATION = { value: '', label: 'Không gắn báo giá' }
+
+/** One option per negotiation still waiting for the customer. */
+function waitingOptions(op: OpportunityProfileResponse) {
+  return op.money.open.flatMap((n: OpportunityMoneyNegotiation) => {
+    if (n.pendingId === null) return []
+    const round = n.rounds.find((r) => r.id === n.pendingId)
+    const parts = [
+      kindLabel(n.kind),
+      n.amount === null ? NO_AMOUNT : compactMoney(n.amount, n.currency),
+      round && `lần ${round.roundNo}`,
+    ]
+    return [{ value: n.pendingId, label: parts.filter(Boolean).join(' · ') }]
+  })
 }
 
 const KIND_OPTIONS = [
@@ -79,7 +106,7 @@ const KIND_OPTIONS = [
 ]
 
 type Props = {
-  op: OpportunityRow
+  op: OpportunityProfileResponse
   open: boolean
   onClose: () => void
 }
@@ -98,6 +125,8 @@ export function SignDrawer({ op, open, onClose }: Props) {
       currency: op.currency ?? '',
       signedDate: localDay(new Date()),
       ownerId: op.holder?.id ?? '',
+      quotationId: '',
+      installments: [],
     }),
     [op, again],
   )
@@ -114,7 +143,29 @@ export function SignDrawer({ op, open, onClose }: Props) {
     setForm((f) => ({ ...f, [key]: value }))
 
   const body = bodyOf(form)
+  const check = body ? ContractSign.safeParse(body) : null
+  const blocked = check !== null && !check.success
+  const waiting = waitingOptions(op)
+  /* Picking a round lends its kind, value and currency; all stay editable. */
+  const pick = (pendingId: string) => {
+    const round = op.money.open.find((n) => n.pendingId === pendingId)
+    setForm((f) => ({
+      ...f,
+      quotationId: pendingId,
+      ...(round && {
+        kind: round.kind ?? f.kind,
+        amount: round.amount ?? f.amount,
+        currency: round.currency ?? f.currency,
+      }),
+    }))
+  }
   const currency = form.currency === '' ? null : form.currency
+  /* Sums that do not add up are said by the editor's own line, so the footer
+     keeps to a row's fault and never repeats the balance. */
+  const unbalanced =
+    form.installments.length > 0 &&
+    !scheduleSummary(form.installments, form.amount, currency).balanced
+  const issue = blocked && !unbalanced ? scheduleIssue(check.error) : ''
   const symbol = CURRENCIES.find((c) => c.code === currency)?.symbol ?? ''
   const owner = people.find((a) => a.id === form.ownerId)
   const busy = sign.isPending
@@ -127,6 +178,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
     <Drawer
       open={open}
       onClose={onClose}
+      width="lg"
       title={again ? 'Ký thêm hợp đồng' : 'Đề nghị ký'}
       subtitle={
         <>
@@ -152,9 +204,11 @@ export function SignDrawer({ op, open, onClose }: Props) {
               ? userMessage(sign.error)
               : busy
                 ? 'Đang gửi đề nghị ký…'
-                : body
-                  ? 'Gửi xong, đề nghị chờ duyệt.'
-                  : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'}
+                : blocked
+                  ? issue
+                  : body
+                    ? 'Gửi xong, đề nghị chờ duyệt.'
+                    : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button
@@ -170,7 +224,7 @@ export function SignDrawer({ op, open, onClose }: Props) {
             <Button
               size="md"
               className="pointer-coarse:h-12"
-              disabled={busy || body === null}
+              disabled={busy || body === null || blocked}
               onClick={() => {
                 if (!body) return
                 sign.mutate(body, {
@@ -189,6 +243,21 @@ export function SignDrawer({ op, open, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-6">
+        {waiting.length > 0 && (
+          <Field label="Báo giá được ký" plain>
+            <Select
+              label="Báo giá được ký"
+              hideLabel
+              size="lg"
+              value={form.quotationId}
+              neutralValue=""
+              onChange={pick}
+              options={[NO_QUOTATION, ...waiting]}
+              className="w-full"
+            />
+          </Field>
+        )}
+
         <Field label="Loại hợp đồng" required plain>
           <Select
             label="Loại hợp đồng"
@@ -247,6 +316,15 @@ export function SignDrawer({ op, open, onClose }: Props) {
             </span>
           )}
         </section>
+
+        <Field label="Lịch thanh toán" plain>
+          <ScheduleEditor
+            amount={form.amount}
+            currency={currency}
+            value={form.installments}
+            onChange={(next) => set('installments', next)}
+          />
+        </Field>
 
         <Field
           label="Ngày ký"

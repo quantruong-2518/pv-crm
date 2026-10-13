@@ -78,6 +78,10 @@ export const ConfigList = z.enum([
   'COMM_ANSWER',
   /** The type of a next step (call back, send a quote) — required at close-out. */
   'STEP_KIND',
+  /** Why a quotation round ended `not-closed` while the deal carried on. Not
+   *  `LOSS_REASON`: that one explains a deal that stopped. Virtual key `'other'`
+   *  needs a note, same rule. */
+  'QUOTE_REVISION_REASON',
 ])
 
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
@@ -101,6 +105,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   COMM_CRITERION: 'CQ',
   COMM_ANSWER: 'CA',
   STEP_KIND: 'SK',
+  QUOTE_REVISION_REASON: 'QR',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -111,7 +116,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 
@@ -222,6 +227,8 @@ export const ConfigUsage = z.object({
   COMM_CRITERION: Tally,
   COMM_ANSWER: Tally,
   STEP_KIND: Tally,
+  /** Keyed by config id — rounds in `sales.quotation` closed with that reason. */
+  QUOTE_REVISION_REASON: Tally,
 
   /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
    *  the generated column `sales.lead.required_filled` sums over and the config
@@ -260,6 +267,7 @@ export const ConfigBundle = z.object({
   COMM_CRITERION: z.array(ConfigEntry),
   COMM_ANSWER: z.array(ConfigEntry),
   STEP_KIND: z.array(ConfigEntry),
+  QUOTE_REVISION_REASON: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 

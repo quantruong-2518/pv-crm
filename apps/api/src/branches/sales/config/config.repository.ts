@@ -176,6 +176,14 @@ export class SalesConfigRepository {
       SELECT 'STEP_KIND', kind_id, count(*)::int
         FROM sales.next_step WHERE kind_id IS NOT NULL GROUP BY kind_id
       UNION ALL
+      /* Closed rounds carry the config id, 'other' being virtual like LOSS_REASON's. */
+      SELECT 'QUOTE_REVISION_REASON', q.reason_id, count(*)::int
+        FROM sales.quotation q
+        JOIN sales.opportunity o ON o.code = q.opportunity_code
+        JOIN sales.lead l ON l.code = o.lead_code AND l.disabled_at IS NULL
+       WHERE q.reason_id IS NOT NULL AND q.reason_id <> ${OPPORTUNITY_STOP_REASON_OTHER}
+       GROUP BY q.reason_id
+      UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL

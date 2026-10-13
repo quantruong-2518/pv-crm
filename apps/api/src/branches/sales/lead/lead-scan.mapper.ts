@@ -18,8 +18,10 @@ import type {
   ScanFile,
   ScanGroup,
   ScanPreview,
+  WorkstreamDocumentStep,
 } from '@pv/contracts'
 import type { AttachmentRowDb } from '@api/platform/storage/attachment.schema'
+import type { DocumentStepRowDb } from '../workstream/workstream-document.schema'
 import type { ScanBatchRowDb } from './lead-scan.schema'
 import type { Needles } from './lead-admission.mapper'
 import { UNKNOWN_NAME } from './lead-person-name'
@@ -131,8 +133,26 @@ export function toPreview(plan: ScanPlan, files: readonly ScanFileJoined[]): Sca
   }
 }
 
+/** The `sales.document_step` join row -> the wire step. The table's CHECK keeps
+ *  the target columns set, so the `undefined` arms are unreachable. */
+function toStep(s: DocumentStepRowDb): WorkstreamDocumentStep | undefined {
+  if (s.stepKind === 'quotation') {
+    return s.quotationId ? { kind: 'quotation', quotationId: s.quotationId } : undefined
+  }
+  if (!s.contractCode) return undefined
+  if (s.stepKind === 'contract') return { kind: 'contract', contractCode: s.contractCode }
+  return s.installmentNo
+    ? { kind: 'installment', contractCode: s.contractCode, installmentNo: s.installmentNo }
+    : undefined
+}
+
 export function toAttachment(
-  a: { row: AttachmentRowDb; createdByName: string; batchCode: string | null },
+  a: {
+    row: AttachmentRowDb
+    createdByName: string
+    batchCode: string | null
+    step?: DocumentStepRowDb | null
+  },
   url: string,
   thumbUrl: string | null,
 ): LeadAttachment {
@@ -149,6 +169,7 @@ export function toAttachment(
     createdAt: a.row.createdAt.toISOString(),
     createdBy: { id: a.row.createdBy, name: a.createdByName },
     batchCode: a.batchCode,
+    ...(a.step ? { step: toStep(a.step) } : {}),
   }
 }
 

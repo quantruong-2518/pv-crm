@@ -167,6 +167,14 @@ const answerRows = configRows(
   ),
 )
 
+/* Same four names migration 0104 plants. */
+const QUOTE_REVISION_REASONS = [
+  'Khách chê giá cao',
+  'Khách đổi số lượng',
+  'Khách đổi phạm vi',
+  'Báo giá hết hiệu lực',
+]
+
 export const configSeed = [
   ...configRows(
     'STAGE',
@@ -199,6 +207,10 @@ export const configSeed = [
   })),
   ...criterionRows,
   ...answerRows,
+  ...configRows(
+    'QUOTE_REVISION_REASON',
+    QUOTE_REVISION_REASONS.map((name) => ({ name })),
+  ),
   ...configRows(
     'STEP_KIND',
     STEP_KINDS.map((name) => ({ name })),

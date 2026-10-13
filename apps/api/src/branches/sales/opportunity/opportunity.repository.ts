@@ -26,7 +26,6 @@ import {
   type OpportunityProduct,
   type OpportunityStageBucket,
   type OpportunityStatus,
-  type TouchKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { csvOf } from '@api/platform/db/book-filter'
@@ -39,7 +38,6 @@ import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
-import { touch } from '../touch/touch.schema'
 import {
   opportunity,
   opportunityOwner,
@@ -433,21 +431,6 @@ export class OpportunityRepository {
       .where(and(eq(configEntry.list, 'LOSS_REASON'), eq(configEntry.id, id)))
       .limit(1)
     return row?.name ?? null
-  }
-
-  /** "Has this milestone been recorded?" — one EXISTS over the deal's trail.
-   *
-   *  The sign door asks it for `quotation-sent`: no quotation, no contract
-   *  (ADR 0064 §3). Read off `sales.touch` here rather than through
-   *  `TouchService`, whose one method builds the whole timeline for a screen — a
-   *  yes/no question does not load a list to filter it in Node. */
-  async hasTouch(tx: Db, code: string, kind: TouchKind): Promise<boolean> {
-    const [found] = await tx
-      .select({ one: sql`1` })
-      .from(touch)
-      .where(and(eq(touch.subjectCode, code), eq(touch.kind, kind)))
-      .limit(1)
-    return found !== undefined
   }
 
   /** Cả sổ nhân sự, một lượt đọc. Lô nạp dịch TÊN sang id, và nó dịch cho tới

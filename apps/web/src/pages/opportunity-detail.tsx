@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell } from '@pv/ui'
-import { OPPORTUNITY_CONTACT_ROLE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
+import {
+  OPPORTUNITY_CONTACT_ROLE_LABEL,
+  type OpportunityMoneyNegotiation,
+  type OpportunityProfileResponse,
+} from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import type { DealEditPart } from '@/data/deal-draft'
@@ -12,7 +16,6 @@ import {
   opportunityProfileQuery,
   railOf,
   refusalOf,
-  type EventKind,
 } from '@/data/opportunities'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { AssignSaleButton } from '@/components/opportunity-assign'
@@ -29,16 +32,18 @@ import { RunDocuments } from '@/components/run/run-documents'
 import { SignDrawer } from '@/components/sign-drawer'
 import { DealEventModal } from './opportunity-events'
 import { DealHistoryCard } from './opportunity-history'
-import { dealMoreChoices, primaryStateOf, quoteLabelOf, viewSignRequest } from './opportunity-model'
+import { dealMoreChoices, primaryStateOf, viewSignRequest } from './opportunity-model'
 import { DealEditDrawer } from './opportunity-form-card'
-import { ContractsCard, ValueStrip } from './opportunity-main'
+import { SignRequestCard, ValueStrip } from './opportunity-main'
+import { DealMoney } from './opportunity-money'
 import { DealHeader } from './opportunity-parts'
+import { QuotationModal } from './opportunity-quotation-modal'
 import { DescriptionPanel } from './opportunity-side'
 import { DealTodo } from './opportunity-status'
 
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
  *  record shell (ADR 0078): run strip, header, then the body — todo card,
- *  meetings, value, contracts, history, description — and the run rail —
+ *  sign request, money, meetings, terms, history, description — and the run rail —
  *  comms, people, files. The floating bar only reaches contacts; its more menu holds the rest.
  *
  *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
@@ -76,7 +81,9 @@ export default OpportunityDetailPage
 /** `open: false` keeps the last part so the drawer can animate out. */
 type Editing = { part: DealEditPart; open: boolean; session: number }
 /** A fresh modal per opening (`session` is its key), so its form starts clean. */
-type Recording = { kind: EventKind | null; session: number }
+type Recording = { open: boolean; session: number }
+/** `negotiation: null` = a new negotiation; kept while closing, as `Editing`. */
+type Quoting = { negotiation: OpportunityMoneyNegotiation | null; open: boolean; session: number }
 
 function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const navigate = useNavigate()
@@ -86,12 +93,16 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   /* Which contact the letter is addressed to; `null` = composer closed. */
   const [mailTo, setMailTo] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [recording, setRecording] = useState<Recording>({ kind: null, session: 0 })
+  const [recording, setRecording] = useState<Recording>({ open: false, session: 0 })
+  const [quoting, setQuoting] = useState<Quoting>({ negotiation: null, open: false, session: 0 })
   /* A fresh drawer per opening (`key`), so it seeds from the server's copy. */
   const edit = (part: Editing['part']) =>
     setEditing((prev) => ({ part, open: true, session: (prev?.session ?? 0) + 1 }))
   const closeEdit = () => setEditing((prev) => prev && { ...prev, open: false })
-  const record = (kind: EventKind) => setRecording((prev) => ({ kind, session: prev.session + 1 }))
+  const record = () => setRecording((prev) => ({ open: true, session: prev.session + 1 }))
+  const quote = (negotiation: OpportunityMoneyNegotiation | null) =>
+    setQuoting((prev) => ({ negotiation, open: true, session: prev.session + 1 }))
+  const quoteNew = () => quote(null)
   const sign = () => setSigning(true)
 
   const canAccept = useCan('opportunity.accept')
@@ -109,6 +120,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const primary = primaryStateOf(op, { accept: canAccept, close: canClose })
   const more = dealMoreChoices(op, primary.move, canClose, {
     onRecord: record,
+    onQuote: quoteNew,
     onSign: sign,
     onEditOwners: () => edit('owners'),
     onStop: () => setStopping(true),
@@ -125,17 +137,15 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           fallback={railOf(op.chain, op.code, navigate)}
         />
       }
-      header={<DealHeader op={op} lead={lead} onRename={() => edit('details')} />}
+      header={<DealHeader op={op} lead={lead} />}
       main={
         <>
-          <DealTodo op={op} primary={primary} onSign={sign} onRecord={record} />
+          <DealTodo op={op} primary={primary} onSign={sign} onQuote={quoteNew} />
           {op.state === 'lost' && <FailLogCard op={op} />}
+          <SignRequestCard op={op} onView={historyOpen ? viewSignRequest : undefined} />
+          <DealMoney op={op} onQuote={quote} />
           <MeetingsCard subject={subject} canEdit={canMeet} />
           <ValueStrip op={op} onEdit={() => edit('terms')} />
-          <ContractsCard
-            op={op}
-            onViewRequest={historyOpen && op.pendingSign ? viewSignRequest : undefined}
-          />
           <DealHistoryCard op={op} />
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
         </>
@@ -195,9 +205,15 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       <DealEventModal
         key={recording.session}
         op={op}
-        kind={recording.kind}
-        quoteLabel={quoteLabelOf(op)}
-        onClose={() => setRecording((prev) => ({ ...prev, kind: null }))}
+        open={recording.open}
+        onClose={() => setRecording((prev) => ({ ...prev, open: false }))}
+      />
+      <QuotationModal
+        key={`quote-${quoting.session}`}
+        op={op}
+        negotiation={quoting.negotiation}
+        open={quoting.open}
+        onClose={() => setQuoting((prev) => ({ ...prev, open: false }))}
       />
       {editing && (
         <DealEditDrawer

@@ -4,6 +4,7 @@ import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
 import {
   OWNER_NONE,
   type ContractBookQuery,
+  type InstallmentDraft,
   type ContractParticipant,
   type ContractMonthPoint,
   type ContractSummary,
@@ -14,6 +15,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
+import { fromDraft } from './contract.mapper'
 import { opportunityOwner } from '../opportunity/opportunity.schema'
 import { contractParticipant } from './contract-participant.schema'
 import {
@@ -62,6 +64,8 @@ export type ContractBookPage = {
  *  book's. */
 export type InstallmentRead = {
   row: ContractInstallmentRowDb
+  /** NULL on an unpaid row and on one collected before the recorder was kept. */
+  paidByName: string | null
   conditions: ContractConditionRowDb[]
   docs: ContractDocumentRowDb[]
   records: ContractRecordRowDb[]
@@ -202,6 +206,44 @@ export class ContractRepository {
     return written
   }
 
+  /** Instalments 1..n for a contract that has none — the sign transaction's
+   *  call. Replacing a live schedule goes through `ContractScheduleRepository`,
+   *  which updates in place. */
+  async insertInstallments(
+    tx: Db,
+    contractCode: string,
+    drafts: InstallmentDraft[],
+  ): Promise<void> {
+    if (drafts.length === 0) return
+    await tx
+      .insert(contractInstallment)
+      .values(drafts.map((draft, i) => fromDraft(contractCode, draft, i + 1)))
+  }
+
+  /** The scope axis' verdict on one contract, without loading it: `null` = no
+   *  such contract (or its lead is off), `false` = not this reader's. */
+  async inScope(who: Actor, code: string): Promise<boolean | null> {
+    const [found] = await this.db
+      .select({ inScope: this.inScopeValue(who) })
+      .from(contract)
+      .innerJoin(lead, ON_LEAD)
+      .where(and(eq(contract.code, code), leadLive))
+      .limit(1)
+    return found ? found.inScope : null
+  }
+
+  /** `inScope` for many contracts in ONE read: the codes among `codes` that the
+   *  contract door would open for this reader. */
+  async inScopeAmong(who: Actor, codes: readonly string[]): Promise<Set<string>> {
+    if (codes.length === 0) return new Set()
+    const rows = await this.db
+      .select({ code: contract.code, inScope: this.inScopeValue(who) })
+      .from(contract)
+      .innerJoin(lead, ON_LEAD)
+      .where(and(inArray(contract.code, [...codes]), leadLive))
+    return new Set(rows.filter((r) => r.inScope).map((r) => r.code))
+  }
+
   /** Mọi hợp đồng của một cơ hội, cũ nhất trước — đơn thắng ký thêm được
    *  (ADR 0069 §5).
    *
@@ -322,6 +364,17 @@ export class ContractRepository {
         .orderBy(desc(contractNote.at), asc(contractNote.id)),
     ])
 
+    const rows = schedule.get(code) ?? []
+    const payers = new Set(rows.flatMap((r) => (r.paidById ? [r.paidById] : [])))
+    const payerNames = new Map<string, string>()
+    if (payers.size > 0) {
+      const named = await this.db
+        .select({ id: actor.id, name: actor.name })
+        .from(actor)
+        .where(inArray(actor.id, [...payers]))
+      for (const p of named) payerNames.set(p.id, p.name)
+    }
+
     const byNo = {
       conditions: groupByInstallment(conditions),
       docs: groupByInstallment(docs),
@@ -332,8 +385,9 @@ export class ContractRepository {
     return {
       ...found,
       participants: people.get(code) ?? [],
-      installments: (schedule.get(code) ?? []).map((row) => ({
+      installments: rows.map((row) => ({
         row,
+        paidByName: (row.paidById && payerNames.get(row.paidById)) || null,
         conditions: byNo.conditions.get(row.no) ?? [],
         docs: byNo.docs.get(row.no) ?? [],
         records: byNo.records.get(row.no) ?? [],
@@ -464,7 +518,7 @@ export class ContractRepository {
     }))
   }
 
-  private async installmentsOf(codes: string[]): Promise<Map<string, ContractInstallmentRowDb[]>> {
+  async installmentsOf(codes: string[]): Promise<Map<string, ContractInstallmentRowDb[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await this.db

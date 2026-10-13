@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  Accordion,
   Bell,
   CalendarDays,
   Factory,
@@ -804,6 +805,32 @@ export function ZoneMolecules() {
               { icon: FileCheck, label: 'Thành hợp đồng', value: '6%', context: '6 hợp đồng' },
             ]}
           />
+        </SpecCard>
+
+        {/* M-20 */}
+        <SpecCard
+          className="col-span-3"
+          code="M-20"
+          name="Accordion"
+          note="một dòng mở ra chi tiết"
+          bodyClassName="px-4 py-5"
+          footer={
+            <>
+              Dòng đóng vẫn trả lời bằng `summary`. Không tự vẽ nền: thẻ của màn là nền. Mở sẵn bằng
+              `defaultOpen` khi nội dung là việc đang chạy.
+            </>
+          }
+        >
+          <Accordion title="Báo giá" summary="2 lần · 460 → 420 tr" defaultOpen>
+            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+              Lần 2 · 22/07 · Thắng
+            </p>
+          </Accordion>
+          <Accordion title="Tài liệu đã ký" summary="2 tệp">
+            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+              Hợp đồng triển khai.pdf
+            </p>
+          </Accordion>
         </SpecCard>
       </ZoneBody>
     </section>

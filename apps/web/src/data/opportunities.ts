@@ -522,17 +522,17 @@ export const standingLabel = (op: Pick<OpportunityRow, 'state' | 'stage'>): stri
 export type EventKind = 'activity' | 'quotation'
 
 /** What recording a fact does now. `atAssigned`: a quotation skips `engaged`
- *  (the screen confirms first) and a first activity enters it. `nextRound` is
- *  the quotation's n-th send — on a won deal, a new round. */
-export type EventOffer = { nextRound: number; atAssigned: boolean }
+ *  (the screen confirms first) and a first activity enters it. The round
+ *  number is the server's, assigned under the deal lock. */
+export type EventOffer = { atAssigned: boolean }
 
 /** The offer, or `null` when the server's verdict (`acts`) refuses the door. */
 export function eventOfferOf(
-  op: Pick<OpportunityProfileResponse, 'acts' | 'stage' | 'quotationRounds'>,
+  op: Pick<OpportunityProfileResponse, 'acts' | 'stage'>,
   kind: EventKind,
 ): EventOffer | null {
   if (!op.acts[kind].ok) return null
-  return { nextRound: op.quotationRounds + 1, atAssigned: op.stage === 'assigned' }
+  return { atAssigned: op.stage === 'assigned' }
 }
 
 /** The server's sentence for a refused door, or `null` when it is open. */

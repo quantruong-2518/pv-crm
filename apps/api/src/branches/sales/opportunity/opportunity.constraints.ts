@@ -15,6 +15,17 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  Tên ô ở `fields` là tên theo HỢP ĐỒNG (`saleOwners`, `expectedClose`), không
  *  phải tên cột — màn tô đỏ theo tên nó biết. */
 export const OPPORTUNITY_CONSTRAINTS: ConstraintBook = {
+  /** `sales.quotation` (ADR 0090). Numbers are minted under the deal lock, so
+   *  only a writer that skipped it trips these: reload, nothing to fix. */
+  quotation_round_uq: {
+    kind: 'conflict',
+    message: 'Cơ hội vừa có lần báo giá khác được ghi. Tải lại rồi thử lại.',
+  },
+  quotation_one_pending_uq: {
+    kind: 'conflict',
+    message: 'Cơ hội vừa có lần báo giá khác được ghi. Tải lại rồi thử lại.',
+  },
+
   /** Tiền luôn mang đơn vị. Cửa `POST /sales/opportunities` đòi cả hai nên zod
    *  chặn trước; đây là lưới cho cửa ghi thứ hai của ngày mai. */
   opportunity_money_pair: {

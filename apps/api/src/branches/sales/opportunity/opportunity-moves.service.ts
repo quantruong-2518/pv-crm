@@ -19,7 +19,7 @@ import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifec
 import { daysInStageOf, NOTE } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
-/** The two doors that MOVE a deal (ADR 0064 §3, 0069 §1): record a milestone,
+/** The two doors that MOVE a deal (ADR 0064 §3, 0069 §1): record a care activity,
  *  stop it for good. One shape for both, and it is the lead
  *  exit door's shape: read for the two refusals (404 / out of scope), open the
  *  transaction, lock the row, re-read it UNDER the lock, hand the move to
@@ -43,8 +43,10 @@ export class OpportunityMoves {
     private readonly facts: OpportunityFacts,
   ) {}
 
-  /** `POST /sales/opportunities/:code/milestones` — a care activity or a
-   *  quotation was recorded, and the column follows where ADR 0072 says so. */
+  /** `POST /sales/opportunities/:code/milestones` — a care activity was
+   *  recorded, and the column follows where ADR 0072 says so. Care activities
+   *  only: the body's zod refuses a quotation, which has its own door and
+   *  ledger (ADR 0090). */
   async milestone(
     who: Actor,
     code: ObjectCode,
@@ -116,7 +118,7 @@ export class OpportunityMoves {
 
   /** The same two refusals every read door of this module makes, in the same
    *  words — see `OpportunityService.profile` for why both are a 404. */
-  private async inScope(who: Actor, code: ObjectCode): Promise<OpportunityRead> {
+  async inScope(who: Actor, code: ObjectCode): Promise<OpportunityRead> {
     const found = await this.deals.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
     return found
@@ -126,11 +128,7 @@ export class OpportunityMoves {
    *  included, so an owners edit that landed while this waited is judged too.
    *  `pendingSign` comes from the LOCK read: it is the fact a move must never
    *  race with the sign door's own apply step. */
-  private async locked(
-    tx: Db,
-    who: Actor,
-    code: ObjectCode,
-  ): Promise<DealAt & { ownerIds: string[] }> {
+  async locked(tx: Db, who: Actor, code: ObjectCode): Promise<DealAt & { ownerIds: string[] }> {
     const lock = await this.deals.lockDeal(tx, code)
     if (!lock) throw notFound('cơ hội', code)
     const fresh = await this.deals.byCode(who, code, tx)

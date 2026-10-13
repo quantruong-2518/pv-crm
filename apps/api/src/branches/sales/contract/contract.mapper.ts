@@ -6,6 +6,7 @@ import type {
   ContractSign,
   InstallmentConditionRow,
   InstallmentDocRow,
+  InstallmentDraft,
   InstallmentNoteRow,
   InstallmentRecordRow,
   InstallmentRow,
@@ -13,6 +14,7 @@ import type {
 } from '@pv/contracts'
 import type {
   contract,
+  contractInstallment,
   ContractConditionRowDb,
   ContractDocumentRowDb,
   ContractInstallmentRowDb,
@@ -25,6 +27,23 @@ import type {
  *  chỗ đó, và khác có lý do: mã hợp đồng KHÔNG suy được từ dòng, nó do dãy cấp,
  *  nên không có bản nháp nào hợp lệ mà thiếu mã. */
 export type ContractValues = typeof contract.$inferInsert
+
+/** One schedule line as typed -> the row at position `no`. The sign door and the
+ *  schedule door both write instalments, so the column mapping lives once. */
+export function fromDraft(
+  contractCode: string,
+  draft: InstallmentDraft,
+  no: number,
+): typeof contractInstallment.$inferInsert {
+  return {
+    contractCode,
+    no,
+    label: draft.label,
+    share: draft.share,
+    amount: draft.amount,
+    due: new Date(draft.due),
+  }
+}
 
 /** Request body + deal row → columns.
  *
@@ -140,6 +159,7 @@ export function toDetail(read: {
   contactRole: string | null
   installments: {
     row: ContractInstallmentRowDb
+    paidByName: string | null
     conditions: ContractConditionRowDb[]
     docs: ContractDocumentRowDb[]
     records: ContractRecordRowDb[]
@@ -172,6 +192,7 @@ function toInstallmentSummary(row: ContractInstallmentRowDb): InstallmentSummary
 
 function toInstallment(read: {
   row: ContractInstallmentRowDb
+  paidByName: string | null
   conditions: ContractConditionRowDb[]
   docs: ContractDocumentRowDb[]
   records: ContractRecordRowDb[]
@@ -179,6 +200,14 @@ function toInstallment(read: {
 }): InstallmentRow {
   return {
     ...toInstallmentSummary(read.row),
+    /* Both or neither, like owner id/name: a recorder without a name would
+       print as nobody, and a seeded paid row has no recorder at all. */
+    ...(read.row.paidById && read.paidByName && read.row.paidRecordedAt
+      ? {
+          paidBy: { id: read.row.paidById, name: read.paidByName },
+          paidRecordedAt: read.row.paidRecordedAt.toISOString(),
+        }
+      : {}),
     conditions: read.conditions.map(toCondition),
     docs: read.docs.map(toDoc),
     records: read.records.map(toRecord),

@@ -715,6 +715,13 @@
       "when": 1792134300000,
       "tag": "0103_notification_push",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1792220700000,
+      "tag": "0104_quotation_ledger",
+      "breakpoints": true
     }
   ]
 }

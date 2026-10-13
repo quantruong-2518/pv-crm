@@ -144,6 +144,10 @@ export const contractInstallment = sales.table(
     due: timestamp('due', { withTimezone: true }).notNull(),
     /** When the money landed. NULL = not collected yet. */
     paidAt: timestamp('paid_at', { withTimezone: true }),
+    /** Who recorded the payment and when they did — apart from `paid_at`, the
+     *  day the money landed, which may be back-dated. Only this person may undo it. */
+    paidById: text('paid_by_id').references(() => actor.id),
+    paidRecordedAt: timestamp('paid_recorded_at', { withTimezone: true }),
   },
   (t) => [
     /** Doubles as the index for "the installments of this contract" — it leads
@@ -151,6 +155,13 @@ export const contractInstallment = sales.table(
     primaryKey({ name: 'contract_installment_pk', columns: [t.contractCode, t.no] }),
     check('contract_installment_no_positive', sql`"no" > 0`),
     check('contract_installment_share_range', sql`"share" BETWEEN 0 AND 100`),
+    /** A recorder is a name and a moment, on a paid row only. ONE-WAY: seeded
+     *  rows and those paid before 0104 have `paid_at` and no recorder. */
+    check(
+      'contract_installment_paid_recorder',
+      sql`("paid_by_id" IS NULL) = ("paid_recorded_at" IS NULL)
+          AND ("paid_by_id" IS NULL OR "paid_at" IS NOT NULL)`,
+    ),
   ],
 )
 

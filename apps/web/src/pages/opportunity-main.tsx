@@ -1,35 +1,26 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { FileText, Pencil } from '@pv/ui'
-import { Badge, Button, GlassCard, Icon, MetaPill, SectionTitle } from '@pv/ui'
+import { Badge, Button, GlassCard, Icon, MetaPill } from '@pv/ui'
 import { CONTRACT_KIND_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
-import { useCan } from '@/app/auth'
-import { dm, dmhm, dmy } from '@/lib/date'
-import { lanesText } from '@/data/opportunities'
-import { moneyText } from './opportunity-model'
+import { dmhm, dmy } from '@/lib/date'
+import { compactMoney } from '@/components/deal-money/money'
 
-/** Module 3 · the deal's working cards — its value and its contracts (ADR
- *  0077 §1, §2; ADR 0078 §1). One place per fact: how many contracts are
- *  signed and what waits on a signature are said in the contracts card only.
+/** Module 3 · the deal's terms and the sign request waiting on it (ADR 0077
+ *  §1, §2; ADR 0078 §1). What is signed, collected and quoted is the money
+ *  block's (`components/deal-money`), so the terms strip keeps the estimate only.
  *
- *  The value strip is read-only; its edit button opens the terms drawer and
+ *  The terms strip is read-only; its edit button opens the terms drawer and
  *  shows only while `acts.editTerms` opens it. */
 
 type Profile = OpportunityProfileResponse
 
 export function ValueStrip({ op, onEdit }: { op: Profile; onEdit: () => void }) {
-  const signed = op.signedTotal
-
   return (
     <GlassCard className="flex flex-col gap-3 p-4 sm:p-5" aria-label="Giá trị cơ hội">
       <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
-        <Fact label={signed ? 'Giá trị đơn' : 'Giá trị dự kiến'}>
+        <Fact label="Giá trị dự kiến">
           <span className="tnum text-[20px] font-semibold leading-[1.3]">
-            {signed
-              ? moneyText(signed.amount, signed.currency)
-              : op.amount === null
-                ? 'Chưa có'
-                : moneyText(op.amount, op.currency)}
+            {op.amount === null ? 'Chưa có' : compactMoney(op.amount, op.currency)}
           </span>
         </Fact>
         <Fact label="Ngày chốt dự kiến">
@@ -73,111 +64,38 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Signed papers and the request waiting on one (ADR 0077 §2). No sign door
- *  here: the first contract is the todo card's win, a second one is in the
- *  floating bar's more menu. */
-export function ContractsCard({
+/** The `contract-sign` request waiting on a decision. No sign door here: the
+ *  first contract is the todo card's win, a second one is in the more menu. */
+export function SignRequestCard({
   op,
-  onViewRequest,
+  onView,
 }: {
   op: Profile
   /** Absent = this reader has nowhere to read the request. */
-  onViewRequest?: (() => void) | undefined
+  onView?: (() => void) | undefined
 }) {
-  const navigate = useNavigate()
-  /* Parked contract screens answer no here, so the row offers no dead door. */
-  const canOpen = useCan('contract.view')
   const pending = op.pendingSign
-  if (op.contracts.length === 0 && !pending) return null
+  if (!pending) return null
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-3 p-4 sm:p-5" aria-label="Hợp đồng">
-      <SectionTitle size="detail">Hợp đồng</SectionTitle>
-
-      <ul className="m-0 flex list-none flex-col p-0">
-        {op.contracts.map((c) => (
-          <ContractLine
-            key={c.code}
-            code={<span className="font-mono">{c.code}</span>}
-            kind={c.kind ? CONTRACT_KIND_LABEL[c.kind] : 'Chưa ghi loại'}
-            when={[`ký ${dm(c.signedAt)}`, c.owner?.name].filter(Boolean).join(' · ')}
-            signers={lanesText(c.participants)}
-            amount={c.amount === null ? '—' : moneyText(c.amount, c.currency)}
-            status={<Badge tone="success">Đã ký</Badge>}
-            action={
-              canOpen && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  className="pointer-coarse:h-12"
-                  onClick={() => navigate(`/sales/contracts/${encodeURIComponent(c.code)}`)}
-                >
-                  Mở hợp đồng
-                </Button>
-              )
-            }
-          />
-        ))}
-        {pending && (
-          <ContractLine
-            code={<span className="text-muted-foreground">Chưa có mã</span>}
-            kind={CONTRACT_KIND_LABEL[pending.kind]}
-            when={`gửi ${dmhm(pending.raisedAt)} · ${pending.raisedBy}`}
-            amount={moneyText(pending.amount, pending.currency)}
-            status={<Badge tone="warning">Chờ duyệt</Badge>}
-            action={
-              onViewRequest && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  className="pointer-coarse:h-12"
-                  onClick={onViewRequest}
-                >
-                  <Icon icon={FileText} size={16} />
-                  Xem đề nghị
-                </Button>
-              )
-            }
-          />
-        )}
-      </ul>
-    </GlassCard>
-  )
-}
-
-function ContractLine({
-  code,
-  kind,
-  when,
-  signers,
-  amount,
-  status,
-  action,
-}: {
-  code: ReactNode
-  kind: string
-  when: string
-  /** The deal's people frozen at signing; absent on a request not yet signed. */
-  signers?: string
-  amount: string
-  status: ReactNode
-  action: ReactNode
-}) {
-  return (
-    <li className="grid items-center gap-x-4 gap-y-1 py-3 text-[13px] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+    <GlassCard
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-[13px] sm:p-5"
+      aria-label="Đề nghị ký hợp đồng"
+    >
       <span className="flex min-w-0 flex-col gap-1">
-        <span className="flex flex-wrap items-center gap-2">
-          {code}
-          <span className="text-foreground">{kind}</span>
+        <span className="text-foreground">Đề nghị ký · {CONTRACT_KIND_LABEL[pending.kind]}</span>
+        <span className="text-muted-foreground tnum text-[11.5px]">
+          gửi {dmhm(pending.raisedAt)} · {pending.raisedBy}
         </span>
-        <span className="text-muted-foreground tnum text-[11.5px]">{when}</span>
-        {signers && (
-          <span className="text-muted-foreground text-[11.5px]">PIC lúc ký: {signers}</span>
-        )}
       </span>
-      <span className="tnum font-semibold sm:text-right">{amount}</span>
-      <span className="flex">{status}</span>
-      <span className="flex sm:justify-end">{action}</span>
-    </li>
+      <span className="tnum font-semibold">{compactMoney(pending.amount, pending.currency)}</span>
+      <Badge tone="warning">Chờ duyệt</Badge>
+      {onView && (
+        <Button size="md" variant="ghost" className="pointer-coarse:h-12 ml-auto" onClick={onView}>
+          <Icon icon={FileText} size={16} />
+          Xem đề nghị
+        </Button>
+      )}
+    </GlassCard>
   )
 }

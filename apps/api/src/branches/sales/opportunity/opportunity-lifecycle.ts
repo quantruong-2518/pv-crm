@@ -5,7 +5,6 @@ import {
   OPPORTUNITY_STOP_REASON_OTHER,
   StageKey,
   type CareActivityKind,
-  type OpportunityMilestoneKind,
   type OpportunityStopBody,
   type TouchKind,
 } from '@pv/contracts'
@@ -15,6 +14,7 @@ import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { dropStep } from '../next-step/next-step.handover'
+import { QuotationRepository } from '../quotation/quotation.repository'
 import { TouchService } from '../touch/touch.service'
 import { MILESTONE_TOUCH, NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
@@ -68,12 +68,19 @@ export const dealAtOf = (
 
 type By = { id: string; name: string }
 
+type MilestoneOpts = { at?: Date | undefined; note?: string | undefined }
+
+/** What a recorded quotation hands its ledger row: the deal as it now stands,
+ *  the moment stored, and the timeline row to point at. */
+export type QuotationSent = { row: OpportunityRowDb; at: Date; touchId: string }
+
 @Injectable()
 export class OpportunityLifecycle {
   constructor(
     private readonly repo: OpportunityRepository,
     private readonly mirror: ObjectMirror,
     private readonly touch: TouchService,
+    private readonly quotes: QuotationRepository,
   ) {}
 
   /** `new` → `assigned`: `by` accepted the deal (ADR 0071 §3). The acceptor is
@@ -105,24 +112,22 @@ export class OpportunityLifecycle {
     return written
   }
 
-  /** A milestone was recorded — `POST /:code/milestones` (ADR 0072). Refused
-   *  by `careVerdict` (lost, still at `new`), then by the date against its
-   *  floor (`floors`). `at` defaults to now and is the moment every row
-   *  written here carries. */
+  /** A care activity was recorded — `POST /:code/milestones` (ADR 0072).
+   *  Refused by `careVerdict` (lost, still at `new`), then by the date against
+   *  its floor (`floors`). `at` defaults to now and is the moment every row
+   *  written here carries. A quotation has its own door and ledger (ADR 0090). */
   async milestone(
     tx: Db,
     deal: DealAt,
-    kind: OpportunityMilestoneKind,
+    kind: CareActivityKind,
     by: By,
-    opts: { at?: Date | undefined; note?: string | undefined },
+    opts: MilestoneOpts,
   ): Promise<OpportunityRowDb> {
-    const care = careVerdict(deal, kind === 'quotation' ? 'quotation' : 'activity')
+    const care = careVerdict(deal, 'activity')
     if (!care.ok) throw conflict(care.reason)
     const floor = await this.floors(tx, deal)
     const step = { asked: opts.at, now: new Date(), note: NOTE.milestone(kind, opts.note) }
-    return kind === 'quotation'
-      ? this.quotation(tx, deal, care.stage, by, step, floor.quotation)
-      : this.activity(tx, deal, care.stage, kind, by, step, floor.activity)
+    return this.activity(tx, deal, care.stage, kind, by, step, floor.activity)
   }
 
   /** The earliest moment each care door accepts (ADR 0072 §3–4): an activity
@@ -175,25 +180,25 @@ export class OpportunityLifecycle {
     return written
   }
 
-  /** A quotation: forward-only into `quotation`, skipping `engaged` when none
-   *  was recorded. Re-recording it while standing there, or on a won deal
-   *  (`from: null`), is another round — the timeline row only, so the rot clock
-   *  is not pushed back. Its moment may not precede its floor (`floors`). */
-  private async quotation(
-    tx: Db,
-    deal: DealAt,
-    from: StageKey | null,
-    by: By,
-    step: Step,
-    floor: Date,
-  ): Promise<OpportunityRowDb> {
+  /** A quotation was sent: the timeline row, and forward-only into `quotation`
+   *  (skipping `engaged` when none was recorded). Standing there already, or on
+   *  a won deal, it is another round — the rot clock is not pushed back. Its
+   *  moment may not precede its floor (`floors`). `QuotationService.record` is
+   *  the ONE caller: it writes the ledger row that points at `touchId`. */
+  async quotation(tx: Db, deal: DealAt, by: By, opts: MilestoneOpts): Promise<QuotationSent> {
+    const care = careVerdict(deal, 'quotation')
+    if (!care.ok) throw conflict(care.reason)
+    const from = care.stage
     const code = deal.row.code
+    const floor = (await this.floors(tx, deal)).quotation
+    const note = NOTE.milestone('quotation', opts.note)
+    const step = { asked: opts.at, now: new Date(), note, field: 'sentAt' as const }
     const floorName = from === null ? 'ngày ký hợp đồng gần nhất' : 'ngày vào cột hiện tại'
     const at = effectiveAt(step, floor, floorName)
 
     if (from === null || from === 'quotation') {
-      await this.record(tx, code, MILESTONE_TOUCH.quotation, by, step.note, at)
-      return deal.row
+      const touchId = await this.record(tx, code, MILESTONE_TOUCH.quotation, by, step.note, at)
+      return { row: deal.row, at, touchId }
     }
 
     const [written] = await tx
@@ -213,8 +218,8 @@ export class OpportunityLifecycle {
     if (!written) throw raced(code)
 
     const kind = MILESTONE_TOUCH.quotation
-    await this.after(tx, deal, written, by, { at, from, kind, note: step.note })
-    return written
+    const touchId = await this.after(tx, deal, written, by, { at, from, kind, note: step.note })
+    return { row: written, at, touchId }
   }
 
   /** The latest contract's signing instant — a won deal's quotation floor. */
@@ -281,6 +286,7 @@ export class OpportunityLifecycle {
       kind: 'exited',
       note: NOTE.stopped(body.reasonKey, body.note),
     })
+    await this.quotes.closeForStop(tx, code, body.reasonKey, at)
     await dropStep(tx, code)
     return written
   }
@@ -334,7 +340,7 @@ export class OpportunityLifecycle {
     written: OpportunityRowDb,
     by: By,
     step: { at: Date; from: StageKey | null; kind: TouchKind; note: string },
-  ): Promise<void> {
+  ): Promise<string> {
     await this.repo.insertStageEvent(
       tx,
       stageEventOf({
@@ -347,8 +353,9 @@ export class OpportunityLifecycle {
         note: step.note,
       }),
     )
-    await this.record(tx, written.code, step.kind, by, step.note, step.at)
+    const touchId = await this.record(tx, written.code, step.kind, by, step.note, step.at)
     await this.mirror.put(tx, toRef(written, deal.owner))
+    return touchId
   }
 
   private async record(
@@ -358,8 +365,8 @@ export class OpportunityLifecycle {
     by: By,
     note: string,
     at: Date,
-  ): Promise<void> {
-    await this.touch.record(tx, [
+  ): Promise<string> {
+    const [id] = await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'opportunity',
@@ -370,6 +377,8 @@ export class OpportunityLifecycle {
         at,
       },
     ])
+    if (!id) throw new Error(`sales.touch: INSERT ${kind} on ${code} returned no row`)
+    return id
   }
 }
 
@@ -418,7 +427,7 @@ const lostSentence = (code: string, action: string) =>
 export const vnDay = (at: Date): string => VN_DAY.format(at)
 
 /** What a milestone door hands its two paths: the moment asked for, if any. */
-type Step = { asked: Date | undefined; now: Date; note: string }
+type Step = { asked: Date | undefined; now: Date; note: string; field?: 'sentAt' }
 
 /** The moment a milestone is stored at. The screen picks a DAY, so the bounds
  *  are Vietnam days: [the floor's day, today] or a 400 on `at`. Inside them the
@@ -427,11 +436,13 @@ type Step = { asked: Date | undefined; now: Date; note: string }
 function effectiveAt(step: Step, floor: Date, floorName: string): Date {
   const { asked, now } = step
   if (asked === undefined) return now
+  /* The body key the refusal is filed under: `at`, or the quotation door's. */
+  const field = step.field ?? 'at'
   const day = VN_DAY.format(asked)
-  if (day > VN_DAY.format(now)) throw invalid({ at: ['Ngày ghi không được sau hôm nay.'] })
+  if (day > VN_DAY.format(now)) throw invalid({ [field]: ['Ngày ghi không được sau hôm nay.'] })
   if (day < VN_DAY.format(floor)) {
     throw invalid({
-      at: [`Ngày ghi không được trước ${floorName} (${VN_DAY_SHOWN.format(floor)}).`],
+      [field]: [`Ngày ghi không được trước ${floorName} (${VN_DAY_SHOWN.format(floor)}).`],
     })
   }
   if (day === VN_DAY.format(now)) return now

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { LeadAttachment } from '@pv/contracts'
+import type { LeadAttachment, WorkstreamDocumentStep } from '@pv/contracts'
 import { Button, Drawer, FileText, FileUp, Icon, Skeleton, Trash2, cn } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
@@ -7,8 +7,7 @@ import { toastFail } from '@/app/toast'
 import { fileSizeLabel } from '@/data/comm-record-detail'
 import {
   DOCUMENT_EXTENSIONS,
-  DOCUMENT_MAX_BYTES,
-  documentMimeOf,
+  checkFiles,
   useDeleteDocument,
   useRefreshDocuments,
   useUploadDocument,
@@ -17,8 +16,6 @@ import {
 import { RunBlock } from './run-block'
 
 const NEWEST = 5
-/* One drop is a handful of files; the rest is dropped again. */
-const MAX_PER_DROP = 10
 
 /** The run's documents block, the same on the lead, the deal and the contract:
  *  a drop zone, the five newest, and the rest behind a "see more" drawer.
@@ -51,7 +48,12 @@ function Documents({ code }: { code: string }) {
         <>
           <DocList code={code} rows={rows.slice(0, NEWEST)} />
           {rows.length > NEWEST && (
-            <Button size="sm" variant="ghost" className="self-start" onClick={() => setAll(true)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="pointer-coarse:h-12 self-start"
+              onClick={() => setAll(true)}
+            >
               Xem thêm ({rows.length - NEWEST})
             </Button>
           )}
@@ -70,7 +72,7 @@ function Documents({ code }: { code: string }) {
   )
 }
 
-function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }) {
+export function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }) {
   const remove = useDeleteDocument(code)
   const me = useSession((st) => st.actor?.id)
 
@@ -118,41 +120,44 @@ function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }) {
 }
 
 /** Many files, one at a time: the contract has no batch door, and a failure
- *  names its own file instead of sinking the rest. */
-function DropZone({ code }: { code: string }) {
+ *  names its own file instead of sinking the rest. `step` tags every upload. */
+export function DropZone({ code, step }: { code: string; step?: WorkstreamDocumentStep }) {
   const upload = useUploadDocument(code)
   const refresh = useRefreshDocuments(code)
-  const picker = useRef<HTMLInputElement>(null)
-  const depth = useRef(0)
-  const [over, setOver] = useState(false)
   const [problems, setProblems] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
 
   const take = async (list: FileList | null) => {
     const picked = Array.from(list ?? [])
-    const files = picked.slice(0, MAX_PER_DROP)
-    if (files.length === 0 || busy) return
+    if (picked.length === 0 || busy) return
     setBusy(true)
-    const failed: string[] =
-      picked.length > files.length
-        ? [
-            `Mỗi lần tối đa ${MAX_PER_DROP} tệp, ${picked.length - files.length} tệp còn lại chưa tải.`,
-          ]
-        : []
-    for (const file of files) {
-      if (!documentMimeOf(file)) failed.push(`“${file.name}”: loại tệp không nhận.`)
-      else if (file.size > DOCUMENT_MAX_BYTES) {
-        failed.push(`“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt 5 MB.`)
-      } else {
-        await upload.mutateAsync(file).catch((e: unknown) => {
-          failed.push(`“${file.name}”: ${isApiError(e) ? userMessage(e) : 'không tải lên được.'}`)
-        })
-      }
+    const { ok, problems: failed } = checkFiles(picked)
+    for (const file of ok) {
+      await upload.mutateAsync({ file, step }).catch((e: unknown) => {
+        failed.push(`“${file.name}”: ${isApiError(e) ? userMessage(e) : 'không tải lên được.'}`)
+      })
     }
     await refresh()
     setProblems(failed)
     setBusy(false)
   }
+
+  return <DropArea busy={busy} problems={problems} onPick={(list) => void take(list)} />
+}
+
+/** The drop surface alone, for a caller that decides what to do with the files. */
+export function DropArea({
+  busy,
+  problems,
+  onPick,
+}: {
+  busy: boolean
+  problems: string[]
+  onPick: (list: FileList | null) => void
+}) {
+  const picker = useRef<HTMLInputElement>(null)
+  const depth = useRef(0)
+  const [over, setOver] = useState(false)
 
   return (
     <div className="flex flex-col gap-2">
@@ -174,7 +179,7 @@ function DropZone({ code }: { code: string }) {
           e.preventDefault()
           depth.current = 0
           setOver(false)
-          void take(e.dataTransfer.files)
+          onPick(e.dataTransfer.files)
         }}
         className={cn(
           'drop-dots motion-std relative flex flex-col items-center gap-2 rounded-lg px-4 py-5 text-center',
@@ -205,12 +210,16 @@ function DropZone({ code }: { code: string }) {
           type="file"
           multiple
           accept={DOCUMENT_EXTENSIONS.join(',')}
-          onChange={(e) => void take(e.target.files)}
+          onChange={(e) => onPick(e.target.files)}
           className="hidden"
         />
       </div>
       {problems.map((p) => (
-        <p key={p} role="alert" className="text-destructive m-0 text-[12px] leading-[1.5]">
+        <p
+          key={p}
+          role="alert"
+          className="text-destructive-foreground m-0 text-[12px] leading-[1.5]"
+        >
           {p}
         </p>
       ))}

@@ -29,7 +29,9 @@
     "//db:reset:staff": "XOÁ SẠCH sales + platform rồi dựng lại sổ nhân sự thật từ src/staff.ts — bảy tài khoản, mỗi vai một người, cùng DEFAULT_PASSWORD. Destructive hơn db:seed: không nạp lại dữ liệu nào cả. Mặc định xem trước; phải thêm --apply mới ghi.",
     "db:reset:staff": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/reset-staff.ts",
     "//db:backfill:admission-keys": "Fills the admission key columns (migration 0097) on rows written before the gate. Preview by default; --apply writes. Idempotent.",
-    "db:backfill:admission-keys": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/lead/lead-admission.backfill.ts"
+    "db:backfill:admission-keys": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/lead/lead-admission.backfill.ts",
+    "//db:backfill:quotation-gap": "Run once AFTER the deploy that follows migration 0104: ledgers quotation-sent touches the old build wrote between migrate and deploy. Insert-only, touches no existing row. Preview by default; --apply writes. Idempotent.",
+    "db:backfill:quotation-gap": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/quotation/quotation-gap.backfill.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

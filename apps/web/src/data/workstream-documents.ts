@@ -5,9 +5,10 @@ import {
   WORKSTREAM_DOCUMENT_MIME,
   WorkstreamDocumentDeclareResponse,
   type WorkstreamDocumentMime,
+  type WorkstreamDocumentStep,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { sha256Of } from '@/data/comm-record-detail'
+import { fileSizeLabel, sha256Of } from '@/data/comm-record-detail'
 import { putOnceMore } from '@/data/lead-scan-run'
 
 /** The documents shelf of a run — contract and doors in
@@ -52,17 +53,56 @@ export function documentMimeOf(file: File): WorkstreamDocumentMime | null {
   return dot < 0 ? null : (EXTENSION_MIME[file.name.slice(dot).toLowerCase()] ?? null)
 }
 
+/* One drop is a handful of files; the rest is dropped again. */
+export const MAX_PER_DROP = 10
+
+/** The mime, size and count guards of every drop, as plain data: the files that
+ *  pass and one line per file that does not. */
+export function checkFiles(picked: File[], room = MAX_PER_DROP) {
+  const files = picked.slice(0, room)
+  const problems: string[] =
+    picked.length > files.length
+      ? [
+          `Mỗi lần tối đa ${MAX_PER_DROP} tệp, ${picked.length - files.length} tệp còn lại chưa tải.`,
+        ]
+      : []
+  const ok: File[] = []
+  for (const file of files) {
+    if (!documentMimeOf(file)) problems.push(`“${file.name}”: loại tệp không nhận.`)
+    else if (file.size > DOCUMENT_MAX_BYTES) {
+      problems.push(`“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt 5 MB.`)
+    } else ok.push(file)
+  }
+  return { ok, problems }
+}
+
 export const useWorkstreamDocuments = (code: string) => useQuery(workstreamDocumentsQuery(code))
+
+/** One key per target, so a list can keep the files of exactly one step. */
+export const stepKey = (step: WorkstreamDocumentStep) =>
+  step.kind === 'quotation'
+    ? `quotation:${step.quotationId}`
+    : step.kind === 'contract'
+      ? `contract:${step.contractCode}`
+      : `installment:${step.contractCode}:${step.installmentNo}`
+
+export type DocumentUpload = { file: File; step?: WorkstreamDocumentStep }
 
 /** `uploaded` is called only after the PUT landed, so a PUT that failed leaves
  *  an unlinked row for the sweeper rather than a document with no bytes. */
 export function useUploadDocument(code: string) {
-  return useMutation<void, ApiError, File>({
-    mutationFn: async (file) => {
+  return useMutation<void, ApiError, DocumentUpload>({
+    mutationFn: async ({ file, step }) => {
       const mime = documentMimeOf(file)
       if (!mime) throw new Error('Không nhận loại tệp này.')
       const declared = await api.write(baseOf(code), {
-        body: { name: file.name, mime, bytes: file.size, sha256: await sha256Of(file) },
+        body: {
+          name: file.name,
+          mime,
+          bytes: file.size,
+          sha256: await sha256Of(file),
+          ...(step && { step }),
+        },
         need: NEED,
         schema: WorkstreamDocumentDeclareResponse,
       })
@@ -74,13 +114,21 @@ export function useUploadDocument(code: string) {
   })
 }
 
+/** The profile's per-step file counts ride on `['sales','ops']`, so a step
+ *  upload or a delete re-reads it as well as the shelf. */
+const OPS_KEY = ['sales', 'ops'] as const
+
 export const useRefreshDocuments = (code: string) => {
   const client = useQueryClient()
-  return () => client.invalidateQueries({ queryKey: keyOf(code) })
+  return () =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: keyOf(code) }),
+      client.invalidateQueries({ queryKey: OPS_KEY }),
+    ])
 }
 
 export function useDeleteDocument(code: string) {
-  const client = useQueryClient()
+  const refresh = useRefreshDocuments(code)
 
   return useMutation<void, ApiError, string>({
     mutationFn: (id) =>
@@ -88,6 +136,6 @@ export function useDeleteDocument(code: string) {
         method: 'DELETE',
         need: NEED,
       }),
-    onSettled: () => client.invalidateQueries({ queryKey: keyOf(code) }),
+    onSettled: refresh,
   })
 }

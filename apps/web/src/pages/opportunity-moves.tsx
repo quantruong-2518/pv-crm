@@ -1,10 +1,9 @@
 import { Check, FileText } from '@pv/ui'
 import { Button, Icon } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
-import type { EventKind } from '@/data/opportunities'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
-import { QUOTE_HINT, quoteLabelOf, type DealPrimaryState } from './opportunity-model'
+import { QUOTE_HINT, QUOTE_LABEL, type DealPrimaryState } from './opportunity-model'
 
 /** Module 3 · the deal's ONE primary move, drawn in the todo card (ADR 0078
  *  §1): the move that takes it to its next column, picked by `primaryStateOf`
@@ -15,12 +14,12 @@ export function DealPrimary({
   op,
   state,
   onSign,
-  onRecord,
+  onQuote,
 }: {
   op: OpportunityProfileResponse
   state: DealPrimaryState
   onSign: () => void
-  onRecord: (kind: EventKind) => void
+  onQuote: () => void
 }) {
   const { move, note } = state
 
@@ -33,9 +32,9 @@ export function DealPrimary({
         <AssignSaleButton op={op} hasSeller={op.hasSeller} size="lg" variant="default" />
       )}
       {move === 'quote' && (
-        <Button size="lg" title={QUOTE_HINT} onClick={() => onRecord('quotation')}>
+        <Button size="lg" title={QUOTE_HINT} onClick={onQuote}>
           <Icon icon={FileText} size={16} />
-          {quoteLabelOf(op)}
+          {QUOTE_LABEL}
         </Button>
       )}
       {move === 'sign' && (

@@ -1,5 +1,4 @@
 import type { OpportunityProfileResponse } from '@pv/contracts'
-import type { EventKind } from '@/data/opportunities'
 import { dealStepSubject } from '@/data/deal-next-step'
 import { NextStepCard } from '@/components/run/next-step'
 import { TodoCard } from '@/components/record/todo-card'
@@ -15,13 +14,13 @@ export function DealTodo({
   op,
   primary,
   onSign,
-  onRecord,
+  onQuote,
 }: {
   op: OpportunityProfileResponse
   /** `primaryStateOf` — read once by the page, which also feeds the more menu. */
   primary: DealPrimaryState
   onSign: () => void
-  onRecord: (kind: EventKind) => void
+  onQuote: () => void
 }) {
   const drawsPrimary = primary.move !== null || primary.note !== null || primary.acceptMounted
 
@@ -32,7 +31,7 @@ export function DealTodo({
       next={op.state === 'lost' ? undefined : <NextStepRow op={op} />}
       primary={
         drawsPrimary ? (
-          <DealPrimary op={op} state={primary} onSign={onSign} onRecord={onRecord} />
+          <DealPrimary op={op} state={primary} onSign={onSign} onQuote={onQuote} />
         ) : undefined
       }
     />

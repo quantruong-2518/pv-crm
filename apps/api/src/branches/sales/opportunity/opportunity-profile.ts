@@ -2,7 +2,6 @@ import {
   ContractSignProposal,
   StageKey,
   type OpportunityProfileContract,
-  type OpportunitySignedTotal,
   type OpportunityStageSpan,
   type PendingSign,
 } from '@pv/contracts'
@@ -12,8 +11,8 @@ import { stageConfigOf } from '../ladder'
 import { daysInStageOf } from './opportunity.mapper'
 import type { OpportunityRowDb, OpportunityStageEventRowDb } from './opportunity.schema'
 
-/** The profile's derived blocks (ADR 0077 §1–2): stage spans, the signed papers,
- *  their total in the deal's currency, and the waiting sign request. Pure — the
+/** The profile's derived blocks (ADR 0077 §1–2): stage spans, the signed papers
+ *  and the waiting sign request. Pure — the
  *  service reads the rows, this only shapes them. */
 
 const DAY_MS = 86_400_000
@@ -84,20 +83,6 @@ export function profileContractsOf(rows: readonly ContractRead[]): OpportunityPr
     owner: row.ownerId && ownerName ? { id: row.ownerId, name: ownerName } : null,
     participants,
   }))
-}
-
-/** The signed deal value: contracts in the deal's own currency, summed on read and never
- *  written back — the deal's `amount` stays the estimate (ADR 0077 §1). */
-export function signedTotalOf(
-  deal: OpportunityRowDb,
-  contracts: readonly OpportunityProfileContract[],
-): OpportunitySignedTotal | null {
-  const same = contracts.filter(
-    (c) => c.currency !== null && c.currency === deal.currency && c.amount !== null,
-  )
-  if (same.length === 0 || deal.currency === null) return null
-  const amount = same.reduce((sum, c) => sum + (c.amount ?? 0), 0)
-  return { amount, currency: deal.currency, count: same.length }
 }
 
 /** The waiting request, its terms read through the schema the apply step uses,

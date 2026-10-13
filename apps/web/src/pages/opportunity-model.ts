@@ -1,19 +1,11 @@
-import { vnd } from '@pv/ui'
 import {
   OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
-  type CurrencyCode,
   type OpportunityProfileResponse,
   type OpportunityStageSpan,
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
-import {
-  CHANGE_SALE_PRIMARY,
-  OVERDUE_WORD,
-  eventOfferOf,
-  refusalOf,
-  type EventKind,
-} from '@/data/opportunities'
+import { CHANGE_SALE_PRIMARY, OVERDUE_WORD, refusalOf } from '@/data/opportunities'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { TodoRung } from '@/components/record/todo-card'
 
@@ -24,14 +16,6 @@ import type { TodoRung } from '@/components/record/todo-card'
  *  which one stage button is primary, which doors the more menu holds. */
 
 type Profile = OpportunityProfileResponse
-
-/** A figure in its own currency; other currencies are never converted here
- *  (ADR 0077 §1). A legacy deal with no currency prints the bare figure. */
-export function moneyText(amount: number, currency: CurrencyCode | null): string {
-  if (currency === 'VND') return vnd(amount)
-  const figure = amount.toLocaleString('vi-VN')
-  return currency === null ? figure : `${figure} ${currency}`
-}
 
 /** The run's customer tag, new or returning with its ordinal (ADR 0076 §3);
  *  `null` when the run has no account to judge. */
@@ -79,7 +63,7 @@ function stageStep(op: Profile, s: OpportunityStageSpan, i: number): TodoRung {
     : { ...base, mark: 'future', caption: null }
 }
 
-/** The date only: how many signed and what waits are the contracts card's. */
+/** The date only: how many signed and what waits are the money block's. */
 function contractStep(op: Profile): TodoRung {
   const base = { key: 'contract', label: 'Hợp đồng', late: false }
   const last = op.contracts.at(-1)
@@ -130,13 +114,11 @@ export function primaryStateOf(
   return { move, note: signWhy ?? idle, acceptMounted: op.state === 'open' && can.accept }
 }
 
-export const QUOTE_HINT = `Đã gửi bằng email trong PV One với mẫu ${OPPORTUNITY_MILESTONE_LABEL.quotation} thì không cần ghi lại.`
+export const QUOTE_HINT = `Báo giá gửi bằng thư mẫu ${OPPORTUNITY_MILESTONE_LABEL.quotation} được ghi tự động, cần bổ sung giá trị và loại hợp đồng.`
 
-/** The quote door's label: a repeat is another round (ADR 0072). */
-export const quoteLabelOf = (op: Profile) => {
-  const round = eventOfferOf(op, 'quotation')?.nextRound ?? 1
-  return round > 1 ? `Ghi báo giá lần ${round}` : 'Ghi báo giá'
-}
+/** One label for the quote door wherever it stands: the modal decides which
+ *  negotiation the round joins. */
+export const QUOTE_LABEL = 'Ghi báo giá'
 
 /** The floating bar's more menu: the record doors the primary does not hold,
  *  a second contract, the owners' drawer, the seller swap (the first seller is
@@ -151,7 +133,8 @@ export function dealMoreChoices(
   /** `opportunity.close` — the same gate as the primary's sign. */
   canSign: boolean,
   doors: {
-    onRecord: (kind: EventKind) => void
+    onRecord: () => void
+    onQuote: () => void
     onSign: () => void
     onEditOwners: () => void
     onStop: () => void
@@ -165,14 +148,14 @@ export function dealMoreChoices(
     choices.push({
       key: 'activity',
       label: 'Ghi hoạt động',
-      onSelect: () => doors.onRecord('activity'),
+      onSelect: doors.onRecord,
     })
   }
   if (op.acts.quotation.ok && move !== 'quote') {
     choices.push({
       key: 'quotation',
-      label: quoteLabelOf(op),
-      onSelect: () => doors.onRecord('quotation'),
+      label: QUOTE_LABEL,
+      onSelect: doors.onQuote,
     })
   }
   if (op.state === 'won' && !op.pendingSign && canSign) {

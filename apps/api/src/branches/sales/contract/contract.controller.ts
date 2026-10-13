@@ -1,12 +1,23 @@
-import { Controller, Get, Param, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ContractBookQuery, ContractCode } from '@pv/contracts'
+import {
+  ContractBookQuery,
+  ContractCode,
+  ContractConditionParams,
+  ContractInstallmentParams,
+  ContractInstallmentsBody,
+  InstallmentConditionBody,
+  InstallmentPaidBody,
+  InstallmentRecordBody,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { ContractService } from './contract.service'
+import { ContractScheduleService } from './contract-schedule.service'
 
-/** `/sales/contracts` — the contract book, READ ONLY.
+/** `/sales/contracts` — the contract book, plus the write doors of a signed
+ *  contract's schedule (`contracts/sales/contract-schedule.ts`, ADR 0090).
  *
  *  Thin on purpose, like its two siblings: take, validate, call, return. No
  *  business `if`, no SQL, nothing worth reading outside the declarations.
@@ -32,7 +43,10 @@ import { ContractService } from './contract.service'
  *  `ContractBookQuery`, so a filter can never act on one page only. */
 @Controller('sales/contracts')
 export class ContractController {
-  constructor(private readonly contracts: ContractService) {}
+  constructor(
+    private readonly contracts: ContractService,
+    private readonly schedule: ContractScheduleService,
+  ) {}
 
   @Get()
   @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
@@ -68,5 +82,67 @@ export class ContractController {
   @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(ContractCode)) code: ContractCode) {
     return this.contracts.profile(who, code)
+  }
+
+  @Put(':code/installments')
+  @Need({ branch: 'Sales', permission: 'contract.edit', scoped: true })
+  replaceSchedule(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ContractCode)) code: ContractCode,
+    @Body(zod(ContractInstallmentsBody)) body: ContractInstallmentsBody,
+  ) {
+    return this.schedule.replace(who, code, body)
+  }
+
+  @Post(':code/installments/:no/paid')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'contract.record-payment', scoped: true })
+  markPaid(
+    @CurrentActor() who: Actor,
+    @Param(zod(ContractInstallmentParams)) p: ContractInstallmentParams,
+    @Body(zod(InstallmentPaidBody)) body: InstallmentPaidBody,
+  ) {
+    return this.schedule.markPaid(who, p.code, p.no, body)
+  }
+
+  @Delete(':code/installments/:no/paid')
+  @Need({ branch: 'Sales', permission: 'contract.record-payment', scoped: true })
+  undoPaid(
+    @CurrentActor() who: Actor,
+    @Param(zod(ContractInstallmentParams)) p: ContractInstallmentParams,
+  ) {
+    return this.schedule.undoPaid(who, p.code, p.no)
+  }
+
+  /** `contract.edit` OR `contract.record-payment`: `@Need` holds one, so it asks
+   *  the view floor both share and the service checks the either/or. */
+  @Post(':code/installments/:no/records')
+  @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
+  addRecord(
+    @CurrentActor() who: Actor,
+    @Param(zod(ContractInstallmentParams)) p: ContractInstallmentParams,
+    @Body(zod(InstallmentRecordBody)) body: InstallmentRecordBody,
+  ) {
+    return this.schedule.addRecord(who, p.code, p.no, body)
+  }
+
+  @Post(':code/installments/:no/conditions')
+  @Need({ branch: 'Sales', permission: 'contract.edit', scoped: true })
+  addCondition(
+    @CurrentActor() who: Actor,
+    @Param(zod(ContractInstallmentParams)) p: ContractInstallmentParams,
+    @Body(zod(InstallmentConditionBody)) body: InstallmentConditionBody,
+  ) {
+    return this.schedule.addCondition(who, p.code, p.no, body)
+  }
+
+  @Post(':code/installments/:no/conditions/:id/done')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'contract.edit', scoped: true })
+  doneCondition(
+    @CurrentActor() who: Actor,
+    @Param(zod(ContractConditionParams)) p: ContractConditionParams,
+  ) {
+    return this.schedule.doneCondition(who, p.code, p.no, p.id)
   }
 }

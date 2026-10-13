@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Moment, ObjectCode, textInput } from '../primitives'
+import { WorkstreamDocumentStep } from './workstream-document'
 
 /** Scan door — card photos and company-profile PDFs become leads.
  *
@@ -319,6 +320,9 @@ export const LeadAttachment = z.object({
   /** id compares, name prints — the `ownerId`/`ownerName` rule. */
   createdBy: z.object({ id: z.string().min(1), name: z.string().min(1) }),
   batchCode: ScanBatchCode.nullable(),
+  /** Only a workstream document tagged to a step carries it; the lead door
+   *  and scan sources never do, hence optional. */
+  step: WorkstreamDocumentStep.optional(),
 })
 
 export const LeadAttachmentsResponse = z.object({ rows: z.array(LeadAttachment) })

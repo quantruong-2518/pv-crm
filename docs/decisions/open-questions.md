@@ -385,3 +385,19 @@ Raised while recording the opportunity flow decisions (ADR 0088).
     before that mark existed stop counting; the lead book's score strip still
     counts by meeting rows and was not moved to the shared definition. The
     assistant's default, awaiting the owner. _(see ADR 0088 §21)_
+86. **Should a seller standing on a deal see the payments of a contract whose
+    commission owner is someone else?** Default: no — such a seller sees the
+    contract heading and its quotation rounds only. The assistant's default,
+    awaiting the owner. _(see ADR 0090 §9)_
+87. **Is 24 the right cap on instalments per contract?** Default: 24. The
+    assistant's default, awaiting the owner. _(see ADR 0090 §8)_
+88. **Should the deal-level estimate print in full rather than compact?**
+    Default: compact. The assistant's default, awaiting the owner.
+    _(see ADR 0090 §9)_
+89. **Keep or drop the sentence on the instalment page about "kế toán xuất hoá
+    đơn"?** It states a rule no server door enforces. Default: kept as it is.
+    The assistant's default, awaiting the owner. _(see ADR 0090 §8)_
+90. **May several kind-less pending negotiations of one deal stand side by
+    side?** They appear after gap or mail rounds, each waiting for its kind to
+    be filled in. Default: yes. The assistant's default, awaiting the owner.
+    _(see ADR 0090 §5, §10)_

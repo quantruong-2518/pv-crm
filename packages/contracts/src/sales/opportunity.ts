@@ -423,7 +423,7 @@ export const OpportunityRow = z.object({
   /** Recorded care activities per kind, every kind present (zero included) so
    *  the screen prints the non-zero ones without defaulting any itself. */
   activityCounts: z.record(CareActivityKind, z.number().int().nonnegative()),
-  /** Quotations recorded on the deal; a quotation on a won deal opens a new round. */
+  /** Rows of `sales.quotation` on the deal — every send, across negotiations. */
   quotationRounds: z.number().int().nonnegative(),
   nextStep: OpportunityNextStep.nullable(),
   /** The bulk-mail recipient; `email: null` = this person cannot be mailed. */
@@ -839,10 +839,10 @@ export const OPPORTUNITY_MILESTONE_LABEL: Record<OpportunityMilestoneKind, strin
  *  exists: a deal reads `quotation` because one was sent, not dragged.
  *
  *  `at` defaults to now; backdating is for paperwork entered late. Bounds the
- *  server enforces (a body alone cannot know them): an activity's `at` lies in
- *  [`acceptedAt`, now], a quotation's in [entry into the current stage, now]. */
+ *  server enforces (a body alone cannot know them): `at` lies in [`acceptedAt`,
+ *  now]. Care activities only; a quotation has its own door (`./quotation`). */
 export const OpportunityMilestoneBody = z.object({
-  kind: OpportunityMilestoneKind,
+  kind: CareActivityKind,
   at: Moment.optional(),
   note: textInputOptional(OPPORTUNITY_STAGE_NOTE_MAX),
 })

@@ -10,6 +10,7 @@ import {
   type InstallmentConditionRow,
   type InstallmentRow,
   type InstallmentSummaryRow,
+  type RecordChannel,
 } from '@pv/contracts'
 import { daysUntil, dueLevelOf, needsAttention, systemClock, type DueLevel } from '@pv/engines'
 import { api, type ApiNeed } from '@/app/api'
@@ -228,4 +229,18 @@ export function daysPhrase(daysLeft: number): string {
   if (daysLeft > 0) return `còn ${daysLeft} ngày`
   if (daysLeft === 0) return 'đến hạn hôm nay'
   return `trễ ${-daysLeft} ngày`
+}
+
+/** How the desk chased an installment — the one map every screen prints. */
+export const RECORD_CHANNEL_LABEL: Record<RecordChannel, string> = {
+  email: 'Email',
+  'zalo-oa': 'Zalo OA',
+  'in-app': 'Trong PV One',
+  call: 'Gọi điện',
+}
+
+/** Which side owes an unlock condition, as the drawer and its dialogs say it. */
+export const CONDITION_SIDE_LABEL: Record<ConditionSide, string> = {
+  ours: 'Bên mình',
+  customer: 'Bên khách',
 }

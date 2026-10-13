@@ -29,10 +29,15 @@ import {
   OpportunitySaleOwnersBody,
   OpportunityStopBody,
   OpportunityUpdate,
+  QuotationCloseBody,
+  QuotationParams,
+  QuotationPatchBody,
+  QuotationRecordBody,
 } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { QuotationService } from '../quotation/quotation.service'
 import { OpportunityAccept } from './opportunity-accept.service'
 import { OpportunityAssign } from './opportunity-assign.service'
 import { OpportunityContacts } from './opportunity-contacts.service'
@@ -79,6 +84,7 @@ export class OpportunityController {
     private readonly opening: OpportunityOpening,
     private readonly contacts: OpportunityContacts,
     private readonly imports: OpportunityImport,
+    private readonly quotes: QuotationService,
   ) {}
 
   @Get()
@@ -134,6 +140,15 @@ export class OpportunityController {
   @Need({ branch: 'Sales', permission: 'opportunity.edit' })
   stopReasons() {
     return this.ops.stopReasons()
+  }
+
+  /** Why a quotation round ended `not-closed` — the live catalogue, on the
+   *  permission of the doors it serves, like `stop-reasons` above. Before
+   *  `@Get(':code')`. */
+  @Get('quotation-reasons')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit' })
+  quotationReasons() {
+    return this.quotes.reasons()
   }
 
   /** Every open deal of a lead: codes the reader may open, plus a count of
@@ -343,7 +358,7 @@ export class OpportunityController {
     return this.contacts.replace(who, code, body)
   }
 
-  /** Record a milestone — a care activity or a quotation (ADR 0072).
+  /** Record a care activity (ADR 0072). Zod refuses `quotation`: see ADR 0090.
    *
    *  ------------------------------------------------------------------
    *  TWO DOORS INSTEAD OF ONE DRAG, AND BOTH ON ONE PERMISSION
@@ -351,7 +366,7 @@ export class OpportunityController {
    *  `PATCH :code/stage` is gone (ADR 0064 §7): a drag gesture is not a reason a
    *  deal advanced. This door takes a REAL EVENT and lets the column follow it,
    *  so it is a `POST` to a sub-resource — every press records another
-   *  milestone, including a second press of the same one (quotation rounds).
+   *  milestone, including a second press of the same one.
    *
    *  `opportunity.edit` + `scoped: true` on both doors below: standing on the
    *  deal grants it; only opening and accepting have their own (ADR 0071).
@@ -367,6 +382,45 @@ export class OpportunityController {
     @Body(zod(OpportunityMilestoneBody)) body: OpportunityMilestoneBody,
   ) {
     return this.moves.milestone(who, code, body)
+  }
+
+  /** Record one quotation sent (ADR 0090): a ledger row with its kind and
+   *  amount, the timeline row beside it, and the column following on the first
+   *  one. 201 with the round — both numbers are the server's. */
+  @Post(':code/quotations')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  quotationAdd(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(QuotationRecordBody)) body: QuotationRecordBody,
+  ) {
+    return this.quotes.create(who, code, body)
+  }
+
+  /** The milestone door takes no quotation since ADR 0090; these three
+   *  doors replace it. Fill in what a round still waiting is missing (a mail-made or backfilled
+   *  one has no kind and no amount). */
+  @Patch(':code/quotations/:id')
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  quotationEdit(
+    @CurrentActor() who: Actor,
+    @Param(zod(QuotationParams)) at: QuotationParams,
+    @Body(zod(QuotationPatchBody)) body: QuotationPatchBody,
+  ) {
+    return this.quotes.patch(who, at.code, at.id, body)
+  }
+
+  /** The round still waiting ends `not-closed`, with a reason; the deal keeps
+   *  its state — a won deal has no stop door. 200: nothing is created. */
+  @Post(':code/quotations/:id/close')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'opportunity.edit', scoped: true })
+  quotationClose(
+    @CurrentActor() who: Actor,
+    @Param(zod(QuotationParams)) at: QuotationParams,
+    @Body(zod(QuotationCloseBody)) body: QuotationCloseBody,
+  ) {
+    return this.quotes.close(who, at.code, at.id, body)
   }
 
   /** A head of sales or director accepts a `new` deal (ADR 0071 §3). Its own

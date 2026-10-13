@@ -22,6 +22,7 @@ import {
   opportunityOwner,
   opportunityStageEvent,
 } from '../opportunity/opportunity.schema'
+import { quotation } from '../quotation/quotation.schema'
 import { touch } from '../touch/touch.schema'
 
 /** The extra SQL of ONE journey's detail. Every read takes the whole run's
@@ -138,15 +139,9 @@ export class WorkstreamLanesRepository {
       deals.length === 0
         ? none
         : this.db
-            .select({
-              deal: touch.subjectCode,
-              at: touch.at,
-              kind: touch.kind,
-              by: touch.by,
-              actorId: touch.actorId,
-              note: touch.note,
-            })
+            .select(DEAL_TOUCH)
             .from(touch)
+            .leftJoin(quotation, eq(quotation.touchId, touch.id))
             .where(and(inArray(touch.subjectCode, deals), inArray(touch.kind, DEAL_STEP_KINDS)))
             .orderBy(asc(touch.at)),
       deals.length === 0 ? none : this.signApprovalsOf(deals),
@@ -240,6 +235,16 @@ const LEAD_LANE_KINDS = [
  *  activities (ADR 0072) — the `MILESTONE_TOUCH` values. */
 const DEAL_STEP_KINDS = Object.values(MILESTONE_TOUCH)
 
+const DEAL_TOUCH = {
+  deal: touch.subjectCode,
+  at: touch.at,
+  kind: touch.kind,
+  by: touch.by,
+  actorId: touch.actorId,
+  note: touch.note,
+  round: quotation.roundNo,
+}
+
 /** One state-moving touch of the anchor lead. `to` is the RECEIVING end of a
  *  hand-over — also set on `created` for a lead born with a holder. `actorId`
  *  is null when the machine wrote the row. */
@@ -288,7 +293,9 @@ export type InstallmentLaneRow = {
   paidAt: Date | null
 }
 
-/** A quotation round or a care activity; `note` is the stored sentence. */
+/** A quotation round or a care activity; `note` is the stored sentence.
+ *  `round` is the ledger's `round_no` inside its negotiation (ADR 0090) —
+ *  null on a care activity, which has no `sales.quotation` row. */
 export type DealTouchRow = {
   deal: string
   at: Date
@@ -296,6 +303,7 @@ export type DealTouchRow = {
   by: string
   actorId: string | null
   note: string
+  round: number | null
 }
 
 export type SignApprovalRow = {

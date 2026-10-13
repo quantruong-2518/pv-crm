@@ -1,10 +1,13 @@
 import { Module } from '@nestjs/common'
+import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { ContractController } from './contract.controller'
 import { ContractRepository } from './contract.repository'
 import { ContractService } from './contract.service'
+import { ContractScheduleRepository } from './contract-schedule.repository'
+import { ContractScheduleService } from './contract-schedule.service'
 
-/** Module 4 · The contract book.
+/** Module 4 · The contract book and its schedule's write doors.
  *
  *  `imports` is explicit rather than leaning on `@Global()`, the same rule the
  *  other Sales modules follow: reading this line is how you learn the module
@@ -21,9 +24,14 @@ import { ContractService } from './contract.service'
  *  `exports` carries the service only. Another module may ask "give me this
  *  person's contract book"; it does not get to reach into the table. */
 @Module({
-  imports: [EnginesModule],
+  imports: [AuditModule, EnginesModule],
   controllers: [ContractController],
-  providers: [ContractService, ContractRepository],
+  providers: [
+    ContractService,
+    ContractRepository,
+    ContractScheduleService,
+    ContractScheduleRepository,
+  ],
   exports: [ContractService],
 })
 export class ContractModule {}

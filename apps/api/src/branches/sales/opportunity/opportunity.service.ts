@@ -44,6 +44,7 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadStateWriter } from '../lead/lead-state'
 import { MeetingService } from '../meeting/meeting.service'
+import { QuotationService } from '../quotation/quotation.service'
 import {
   editDetailsVerdict,
   editTermsVerdict,
@@ -51,12 +52,7 @@ import {
   touchesTerms,
 } from './opportunity-acts'
 import { dealAtOf } from './opportunity-lifecycle'
-import {
-  pendingSignOf,
-  profileContractsOf,
-  signedTotalOf,
-  stageSpansOf,
-} from './opportunity-profile'
+import { pendingSignOf, profileContractsOf, stageSpansOf } from './opportunity-profile'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { editTrail } from './opportunity-trail'
@@ -144,6 +140,7 @@ export class OpportunityService {
     private readonly acts: OpportunityActs,
     private readonly facetsRepo: OpportunityFacetsRepository,
     private readonly meetings: MeetingService,
+    private readonly quotes: QuotationService,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -308,7 +305,6 @@ export class OpportunityService {
     ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
-    const contracts = profileContractsOf(signedRows)
     return OpportunityProfileResponse.parse({
       ...row,
       position: positionOf(found.row, stageRows, approvals),
@@ -316,8 +312,8 @@ export class OpportunityService {
       contacts,
       ...(await this.acts.of(who, found, sign !== undefined)),
       stages: stageSpansOf(found.row, events, stageRows, new Date()),
-      contracts,
-      signedTotal: signedTotalOf(found.row, contracts),
+      contracts: profileContractsOf(signedRows),
+      money: await this.quotes.money(who, found.row, signedRows),
       chain: story.chain.map(toChainLink),
     })
   }

@@ -17,8 +17,8 @@ import { WorkstreamRepository } from './workstream.repository'
 
 /** Documents of a run through a presigned PUT, comm-attachment's flow:
  *  declare → PUT straight to storage → `uploaded`. Every door asks the run's
- *  own read fence and answers the same 404 for "no such run" and "not yours",
- *  as `WorkstreamService.profile` does. Storage calls run outside the
+ *  own read fence (widened, see `fence`) and answers the same 404 for "no such
+ *  run" and "not yours", as `WorkstreamService.profile` does. Storage calls run outside the
  *  transaction, for lead-scan's PGlite reason. */
 @Injectable()
 export class WorkstreamDocumentService {
@@ -33,9 +33,11 @@ export class WorkstreamDocumentService {
   ) {}
 
   async list(who: Actor, code: ObjectCode): Promise<LeadAttachmentsResponse> {
-    await this.fence(who, code)
+    /* Scan sources are the LEAD's files: only its holder reads them here. */
+    const withScans =
+      (await this.fence(who, code)) === 'lead' && this.access.allows(who, 'lead.view')
     const out = []
-    for (const a of await this.repo.listOf(code, this.access.allows(who, 'lead.view'))) {
+    for (const a of await this.repo.listOf(code, withScans)) {
       const url = await this.storage.presignGet(a.row.storageKey)
       const thumbUrl = a.row.thumbKey ? await this.storage.presignGet(a.row.thumbKey) : null
       out.push(toAttachment(a, url, thumbUrl))
@@ -49,22 +51,28 @@ export class WorkstreamDocumentService {
     body: WorkstreamDocumentDeclareBody,
   ): Promise<WorkstreamDocumentDeclareResponse> {
     await this.fence(who, code)
+    if (body.step && !(await this.repo.stepInRun(code, body.step))) {
+      throw invalid({ step: ['Mục gắn tệp không thuộc hành trình này.'] })
+    }
     const { kept, pending } = await this.repo.load(code, who.id)
     if (kept >= MAX_DOCUMENTS || pending >= MAX_PENDING) {
       throw invalid({ name: ['Hành trình đã đủ số tài liệu cho phép. Xoá bớt trước khi thêm.'] })
     }
     const id = randomUUID()
     const storageKey = keyOf(code, id)
-    await this.repo.insert({
-      id,
-      storageKey,
-      name: body.name,
-      mime: body.mime,
-      bytes: body.bytes,
-      sha256: body.sha256,
-      ownerKind: 'workstream',
-      createdBy: who.id,
-    })
+    await this.repo.insert(
+      {
+        id,
+        storageKey,
+        name: body.name,
+        mime: body.mime,
+        bytes: body.bytes,
+        sha256: body.sha256,
+        ownerKind: 'workstream',
+        createdBy: who.id,
+      },
+      body.step,
+    )
     const putUrl = await this.storage.presignPut(storageKey, body.mime, body.bytes)
     return WorkstreamDocumentDeclareResponse.parse({ id, putUrl })
   }
@@ -108,9 +116,14 @@ export class WorkstreamDocumentService {
     })
   }
 
-  private async fence(who: Actor, code: ObjectCode): Promise<void> {
+  /** The run's own read fence (the holder of the lead), widened for these four
+   *  doors only: whoever stands on a deal of the run passes too (ADR 0090).
+   *  Answers WHICH arm let the actor in — the lead's holder wins when both do. */
+  private async fence(who: Actor, code: ObjectCode): Promise<'lead' | 'deal'> {
     const found = await this.runs.byCode(who, code)
-    if (!found || !found.inScope) throw notFound('hành trình', code)
+    if (found?.inScope) return 'lead'
+    if (found && (await this.repo.standsOnDeal(who, code))) return 'deal'
+    throw notFound('hành trình', code)
   }
 }
 

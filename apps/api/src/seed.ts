@@ -36,6 +36,7 @@ import { ACCOUNTS, type ContactSeed } from './seed-companies'
 import { configSeed, exitIdOf, person, productRows, sourceIdOf } from './seed-config'
 import { STEP_TEMPLATE_SEED } from './seed-step-frame'
 import { walkDeal } from './seed-deal-walk'
+import { seedQuotationLedger } from './seed-quotation'
 
 /** Wipe every demo row and plant the chip-industry book from `seed-book.ts`.
  *
@@ -757,6 +758,7 @@ async function seed(): Promise<void> {
       FROM sales.contract c JOIN sales.opportunity_owner w ON w.opportunity_code = c.opportunity_code`)
     await tx.insert(contractInstallment).values(out.installments)
     await tx.insert(touch).values(out.touches)
+    await seedQuotationLedger(tx)
     await tx.insert(meeting).values(out.meetings)
     await tx.insert(meetingAttendee).values(out.attendees)
 

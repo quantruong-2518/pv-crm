@@ -3,6 +3,7 @@ import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../p
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ContractKind, CurrencyCode } from './enums'
 import { OpportunityOwner, OpportunityRow } from './opportunity'
+import { WorkstreamHolder } from './workstream'
 
 /** Signing a deal — the door that RAISES the request that makes a deal read `won`.
  *
@@ -90,7 +91,31 @@ import { OpportunityOwner, OpportunityRow } from './opportunity'
 // THE REQUEST
 // ---------------------------------------------------------------------------
 
-export const ContractSign = z.object({
+export const CONTRACT_INSTALLMENTS_MAX = 24
+
+/** One installment as typed: a schedule line before the server numbers it.
+ *  `no` is the position in the list; `amount` is in the contract's currency. */
+export const InstallmentDraft = z.object({
+  label: textInput(200),
+  share: z
+    .number('Tỉ lệ là bắt buộc.')
+    .int('Tỉ lệ phải là số nguyên.')
+    .min(0, 'Tỉ lệ từ 0 đến 100.')
+    .max(100, 'Tỉ lệ từ 0 đến 100.'),
+  amount: MoneyVnd,
+  due: Moment,
+})
+
+export const InstallmentDrafts = z
+  .array(InstallmentDraft)
+  .max(CONTRACT_INSTALLMENTS_MAX, `Tối đa ${CONTRACT_INSTALLMENTS_MAX} đợt.`)
+
+const sumOf = (rows: readonly InstallmentDraft[], key: 'share' | 'amount') =>
+  rows.reduce((sum, row) => sum + row[key], 0)
+
+/** The plain object, kept apart because zod refuses `.pick()` on a refined
+ *  schema and `PendingSign` picks from this one. */
+export const ContractSignShape = z.object({
   /** Final signed value of THIS paper, in `currency`. */
   amount: MoneyVnd,
   currency: CurrencyCode,
@@ -106,6 +131,25 @@ export const ContractSign = z.object({
 
   /** Whose commission. Absent = the deal's holder, i.e. its SALE primary. */
   ownerId: z.string().trim().min(1).max(64).optional(),
+
+  /** The pending round this signature wins (`sales.quotation.id`). Absent on a
+   *  negotiation with no ledger row; the sign gate then only asks that the deal
+   *  has at least one quotation. */
+  quotationId: z.uuid().optional(),
+
+  /** The payment schedule, approved together with the signature. Absent or
+   *  empty = signed with no schedule yet. */
+  installments: InstallmentDrafts.optional(),
+})
+
+/** A schedule, once given, must account for the whole paper — both sums. */
+export const ContractSign = ContractSignShape.superRefine((v, ctx) => {
+  const rows = v.installments ?? []
+  if (rows.length === 0) return
+  const fail = (message: string) =>
+    ctx.addIssue({ code: 'custom', message, path: ['installments'] })
+  if (sumOf(rows, 'share') !== 100) fail('Tổng tỉ lệ các đợt phải bằng 100%.')
+  if (sumOf(rows, 'amount') !== v.amount) fail('Tổng tiền các đợt phải bằng giá trị hợp đồng.')
 })
 
 /** The `contract-sign` payload raised into the One inbox (`ApprovalKind` in
@@ -202,6 +246,10 @@ export const InstallmentRow = z.object({
   due: Moment,
   /** Day the money landed. Absent = not collected. */
   paidAt: Moment.optional(),
+  /** Who recorded the collection, and when — only that person may undo it.
+   *  Absent while unpaid and on rows collected before the door existed. */
+  paidBy: WorkstreamHolder.optional(),
+  paidRecordedAt: Moment.optional(),
   conditions: z.array(InstallmentConditionRow),
   docs: z.array(InstallmentDocRow),
   records: z.array(InstallmentRecordRow),
@@ -220,6 +268,16 @@ export const InstallmentSummaryRow = InstallmentRow.pick({
   due: true,
   paidAt: true,
 })
+
+/** Where one installment stands on the server's today (VN calendar): `overdue`
+ *  = unpaid with its due day already past; due today is still `upcoming`. */
+export const InstallmentStatus = z.enum(['paid', 'overdue', 'upcoming'])
+
+export const INSTALLMENT_STATUS_LABEL: Record<InstallmentStatus, string> = {
+  paid: 'Đã thu',
+  overdue: 'Quá hạn',
+  upcoming: 'Chưa đến hạn',
+}
 
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
@@ -330,6 +388,8 @@ export const ContractSignResponse = z.object({
   contract: ContractRow,
 })
 
+export type InstallmentDraft = z.infer<typeof InstallmentDraft>
+export type InstallmentStatus = z.infer<typeof InstallmentStatus>
 export type ContractSign = z.infer<typeof ContractSign>
 export type ContractSignProposal = z.infer<typeof ContractSignProposal>
 export type ContractSignResponse = z.infer<typeof ContractSignResponse>

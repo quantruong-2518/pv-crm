@@ -234,8 +234,9 @@ function MilestoneNote({
       {!offer
         ? `Thư vẫn gửi nhưng không ghi ${what}. ${deal.block ?? ''}`.trim()
         : quoting
-          ? `Gửi thành công sẽ ghi ${what} (lần ${offer.nextRound})${moves}` +
-            (offer.atAssigned ? ', bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.')
+          ? `Gửi thành công sẽ ghi một lần ${what}${moves}` +
+            (offer.atAssigned ? ', bỏ qua cột chăm sóc vì chưa có hoạt động nào.' : '.') +
+            ' Giá trị và loại hợp đồng bổ sung trên hồ sơ cơ hội.'
           : `Gửi thành công sẽ ghi một ${what}${moves}.`}
     </p>
   )

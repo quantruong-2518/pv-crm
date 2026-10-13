@@ -16,6 +16,9 @@ import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign } from '../contract/contract.mapper'
 import { dropStep } from '../next-step/next-step.handover'
+import { adoptedPlace } from '../quotation/quotation.mapper'
+import { QuotationRepository } from '../quotation/quotation.repository'
+import type { QuotationRowDb } from '../quotation/quotation.schema'
 import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
@@ -46,6 +49,7 @@ export class OpportunitySign implements ApprovalApplier {
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
     private readonly approvals: ApprovalService,
+    private readonly quotes: QuotationRepository,
   ) {}
 
   /** `POST /sales/opportunities/:code/contract` — 202 with a receipt.
@@ -96,8 +100,8 @@ export class OpportunitySign implements ApprovalApplier {
     return ConfigProposalReceipt.parse({ requestId: request.id, state: request.state })
   }
 
-  /** Every refusal the door makes: the deal (`signVerdict`, 409), then the body
-   *  (422 owner). */
+  /** Every refusal the door makes: the deal (`signVerdict`, 409), the round the
+   *  signature claims to win (409), then the body (422 owner). */
   private async assertProposable(
     handle: Db,
     found: OpportunityRead,
@@ -105,9 +109,20 @@ export class OpportunitySign implements ApprovalApplier {
     pendingSign: boolean,
     approverSeat: boolean,
   ): Promise<void> {
-    const quoted = await this.deals.hasTouch(handle, found.row.code, 'quotation-sent')
-    const verdict = signVerdict({ ...signFactsOf(found, quoted), pendingSign, approverSeat })
+    const rounds = await this.quotes.byDeal(handle, found.row.code)
+    const facts = signFactsOf(found, rounds.length > 0)
+    const verdict = signVerdict({ ...facts, pendingSign, approverSeat })
     if (!verdict.ok) throw conflict(verdict.reason)
+    const round = body.quotationId === undefined ? null : waiting(rounds, body.quotationId)
+    if (body.quotationId !== undefined && !round) {
+      throw conflict('Lần báo giá đã chọn không còn chờ khách. Tải lại rồi chọn lại.')
+    }
+    if (round?.kind && round.kind !== body.kind) {
+      throw conflict('Loại hợp đồng khác loại của lần báo giá đã chọn.')
+    }
+    /* A kind-less round takes the contract's kind when it wins; ask now whether
+       that kind has room, so nobody approves a signature that cannot land. */
+    if (round && round.kind === null) adoptedPlace(rounds, body.kind)
     /* Commission follows a Sale standing on the deal, never a stranger. The
        lane's people are frozen while the request waits; only its primary may
        move, through the assign door with a reason. */
@@ -127,7 +142,7 @@ export class OpportunitySign implements ApprovalApplier {
     if (!(await this.deals.lockDeal(tx, code))) throw notFound('cơ hội', code)
     const found = await this.deals.byCode(null, code, tx)
     if (!found) throw notFound('cơ hội', code)
-    const quoted = await this.deals.hasTouch(tx, code, 'quotation-sent')
+    const quoted = await this.quotes.exists(tx, code)
     const verdict = signableVerdict(signFactsOf(found, quoted))
     if (!verdict.ok) throw conflict(verdict.reason)
 
@@ -170,6 +185,11 @@ export class OpportunitySign implements ApprovalApplier {
       await this.deals.setSalePrimary(tx, code, salePrimaryOf(await lanePeople(tx, sale), null))
     }
     await this.contracts.insert(tx, values)
+    /* The schedule the approver just read is written with the paper (ADR 0090). */
+    if (body.installments?.length) {
+      await this.contracts.insertInstallments(tx, contractCode, body.installments)
+    }
+    await this.winRound(tx, code, body, contractCode, signedAt)
     if (row.workstreamCode) await this.workstreams.syncClosed(tx, [row.workstreamCode])
     if (!found.signed) await this.leaveBoard(tx, found, row, contractCode, by, signedAt)
     await this.mirror.link(tx, { from: code, to: contractCode, kind: 'spawned' })
@@ -194,6 +214,35 @@ export class OpportunitySign implements ApprovalApplier {
         at: signedAt,
       },
     ])
+  }
+
+  /** The round the signature names turns `won` and its negotiation carries
+   *  the contract. A round closed, superseded or given another kind while the
+   *  request waited refuses the approval, like every other fact `apply`
+   *  re-checks. A kind-less round takes the contract's kind as it wins. */
+  private async winRound(
+    tx: Db,
+    code: string,
+    sign: Pick<ContractSign, 'quotationId' | 'kind'>,
+    contractCode: string,
+    signedAt: Date,
+  ): Promise<void> {
+    if (sign.quotationId === undefined) return
+    const rows = await this.quotes.byDeal(tx, code)
+    let round = waiting(rows, sign.quotationId)
+    if (round && round.kind !== null && round.kind !== sign.kind) {
+      throw conflict(
+        'Loại của lần báo giá đã khác loại hợp đồng trong đề nghị ký. Từ chối đề nghị rồi gửi lại.',
+      )
+    }
+    if (round && round.kind === null) {
+      const place = adoptedPlace(rows, sign.kind)
+      await this.quotes.adopt(tx, round, place)
+      round = { ...round, ...place }
+    }
+    if (!round || !(await this.quotes.win(tx, round, contractCode, signedAt))) {
+      throw conflict('Lần báo giá của đề nghị ký không còn chờ khách. Từ chối đề nghị rồi gửi lại.')
+    }
   }
 
   /** The first signature only: the funnel's exit row (a deal standing in no
@@ -226,9 +275,13 @@ export class OpportunitySign implements ApprovalApplier {
   }
 }
 
+/** The round `id` when it belongs to these rows and is still pending. */
+const waiting = (rows: readonly QuotationRowDb[], id: string): QuotationRowDb | undefined =>
+  rows.find((r) => r.id === id && r.outcome === 'pending')
+
 const isSign = (r: ApprovalRowDb): boolean => r.kind === 'contract-sign'
 
-/** What the sign rules read off a deal; `quoted` = a `quotation-sent` touch exists. */
+/** What the sign rules read off a deal; `quoted` = it has a `sales.quotation` row. */
 export type SignFacts = {
   code: string
   lost: boolean
@@ -247,13 +300,13 @@ export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts 
 
 /** The two refusals the approval re-checks when it applies. A won deal passes
  *  (sign again). The second is the quotation gate (ADR 0064 §3): no FIRST
- *  contract without a `quotation-sent` touch — a fact, not `stage`, which a
+ *  contract without a row in the quotation ledger — a fact, not `stage`, which a
  *  back-dated column could fake. */
 export function signableVerdict(f: SignFacts): OpportunityAct {
   if (f.lost)
     return refuse(`Cơ hội ${f.code} đã dừng, không ký được. Muốn chăm lại thì đi từ lead.`)
   if (!f.signed && !f.quoted) {
-    return refuse(`Cơ hội ${f.code} chưa gửi quotation. Ghi mốc Quotation trước khi ký.`)
+    return refuse(`Cơ hội ${f.code} chưa có báo giá. Ghi báo giá trước khi ký.`)
   }
   return { ok: true }
 }

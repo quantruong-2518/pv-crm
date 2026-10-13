@@ -1,6 +1,6 @@
 # 0072 · An opportunity has four stages; sample, POC, demo and site visits are care activities
 
-Status: accepted (partially supersedes 0064 §1 stage set, §3 `sample`/`poc` milestone rows, §7 five columns, §8 `sample-sent`/`poc-run` as stage triggers; narrows 0069 §7 and §8 sub-rungs; relabels 0071's `assigned`)
+Status: accepted (partially supersedes 0064 §1 stage set, §3 `sample`/`poc` milestone rows, §7 five columns, §8 `sample-sent`/`poc-run` as stage triggers; narrows 0069 §7 and §8 sub-rungs; relabels 0071's `assigned`; §4's quotation-as-milestone and touch-counted rounds superseded by 0090)
 Source: project owner's decisions in chat, 01/10/2026
 
 ## Context
@@ -43,17 +43,17 @@ Allowed from `assigned` until signed or lost; never at `new`.
 The FIRST activity on a deal at `assigned` moves it to `engaged`. Later ones
 never move a stage.
 
-### 4 · `quotation` stays a stage
+### 4 · `quotation` stays a stage _(how a quotation is recorded and its rounds counted: superseded by 0090)_
 
 It gates signing (0064 §3). Recording a quotation from `assigned` skips
 `engaged`; the journey shows it skipped, and the screen confirms before a skip.
 The quotation's own date is back-datable within [current stage entry, now].
-Repeat quotations are rounds ("Gửi lần n", 0069 §8).
+Repeat quotations are rounds ("Gửi lần n", 0069 §8) _(superseded by 0090: each quotation is a ledger record, rounds are counted from the ledger, not from touches)_.
 
 ### 5 · Mail templates
 
 A mail template may carry an activity kind `sample` or the stage milestone
-`quotation` (0069 §7 narrowed). A sample template records a sample activity
+`quotation` (0069 §7 narrowed) _(a quotation from a template now writes a ledger row, 0090 §1)_. A sample template records a sample activity
 when the letter leaves. At `new` nothing is recorded, and the composer says so
 beforehand. No POC by mail.
 

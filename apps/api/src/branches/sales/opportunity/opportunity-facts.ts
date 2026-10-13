@@ -15,6 +15,7 @@ import {
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { activityFreshnessOf } from '../config/activity-freshness'
+import { QuotationRepository } from '../quotation/quotation.repository'
 import { vnDay } from './opportunity-lifecycle'
 import { customerOf } from './opportunity-opening.service'
 import { OpportunityFactsRepository, type ContactRead } from './opportunity-facts.repository'
@@ -30,8 +31,8 @@ type RowFacts = Pick<OpportunityRow, RowFactKey>
 
 type BookFacts = Pick<OpportunityBookRow, 'lastActivityAt' | 'activityFreshness' | 'pendingSign'>
 
-const QUOTATION: TouchKind = MILESTONE_TOUCH.quotation
-const COUNTED: TouchKind[] = [...CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k]), QUOTATION]
+const CARE: TouchKind[] = CARE_ACTIVITY_KINDS.map((k) => MILESTONE_TOUCH[k])
+const COUNTED: TouchKind[] = [...CARE, MILESTONE_TOUCH.quotation]
 /* The book's last-activity column (ADR 0077 §4): calls, meetings, mail and chat with the
    customer, plus care and quotations. In-app is our own desk, not the customer. */
 const CUSTOMER_CHANNELS: ThreadChannel[] = [
@@ -48,6 +49,7 @@ const DAY_MS = 86_400_000
 export class OpportunityFacts {
   constructor(
     private readonly repo: OpportunityFactsRepository,
+    private readonly quotes: QuotationRepository,
     private readonly settings: SettingService,
   ) {}
 
@@ -105,8 +107,9 @@ export class OpportunityFacts {
   private async factsOf(inputs: readonly RowInput[]): Promise<(input: RowInput) => RowFacts> {
     const codes = inputs.map((i) => i.row.code)
     const unique = (xs: (string | null)[]) => [...new Set(xs.filter((x) => x !== null))]
-    const [counts, steps, contacts, leadContacts, runs, reasons] = await Promise.all([
-      this.repo.touchCounts(codes, COUNTED),
+    const [counts, rounds, steps, contacts, leadContacts, runs, reasons] = await Promise.all([
+      this.repo.touchCounts(codes, CARE),
+      this.quotes.counts(codes),
       this.repo.nextSteps(codes),
       this.repo.dealContacts(codes, true),
       this.repo.leadContacts(unique(inputs.map((i) => i.row.leadCode))),
@@ -137,7 +140,7 @@ export class OpportunityFacts {
         activityCounts: Object.fromEntries(
           CARE_ACTIVITY_KINDS.map((k) => [k, tally(row.code, MILESTONE_TOUCH[k])]),
         ) as RowFacts['activityCounts'],
-        quotationRounds: tally(row.code, QUOTATION),
+        quotationRounds: rounds.get(row.code) ?? 0,
         nextStep:
           step && row.state === 'open'
             ? { text: step.text, due: step.due, dueLevel: stepLevelOf(step.due, step.today) }

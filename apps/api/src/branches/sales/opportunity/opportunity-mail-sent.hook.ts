@@ -8,15 +8,17 @@ import type { MailSent, MailSentHook, MailSubjectPeople } from '@api/platform/ma
 import { RolePermissionRepository } from '@api/platform/roles/role-permission.repository'
 import { MasRepository } from '../campaign/mas.repository'
 import { LEAD_NOTE } from '../lead/lead-write.mapper'
+import { QuotationService } from '../quotation/quotation.service'
 import { SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
 import { dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
 import { scopeRefOf } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 
 /** A letter that really left from the opportunity door, on a template that
- *  serves that door and carries a milestone, records it (ADR 0069 §7, 0072 §5:
- *  `sample` is a care activity, `quotation` the stage) through
- *  `OpportunityLifecycle.milestone`, in the run creator's name —
+ *  serves that door and carries a milestone, records it (ADR 0069 §7, 0072 §5):
+ *  `sample` as a care activity through `OpportunityLifecycle.milestone`,
+ *  `quotation` as a kind-less ledger round through `QuotationService.record`
+ *  (ADR 0090) — in the run creator's name,
  *  and only if E2 lets that person press the manual button on THIS deal
  *  (`opportunity.edit`, scoped): sending needs `lead.send-email` and a
  *  template's milestone is set under `campaign.edit`, neither of which is it.
@@ -33,6 +35,7 @@ export class OpportunityMailSentHook implements MailSentHook {
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
+    private readonly quotes: QuotationService,
     private readonly templates: MasRepository,
     private readonly grants: RolePermissionRepository,
     private readonly touch: TouchService,
@@ -65,9 +68,12 @@ export class OpportunityMailSentHook implements MailSentHook {
           return
         }
         const deal = dealAtOf(read, lock.pendingSign)
-        await this.lifecycle.milestone(sp, deal, found.milestone, who, {
-          note: `Thư: ${found.subject}`,
-        })
+        const note = `Thư: ${found.subject}`
+        if (found.milestone === 'quotation') {
+          await this.quotes.record(sp, deal, who, { source: 'mail', note })
+        } else {
+          await this.lifecycle.milestone(sp, deal, found.milestone, who, { note })
+        }
       })
     } catch (error) {
       if (!(error instanceof PvError) || error.getStatus() >= 500) throw error

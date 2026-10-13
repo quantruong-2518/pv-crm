@@ -5,6 +5,7 @@ import {
   AppShell,
   Badge,
   Button,
+  Check,
   FileText,
   GlassCard,
   Icon,
@@ -21,12 +22,14 @@ import {
 } from '@pv/ui'
 import { DOC_STATE_LABEL } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
+import { userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
-import { toast } from '@/app/toast'
+import { toast, toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import {
   DUE_LABEL,
+  RECORD_CHANNEL_LABEL,
   contractDetailQuery,
   daysPhrase,
   installmentOf,
@@ -37,6 +40,7 @@ import {
   type InstallmentCondition,
   type InstallmentView,
 } from '@/data/contracts'
+import { useDoneCondition } from '@/data/contracts-write'
 import { SideTag } from '@/components/contract-bits'
 import { MAIL_BLOCKED, contractChain, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
@@ -64,13 +68,6 @@ const RECORD_DOT: Record<string, StatusDotState> = {
   'awaiting-reply': 'bad',
   scheduled: 'current',
   upcoming: 'next',
-}
-
-const CHANNEL_LABEL: Record<string, string> = {
-  email: 'Email',
-  'zalo-oa': 'Zalo OA',
-  'in-app': 'Trong app',
-  call: 'Gọi điện',
 }
 
 const DOC_TONE = { complete: 'success', 'awaiting-signature': 'danger', missing: 'draft' } as const
@@ -158,7 +155,7 @@ function InstallmentScreen({
       }
       main={
         <>
-          <ConditionsTodo installment={installment} view={view} now={now} />
+          <ConditionsTodo code={contract.code} installment={installment} view={view} now={now} />
           <InstallmentStats installment={installment} view={view} />
           <RecordsCard installment={installment} />
         </>
@@ -214,18 +211,22 @@ function conditionRung(c: InstallmentCondition, blocking: boolean, now: string):
   }
 }
 
-/** The unlock checklist as the todo card. No primary: nothing on this screen
- *  has a server verdict. Contact goes through the floating bar only. */
+/** The unlock checklist as the todo card. Its one door marks the blocking line
+ *  done, for whoever may edit an unpaid installment (`contract.edit`); the
+ *  server judges the press. Contact goes through the floating bar only. */
 function ConditionsTodo({
+  code,
   installment,
   view,
   now,
 }: {
+  code: Contract['code']
   installment: Installment
   view: View
   now: string
 }) {
-  const canRecord = useCan('contract.record-payment')
+  const canDone = useCan('contract.edit') && !installment.paidAt
+  const done = useDoneCondition(code)
   const { blocking } = view
   return (
     <TodoCard
@@ -238,16 +239,26 @@ function ConditionsTodo({
             <p className="m-0 text-[12.5px] leading-[1.6]">
               Đây là việc duy nhất còn thiếu. Xong là kế toán xuất được hoá đơn.
             </p>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="pointer-coarse:h-12"
-              disabled={!canRecord}
-              title={canRecord ? undefined : 'Vai của bạn không ghi nhận được. Việc của kế toán.'}
-              onClick={() => toast('Ghi nhận cần một lượt duyệt trước khi ghi vào sổ.')}
-            >
-              Ghi nhận đã xong
-            </Button>
+            {canDone && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="pointer-coarse:h-12"
+                disabled={done.isPending}
+                onClick={() =>
+                  done.mutate(
+                    { no: installment.no, id: blocking.id },
+                    {
+                      onSuccess: () => toastDone('Đã đánh dấu xong.'),
+                      onError: (e) => toastFail('Không đánh dấu được.', userMessage(e)),
+                    },
+                  )
+                }
+              >
+                <Icon icon={Check} size={16} />
+                Đánh dấu xong
+              </Button>
+            )}
           </div>
         )
       }
@@ -339,7 +350,7 @@ function RecordsCard({ installment }: { installment: Installment }) {
             title: r.what,
             meta: (
               <div className="flex flex-wrap items-center gap-2">
-                <MetaPill>{CHANNEL_LABEL[r.channel]}</MetaPill>
+                <MetaPill>{RECORD_CHANNEL_LABEL[r.channel]}</MetaPill>
                 <span className="text-muted-foreground tnum text-[12px]">
                   {r.state === 'upcoming' || r.state === 'scheduled' ? dm(r.at) : dmhm(r.at)} ·{' '}
                   {r.detail}

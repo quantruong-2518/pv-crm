@@ -19,6 +19,8 @@ import {
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
+  QUOTATION_OUTCOME_LABEL,
+  type OpportunityProfileResponse,
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
@@ -44,10 +46,11 @@ export function StopDrawer({
   open,
   onClose,
 }: {
-  op: OpportunityRow
+  op: OpportunityProfileResponse
   open: boolean
   onClose: () => void
 }) {
+  const waiting = op.money.open.filter((n) => n.pendingId !== null).length
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const stop = useStopDeal(op.code)
@@ -160,6 +163,12 @@ export function StopDrawer({
               gửi mail cho lead.
             </Badge>
           </span>
+        )}
+
+        {waiting > 0 && (
+          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+            {waiting} báo giá đang chờ khách sẽ đóng là {QUOTATION_OUTCOME_LABEL['not-closed']}.
+          </p>
         )}
 
         <Field label="Ghi chú" required={noteNeeded}>

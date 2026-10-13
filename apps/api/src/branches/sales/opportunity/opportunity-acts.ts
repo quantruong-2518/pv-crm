@@ -13,6 +13,7 @@ import {
   vnDay,
   type DealAt,
 } from './opportunity-lifecycle'
+import { QuotationRepository } from '../quotation/quotation.repository'
 import { SIGN_APPROVERS, signFactsOf, signVerdict } from './opportunity-sign.service'
 import { scopeRefOf } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
@@ -81,6 +82,7 @@ export class OpportunityActs {
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
     private readonly approvals: ApprovalService,
+    private readonly quotes: QuotationRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -97,7 +99,7 @@ export class OpportunityActs {
     const handle = this.deals.readonlyHandle
     const [chain, quoted, floor] = await Promise.all([
       this.approvals.chainFor(SIGN_APPROVERS),
-      this.deals.hasTouch(handle, found.row.code, 'quotation-sent'),
+      this.quotes.exists(handle, found.row.code),
       this.lifecycle.floors(handle, deal),
     ])
     const ref = scopeRefOf(found.row, found.owners, who)

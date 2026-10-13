@@ -1,6 +1,7 @@
 import { Module, type OnModuleInit } from '@nestjs/common'
 import { ApprovalModule } from '@api/platform/approval/approval.module'
 import { ApprovalAppliers } from '@api/platform/approval/approval.service'
+import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
@@ -11,6 +12,8 @@ import { MasRepository } from '../campaign/mas.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
+import { QuotationRepository } from '../quotation/quotation.repository'
+import { QuotationService } from '../quotation/quotation.service'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { OpportunityAccept } from './opportunity-accept.service'
@@ -81,6 +84,8 @@ import { OpportunityService } from './opportunity.service'
      — signing goes through E3 since ADR 0057 §7. */
   imports: [
     ApprovalModule,
+    /* Each quotation write door leaves a `platform.audit` line (ADR 0090). */
+    AuditModule,
     EnginesModule,
     GraphModule,
     MailModule,
@@ -116,6 +121,11 @@ import { OpportunityService } from './opportunity.service'
     OpportunityImport,
     OpportunitySign,
     ContractRepository,
+    /* The quotation ledger (ADR 0090). Providers here, not a module of their
+       own: the lifecycle closes rounds on a stop and the ledger's writer moves
+       the stage, so the two halves would import each other. */
+    QuotationRepository,
+    QuotationService,
     /* Một mục của đăng bạ `MAIL_COMPOSER`. Xuất ra dưới dạng CLASS chứ không
        dưới token: đăng bạ là một mảng do
        `QueueModule.forWorker({ composers: [...] })` ghép lại, vì Nest không gộp

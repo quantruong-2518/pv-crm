@@ -412,9 +412,9 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
  *  merged in time order (ADR 0069 §8). A decided request is `done` either way;
  *  `decision` says which way, and a refusal's reason rides as the note. */
 function quotationStepsOf(dealCode: string, rows: LaneRows): JourneyDealSubStep[] {
-  const sends = rows.dealTouches
-    .filter((q) => q.deal === dealCode && q.kind === 'quotation-sent')
-    .map((q, i) => ({ at: q.at, step: quoteSentStep(i + 1, q) }))
+  const sends = rows.dealTouches.flatMap((q) =>
+    q.deal === dealCode && q.round !== null ? [{ at: q.at, step: quoteSentStep(q.round, q) }] : [],
+  )
   const signs = rows.signApprovals
     .filter((a) => a.deal === dealCode)
     .map((a) => ({ at: a.decidedAt ?? a.raisedAt, step: signStep(a) }))
