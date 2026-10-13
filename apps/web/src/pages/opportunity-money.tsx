@@ -14,8 +14,8 @@ import { CloseNegotiationDialog, QuotationPatchDialog } from './opportunity-quot
 
 /** Module 3 · the deal's money: the strip, one section per unsigned negotiation,
  *  then one per contract — all off `op.money`, in the server's order, with no
- *  sum and no sort made here. The record modal is the page's (the todo card and
- *  the more menu open it too); the close, completion, schedule and installment
+ *  sum and no sort made here. The record modal is the page's (the todo card
+ *  opens it too); the close, completion, schedule and installment
  *  layers belong to this block. */
 
 /** What a layer acts on. `open: false` keeps the last target so the layer can

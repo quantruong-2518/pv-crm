@@ -41,19 +41,19 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
       variant="b"
       id={HISTORY_ID}
       tabIndex={-1}
-      className="flex flex-col gap-4 p-4 outline-none sm:p-5"
-      aria-label="Diễn biến"
+      className="flex flex-col gap-3 p-4 outline-none sm:p-5"
+      aria-label="Tiến trình công việc"
     >
-      <SectionTitle size="detail">Diễn biến</SectionTitle>
+      <SectionTitle size="detail">Tiến trình công việc</SectionTitle>
       {journey.isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : !deal ? (
         <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-          Không tải được diễn biến của cơ hội.{' '}
+          Không tải được tiến trình công việc của cơ hội.{' '}
           {isApiError(journey.error) ? userMessage(journey.error) : 'Thử lại.'}
         </p>
       ) : (
-        <Timeline items={itemsOf(deal)} />
+        <Timeline items={itemsOf(deal)} className="[&>li]:pb-4" />
       )}
     </GlassCard>
   )
@@ -73,8 +73,17 @@ function itemsOf(deal: JourneyDeal) {
         id: rung.key,
         domId: historyRungId(rung.key),
         state: dot,
-        title: OPPORTUNITY_STAGE_LABEL[rung.key],
-        meta: by && <span className="text-muted-foreground text-[12px]">{by.name}</span>,
+        title: (
+          <>
+            {OPPORTUNITY_STAGE_LABEL[rung.key]}
+            {by && (
+              <span className="text-muted-foreground font-sans text-[12px] font-normal">
+                {' · '}
+                {by.name}
+              </span>
+            )}
+          </>
+        ),
         children:
           rung.subSteps.length > 0 ? (
             <SubSteps steps={rung.subSteps} />
@@ -87,29 +96,28 @@ function itemsOf(deal: JourneyDeal) {
 }
 
 /** The server words each step; a care activity names its kind from the
- *  contract's table, and it and a quote round say who recorded them. */
+ *  contract's table, and it and a quote round say who recorded them. One line
+ *  per step, the day in a fixed left column so no date drifts to the far edge. */
 function SubSteps({ steps }: { steps: JourneyDealSubStep[] }) {
   return (
-    <ul className="m-0 flex list-none flex-col gap-2 p-0">
+    <ul className="m-0 grid list-none grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 p-0">
       {steps.map((step, i) => {
         const by = step.kind === 'sign-approval' ? null : step.by
         const label =
           step.kind === 'activity' ? OPPORTUNITY_MILESTONE_LABEL[step.activity] : step.label
+        const detail = [by?.name, step.note].filter(Boolean).join(' · ')
         return (
-          <li key={`${i}:${step.label}`} className="flex min-w-0 flex-col gap-1">
-            <span className="flex min-w-0 items-baseline justify-between gap-3">
-              <span className="text-foreground text-[13px] font-medium">{label}</span>
-              {step.at && (
-                <span className="text-muted-foreground tnum shrink-0 text-[12px]">
-                  {dm(step.at)}
-                </span>
-              )}
+          <li
+            key={`${i}:${step.label}`}
+            className="col-span-2 grid grid-cols-subgrid items-baseline"
+          >
+            <span className="text-muted-foreground tnum text-[12px]">
+              {step.at ? dm(step.at) : ''}
             </span>
-            {(by || step.note) && (
-              <span className="text-muted-foreground break-words text-[12px] leading-[1.5]">
-                {[by?.name, step.note].filter(Boolean).join(' · ')}
-              </span>
-            )}
+            <span className="min-w-0 break-words text-[12px] leading-[1.5]">
+              <span className="text-foreground text-[13px] font-medium">{label}</span>
+              {detail && <span className="text-muted-foreground"> · {detail}</span>}
+            </span>
           </li>
         )
       })}

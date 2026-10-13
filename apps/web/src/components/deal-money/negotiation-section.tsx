@@ -48,9 +48,14 @@ export function NegotiationSection({
         {waiting && doors && (
           <span className="ml-auto flex flex-wrap items-center gap-2">
             {n.kind !== null && (
-              <Button size="md" className="pointer-coarse:h-12" onClick={() => doors.onQuote(n)}>
+              <Button
+                size="md"
+                variant="secondary"
+                className="pointer-coarse:h-12"
+                onClick={() => doors.onQuote(n)}
+              >
                 <Icon icon={FileText} size={16} />
-                Ghi báo giá
+                Thêm lần báo giá
               </Button>
             )}
             <Button

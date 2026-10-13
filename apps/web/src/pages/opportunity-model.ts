@@ -90,10 +90,15 @@ export function primaryMoveOf(op: Profile, can: { accept: boolean; close: boolea
   return op.acts.quotation.ok ? 'quote' : null
 }
 
-/** What the primary slot of the todo card draws. */
+/** What the primary slot of the todo card draws: the stage move, and the
+ *  quote and sign doors beside it — each one press away, in this card only. */
 export type DealPrimaryState = {
   move: PrimaryMove
-  /** Why the move is shut, or why nobody here can move the deal. */
+  /** The record door of the quotation ledger. */
+  quote: boolean
+  /** `win` closes an open deal, `again` adds a contract to a won one. */
+  sign: 'win' | 'again' | null
+  /** Why the sign is shut, or why nobody here can move the deal. */
   note: string | null
   /** The accept modal is mounted on the permission, not the verdict, so it
    *  outlives the accept that shuts the act. */
@@ -105,13 +110,21 @@ export function primaryStateOf(
   can: { accept: boolean; close: boolean },
 ): DealPrimaryState {
   const move = primaryMoveOf(op, can)
-  const signWhy = move === 'sign' ? refusalOf(op.acts.sign) : null
+  const again = op.state === 'won' && can.close && !op.pendingSign
+  const signWhy = move === 'sign' || again ? refusalOf(op.acts.sign) : null
+  const open = signWhy === null && !op.pendingSign
   /* An open deal nobody here can move says why once, in the server's words. */
   const idle =
     op.state === 'open' && move === null && !op.acts.activity.ok && !op.acts.quotation.ok
       ? refusalOf(op.acts.activity)
       : null
-  return { move, note: signWhy ?? idle, acceptMounted: op.state === 'open' && can.accept }
+  return {
+    move,
+    quote: op.acts.quotation.ok,
+    sign: !open ? null : move === 'sign' ? 'win' : again ? 'again' : null,
+    note: signWhy ?? idle,
+    acceptMounted: op.state === 'open' && can.accept,
+  }
 }
 
 export const QUOTE_HINT = `Báo giá gửi bằng thư mẫu ${OPPORTUNITY_MILESTONE_LABEL.quotation} được ghi tự động, cần bổ sung giá trị và loại hợp đồng.`
@@ -120,22 +133,14 @@ export const QUOTE_HINT = `Báo giá gửi bằng thư mẫu ${OPPORTUNITY_MILES
  *  negotiation the round joins. */
 export const QUOTE_LABEL = 'Ghi báo giá'
 
-/** The floating bar's more menu: the record doors the primary does not hold,
- *  a second contract, the owners' drawer, the seller swap (the first seller is
- *  the primary's "Giao Sale"), and the stop. Signing has one place per state —
- *  the primary of an open deal, this menu once won, where the verdict names no
- *  primary. A second contract is hidden from a reader who may not sign at all;
- *  the deal's own refusals stay listed with their reason. A stop is final, so
- *  a lost deal offers nothing. */
+/** The floating bar's more menu: the activity record, the owners' drawer, the
+ *  seller swap (the first seller is the primary's "Giao Sale"), and the stop.
+ *  Quoting and signing are the todo card's, never repeated here. A stop is
+ *  final, so a lost deal offers nothing. */
 export function dealMoreChoices(
   op: Profile,
-  move: PrimaryMove,
-  /** `opportunity.close` — the same gate as the primary's sign. */
-  canSign: boolean,
   doors: {
     onRecord: () => void
-    onQuote: () => void
-    onSign: () => void
     onEditOwners: () => void
     onStop: () => void
     /** The head's seller swap. */
@@ -149,22 +154,6 @@ export function dealMoreChoices(
       key: 'activity',
       label: 'Ghi hoạt động',
       onSelect: doors.onRecord,
-    })
-  }
-  if (op.acts.quotation.ok && move !== 'quote') {
-    choices.push({
-      key: 'quotation',
-      label: QUOTE_LABEL,
-      onSelect: doors.onQuote,
-    })
-  }
-  if (op.state === 'won' && !op.pendingSign && canSign) {
-    const why = refusalOf(op.acts.sign)
-    choices.push({
-      key: 'sign',
-      label: 'Ký thêm hợp đồng',
-      ...(why ? { blocked: why } : {}),
-      onSelect: doors.onSign,
     })
   }
   if (op.acts.editDetails.ok) {

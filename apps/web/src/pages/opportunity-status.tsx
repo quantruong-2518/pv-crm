@@ -7,7 +7,7 @@ import { statusStepsOf, type DealPrimaryState } from './opportunity-model'
 
 /** Module 3 · the deal's todo card (ADR 0078 §1): the four columns and
  *  the contract step off the server's `stages`, the deal's one next step, and
- *  the primary move beside it. A stopped deal has no step and no move: its
+ *  its moves beside it — the stage move, quoting and signing. A stopped deal has no step and no move: its
  *  fail log follows the card. */
 
 export function DealTodo({
@@ -22,8 +22,9 @@ export function DealTodo({
   onSign: () => void
   onQuote: () => void
 }) {
-  const signShut = primary.move === 'sign' && (primary.note !== null || Boolean(op.pendingSign))
-  const drawsPrimary = (primary.move !== null && !signShut) || primary.acceptMounted
+  const { move } = primary
+  const drawsPrimary =
+    move === 'accept' || move === 'assign' || primary.quote || primary.sign || primary.acceptMounted
 
   return (
     <TodoCard

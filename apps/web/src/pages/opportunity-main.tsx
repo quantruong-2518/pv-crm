@@ -65,7 +65,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** The `contract-sign` request waiting on a decision. No sign door here: the
- *  first contract is the todo card's win, a second one is in the more menu. */
+ *  todo card holds it, for the first contract and for every later one. */
 export function SignRequestCard({
   op,
   onView,

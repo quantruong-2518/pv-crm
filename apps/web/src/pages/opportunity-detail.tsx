@@ -44,7 +44,7 @@ import { DealTodo } from './opportunity-status'
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
  *  record shell (ADR 0078): run strip, header, then the body — todo card,
  *  sign request, money, meetings, terms, history, description — and the run rail —
- *  comms, people, files. The floating bar only reaches contacts; its more menu holds the rest.
+ *  comms, people, files. Quoting and signing sit in the todo card; the floating bar reaches contacts.
  *
  *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
  *  so that every hook of the profile runs only once there IS a profile. */
@@ -118,10 +118,8 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
     enabled: Boolean(op.leadCode),
   })
   const primary = primaryStateOf(op, { accept: canAccept, close: canClose })
-  const more = dealMoreChoices(op, primary.move, canClose, {
+  const more = dealMoreChoices(op, {
     onRecord: record,
-    onQuote: quoteNew,
-    onSign: sign,
     onEditOwners: () => edit('owners'),
     onStop: () => setStopping(true),
     onAssign: () => setAssigning(true),
