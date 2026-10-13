@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { seatedIn, type Actor, type RoleId } from '@pv/engines'
+import type { Actor, RoleId } from '@pv/engines'
 import {
   CONTRACT_KIND_LABEL,
   ConfigProposalReceipt,
   ContractSignProposal,
   type ContractSign,
+  type ContractSignedReceipt,
   type ObjectCode,
   type OpportunityAct,
 } from '@pv/contracts'
@@ -12,6 +13,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/approval.service'
+import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign } from '../contract/contract.mapper'
@@ -32,14 +34,14 @@ import { OpportunityRepository, type OpportunityRead } from './opportunity.repos
  *  approver is never asked to say yes to something that would fail. The
  *  contract is written by `apply`, inside the transaction that settles the
  *  approval, with the RAISER as the signing actor: they reported the
- *  signature, the approver only confirmed it.
+ *  signature, the approver only confirmed it. A director or head of sales
+ *  needs no second yes (ADR 0091): for them the door writes the contract
+ *  itself, under the same checks, and leaves an audit row.
  *
  *  A won deal may sign again (ADR 0069 §5): each request carries its own amount,
  *  currency and kind, writes its own contract, and leaves the deal's columns
  *  alone — only the FIRST signature takes the deal off the board.
- *
- *  Signing had no post-commit side effect before E3 (no mail, no queue), so
- *  nothing had to move out of the transaction. */
+ */
 @Injectable()
 export class OpportunitySign implements ApprovalApplier {
   constructor(
@@ -50,14 +52,20 @@ export class OpportunitySign implements ApprovalApplier {
     private readonly mirror: ObjectMirror,
     private readonly approvals: ApprovalService,
     private readonly quotes: QuotationRepository,
+    private readonly audit: AuditRepository,
   ) {}
 
-  /** `POST /sales/opportunities/:code/contract` — 202 with a receipt.
+  /** `POST /sales/opportunities/:code/contract` — 202 with a receipt, or the
+   *  contract's code when the signer needs no approval.
    *
    *  Checked twice: on the pool to fail fast, then again under the deal's row
    *  lock with the request opened in that same transaction — a stop takes the
    *  same lock and refuses a deal with a sign waiting, so the two serialise. */
-  async propose(who: Actor, code: ObjectCode, body: ContractSign): Promise<ConfigProposalReceipt> {
+  async propose(
+    who: Actor,
+    code: ObjectCode,
+    body: ContractSign,
+  ): Promise<ConfigProposalReceipt | ContractSignedReceipt> {
     const found = await this.deals.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
     /* On the pool, before the lock: PGlite has one connection, so a pool read
@@ -66,20 +74,14 @@ export class OpportunitySign implements ApprovalApplier {
       this.approvals.pendingOn(code),
       this.approvals.chainFor(SIGN_APPROVERS),
     ])
-    const seated = chain.some((link) => seatedIn(link, who))
-    await this.assertProposable(
-      this.deals.readonlyHandle,
-      found,
-      body,
-      pending.some(isSign),
-      seated,
-    )
+    await this.assertProposable(this.deals.readonlyHandle, found, body, pending.some(isSign))
+    if (signsDirect(who)) return this.signNow(who, code, body)
 
     const request = await this.deals.run(async (tx) => {
       const lock = await this.deals.lockDeal(tx, code)
       const fresh = lock ? await this.deals.byCode(who, code, tx) : null
       if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
-      await this.assertProposable(tx, fresh, body, lock.pendingSign, seated)
+      await this.assertProposable(tx, fresh, body, lock.pendingSign)
 
       /* `signedAt` frozen at the press: the person reporting the signature knows
          when the pen moved, the approval days later does not. */
@@ -100,6 +102,33 @@ export class OpportunitySign implements ApprovalApplier {
     return ConfigProposalReceipt.parse({ requestId: request.id, state: request.state })
   }
 
+  /** The same door for a signer who needs no approval: checks under the deal
+   *  lock, then the signature and its audit row in one transaction. */
+  private signNow(
+    who: Actor,
+    code: ObjectCode,
+    body: ContractSign,
+  ): Promise<ContractSignedReceipt> {
+    return this.deals.run(async (tx) => {
+      const lock = await this.deals.lockDeal(tx, code)
+      const fresh = lock ? await this.deals.byCode(who, code, tx) : null
+      if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
+      await this.assertProposable(tx, fresh, body, lock.pendingSign)
+      const sign = { ...body, signedAt: body.signedAt ?? new Date().toISOString() }
+      const contractCode = await this.write(tx, fresh, sign, { id: who.id, name: who.name })
+      await this.audit.write(
+        {
+          actorId: who.id,
+          action: 'edit',
+          code,
+          note: `contract ${contractCode} signed without approval (${who.roleIds.join(', ')})`,
+        },
+        tx,
+      )
+      return { contractCode }
+    })
+  }
+
   /** Every refusal the door makes: the deal (`signVerdict`, 409), the round the
    *  signature claims to win (409), then the body (422 owner). */
   private async assertProposable(
@@ -107,11 +136,10 @@ export class OpportunitySign implements ApprovalApplier {
     found: OpportunityRead,
     body: ContractSign,
     pendingSign: boolean,
-    approverSeat: boolean,
   ): Promise<void> {
     const rounds = await this.quotes.byDeal(handle, found.row.code)
     const facts = signFactsOf(found, rounds.length > 0)
-    const verdict = signVerdict({ ...facts, pendingSign, approverSeat })
+    const verdict = signVerdict({ ...facts, pendingSign })
     if (!verdict.ok) throw conflict(verdict.reason)
     const round = body.quotationId === undefined ? null : waiting(rounds, body.quotationId)
     if (body.quotationId !== undefined && !round) {
@@ -159,7 +187,7 @@ export class OpportunitySign implements ApprovalApplier {
     found: OpportunityRead,
     body: ContractSign,
     by: { id: string; name: string },
-  ): Promise<void> {
+  ): Promise<string> {
     const code = found.row.code
     const contractCode = await this.contracts.nextCode(tx)
     const values = fromSign(body, contractCode, found.row, found.holder?.id ?? null, new Date())
@@ -214,6 +242,7 @@ export class OpportunitySign implements ApprovalApplier {
         at: signedAt,
       },
     ])
+    return contractCode
   }
 
   /** The round the signature names turns `won` and its negotiation carries
@@ -313,19 +342,13 @@ export function signableVerdict(f: SignFacts): OpportunityAct {
 
 /** Every refusal the sign door makes about the deal and the reader, in its
  *  order — the door and the profile's `acts.sign` both read it. The SALE lane
- *  may stay empty until signing and no longer (ADR 0071 §4); a sign-approver
- *  may not raise the request they would approve. */
-export function signVerdict(
-  f: SignFacts & { pendingSign: boolean; approverSeat: boolean },
-): OpportunityAct {
+ *  may stay empty until signing and no longer (ADR 0071 §4). */
+export function signVerdict(f: SignFacts & { pendingSign: boolean }): OpportunityAct {
   const signable = signableVerdict(f)
   if (!signable.ok) return signable
   if (!f.hasSeller)
     return refuse('Cơ hội chưa có Sale đứng đơn. Thêm một Sale trước khi đề nghị ký.')
   if (f.pendingSign) return refuse(`Cơ hội ${f.code} đã có yêu cầu ký đang chờ duyệt.`)
-  if (f.approverSeat) {
-    return refuse('Người duyệt ký không tự gửi đề nghị ký được. Nhờ Sale đứng đơn gửi.')
-  }
   return { ok: true }
 }
 
@@ -338,6 +361,13 @@ const isSaleOwner = (found: OpportunityRead, id: string): boolean =>
  *  sales config proposals follow (`config.approval.ts`). A second approver is a
  *  policy decision, one line here. */
 export const SIGN_APPROVERS: RoleId[] = ['director']
+
+/** Whose signature needs no approval (ADR 0091): the two seats above the
+ *  sales floor. A seller's still goes through `SIGN_APPROVERS`. */
+const SIGN_DIRECT: RoleId[] = ['director', 'head-of-sales']
+
+export const signsDirect = (who: Actor): boolean =>
+  who.roleIds.some((role) => SIGN_DIRECT.includes(role))
 
 /** What the approver reads instead of the payload: deal, customer, kind, amount. */
 function consequenceOf(found: OpportunityRead, body: ContractSign): string {

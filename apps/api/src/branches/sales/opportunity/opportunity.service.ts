@@ -53,6 +53,7 @@ import {
 } from './opportunity-acts'
 import { dealAtOf } from './opportunity-lifecycle'
 import { pendingSignOf, profileContractsOf, stageSpansOf } from './opportunity-profile'
+import { signsDirect } from './opportunity-sign.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { editTrail } from './opportunity-trail'
@@ -309,6 +310,7 @@ export class OpportunityService {
       ...row,
       position: positionOf(found.row, stageRows, approvals),
       pendingSign: pendingSignOf(sign),
+      signsDirect: signsDirect(who),
       contacts,
       ...(await this.acts.of(who, found, sign !== undefined)),
       stages: stageSpansOf(found.row, events, stageRows, new Date()),

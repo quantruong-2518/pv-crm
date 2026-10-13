@@ -369,6 +369,11 @@ export const ContractBookResponse = paged(ContractRow)
 /** `GET /sales/contracts/:code` — one contract, fully nested. */
 export const ContractDetailResponse = ContractDetailRow
 
+/** What the sign door answers when the signer needs no approval (director,
+ *  head of sales — ADR 0091): the contract already exists. Everyone else gets
+ *  the approval receipt (`ConfigProposalReceipt`) instead. */
+export const ContractSignedReceipt = z.object({ contractCode: ContractCode })
+
 /** What signing produces, once E3 approves the `contract-sign` request.
  *
  *  BOTH halves, because the caller needs both and neither implies the other.
@@ -388,6 +393,7 @@ export const ContractSignResponse = z.object({
   contract: ContractRow,
 })
 
+export type ContractSignedReceipt = z.infer<typeof ContractSignedReceipt>
 export type InstallmentDraft = z.infer<typeof InstallmentDraft>
 export type InstallmentStatus = z.infer<typeof InstallmentStatus>
 export type ContractSign = z.infer<typeof ContractSign>

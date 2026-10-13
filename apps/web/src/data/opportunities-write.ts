@@ -3,6 +3,7 @@ import {
   OpportunityStageHistory,
   OpportunityStopReasons,
   type ConfigProposalReceipt,
+  type ContractSignedReceipt,
   type ContractSign,
   type LeadProfile,
   type ObjectCode,
@@ -318,6 +319,10 @@ export function saveOpportunity(
   })
 }
 
+/** A receipt while it waits for approval, or the contract's code when the
+ *  signer needs none (`OpportunityProfileResponse.signsDirect`). */
+export type SignAnswer = ConfigProposalReceipt | ContractSignedReceipt
+
 /** Raise a request to sign — the only road to `won`, and it passes E3.
  *
  *  202 with a receipt: the contract row exists only once an approver accepts
@@ -329,8 +334,8 @@ export function signContract(
   code: ObjectCode,
   body: ContractSign,
   signal?: AbortSignal,
-): Promise<ConfigProposalReceipt> {
-  return api.write<ConfigProposalReceipt>(`${BOOK_PATH}/${code}/contract`, {
+): Promise<SignAnswer> {
+  return api.write<SignAnswer>(`${BOOK_PATH}/${code}/contract`, {
     method: 'POST',
     body,
     need: OPPORTUNITY_SIGN_NEED,
@@ -393,11 +398,12 @@ export function useSaveOpportunity(code: ObjectCode) {
 export function useSignContract(code: ObjectCode) {
   const client = useQueryClient()
 
-  return useMutation<ConfigProposalReceipt, ApiError, ContractSign>({
+  return useMutation<SignAnswer, ApiError, ContractSign>({
     mutationFn: (body) => signContract(code, body),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true })
       void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
+      void client.invalidateQueries({ queryKey: ['sales', 'contracts'] })
     },
   })
 }

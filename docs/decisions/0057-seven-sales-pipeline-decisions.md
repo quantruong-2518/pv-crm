@@ -1,7 +1,7 @@
 # 0057 · Seven sales pipeline decisions — signed-deal editing, reversible lead exit, stage-gate scope, free-text loss reason
 
 Status: accepted (supersedes 0055; partially supersedes 0015 rule 2 and rule
-4, 0031's fourth request type, and 0034); §6 superseded by 0060 (stage-gate
+4, 0031's fourth request type, and 0034); §7's no-self-approval paragraph superseded by 0091; §6 superseded by 0060 (stage-gate
 is removed outright, not scoped down); §5 amended by 0064 (loss reason becomes
 care reason, picked from a per-stage catalogue); §2 partially superseded by
 0067 (lead exit becomes a stop into `nurturing`; no reopen) and by 0070 (the
@@ -126,7 +126,9 @@ No self-approval: the person holding the sign-approval seat cannot raise a
 sign request for that deal. The check runs at raise time, not approve time —
 the chain is fixed on the request and there is a single seat per role, so
 refusing at approve time would leave the request stuck forever with nobody
-else able to decide it. Other approval kinds are unchanged.
+else able to decide it. Other approval kinds are unchanged. _(This paragraph
+superseded by 0091: a director or a head of sales signs directly, with no
+request.)_
 
 ## Consequences
 

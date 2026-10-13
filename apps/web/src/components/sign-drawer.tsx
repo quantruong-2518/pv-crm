@@ -114,6 +114,7 @@ type Props = {
 export function SignDrawer({ op, open, onClose }: Props) {
   const people = useSalesPeople()
   const sign = useSignContract(op.code)
+  const direct = op.signsDirect
   const again = op.state === 'won'
 
   /* `op` keeps its reference between react-query renders, so the seed does too
@@ -179,13 +180,15 @@ export function SignDrawer({ op, open, onClose }: Props) {
       open={open}
       onClose={onClose}
       width="lg"
-      title={again ? 'Ký thêm hợp đồng' : 'Đề nghị ký'}
+      title={again ? 'Ký thêm hợp đồng' : direct ? 'Ký hợp đồng' : 'Đề nghị ký'}
       subtitle={
         <>
           <span className="font-mono">{op.code}</span> · {op.account}.{' '}
-          {again
-            ? 'Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
-            : 'Được duyệt thì đơn thành hợp đồng.'}
+          {direct
+            ? 'Bấm ký là hợp đồng được tạo ngay.'
+            : again
+              ? 'Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
+              : 'Được duyệt thì đơn thành hợp đồng.'}
         </>
       }
       meta={<Chip>{op.code}</Chip>}
@@ -203,11 +206,15 @@ export function SignDrawer({ op, open, onClose }: Props) {
             {sign.error
               ? userMessage(sign.error)
               : busy
-                ? 'Đang gửi đề nghị ký…'
+                ? direct
+                  ? 'Đang ký…'
+                  : 'Đang gửi đề nghị ký…'
                 : blocked
                   ? issue
                   : body
-                    ? 'Gửi xong, đề nghị chờ duyệt.'
+                    ? direct
+                      ? 'Ký xong là hợp đồng được tạo, không gỡ được.'
+                      : 'Gửi xong, đề nghị chờ duyệt.'
                     : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'}
           </span>
           <div className="flex shrink-0 gap-2">
@@ -228,15 +235,19 @@ export function SignDrawer({ op, open, onClose }: Props) {
               onClick={() => {
                 if (!body) return
                 sign.mutate(body, {
-                  onSuccess: () => {
-                    toastDone('Đã gửi đề nghị ký, chờ duyệt.')
+                  onSuccess: (answer) => {
+                    toastDone(
+                      'contractCode' in answer
+                        ? `Đã ký hợp đồng ${answer.contractCode}.`
+                        : 'Đã gửi đề nghị ký, chờ duyệt.',
+                    )
                     onClose()
                   },
                 })
               }}
             >
               <Icon icon={PenLine} size={16} />
-              {busy ? 'Đang gửi…' : 'Gửi đề nghị ký'}
+              {direct ? (busy ? 'Đang ký…' : 'Ký hợp đồng') : busy ? 'Đang gửi…' : 'Gửi đề nghị ký'}
             </Button>
           </div>
         </div>
@@ -365,7 +376,9 @@ export function SignDrawer({ op, open, onClose }: Props) {
         <div className="bg-surface-ink/5 flex items-start gap-3 rounded-md p-4">
           <Icon icon={TriangleAlert} size={16} className="text-warning mt-1 shrink-0" />
           <p className="text-[11.5px] leading-[1.5]">
-            Đề nghị đi qua Hộp duyệt. Hợp đồng chỉ được tạo khi được duyệt, và không gỡ được.
+            {direct
+              ? 'Hợp đồng được tạo ngay khi bấm ký, không qua Hộp duyệt, và không gỡ được.'
+              : 'Đề nghị đi qua Hộp duyệt. Hợp đồng chỉ được tạo khi được duyệt, và không gỡ được.'}
             {owner && (
               <>
                 {' '}

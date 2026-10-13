@@ -1,7 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { seatedIn, type AccessControl, type Actor, type Permission } from '@pv/engines'
+import type { AccessControl, Actor, Permission } from '@pv/engines'
 import type { OpportunityAct, OpportunityProfileResponse, OpportunityUpdate } from '@pv/contracts'
-import { ApprovalService } from '@api/platform/approval/approval.service'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { acceptVerdict } from './opportunity-accept.service'
 import { assignVerdict } from './opportunity-assign.service'
@@ -14,7 +13,7 @@ import {
   type DealAt,
 } from './opportunity-lifecycle'
 import { QuotationRepository } from '../quotation/quotation.repository'
-import { SIGN_APPROVERS, signFactsOf, signVerdict } from './opportunity-sign.service'
+import { signFactsOf, signVerdict } from './opportunity-sign.service'
 import { scopeRefOf } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 import type { OpportunityRowDb } from './opportunity.schema'
@@ -81,7 +80,6 @@ export class OpportunityActs {
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
-    private readonly approvals: ApprovalService,
     private readonly quotes: QuotationRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
@@ -97,8 +95,7 @@ export class OpportunityActs {
   async of(who: Actor, found: OpportunityRead, pendingSign: boolean): Promise<Verdicts> {
     const deal = dealAtOf(found, pendingSign)
     const handle = this.deals.readonlyHandle
-    const [chain, quoted, floor] = await Promise.all([
-      this.approvals.chainFor(SIGN_APPROVERS),
+    const [quoted, floor] = await Promise.all([
       this.quotes.exists(handle, found.row.code),
       this.lifecycle.floors(handle, deal),
     ])
@@ -109,14 +106,10 @@ export class OpportunityActs {
       const v = this.access.check(who, { branch: 'Sales', permission, ...(scoped ? { ref } : {}) })
       return v.ok ? rule : { ok: false, reason: v.note }
     }
-    const approverSeat = chain.some((link) => seatedIn(link, who))
     const acts = {
       activity: gate('opportunity.edit', careVerdict(deal, 'activity')),
       quotation: gate('opportunity.edit', careVerdict(deal, 'quotation')),
-      sign: gate(
-        'opportunity.close',
-        signVerdict({ ...signFactsOf(found, quoted), pendingSign, approverSeat }),
-      ),
+      sign: gate('opportunity.close', signVerdict({ ...signFactsOf(found, quoted), pendingSign })),
       stop: gate('opportunity.edit', boardVerdict(deal, 'dừng')),
       accept: gate('opportunity.accept', acceptVerdict(found, pendingSign), false),
       assign: gate('opportunity.assign', assignVerdict(deal, saleCountOf(found))),

@@ -9,7 +9,9 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from '@nestjs/common'
+import type { FastifyReply } from 'fastify'
 import type { Actor } from '@pv/engines'
 import {
   ContractSign,
@@ -314,16 +316,20 @@ export class OpportunityController {
    *  với gốc của nó.
    *
    *  202 since ADR 0057 §7: the door raises a `contract-sign` request in the One
-   *  inbox and answers with its receipt; the contract lands on approval. */
+   *  inbox and answers with its receipt; the contract lands on approval. 201
+   *  with the contract's code for a signer who needs no approval (ADR 0091). */
   @Post(':code/contract')
   @HttpCode(202)
   @Need({ branch: 'Sales', permission: 'opportunity.close', scoped: true })
-  sign(
+  async sign(
     @CurrentActor() who: Actor,
     @Param('code', zod(ObjectCode)) code: ObjectCode,
     @Body(zod(ContractSign)) body: ContractSign,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    return this.signs.propose(who, code, body)
+    const answer = await this.signs.propose(who, code, body)
+    if ('contractCode' in answer) void reply.status(201)
+    return answer
   }
 
   /** Save the opportunity profile form.

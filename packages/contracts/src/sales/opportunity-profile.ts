@@ -163,6 +163,9 @@ export const OpportunityMoney = z.object({
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
   pendingSign: PendingSign.nullable(),
+  /** This reader's signature needs no approval: the sign door writes the
+   *  contract at once (ADR 0091). The screen words its button from this. */
+  signsDirect: z.boolean(),
   /** Primary first; the same list `PUT …/:code/contacts` replaces. */
   contacts: z.array(OpportunityContact),
   acts: OpportunityActs,
