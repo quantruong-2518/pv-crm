@@ -2,11 +2,13 @@ import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nes
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
+import { NotificationModule } from '../notification/notification.module'
 import { StorageModule } from '../storage/storage.module'
 import { CommAttachmentController } from './comm-attachment.controller'
 import { CommAttachmentRepository } from './comm-attachment.repository'
 import { CommAttachmentService } from './comm-attachment.service'
 import { COMM_DEBRIEF_HOOK, type CommDebriefHook } from './comm-debrief.hook'
+import { CommLateSweeper } from './comm-late.sweeper'
 import { CommRecordModule } from './comm-record.module'
 import {
   COMM_ATTACHMENT_CONSTRAINTS,
@@ -54,9 +56,11 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
  *  ask E2 about it is a `SELECT` on a table this schema already references,
  *  not a reason to import the write half of the object graph.
  *
- *  No `exports`: a branch that opens a record imports `CommRecordModule`. */
+ *  `NotificationModule` for the hub alone: `CommLateSweeper` emits, as any
+ *  emitter does. No `exports`: a branch that opens a record imports
+ *  `CommRecordModule`. */
 @Module({
-  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule],
+  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule, NotificationModule],
   controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
   providers: [
     IdentityService,
@@ -66,6 +70,7 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     MeetingDebriefService,
     CommAttachmentService,
     CommAttachmentRepository,
+    CommLateSweeper,
   ],
 })
 export class CommsModule {

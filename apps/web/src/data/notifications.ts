@@ -228,6 +228,7 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   'mail-run': (code) => `${RUN_BOOK}?run=${encodeURIComponent(code)}`,
   user: () => ACCOUNT,
   'google-link': () => `${ACCOUNT}#google`,
+  'comm-record': (code) => `/comms/${encodeURIComponent(code)}`,
 }
 
 /** `null` = nowhere to go, the row only marks itself read. A decided request

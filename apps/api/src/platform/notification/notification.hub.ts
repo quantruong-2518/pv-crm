@@ -106,6 +106,18 @@ export class NotificationHub {
     )
   }
 
+  /** For a sweeper that would otherwise re-announce a standing backlog every
+   *  tick: the subjects already told. A saving only — the ledger's UNIQUE is
+   *  what refuses a duplicate. Unlike `announce`, a failed read rejects. */
+  told(
+    tx: Db,
+    kind: NotificationKind,
+    subjectKind: NotificationSubject,
+    codes: readonly string[],
+  ): Promise<Set<string>> {
+    return this.repo.told(tx, kind, subjectKind, codes)
+  }
+
   /** A role audience: every unlocked actor whose role grants `permission`,
    *  read from the live matrix so an admin's change moves the audience too. */
   async holding(tx: Db, permission: Permission, branch?: Branch): Promise<string[]> {

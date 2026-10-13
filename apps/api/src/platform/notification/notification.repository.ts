@@ -12,7 +12,7 @@ import {
   or,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { NotificationKind, PageQuery } from '@pv/contracts'
+import type { NotificationKind, NotificationSubject, PageQuery } from '@pv/contracts'
 import type { Branch, RoleId } from '@pv/engines'
 import { contains } from '@api/platform/db/like'
 import { DB, type Db } from '../db/db.module'
@@ -71,6 +71,27 @@ export class NotificationRepository {
       .insert(notification)
       .values(rows)
       .onConflictDoNothing({ target: [notification.recipientId, notification.eventKey] })
+  }
+
+  /** Which of these subjects already hold a line of this kind, whoever it rang. */
+  async told(
+    tx: Db,
+    kind: NotificationKind,
+    subjectKind: NotificationSubject,
+    codes: readonly string[],
+  ): Promise<Set<string>> {
+    if (codes.length === 0) return new Set()
+    const rows = await tx
+      .selectDistinct({ code: notification.subjectCode })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.kind, kind),
+          eq(notification.subjectKind, subjectKind),
+          inArray(notification.subjectCode, [...codes]),
+        ),
+      )
+    return new Set(rows.map((r) => r.code))
   }
 
   /** Unlocked actors in one of these roles; with a branch, only those licensed

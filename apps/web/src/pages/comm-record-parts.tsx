@@ -4,6 +4,7 @@ import {
   Button,
   CalendarClock,
   Check,
+  ChevronDown,
   Eye,
   GlassCard,
   Icon,
@@ -27,16 +28,20 @@ import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy } from '@/lib/date'
+import { MenuButton } from '@/components/record/menu-button'
 import { RecordShell } from '@/components/record/record-shell'
 import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommFileDrop, CommFileList } from '@/components/comm-files'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
+import { CommUnreachedDialog } from '@/components/comm-unreached-dialog'
 import { Field } from '@/components/field-bits'
 import { MeetingHeldForm } from '@/components/meeting-held-form'
 import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import {
   EMPTY_STEP_DRAFT,
+  clearCommDraft,
+  commDraftKey,
   type StepDraft,
   evaluationBlockerOf,
   stepBlockerOf,
@@ -59,22 +64,19 @@ import { useStepOptions } from '@/data/next-step'
 
 type Draft = { title: string; summary: string; picked: Record<string, string>; step: StepDraft }
 
-const draftKey = (id: string) => `comm-draft:${id}`
-
 /** Browser storage can throw or come back empty; a draft is a convenience. */
 function readDraft(id: string): Draft | null {
   try {
-    const raw = localStorage.getItem(draftKey(id))
+    const raw = localStorage.getItem(commDraftKey(id))
     return raw ? (JSON.parse(raw) as Draft) : null
   } catch {
     return null
   }
 }
 
-function writeDraft(id: string, draft: Draft | null) {
+function writeDraft(id: string, draft: Draft) {
   try {
-    if (draft) localStorage.setItem(draftKey(id), JSON.stringify(draft))
-    else localStorage.removeItem(draftKey(id))
+    localStorage.setItem(commDraftKey(id), JSON.stringify(draft))
   } catch {
     /* storage unavailable — the form still works, it just cannot be kept */
   }
@@ -86,11 +88,14 @@ function FormBar({
   onPreview,
   onSave,
   onConfirm,
+  onUnreached,
   disabled,
 }: {
   onPreview: () => void
   onSave: () => void
   onConfirm: () => void
+  /** Absent = the record cannot be closed as unreached (a meeting). */
+  onUnreached?: () => void
   disabled: boolean
 }) {
   return (
@@ -103,10 +108,34 @@ function FormBar({
         aria-label="Thao tác liên hệ"
         className="glass-overlay pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
       >
-        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onPreview}>
-          <Icon icon={Eye} size={16} />
-          Xem trước
-        </Button>
+        {/* Four buttons wrap to two rows on a phone, so two fold into one menu. */}
+        <div className="sm:hidden">
+          <MenuButton
+            up
+            size="md"
+            className="pointer-coarse:h-12"
+            label="Khác"
+            icon={ChevronDown}
+            ariaLabel="Thao tác khác"
+            choices={[
+              { key: 'preview', label: 'Xem trước', onSelect: onPreview },
+              ...(onUnreached
+                ? [{ key: 'unreached', label: 'Không liên lạc được', onSelect: onUnreached }]
+                : []),
+            ]}
+          />
+        </div>
+        <div className="hidden sm:contents">
+          {onUnreached && (
+            <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onUnreached}>
+              Không liên lạc được
+            </Button>
+          )}
+          <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onPreview}>
+            <Icon icon={Eye} size={16} />
+            Xem trước
+          </Button>
+        </div>
         <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onSave}>
           <Icon icon={Save} size={16} />
           Lưu nháp
@@ -146,6 +175,7 @@ export function ConfirmWorkspace({
   const [picked, setPicked] = useState<Record<string, string>>(saved?.picked ?? {})
   const [draft, setDraft] = useState(saved?.step ?? EMPTY_STEP_DRAFT)
   const [previewing, setPreviewing] = useState(false)
+  const [unreached, setUnreached] = useState(false)
 
   const blocker =
     (title.trim() === '' ? 'Chưa có tiêu đề.' : null) ??
@@ -175,7 +205,7 @@ export function ConfirmWorkspace({
       { id: record.id, body },
       {
         onSuccess: () => {
-          writeDraft(record.id, null)
+          clearCommDraft(record.id)
           setPreviewing(false)
           toastDone('Đã xác nhận liên hệ')
         },
@@ -259,24 +289,55 @@ export function ConfirmWorkspace({
           onPreview={() => setPreviewing(true)}
           onSave={save}
           onConfirm={submit}
+          onUnreached={record.channel === 'meeting' ? undefined : () => setUnreached(true)}
           disabled={blocked}
         />
       }
     >
-      <Modal
+      <CommUnreachedDialog record={record} open={unreached} onClose={() => setUnreached(false)} />
+      <PreviewModal
         open={previewing}
         onClose={() => setPreviewing(false)}
-        title="Xem trước"
         subtitle={record.subject.label}
-        footer={
-          <Button size="lg" disabled={blocked} onClick={submit}>
-            Xác nhận
-          </Button>
-        }
+        blocked={blocked}
+        onConfirm={submit}
       >
         <Preview {...{ title, summary, picked }} vocab={vocab.data} step={target ? draft : null} />
-      </Modal>
+      </PreviewModal>
     </RecordShell>
+  )
+}
+
+/** Split out of `ConfirmWorkspace` to keep it under the function-length ceiling. */
+function PreviewModal({
+  open,
+  onClose,
+  subtitle,
+  blocked,
+  onConfirm,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  subtitle: string
+  blocked: boolean
+  onConfirm: () => void
+  children: ReactNode
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Xem trước"
+      subtitle={subtitle}
+      footer={
+        <Button size="lg" disabled={blocked} onClick={onConfirm}>
+          Xác nhận
+        </Button>
+      }
+    >
+      {children}
+    </Modal>
   )
 }
 

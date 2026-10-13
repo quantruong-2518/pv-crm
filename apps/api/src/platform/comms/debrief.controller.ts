@@ -75,6 +75,15 @@ export class DebriefController {
     return this.debriefs.close(who, id, body)
   }
 
+  /** "Could not reach the customer": closes with no summary, so no body. Owner
+   *  only and never a booked meeting — both fences are in the service. */
+  @Post(':id/unreached')
+  @HttpCode(200)
+  @Need({ permission: 'comm.view' })
+  unreached(@CurrentActor() who: Actor, @Param('id', zod(DebriefId)) id: string) {
+    return this.debriefs.unreached(who, id)
+  }
+
   /** The "meeting held" close on a booked meeting's record; same gate, the fence is in the
    *  service (owner, or an outranking closer). 200 for `close`'s reason. */
   @Post(':id/close-meeting')

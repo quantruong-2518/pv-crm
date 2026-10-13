@@ -36,11 +36,14 @@ export type DebriefPointer = { id: string; state: CommRecordState }
 
 export type DebriefCount = { ownerId: string; name: string; pending: number; oldestAt: Date }
 
+export type LateRecord = { id: string; ownerId: string; subjectLabel: string }
+
 /** ADR 0075 §2, derived in SQL and never stored, so a turn or a file landing
  *  moves it with no second write. A covered turn is one written since the
  *  debrief opened — the same window `turnsCovered` counts. A booked meeting
  *  stays `scheduled` until close-meeting, whatever lands on it meanwhile. */
 const STATE = sql<CommRecordState>`CASE
+  WHEN ${debrief.closedAt} IS NOT NULL AND ${debrief.unreached} THEN 'unreached'
   WHEN ${debrief.closedAt} IS NOT NULL THEN 'done'
   WHEN ${debrief.booked} THEN 'scheduled'
   WHEN EXISTS (SELECT 1 FROM ${message} m WHERE m.thread_id = ${debrief.threadId}
@@ -53,6 +56,11 @@ const STATE = sql<CommRecordState>`CASE
  *  Never on a booked meeting: an overdue one raises nothing (no badge). */
 const LATE = sql<boolean>`(${debrief.closedAt} IS NULL AND NOT ${debrief.booked}
   AND ${debrief.createdAt} < now() - make_interval(hours => ${COMM_CONFIRM_WITHIN_HOURS}::int))`
+
+/** Late for less than one more confirm window: the only records the bell is
+ *  rung for, so a record nobody closes is told once and never again. */
+const FRESHLY_LATE = sql<boolean>`(${debrief.createdAt}
+  >= now() - make_interval(hours => ${2 * COMM_CONFIRM_WITHIN_HOURS}::int))`
 
 /** SQL of the comm record book (ADR 0074, 0075). Decides nothing, checks no
  *  permission; `tx` defaults to the pool the way `ThreadRepository` does. */
@@ -227,6 +235,31 @@ export class DebriefRepository {
       .update(debrief)
       .set({ ...values, closedAt: sql`now()` })
       .where(eq(debrief.id, id))
+  }
+
+  /** Closes a record as "could not reach the customer". Flags only: an open
+   *  record holds no summary, step or answers (`confirm` alone writes them).
+   *  False = closed meanwhile; `closed_at IS NULL` lets one of two presses win. */
+  async closeUnreached(tx: Db, id: string): Promise<boolean> {
+    const closed = await tx
+      .update(debrief)
+      .set({ closedAt: sql`now()`, unreached: true })
+      .where(and(eq(debrief.id, id), isNull(debrief.closedAt)))
+      .returning({ id: debrief.id })
+    return closed.length > 0
+  }
+
+  /** Records that turned late within the last confirm window, of a live subject
+   *  and an unlocked owner — the late sweeper's candidates, oldest first. Older
+   *  ones are left alone: a deploy must not ring a whole backlog at once. */
+  async late(tx: Db): Promise<LateRecord[]> {
+    return tx
+      .select({ id: debrief.id, ownerId: debrief.ownerId, subjectLabel: objectRef.label })
+      .from(debrief)
+      .innerJoin(objectRef, LIVE_SUBJECT)
+      .innerJoin(actor, and(eq(actor.id, debrief.ownerId), isNull(actor.disabledAt)))
+      .where(and(LATE, FRESHLY_LATE))
+      .orderBy(asc(debrief.createdAt))
   }
 
   /** Every record on one thread, open or closed — what a dropped booking asks

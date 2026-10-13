@@ -39,7 +39,8 @@ export const notification = platform.table(
     /** Where a click goes. Kind alone cannot say: `mail-failed` and
      *  `customer-replied` land on a lead or an opportunity. */
     subjectKind: text('subject_kind').$type<NotificationSubject>().notNull(),
-    /** Lead/opportunity code, approval id, scan batch id, run id or actor id. */
+    /** Lead/opportunity code, approval id, scan batch id, run id, actor id or
+     *  `comms.debrief` id (`comm-record`). */
     subjectCode: text('subject_code').notNull(),
     /** Company or run name copied at write time, so the bell never joins into
      *  another module to draw a line. NULL when the subject has no name. */
@@ -73,7 +74,7 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The twenty-five `NotificationKind` values, copied out for
+    /** The twenty-six `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
@@ -84,13 +85,14 @@ export const notification = platform.table(
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
                      'approval-approved', 'approval-rejected', 'mail-run-sent',
                      'mail-run-cancelled', 'mail-failed', 'customer-replied',
-                     'access-changed', 'password-reset-by-admin', 'google-link-broken')`,
+                     'access-changed', 'password-reset-by-admin', 'google-link-broken',
+                     'comm-record-late')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
       'notification_subject_kind_known',
       sql`"subject_kind" IN ('lead', 'lead-pool', 'opportunity', 'approval', 'lead-scan', 'mail-run',
-                             'user', 'google-link')`,
+                             'user', 'google-link', 'comm-record')`,
     ),
   ],
 )
@@ -141,7 +143,8 @@ export const notificationKindPolicy = platform.table(
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
                      'approval-approved', 'approval-rejected', 'mail-run-sent',
                      'mail-run-cancelled', 'mail-failed', 'customer-replied',
-                     'access-changed', 'password-reset-by-admin', 'google-link-broken')`,
+                     'access-changed', 'password-reset-by-admin', 'google-link-broken',
+                     'comm-record-late')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

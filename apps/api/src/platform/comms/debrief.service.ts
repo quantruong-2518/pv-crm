@@ -164,6 +164,29 @@ export class DebriefService {
     return this.confirm(who, found, body)
   }
 
+  /** "Could not reach the customer": the owner's fast exit. Nothing was said,
+   *  so the branch hook is not asked and nothing lands on the lead or deal. */
+  async unreached(who: Actor, id: string): Promise<DebriefView> {
+    const found = await this.owned(who, id, true)
+    /* Channel too: a turn logged on a meeting thread opens an unbooked record. */
+    if (found.row.booked || found.thread.channel === 'meeting') {
+      throw conflict('“Không liên lạc được” không dùng cho cuộc họp.')
+    }
+    await this.repo.run(async (tx) => {
+      if (!(await this.repo.closeUnreached(tx, id))) throw conflict(DONE)
+      await this.audit.write(
+        {
+          actorId: who.id,
+          action: 'edit',
+          code: found.row.subjectCode,
+          note: `comms.debrief ${id} closed unreached · thread ${found.row.threadId}`,
+        },
+        tx,
+      )
+    })
+    return this.one(who, id)
+  }
+
   /** The confirm itself, shared by `close` and close-meeting: `also` is the
    *  caller's consequence, inside the same transaction after the step. */
   async confirm(
@@ -359,4 +382,4 @@ export class DebriefService {
   }
 }
 
-const DONE = 'Liên hệ này đã hoàn thiện.'
+const DONE = 'Liên hệ này đã đóng.'

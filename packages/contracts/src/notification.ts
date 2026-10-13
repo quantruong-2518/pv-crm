@@ -28,6 +28,7 @@ export const NotificationKind = z.enum([
   'opportunity-unassigned',
   'next-step-assigned',
   'next-step-done',
+  'comm-record-late',
   'approval-waiting',
   'approval-approved',
   'approval-rejected',
@@ -51,6 +52,7 @@ export const NotificationSubject = z.enum([
   'mail-run',
   'user',
   'google-link',
+  'comm-record',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -71,6 +73,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'opportunity-unassigned': 'Bạn không còn phụ trách cơ hội',
   'next-step-assigned': 'Bạn được giao việc tiếp theo',
   'next-step-done': 'Việc bạn giao đã xong',
+  'comm-record-late': 'Lượt liên hệ quá hạn chưa xác nhận',
   'approval-waiting': 'Có yêu cầu đang chờ bạn duyệt',
   'approval-approved': 'Yêu cầu của bạn đã được duyệt',
   'approval-rejected': 'Yêu cầu của bạn bị từ chối',
@@ -121,6 +124,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'opportunity-unassigned': 'opportunity',
   'next-step-assigned': 'next-step',
   'next-step-done': 'next-step',
+  'comm-record-late': 'next-step',
   'approval-waiting': 'approval',
   'approval-approved': 'approval',
   'approval-rejected': 'approval',
@@ -156,6 +160,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'opportunity-unassigned': { important: false, locked: false },
   'next-step-assigned': { important: false, locked: false },
   'next-step-done': { important: false, locked: false },
+  'comm-record-late': { important: false, locked: false },
   'approval-waiting': { important: true, locked: true },
   'approval-approved': { important: false, locked: false },
   'approval-rejected': { important: false, locked: false },
@@ -187,6 +192,7 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'mail-run': 'campaign.view',
   user: null,
   'google-link': null,
+  'comm-record': 'comm.view',
 }
 
 /** Every subject each kind is written with, read off the emitters' `announce`
@@ -209,6 +215,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'opportunity-unassigned': ['opportunity'],
     'next-step-assigned': ['lead', 'opportunity'],
     'next-step-done': ['lead', 'opportunity'],
+    'comm-record-late': ['comm-record'],
     'approval-waiting': ['approval'],
     'approval-approved': ['approval'],
     'approval-rejected': ['approval'],

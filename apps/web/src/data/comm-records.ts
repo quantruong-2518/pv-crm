@@ -2,12 +2,14 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import {
   CommRecordCreateResponse,
   DebriefListResponse,
+  DebriefView,
   type CommRecordCreateBody,
   type LeadProfile,
   type MailSubjectKind,
 } from '@pv/contracts'
 import { api, userMessage, type ApiError } from '@/app/api'
-import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
+import { toastDone } from '@/app/toast'
+import { COMM_RECORDS_KEY, clearCommDraft, commClosed } from '@/data/comm-record-detail'
 import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
 import { invalidateLeadState } from '@/data/lead-exit'
 
@@ -69,6 +71,29 @@ export function useCreateCommRecord() {
       /* The record opens a turn on the subject, and a logged turn may move a
          lead to `working` (ADR 0063) — the server decides, the cache follows. */
       invalidateLeadState(client)
+    },
+  })
+}
+
+/** The unreached button: closes an open record for good, with no body. The
+ *  cache follows a close, so the record page re-renders as closed. No `retry`,
+ *  as for a close: a replay finds it already closed and answers 409. */
+export function useMarkCommUnreached() {
+  const client = useQueryClient()
+
+  return useMutation<DebriefView, ApiError, string>({
+    mutationFn: (id) =>
+      api.write(`/comms/debriefs/${encodeURIComponent(id)}/unreached`, {
+        method: 'POST',
+        need: COMM_VIEW_NEED,
+        schema: DebriefView,
+      }),
+    /* Toast here, not per call: the page re-renders as closed and the dialog
+       with it, so a per-call callback would never fire. */
+    onSuccess: (view) => {
+      commClosed(client, view)
+      clearCommDraft(view.id)
+      toastDone('Đã đóng lượt liên hệ')
     },
   })
 }

@@ -33,6 +33,8 @@ button is "Xác nhận" (not "Chốt"; 0074 §10's "Chốt" chip takes this labe
 Completion is still summary + evaluation + mandatory next step (0074 §2). Labels
 are precise and neutral, no colloquial wording.
 
+Amended by ADR 0094: a fifth state `unreached`, "Không liên lạc được", closes with none of the above; `scheduled` (a booked meeting) was already outside this list.
+
 ### 3 · Where comm records come from
 
 Amended by ADR 0081: Telegram and WhatsApp buttons join Gọi / Zalo / Gửi mail.
@@ -59,6 +61,8 @@ A comm takes a recording, a transcript, minutes (MM) and chat screenshots.
 | A meeting does not generate a comm                                   | A timed job at `meeting.at + duration` creates a thread on channel `meeting` (it already has `meetingId`) and a debrief for the scheduler                                 |
 | The scheduling screen still has a transcript field                   | The server no longer writes `transcript`, so the field loses data silently: remove it and replace with the comm, in the same commit as the backend                        |
 | No comm tree per sales run                                           | A read door: the pending comms of one sales run (for step 2 of the mobile flow)                                                                                           |
+
+Amended by ADR 0094: the `state` the contract returns has five values, `unreached` and `scheduled` added to `empty \| unconfirmed \| done`.
 
 ### 6 · Owner answers to the open questions (01/10/2026)
 

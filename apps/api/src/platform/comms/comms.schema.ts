@@ -480,6 +480,11 @@ export const debrief = comms.table(
      *  not the slot: start, length and title live on `sales.meeting` alone, so
      *  no second ledger can drift on when the meeting is (0084). */
     booked: boolean('booked').notNull().default(false),
+
+    /** true = the owner could not reach the customer. A marker, not an outcome
+     *  column: it closes the record and is the one exemption from the summary
+     *  rule — no summary, no answers, no next step (`debrief_unreached_is_bare`). */
+    unreached: boolean('unreached').notNull().default(false),
   },
   (t) => [
     /** The fence "at most one OPEN debrief per (thread, owner)", and the lookup
@@ -503,11 +508,21 @@ export const debrief = comms.table(
       .where(sql`"closed_at" IS NULL`),
     /** `IS NOT NULL` spelled out: `btrim(NULL) <> ''` is NULL, and a CHECK
      *  passes on NULL, so without it a closed debrief could carry no summary.
-     *  2000 is `DEBRIEF_SUMMARY_MAX`, repeated so no writer bypasses the door. */
+     *  2000 is `DEBRIEF_SUMMARY_MAX`; `unreached` is the only way out (0106). */
     check(
       'debrief_closed_has_summary',
       sql`"closed_at" IS NULL
+          OR "unreached"
           OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 2000)`,
+    ),
+    /** Nothing happened, so nothing may be recorded as said: closed, no summary,
+     *  no step (`debrief_next_all_or_none` clears the other three), and never a
+     *  booked meeting. One-way: `false` rows are judged by the rule above. */
+    check(
+      'debrief_unreached_is_bare',
+      sql`NOT "unreached"
+          OR ("closed_at" IS NOT NULL AND "summary" IS NULL
+           AND "next_kind_id" IS NULL AND NOT "booked")`,
     ),
     check(
       'debrief_title_bounded',
