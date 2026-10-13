@@ -9,7 +9,8 @@ import { QUOTE_HINT, QUOTE_LABEL, type DealPrimaryState } from './opportunity-mo
  *  §1): the move that takes it to its next column, picked by `primaryStateOf`
  *  off the server's `acts` (ADR 0076 §4). The other doors sit under the
  *  floating bar's more menu (`dealMoreChoices`). 48px: the todo card is
- *  worked on a tablet (law 13). */
+ *  worked on a tablet (law 13). A shut sign door draws no button; the card
+ *  prints the reason (`DealPrimaryState.note`) on a line of its own. */
 export function DealPrimary({
   op,
   state,
@@ -37,19 +38,11 @@ export function DealPrimary({
           {QUOTE_LABEL}
         </Button>
       )}
-      {move === 'sign' && (
-        <Button
-          size="lg"
-          disabled={Boolean(op.pendingSign) || note !== null}
-          title={note ?? undefined}
-          onClick={onSign}
-        >
+      {move === 'sign' && note === null && !op.pendingSign && (
+        <Button size="lg" onClick={onSign}>
           <Icon icon={Check} size={16} />
           Chốt thắng
         </Button>
-      )}
-      {note && (
-        <span className="text-muted-foreground basis-full text-[12px] leading-[1.5]">{note}</span>
       )}
     </>
   )

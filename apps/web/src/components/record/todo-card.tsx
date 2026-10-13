@@ -32,6 +32,7 @@ export function TodoCard({
   rungsLabel,
   next,
   primary,
+  note,
 }: {
   title?: string
   rungs: TodoRung[]
@@ -41,6 +42,8 @@ export function TodoCard({
   next?: ReactNode
   /** The primary move, from the server's verdict. */
   primary?: ReactNode
+  /** Why the move is shut: a line of its own, so it never bends the row. */
+  note?: string | null
 }) {
   const titleId = useId()
 
@@ -54,13 +57,14 @@ export function TodoCard({
         {title}
       </h2>
       <TodoRungs rungs={rungs} label={rungsLabel} />
-      {(next || primary) && (
+      {(next || primary || note) && (
         <>
           <Separator />
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {next && <div className="min-w-0 flex-1 basis-80">{next}</div>}
             {primary && <div className="flex flex-wrap items-center gap-2">{primary}</div>}
           </div>
+          {note && <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">{note}</p>}
         </>
       )}
     </GlassCard>

@@ -22,7 +22,8 @@ export function DealTodo({
   onSign: () => void
   onQuote: () => void
 }) {
-  const drawsPrimary = primary.move !== null || primary.note !== null || primary.acceptMounted
+  const signShut = primary.move === 'sign' && (primary.note !== null || Boolean(op.pendingSign))
+  const drawsPrimary = (primary.move !== null && !signShut) || primary.acceptMounted
 
   return (
     <TodoCard
@@ -34,6 +35,7 @@ export function DealTodo({
           <DealPrimary op={op} state={primary} onSign={onSign} onQuote={onQuote} />
         ) : undefined
       }
+      note={primary.note}
     />
   )
 }
