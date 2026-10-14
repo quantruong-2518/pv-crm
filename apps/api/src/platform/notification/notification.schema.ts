@@ -67,6 +67,11 @@ export const notification = platform.table(
     index('notification_recipient_unread_idx')
       .on(t.recipientId)
       .where(sql`"read_at" IS NULL`),
+    /** "Which read rows are past 90 days" — the hourly purge, `read_at < mark`.
+     *  Partial: unread rows are never purged and `<` is false on NULL anyway. */
+    index('notification_read_purge_idx')
+      .on(t.readAt)
+      .where(sql`"read_at" IS NOT NULL`),
     /** The twenty-five `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(

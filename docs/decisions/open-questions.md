@@ -296,9 +296,16 @@ Raised while recording the notification hub (ADR 0085).
     owner is free text, not an actor, and no "operator" role exists, so a
     notification for either has no recipient the data can name.
     _(see ADR 0085, Not in wave 1)_
+    **Answered 14/10/2026: the campaign's `owner_id`, an actor since
+    migration 0100, defaulting to the creator, hears that the campaign
+    stopped or finished; nobody when it is null; never a role-wide blast —
+    ADR 0093 §6.**
 63. **Who writes contract instalment and milestone events?** Their tables have
     no writer, so there is no moment to notify on. _(see ADR 0085, Not in
     wave 1)_
+    **Answered 14/10/2026: the writers now exist (ADR 0090); instalment marked
+    paid or undone, schedule replaced and condition done ring the contract
+    owner and the participants who can open the contract — ADR 0093 §6.**
 64. **Which touch kind records a customer reply on a lead that is `working`,
     `nurturing`, `converted` or in the pool, and on every opportunity?** Today
     only the `assigned`/`verifying` → `working` move writes an activity row.
@@ -401,3 +408,5 @@ Raised while recording the opportunity flow decisions (ADR 0088).
     side?** They appear after gap or mail rounds, each waiting for its kind to
     be filled in. Default: yes. The assistant's default, awaiting the owner.
     _(see ADR 0090 §5, §10)_
+91. **May a person mute notification kinds for themselves?** The policy is
+    per role only; per person was left for later. _(see ADR 0093 §1)_

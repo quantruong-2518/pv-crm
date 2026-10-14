@@ -38,7 +38,9 @@ The API holds one dedicated listening connection, opened on the first
 subscriber, on the same direct endpoint the queue uses (0010; the pooler drops
 LISTEN). The stream is plain HTTP with the session cookie of its sibling
 endpoints; the server ends each stream after a fixed age so the session is
-re-checked when the browser reconnects.
+re-checked when the browser reconnects. The connection closes 30 seconds after
+the last subscriber leaves, because Neon is on the lowest plan and an idle
+LISTEN keeps compute awake.
 
 ### 4 · The bell opens a dropdown
 
@@ -78,6 +80,9 @@ unchanged.
   the listener is up. When the LISTEN connection is lost every open stream is
   closed, browsers fall back to refetching and reconnect, and the new stream
   stays quiet until the listener is back.
+- A stream also says `ready` only after the line checked that migration 0103's
+  two triggers exist and a probe NOTIFY sent from the app pool came back within
+  5 seconds. Otherwise browsers stay on the 60 second poll.
 - Only a visible tab holds a stream; a hidden tab closes it and catches up on
   `ready` when shown again. One person may hold a bounded number of streams and
   the oldest is dropped past it. Open streams are closed before the HTTP server
@@ -106,5 +111,6 @@ unchanged.
 Precondition: `PV_QUEUE_DATABASE_URL` (the direct endpoint) must be set on the API process, or production has no push.
 
 Migration `0103` → API → web. An old API has no stream route and the web falls
-back to refetching, so any order is safe; push works only once all three are
-live.
+back to refetching, and the API without migration 0103 degrades to polling
+rather than going silent, so any order is safe, but only because of the `ready`
+check above; push works only once all three are live.

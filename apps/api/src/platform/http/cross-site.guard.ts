@@ -18,7 +18,7 @@ export const MACHINE_DOOR_KEY = 'pv:machine-door'
  *
  *  It is not an exemption from authentication: every door carrying it proves
  *  itself another way — an HMAC over the raw bytes on the Resend webhooks, a
- *  signed token in the path on one-click unsubscribe. What it waives is a
+ *  signed token in the path on one-click unsubscribe and its confirm form. What it waives is a
  *  check that can only ever produce a false refusal for a caller that is not a
  *  browser, and a false refusal here is a mail event silently dropped.
  *

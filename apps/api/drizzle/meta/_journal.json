@@ -722,6 +722,13 @@
       "when": 1792220700000,
       "tag": "0104_quotation_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1792307100000,
+      "tag": "0105_notification_read_idx",
+      "breakpoints": true
     }
   ]
 }
