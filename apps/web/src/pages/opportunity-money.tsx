@@ -1,117 +1,66 @@
-import { useState } from 'react'
-import type {
-  OpportunityMoneyContract,
-  OpportunityMoneyNegotiation,
-  OpportunityProfileResponse,
-  QuotationRow,
-} from '@pv/contracts'
-import { ContractSection } from '@/components/deal-money/contract-section'
-import { InstallmentDrawer } from '@/components/deal-money/installment-drawer'
+import { GlassCard, MetaPill } from '@pv/ui'
+import type { OpportunityProfileResponse } from '@pv/contracts'
 import { MoneyStrip } from '@/components/deal-money/money-strip'
-import { NegotiationSection } from '@/components/deal-money/negotiation-section'
-import { ScheduleDrawer } from '@/components/deal-pay'
-import { CloseNegotiationDialog, QuotationPatchDialog } from './opportunity-quotation-modal'
+import { PaperCarousel } from '@/components/deal-money/paper-carousel'
+import { paperItems } from '@/components/deal-money/paper-items'
+import { PaperDetail, type QuoteSign } from '@/components/deal-money/paper-detail'
+import type { DealMoneyState } from './opportunity-money-state'
 
-/** Module 3 · the deal's money: the strip, one section per unsigned negotiation,
- *  then one per contract — all off `op.money`, in the server's order, with no
- *  sum and no sort made here. The record modal is the page's (the header
- *  opens it too); the close, completion, schedule and installment
- *  layers belong to this block. */
-
-/** What a layer acts on. `open: false` keeps the last target so the layer can
- *  animate out; `session` keys a fresh form per opening. */
-type Layer<T> = { target: T; open: boolean; session: number }
-
-function useLayer<T>() {
-  const [layer, setLayer] = useState<Layer<T> | null>(null)
-  return {
-    layer,
-    show: (target: T) =>
-      setLayer((prev) => ({ target, open: true, session: (prev?.session ?? 0) + 1 })),
-    hide: () => setLayer((prev) => prev && { ...prev, open: false }),
-  }
-}
+/** Module 3 · the deal's money: ONE strip of figures, then the contract block —
+ *  a carousel of every signed paper and every quote waiting on the customer,
+ *  with the picked one spread out below. All off `op.money`, in the server's
+ *  order, with no sum and no sort made here; the only arithmetic is the strip's
+ *  display ratio. The quote list is in the rail and reads the same pick. */
 
 export function DealMoney({
   op,
-  onQuote,
+  state,
+  sign,
+  onEdit,
 }: {
   op: OpportunityProfileResponse
-  /** Opens the page's record modal on this negotiation. */
-  onQuote: (negotiation: OpportunityMoneyNegotiation) => void
+  state: DealMoneyState
+  /** The header's sign verdict; null when that door is shut. */
+  sign: QuoteSign | null
+  onEdit: () => void
 }) {
-  const { money } = op
-  const run = op.workstream?.code ?? null
-  const closing = useLayer<OpportunityMoneyNegotiation>()
-  const patching = useLayer<QuotationRow>()
-  const scheduling = useLayer<OpportunityMoneyContract>()
-  /* Codes, not rows: the drawer reads the live row, so a recorded payment shows. */
-  const paying = useLayer<{ contractCode: string; no: number }>()
-  const shown = paying.layer
-  const shownContract = money.contracts.find((c) => c.code === shown?.target.contractCode)
-  const shownInstallment = shownContract?.installments.find((i) => i.no === shown?.target.no)
-
-  if (money.open.length === 0 && money.contracts.length === 0) return null
-  const doors = op.acts.quotation.ok
-    ? { onQuote, onClose: closing.show, onPatch: patching.show }
-    : undefined
+  const { papers, picked } = state
+  const contracts = op.money.contracts.length
 
   return (
     <>
-      <MoneyStrip money={money} />
-      {money.open.map((n) => (
-        <NegotiationSection
-          key={`${n.kind}:${n.negotiationNo}`}
-          negotiation={n}
-          workstreamCode={run}
-          doors={doors}
+      <MoneyStrip op={op} onEdit={onEdit} />
+      <GlassCard
+        variant="b"
+        className="flex min-w-0 flex-col gap-6 p-5 sm:p-6"
+        aria-label="Hợp đồng"
+      >
+        <PaperCarousel
+          heading={
+            <>
+              <h2 className="font-display m-0 text-[16px] font-semibold">Hợp đồng</h2>
+              {contracts > 0 ? (
+                <MetaPill className="tnum">{contracts}</MetaPill>
+              ) : (
+                <span className="text-muted-foreground text-[13px]">Chưa có hợp đồng</span>
+              )}
+            </>
+          }
+          label={contracts > 0 ? 'Các hợp đồng' : 'Báo giá chờ ký'}
+          items={paperItems(papers)}
+          selectedKey={picked?.key}
+          onSelect={state.pick}
         />
-      ))}
-      {money.contracts.map((c) => (
-        <ContractSection
-          key={c.code}
-          contract={c}
-          workstreamCode={run}
-          onOpen={(i) => paying.show({ contractCode: c.code, no: i.no })}
-          onSchedule={() => scheduling.show(c)}
-        />
-      ))}
-
-      {closing.layer && (
-        <CloseNegotiationDialog
-          key={closing.layer.session}
-          op={op}
-          negotiation={closing.layer.target}
-          open={closing.layer.open}
-          onClose={closing.hide}
-        />
-      )}
-      {patching.layer && (
-        <QuotationPatchDialog
-          key={patching.layer.session}
-          op={op}
-          round={patching.layer.target}
-          open={patching.layer.open}
-          onClose={patching.hide}
-        />
-      )}
-      {scheduling.layer && (
-        <ScheduleDrawer
-          key={scheduling.layer.session}
-          contract={scheduling.layer.target}
-          open={scheduling.layer.open}
-          onClose={scheduling.hide}
-        />
-      )}
-      {shown && shownContract && shownInstallment && (
-        <InstallmentDrawer
-          contract={shownContract}
-          installment={shownInstallment}
-          workstreamCode={run}
-          open={shown.open}
-          onClose={paying.hide}
-        />
-      )}
+        {picked && (
+          <PaperDetail
+            paper={picked}
+            workstreamCode={op.workstream?.code ?? null}
+            sign={sign}
+            onOpen={state.openInstallment}
+            onSchedule={state.openSchedule}
+          />
+        )}
+      </GlassCard>
     </>
   )
 }

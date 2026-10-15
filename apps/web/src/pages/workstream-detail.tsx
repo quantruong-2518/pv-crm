@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, type RailObject } from '@pv/ui'
+import { AppShell, ArrowRight, Badge, Button, Icon, type RailObject } from '@pv/ui'
 import {
-  CLOSE_REASON_LABEL,
   JOURNEY_BORN_BY_LABEL,
   JOURNEY_STATUS_LABEL,
   type WorkstreamJourneyResponse,
@@ -20,6 +19,7 @@ import { runDays } from '@/data/workstreams'
 import { assignDoorOf } from '@/components/assign-door'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
+import { CloseBadge } from '@/components/workstream-bits'
 import { ActionBar } from '@/components/record/action-bar'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
@@ -39,7 +39,8 @@ import type { PathOf } from './workstream-tree-model'
  *  A rung of the tree opens its step drawer first; the object's profile sits
  *  in that drawer's footer. Two lead doors are borrowed from the lead profile:
  *  hand over a lead nobody holds (narrower than the profile, which also hands
- *  over a held one), and open a deal from the empty deal lane. The floating
+ *  over a held one; the rail's), and open a deal (the header's, while the
+ *  deal lane is empty). The floating
  *  bar holds only the tree's key and zoom: whom to contact is a question for the lead,
  *  deal or contract, so it has no contact buttons. */
 
@@ -94,7 +95,13 @@ function RunScreen({ journey }: { journey: Journey }) {
           fallback={railOf(journey, navigate)}
         />
       }
-      header={<RunHeader journey={journey} />}
+      header={
+        <RunHeader
+          journey={journey}
+          /* The old door sat in the empty deal lane; it opens only there. */
+          onOpenDeal={journey.deals.length === 0 ? doors.openDeal : undefined}
+        />
+      }
       main={
         <WorkstreamTree
           key={journey.code}
@@ -102,7 +109,6 @@ function RunScreen({ journey }: { journey: Journey }) {
           zoomCtl={zoomCtl}
           go={navigate}
           pathOf={pathOf}
-          onOpenDeal={doors.openDeal}
         />
       }
       actionBar={
@@ -191,20 +197,30 @@ function railOf(j: Journey, go: Go): RailObject[] {
   ]
 }
 
-/** The customer, then one meta line: status or close reason, dates, the
- *  journey it grew from (its one door, the strip has none). The ordinal shows
- *  only from the second journey on; the holder is the rail's. The code is the
- *  strip's, not repeated here. */
-function RunHeader({ journey: j }: { journey: Journey }) {
+/** The customer with the run's status in the title, then one meta line: dates
+ *  and the journey it grew from (its one door, the strip has none). The ordinal
+ *  shows only from the second journey on; the holder is the rail's. The code is
+ *  the strip's, not repeated here. Its one move, to open a deal, sits right. */
+function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: () => void }) {
   const previous = j.previous && chainPath('WS', j.previous.code)
   return (
     <RecordHeader
-      title={j.customer}
+      title={
+        <>
+          {j.customer}
+          <RunStatus journey={j} />
+        </>
+      }
+      actions={
+        onOpenDeal && (
+          <Button size="lg" onClick={onOpenDeal}>
+            <Icon icon={ArrowRight} size={16} />
+            Mở cơ hội
+          </Button>
+        )
+      }
       meta={[
         j.ordinal > 1 && `Hành trình ${j.ordinal}`,
-        j.status === 'closed'
-          ? j.closeReason && CLOSE_REASON_LABEL[j.closeReason]
-          : JOURNEY_STATUS_LABEL[j.status],
         <span className="tnum">
           mở {dmy(j.openedAt)}
           {j.closedAt !== null && ` · đóng ${dmy(j.closedAt)}`} · {runDays(j, Date.now())} ngày
@@ -216,5 +232,25 @@ function RunHeader({ journey: j }: { journey: Journey }) {
         ),
       ]}
     />
+  )
+}
+
+/** A closed run wears its close reason, as the book does; the other two
+ *  statuses have a label of their own (law 16). */
+function RunStatus({ journey: j }: { journey: Journey }) {
+  const tail = 'ml-3 align-middle tracking-normal'
+  if (j.status === 'closed') {
+    return (
+      j.closeReason && (
+        <span className={tail}>
+          <CloseBadge reason={j.closeReason} />
+        </span>
+      )
+    )
+  }
+  return (
+    <Badge tone={j.status === 'open' ? 'running' : 'success'} className={tail}>
+      {JOURNEY_STATUS_LABEL[j.status]}
+    </Badge>
   )
 }

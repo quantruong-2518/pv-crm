@@ -70,7 +70,7 @@ export function RadialGauge({
         {/* Vòng chạy từ 12 giờ theo chiều kim đồng hồ — xoay cả hệ toạ độ chứ
             không tự tính lại toạ độ cung. */}
         <g transform="rotate(-90 50 50)">
-          <circle cx={50} cy={50} r={r} strokeWidth={stroke} className="stroke-white/10" />
+          <circle cx={50} cy={50} r={r} strokeWidth={stroke} className="stroke-surface-ink/10" />
           {/* Không vẽ cung khi chưa đo được: `strokeLinecap="round"` biến một
               cung dài 0 thành một CHẤM ở đỉnh vòng, đọc ra như "đã đi được một
               tí" trong khi sự thật là chưa có số nào. */}

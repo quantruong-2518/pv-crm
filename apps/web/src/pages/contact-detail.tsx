@@ -1,14 +1,13 @@
-import { Factory, Mail, Phone } from '@pv/ui'
+import { Check, Factory, Mail, Phone } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, GlassCard, Icon, SectionTitle, type RailObject } from '@pv/ui'
+import { AppShell, Button, GlassCard, Icon, SectionTitle, type RailObject } from '@pv/ui'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { toast } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { contactProfileQuery, useSetPrimaryContact } from '@/data/contacts'
-import { ActionBar } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RecordHeader } from '@/components/record/record-header'
 import { ContextStrip } from '@/components/record/run-strip'
@@ -22,8 +21,8 @@ import { ContextStrip } from '@/components/record/run-strip'
  *  `ops-fields.tsx` exists to avoid. The edit path is the lead chip in the strip.
  *
  *  So this is a READ screen plus one operation that needs no form, "set as
- *  primary". A contact has no ladder to climb, so it sits in the floating
- *  bar's more menu rather than as a header move. */
+ *  primary": the contact's one move, so it sits in the header (ADR 0078,
+ *  amendment 14/10). No floating bar: nobody is reached from here. */
 export default function ContactDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
@@ -77,6 +76,28 @@ export default function ContactDetailPage() {
         header={
           <RecordHeader
             title={contact.name}
+            actions={
+              canEdit &&
+              !contact.isPrimary && (
+                <Button
+                  size="lg"
+                  disabled={promote.isPending}
+                  onClick={() =>
+                    promote.mutate(undefined, {
+                      onSuccess: () =>
+                        toast('Đã đổi người liên hệ chính', {
+                          tone: 'success',
+                          detail: contact.name,
+                        }),
+                      onError: (e) => toast(userMessage(e), { tone: 'danger' }),
+                    })
+                  }
+                >
+                  <Icon icon={Check} size={16} />
+                  {promote.isPending ? 'Đang lưu…' : 'Đặt làm người chính'}
+                </Button>
+              )
+            }
             meta={[contact.title, contact.isPrimary && 'Người liên hệ chính', contact.channel]}
           />
         }
@@ -130,31 +151,6 @@ export default function ContactDetailPage() {
               Ghi vào sổ {dm(contact.createdAt)} · {contact.by}
             </p>
           </GlassCard>
-        }
-        actionBar={
-          <ActionBar
-            label="Thao tác người liên hệ"
-            more={
-              canEdit && !contact.isPrimary
-                ? [
-                    {
-                      key: 'primary',
-                      label: 'Đặt làm người chính',
-                      ...(promote.isPending ? { blocked: 'Đang lưu…' } : {}),
-                      onSelect: () =>
-                        promote.mutate(undefined, {
-                          onSuccess: () =>
-                            toast('Đã đổi người liên hệ chính', {
-                              tone: 'success',
-                              detail: contact.name,
-                            }),
-                          onError: (e) => toast(userMessage(e), { tone: 'danger' }),
-                        }),
-                    },
-                  ]
-                : []
-            }
-          />
         }
       />
     </AppShell>

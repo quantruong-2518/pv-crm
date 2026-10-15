@@ -1,5 +1,14 @@
-import type { ReactNode } from 'react'
-import { EmptyState, GlassCard, Inbox, Lock, ScreenLayout, Skeleton, TriangleAlert } from '@pv/ui'
+import { useEffect, useState, type ReactNode } from 'react'
+import {
+  EmptyState,
+  GlassCard,
+  Inbox,
+  Lock,
+  ScreenLayout,
+  Skeleton,
+  TriangleAlert,
+  cn,
+} from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { DetailSidePanel } from '@/components/detail-side-panel'
 
@@ -43,6 +52,9 @@ export type RecordShellProps = {
   railLabel?: string
   /** `ActionBar`. The shell keeps the room it floats over while it draws. */
   actionBar?: ReactNode
+  /** 2 when the bar carries a `top` row (the meeting row), so the room kept
+   *  under the page and the rail's inset grow with it. */
+  actionBarRows?: 1 | 2
   /** Drawers and dialogs — mounted, never laid out. */
   children?: ReactNode
 }
@@ -54,6 +66,27 @@ const COLUMN = 'flex min-w-0 flex-col gap-5 lg:gap-6'
 /** The floating bar's band (24px off the bottom + 64px tall) plus a 16px gap,
  *  so a pinned tall rail ends above it. */
 const ACTION_BAR_INSET = 104
+/** A second dock row adds about 48px (a 40px row and an 8px gap); on a coarse
+ *  pointer both rows are 48px and the dock is about 128px. */
+const ACTION_BAR_INSET_TALL = 152
+const ACTION_BAR_INSET_TALL_COARSE = 168
+
+const COARSE = '(pointer: coarse)'
+
+/** Whether the main pointer is a finger — it sizes the dock's room. */
+function useCoarsePointer(): boolean {
+  const [coarse, setCoarse] = useState(() => matchMedia(COARSE).matches)
+  useEffect(() => {
+    const query = matchMedia(COARSE)
+    const read = () => setCoarse(query.matches)
+    query.addEventListener('change', read)
+    return () => query.removeEventListener('change', read)
+  }, [])
+  return coarse
+}
+
+const insetOf = (tall: boolean, coarse: boolean) =>
+  !tall ? ACTION_BAR_INSET : coarse ? ACTION_BAR_INSET_TALL_COARSE : ACTION_BAR_INSET_TALL
 
 export function RecordShell({
   pending = false,
@@ -65,8 +98,11 @@ export function RecordShell({
   rail,
   railLabel,
   actionBar,
+  actionBarRows = 1,
   children,
 }: RecordShellProps) {
+  const tall = actionBarRows === 2
+  const coarse = useCoarsePointer()
   if (pending)
     return <RecordSkeleton strip={skeleton?.strip ?? true} rail={skeleton?.rail ?? true} />
   if (failure) return <RecordFailed failure={failure} />
@@ -81,7 +117,7 @@ export function RecordShell({
           /* Stretched to the row so the panel inside has room to stick while
              the main column scrolls past. */
           <aside className="min-w-0 xl:self-stretch" aria-label={railLabel}>
-            <DetailSidePanel bottomInset={actionBar ? ACTION_BAR_INSET : undefined}>
+            <DetailSidePanel bottomInset={actionBar ? insetOf(tall, coarse) : undefined}>
               <div className={COLUMN}>{rail}</div>
             </DetailSidePanel>
           </aside>
@@ -91,7 +127,14 @@ export function RecordShell({
           padding, so the last card stays readable. The box holds the fixed bar and
           shows only when one drew: `ActionBar` may draw nothing. */}
       {actionBar && (
-        <div className="hidden h-[72px] shrink-0 has-[[data-action-bar]]:block">{actionBar}</div>
+        <div
+          className={cn(
+            'hidden shrink-0 has-[[data-action-bar]]:block',
+            tall ? 'pointer-coarse:h-[144px] h-[120px]' : 'h-[72px]',
+          )}
+        >
+          {actionBar}
+        </div>
       )}
       {children}
     </ScreenLayout>

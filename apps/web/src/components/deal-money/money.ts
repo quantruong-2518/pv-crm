@@ -5,13 +5,17 @@ import {
   INSTALLMENT_STATUS_LABEL,
   type ContractKind,
   type CurrencyCode,
+  type OpportunityMoneyContract,
   type OpportunityMoneyInstallment,
 } from '@pv/contracts'
+import { standingOf as scheduleStanding, type Standing } from '@/data/contracts'
 import { dmy } from '@/lib/date'
 
 /** Wording shared by every money block — the deal profile, the schedule editor,
- *  the sign and quotation forms. Every figure, status and day count is the
- *  server's (`OpportunityMoney`); this file only words them. */
+ *  the sign and quotation forms. Amounts, installment statuses and their day
+ *  counts are the server's (`OpportunityMoney`). Worded on the screen, not
+ *  sent: a paper's standing (from its installment statuses), the estimate
+ *  ratio and a quote's days left. Server fields for those are a later wave. */
 
 const BILLION = 1_000_000_000
 const WHOLE_PERCENT = 100
@@ -41,6 +45,9 @@ export const kindLabel = (kind: ContractKind | null) =>
 
 export const NO_AMOUNT = 'Chưa nhập giá trị'
 
+/** The quote door's one label, wherever it stands. */
+export const QUOTE_LABEL = 'Ghi báo giá'
+
 /** Where one installment stands, in the contract's words plus the server's day count. */
 export function installmentStatusLine(i: OpportunityMoneyInstallment): string {
   const label = INSTALLMENT_STATUS_LABEL[i.status]
@@ -50,8 +57,19 @@ export function installmentStatusLine(i: OpportunityMoneyInstallment): string {
   return i.days === 0 ? 'Đến hạn hôm nay' : `${label} · còn ${i.days} ngày`
 }
 
-export const INSTALLMENT_INK: Record<OpportunityMoneyInstallment['status'], string> = {
-  paid: 'text-success',
-  overdue: 'text-destructive-foreground',
-  upcoming: 'text-muted-foreground',
+/** A signed paper's standing: the shared rule over its installment statuses.
+ *  Null when this reader may not see its payments — an empty list would read
+ *  as "still collecting" for a paper nobody shows. */
+export function standingOf(c: OpportunityMoneyContract): Standing | null {
+  if (!c.paymentsVisible) return null
+  return scheduleStanding(
+    c.installments.map((i) => ({ overdue: i.status === 'overdue', paid: i.status === 'paid' })),
+  )
 }
+
+export type { Standing }
+
+export const INSTALLMENT_TONE: Record<
+  OpportunityMoneyInstallment['status'],
+  'success' | 'danger' | 'draft'
+> = { paid: 'success', overdue: 'danger', upcoming: 'draft' }

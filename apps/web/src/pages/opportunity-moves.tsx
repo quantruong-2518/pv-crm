@@ -3,7 +3,7 @@ import { Button, Icon } from '@pv/ui'
 import type { OpportunityProfileResponse } from '@pv/contracts'
 import { AcceptDealButton } from '@/components/opportunity-accept'
 import { AssignSaleButton } from '@/components/opportunity-assign'
-import { QUOTE_LABEL, type DealPrimaryState } from './opportunity-model'
+import { QUOTE_LABEL, SIGN_LABEL, type DealPrimaryState } from './opportunity-model'
 
 /** Module 3 · the deal's moves, drawn in the header's action slot (ADR 0078
  *  §1, moved from the todo card 14/10): the stage move picked by
@@ -43,7 +43,7 @@ export function DealPrimary({
       {sign && (
         <Button size="lg" variant={sign === 'win' ? 'default' : 'secondary'} onClick={onSign}>
           <Icon icon={Check} size={16} />
-          {sign === 'win' ? 'Chốt thắng' : 'Ký thêm hợp đồng'}
+          {SIGN_LABEL[sign]}
         </Button>
       )}
     </>

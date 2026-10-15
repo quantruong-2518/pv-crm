@@ -16,6 +16,7 @@ import {
   StatCard,
   StatusDot,
   Timeline,
+  cn,
   vnd,
   millions,
   type StatusDotState,
@@ -28,7 +29,6 @@ import { useCan } from '@/app/auth'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import {
-  DUE_LABEL,
   RECORD_CHANNEL_LABEL,
   contractDetailQuery,
   daysPhrase,
@@ -41,7 +41,8 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { useDoneCondition } from '@/data/contracts-write'
-import { SideTag } from '@/components/contract-bits'
+import { opportunityProfileQuery } from '@/data/opportunities'
+import { DueBadge, SideTag } from '@/components/contract-bits'
 import { MAIL_BLOCKED, contractChain, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { ActionBar } from '@/components/record/action-bar'
@@ -125,6 +126,15 @@ function InstallmentScreen({
   const now = useMemo(() => today(), [])
   const view = viewInstallment(installment, now)
   const subject = { kind: 'contract', code: contract.code } as const
+  /* The deal's verdict on this contract's schedule when this reader can read
+     the deal; otherwise the permission alone, and the server judges the press. */
+  const permitted = useCan('contract.edit')
+  const verdict = useQuery(
+    opportunityProfileQuery(contract.opportunityCode),
+  ).data?.money.contracts.find((c) => c.code === contract.code)?.can.editSchedule
+  const canDone = (verdict ?? permitted) && !installment.paidAt
+  const done = useDoneCondition(contract.code)
+  const { blocking } = view
 
   return (
     <RecordShell
@@ -137,9 +147,40 @@ function InstallmentScreen({
       }
       header={
         <RecordHeader
-          title={`Đợt ${installment.no} · ${installment.label}`}
+          title={
+            <>
+              {`Đợt ${installment.no} · ${installment.label}`}
+              <DueBadge
+                level={view.level}
+                className={cn(
+                  'ml-3 align-middle tracking-normal',
+                  view.level === 'upcoming' && 'text-foreground',
+                )}
+              />
+            </>
+          }
+          actions={
+            blocking &&
+            canDone && (
+              <Button
+                size="lg"
+                disabled={done.isPending}
+                onClick={() =>
+                  done.mutate(
+                    { no: installment.no, id: blocking.id },
+                    {
+                      onSuccess: () => toastDone('Đã đánh dấu xong.'),
+                      onError: (e) => toastFail('Không đánh dấu được.', userMessage(e)),
+                    },
+                  )
+                }
+              >
+                <Icon icon={Check} size={16} />
+                Đánh dấu xong
+              </Button>
+            )
+          }
           meta={[
-            DUE_LABEL[view.level],
             `${installment.share}% giá trị hợp đồng`,
             <>
               thuộc hợp đồng{' '}
@@ -155,7 +196,7 @@ function InstallmentScreen({
       }
       main={
         <>
-          <ConditionsTodo code={contract.code} installment={installment} view={view} now={now} />
+          <ConditionsTodo installment={installment} view={view} now={now} />
           <InstallmentStats installment={installment} view={view} />
           <RecordsCard installment={installment} />
         </>
@@ -211,22 +252,18 @@ function conditionRung(c: InstallmentCondition, blocking: boolean, now: string):
   }
 }
 
-/** The unlock checklist as the todo card. Its one door marks the blocking line
- *  done, for whoever may edit an unpaid installment (`contract.edit`); the
- *  server judges the press. Contact goes through the floating bar only. */
+/** The unlock checklist as the todo card. Its one door, marking the blocking
+ *  line done, is the header's (`InstallmentScreen`); contact goes through the
+ *  floating bar only. */
 function ConditionsTodo({
-  code,
   installment,
   view,
   now,
 }: {
-  code: Contract['code']
   installment: Installment
   view: View
   now: string
 }) {
-  const canDone = useCan('contract.edit') && !installment.paidAt
-  const done = useDoneCondition(code)
   const { blocking } = view
   return (
     <TodoCard
@@ -240,26 +277,6 @@ function ConditionsTodo({
             <p className="m-0 text-[12.5px] leading-[1.6]">
               Đây là việc duy nhất còn thiếu. Xong là kế toán xuất được hoá đơn.
             </p>
-            {canDone && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="pointer-coarse:h-12"
-                disabled={done.isPending}
-                onClick={() =>
-                  done.mutate(
-                    { no: installment.no, id: blocking.id },
-                    {
-                      onSuccess: () => toastDone('Đã đánh dấu xong.'),
-                      onError: (e) => toastFail('Không đánh dấu được.', userMessage(e)),
-                    },
-                  )
-                }
-              >
-                <Icon icon={Check} size={16} />
-                Đánh dấu xong
-              </Button>
-            )}
           </div>
         )
       }

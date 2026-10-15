@@ -1,4 +1,4 @@
-export { InstallmentActions } from './installment-actions'
 export { installmentDoorsOf } from './installment-doors'
+export { ConditionDialog, UndoPaidDialog } from './installment-dialogs'
 export { ScheduleDrawer } from './schedule-drawer'
 export { ScheduleEditor } from './schedule-editor'

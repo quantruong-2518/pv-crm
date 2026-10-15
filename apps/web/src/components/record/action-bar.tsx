@@ -23,7 +23,7 @@ import { MenuButton, type MenuChoice } from './menu-button'
  *  Under `sm` they fold into one contact button; the bar may still wrap to two rows.
  *  A screen nobody is reached from (campaign, company, contact) passes no
  *  `subject`: the bar is the more menu alone. 48px buttons (law 13). The
- *  shell keeps the room it floats over. */
+ *  shell keeps the room it floats over. `top` adds a first row (meetings). */
 
 const CHANNELS: { channel: CommActionChannel; label: string }[] = [
   { channel: 'phone', label: 'Gọi' },
@@ -71,6 +71,7 @@ export function ActionBar({
   mailBlocked,
   more = [],
   extra,
+  top,
 }: {
   /** Names the group for a screen reader. */
   label: string
@@ -78,13 +79,15 @@ export function ActionBar({
   more?: MenuChoice[]
   /** A screen's own control, drawn before the more menu — the run overview's key. */
   extra?: ReactNode
+  /** A full-width row above the buttons — the meeting row of a lead or a deal. */
+  top?: ReactNode
 } & Reach) {
   const [asking, setAsking] = useState<Asking | null>(null)
   const people = subject ? (contacts ?? null) : null
   const choicesOf = useContactChoices(subject, people ?? [], mailBlocked, (channel, contact) =>
     setAsking({ channel, contact }),
   )
-  if (people === null && more.length === 0 && !extra) return null
+  if (people === null && more.length === 0 && !extra && !top) return null
 
   /* Above the bottom nav under `lg`; clear of the assistant button above it.
      `data-action-bar` tells the shell a bar drew, so it keeps the room. */
@@ -98,6 +101,11 @@ export function ActionBar({
         aria-label={label}
         className="glass-dock pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
       >
+        {top && (
+          <div data-action-bar-top className="w-0 min-w-full empty:hidden">
+            {top}
+          </div>
+        )}
         {people !== null && (
           <>
             <div className="sm:hidden">

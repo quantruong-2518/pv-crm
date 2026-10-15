@@ -5,6 +5,7 @@ import {
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
 import { OVERDUE_WORD, refusalOf } from '@/data/opportunities'
+import { QUOTE_LABEL } from '@/components/deal-money/money'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { TodoRung } from '@/components/record/todo-card'
 
@@ -90,7 +91,9 @@ export function primaryMoveOf(op: Profile, can: { accept: boolean; close: boolea
 }
 
 /** What the header's action slot draws: the stage move, and the quote and
- *  sign doors beside it — each one press away, in the header only. */
+ *  sign doors beside it, each one press away. The waiting-quote detail and the
+ *  rail repeat the sign and quote doors by owner decision (ADR 0078); all read
+ *  this one verdict. */
 export type DealPrimaryState = {
   move: PrimaryMove
   /** The record door of the quotation ledger. */
@@ -134,9 +137,13 @@ export function primaryStateOf(
   }
 }
 
-/** One label for the quote door wherever it stands: the modal decides which
- *  negotiation the round joins. */
-export const QUOTE_LABEL = 'Ghi báo giá'
+/** One label for the quote door wherever it stands (header, rail): the modal
+ *  decides which negotiation the round joins. */
+export { QUOTE_LABEL }
+
+/** The sign button's wording by what it does — the header's and the waiting
+ *  quote's share it. */
+export const SIGN_LABEL = { win: 'Chốt thắng', again: 'Ký thêm hợp đồng' } as const
 
 /** The floating bar's more menu: the activity record, the owners' drawer and
  *  the stop. Quoting and signing are the header's, and the seller swap is the

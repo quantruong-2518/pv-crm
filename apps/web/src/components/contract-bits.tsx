@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, Installment, InstallmentView } from '@/data/contracts'
-import { DUE_LABEL } from '@/data/contracts'
+import { DUE_LABEL, standingOf } from '@/data/contracts'
 
 /** The three pieces every contract screen repeats. They live here rather than in
  *  `@pv/ui` because none of them is a general control — each one only means
@@ -17,9 +17,7 @@ const TONE: Record<DueLevel, 'draft' | 'warning' | 'success' | 'danger'> = {
   'long-overdue': 'danger',
 }
 
-/** Where the contract stands in collecting, said the way the book's tabs say
- *  it (the contract itself stores no state): any installment overdue, else
- *  every one paid, else still collecting. */
+/** The contract's standing badge: the shared rule (`standingOf`) over due levels. */
 export function ContractStanding({
   views,
   className,
@@ -27,13 +25,12 @@ export function ContractStanding({
   views: InstallmentView[]
   className?: string
 }) {
-  const overdue = views.some((v) => v.level === 'overdue' || v.level === 'long-overdue')
-  const collected = views.length > 0 && views.every((v) => v.installment.paidAt)
-  const [tone, label] = overdue
-    ? (['danger', 'Quá hạn'] as const)
-    : collected
-      ? (['success', 'Đã thu đủ'] as const)
-      : (['running', 'Đang thu'] as const)
+  const { tone, label } = standingOf(
+    views.map((v) => ({
+      overdue: v.level === 'overdue' || v.level === 'long-overdue',
+      paid: Boolean(v.installment.paidAt),
+    })),
+  )
   return (
     <Badge tone={tone} className={className}>
       {label}

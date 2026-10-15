@@ -103,7 +103,7 @@ function FormBar({
         aria-label="Thao tác liên hệ"
         className="glass-overlay pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"
       >
-        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={() => onPreview}>
+        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onPreview}>
           <Icon icon={Eye} size={16} />
           Xem trước
         </Button>
@@ -269,7 +269,7 @@ export function ConfirmWorkspace({
         title="Xem trước"
         subtitle={record.subject.label}
         footer={
-          <Button size="md" disabled={blocked} onClick={submit}>
+          <Button size="lg" disabled={blocked} onClick={submit}>
             Xác nhận
           </Button>
         }
@@ -335,9 +335,13 @@ function PreviewRow({ label, children }: { label: string; children: ReactNode })
 
 const HELD_REASON_ID = 'meeting-held-reason'
 
+/** What a booked meeting adds to the page header: its moves, and the line
+ *  saying why one is shut (`noteId` is what the shut button points at). */
+export type CommHeaderSlots = { actions?: ReactNode; note?: string | null; noteId?: string }
+
 /** A booked meeting's record: the booking, read-only, and for a closer the two
- *  verbs — held (the close-out form) and reschedule (the booking drawer in
- *  edit mode). Anybody else sees whose it is and no button. */
+ *  verbs in the header — held (the close-out form) and reschedule (the booking
+ *  drawer in edit mode). Anybody else gets a line saying whose it is. */
 export function ScheduledMeeting({
   record,
   strip,
@@ -345,7 +349,7 @@ export function ScheduledMeeting({
 }: {
   record: DebriefView
   strip: ReactNode
-  header: ReactNode
+  header: (slots: CommHeaderSlots) => ReactNode
 }) {
   const subject = meetingSubjectOf(record.subject.code)
   const deal = subject?.kind === 'opportunity'
@@ -374,57 +378,42 @@ export function ScheduledMeeting({
           ? 'Không tìm thấy lịch họp này.'
           : null
 
+  const held = started && (
+    <Button
+      size="lg"
+      disabled={listMissing !== null}
+      aria-describedby={listMissing ? HELD_REASON_ID : undefined}
+      onClick={() => setHolding(true)}
+    >
+      <Icon icon={Check} size={16} />
+      Họp xong
+    </Button>
+  )
+  const note = !record.closableByMe
+    ? `Chỉ ${record.owner.name} hoặc cấp trên ghi được kết quả buổi họp.`
+    : started
+      ? listMissing
+      : `Nút Họp xong hiện lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`
+
   return (
     <RecordShell
       strip={strip}
-      header={header}
+      header={header({
+        actions: record.closableByMe && (
+          <>
+            {held}
+            {movable && (
+              <Button variant="secondary" size="lg" onClick={() => setMoving(true)}>
+                <Icon icon={CalendarClock} size={16} />
+                Dời lịch
+              </Button>
+            )}
+          </>
+        ),
+        note,
+        noteId: HELD_REASON_ID,
+      })}
       main={<MeetingFacts record={record} meeting={meeting} pending={list.isLoading} />}
-      rail={
-        <GlassCard className="flex flex-col gap-3 p-5 lg:p-6" aria-label="Thao tác buổi họp">
-          {record.closableByMe ? (
-            <>
-              {started && (
-                <Button
-                  size="lg"
-                  className="w-full"
-                  disabled={listMissing !== null}
-                  aria-describedby={listMissing ? HELD_REASON_ID : undefined}
-                  onClick={() => setHolding(true)}
-                >
-                  <Icon icon={Check} size={16} />
-                  Họp xong
-                </Button>
-              )}
-              {(!started || listMissing) && (
-                <p
-                  id={HELD_REASON_ID}
-                  className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]"
-                >
-                  {started
-                    ? listMissing
-                    : `Nút Họp xong hiện lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`}
-                </p>
-              )}
-              {movable && (
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => setMoving(true)}
-                >
-                  <Icon icon={CalendarClock} size={16} />
-                  Dời lịch
-                </Button>
-              )}
-            </>
-          ) : (
-            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-              Chỉ {record.owner.name} hoặc cấp trên ghi được kết quả buổi họp.
-            </p>
-          )}
-        </GlassCard>
-      }
-      railLabel="Thao tác buổi họp"
     >
       {record.closableByMe && (
         <MeetingHeldForm

@@ -233,9 +233,9 @@ export function daysPhrase(daysLeft: number): string {
 
 /** How the desk chased an installment — the one map every screen prints. */
 export const RECORD_CHANNEL_LABEL: Record<RecordChannel, string> = {
-  email: 'Email',
-  'zalo-oa': 'Zalo OA',
-  'in-app': 'Trong PV One',
+  email: 'Gửi mail',
+  'zalo-oa': 'Zalo',
+  'in-app': 'Nhắn trong PV One',
   call: 'Gọi điện',
 }
 
@@ -243,4 +243,17 @@ export const RECORD_CHANNEL_LABEL: Record<RecordChannel, string> = {
 export const CONDITION_SIDE_LABEL: Record<ConditionSide, string> = {
   ours: 'Bên mình',
   customer: 'Bên khách',
+}
+
+/** Where a contract stands in collecting — the ONE rule, said the way the
+ *  book's tabs say it (the contract itself stores no state): any installment
+ *  overdue, else every one paid, else still collecting. Both the contract
+ *  screens (off due levels) and the deal's cards (off the money block's
+ *  statuses) reduce their rows to these two flags and call it. */
+export type Standing = { tone: 'danger' | 'success' | 'running'; label: string }
+
+export function standingOf(rows: { overdue: boolean; paid: boolean }[]): Standing {
+  if (rows.some((r) => r.overdue)) return { tone: 'danger', label: 'Quá hạn' }
+  if (rows.length > 0 && rows.every((r) => r.paid)) return { tone: 'success', label: 'Đã thu đủ' }
+  return { tone: 'running', label: 'Đang thu' }
 }

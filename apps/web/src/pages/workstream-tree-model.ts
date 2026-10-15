@@ -53,7 +53,7 @@ export const LANE_TOP = 56
 const FOOT = 16
 const ROW_GAP = 12
 const FAN_GAP = 8
-/** Room for the empty-lane line beside a 48px open-deal button (law 13). */
+/** Height of the empty deal lane's line; it once held a 48px button. */
 export const GHOST_H = 64
 
 const stepLabel = (key: (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']) =>

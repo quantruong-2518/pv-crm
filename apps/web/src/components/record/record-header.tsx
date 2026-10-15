@@ -16,6 +16,7 @@ export function RecordHeader({
   actions,
   subtitle,
   note,
+  noteId,
 }: {
   title: ReactNode
   /** One fact per entry; `null`/`false` entries are dropped, not separated. */
@@ -26,6 +27,8 @@ export function RecordHeader({
   subtitle?: string | null
   /** Why a move is shut: one muted line under the subtitle. */
   note?: string | null
+  /** Lets a shut button point at `note` with `aria-describedby`. */
+  noteId?: string
 }) {
   const titleId = useId()
   const facts = meta.filter(
@@ -46,7 +49,11 @@ export function RecordHeader({
       {subtitle && (
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">{subtitle}</p>
       )}
-      {note && <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">{note}</p>}
+      {note && (
+        <p id={noteId} className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+          {note}
+        </p>
+      )}
       {facts.length > 0 && (
         <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
           {facts.map((fact, i) => (

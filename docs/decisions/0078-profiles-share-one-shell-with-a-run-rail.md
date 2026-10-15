@@ -1,6 +1,6 @@
 # 0078 · Every profile screen shares one shell: a run strip, a header, a body that puts the work first, a run rail and a floating contact bar
 
-Status: accepted (replaces 0077 §6 where it puts history only in the workstream drawer and the primary move in the floating bar; 0077's one-place-per-fact rule stands); amended in place 14/10/2026 — §1 Header and Body, §2, new Amendment 14/10/2026 (items 1–9)
+Status: accepted (replaces 0077 §6 where it puts history only in the workstream drawer and the primary move in the floating bar; 0077's one-place-per-fact rule stands); amended in place 14/10/2026 — §1 Header and Body, §2, new Amendment 14/10/2026 (items 1–12)
 Source: project owner's decisions, design review of the profile screens, 02/10/2026; 14/10/2026: review of the deal profile redesign canvas
 
 ## Context
@@ -79,9 +79,7 @@ Owner decision, made while reviewing a redesign canvas of the deal profile.
    it); only the plain name-and-tag line of item 7 stays. Other profiles keep
    theirs for now.
 4. Rollout: the shared shell and the deal profile first, the other profiles
-   follow. Planned, not decided in detail here: the money and contract block
-   (a carousel of contract cards, installment tiles), the quotation list in
-   the rail, a meeting row on the contact dock.
+   follow. Status: see item 10.
 5. The status Badge stays in the title on every profile, deal included: law 16
    (`docs/design-system/laws.md`) wins over §1's "no status pill when the
    screen shows a stepper". The stepper no longer names the state as a pill.
@@ -96,6 +94,31 @@ Owner decision, made while reviewing a redesign canvas of the deal profile.
    "Giao Sale" lives in the header and the rail door is not drawn. Swapping the
    seller stays on the rail door and leaves the "Khác" menu.
 9. Also amended by this: 0079 §2 and §3, marked there.
+10. Rollout status, done on branch `record-shell-v2` (replaces the "planned"
+    wording of item 4):
+    - Deal: the money block is merged with the terms strip (signed vs expected
+      ratio). The contract carousel has standing cards (Quá hạn / Đang thu /
+      Đã thu đủ) and pending-quote cards. Installment tiles. The installment
+      modal: Nghiệm thu = the installment's conditions, Thu tiền, Nhắc khách,
+      Chứng từ; one primary in the footer. The quotation list sits in the rail,
+      closed rounds kept.
+    - Contact dock: a meeting row replaces the meetings card for lead and deal;
+      when the dock is not drawn, a read-only row sits in the body.
+    - Other profiles moved their main move into the header: installment
+      "Đánh dấu xong", contact "Đặt làm người chính", workstream "Mở cơ hội",
+      booked meeting "Họp xong" / "Dời lịch".
+    - Contract has no header move (still undecided, §3 and Open). Company keeps
+      Save in its form. The open comm form keeps its form bar.
+11. Owner-approved exception to item 8 "one door per action", on the deal
+    profile only: "Ghi báo giá" is in the header and also a full-width button
+    under the rail's quotation list. The sign move ("Chốt thắng" / "Ký thêm hợp
+    đồng") is in the header and also in the detail of a waiting-quote card in
+    the contract carousel. Both copies carry the same server verdict. Reason:
+    the owner asked for the action where the reader is looking (review comments
+    14/10/2026).
+12. Known screen-side wording to move to the server later: the contract
+    standing derived from installment statuses, the signed-vs-expected ratio,
+    the quote days left.
 
 ## Open
 

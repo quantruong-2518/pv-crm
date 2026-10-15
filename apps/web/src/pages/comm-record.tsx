@@ -20,7 +20,7 @@ import { CommRecordRead } from '@/components/comm-record-bits'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { ContextStrip } from '@/components/record/run-strip'
-import { ConfirmWorkspace, ScheduledMeeting } from './comm-record-parts'
+import { ConfirmWorkspace, ScheduledMeeting, type CommHeaderSlots } from './comm-record-parts'
 
 /** One comm record — `/comms/:id` (ADR 0075).
  *
@@ -78,11 +78,20 @@ function RecordBody({ record }: { record: DebriefView }) {
       ]}
     />
   )
-  const header = (
+  /* The state rides in the title (law 16); a booked meeting fills the
+     slots with its moves and the reason one is shut. */
+  const headerOf = (slots: CommHeaderSlots = {}) => (
     <RecordHeader
-      title={record.title ?? record.subject.label}
+      title={
+        <>
+          {record.title ?? record.subject.label}
+          <span className="ml-3 align-middle tracking-normal">
+            <CommStateBadge state={record.state} />
+          </span>
+        </>
+      }
+      {...slots}
       meta={[
-        <CommStateBadge key="state" state={record.state} />,
         record.late && open && <CommLateMark key="late" late />,
         meetingOverdue(record, now) && <CommOverdueMark key="overdue" overdue />,
         <ChannelPill key="channel" channel={record.channel} />,
@@ -93,10 +102,11 @@ function RecordBody({ record }: { record: DebriefView }) {
       ]}
     />
   )
+  const header = headerOf()
   const turns = <Turns threadId={record.threadId} />
 
   if (record.state === 'scheduled') {
-    return <ScheduledMeeting key={record.id} record={record} strip={strip} header={header} />
+    return <ScheduledMeeting key={record.id} record={record} strip={strip} header={headerOf} />
   }
   if (open && mine) {
     return (

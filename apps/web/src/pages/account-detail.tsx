@@ -94,7 +94,7 @@ export default function AccountDetailPage() {
         }
         main={
           <>
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-4">
               <Score label="Lead đã hỏi" value={String(account.leads)} />
               <Score label="Đơn đang mở" value={String(account.openDeals)} />
               <Score label="Hợp đồng đã ký" value={String(account.signedDeals)} />

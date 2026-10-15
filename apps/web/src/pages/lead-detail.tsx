@@ -22,7 +22,8 @@ import { ExitDialog } from '@/components/exit-dialog'
 import { DisableLeadsDialog } from '@/components/lead-disable'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
-import { MeetingsCard } from '@/components/meetings-card'
+import { MeetingsDock } from '@/components/meetings-dock'
+import { useDockRow } from '@/data/meeting-upcoming'
 import { usePinToggle } from '@/data/pins'
 import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
@@ -36,10 +37,11 @@ import { leadMoreChoices } from './lead-model'
 import { LeadForm } from './lead-parts'
 
 /** Module 2 · one lead's profile — `/sales/leads/:code`, on the record shell
- *  (ADR 0078): run strip, header, then the body — todo card, meetings, the
- *  lead form as reference — and the rail — contacts timeline, people, files.
- *  The floating bar only reaches contacts; its more menu holds the state
- *  moves, the hand-over and the pin. `LeadScreen` is split out so that every
+ *  (ADR 0078): run strip, header, then the body — todo card, the lead form as
+ *  reference — and the rail — contacts timeline, people, files. The floating
+ *  bar reaches contacts and holds the next meeting; its more menu holds the
+ *  state moves, the hand-over and the pin. A switched-off lead has no bar, so
+ *  its meetings show read-only at the top of the body. `LeadScreen` is split out so that every
  *  hook of the profile runs only once there IS a profile. */
 
 export function LeadDetailPage() {
@@ -107,6 +109,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const reopen = useReopenLead(lead.code)
   /* ONE draft for the whole screen, seeded from the server's copy. */
   const draft = useLeadDraft({ mode: 'edit', profile: lead })
+  const dockRow = useDockRow({ kind: 'lead', code: lead.code }, canWrite)
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
@@ -168,8 +171,8 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       header={<LeadHeader lead={lead} readOnly={dealReach} onConvert={convert} />}
       main={
         <>
+          {off && <MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={false} />}
           <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
-          <MeetingsCard subject={{ kind: 'lead', code: lead.code }} canEdit={canWrite} />
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
       }
@@ -193,6 +196,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <RunDocuments workstreamCode={lead.workstreamCode} />
         </>
       }
+      actionBarRows={dockRow ? 2 : 1}
       actionBar={
         !off && (
           <ActionBar
@@ -202,6 +206,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             mailBlocked={mailBlocked}
             onCompose={() => setComposing(true)}
             more={more}
+            top={<MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={canWrite} />}
           />
         )
       }

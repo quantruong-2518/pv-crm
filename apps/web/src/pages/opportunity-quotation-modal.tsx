@@ -72,6 +72,41 @@ function closesText(negotiation: OpportunityMoneyNegotiation): string {
   return `${head || 'Báo giá đang chờ'} sẽ đóng là ${NOT_CLOSED}`
 }
 
+/** What the press will record, once the boxes are filled: the round it
+ *  becomes (only known when a round is being replaced), value and kind. */
+function summaryOf(form: Form, waiting: OpportunityMoneyNegotiation | null): string {
+  if (form.amount === null || form.kind === '') return ''
+  const round = waiting?.rounds.find((r) => r.id === waiting.pendingId)
+  return [
+    round && `Lần ${round.roundNo + 1}`,
+    compactMoney(form.amount, form.currency),
+    CONTRACT_KIND_LABEL[form.kind],
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/** What the new round does to the one still waiting: it closes unsigned, and
+ *  the reason is asked first because it is the one thing the form cannot guess. */
+function ClosesBlock({
+  waiting,
+  reason,
+  onChange,
+}: {
+  waiting: OpportunityMoneyNegotiation
+  reason: Reason
+  onChange: (next: Reason) => void
+}) {
+  return (
+    <div className="bg-warning/12 flex flex-col gap-6 rounded-md p-4">
+      <p className="text-on-tint-warning m-0 text-[13px] font-semibold leading-[1.5]">
+        {closesText(waiting)}
+      </p>
+      <ReasonFields value={reason} onChange={onChange} />
+    </div>
+  )
+}
+
 type Reason = { reasonId: string; note: string }
 const NO_REASON: Reason = { reasonId: '', note: '' }
 
@@ -352,7 +387,7 @@ export function QuotationModal({
           <span className="font-mono">{op.code}</span> · {op.account}
         </>
       }
-      line={blocker}
+      line={blocker || summaryOf(form, waiting)}
       error={record.error}
       busy={record.isPending || uploading}
       busyLabel={uploading ? 'Đang tải tệp…' : 'Đang ghi…'}
@@ -361,6 +396,9 @@ export function QuotationModal({
       ready={blocker === ''}
       onSubmit={submit}
     >
+      {waiting && (
+        <ClosesBlock waiting={waiting} reason={form.reason} onChange={(r) => set('reason', r)} />
+      )}
       <AmountRow
         amount={amount}
         currency={form.currency}
@@ -412,13 +450,6 @@ export function QuotationModal({
           busy={uploading}
           onChange={(files) => set('files', files)}
         />
-      )}
-
-      {waiting && (
-        <div className="bg-surface-ink/5 flex flex-col gap-6 rounded-md p-4">
-          <p className="m-0 text-[13px] font-semibold leading-[1.5]">{closesText(waiting)}</p>
-          <ReasonFields value={form.reason} onChange={(next) => set('reason', next)} />
-        </div>
       )}
     </FormModal>
   )

@@ -1,27 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouteLink } from 'react-router-dom'
-import {
-  CalendarCheck,
-  CalendarClock,
-  FileText,
-  Handshake,
-  Link,
-  MessageSquare,
-  Target,
-  Trash2,
-} from '@pv/ui'
-import {
-  Badge,
-  Button,
-  Drawer,
-  GlassCard,
-  Icon,
-  MetaPill,
-  SectionTitle,
-  Skeleton,
-  cn,
-} from '@pv/ui'
+import { CalendarCheck, FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
+import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
 import type { DebriefView, MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -29,42 +10,10 @@ import { toast } from '@/app/toast'
 import { CommOverdueMark } from '@/components/comm-bits'
 import { COMM_CARD_SURFACE, meetingOverdue } from '@/data/comm-record-detail'
 import { commRecordPath, subjectCommIndexQuery } from '@/data/comm-records'
-import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { MEETING_MODE_LABEL, meetingRowLabel } from '@/data/meeting-labels'
+import { upcomingOf } from '@/data/meeting-upcoming'
 import { meetingsQuery, useDropMeeting, type MeetingSubject } from '@/data/meetings'
 import { useMinuteClock } from '@/data/minute-clock'
-
-/** The meetings card of a lead or a deal profile — the body's working card.
- *  One booking button, shown only to a reader who may book (`*.edit`, scoped).
- *  Holds a list, so `.glass-b` (law 8). */
-export function MeetingsCard({ subject, canEdit }: { subject: MeetingSubject; canEdit: boolean }) {
-  /* A counter, not a flag: a second press must reopen a door just closed. */
-  const [asked, setAsked] = useState(0)
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Lịch gặp">
-      <SectionTitle
-        size="detail"
-        actions={
-          canEdit && (
-            <Button
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              onClick={() => setAsked((n) => n + 1)}
-            >
-              <Icon icon={CalendarClock} size={16} />
-              Đặt lịch
-            </Button>
-          )
-        }
-      >
-        Lịch gặp
-      </SectionTitle>
-      <MeetingsPanel subject={subject} canEdit={canEdit} openSchedule={asked} />
-    </GlassCard>
-  )
-}
 
 /** The "Sắp tới" block of the activity card — the next meeting with this
  *  customer.
@@ -85,31 +34,22 @@ export function MeetingsCard({ subject, canEdit }: { subject: MeetingSubject; ca
 export function MeetingsPanel({
   subject,
   canEdit,
-  /** Bumped from outside to open the record-meeting door: both buttons that
-   *  ask for it — the card head and the toolbar — live outside this block. */
-  openSchedule = 0,
+  all = false,
 }: {
   subject: MeetingSubject
   canEdit: boolean
-  openSchedule?: number
+  /** Start with the whole list, for a surface that exists to show it. */
+  all?: boolean
 }) {
   const { data, isPending } = useQuery(meetingsQuery(subject))
-  const [recording, setRecording] = useState(false)
   const [reading, setReading] = useState<MeetingRow | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(all)
   const records = useMeetingRecords(subject.code)
   const now = useMinuteClock()
 
   const rows = data?.rows ?? []
   const next = upcomingOf(rows, now)
   const shown = expanded ? rows : next ? [next] : []
-
-  /* `0` is the opening value, so this does not open the door on first paint. A
-     counter rather than a boolean: a second press must reopen a door just
-     closed — the same reason `TouchFocus` carries `seq`. */
-  useEffect(() => {
-    if (openSchedule > 0 && canEdit) setRecording(true)
-  }, [openSchedule, canEdit])
 
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-label="Lịch họp sắp tới">
@@ -152,16 +92,6 @@ export function MeetingsPanel({
         </ul>
       )}
 
-      {/* Same permission the delete button asks for. Opening a whole booking
-          form for somebody who cannot write ends at a 403 on the save. */}
-      {canEdit && (
-        <MeetingScheduleDrawer
-          subject={subject}
-          open={recording}
-          onClose={() => setRecording(false)}
-        />
-      )}
-
       <Drawer
         open={reading !== null}
         onClose={() => setReading(null)}
@@ -181,23 +111,6 @@ export function MeetingsPanel({
       </Drawer>
     </section>
   )
-}
-
-/** The EARLIEST meeting not yet over and not closed out — an in-progress one
- *  counts, the same cut as `GET /sales/meetings/today` (no length = over at its
- *  start), so this card and the countdown bar agree. The server answers in its
- *  own order, so "next" is chosen here rather than taken off the top. */
-function upcomingOf(rows: readonly MeetingRow[], now: number): MeetingRow | undefined {
-  let best: MeetingRow | undefined
-  let bestAt = Infinity
-  for (const row of rows) {
-    const at = Date.parse(row.at)
-    const ends = at + (row.durationMinutes ?? 0) * 60_000
-    if (row.heldAt !== null || !Number.isFinite(at) || ends <= now || at >= bestAt) continue
-    best = row
-    bestAt = at
-  }
-  return best
 }
 
 /** Một lịch họp: thời gian → nội dung → người tham gia → thao tác. */

@@ -267,18 +267,10 @@ function LaneBands({ journey, layout }: { journey: Journey; layout: TreeLayout }
   ))
 }
 
-/** The empty deal lane: the line, and the lead profile's own open-deal door
- *  when the screen may offer it. With deals hidden by scope the lane is only
- *  empty for this reader, and says so. */
-function GhostDeal({
-  box,
-  hidden,
-  onOpenDeal,
-}: {
-  box: Box
-  hidden: boolean
-  onOpenDeal: (() => void) | undefined
-}) {
+/** The empty deal lane: one line. The open-deal door is the page header's.
+ *  With deals hidden by scope the lane is only empty for this reader, and
+ *  says so. */
+function GhostDeal({ box, hidden }: { box: Box; hidden: boolean }) {
   return (
     <div
       className="absolute flex items-center gap-3 px-3"
@@ -287,22 +279,15 @@ function GhostDeal({
       <span className="text-glass-foreground min-w-0 grow break-words text-[12px]">
         {hidden ? 'Không có cơ hội nào trong phạm vi của bạn' : 'Chưa có cơ hội nào từ lead này'}
       </span>
-      {onOpenDeal && (
-        <Button variant="secondary" size="lg" className="shrink-0" onClick={onOpenDeal}>
-          <Icon icon={Plus} size={16} />
-          Tạo cơ hội
-        </Button>
-      )}
     </div>
   )
 }
 
 export function WorkstreamTree({
   journey,
-  onOpenDeal,
   zoomCtl,
   ...track
-}: Track & { journey: Journey; onOpenDeal?: () => void; zoomCtl: TreeZoom }) {
+}: Track & { journey: Journey; zoomCtl: TreeZoom }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const { asked: zoomAsked, zoomed, setView } = zoomCtl
   const frameRef = useRef<HTMLDivElement>(null)
@@ -384,13 +369,7 @@ export function WorkstreamTree({
               </svg>
 
               <LeadCard lead={journey.lead} box={layout.lead} {...track} />
-              {layout.ghost && (
-                <GhostDeal
-                  box={layout.ghost}
-                  hidden={journey.hiddenDeals > 0}
-                  onOpenDeal={onOpenDeal}
-                />
-              )}
+              {layout.ghost && <GhostDeal box={layout.ghost} hidden={journey.hiddenDeals > 0} />}
               {layout.deals.map(({ deal, full, box }) => (
                 <DealCard
                   key={deal.code}

@@ -10,40 +10,34 @@ import {
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import type { DealEditPart } from '@/data/deal-draft'
-import {
-  CHANGE_SALE_PRIMARY,
-  eventOfferOf,
-  opportunityProfileQuery,
-  railOf,
-  refusalOf,
-} from '@/data/opportunities'
+import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { FailLogCard, StopDrawer } from '@/components/opportunity-stop'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
-import { MeetingsCard } from '@/components/meetings-card'
+import { MeetingsDock } from '@/components/meetings-dock'
+import { useDockRow } from '@/data/meeting-upcoming'
 import { ActionBar } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
-import { CommJourney } from '@/components/run/comm-journey'
-import { RunOwners } from '@/components/run/run-owners'
-import { RunContacts } from '@/components/run/run-contacts'
-import { RunDocuments } from '@/components/run/run-documents'
 import { SignDrawer } from '@/components/sign-drawer'
 import { DealEventModal } from './opportunity-events'
 import { DealHistoryCard } from './opportunity-history'
-import { dealMoreChoices, primaryStateOf, viewSignRequest } from './opportunity-model'
+import { SIGN_LABEL, dealMoreChoices, primaryStateOf, viewSignRequest } from './opportunity-model'
 import { DealEditDrawer } from './opportunity-form-card'
-import { SignRequestCard, ValueStrip } from './opportunity-main'
+import { SignRequestCard } from './opportunity-main'
 import { DealMoney } from './opportunity-money'
+import { useDealMoney } from './opportunity-money-state'
 import { DealHeader } from './opportunity-parts'
+import { DealRail } from './opportunity-rail'
 import { QuotationModal } from './opportunity-quotation-modal'
 import { DescriptionPanel } from './opportunity-side'
 import { DealTodo } from './opportunity-status'
 
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
  *  record shell (ADR 0078): run strip, header, then the body — stepper,
- *  sign request, money, meetings, terms, history, description — and the run rail —
- *  comms, people, files. Quoting and signing sit in the header; the floating bar reaches contacts.
+ *  sign request, money and contracts, history, description — and the run rail —
+ *  comms, quotations, people, files. Quoting and signing sit in the header; the
+ *  floating bar reaches contacts and holds the next meeting.
  *
  *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
  *  so that every hook of the profile runs only once there IS a profile. */
@@ -87,6 +81,8 @@ type Quoting = { negotiation: OpportunityMoneyNegotiation | null; open: boolean;
 function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const navigate = useNavigate()
   const [signing, setSigning] = useState(false)
+  /* The waiting round the sign press came from; `''` = the header's own press. */
+  const [signOn, setSignOn] = useState('')
   const [stopping, setStopping] = useState(false)
   const [assigning, setAssigning] = useState(false)
   /* Which contact the letter is addressed to; `null` = composer closed. */
@@ -102,7 +98,10 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const quote = (negotiation: OpportunityMoneyNegotiation | null) =>
     setQuoting((prev) => ({ negotiation, open: true, session: prev.session + 1 }))
   const quoteNew = () => quote(null)
-  const sign = () => setSigning(true)
+  const sign = (quotationId = '') => {
+    setSignOn(quotationId)
+    setSigning(true)
+  }
 
   const canAccept = useCan('opportunity.accept')
   const canClose = useCan('opportunity.close')
@@ -117,6 +116,8 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
     onStop: () => setStopping(true),
   })
   const subject = { kind: 'opportunity', code: op.code } as const
+  const money = useDealMoney(op, quote)
+  const dockRow = useDockRow(subject, canMeet)
 
   return (
     <RecordShell
@@ -127,49 +128,36 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           fallback={railOf(op.chain, op.code, navigate)}
         />
       }
-      header={<DealHeader op={op} primary={primary} onSign={sign} onQuote={quoteNew} />}
+      header={<DealHeader op={op} primary={primary} onSign={() => sign()} onQuote={quoteNew} />}
       main={
         <>
+          {op.state === 'lost' && <MeetingsDock subject={subject} canEdit={false} />}
           <DealTodo op={op} />
           {op.state === 'lost' && <FailLogCard op={op} />}
           <SignRequestCard op={op} onView={historyOpen ? viewSignRequest : undefined} />
-          <DealMoney op={op} onQuote={quote} />
-          <MeetingsCard subject={subject} canEdit={canMeet} />
-          <ValueStrip op={op} onEdit={() => edit('terms')} />
+          <DealMoney
+            op={op}
+            state={money}
+            sign={primary.sign && { label: SIGN_LABEL[primary.sign], onSign: sign }}
+            onEdit={() => edit('terms')}
+          />
           <DealHistoryCard op={op} />
           <DescriptionPanel op={op} onEdit={() => edit('details')} />
         </>
       }
-      railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của cơ hội"
+      railLabel="Lịch sử liên hệ, báo giá, người liên hệ và tài liệu của cơ hội"
       rail={
-        <>
-          <RunOwners
-            workstreamCode={op.workstream?.code ?? null}
-            focus={op.code}
-            lanes={op.owners}
-            hasSeller={op.hasSeller}
-            doors={
-              op.state === 'open' && op.acts.assign.ok && primary.move !== 'assign'
-                ? {
-                    [op.code]: {
-                      label: op.pendingSign
-                        ? CHANGE_SALE_PRIMARY
-                        : op.hasSeller
-                          ? 'Đổi Sale'
-                          : 'Giao Sale',
-                      onClick: () => setAssigning(true),
-                    },
-                  }
-                : {}
-            }
-          />
-          <CommJourney workstreamCode={op.workstream?.code ?? null} subject={subject} />
-          <RunContacts subject={subject} />
-          <RunDocuments workstreamCode={op.workstream?.code ?? null} />
-        </>
+        <DealRail
+          op={op}
+          money={money}
+          assignHere={op.state === 'open' && op.acts.assign.ok && primary.move !== 'assign'}
+          onAssign={() => setAssigning(true)}
+        />
       }
       /* A lost deal has no bar: nothing is recorded on it, nobody is contacted
-         from it, and its more menu is empty. */
+         from it, and its more menu is empty. Its meetings stay readable as a
+         row at the top of the main column. */
+      actionBarRows={dockRow ? 2 : 1}
       actionBar={
         op.state !== 'lost' && (
           <ActionBar
@@ -181,11 +169,18 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
             }))}
             onCompose={(contact) => setMailTo(contact.code ?? null)}
             more={more}
+            top={<MeetingsDock subject={subject} canEdit={canMeet} />}
           />
         )
       }
     >
-      <SignDrawer op={op} open={signing} onClose={() => setSigning(false)} />
+      {money.layers}
+      <SignDrawer
+        op={op}
+        open={signing}
+        quotationId={signOn || undefined}
+        onClose={() => setSigning(false)}
+      />
       <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
       <AssignSaleButton
         op={op}

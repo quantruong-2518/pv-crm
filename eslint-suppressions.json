@@ -1257,11 +1257,6 @@
       "count": 2
     }
   },
-  "apps/web/src/components/sign-drawer.tsx": {
-    "max-lines-per-function": {
-      "count": 1
-    }
-  },
   "apps/web/src/components/table-bits.tsx": {
     "aurora/comment-budget": {
       "count": 1

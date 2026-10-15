@@ -16,8 +16,8 @@ import { TodoCard } from '@/components/record/todo-card'
 import { NextStepCard } from '@/components/run/next-step'
 import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
 
-/** Module 2 · the header and stepper of the lead profile; the meetings card
- *  is `MeetingsCard`, shared with the deal profile.
+/** Module 2 · the header and stepper of the lead profile; the meetings sit on
+ *  the floating bar (`MeetingsDock`), shared with the deal profile.
  *
  *  The header names the lead's state in a badge (law 16) and carries no code
  *  or run chip: the run strip says those (ADR 0078 §1). Its one move, to open

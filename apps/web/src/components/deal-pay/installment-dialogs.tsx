@@ -1,26 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Bell, Check, Plus, RotateCcw } from '@pv/ui'
+import { Plus, RotateCcw } from '@pv/ui'
 import { Input, Select, Textarea } from '@pv/ui'
-import {
-  ConditionSide,
-  RecordChannel,
-  type ContractDetailRow,
-  type InstallmentRow,
-} from '@pv/contracts'
+import { ConditionSide, type ContractDetailRow, type InstallmentRow } from '@pv/contracts'
 import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { dmy } from '@/lib/date'
-import {
-  momentOfDay,
-  PAY_TEXT_MAX,
-  useAddCondition,
-  useAddReminder,
-  useRecordPaid,
-  useUndoPaid,
-} from '@/data/contracts-write'
-import { CONDITION_SIDE_LABEL, RECORD_CHANNEL_LABEL } from '@/data/contracts'
-import { vnToday } from '@/data/opportunities'
-import { vnDayOf } from '@/data/quotations-write'
+import { momentOfDay, PAY_TEXT_MAX, useAddCondition, useUndoPaid } from '@/data/contracts-write'
+import { CONDITION_SIDE_LABEL } from '@/data/contracts'
 import { Field } from '@/components/ops-fields'
 import { compactMoney } from '@/components/deal-money/money'
 import { FormModal } from './form-modal'
@@ -38,60 +23,6 @@ const subtitleOf = ({ contract, installment }: Pick<DialogProps, 'contract' | 'i
     {compactMoney(installment.amount, contract.currency)}
   </>
 )
-
-export function PaidDialog(props: DialogProps) {
-  const { contract, installment, open, onClose } = props
-  const [day, setDay] = useState(vnToday)
-  const record = useRecordPaid(contract.code)
-  const min = vnDayOf(contract.signedAt)
-  const max = vnToday()
-  const range = `Từ ${dmy(min)} đến hôm nay.`
-
-  useEffect(() => {
-    if (open) setDay(vnToday())
-  }, [open])
-
-  const blocker = day === '' ? 'Chọn ngày thu.' : day < min || day > max ? range : ''
-
-  return (
-    <FormModal
-      open={open}
-      onClose={onClose}
-      title="Ghi đã thu"
-      subtitle={subtitleOf(props)}
-      line={blocker}
-      error={record.error}
-      busy={record.isPending}
-      busyLabel="Đang ghi…"
-      submitLabel="Ghi đã thu"
-      icon={Check}
-      ready={blocker === ''}
-      onSubmit={() =>
-        record.mutate(
-          { no: installment.no, body: { paidAt: momentOfDay(day) } },
-          {
-            onSuccess: () => {
-              toastDone(`Đã ghi thu ${installment.label}.`)
-              onClose()
-            },
-          },
-        )
-      }
-    >
-      <Field label="Ngày thu" required hint={range}>
-        <Input
-          type="date"
-          aria-label="Ngày thu"
-          className="pointer-coarse:h-12"
-          value={day}
-          min={min}
-          max={max}
-          onChange={(e) => setDay(e.target.value)}
-        />
-      </Field>
-    </FormModal>
-  )
-}
 
 export function UndoPaidDialog(props: DialogProps) {
   const { contract, installment, open, onClose } = props
@@ -122,98 +53,6 @@ export function UndoPaidDialog(props: DialogProps) {
       }
     >
       <p className="m-0 text-[13px] leading-[1.6]">Đợt trở lại trạng thái chưa thu.</p>
-    </FormModal>
-  )
-}
-
-const CHANNEL_OPTIONS = [
-  { value: '', label: 'Chọn kênh…' },
-  ...RecordChannel.options.map((c) => ({ value: c, label: RECORD_CHANNEL_LABEL[c] })),
-]
-
-export function ReminderDialog(props: DialogProps) {
-  const { contract, installment, open, onClose } = props
-  const [channel, setChannel] = useState('')
-  const [what, setWhat] = useState('')
-  const [detail, setDetail] = useState('')
-  const add = useAddReminder(contract.code)
-  const picked = RecordChannel.safeParse(channel)
-
-  useEffect(() => {
-    if (!open) return
-    setChannel('')
-    setWhat('')
-    setDetail('')
-  }, [open])
-
-  const blocker = !picked.success
-    ? 'Chọn kênh nhắc.'
-    : what.trim() === ''
-      ? 'Nhập nội dung đã nhắc.'
-      : detail.trim() === ''
-        ? 'Nhập kết quả.'
-        : ''
-
-  return (
-    <FormModal
-      open={open}
-      onClose={onClose}
-      title="Ghi lần nhắc"
-      subtitle={subtitleOf(props)}
-      line={blocker}
-      error={add.error}
-      busy={add.isPending}
-      busyLabel="Đang ghi…"
-      submitLabel="Ghi lần nhắc"
-      icon={Bell}
-      ready={blocker === '' && picked.success}
-      onSubmit={() => {
-        if (!picked.success) return
-        add.mutate(
-          {
-            no: installment.no,
-            body: { channel: picked.data, what: what.trim(), detail: detail.trim() },
-          },
-          {
-            onSuccess: () => {
-              toastDone('Đã ghi lần nhắc.')
-              onClose()
-            },
-          },
-        )
-      }}
-    >
-      <Field label="Kênh nhắc" required plain>
-        <Select
-          label="Kênh nhắc"
-          hideLabel
-          size="lg"
-          value={channel}
-          onChange={setChannel}
-          options={CHANNEL_OPTIONS}
-          className="w-full"
-        />
-      </Field>
-      <Field label="Nội dung đã nhắc" required>
-        <Textarea
-          autoGrow
-          rows={2}
-          value={what}
-          aria-label="Nội dung đã nhắc"
-          maxLength={PAY_TEXT_MAX.what}
-          onChange={(e) => setWhat(e.target.value)}
-        />
-      </Field>
-      <Field label="Kết quả" required>
-        <Textarea
-          autoGrow
-          rows={2}
-          value={detail}
-          aria-label="Kết quả"
-          maxLength={PAY_TEXT_MAX.detail}
-          onChange={(e) => setDetail(e.target.value)}
-        />
-      </Field>
     </FormModal>
   )
 }
