@@ -9,7 +9,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import type {
   ConditionSide,
   ContractKind,
@@ -19,6 +19,7 @@ import type {
   RecordState,
 } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { sales } from '../sales.schema'
 import { workstream } from '../workstream/workstream.schema'
@@ -64,10 +65,17 @@ export const contract = sales.table(
      *  not a write refused at the moment a deal is won. */
     workstreamCode: text('workstream_code').references(() => workstream.code),
 
-    /** What this paper is for (ADR 0069 §5). Nullable for ever: contracts
-     *  signed before 0068 never named one, and inventing it would put a word
-     *  in the director's mouth. The sign door requires it from now on. */
+    /** What this paper is for (ADR 0069 §5): a `CONTRACT_KIND` config id
+     *  ('CK-01'), keyed since 0108. Nullable for ever: contracts signed before
+     *  0068 never named one, and inventing it would put a word in the
+     *  director's mouth. The sign door requires it from now on. */
     kind: text('kind').$type<ContractKind>(),
+    /** Key half only, `lead.campaign_list`'s trick: a MATCH SIMPLE key skips a
+     *  NULL pair, so a kind-less contract passes and a kind that names a row of
+     *  any OTHER config list is refused (0108). */
+    kindList: text('kind_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "kind" IS NULL THEN NULL ELSE 'CONTRACT_KIND' END`,
+    ),
   },
   (t) => [
     foreignKey({
@@ -81,11 +89,14 @@ export const contract = sales.table(
      *  by run, and this is the join that answers it without a scan. */
     index('contract_workstream_idx').on(t.workstreamCode),
     check('contract_money_pair', sql`("amount" IS NULL) = ("currency" IS NULL)`),
-    /** `ContractKind.options`, copied out for `touch_kind_known`'s reason. */
-    check(
-      'contract_kind_known',
-      sql`"kind" IS NULL OR "kind" IN ('licence', 'deployment', 'training')`,
-    ),
+    /** Replaces `contract_kind_known` (dropped in 0108): the list is edited on
+     *  the config desk, so a copied-out CHECK would refuse a legitimate new
+     *  kind. Real fence, not discipline: config rows are never deleted. */
+    foreignKey({
+      name: 'contract_kind_fk',
+      columns: [t.kind, t.kindList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
   ],
 )
 

@@ -14,6 +14,7 @@ import {
  *      PATCH /sales/opportunities/:code/quotations/:id         same · a pending round only
  *      POST  /sales/opportunities/:code/quotations/:id/close   same · a pending round only
  *      GET   /sales/opportunities/quotation-reasons            `opportunity.edit` · unscoped
+ *      GET   /sales/opportunities/contract-kinds               same · unscoped
  *
  *  The three writes answer `QuotationRow`. A NEGOTIATION is the rounds sharing
  *  (opportunity, kind, `negotiationNo`) and holds at most ONE `pending` round —
@@ -137,6 +138,19 @@ export const QuotationReasonsResponse = z.object({
   rows: z.array(z.object({ id: ConfigCode, name: z.string().min(1) })),
 })
 
+/** `GET …/contract-kinds` — every `CONTRACT_KIND` entry in catalogue order,
+ *  retired ones too, so a kind hidden after it was stored still has a name. */
+export const ContractKindsResponse = z.object({
+  rows: z.array(
+    z.object({
+      id: ContractKind,
+      name: z.string().min(1),
+      active: z.boolean(),
+      ord: z.number().int().positive(),
+    }),
+  ),
+})
+
 export type QuotationOutcome = z.infer<typeof QuotationOutcome>
 export type QuotationSource = z.infer<typeof QuotationSource>
 export type QuotationReasonId = z.infer<typeof QuotationReasonId>
@@ -150,3 +164,4 @@ export type QuotationRecordResponse = z.infer<typeof QuotationRecordResponse>
 export type QuotationPatchResponse = z.infer<typeof QuotationPatchResponse>
 export type QuotationCloseResponse = z.infer<typeof QuotationCloseResponse>
 export type QuotationReasonsResponse = z.infer<typeof QuotationReasonsResponse>
+export type ContractKindsResponse = z.infer<typeof ContractKindsResponse>

@@ -160,7 +160,7 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       [
         'HĐ-2531',
         'OP-0074',
-        'licence',
+        'CK-01',
         360_000_000,
         '2025-08-20T15:00:00+07:00',
         'u-huy',
@@ -170,7 +170,7 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       [
         'HĐ-2609',
         'OP-0290',
-        'training',
+        'CK-03',
         120_000_000,
         '2026-07-24T15:00:00+07:00',
         'u-huy',
@@ -180,7 +180,7 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       [
         'HĐ-2607',
         'OP-0291',
-        'deployment',
+        'CK-02',
         1_840_000_000,
         SAO_DO_SIGNED_AT,
         'u-huy',
@@ -190,7 +190,7 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       [
         'HĐ-2608',
         'OP-0291',
-        'licence',
+        'CK-01',
         240_000_000,
         '2026-07-21T16:35:00+07:00',
         'u-huy',

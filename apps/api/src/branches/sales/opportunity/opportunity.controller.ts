@@ -153,6 +153,15 @@ export class OpportunityController {
     return this.quotes.reasons()
   }
 
+  /** The contract-kind names every opportunity and contract screen prints,
+   *  retired kinds included. The list holds no per-row data, so it rides on
+   *  `opportunity.view`. Before `@Get(':code')`. */
+  @Get('contract-kinds')
+  @Need({ branch: 'Sales', permission: 'opportunity.view' })
+  contractKinds() {
+    return this.quotes.kinds()
+  }
+
   /** Every open deal of a lead: codes the reader may open, plus a count of
    *  the rest. Before `@Get(':code')` for the reason `scorecard` states above.
    *  `scoped` because the list is cut per deal owner — see

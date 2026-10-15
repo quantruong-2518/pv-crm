@@ -69,18 +69,13 @@ export const OPPORTUNITY_STATE_LABEL: Record<OpportunityStatus, string> = {
   won: 'Thành hợp đồng',
 }
 
-/** What a signed contract is for. Chosen by the proposer on every sign
- *  request; which contract rungs a kind skips rides on the rungs. */
-export const ContractKind = z.enum(
-  ['licence', 'deployment', 'training'],
-  'Loại hợp đồng không có trong danh sách',
-)
-
-export const CONTRACT_KIND_LABEL: Record<ContractKind, string> = {
-  licence: 'Bản quyền',
-  deployment: 'Triển khai',
-  training: 'Đào tạo',
-}
+/** What a signed contract is for: a `CONTRACT_KIND` config code ('CK-01').
+ *  Open list the desk edits, so a shape check only — membership and the label
+ *  come from the config bundle. Regex duplicated from `ConfigCode` because
+ *  `config.ts` imports this file. */
+export const ContractKind = z
+  .string()
+  .regex(/^CK-\d{2,4}$/, 'Loại hợp đồng không có trong danh sách')
 
 /** Where a lead stands in its OWN lifecycle (ADR 0058, entry rules ADR 0063).
  *  STORED under a CHECK and moved only by the server; a screen never derives it.

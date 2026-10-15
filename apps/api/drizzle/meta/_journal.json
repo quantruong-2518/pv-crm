@@ -743,6 +743,13 @@
       "when": 1792479960000,
       "tag": "0107_comm_unreached",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1792566360000,
+      "tag": "0108_contract_kind_config",
+      "breakpoints": true
     }
   ]
 }

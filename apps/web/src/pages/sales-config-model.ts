@@ -82,6 +82,7 @@ export const CONFIG_AREAS = [
       { id: 'care-reasons', no: '5.4b', title: 'Lý do vào danh sách chăm sóc' },
       { id: 'quote-reasons', no: '5.4d', title: 'Lý do báo giá lại' },
       { id: 'products', no: '5.4c', title: 'Sản phẩm/dịch vụ' },
+      { id: 'contract-kinds', no: '5.15', title: 'Loại hợp đồng' },
     ],
   },
 ] as const

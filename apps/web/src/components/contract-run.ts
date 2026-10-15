@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import type { RailObject } from '@pv/ui'
-import {
-  CONTRACT_KIND_LABEL,
-  OPPORTUNITY_CONTACT_ROLE_LABEL,
-  type JourneyContract,
-} from '@pv/contracts'
+import { OPPORTUNITY_CONTACT_ROLE_LABEL, type JourneyContract } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import type { Contract } from '@/data/contracts'
 import { opportunityProfileQuery, railOf } from '@/data/opportunities'
+import { useContractKindLabel } from '@/data/sales-config'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import type { BarContact } from '@/components/record/action-bar'
 
@@ -27,6 +24,7 @@ export type RunRead = 'pending' | 'denied' | 'unread' | 'ready'
 export function useContractRun(contract: Contract) {
   const canViewDeal = useCan('opportunity.view')
   const canViewRun = useCan('workstream.view')
+  const kindLabel = useContractKindLabel()
   const deal = useQuery({
     ...opportunityProfileQuery(contract.opportunityCode),
     enabled: canViewDeal,
@@ -49,8 +47,7 @@ export function useContractRun(contract: Contract) {
         ? 'ready'
         : 'unread'
   /* The strip already names the customer; the header names the deal. */
-  const title =
-    deal.data?.name ?? (contract.kind ? CONTRACT_KIND_LABEL[contract.kind] : contract.customer)
+  const title = deal.data?.name ?? (contract.kind ? kindLabel(contract.kind) : contract.customer)
 
   return { workstreamCode, contacts, inside, read, title }
 }

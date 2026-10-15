@@ -175,6 +175,24 @@ const QUOTE_REVISION_REASONS = [
   'Báo giá hết hiệu lực',
 ]
 
+/* Same fourteen names migration 0108 plants; CK-01..03 are the three kinds that were hard-coded before. */
+const CONTRACT_KINDS = [
+  'Bản quyền',
+  'Triển khai',
+  'Đào tạo',
+  'Bảo trì và hỗ trợ',
+  'Mua bán, cung cấp',
+  'Dịch vụ',
+  'Đại lý, phân phối',
+  'Hợp đồng khung',
+  'Hợp đồng nguyên tắc',
+  'Thỏa thuận bảo mật (NDA)',
+  'Biên bản ghi nhớ (MOU)',
+  'Thư ý định (LOI/LOC)',
+  'Phụ lục hợp đồng',
+  'Đơn hàng (PO)',
+]
+
 export const configSeed = [
   ...configRows(
     'STAGE',
@@ -210,6 +228,10 @@ export const configSeed = [
   ...configRows(
     'QUOTE_REVISION_REASON',
     QUOTE_REVISION_REASONS.map((name) => ({ name })),
+  ),
+  ...configRows(
+    'CONTRACT_KIND',
+    CONTRACT_KINDS.map((name) => ({ name })),
   ),
   ...configRows(
     'STEP_KIND',

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Chip, FileText, Icon, RadialGauge, type RadialGaugeTone } from '@pv/ui'
 import { QUOTATION_OUTCOME_LABEL, type OpportunityMoneyContract } from '@pv/contracts'
 import { dm } from '@/lib/date'
+import { useContractKindLabel } from '@/data/sales-config'
 import { NO_AMOUNT, compactMoney, kindLabel, ratioOfShare, type Standing } from './money'
 import type { Paper } from './papers'
 import { TintBadge } from './tint-badge'
@@ -18,6 +19,7 @@ const RING_TONE: Record<Standing['tone'], RadialGaugeTone> = {
 
 export function QuoteCard({ paper }: { paper: Extract<Paper, { kind: 'quote' }> }) {
   const { negotiation: n, round } = paper
+  const resolveKind = useContractKindLabel()
   return (
     <>
       <Top
@@ -26,7 +28,7 @@ export function QuoteCard({ paper }: { paper: Extract<Paper, { kind: 'quote' }> 
       />
       <Body
         ring={<Placeholder />}
-        kind={kindLabel(n.kind)}
+        kind={kindLabel(n.kind, resolveKind)}
         amount={n.amount === null ? NO_AMOUNT : compactMoney(n.amount, n.currency)}
       />
       <span className="text-muted-foreground tnum text-[12px]">
@@ -44,6 +46,7 @@ export function ContractCard({
   contract: OpportunityMoneyContract
   standing: Standing | null
 }) {
+  const resolveKind = useContractKindLabel()
   return (
     <>
       <Top
@@ -52,7 +55,7 @@ export function ContractCard({
       />
       <Body
         ring={<Ring contract={c} standing={standing} />}
-        kind={kindLabel(c.kind)}
+        kind={kindLabel(c.kind, resolveKind)}
         amount={c.amount === null ? NO_AMOUNT : compactMoney(c.amount, c.currency)}
       />
       <span className="flex items-center gap-2">

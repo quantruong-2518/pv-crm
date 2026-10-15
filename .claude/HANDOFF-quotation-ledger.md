@@ -19,8 +19,9 @@ ghi câu hỏi vào `openDecisions` trong báo cáo, **không tự quyết**.
    ĐẾM/GÁC chuyển sang đọc `sales.quotation` trong cùng lượt này:
    `quotationRounds`, cổng ký `hasTouch('quotation-sent')`, `floors.quotation`,
    số lần trong journey. Không để hai cách đếm.
-3. Báo giá mang **loại hợp đồng** (`ContractKind`: licence · deployment ·
-   training) ngay khi ghi. Bản ghi sinh từ thư mẫu và bản ghi backfill được
+3. Báo giá mang **loại hợp đồng** (`ContractKind` = danh mục cấu hình
+   `CONTRACT_KIND`, mã `CK-01`…, xem ADR 0095; ba giá trị cũ licence · deployment ·
+   training thành `CK-01` · `CK-02` · `CK-03`) ngay khi ghi. Bản ghi sinh từ thư mẫu và bản ghi backfill được
    phép thiếu loại và giá trị; màn hiện "Chưa nhập giá trị" kèm cửa bổ sung.
 4. **Vòng báo giá (negotiation)** = các lần báo cùng `(opportunity_code, kind,
 negotiation_no)`. Mỗi vòng tối đa MỘT lần `pending`. Ghi lần mới trong vòng
@@ -116,6 +117,7 @@ cuối `pending`, các lần trước `not-closed`.
 | `PATCH /sales/opportunities/:code/quotations/:id`                     | như trên                                       | bổ sung kind/amount/validUntil cho lần pending thiếu dữ liệu                                                                              |
 | `POST /sales/opportunities/:code/quotations/:id/close`                | như trên                                       | đóng vòng: `{reasonId, note?}`                                                                                                            |
 | `GET /sales/opportunities/quotation-reasons`                          | Sales · `opportunity.edit` · unscoped          | danh mục lý do đang bật                                                                                                                   |
+| `GET /sales/opportunities/contract-kinds`                             | Sales · `opportunity.view` · unscoped          | danh mục loại hợp đồng `CONTRACT_KIND` đang bật (ADR 0095)                                                                                |
 | `POST /sales/opportunities/:code/milestones` kind `quotation`         | giữ                                            | đi qua cùng một service ghi báo giá (source `manual`), để cửa cũ và hook thư không tạo sổ thứ hai                                         |
 | `PUT /sales/contracts/:code/installments`                             | Sales · `contract.edit` · scoped               | thay toàn bộ các đợt CHƯA thu                                                                                                             |
 | `POST /sales/contracts/:code/installments/:no/paid` · `DELETE …/paid` | Sales · `contract.record-payment` · scoped     | ghi / hoàn tác đã thu                                                                                                                     |

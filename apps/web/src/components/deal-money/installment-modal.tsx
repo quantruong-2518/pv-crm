@@ -9,6 +9,7 @@ import { dm } from '@/lib/date'
 import { contractDetailQuery, viewInstallment } from '@/data/contracts'
 import { momentOfDay, useDoneCondition, useRecordPaid } from '@/data/contracts-write'
 import { BADGE_INK } from '@/data/opportunities'
+import { useContractKindLabel } from '@/data/sales-config'
 import { ConditionDialog, UndoPaidDialog, installmentDoorsOf } from '@/components/deal-pay'
 import { StepDocuments } from '@/components/run/step-documents'
 import { InstallmentFooter } from './installment-footer'
@@ -38,6 +39,7 @@ export function InstallmentModal({
   onClose: () => void
 }) {
   const me = useSession((st) => st.actor?.id)
+  const resolveKind = useContractKindLabel()
   const detail = useQuery({ ...contractDetailQuery(contract.code), enabled: open })
   const full = detail.data?.installments.find((row) => row.no === i.no)
   const doors = full && installmentDoorsOf(full, contract.can, me)
@@ -91,8 +93,8 @@ export function InstallmentModal({
       title={`${i.label} · ${compactMoney(i.amount, contract.currency)}`}
       subtitle={
         <>
-          <span className="font-mono">{contract.code}</span> · {kindLabel(contract.kind)} · hạn{' '}
-          {dm(i.due)} · {i.share}%
+          <span className="font-mono">{contract.code}</span> ·{' '}
+          {kindLabel(contract.kind, resolveKind)} · hạn {dm(i.due)} · {i.share}%
         </>
       }
       meta={

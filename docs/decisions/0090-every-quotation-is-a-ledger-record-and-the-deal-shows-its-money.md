@@ -27,7 +27,9 @@ service with source `mail`.
 
 ### 2 · Kind, negotiation, round
 
-A quotation carries the contract kind (licence · deployment · training). A
+A quotation carries the contract kind (licence · deployment · training; since
+0095 the kind is the config list `CONTRACT_KIND`, see
+`0095-contract-kind-is-a-config-list-not-a-closed-enum.md`). A
 negotiation is the rounds of one (deal, kind, negotiation number); a number
 rises when the previous negotiation of that kind has closed, signed or not.
 Each negotiation holds at most one pending round. Recording a new round closes

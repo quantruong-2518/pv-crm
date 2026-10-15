@@ -1,6 +1,5 @@
 import { billions, millions } from '@pv/ui'
 import {
-  CONTRACT_KIND_LABEL,
   CURRENCIES,
   INSTALLMENT_STATUS_LABEL,
   type ContractKind,
@@ -40,8 +39,8 @@ export const ratioOfShare = (share: number) => share / WHOLE_PERCENT
 export const barWidth = (part: number, whole: number) => `${(part / whole) * WHOLE_PERCENT}%`
 
 /** Null on a round or a paper recorded before the kind was asked. */
-export const kindLabel = (kind: ContractKind | null) =>
-  kind ? CONTRACT_KIND_LABEL[kind] : 'Chưa ghi loại'
+export const kindLabel = (kind: ContractKind | null, resolve: (code: string) => string) =>
+  kind ? resolve(kind) : 'Chưa ghi loại'
 
 export const NO_AMOUNT = 'Chưa nhập giá trị'
 

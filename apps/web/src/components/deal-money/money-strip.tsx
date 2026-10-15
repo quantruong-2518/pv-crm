@@ -3,6 +3,7 @@ import { GlassCard, Separator, cn } from '@pv/ui'
 import type { OpportunityMoneyNegotiation, OpportunityProfileResponse } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
 import { vnToday } from '@/data/opportunities'
+import { useContractKindLabel } from '@/data/sales-config'
 import { dmy } from '@/lib/date'
 import { EstimateRow } from './estimate-row'
 import { barWidth, compactMoney, kindLabel } from './money'
@@ -18,11 +19,12 @@ import { barWidth, compactMoney, kindLabel } from './money'
 export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onEdit: () => void }) {
   const { money } = op
   const { totals } = money
+  const resolveKind = useContractKindLabel()
   const text = (amount: number) => compactMoney(amount, totals.currency)
   const collecting = money.paymentsVisible && money.contracts.length > 0
   const waiting = money.open.filter((n) => n.pendingId !== null)
   const validity = validityOf(waiting)
-  const quoting = quotingLine(waiting)
+  const quoting = quotingLine(waiting, resolveKind)
 
   const quoted = waiting.length > 0
   const top = collecting || quoted
@@ -127,11 +129,16 @@ export function MoneyStrip({ op, onEdit }: { op: OpportunityProfileResponse; onE
 }
 
 /** One quote reads kind and round; several read as a count. */
-function quotingLine(waiting: OpportunityMoneyNegotiation[]): string | null {
+function quotingLine(
+  waiting: OpportunityMoneyNegotiation[],
+  resolveKind: (code: string) => string,
+): string | null {
   const only = waiting.length === 1 ? waiting[0] : undefined
   if (!only) return waiting.length === 0 ? null : `${waiting.length} báo giá đang chờ`
   const round = only.rounds.find((r) => r.id === only.pendingId)
-  return [kindLabel(only.kind), round && `lần ${round.roundNo}`].filter(Boolean).join(' · ')
+  return [kindLabel(only.kind, resolveKind), round && `lần ${round.roundNo}`]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** The pending round that lapses first; none when no round names a day. */

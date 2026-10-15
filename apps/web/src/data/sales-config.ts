@@ -25,6 +25,8 @@ import {
   type ActivityFreshnessPatch,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
+import { useCan } from '@/app/auth'
+import { contractKindsQuery } from '@/data/quotations-write'
 
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
  *
@@ -214,6 +216,52 @@ export function useCareReasonLabel(reasonKey: string | undefined) {
   if (reasonKey === undefined) return undefined
   if (reasonKey === OPPORTUNITY_STOP_REASON_OTHER) return 'Khác'
   return (data?.LOSS_REASON ?? []).find((r) => r.id === reasonKey)?.name ?? reasonKey
+}
+
+/** The slice of the catalog the kind helpers read — a full `ConfigBundle`
+ *  fits it, and so does the shaped result of the contract-kinds door. */
+type ContractKindBook = {
+  CONTRACT_KIND: readonly Pick<ConfigEntry, 'id' | 'name' | 'active' | 'ord'>[]
+}
+
+/** The ACTIVE `CONTRACT_KIND` rows as picker options, in the desk's order.
+ *  A hidden kind is not offered for new paper; `keep` is the one already
+ *  chosen (lent by a quotation round), so the box can still name it. */
+export function contractKindOptions(book: ContractKindBook | undefined, keep?: string) {
+  return [...(book?.CONTRACT_KIND ?? [])]
+    .filter((r) => r.active || r.id === keep)
+    .sort((a, b) => a.ord - b.ord)
+    .map((r) => ({ value: r.id, label: r.name }))
+}
+
+/** The name behind a stored kind code. Reads the WHOLE list, hidden rows
+ *  included, so old paper keeps its name; the raw code is the last resort. */
+export function contractKindLabel(book: ContractKindBook | undefined, code: string): string {
+  return (book?.CONTRACT_KIND ?? []).find((r) => r.id === code)?.name ?? code
+}
+
+/** The kind list from the door its reader holds: `opportunity.view` (every
+ *  quoter and signer) reads the narrow door; a reader with only `config.view`
+ *  — marketing — or whose door failed falls back to the catalog. One request. */
+function useContractKindBook(): ContractKindBook | undefined {
+  const canSee = useCan('opportunity.view')
+  const canConfig = useCan('config.view')
+  const door = useQuery({ ...contractKindsQuery, enabled: canSee })
+  const catalog = useQuery({
+    ...salesCatalogQuery,
+    enabled: canConfig && (!canSee || door.isError),
+  })
+  return door.data ? { CONTRACT_KIND: door.data.rows } : catalog.data
+}
+
+export function useContractKindOptions(keep?: string) {
+  return contractKindOptions(useContractKindBook(), keep)
+}
+
+/** One resolver per component, so non-React helpers take it as a parameter. */
+export function useContractKindLabel(): (code: string) => string {
+  const book = useContractKindBook()
+  return (code) => contractKindLabel(book, code)
 }
 
 // ---------------------------------------------------------------------------
