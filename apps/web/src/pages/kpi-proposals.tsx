@@ -39,8 +39,8 @@ import { MONTH_PARAM, pickFromUrl, printValue } from './kpi-model'
  *  `kpi.view-all`; answering needs `kpi.set-target`, so a reader without it
  *  reads every item and the detail pane says why there are no buttons.
  *
- *  The picked row is told by weight and a chevron, not by the table's tinted
- *  selected state: badges on that tint fall under law 13's 4.5:1 in stone.
+ *  The picked row is told by weight and a chevron: the table's own selected
+ *  state is a bar and bold text now, and the chevron reads better on a phone.
  *
  *  No ContextRail (law 10 debt, as on the other KPI screens). */
 

@@ -180,8 +180,9 @@ export function ZoneTemplates() {
               chiếm cả bề ngang — 560px trên màn 390px là panel bị cắt.
               <br />
               Đóng bằng Escape, bằng nút X, hoặc bấm ra tấm che. Mở thì tiêu điểm nhảy vào panel,
-              nếu không Tab kế tiếp đi thẳng vào phần đang bị che. Đóng thì KHÔNG render gì — panel
-              đóng còn nằm trong cây DOM là trình đọc màn hình vẫn đọc thấy.
+              nếu không Tab kế tiếp đi thẳng vào phần đang bị che. Tab và Shift+Tab xoay vòng trong
+              panel, không lọt ra tấm che. Đóng thì KHÔNG render gì — panel đóng còn nằm trong cây
+              DOM là trình đọc màn hình vẫn đọc thấy.
             </>
           }
         >
@@ -315,10 +316,11 @@ export function ZoneTemplates() {
           name="ScreenLayout"
           note="khung nội dung chuẩn"
           bodyClassName="p-4"
-          footer="Đầu màn → chỉ số → công cụ → nội dung · title luôn uppercase · detail dùng ScreenDetailGrid 3:1 từ xl"
+          footer="Đầu màn → chỉ số → công cụ → nội dung · title luôn uppercase · detail dùng ScreenDetailGrid 3:1 từ xl · nút back cao 48px trên tablet"
         >
           <ScreenLayout>
             <ScreenHeader
+              back={{ label: 'Quay lại', onClick: () => {} }}
               title="Sổ lead"
               description="Theo dõi đầu vào và tiến độ xử lý lead trong kỳ."
               actions={<Button size="md">Tạo lead</Button>}

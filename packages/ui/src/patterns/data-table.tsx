@@ -6,7 +6,7 @@ import { cn } from '../lib/cn'
 
 /** M-07 · TableRow — default · hover · selected · hidden-by-permission.
  *  h-11 · divide-surface-ink/6 · hover:bg-surface-ink/5
- *  selected = shadow-[inset_2px_0_0] shadow-primary + bg-primary/10
+ *  selected = azure inset bar on the left + semibold, NO tint: badges sank under 4.5:1 on it
  *
  *  Bảng LUÔN nằm trên .glass-b, không bao giờ .glass-a (luật 8 · docs/design-system/laws.md) —
  *  component không tự vẽ mặt kính, khối cha phải là <GlassCard variant="b">.
@@ -214,7 +214,7 @@ export function DataTable({
               openable && row.state !== 'selected' && 'hover:shadow-card',
               !openable && row.state !== 'hidden' && 'hover:bg-surface-ink/5',
               row.state === 'hover' && 'bg-surface-ink/5',
-              row.state === 'selected' && 'bg-primary/10 shadow-[inset_2px_0_0_var(--primary)]',
+              row.state === 'selected' && 'font-semibold shadow-[inset_2px_0_0_var(--primary)]',
               row.state === 'hidden' && 'opacity-55',
             )}
             style={{ gridTemplateColumns: template }}

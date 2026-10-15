@@ -502,7 +502,8 @@ export function ZoneMolecules() {
           footer={
             <>
               h-11 · divide-surface-ink/6 · hover:bg-surface-ink/5 · selected =
-              shadow-[inset_2px_0_0] shadow-primary + bg-primary/10
+              shadow-[inset_2px_0_0] shadow-primary + font-semibold + aria-current, không tô nền:
+              badge trên nền tô tụt dưới 4,5:1
               <br />
               row.onOpen → cả dòng mở object: cursor-pointer · hover:bg-surface-ink/8 +
               hover:shadow-card · tabIndex 0 · Enter và Space

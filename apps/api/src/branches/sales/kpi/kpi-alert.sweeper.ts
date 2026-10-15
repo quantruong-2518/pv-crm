@@ -19,10 +19,11 @@ import { monthClock, vietnamToday } from './kpi-rules'
 
 const SWEEP_EVERY_MS = 24 * 60 * 60_000
 
-/** Share of the month (`elapsedOf`) gone before the bell may ring at all.
- *  Owner's call 15/10/2026: early-month projections swing on a few records
- *  and rang wrongly. The screen still shows the flag from day one. */
-const ALERT_FROM_SHARE = 0.5
+/** Vietnam day of the running month from which the bell may ring at all.
+ *  Owner's call 15/10/2026: early-month projections swing on a few records and
+ *  rang wrongly; a fixed day, not a share of the month, so it is easy to
+ *  remember. The screen still shows the flag from day one. */
+const ALERT_FROM_DAY = 16
 
 /** Rings a person when the forecast flags one of their metrics "about to miss"
  *  or "about to hit" (ADR 0098 §6, 0099 §4). The flag is `KpiForecastService`'s,
@@ -65,11 +66,12 @@ export class KpiAlertSweeper implements OnApplicationBootstrap, OnApplicationShu
   }
 
   /** Lines announced for `period`. A closed month has a verdict and a future
-   *  one no pace, so neither is ever rung; nor the first half of the running
-   *  one, which claims nothing, so its flags can still ring later. */
+   *  one no pace, so neither is ever rung; nor the running one before
+   *  `ALERT_FROM_DAY`, which claims nothing, so its flags can still ring later. */
   async ring(period: KpiPeriodKey): Promise<number> {
-    const { phase, elapsed } = monthClock(period)
-    if (phase !== 'running' || elapsed < ALERT_FROM_SHARE) return 0
+    /* Running means today lies in `period`, so today's day is the month's. */
+    const day = Number(vietnamToday().slice(8, 10))
+    if (monthClock(period).phase !== 'running' || day < ALERT_FROM_DAY) return 0
     const [{ items }, lines] = await Promise.all([
       this.forecast.everyone(period),
       this.allocations.agreedLines(period),

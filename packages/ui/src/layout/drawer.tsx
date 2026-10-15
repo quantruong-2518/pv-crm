@@ -37,6 +37,30 @@ export type DrawerProps = {
   className?: string
 }
 
+const TAB_CANDIDATES = 'a[href],button,input,select,textarea,[tabindex],[contenteditable="true"]'
+
+/** Keeps Tab inside the panel: `aria-modal` alone does not stop the browser from
+ *  tabbing onto the scrim or the covered page. Wraps only at the two ends, so
+ *  focus inside a popover portalled out of the panel is left alone. */
+function wrapTab(e: KeyboardEvent, root: HTMLElement) {
+  const stops = Array.from(root.querySelectorAll<HTMLElement>(TAB_CANDIDATES)).filter(
+    (el) => el.tabIndex >= 0 && !el.matches(':disabled') && el.getClientRects().length > 0,
+  )
+  const first = stops[0]
+  const last = stops[stops.length - 1]
+  const active = document.activeElement
+  if (!first || !last) {
+    e.preventDefault()
+    root.focus()
+  } else if (e.shiftKey && (active === first || active === root)) {
+    e.preventDefault()
+    last.focus()
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault()
+    first.focus()
+  }
+}
+
 export function Drawer({
   open,
   onClose,
@@ -109,6 +133,7 @@ export function Drawer({
       /* Only the top layer closes — a guide opened over this panel must take
          the keypress, leaving whatever is typed here untouched. */
       if (e.key === 'Escape' && isTop()) onClose()
+      if (e.key === 'Tab' && isTop() && panel.current) wrapTab(e, panel.current)
     }
     document.addEventListener('keydown', onKey)
     /* Đưa tiêu điểm vào panel: mở bằng bàn phím từ một dòng bảng thì tiêu điểm

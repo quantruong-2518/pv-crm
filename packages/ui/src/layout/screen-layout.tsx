@@ -50,7 +50,12 @@ export function ScreenHeader({
   return (
     <header className={cn('flex min-w-0 flex-col gap-3', className)} aria-labelledby={titleId}>
       {back && (
-        <Button size="sm" variant="ghost" className="self-start" onClick={back.onClick}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="pointer-coarse:h-12 self-start"
+          onClick={back.onClick}
+        >
           <Icon icon={ArrowLeft} size={16} />
           {back.label}
         </Button>

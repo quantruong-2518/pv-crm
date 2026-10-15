@@ -37,10 +37,9 @@ returned; about to miss / about to hit. About to miss / about to hit come from a
 daily sweep, deduplicated per (month, person, role, metric, flag) in
 `sales.kpi_alert_sent`. A month already closed is not swept retroactively.
 
-The sweep starts nagging "about to miss" / "about to hit" only once the month
-is past its half (share of days elapsed ≥ 0.5, that is from day 16 of a
-31-day month). `ALERT_FROM_SHARE = 0.5` is a constant in the sweep's code, not
-configuration. It nags a (person × metric) only when the target used for
+The sweep starts nagging "about to miss" / "about to hit" only from day 16
+(Vietnam time) of the running month, in every month. `ALERT_FROM_DAY = 16` is
+a constant in the sweep's code, not configuration. It nags a (person × metric) only when the target used for
 scoring is an approved personal line, except for team-wide metrics and metrics
 that do not add up: the role target is the sum for the whole role, so it is not
 a fair yardstick for one person.
