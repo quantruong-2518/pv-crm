@@ -56,6 +56,14 @@ export class SalesConfigController {
     return this.config.bundle()
   }
 
+  /** The reader's own waiting config changes. Two segments, so `:list` never
+   *  meets it; `config.view` like every read here. */
+  @Get('proposals/mine')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  myProposals(@CurrentActor() who: Actor) {
+    return this.config.myProposals(who)
+  }
+
   /** The book's staleness pair (ADR 0077 §4). Declared before `:list`, the
    *  habit `motions` keeps: a reader meets the narrow path first. */
   @Get('activity-freshness')

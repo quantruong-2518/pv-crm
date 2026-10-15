@@ -13,7 +13,7 @@ import { StageKey, type StateAddress, type StepFrameResponse } from '@pv/contrac
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { ladderRows } from '@/data/sales-config'
+import { ladderRows, useMyConfigProposals } from '@/data/sales-config'
 import {
   FRAME_STATES,
   sameAddress,
@@ -23,12 +23,14 @@ import {
   useProposeFrame,
 } from '@/data/step-frame'
 import { AddTemplate, TemplateRow } from './sales-config-frame-parts'
+import { frameWaiting } from './sales-config-model'
 import {
   DeadlineBox,
   LadderSend,
   LadderTable,
   SENT,
   Section,
+  WaitingCount,
   type AreaProps,
 } from './sales-config-section'
 
@@ -43,9 +45,11 @@ import {
  *  (open question 33); the lead TIER ladder below is a different clock. */
 export function FrameArea({ catalog, draft }: AreaProps) {
   const tiers = ladderRows(catalog, 'TIER')
+  const waiting = frameWaiting(useMyConfigProposals())
   return (
     <>
       <Section at="step-frame">
+        <WaitingCount count={waiting} />
         <StepFrame catalog={catalog} draft={draft} />
       </Section>
 

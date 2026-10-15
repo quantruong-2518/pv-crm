@@ -228,6 +228,14 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   'mail-run': (code) => `${RUN_BOOK}?run=${encodeURIComponent(code)}`,
   user: () => ACCOUNT,
   'google-link': () => `${ACCOUNT}#google`,
+  contract: (code) => `/sales/contracts/${encodeURIComponent(code)}`,
+  campaign: (code) => `/sales/campaigns/${encodeURIComponent(code)}`,
+  /* The code is `<period>:<role>`, but the scorecard keeps its month in state, not the address. */
+  'kpi-target': () => '/sales/kpi/company',
+  comm: (code) => `/comms/${encodeURIComponent(code)}`,
+  /* The leads book has no batch filter in its address yet; a batch lands on the book. */
+  'lead-batch': () => '/sales/leads',
+  'opportunity-batch': () => '/sales/opportunities',
 }
 
 /** `null` = nowhere to go, the row only marks itself read. A decided request

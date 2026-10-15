@@ -11,7 +11,7 @@ import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
-import { announceOwners } from './opportunity-bell'
+import { announceOwners, announcePrimary } from './opportunity-bell'
 import {
   assertSellers,
   lanePeople,
@@ -110,14 +110,17 @@ export class OpportunityAssign {
           primary: same ? undefined : primaryMove(found, fresh, body.reason),
         },
       )
-      await announceOwners(tx, this.hub, {
+      const people = {
         code,
         label,
         actorId: who.id,
         before: found.owners.map((o) => o.id),
         after: fresh.owners.map((o) => o.id),
         occurrence,
-      })
+      }
+      await announceOwners(tx, this.hub, people)
+      const primary = { from: primaryOf(found.owners), to: salePrimary, at }
+      if (!same) await announcePrimary(tx, this.hub, { ...people, ...primary })
       await this.mirror.put(tx, toRef(fresh.row, fresh.holder))
     })
 

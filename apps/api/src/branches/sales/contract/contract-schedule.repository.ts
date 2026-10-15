@@ -1,8 +1,10 @@
-import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { InstallmentDraft, RecordChannel, ConditionSide } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { fromDraft } from './contract.mapper'
+import { contractParticipant } from './contract-participant.schema'
 import {
   contract,
   contractCondition,
@@ -154,5 +156,38 @@ export class ContractScheduleRepository {
       .update(contractCondition)
       .set({ doneAt: at })
       .where(and(eq(contractCondition.id, id), isNull(contractCondition.doneAt)))
+  }
+
+  /** Who hears about a schedule change: the commission owner, and the signing
+   *  day's participants who can open the contract. An `ownOnly` participant
+   *  sees only contracts they own (`ContractRepository.scopeOf`), so the join
+   *  drops them; the filter sits in the ON clause so no participant still
+   *  returns the owner. */
+  async bellAudience(
+    tx: Db,
+    code: string,
+  ): Promise<{ ownerId: string | null; label: string; participants: string[] } | null> {
+    const [row] = await tx
+      .select({
+        ownerId: contract.ownerId,
+        label: objectRef.label,
+        participants: sql<
+          string[]
+        >`coalesce(array_agg(DISTINCT ${actor.id}) FILTER (WHERE ${actor.id} IS NOT NULL), '{}')`,
+      })
+      .from(contract)
+      .innerJoin(objectRef, eq(objectRef.code, contract.code))
+      .leftJoin(contractParticipant, eq(contractParticipant.contractCode, contract.code))
+      .leftJoin(
+        actor,
+        and(
+          eq(actor.id, contractParticipant.actorId),
+          eq(actor.ownOnly, false),
+          isNull(actor.disabledAt),
+        ),
+      )
+      .where(eq(contract.code, code))
+      .groupBy(contract.ownerId, objectRef.label)
+    return row ?? null
   }
 }

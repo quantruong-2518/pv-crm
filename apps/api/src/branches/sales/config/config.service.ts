@@ -1,11 +1,13 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ActivityFreshnessResponse,
   CommVocabularyResponse,
   ConfigBundle,
   ConfigListResponse,
+  ConfigProposalChange,
   ConfigProposalReceipt,
+  ConfigProposalsResponse,
   isLadder,
   MotionPolicyResponse,
   LeadMotionOptionResponse,
@@ -20,7 +22,7 @@ import {
   type StageKey,
 } from '@pv/contracts'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
-import type { ApprovalApplier } from '@api/platform/approval/approval.service'
+import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/approval.service'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import type { Db } from '@api/platform/db/db.module'
 import { SettingService } from '@api/platform/setting/setting.service'
@@ -53,11 +55,16 @@ import { StepFrameService } from './step-frame.service'
  *  bấm nút và nhận một lỗi không phải của họ. */
 @Injectable()
 export class SalesConfigService implements ApprovalApplier {
+  private readonly log = new Logger('sales.config')
+  /** Requests whose payload failed to parse, so each is logged once per boot. */
+  private readonly unreadable = new Set<string>()
+
   constructor(
     private readonly repo: SalesConfigRepository,
     private readonly gate: SalesConfigGate,
     private readonly settings: SettingService,
     private readonly frame: StepFrameService,
+    private readonly approvals: ApprovalService,
   ) {}
 
   /** Cả sáu danh mục. Một lần gọi, một câu truy vấn. */
@@ -226,6 +233,33 @@ export class SalesConfigService implements ApprovalApplier {
     body: ActivityFreshnessPatch,
   ): Promise<ConfigProposalReceipt> {
     return this.propose(who, { kind: 'activity-freshness', value: body })
+  }
+
+  /** `GET /sales/config/proposals/mine` — the reader's own waiting changes,
+   *  so the screen can mark the rows they touch. A payload that no longer
+   *  parses is skipped rather than failing the read: one old row must not hide
+   *  every other note. */
+  async myProposals(who: Actor): Promise<ConfigProposalsResponse> {
+    const rows = await this.approvals.waitingRaisedBy(who, 'config-change')
+    const proposals = rows.flatMap((row) => {
+      const change = ConfigProposalChange.safeParse(row.payload)
+      if (change.success) {
+        return [
+          {
+            approvalId: row.id,
+            createdAt: row.raisedAt.toISOString(),
+            consequence: row.consequence,
+            change: change.data,
+          },
+        ]
+      }
+      if (!this.unreadable.has(row.id)) {
+        this.unreadable.add(row.id)
+        this.log.warn(`proposal ${row.id}: payload does not parse, skipped`)
+      }
+      return []
+    })
+    return ConfigProposalsResponse.parse({ rows: proposals })
   }
 
   // ── CHỖ NỐI E3 · một điểm cho mọi đường ghi ───────────────────────────────

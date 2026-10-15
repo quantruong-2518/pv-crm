@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { ApprovalState } from '../approval'
 import { Moment, textInput, textInputOptional } from '../primitives'
 import { SETTING_REGISTRY } from '../setting'
-import { StageKey } from './enums'
+import { LeadMotion, StageKey } from './enums'
+import { MotionPolicyPatch } from './motion'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
  *
@@ -352,10 +353,9 @@ export function isLadder(list: ConfigList): boolean {
  *  `platform.approval`; `state` is E3's, and today it is always `waiting`
  *  because the chain has a link in it.
  *
- *  The change itself is deliberately NOT here. The branch keeps its own
- *  description of the work (`ConfigChange`) server-side; putting it on the wire
- *  would make a draft's internal shape part of the public contract, and a
- *  screen would start reading it back.
+ *  The change itself is not here: the receipt answers "was it filed". The
+ *  proposer reads their waiting changes back through `ConfigProposalsResponse`
+ *  below, built from these same write bodies.
  *
  *  Reused by every propose door — `MotionPolicyPatch` included — because
  *  "somebody must say yes" is one fact and one shape, not four. */
@@ -450,6 +450,51 @@ export const ActivityFreshness = z
 export const ActivityFreshnessResponse = ActivityFreshness
 export const ActivityFreshnessPatch = ActivityFreshness
 
+/** The four journey-frame kinds (ADR 0080). Only the kind travels: their
+ *  shapes live in `./step-frame`, which imports this file, so naming them here
+ *  would be an import cycle. The screen counts them per section instead. */
+export const FRAME_CHANGE_KINDS = [
+  'step-template-create',
+  'step-template-update',
+  'step-template-reorder',
+  'state-rule',
+] as const
+
+/** One waiting change as the gate stored it (`ConfigChange` in
+ *  `config.approval.ts`), so the screen can say on the row it touches that a
+ *  change waits for approval. Built from the write doors' own bodies, because
+ *  the stored payload is made of them; words-only fields (`was`, `names`) are
+ *  dropped on parse. */
+export const ConfigProposalChange = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('create'), list: ConfigList, draft: ConfigEntryCreate }),
+  z.object({
+    kind: z.literal('update'),
+    list: ConfigList,
+    id: ConfigCode,
+    patch: ConfigEntryPatch,
+  }),
+  z.object({ kind: z.literal('reorder'), list: ConfigList, ids: z.array(ConfigCode).min(1) }),
+  z.object({ kind: z.literal('motion'), motion: LeadMotion, patch: MotionPolicyPatch }),
+  z.object({ kind: z.literal('activity-freshness'), value: ActivityFreshness }),
+  z.object({ kind: z.literal(FRAME_CHANGE_KINDS) }),
+])
+
+/** `GET /sales/config/proposals/mine` (`config.view`) — the reader's own
+ *  config requests still waiting, newest first. Decided ones are absent: the
+ *  catalog already shows what an approval changed. `consequence` is the
+ *  sentence the approver reads; the screen prints it instead of rebuilding
+ *  words from `change`, which it only uses to find the row a change belongs to. */
+export const ConfigProposal = z.object({
+  approvalId: z.string().min(1),
+  createdAt: Moment,
+  consequence: z.string(),
+  change: ConfigProposalChange,
+})
+export const ConfigProposalsResponse = z.object({ rows: z.array(ConfigProposal) })
+
+export type ConfigProposalChange = z.infer<typeof ConfigProposalChange>
+export type ConfigProposal = z.infer<typeof ConfigProposal>
+export type ConfigProposalsResponse = z.infer<typeof ConfigProposalsResponse>
 export type ActivityFreshness = z.infer<typeof ActivityFreshness>
 export type ActivityFreshnessResponse = z.infer<typeof ActivityFreshnessResponse>
 export type ActivityFreshnessPatch = z.infer<typeof ActivityFreshnessPatch>

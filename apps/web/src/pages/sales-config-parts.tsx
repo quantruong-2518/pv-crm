@@ -12,6 +12,7 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
+import { useMyConfigProposals } from '@/data/sales-config'
 import { motionLabelOf, salesMotionsQuery, useProposeMotion } from '@/data/sales-motions'
 import {
   MOTION_LINE,
@@ -21,7 +22,8 @@ import {
   MotionHead,
   MotionSend,
 } from './lead-origins-motions'
-import { SENT } from './sales-config-section'
+import { motionWaiting } from './sales-config-model'
+import { SENT, WaitingNote } from './sales-config-section'
 
 /** Section 5.9 · how fast each of the six lead motions must be first
  *  touched. Each row proposes on its own and answers with a receipt.
@@ -92,6 +94,7 @@ function MotionRow({ row }: { row: MotionPolicy }) {
 
   const propose = useProposeMotion(row.motion)
   const name = motionLabelOf(row)
+  const waiting = motionWaiting(useMyConfigProposals(), row.motion)
   /* Sent is not saved: the boxes fall back to the stored row, so the row
      stops saying "not sent" and a second press cannot file a duplicate. */
   const sent = () => {
@@ -142,6 +145,7 @@ function MotionRow({ row }: { row: MotionPolicy }) {
           )}
         </MotionCell>
       </div>
+      <WaitingNote words={waiting.length > 0 ? waiting.join(' · ') : null} />
 
       {/* Sent, never saved: the row on screen is still the stored one, and it
           stays that way until somebody approves. */}

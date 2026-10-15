@@ -38,6 +38,24 @@ export const NotificationKind = z.enum([
   'access-changed',
   'password-reset-by-admin',
   'google-link-broken',
+  'opportunity-stage-moved',
+  'opportunity-primary-changed',
+  'contract-signed',
+  'quotation-new-round',
+  'quotation-superseded',
+  'contract-installment-paid',
+  'contract-installment-undone',
+  'contract-schedule-replaced',
+  'contract-condition-done',
+  'campaign-stopped',
+  'campaign-finished',
+  'kpi-target-proposed',
+  'kpi-target-agreed',
+  'comm-closed-by-other',
+  'lead-nurtured',
+  'lead-resumed',
+  'lead-reopened',
+  'mail-run-replied',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -51,6 +69,12 @@ export const NotificationSubject = z.enum([
   'mail-run',
   'user',
   'google-link',
+  'contract',
+  'campaign',
+  'kpi-target',
+  'comm',
+  'lead-batch',
+  'opportunity-batch',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -81,6 +105,24 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'access-changed': 'Quyền của bạn vừa thay đổi',
   'password-reset-by-admin': 'Quản trị viên đã đặt lại mật khẩu của bạn',
   'google-link-broken': 'Tài khoản Google bị mất kết nối',
+  'opportunity-stage-moved': 'Cơ hội chuyển sang giai đoạn mới',
+  'opportunity-primary-changed': 'Sale chính của cơ hội đã đổi',
+  'contract-signed': 'Cơ hội đã ký hợp đồng',
+  'quotation-new-round': 'Cơ hội có lần báo giá mới',
+  'quotation-superseded': 'Lần báo giá đang chờ đã được thay bằng lần mới',
+  'contract-installment-paid': 'Đợt thanh toán đã ghi thu',
+  'contract-installment-undone': 'Đợt thanh toán đã hoàn tác ghi thu',
+  'contract-schedule-replaced': 'Lịch thanh toán hợp đồng đã thay đổi',
+  'contract-condition-done': 'Điều kiện thanh toán đã xong',
+  'campaign-stopped': 'Chiến dịch của bạn đã dừng',
+  'campaign-finished': 'Chiến dịch của bạn đã chạy xong',
+  'kpi-target-proposed': 'Có chỉ tiêu KPI chờ duyệt',
+  'kpi-target-agreed': 'Chỉ tiêu KPI bạn đề nghị đã được duyệt',
+  'comm-closed-by-other': 'Bản ghi liên hệ của bạn đã được người khác chốt',
+  'lead-nurtured': 'Lead của bạn chuyển sang Nhóm chờ chăm sóc',
+  'lead-resumed': 'Lead của bạn được chăm sóc lại',
+  'lead-reopened': 'Lead của bạn được mở lại',
+  'mail-run-replied': 'Khách trả lời thư của lô gửi',
 }
 
 /** The filter chips on the bell screen. */
@@ -91,6 +133,10 @@ export const NotificationGroup = z.enum([
   'approval',
   'mail',
   'account',
+  'contract',
+  'campaign',
+  'kpi',
+  'comm',
 ])
 export type NotificationGroup = z.infer<typeof NotificationGroup>
 
@@ -101,6 +147,10 @@ export const NOTIFICATION_GROUP_LABEL: Record<NotificationGroup, string> = {
   approval: 'Phê duyệt',
   mail: 'Thư',
   account: 'Tài khoản',
+  contract: 'Hợp đồng',
+  campaign: 'Chiến dịch',
+  kpi: 'KPI',
+  comm: 'Liên hệ',
 }
 
 /** One kind maps to exactly one group; `Record` makes a new kind fail to
@@ -131,6 +181,24 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'access-changed': 'account',
   'password-reset-by-admin': 'account',
   'google-link-broken': 'account',
+  'opportunity-stage-moved': 'opportunity',
+  'opportunity-primary-changed': 'opportunity',
+  'contract-signed': 'contract',
+  'quotation-new-round': 'opportunity',
+  'quotation-superseded': 'opportunity',
+  'contract-installment-paid': 'contract',
+  'contract-installment-undone': 'contract',
+  'contract-schedule-replaced': 'contract',
+  'contract-condition-done': 'contract',
+  'campaign-stopped': 'campaign',
+  'campaign-finished': 'campaign',
+  'kpi-target-proposed': 'kpi',
+  'kpi-target-agreed': 'kpi',
+  'comm-closed-by-other': 'comm',
+  'lead-nurtured': 'lead',
+  'lead-resumed': 'lead',
+  'lead-reopened': 'lead',
+  'mail-run-replied': 'mail',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -166,6 +234,24 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'access-changed': { important: false, locked: true },
   'password-reset-by-admin': { important: false, locked: true },
   'google-link-broken': { important: false, locked: true },
+  'opportunity-stage-moved': { important: false, locked: false },
+  'opportunity-primary-changed': { important: false, locked: false },
+  'contract-signed': { important: false, locked: false },
+  'quotation-new-round': { important: false, locked: false },
+  'quotation-superseded': { important: false, locked: false },
+  'contract-installment-paid': { important: false, locked: false },
+  'contract-installment-undone': { important: false, locked: false },
+  'contract-schedule-replaced': { important: false, locked: false },
+  'contract-condition-done': { important: false, locked: false },
+  'campaign-stopped': { important: false, locked: false },
+  'campaign-finished': { important: false, locked: false },
+  'kpi-target-proposed': { important: false, locked: false },
+  'kpi-target-agreed': { important: false, locked: false },
+  'comm-closed-by-other': { important: false, locked: false },
+  'lead-nurtured': { important: false, locked: false },
+  'lead-resumed': { important: false, locked: false },
+  'lead-reopened': { important: false, locked: false },
+  'mail-run-replied': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -187,7 +273,24 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'mail-run': 'campaign.view',
   user: null,
   'google-link': null,
+  contract: 'contract.view',
+  campaign: 'campaign.view',
+  'kpi-target': 'performance.view',
+  comm: 'comm.view',
+  'lead-batch': 'lead.view',
+  'opportunity-batch': 'opportunity.view',
 }
+
+/** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
+ *  §7): the line tells them something was taken away or broke, so dropping it
+ *  for lack of a link would hide the news itself. The web drops the link. */
+export const NOTIFICATION_KINDS_RING_WITHOUT_LINK = [
+  'lead-scan-failed',
+  'lead-removed',
+  'opportunity-unassigned',
+  /* A customer's answer must reach the lead holder even without campaign.view. */
+  'mail-run-replied',
+] as const satisfies readonly NotificationKind[]
 
 /** Every subject each kind is written with, read off the emitters' `announce`
  *  calls. A role cannot use a kind when it may open none of these (ADR 0093
@@ -195,17 +298,17 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
 export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly NotificationSubject[]> =
   {
     'lead-pooled': ['lead', 'lead-pool'],
-    'lead-received': ['lead'],
+    'lead-received': ['lead', 'lead-batch'],
     'lead-removed': ['lead'],
-    'lead-re-entered': ['lead'],
+    'lead-re-entered': ['lead', 'lead-batch'],
     'lead-stopped': ['lead'],
     'lead-scan-ready': ['lead-scan'],
     'lead-scan-committed': ['lead-scan'],
     'lead-scan-failed': ['lead-scan'],
-    'opportunity-awaiting-accept': ['opportunity'],
-    'opportunity-lost': ['opportunity'],
-    'opportunity-accepted': ['opportunity'],
-    'opportunity-assigned': ['opportunity'],
+    'opportunity-awaiting-accept': ['opportunity', 'opportunity-batch'],
+    'opportunity-lost': ['opportunity', 'lead'],
+    'opportunity-accepted': ['opportunity', 'lead'],
+    'opportunity-assigned': ['opportunity', 'opportunity-batch'],
     'opportunity-unassigned': ['opportunity'],
     'next-step-assigned': ['lead', 'opportunity'],
     'next-step-done': ['lead', 'opportunity'],
@@ -219,11 +322,37 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'access-changed': ['user'],
     'password-reset-by-admin': ['user'],
     'google-link-broken': ['google-link'],
+    'opportunity-stage-moved': ['opportunity'],
+    'opportunity-primary-changed': ['opportunity'],
+    'contract-signed': ['opportunity'],
+    'quotation-new-round': ['opportunity'],
+    'quotation-superseded': ['opportunity'],
+    'contract-installment-paid': ['contract'],
+    'contract-installment-undone': ['contract'],
+    'contract-schedule-replaced': ['contract'],
+    'contract-condition-done': ['contract'],
+    'campaign-stopped': ['campaign'],
+    'campaign-finished': ['campaign'],
+    'kpi-target-proposed': ['kpi-target'],
+    'kpi-target-agreed': ['kpi-target'],
+    'comm-closed-by-other': ['comm'],
+    'lead-nurtured': ['lead'],
+    'lead-resumed': ['lead'],
+    'lead-reopened': ['lead'],
+    'mail-run-replied': ['mail-run'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
  *  `mail-run-cancelled` row (ADR 0093 §4); absent when no letter failed. */
 export const NOTIFICATION_DETAIL_FAILED = 'failed'
+
+/** Other `detail` keys (ADR 0093 wave 2): rows collapsed into a batch line,
+ *  deals moved with a lead, target stage label, contract code, instalment no. */
+export const NOTIFICATION_DETAIL_COUNT = 'count'
+export const NOTIFICATION_DETAIL_DEALS = 'deals'
+export const NOTIFICATION_DETAIL_STAGE = 'stage'
+export const NOTIFICATION_DETAIL_CONTRACT = 'contract'
+export const NOTIFICATION_DETAIL_NO = 'no'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the

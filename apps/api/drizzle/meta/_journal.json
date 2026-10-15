@@ -736,6 +736,13 @@
       "when": 1792393500000,
       "tag": "0106_notification_kind_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1792479900000,
+      "tag": "0107_notification_wave2",
+      "breakpoints": true
     }
   ]
 }

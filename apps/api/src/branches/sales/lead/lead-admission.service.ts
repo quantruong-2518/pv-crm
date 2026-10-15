@@ -40,6 +40,9 @@ type Caller = Pick<Actor, 'id' | 'name' | 'ownOnly'>
  *  the company by identity), or nothing more because `reentered` took the entry. */
 export type TypedAdmission = { accountCode: string | null; reentered: string | null }
 
+/** Who holds a lead an entry came back to, and the touch that dated it. */
+export type ReEntry = { holderId: string | null; company: string; occurrence?: string }
+
 const KNOWN = 'Khách này đã có trong sổ. Xem kết quả đối chiếu rồi chọn cách ghi.'
 const MOVED = 'Sổ vừa thay đổi. Xem lại kết quả đối chiếu rồi chọn lại.'
 
@@ -155,20 +158,24 @@ export class LeadAdmissionService {
 
   /** An entry that opens no lead: the people the GATE named as new join the
    *  lead — no second identity test may veto it — and the trail records who
-   *  came back through which door, with or without somebody new. */
+   *  came back through which door, with or without somebody new. `quiet`
+   *  rings nothing and leaves the line to a batch that collapses its own. */
   async reenter(
     tx: Db,
     leadCode: string,
     people: readonly ContactSeed[],
     who: Pick<Actor, 'id' | 'name'> | null,
     door: LeadSourceKind,
-  ): Promise<void> {
+    opts: { quiet?: boolean } = {},
+  ): Promise<ReEntry> {
     await this.contacts.attach(tx, leadCode, people, who)
     const [occurrence] = await this.touch.record(tx, [
       { subjectCode: leadCode, subjectKind: 'lead', kind: 're-entered', ...byOf(who), note: door },
     ])
     /* The holder hears their customer came back through another door (ADR 0085). */
     const held = await this.repo.holderOf(tx, leadCode)
+    const entry = { holderId: held.ownerId, company: held.company, occurrence }
+    if (opts.quiet) return entry
     await this.hub.announce(tx, {
       event: {
         name: LEAD_RE_ENTERED,
@@ -179,6 +186,7 @@ export class LeadAdmissionService {
       },
       subject: { kind: 'lead', code: leadCode, label: held.company },
     })
+    return entry
   }
 
   /** The typed door's rule. Without a choice only a new company goes in; with

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GoogleModule } from '@api/platform/google/google.module'
 import { MailModule } from '@api/platform/mail/mail.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
@@ -58,8 +59,16 @@ import { SourceService } from './source.service'
  *  `exports` để trống: chưa module nào cần hỏi nhánh này điều gì. Ngày sổ chiến
  *  dịch cần biết "lô này thuộc đợt mấy" thì thêm `MasService`, không mở bảng. */
 @Module({
-  /* `GoogleModule`: the group letter asks `GoogleAccess` whose mailbox it leaves from. */
-  imports: [EnginesModule, MailModule, LeadStateModule, LeadOriginModule, GoogleModule],
+  /* `GoogleModule`: the group letter asks `GoogleAccess` whose mailbox it leaves from.
+     `NotificationModule`: stop and the sweeper tell the owner (ADR 0093). */
+  imports: [
+    EnginesModule,
+    MailModule,
+    LeadStateModule,
+    LeadOriginModule,
+    GoogleModule,
+    NotificationModule,
+  ],
   controllers: [
     MasController,
     MailLetterController,

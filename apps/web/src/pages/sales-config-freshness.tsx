@@ -5,8 +5,13 @@ import { ActivityFreshness, SETTING_REGISTRY, type SettingKey } from '@pv/contra
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { activityFreshnessQuery, useProposeActivityFreshness } from '@/data/sales-config'
-import { SENT } from './sales-config-section'
+import {
+  activityFreshnessQuery,
+  useMyConfigProposals,
+  useProposeActivityFreshness,
+} from '@/data/sales-config'
+import { freshnessWaiting } from './sales-config-model'
+import { SENT, WaitingNote } from './sales-config-section'
 
 /** Config section for the deal book's last-activity column (ADR 0077 §4):
  *  from how many quiet days a row turns amber, then red. Mounted by
@@ -42,6 +47,7 @@ export function ActivityFreshnessConfig() {
   const { data, error } = useQuery(activityFreshnessQuery)
   const canPropose = useCan('config.propose')
   const propose = useProposeActivityFreshness()
+  const waiting = freshnessWaiting(useMyConfigProposals())
   const [typed, setTyped] = useState<Typed | null>(null)
 
   const shown: Typed = typed ?? {
@@ -116,6 +122,7 @@ export function ActivityFreshnessConfig() {
           thì tô đỏ.
         </p>
       )}
+      <WaitingNote words={waiting} />
       {(issue ?? propose.error) && (
         <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {issue ?? (propose.error ? userMessage(propose.error) : null)}

@@ -9,6 +9,7 @@ import {
   splitFirstTouch,
   type ActivityFreshness,
   type ConfigList,
+  type ConfigProposalChange,
   type LeadMotion,
 } from '@pv/contracts'
 import { ApprovalService } from '@api/platform/approval/approval.service'
@@ -130,9 +131,9 @@ function consequenceOf(change: ConfigChange): string {
   }
   if (change.kind === 'activity-freshness') {
     const { warnDays, alertDays } = change.value
-    return `Đổi ngưỡng hoạt động của cơ hội: nhắc từ ${warnDays} ngày, báo động từ ${alertDays} ngày`
+    return `Đổi ngưỡng hoạt động của cơ hội: vàng từ ${warnDays} ngày, đỏ từ ${alertDays} ngày`
   }
-  return `Đổi thiết lập luồng ${MOTION_LABEL[change.motion]}: ${motionWords(change.patch).join(' · ')}`
+  return `Đổi phương án tiếp cận ${MOTION_LABEL[change.motion]}: ${motionWords(change.patch).join(' · ')}`
 }
 
 /** What an update changes, so the approver sees the new value, not just the row id. */
@@ -222,10 +223,10 @@ export class SalesConfigGateE3 extends SalesConfigGate {
     const request = await this.approvals.open(who, {
       kind: 'config-change',
       consequence: consequenceOf(change),
-      /* The payload is this branch's own shape and the platform never reads it.
-         It comes back out at apply time, in `SalesConfigService.apply`, where
-         the branch is the one reading it again. */
-      payload: change,
+      /* The platform never reads this; the branch does, at `apply` and at
+         `myProposals`. `satisfies` keeps it parseable by the wire schema the
+         proposer's screen reads it back through. */
+      payload: change satisfies ConfigProposalChange,
       chain,
     })
 

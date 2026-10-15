@@ -5,7 +5,7 @@ import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { useProposeLossReason, useProposeProduct, useProposeStopReason } from '@/data/sales-config'
-import { SENT } from './sales-config-section'
+import { SENT, WaitingAdds } from './sales-config-section'
 
 /** The three "add one row" forms of the config screen — split out of
  *  `sales-config.tsx` on size alone (`max-lines`). Each sends on its own, one
@@ -24,6 +24,7 @@ export function AddProduct() {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
+      <WaitingAdds list="PRODUCT" />
       <Input
         aria-label="Thêm sản phẩm/dịch vụ"
         value={name}
@@ -75,6 +76,7 @@ export function AddLossReason() {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
+      <WaitingAdds list="LOSS_REASON" />
       <Input
         aria-label="Thêm lý do vào danh sách chăm sóc"
         value={name}
@@ -126,6 +128,7 @@ export function AddStopReason() {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
+      <WaitingAdds list="EXIT_REASON" />
       <Input
         aria-label="Thêm lý do dừng chăm sóc"
         value={name}

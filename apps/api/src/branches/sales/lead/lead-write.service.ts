@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { LEAD_HANDED_OVER, type AccessControl, type Actor, type Edge } from '@pv/engines'
 import {
+  NOTIFICATION_DETAIL_DEALS,
   LeadCreateResponse,
   LeadImportCommitResponse,
   LeadImportPreviewResponse,
@@ -31,6 +32,7 @@ import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { ContactService } from '../contact/contact.service'
 import type { LeadContactMirror } from '../contact/contact.repository'
 import { checkBatch, type ImportCheck } from './lead-import.check'
+import { ringImport, type ImportLine } from './lead-import.bell'
 import { incomingOfImport, planImport, type ImportPlan } from './lead-admission.import'
 import {
   fromCreate,
@@ -151,7 +153,8 @@ export class LeadWriteService {
   ) {}
 
   /** One lead changed hands, or was born in someone's name (ADR 0085). An
-   *  absent end is the common pool; `occurrence` is the touch that dated it. */
+   *  absent end is the common pool; `occurrence` is the touch that dated it;
+   *  `deals` = how many of its deals followed, told on this one line. */
   private handedOver(
     tx: Db,
     move: {
@@ -161,6 +164,7 @@ export class LeadWriteService {
       to?: string | null
       from?: string | null
       occurrence: string | undefined
+      deals?: number
     },
   ): Promise<void> {
     return this.hub.announce(tx, {
@@ -175,6 +179,7 @@ export class LeadWriteService {
         occurrence: move.occurrence,
       },
       subject: { kind: 'lead', code: move.code, label: move.label },
+      detail: move.deals ? { [NOTIFICATION_DETAIL_DEALS]: move.deals } : null,
     })
   }
 
@@ -462,18 +467,17 @@ export class LeadWriteService {
       const ownerId = body.ownerId ?? null
       const state = await this.states.ownerSet(tx, found, ownerId)
       /* The outgoing holder's step goes with the lead (flow G1): to the new
-         holder, or away on a release. A claim from the pool has none to carry. */
-      if (found.ownerId !== null) {
-        const bell = { hub: this.hub, actorId: who.id, label: found.company }
-        await handStepOver(tx, code, found.ownerId, ownerId, bell)
-      }
+         holder, or away on a release. A claim from the pool has none to carry.
+         No bell: the lead's one line below tells the whole act (ADR 0093). */
+      if (found.ownerId !== null) await handStepOver(tx, code, found.ownerId, ownerId)
       /* The old holder's open deals follow A→B (ADR 0069 §10), narrowed by
          `dealCodes`; a release to the pool leaves them. A receiver who cannot
          hold a deal refuses the hand-over (400 on `ownerId`). */
+      let deals = 0
       if (prev && next) {
-        await handDealsOver(
+        const handed = await handDealsOver(
           tx,
-          { mirror: this.mirror, touch: this.touch, hub: this.hub },
+          { mirror: this.mirror, touch: this.touch },
           {
             leadCode: code,
             from: { actorId: prev.id, name: prev.name },
@@ -484,6 +488,7 @@ export class LeadWriteService {
             ...(body.dealCodes ? { dealCodes: body.dealCodes } : {}),
           },
         )
+        deals = handed.moved
       }
 
       const [occurrence] = await this.touch.record(tx, [
@@ -510,7 +515,7 @@ export class LeadWriteService {
         },
       ])
       const told = { code, label: found.company, actorId: who.id, occurrence }
-      await this.handedOver(tx, { ...told, to: ownerId, from: found.ownerId })
+      await this.handedOver(tx, { ...told, to: ownerId, from: found.ownerId, deals })
       if (state === 'new') {
         const subject = { kind: 'lead' as const, code, label: found.company }
         await this.states.pooled(tx, { subject, actorId: who.id, occurrence })
@@ -712,6 +717,11 @@ export class LeadWriteService {
       }))
       /* Batch-wide: drafts the gate grouped as one new company share its account. */
       const seen = new Map<string, string>()
+      /* Rung once, after the receipt exists — see `ringImport`. */
+      const bell: { received: ImportLine[]; reentered: ImportLine[] } = {
+        received: [],
+        reentered: [],
+      }
       /* Each distinct origin resolved ONCE per batch, before any row needs it. */
       const originIds = new Map<string, string>()
       for (const { origin } of ready) {
@@ -817,23 +827,34 @@ export class LeadWriteService {
             note: LEAD_NOTE.imported(body.fileName),
           })),
         )
-        /* A row the file put in someone's name rings that person, one by one. */
         for (const [j, { row }] of slice.entries()) {
           if (!row.ownerId) continue
-          const told = { code: row.code, label: row.company, actorId: who.id }
-          await this.handedOver(tx, { ...told, to: row.ownerId, occurrence: touchIds[j] })
+          bell.received.push({
+            to: row.ownerId,
+            code: row.code,
+            label: row.company,
+            occurrence: touchIds[j],
+          })
         }
       }
 
       /* People the file adds to leads already in the book: no new lead. */
       for (const [leadCode, people] of plan.joins) {
-        await this.gate.reenter(tx, leadCode, people, who, 'IMPORT')
+        const held = await this.gate.reenter(tx, leadCode, people, who, 'IMPORT', { quiet: true })
+        const line = { code: leadCode, label: held.company, occurrence: held.occurrence }
+        if (held.holderId) bell.reentered.push({ ...line, to: held.holderId })
       }
       const used = codes.slice(0, ready.length)
       const batch = await this.repo.writeBatchNote(tx, {
         actorId: who.id,
         note: noteOf(body, used),
       })
+      await ringImport(
+        tx,
+        this.hub,
+        { id: batch.id, fileName: body.fileName, actorId: who.id },
+        bell,
+      )
       /* ONE pool line for the file, keyed by its receipt — not one per lead. */
       const count = ready.filter((p) => !p.row.ownerId).length
       if (count > 0) {

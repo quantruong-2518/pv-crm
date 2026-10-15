@@ -12,6 +12,7 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/approval.service'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
@@ -23,6 +24,7 @@ import { QuotationRepository } from '../quotation/quotation.repository'
 import type { QuotationRowDb } from '../quotation/quotation.schema'
 import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
+import { announceSigned } from './deal-money.bell'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
 import { lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
@@ -53,6 +55,7 @@ export class OpportunitySign implements ApprovalApplier {
     private readonly approvals: ApprovalService,
     private readonly quotes: QuotationRepository,
     private readonly audit: AuditRepository,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** `POST /sales/opportunities/:code/contract` — 202 with a receipt, or the
@@ -115,7 +118,8 @@ export class OpportunitySign implements ApprovalApplier {
       if (!lock || !fresh || !fresh.inScope) throw notFound('cơ hội', code)
       await this.assertProposable(tx, fresh, body, lock.pendingSign)
       const sign = { ...body, signedAt: body.signedAt ?? new Date().toISOString() }
-      const contractCode = await this.write(tx, fresh, sign, { id: who.id, name: who.name })
+      const by = { id: who.id, name: who.name }
+      const contractCode = await this.write(tx, fresh, sign, by, { actorId: who.id, skip: [] })
       await this.audit.write(
         {
           actorId: who.id,
@@ -174,19 +178,24 @@ export class OpportunitySign implements ApprovalApplier {
     const verdict = signableVerdict(signFactsOf(found, quoted))
     if (!verdict.ok) throw conflict(verdict.reason)
 
-    await this.write(tx, found, sign, { id: request.raisedById, name: request.raisedBy })
+    /* The bell's actor is the decider; the raiser already hears `approval-approved`. */
+    const decider = [...request.chain].reverse().find((l) => l.state === 'approved')?.personId
+    const by = { id: request.raisedById, name: request.raisedBy }
+    await this.write(tx, found, sign, by, { actorId: decider, skip: [request.raisedById] })
   }
 
   /** The signature itself, in the caller's transaction: contract row, its
    *  mirror row and the edge, the run, touches — and on the FIRST signature the
    *  deal leaving the board, its mirror row and its next step dropped (§10).
    *  Mirror row BEFORE the contract row — `sales.contract.code` has a foreign
-   *  key into `platform.object`, checked per statement. */
+   *  key into `platform.object`, checked per statement. `bell` names who the
+   *  `contract-signed` line treats as its cause and who it leaves out. */
   private async write(
     tx: Db,
     found: OpportunityRead,
     body: ContractSign,
     by: { id: string; name: string },
+    bell: { actorId: string | undefined; skip: string[] },
   ): Promise<string> {
     const code = found.row.code
     const contractCode = await this.contracts.nextCode(tx)
@@ -242,6 +251,15 @@ export class OpportunitySign implements ApprovalApplier {
         at: signedAt,
       },
     ])
+    await announceSigned(tx, this.hub, {
+      ...bell,
+      code,
+      label: row.name,
+      contractCode,
+      director: await this.hub.sharedInRoles(tx, ['director'], 'Sales'),
+      owners: found.owners.map((o) => o.id),
+      commissionOwner: values.ownerId ?? undefined,
+    })
     return contractCode
   }
 

@@ -6,9 +6,14 @@ import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { BADGE_INK } from '@/data/opportunities'
-import { salesCatalogQuery, useProposeCommEntry, useProposeConfigPatch } from '@/data/sales-config'
-import { byOrd } from './sales-config-model'
-import { SENT } from './sales-config-section'
+import {
+  salesCatalogQuery,
+  useMyConfigProposals,
+  useProposeCommEntry,
+  useProposeConfigPatch,
+} from '@/data/sales-config'
+import { byOrd, entryWaiting } from './sales-config-model'
+import { SENT, WaitingAdds, WaitingNote } from './sales-config-section'
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
  *  with their answers, and next-step kinds. Mounted by `sales-config-lead.tsx`.
@@ -101,6 +106,7 @@ export function EntryRow({
   extra?: ReactNode
 }) {
   const canPropose = useCan('config.propose')
+  const waiting = entryWaiting(useMyConfigProposals(), list, entry.id)
   const patch = useProposeConfigPatch()
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(entry.name)
@@ -185,6 +191,7 @@ export function EntryRow({
             </>
           ))}
       </div>
+      <WaitingNote words={waiting} />
       {patch.error && (
         <p role="alert" className="text-destructive-foreground m-0 text-[11.5px]">
           {userMessage(patch.error)}
@@ -211,6 +218,7 @@ export function AddEntry({
 
   return (
     <div className="flex flex-wrap items-end gap-3">
+      <WaitingAdds list={list} {...(criterionId ? { criterionId } : {})} />
       <Input
         aria-label={placeholder}
         value={name}

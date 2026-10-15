@@ -12,6 +12,7 @@ import {
 import { type WaveChannel } from '@pv/engines/fixtures/das-vina'
 import {
   ActivityFreshnessResponse,
+  ConfigProposalsResponse,
   LEAD_STOP_REASON_OTHER,
   LeadTier,
   OPPORTUNITY_STOP_REASON_OTHER,
@@ -21,6 +22,7 @@ import {
   type ConfigEntry,
   type ConfigList,
   type ConfigEntryPatch,
+  type ConfigProposal,
   type ConfigProposalReceipt,
   type ActivityFreshnessPatch,
 } from '@pv/contracts'
@@ -531,4 +533,26 @@ export function useProposeActivityFreshness() {
       }),
     onSuccess: () => proposalSent(client),
   })
+}
+
+/** The reader's own config changes still waiting for approval, so each row
+ *  can say so. Keyed UNDER the inbox key on purpose: every propose door
+ *  (this file, motions, the journey frame) and every decision already
+ *  refreshes `['platform', 'approvals', 'pending']`, and the prefix carries
+ *  this read along. Expires like `salesCatalogQuery`. */
+export const myConfigProposalsQuery = queryOptions({
+  queryKey: ['platform', 'approvals', 'pending', 'config-mine'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ConfigProposalsResponse>('/sales/config/proposals/mine', {
+      need: { branch: 'Sales', permission: 'config.view' },
+      schema: ConfigProposalsResponse,
+      signal,
+    }),
+  staleTime: 60_000,
+  refetchOnWindowFocus: true,
+})
+
+export function useMyConfigProposals(): ConfigProposal[] {
+  const { data } = useQuery(myConfigProposalsQuery)
+  return data?.rows ?? []
 }

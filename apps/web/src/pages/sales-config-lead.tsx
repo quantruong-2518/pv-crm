@@ -1,16 +1,19 @@
 import { GlassCard } from '@pv/ui'
+import { useMyConfigProposals } from '@/data/sales-config'
 import { MotionPickerSection } from './lead-origins-motions'
 import { AddStopReason } from './sales-config-add-rows'
 import { CommCriteriaConfig, EntryRow, StepKindConfig } from './sales-config-comm'
-import { byOrd } from './sales-config-model'
+import { byOrd, motionPickerWaiting } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
-import { EntryCount, Section, type AreaProps } from './sales-config-section'
+import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-config-section'
 
 /** Intake — how a lead may come in. `MotionPickerSection` is the same list the
  *  lead-origins screen mounts; `bare` leaves the heading to this `Section`. */
 export function IntakeArea() {
+  const waiting = motionPickerWaiting(useMyConfigProposals())
   return (
     <Section at="motions" hint="Tên, bật/tắt và form hỏi tiếp của mỗi phương án.">
+      <WaitingCount count={waiting} />
       <MotionPickerSection bare />
     </Section>
   )

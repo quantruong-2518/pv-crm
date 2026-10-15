@@ -3,8 +3,21 @@ import { Button, DataTable, GlassCard, Input, cn } from '@pv/ui'
 import type { ConfigBundle, ConfigList } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { isEditDone, useProposeConfigEdits, type LadderRow } from '@/data/sales-config'
-import { editsOf, isDays, sectionOf, type SectionId } from './sales-config-model'
+import {
+  isEditDone,
+  useMyConfigProposals,
+  useProposeConfigEdits,
+  type LadderRow,
+} from '@/data/sales-config'
+import {
+  WAITING,
+  addsWaiting,
+  editsOf,
+  entryWaiting,
+  isDays,
+  sectionOf,
+  type SectionId,
+} from './sales-config-model'
 
 /** The success toast of every send on the screen. It names no approver: who
  *  approves is the server's chain, not a role this screen may print. */
@@ -62,6 +75,41 @@ export function Section({
   )
 }
 
+/** The reader's own change still waiting, said under what it changes. */
+export function WaitingNote({ words }: { words: string | null }) {
+  if (words === null) return null
+  return (
+    <p className="text-muted-foreground m-0 text-[11.5px]">
+      {WAITING}: {words}
+    </p>
+  )
+}
+
+/** Rows waiting to join a list, drawn where the list ends. */
+export function WaitingAdds({ list, criterionId }: { list: ConfigList; criterionId?: string }) {
+  const sentences = addsWaiting(useMyConfigProposals(), list, criterionId)
+  if (sentences.length === 0) return null
+  return (
+    <ul className="m-0 flex w-full flex-col gap-1">
+      {sentences.map((sentence, at) => (
+        <li key={`${at}/${sentence}`}>
+          <WaitingNote words={sentence} />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** For a section whose rows this screen cannot match a change to. */
+export function WaitingCount({ count }: { count: number }) {
+  if (count === 0) return null
+  return (
+    <p className="text-muted-foreground m-0 text-[11.5px]">
+      Có <span className="tnum font-num">{count}</span> đề nghị của bạn đang chờ duyệt
+    </p>
+  )
+}
+
 /** A catalog's size for `Section.summary`. Nothing for an empty list: the
  *  section body already says so in words. */
 export function EntryCount({ rows, noun }: { rows: { active: boolean }[]; noun: string }) {
@@ -85,12 +133,12 @@ export function DeadlineBox({
   /* The route needs only `config.view`; a reader without `config.propose`
      sees the deadlines but cannot type a draft nobody could send. */
   const canPropose = useCan('config.propose')
+  const waiting = entryWaiting(useMyConfigProposals(), list, row.id)
   const key = `${list}/${row.id}`
   const shown = draft.typed[key] ?? (row.limitDays === null ? '' : String(row.limitDays))
   /* `Input` has no disabled paint, so a reader who cannot propose gets plain
      text instead of a box that looks editable. */
-  if (!canPropose) return <span className="tnum font-num">{shown === '' ? 'chưa đặt' : shown}</span>
-  return (
+  const box = canPropose ? (
     <Input
       aria-label={`Hạn của ${row.label}`}
       value={shown}
@@ -100,6 +148,15 @@ export function DeadlineBox({
       className="pointer-coarse:h-12 tnum h-10 w-full max-w-24"
       onChange={(e) => draft.onType((prev) => ({ ...prev, [key]: e.target.value }))}
     />
+  ) : (
+    <span className="tnum font-num">{shown === '' ? 'chưa đặt' : shown}</span>
+  )
+  if (waiting === null) return box
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      {box}
+      <WaitingNote words={waiting} />
+    </div>
   )
 }
 

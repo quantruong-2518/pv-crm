@@ -84,14 +84,20 @@ export class OpportunityMoves {
       const [lead] = await this.deals.lockLeads(tx, [found.row.leadCode])
       const fresh = await this.locked(tx, who, code)
       const written = await this.lifecycle.stop(tx, fresh, mover(who), body, at)
-      await announceOpened(tx, this.hub, {
-        code,
-        name: written.name,
-        actorId: who.id,
-        holders: [...fresh.ownerIds, written.acceptedById, lead?.ownerId],
-        accepted: written.acceptedById !== null,
-        lost: true,
-      })
+      const accepted = written.acceptedById !== null
+      const dead = { code, name: written.name, actorId: who.id, accepted }
+      const holders = [...fresh.ownerIds, written.acceptedById]
+      await announceOpened(tx, this.hub, { ...dead, holders, lost: true })
+      /* A lead owner off the deal may not open it: they hear it on the lead (ADR 0093 §7). */
+      if (lead?.ownerId && !holders.includes(lead.ownerId)) {
+        const subject = { kind: 'lead' as const, code: written.leadCode, label: lead.company }
+        await announceOpened(
+          tx,
+          this.hub,
+          { ...dead, holders: [lead.ownerId], lost: true, subject },
+          [],
+        )
+      }
       const parked =
         (await this.deals.allLost(tx, written.leadCode)) && (await this.parkLead(tx, who, written))
       if (!parked) await syncLeadRuns(tx, [written.leadCode])

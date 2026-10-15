@@ -321,6 +321,19 @@ export class MailRunRepository {
     return row ?? null
   }
 
+  /** On the caller's `tx`: the reply bell asks inside the transaction recording the reply. */
+  async kindAndLabel(
+    tx: Db,
+    runId: string,
+  ): Promise<{ kind: 'bulk' | 'group'; label: string } | null> {
+    const [row] = await tx
+      .select({ kind: mailRun.kind, label: mailRun.label })
+      .from(mailRun)
+      .where(eq(mailRun.id, runId))
+      .limit(1)
+    return row ?? null
+  }
+
   /** The run list, with every counter aggregated from the ledger.
    *
    *  ------------------------------------------------------------------

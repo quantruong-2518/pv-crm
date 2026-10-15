@@ -80,6 +80,14 @@ const SELECT_READ = {
   waveCount: WAVE_COUNT,
 }
 
+/** A campaign `closeFinished()` just moved to `DONE` — what its bell needs. */
+export type FinishedCampaign = {
+  code: string
+  name: string
+  ownerId: string | null
+  updatedAt: Date
+}
+
 /** Chỗ DUY NHẤT trong module có SQL cho `sales.campaign`. Không quyết định gì
  *  về quyền — chỉ thi hành trục phạm vi mà endpoint đã khai. */
 @Injectable()
@@ -184,11 +192,12 @@ export class CampaignRepository {
     return rows.length === 1
   }
 
-  async setState(code: string, state: CampaignState): Promise<void> {
-    await this.db
-      .update(campaign)
-      .set({ state, updatedAt: new Date() })
-      .where(eq(campaign.code, code))
+  /** Returns the new `updated_at`: the stop bell keys on it, since a stopped
+   *  campaign can run again and stop a second time. */
+  async setState(code: string, state: CampaignState, db: Db = this.db): Promise<Date> {
+    const updatedAt = new Date()
+    await db.update(campaign).set({ state, updatedAt }).where(eq(campaign.code, code))
+    return updatedAt
   }
 
   /** ĐANG CHẠY → XONG, cho chiến dịch mà mọi đợt của nó đã ngã ngũ.
@@ -223,8 +232,8 @@ export class CampaignRepository {
    *  Terminal của một đợt là `SENT` hoặc `CANCELLED`. `DRAFT` không nằm trong
    *  đó dù `MasService` không bao giờ tạo ra nó: một đợt nháp là một đợt còn
    *  chờ người, và chờ người thì chiến dịch chưa xong. */
-  async closeFinished(): Promise<string[]> {
-    const r = (await this.db.execute(sql`
+  async closeFinished(db: Db = this.db): Promise<FinishedCampaign[]> {
+    const r = (await db.execute(sql`
       UPDATE "sales"."campaign" c
          SET "state" = 'DONE',
              "updated_at" = now()
@@ -240,10 +249,18 @@ export class CampaignRepository {
                 WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
                   AND r."state" NOT IN ('SENT', 'CANCELLED')
              )
-      RETURNING c."code"
-    `)) as { rows: { code: string }[] }
+      RETURNING c."code", c."name", c."owner_id", c."updated_at"
+    `)) as {
+      rows: { code: string; name: string; owner_id: string | null; updated_at: Date | string }[]
+    }
 
-    return r.rows.map((row) => row.code)
+    /* Raw SQL: the driver may hand the timestamp back as text. */
+    return r.rows.map((row) => ({
+      code: row.code,
+      name: row.name,
+      ownerId: row.owner_id,
+      updatedAt: new Date(row.updated_at),
+    }))
   }
 
   async book(who: Actor, q: CampaignBookQuery, scoped: boolean): Promise<CampaignBookPage> {

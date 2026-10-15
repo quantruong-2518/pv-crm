@@ -191,6 +191,27 @@ permissions are a union, and so are mutes.
 
 ## Consequences and known limits
 
+- Wave 2 rulings (owner, 15/10/2026): customer replies to letters of a BULK
+  run collapse into one `mail-run-replied` line per run, per recipient, per
+  Vietnam day (later replies that day are absorbed by the event key and the
+  line shows no count; 1-to-1 letters keep `customer-replied`). One act rings
+  one line: accepting a deal rings `opportunity-accepted` only, a first
+  quotation `opportunity-stage-moved` only, a superseding round
+  `quotation-superseded` only, a stop `opportunity-lost` only. `contract-signed`
+  lands on the deal, because some deal owners cannot open the contract.
+- An import or hand-over of one item keeps today's per-item line; several
+  become one line per recipient on a `lead-batch` / `opportunity-batch`
+  subject with a count. A lead hand-over rings the new and the previous holder
+  once each, carrying the number of deals that moved.
+- Kinds that ring even when the reader cannot open the subject (no link):
+  `lead-scan-failed`, `lead-removed`, `opportunity-unassigned`,
+  `mail-run-replied`. Every other line is dropped, and logged, for a recipient
+  whose roles cannot open its subject.
+- Known gaps: scan batches still re-enter leads one line each; a payment
+  schedule saved unchanged still rings; `kpi-target` lines open the company
+  KPI screen (`performance.view`), so a role given `kpi.set-target` without it
+  hears nothing.
+
 - The §5 defaults (first touch, the hidden 5.9 fields) were the assistant's;
   the owner accepted them on 14/10/2026.
 - A role counts as "not applicable" for a kind when it cannot open ANY of the
@@ -211,4 +232,5 @@ permissions are a union, and so are mutes.
 
 ## Rollout
 
-Wave 1 built 15/10/2026 (migration 0106). Waves 2 and 3 not started.
+Wave 1 built and live 15/10/2026 (migration 0106). Wave 2 built 15/10/2026
+(migration 0107; migrate before deploy). Wave 3 not started.

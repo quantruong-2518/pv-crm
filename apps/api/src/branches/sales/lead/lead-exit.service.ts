@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import { LEAD_STOPPED, type Actor } from '@pv/engines'
+import { LEAD_NURTURED, LEAD_REOPENED, LEAD_RESUMED, LEAD_STOPPED, type Actor } from '@pv/engines'
 import {
   LEAD_STATE_LABEL,
   LEAD_STOP_REASON_OTHER,
@@ -135,6 +135,7 @@ export class LeadExitService {
       const to = stateOnReopen(held)
       await this.states.move(tx, code, to, { exitReason: null, exitedAt: null })
       const occurrence = await this.record(tx, who, code, 'reopened', LEAD_NOTE.reopened)
+      await this.tellHolder(tx, LEAD_REOPENED, who, held.ownerId, { code, label, occurrence })
       if (to === 'new') {
         const subject = { kind: 'lead' as const, code, label }
         await this.states.pooled(tx, { subject, actorId: who.id, occurrence })
@@ -147,7 +148,7 @@ export class LeadExitService {
 
   /** `POST /sales/leads/:code/nurture` — `verifying|working` → `nurturing`. */
   async nurture(who: Actor, code: ObjectCode, body: LeadNurtureBody): Promise<LeadProfile> {
-    await this.inScope(who, code)
+    const label = (await this.inScope(who, code)).row.company
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
@@ -161,9 +162,11 @@ export class LeadExitService {
       await this.states.move(tx, code, 'nurturing')
       /* The reason lives on the touch, not the lead: nurturing loops in place,
          and a column on the lead would be overwritten by the next park (ADR 0070). */
-      await this.record(tx, who, code, 'nurtured', LEAD_NOTE.nurtured(body.reasonKey, body.note), {
+      const note = LEAD_NOTE.nurtured(body.reasonKey, body.note)
+      const occurrence = await this.record(tx, who, code, 'nurtured', note, {
         reasonId: body.reasonKey,
       })
+      await this.tellHolder(tx, LEAD_NURTURED, who, held.ownerId, { code, label, occurrence })
       /* Parked means parked: a timed letter must not undo it (ADR 0068). */
       await this.mailRuns.withholdSubject(
         tx,
@@ -179,7 +182,7 @@ export class LeadExitService {
    *  was ever logged, else back to `verifying`. Nurture is only reachable from
    *  those two, so `verifying` is the floor. */
   async resume(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    await this.inScope(who, code)
+    const label = (await this.inScope(who, code)).row.company
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
@@ -190,10 +193,33 @@ export class LeadExitService {
       }
 
       await this.states.move(tx, code, stateByWork(held.reached === 'working'))
-      await this.record(tx, who, code, 'resumed', LEAD_NOTE.resumed)
+      const occurrence = await this.record(tx, who, code, 'resumed', LEAD_NOTE.resumed)
+      await this.tellHolder(tx, LEAD_RESUMED, who, held.ownerId, { code, label, occurrence })
     })
 
     return this.profiles.profile(who, code)
+  }
+
+  /** The holder hears when somebody else moved their lead (ADR 0093); the
+   *  engine skips the line when the holder pressed it. `holderId` came from
+   *  `lockForMove`, so a disabled lead never gets here. */
+  private tellHolder(
+    tx: Db,
+    name: string,
+    who: Actor,
+    holderId: string | null,
+    move: { code: ObjectCode; label: string; occurrence?: string },
+  ): Promise<void> {
+    return this.hub.announce(tx, {
+      event: {
+        name,
+        ref: { code: move.code },
+        actorId: who.id,
+        audiences: { holder: holderId ? [holderId] : [] },
+        occurrence: move.occurrence,
+      },
+      subject: { kind: 'lead', code: move.code, label: move.label },
+    })
   }
 
   private async record(

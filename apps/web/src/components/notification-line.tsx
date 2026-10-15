@@ -1,8 +1,14 @@
 import { Badge, ChevronRight, Icon, cn } from '@pv/ui'
 import {
+  NOTIFICATION_DETAIL_CONTRACT,
+  NOTIFICATION_DETAIL_COUNT,
+  NOTIFICATION_DETAIL_DEALS,
   NOTIFICATION_DETAIL_FAILED,
+  NOTIFICATION_DETAIL_NO,
+  NOTIFICATION_DETAIL_STAGE,
   NOTIFICATION_KIND_LABEL,
   type NotificationRow,
+  type NotificationSubject,
 } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
 import { useNotificationPath } from '@/data/notifications'
@@ -22,19 +28,7 @@ export function NotificationLine({
 }) {
   const path = useNotificationPath()(row)
   const unread = row.readAt === null
-  /* The subject, then the one fact the sentence leaves out: how many, or why. */
-  const extra = [
-    row.subject.label,
-    typeof row.detail?.count === 'number' && row.detail.count > 0
-      ? `${row.detail.count.toLocaleString('vi-VN')} lead`
-      : null,
-    row.detail?.reason ? `Lý do: ${row.detail.reason}` : null,
-    failedLetters(row) > 0
-      ? `${failedLetters(row).toLocaleString('vi-VN')} thư không tới nơi`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  const extra = [row.subject.label, ...detailFragments(row)].filter(Boolean).join(' · ')
   const body = (
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -79,8 +73,34 @@ export function NotificationLine({
   )
 }
 
-/** A bulk run's closing line carries its failed-letter count (ADR 0093 §4). */
-function failedLetters(row: NotificationRow): number {
-  const n = row.detail?.[NOTIFICATION_DETAIL_FAILED]
-  return typeof n === 'number' ? n : 0
+/** What a counted row counts; a subject with no entry has no honest unit. */
+const COUNT_UNIT: Partial<Record<NotificationSubject, string>> = {
+  lead: 'lead',
+  'lead-pool': 'lead',
+  'lead-batch': 'lead',
+  opportunity: 'cơ hội',
+  'opportunity-batch': 'cơ hội',
+}
+
+const num = (n: number) => n.toLocaleString('vi-VN')
+
+/** The facts the sentence leaves out, one short fragment each: how many, why,
+ *  how many deals went along, the stage, the contract, the instalment. */
+function detailFragments({ subject, detail }: NotificationRow): (string | null)[] {
+  const count = detail?.[NOTIFICATION_DETAIL_COUNT]
+  const deals = detail?.[NOTIFICATION_DETAIL_DEALS]
+  const failed = detail?.[NOTIFICATION_DETAIL_FAILED]
+  const stage = detail?.[NOTIFICATION_DETAIL_STAGE]
+  const contract = detail?.[NOTIFICATION_DETAIL_CONTRACT]
+  const no = detail?.[NOTIFICATION_DETAIL_NO]
+  const unit = COUNT_UNIT[subject.kind]
+  return [
+    typeof count === 'number' && count > 0 && unit ? `${num(count)} ${unit}` : null,
+    typeof deals === 'number' && deals > 0 ? `kèm ${num(deals)} cơ hội` : null,
+    stage ? String(stage) : null,
+    contract ? String(contract) : null,
+    no !== undefined && no !== '' ? `đợt ${no}` : null,
+    detail?.reason ? `Lý do: ${detail.reason}` : null,
+    typeof failed === 'number' && failed > 0 ? `${num(failed)} thư không tới nơi` : null,
+  ]
 }

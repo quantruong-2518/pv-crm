@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common'
+import { CAMPAIGN_FINISHED } from '@pv/engines'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { CampaignRepository } from './campaign.repository'
 
 /** LƯỢT QUÉT TẦNG TRÊN CÙNG — anh em của `MailRelay` và `MailRunSweeper`, và
@@ -40,7 +42,10 @@ import { CampaignRepository } from './campaign.repository'
 export class CampaignSweeper {
   private readonly log = new Logger('sales.campaign')
 
-  constructor(private readonly repo: CampaignRepository) {}
+  constructor(
+    private readonly repo: CampaignRepository,
+    private readonly hub: NotificationHub,
+  ) {}
 
   /** Một lượt. Trả về mã những chiến dịch vừa đóng, cho người gọi muốn khẳng
    *  định trên nó.
@@ -49,7 +54,23 @@ export class CampaignSweeper {
    *  (`void … .catch`), và một lượt chết không để lại gì dở dang — câu UPDATE
    *  hoặc chạy trọn hoặc không chạy — nên nhịp sau làm lại từ đầu. */
   async sweep(): Promise<string[]> {
-    const closed = await this.repo.closeFinished()
+    /* One transaction: a `DONE` row and its owner's bell line commit together.
+       No actor — the worker closed it, so even the owner hears it. */
+    const closed = await this.repo.run(async (tx) => {
+      const rows = await this.repo.closeFinished(tx)
+      for (const row of rows) {
+        await this.hub.announce(tx, {
+          event: {
+            name: CAMPAIGN_FINISHED,
+            ref: { code: row.code },
+            audiences: { owner: row.ownerId ? [row.ownerId] : [] },
+            occurrence: String(row.updatedAt.getTime()),
+          },
+          subject: { kind: 'campaign', code: row.code, label: row.name },
+        })
+      }
+      return rows.map((row) => row.code)
+    })
 
     if (closed.length > 0) {
       this.log.log(`Chiến dịch đã chạy xong mọi đợt, chuyển XONG: ${closed.join(' · ')}`)

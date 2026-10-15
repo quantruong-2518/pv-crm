@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import { COMM_CLOSED_FOR_OWNER, type AccessControl, type Actor } from '@pv/engines'
 import {
   CommRecordCreateResponse,
   DebriefCountsResponse,
@@ -18,6 +18,7 @@ import type { ObjectRow } from '@api/platform/db/platform.schema'
 import { ACCESS } from '@api/platform/engines/tokens'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import {
   COMM_DEBRIEF_HOOK,
   closesMeetingFor,
@@ -50,6 +51,7 @@ export class DebriefService {
     private readonly threads: ThreadRepository,
     private readonly records: CommRecordService,
     private readonly audit: AuditRepository,
+    private readonly hub: NotificationHub,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Optional() @Inject(COMM_DEBRIEF_HOOK) private readonly hook?: CommDebriefHook,
     @Optional() @Inject(MESSAGE_LOGGED_HOOK) private readonly logged?: MessageLoggedHook,
@@ -213,6 +215,18 @@ export class DebriefService {
       )
       await hook.apply(tx, who, prepared)
       await also?.(tx)
+      /* A record closes once, so its id alone keys the line. */
+      if (found.row.ownerId !== who.id) {
+        await this.hub.announce(tx, {
+          event: {
+            name: COMM_CLOSED_FOR_OWNER,
+            ref: { code: id },
+            actorId: who.id,
+            audiences: { owner: [found.row.ownerId] },
+          },
+          subject: { kind: 'comm', code: id, label: found.subjectLabel },
+        })
+      }
     })
 
     return this.one(who, id)

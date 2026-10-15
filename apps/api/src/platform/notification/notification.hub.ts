@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { NOTIFICATION_KIND_POLICY, NotificationKind, type NotificationSubject } from '@pv/contracts'
+import {
+  NOTIFICATION_KIND_POLICY,
+  NOTIFICATION_KINDS_RING_WITHOUT_LINK,
+  NOTIFICATION_SUBJECT_PERMISSION,
+  NotificationKind,
+  type NotificationSubject,
+} from '@pv/contracts'
 import {
   NOTIFICATION_RULES,
   plan,
@@ -10,9 +16,13 @@ import {
 } from '@pv/engines'
 import type { Db } from '../db/db.module'
 import { RolePermissionRepository } from '../roles/role-permission.repository'
-import { inapplicableRoles } from './notification-applicability'
+import { inapplicableRoles, opensSubject, type Grants } from './notification-applicability'
 import { NotificationPolicyRepository } from './notification-policy.repository'
 import { NotificationRepository } from './notification.repository'
+
+const RING_WITHOUT_LINK: ReadonlySet<NotificationKind> = new Set(
+  NOTIFICATION_KINDS_RING_WITHOUT_LINK,
+)
 
 export type Announcement = {
   event: EventPayload
@@ -30,8 +40,9 @@ export type Announcement = {
  *  bell line is a courtesy, and must not be why a run stays uncancelled or a
  *  landing lead is refused. Bad ids are filtered before the insert anyway.
  *
- *  After E4, the admin kind policy only narrows (ADR 0093 §1): it drops
- *  intents, never adds one, so it cannot reach past E4 or permissions. */
+ *  After E4 two filters only narrow: a reader who could not open the line's
+ *  link loses it (ADR 0093 §7), then the admin kind policy drops muted roles
+ *  (§1). Neither adds an intent, so neither can reach past E4. */
 @Injectable()
 export class NotificationHub {
   private readonly log = new Logger('notification')
@@ -59,12 +70,24 @@ export class NotificationHub {
     const ids = new Set(intents.map((i) => i.to))
     if (event.actorId) ids.add(event.actorId)
     const known = new Map((await this.repo.actors(tx, [...ids])).map((a) => [a.id, a]))
-    const muted = await this.mutes(tx, [...new Set(intents.map((i) => i.kind))])
+    const open = [...new Set(intents.map((i) => i.kind))].filter(
+      (k) => !NOTIFICATION_KIND_POLICY[k].locked,
+    )
+    const policy = open.length > 0 ? await this.policies.mutes(tx, open) : []
+    const gate = NOTIFICATION_SUBJECT_PERMISSION[subject.kind]
+    /* One grants read per announce, shared by the backstop and the mute filter. */
+    const grants: Grants =
+      gate !== null || policy.length > 0 ? await this.roles.allGrants(tx) : new Map()
+    const muted = this.mutes(policy, grants)
 
     const rows = intents
       .filter((i) => {
         const to = known.get(i.to)
         if (to?.disabledAt !== null) return false
+        if (gate && !RING_WITHOUT_LINK.has(i.kind) && !opensSubject(subject.kind, to, grants)) {
+          this.log.log(`bell ${i.kind} to ${i.to} dropped: cannot open ${subject.kind} (${gate})`)
+          return false
+        }
         const rule = muted.get(i.kind)
         /* A union, like permissions: one role that is neither muted nor out keeps it. */
         if (!rule || !to.roleIds.some((r) => rule.muted.has(r))) return true
@@ -84,20 +107,15 @@ export class NotificationHub {
     if (rows.length > 0) await this.repo.insert(tx, rows)
   }
 
-  /** Muted and not-applicable roles per kind, read on the announcing
-   *  transaction with no cache: the worker announces too, and an admin's
-   *  change must reach it at once. Grants are read only when something is
-   *  muted, since an inapplicable role must not keep a muted person's line.
-   *  Locked kinds are skipped, so a stray row can never silence them. */
-  private async mutes(
-    tx: Db,
-    kinds: readonly NotificationKind[],
-  ): Promise<Map<NotificationKind, { muted: Set<RoleId>; out: Set<RoleId> }>> {
-    const open = kinds.filter((k) => !NOTIFICATION_KIND_POLICY[k].locked)
-    if (open.length === 0) return new Map()
-    const rows = await this.policies.mutes(tx, open)
-    if (rows.length === 0) return new Map()
-    const grants = await this.roles.allGrants(tx)
+  /** Muted and not-applicable roles per kind. The policy rows and grants are
+   *  read on the announcing transaction with no cache: the worker announces
+   *  too, and an admin's change must reach it at once. An inapplicable role
+   *  must not keep a muted person's line. Locked kinds never reach here, so a
+   *  stray row can never silence them. */
+  private mutes(
+    rows: readonly { kind: NotificationKind; mutedRoleIds: RoleId[] }[],
+    grants: Grants,
+  ): Map<NotificationKind, { muted: Set<RoleId>; out: Set<RoleId> }> {
     return new Map(
       rows.map((r) => [
         r.kind,
@@ -108,17 +126,38 @@ export class NotificationHub {
 
   /** A role audience: every unlocked actor whose role grants `permission`,
    *  read from the live matrix so an admin's change moves the audience too. */
-  async holding(tx: Db, permission: Permission, branch?: Branch): Promise<string[]> {
-    /* Same one-way rule as `announce`: a failed audience read tells nobody,
-       it does not abort the caller's transaction. */
-    return tx
-      .transaction(async (savepoint) => {
-        const roles = await this.roles.rolesHolding(permission, savepoint)
-        return roles.length === 0 ? [] : this.repo.activeIn(savepoint, roles, branch)
-      })
-      .catch((error: unknown) => {
-        this.log.error(`Audience for ${permission} was not read: ${String(error)}`)
-        return []
-      })
+  holding(tx: Db, permission: Permission, branch?: Branch): Promise<string[]> {
+    return this.bellRead(tx, `audience for ${permission}`, [], async (savepoint) => {
+      const roles = await this.roles.rolesHolding(permission, savepoint)
+      return roles.length === 0 ? [] : this.repo.activeIn(savepoint, roles, branch)
+    })
+  }
+
+  /** Everyone holding one of these roles, own-only people included (unlike
+   *  `holding`): for news about the role itself. */
+  inRoles(tx: Db, roles: RoleId[], branch?: Branch): Promise<string[]> {
+    if (roles.length === 0) return Promise.resolve([])
+    return this.bellRead(tx, `audience for roles ${roles.join(',')}`, [], (s) =>
+      this.repo.activeInRoles(s, roles, branch),
+    )
+  }
+
+  /** `inRoles` without own-only people: a role audience for one record, which
+   *  someone who may only see their own could not open unless they hold it. */
+  sharedInRoles(tx: Db, roles: RoleId[], branch?: Branch): Promise<string[]> {
+    if (roles.length === 0) return Promise.resolve([])
+    return this.bellRead(tx, `audience for roles ${roles.join(',')}`, [], (s) =>
+      this.repo.activeIn(s, roles, branch),
+    )
+  }
+
+  /** Any read made only for a bell line, by any emitter. Same one-way rule as
+   *  `announce`: it runs under a SAVEPOINT, and a failure is logged and turns
+   *  into `fallback` instead of aborting the caller's transaction. */
+  bellRead<T>(tx: Db, what: string, fallback: T, read: (savepoint: Db) => Promise<T>): Promise<T> {
+    return tx.transaction(read).catch((error: unknown) => {
+      this.log.error(`Bell read (${what}) failed: ${String(error)}`)
+      return fallback
+    })
   }
 }

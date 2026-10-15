@@ -11,11 +11,13 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { dropStep } from '../next-step/next-step.handover'
 import { QuotationRepository } from '../quotation/quotation.repository'
 import { TouchService } from '../touch/touch.service'
+import { announceStageMoved, dealOwnerIds } from './deal-money.bell'
 import { MILESTONE_TOUCH, NOTE, stageEventOf, toRef, type RefOwner } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
 import { opportunity, opportunityStageEvent, type OpportunityRowDb } from './opportunity.schema'
@@ -81,6 +83,7 @@ export class OpportunityLifecycle {
     private readonly mirror: ObjectMirror,
     private readonly touch: TouchService,
     private readonly quotes: QuotationRepository,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** `new` → `assigned`: `by` accepted the deal (ADR 0071 §3). The acceptor is
@@ -333,7 +336,7 @@ export class OpportunityLifecycle {
   /** The three rows every move owes beside the deal: the funnel row, the
    *  timeline row and the mirror row. One place, so no move can write two of
    *  the three — the failure that leaves a ContextRail printing the old column
-   *  with nothing red to show for it. */
+   *  with nothing red to show for it. The owners' bell line rides along. */
   private async after(
     tx: Db,
     deal: DealAt,
@@ -355,6 +358,13 @@ export class OpportunityLifecycle {
     )
     const touchId = await this.record(tx, written.code, step.kind, by, step.note, step.at)
     await this.mirror.put(tx, toRef(written, deal.owner))
+    /* Accept and stop ring their own kinds; only a care or quotation move rings here. */
+    const to = written.stage
+    if ((to === 'engaged' || to === 'quotation') && step.from !== to) {
+      const owners = await dealOwnerIds(tx, this.hub, this.repo, written.code)
+      const move = { code: written.code, label: written.name, actorId: by.id }
+      await announceStageMoved(tx, this.hub, { ...move, to, owners })
+    }
     return touchId
   }
 

@@ -57,7 +57,7 @@ import { signsDirect } from './opportunity-sign.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { editTrail } from './opportunity-trail'
-import { announceOpened, announceOwners } from './opportunity-bell'
+import { announceOpened, announceOwners, announcePrimary } from './opportunity-bell'
 import { foreignLead, leadGone, opens, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorRoles,
@@ -545,14 +545,17 @@ export class OpportunityService {
       await this.repo.replaceProducts(tx, code, productRowsOf(code, write))
       const products = (await this.repo.productsOf(tx, [code])).get(code) ?? []
       const trail = await this.touch.record(tx, editTrail({ found, body, names, products, who }))
-      await announceOwners(tx, this.hub, {
+      const people = {
         code,
         label: written.name,
         actorId: who.id,
         before: now.owners.map((o) => o.id),
         after: pic,
         occurrence: laneTouch ?? trail[0],
-      })
+      }
+      await announceOwners(tx, this.hub, people)
+      const primary = { from: primaryOf(now.owners), to: salePrimary, at: new Date() }
+      await announcePrimary(tx, this.hub, { ...people, ...primary })
       for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
 
       /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.

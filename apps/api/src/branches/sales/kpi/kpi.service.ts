@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { KPI_TARGET_AGREED, KPI_TARGET_PROPOSED, type Actor } from '@pv/engines'
 import {
   KPI_CATALOG,
+  ROLE_LABEL,
   KpiCompanyResponse,
   KpiMeResponse,
   KpiPeopleResponse,
@@ -14,7 +15,9 @@ import {
 } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { toContractRole } from '@api/platform/auth/auth.mapper'
+import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, invalid } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
@@ -40,6 +43,7 @@ export class KpiService {
     private readonly readings: KpiReadingsRepository,
     private readonly targets: KpiTargetsRepository,
     private readonly audit: AuditRepository,
+    private readonly hub: NotificationHub,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -137,6 +141,8 @@ export class KpiService {
         throw conflict('Chỉ tiêu này vừa được duyệt. Tải lại rồi gửi đề nghị mới.')
       }
       await this.note(tx, who, { kpi: 'target-proposed', period, role, targets: body.targets })
+      const setters = await this.hub.holding(tx, 'kpi.set-target', 'Sales')
+      await this.ring(tx, who, period, role, KPI_TARGET_PROPOSED, { setters }, proposedAt)
     })
     return this.targetsOf(period)
   }
@@ -169,11 +175,14 @@ export class KpiService {
       if (!same) throw stale
       /* The WHERE repeats each stamp, so a row replaced after the read above
          stays pending and the short count undoes the whole agree. */
-      if ((await this.targets.agree(tx, pending, who.id, new Date())) !== pending.length) {
+      const agreedAt = new Date()
+      if ((await this.targets.agree(tx, pending, who.id, agreedAt)) !== pending.length) {
         throw stale
       }
       const keys = pending.map((r) => r.metricKey)
       await this.note(tx, who, { kpi: 'target-agreed', period, role, keys })
+      const proposers = [...new Set(pending.map((r) => r.proposedById))]
+      await this.ring(tx, who, period, role, KPI_TARGET_AGREED, { proposers }, agreedAt)
     })
     return this.targetsOf(period)
   }
@@ -235,6 +244,26 @@ export class KpiService {
     if (this.clock(period).phase === 'closed') {
       throw conflict('Tháng này đã kết thúc, không đổi được chỉ tiêu.')
     }
+  }
+
+  /** One role's month on the bell, in the target write's own transaction. `at`
+   *  keys the line, so a replaced proposal or a later version rings again. The
+   *  month is spelled the way the web's month picker spells it. */
+  private ring(
+    tx: Db,
+    who: Actor,
+    period: KpiPeriodKey,
+    role: RoleId,
+    name: string,
+    audiences: Record<string, readonly string[]>,
+    at: Date,
+  ): Promise<void> {
+    const code = `${period}:${role}`
+    const month = `Tháng ${Number(period.slice(5))} · ${period.slice(0, 4)}`
+    return this.hub.announce(tx, {
+      event: { name, ref: { code }, actorId: who.id, audiences, occurrence: String(at.getTime()) },
+      subject: { kind: 'kpi-target', code, label: `${ROLE_LABEL[role]} · ${month}` },
+    })
   }
 
   /** Same transaction as the rows: a replaced pending value survives only here. */

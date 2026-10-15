@@ -56,13 +56,14 @@ export async function dropSteps(tx: Db, subjectCodes: readonly string[]): Promis
 /** Only a step the old holder was doing follows the hand-over: one given to
  *  someone else stays theirs. `toId` null = released to the pool, so it goes.
  *  No reach or `isLiveSalesActor` check, unlike the PUT door: `toId` IS the new
- *  holder, already vetted by the owner assignment and `lead_owner_id_actor_id_fk`. */
+ *  holder, already vetted by the owner assignment and `lead_owner_id_actor_id_fk`.
+ *  No `bell` = the caller rings one line for the whole act (a lead hand-over). */
 export async function handStepOver(
   tx: Db,
   subjectCode: string,
   fromId: string,
   toId: string | null,
-  bell: StepBell,
+  bell?: StepBell,
 ): Promise<void> {
   const mine = and(eq(nextStep.subjectCode, subjectCode), eq(nextStep.doerId, fromId))
   if (toId === null) {
@@ -74,5 +75,5 @@ export async function handStepOver(
     .set({ doerId: toId, updatedAt: sql`now()` })
     .where(mine)
     .returning({ updatedAt: nextStep.updatedAt })
-  if (moved) await ringDoer(tx, bell, subjectCode, toId, moved.updatedAt)
+  if (moved && bell) await ringDoer(tx, bell, subjectCode, toId, moved.updatedAt)
 }

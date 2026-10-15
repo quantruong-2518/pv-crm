@@ -73,7 +73,7 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The twenty-five `NotificationKind` values, copied out for
+    /** The forty-three `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
@@ -84,13 +84,21 @@ export const notification = platform.table(
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
                      'approval-approved', 'approval-rejected', 'mail-run-sent',
                      'mail-run-cancelled', 'mail-failed', 'customer-replied',
-                     'access-changed', 'password-reset-by-admin', 'google-link-broken')`,
+                     'access-changed', 'password-reset-by-admin', 'google-link-broken',
+                     'opportunity-stage-moved', 'opportunity-primary-changed',
+                     'contract-signed', 'quotation-new-round', 'quotation-superseded',
+                     'contract-installment-paid', 'contract-installment-undone',
+                     'contract-schedule-replaced', 'contract-condition-done',
+                     'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
+                     'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
+                     'lead-resumed', 'lead-reopened', 'mail-run-replied')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
       'notification_subject_kind_known',
       sql`"subject_kind" IN ('lead', 'lead-pool', 'opportunity', 'approval', 'lead-scan', 'mail-run',
-                             'user', 'google-link')`,
+                             'user', 'google-link', 'contract', 'campaign', 'kpi-target', 'comm',
+                             'lead-batch', 'opportunity-batch')`,
     ),
   ],
 )
@@ -141,7 +149,14 @@ export const notificationKindPolicy = platform.table(
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
                      'approval-approved', 'approval-rejected', 'mail-run-sent',
                      'mail-run-cancelled', 'mail-failed', 'customer-replied',
-                     'access-changed', 'password-reset-by-admin', 'google-link-broken')`,
+                     'access-changed', 'password-reset-by-admin', 'google-link-broken',
+                     'opportunity-stage-moved', 'opportunity-primary-changed',
+                     'contract-signed', 'quotation-new-round', 'quotation-superseded',
+                     'contract-installment-paid', 'contract-installment-undone',
+                     'contract-schedule-replaced', 'contract-condition-done',
+                     'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
+                     'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
+                     'lead-resumed', 'lead-reopened', 'mail-run-replied')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

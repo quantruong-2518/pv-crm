@@ -1,4 +1,10 @@
-import type { ConfigEntry, ConfigList } from '@pv/contracts'
+import {
+  FRAME_CHANGE_KINDS,
+  type ConfigEntry,
+  type ConfigList,
+  type ConfigProposal,
+  type LeadMotion,
+} from '@pv/contracts'
 import type { ConfigEdit, LadderRow } from '@/data/sales-config'
 
 /** A whole number of days, at least one. Zero is refused here although the
@@ -61,7 +67,7 @@ export const CONFIG_AREAS = [
     key: 'assign',
     label: 'Phân công',
     step: 2,
-    sections: [{ id: 'motion-policy', no: '5.9', title: 'Thiết lập luồng' }],
+    sections: [{ id: 'motion-policy', no: '5.9', title: 'Hạn liên hệ lần đầu' }],
   },
   {
     key: 'care',
@@ -116,4 +122,72 @@ export function scrollToSection(id: SectionId) {
   document
     .getElementById(id)
     ?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+}
+
+/** The head of every note about the reader's own change still waiting. */
+export const WAITING = 'Đang chờ duyệt'
+
+/** A catalog entry's waiting edits, in the approver's own sentence, or null
+ *  when none waits. */
+export function entryWaiting(
+  proposals: ConfigProposal[],
+  list: ConfigList,
+  id: string,
+): string | null {
+  const said = proposals.flatMap((p) =>
+    p.change.kind === 'update' && p.change.list === list && p.change.id === id
+      ? [p.consequence]
+      : [],
+  )
+  return said.length > 0 ? said.join(' · ') : null
+}
+
+/** Sentences of the names waiting to join one list; for `COMM_ANSWER`, one
+ *  question's answers. */
+export function addsWaiting(
+  proposals: ConfigProposal[],
+  list: ConfigList,
+  criterionId?: string,
+): string[] {
+  return proposals.flatMap((p) =>
+    p.change.kind === 'create' &&
+    p.change.list === list &&
+    (criterionId === undefined || p.change.draft.criterionId === criterionId)
+      ? [p.consequence]
+      : [],
+  )
+}
+
+export function freshnessWaiting(proposals: ConfigProposal[]): string | null {
+  const said = proposals.flatMap((p) =>
+    p.change.kind === 'activity-freshness' ? [p.consequence] : [],
+  )
+  return said.length > 0 ? said.join(' · ') : null
+}
+
+/** Sentences of the waiting changes to one motion's first-touch deadline. */
+export function motionWaiting(proposals: ConfigProposal[], motion: LeadMotion): string[] {
+  return proposals.flatMap((p) =>
+    p.change.kind === 'motion' &&
+    p.change.motion === motion &&
+    p.change.patch.firstTouchMinutes !== undefined
+      ? [p.consequence]
+      : [],
+  )
+}
+
+/** Changes counted per section rather than pinned to a row: a motion's name,
+ *  switch, order or form (5.13, drawn by the lead-origins list), and the
+ *  journey frame (5.14), whose payload the wire does not carry. */
+export function motionPickerWaiting(proposals: ConfigProposal[]): number {
+  return proposals.filter(
+    ({ change: c }) =>
+      c.kind === 'motion' && Object.keys(c.patch).some((k) => k !== 'firstTouchMinutes'),
+  ).length
+}
+
+const FRAME_KINDS: readonly string[] = FRAME_CHANGE_KINDS
+
+export function frameWaiting(proposals: ConfigProposal[]): number {
+  return proposals.filter((p) => FRAME_KINDS.includes(p.change.kind)).length
 }

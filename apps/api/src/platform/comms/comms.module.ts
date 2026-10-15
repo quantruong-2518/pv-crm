@@ -2,6 +2,7 @@ import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nes
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
+import { NotificationModule } from '../notification/notification.module'
 import { StorageModule } from '../storage/storage.module'
 import { CommAttachmentController } from './comm-attachment.controller'
 import { CommAttachmentRepository } from './comm-attachment.repository'
@@ -56,7 +57,9 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
  *
  *  No `exports`: a branch that opens a record imports `CommRecordModule`. */
 @Module({
-  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule],
+  /* `NotificationModule` for the owner's line when someone else confirms their
+     record (ADR 0093 wave 2); it imports nothing that reaches back here. */
+  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule, NotificationModule],
   controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
   providers: [
     IdentityService,

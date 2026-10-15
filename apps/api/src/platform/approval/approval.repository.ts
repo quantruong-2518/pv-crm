@@ -1,5 +1,6 @@
 import { and, arrayOverlaps, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { ApprovalKind } from '@pv/contracts'
 import type { RoleId } from '@pv/engines'
 import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
@@ -118,6 +119,23 @@ export class ApprovalRepository {
       .where(eq(approval.raisedById, actorId))
       .orderBy(desc(approval.raisedAt), desc(approval.id))
       .limit(limit)
+  }
+
+  /** One person's requests of one kind that are still waiting, newest first.
+   *  Uncapped, unlike `raisedBy`: a cut there could drop a waiting row behind
+   *  decided ones. `approval_waiting_idx` narrows it. */
+  async waitingRaisedBy(actorId: string, kind: ApprovalKind): Promise<ApprovalRowDb[]> {
+    return this.db
+      .select()
+      .from(approval)
+      .where(
+        and(
+          eq(approval.raisedById, actorId),
+          eq(approval.kind, kind),
+          eq(approval.state, 'waiting'),
+        ),
+      )
+      .orderBy(desc(approval.raisedAt), desc(approval.id))
   }
 
   /** Requests still waiting that hang off ONE object.

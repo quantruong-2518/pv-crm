@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
+import { NotificationModule } from '@api/platform/notification/notification.module'
 import { ContractController } from './contract.controller'
 import { ContractRepository } from './contract.repository'
 import { ContractService } from './contract.service'
@@ -24,7 +25,7 @@ import { ContractScheduleService } from './contract-schedule.service'
  *  `exports` carries the service only. Another module may ask "give me this
  *  person's contract book"; it does not get to reach into the table. */
 @Module({
-  imports: [AuditModule, EnginesModule],
+  imports: [AuditModule, EnginesModule, NotificationModule],
   controllers: [ContractController],
   providers: [
     ContractService,

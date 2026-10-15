@@ -13,7 +13,7 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { LeadStateWriter } from '../lead/lead-state'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { announceOpened, announceOwners } from './opportunity-bell'
+import { announceImport } from './opportunity-bell'
 import { checkBatch, fold, leadCellOf, type ImportCheck } from './opportunity-import.check'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
 import { acknowledges, opens, OpportunityOpening } from './opportunity-opening.service'
@@ -47,7 +47,7 @@ const CHUNK = 500
  *
  *  An imported deal is written as the typed door writes one (ADR 0088 §19):
  *  mirror row and `spawned` edge, owners, products, its one contact, the
- *  entry stage event, both timeline rows and both bell events (ADR 0085). */
+ *  entry stage event and both timeline rows. The bell rings once per file. */
 @Injectable()
 export class OpportunityImport {
   constructor(
@@ -139,6 +139,7 @@ export class OpportunityImport {
     })
     const leadCodes = [...new Set(ready.map((p) => p.row.leadCode))]
 
+    const rung: Parameters<typeof announceImport>[2]['deals'][number][] = []
     const batch = await this.repo.run(async (tx) => {
       const accounts = await this.opening.lockLeads(tx, who, leadCodes)
       await this.assertRunningAsChecked(tx, leadCodes, running)
@@ -181,9 +182,8 @@ export class OpportunityImport {
         /* Each deal's entry touch leads its own run of rows in the batch. */
         let at = 0
         for (const p of slice) {
-          const after = p.owners.map((o) => o.actorId)
-          const born = { code: p.code, label: p.row.name, actorId: who.id, before: [], after }
-          await announceOwners(tx, this.hub, { ...born, occurrence: touchIds[at] })
+          const ownerIds = p.owners.map((o) => o.actorId)
+          rung.push({ code: p.code, label: p.row.name, ownerIds, touchId: touchIds[at] })
           at += p.touches.length
         }
       }
@@ -191,17 +191,9 @@ export class OpportunityImport {
       await this.workstreams.syncClosed(tx, [
         ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
       ])
-      /* One bell event per deal; the role audience is read once for the file. */
-      const acceptors = await this.hub.holding(tx, 'opportunity.accept', 'Sales')
-      for (const { code, row } of ready) {
-        const told = { code, name: row.name, actorId: who.id }
-        const deal = { ...told, accepted: acceptor !== null, lost: false }
-        await announceOpened(tx, this.hub, deal, acceptors)
-      }
-
       /* The receipt is written even when no row went in: a batch of errors is
          still something that happened, and this row is how anyone can tell. */
-      return this.repo.writeBatchNote(tx, {
+      const note = await this.repo.writeBatchNote(tx, {
         actorId: who.id,
         note: JSON.stringify({
           kind: 'opportunity-import',
@@ -210,6 +202,10 @@ export class OpportunityImport {
           codes,
         }),
       })
+      /* One line per person for the whole file, keyed on the receipt (ADR 0093 §4). */
+      const file = { batchId: note.id, fileName: body.fileName, actorId: who.id }
+      await announceImport(tx, this.hub, { ...file, deals: rung, awaiting: acceptor === null })
+      return note
     })
 
     return OpportunityImportCommitResponse.parse({

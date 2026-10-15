@@ -5,11 +5,9 @@ import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import type { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { invalid } from '@api/platform/http/problem'
-import type { NotificationHub } from '@api/platform/notification/notification.hub'
 import { handStepOver } from '../next-step/next-step.handover'
 import { dealOpen, dealSignWaiting } from '../open-deal'
 import type { TouchService } from '../touch/touch.service'
-import { announceOwners } from './opportunity-bell'
 import { acceptorOf, holderOf, NOTE, toRef } from './opportunity.mapper'
 import { primaryOf, salePrimaryOf } from './opportunity-owners'
 import { ACCEPTOR_NAME } from './opportunity.repository'
@@ -28,7 +26,8 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *
  *  A plain function over `tx`: the lead module calls it, and an
  *  `OpportunityModule` provider there would be a module cycle. The deals are
- *  locked AFTER the lead — the order the stop door takes. */
+ *  locked AFTER the lead — the order the stop door takes. It rings nothing:
+ *  the lead's own line counts the deals that moved. */
 
 type Person = {
   code: string
@@ -41,7 +40,7 @@ type Person = {
 
 export async function handDealsOver(
   tx: Db,
-  deps: { mirror: ObjectMirror; touch: TouchService; hub: NotificationHub },
+  deps: { mirror: ObjectMirror; touch: TouchService },
   move: {
     leadCode: string
     from: TouchHolder
@@ -54,7 +53,7 @@ export async function handDealsOver(
     /** The user's choice; absent = every eligible deal. */
     dealCodes?: readonly string[]
   },
-): Promise<void> {
+): Promise<{ moved: number }> {
   const rows = await tx
     .select({
       row: opportunity,
@@ -94,7 +93,7 @@ export async function handDealsOver(
     )
   }
   const chosen = move.dealCodes ? rows.filter((r) => move.dealCodes?.includes(r.row.code)) : rows
-  if (chosen.length === 0) return
+  if (chosen.length === 0) return { moved: 0 }
   if (!move.toSeesDeals || !(await isLiveSalesActor(tx, move.to.actorId))) {
     throw invalid(
       {
@@ -111,14 +110,8 @@ export async function handDealsOver(
     if (signWaiting) skipped.set(row.code, 'cơ hội đang chờ duyệt ký')
   }
   const moving = chosen.filter((r) => !skipped.has(r.row.code))
-  /* Who stood on each deal before the swap: the bell tells real differences. */
-  const before = await peopleOf(
-    tx,
-    moving.map((r) => r.row.code),
-  )
   await swapSale(
     tx,
-    deps.hub,
     moving.map((r) => r.row),
     move,
   )
@@ -141,7 +134,7 @@ export async function handDealsOver(
       ),
     ),
   )
-  const touchIds = await deps.touch.record(tx, [
+  await deps.touch.record(tx, [
     ...moving.map(({ row }) => ({
       subjectCode: row.code,
       subjectKind: 'opportunity' as const,
@@ -161,26 +154,13 @@ export async function handDealsOver(
       note: NOTE.handOverSkipped(move.to.name, why),
     })),
   ])
-  /* The `handed-over` rows lead the batch, in `moving` order. */
-  for (const [i, { row }] of moving.entries()) {
-    const idsOf = (people: readonly Person[]) =>
-      people.filter((p) => p.code === row.code).map((p) => p.id)
-    await announceOwners(tx, deps.hub, {
-      code: row.code,
-      label: row.name,
-      actorId: move.by.actorId,
-      before: idsOf(before),
-      after: idsOf(after),
-      occurrence: touchIds[i],
-    })
-  }
+  return { moved: moving.length }
 }
 
 async function swapSale(
   tx: Db,
-  hub: NotificationHub,
   deals: readonly OpportunityRowDb[],
-  move: { from: TouchHolder; to: TouchHolder; by: { actorId?: string } },
+  move: { from: TouchHolder; to: TouchHolder },
 ): Promise<void> {
   if (deals.length === 0) return
   const codes = deals.map((r) => r.code)
@@ -222,9 +202,8 @@ async function swapSale(
       .set({ isPrimary: true })
       .where(and(onDeal, eq(opportunityOwner.actorId, next), eq(opportunityOwner.role, 'SALE')))
   }
-  for (const { code, name } of deals) {
-    const bell = { hub, label: name, ...(move.by.actorId ? { actorId: move.by.actorId } : {}) }
-    await handStepOver(tx, code, move.from.actorId, move.to.actorId, bell)
+  for (const { code } of deals) {
+    await handStepOver(tx, code, move.from.actorId, move.to.actorId)
   }
 }
 

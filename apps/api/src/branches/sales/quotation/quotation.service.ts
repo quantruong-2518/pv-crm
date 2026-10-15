@@ -15,7 +15,9 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
+import { announceRound, dealOwnerIds } from '../opportunity/deal-money.bell'
 import { OpportunityLifecycle, vnDay, type DealAt } from '../opportunity/opportunity-lifecycle'
 import { OpportunityMoves } from '../opportunity/opportunity-moves.service'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
@@ -51,6 +53,7 @@ export class QuotationService {
     private readonly contracts: ContractRepository,
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** `GET /sales/opportunities/quotation-reasons`. */
@@ -144,7 +147,7 @@ export class QuotationService {
       place = { negotiationNo: slot.negotiationNo, roundNo: slot.nextRound }
     }
 
-    return this.repo.insert(tx, {
+    const written = await this.repo.insert(tx, {
       opportunityCode: code,
       ...place,
       ...(manual
@@ -161,6 +164,16 @@ export class QuotationService {
       touchId: sent.touchId,
       createdBy: by.id,
     })
+    /* One line per act: a pending round only exists on a deal already at
+       `quotation` or won, so a supersede never shares an act with a move. */
+    const superseded = slot.pending !== null && !!manual?.supersede
+    const moved = sent.row.stage !== deal.row.stage || sent.row.state !== deal.row.state
+    if (superseded || !moved) {
+      const owners = await dealOwnerIds(tx, this.hub, this.deals, code)
+      const round = { code, label: deal.row.name, actorId: by.id, roundId: written.id }
+      await announceRound(tx, this.hub, { ...round, superseded, owners })
+    }
+    return written
   }
 
   /** The profile's `money` block. Each contract is judged by the contract

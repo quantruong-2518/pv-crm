@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { CAMPAIGN_STOPPED, type Actor } from '@pv/engines'
 import {
   CampaignBookResponse,
   CampaignCreateResponse,
@@ -30,6 +30,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { PvError, conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import {
   toContract,
   toMemberRow,
@@ -62,6 +63,7 @@ export class CampaignService {
     private readonly mas: MasService,
     @Inject(ENV) private readonly env: Env,
     private readonly origins: LeadOriginService,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** Không chạy `E2.visible()` như lưới thứ hai của `LeadService.book()`: đó
@@ -437,7 +439,20 @@ export class CampaignService {
       }
     }
 
-    await this.repo.setState(code, 'STOPPED')
+    /* The owner hears it in the same write; stopping your own campaign rings nobody. */
+    await this.repo.run(async (tx) => {
+      const updatedAt = await this.repo.setState(code, 'STOPPED', tx)
+      await this.hub.announce(tx, {
+        event: {
+          name: CAMPAIGN_STOPPED,
+          ref: { code },
+          actorId: who.id,
+          audiences: { owner: found.row.ownerId ? [found.row.ownerId] : [] },
+          occurrence: String(updatedAt.getTime()),
+        },
+        subject: { kind: 'campaign', code, label: found.row.name },
+      })
+    })
 
     return CampaignStopResponse.parse({ state: 'STOPPED', cancelled })
   }

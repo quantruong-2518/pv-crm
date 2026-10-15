@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common'
-import { OPPORTUNITY_ACCEPTED, type Actor } from '@pv/engines'
+import { Injectable, Logger } from '@nestjs/common'
+import type { Actor } from '@pv/engines'
 import {
   OpportunityAcceptResponse,
   type ObjectCode,
@@ -11,7 +11,7 @@ import { conflict, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
-import { announceOwners } from './opportunity-bell'
+import { announceAccepted, announceOwners } from './opportunity-bell'
 import {
   actorRoles,
   assertSellers,
@@ -39,6 +39,8 @@ import { OpportunityRepository, type OpportunityRead } from './opportunity.repos
  *  the new holder (the acceptor, when no seller is added). */
 @Injectable()
 export class OpportunityAccept {
+  private readonly log = new Logger('opportunity-accept')
+
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly lifecycle: OpportunityLifecycle,
@@ -55,8 +57,15 @@ export class OpportunityAccept {
     const by = { id: who.id, name: who.name }
     const at = new Date()
     /* Who opened the deal: the `by` of its entry stage event, the oldest row.
-       Read before the tx — it never changes, and this reader is on the pool. */
-    const opener = (await this.deals.stageEventsOf(code)).at(-1)?.byId
+       Read before the tx on the pool — it never changes. Bell-only, so a
+       failure skips the opener's line, never the accept. */
+    const opener = await this.deals.stageEventsOf(code).then(
+      (rows) => rows.at(-1)?.byId,
+      (error: unknown) => {
+        this.log.error(`Opener of ${code} was not read: ${String(error)}`)
+        return undefined
+      },
+    )
 
     await this.deals.run(async (tx) => {
       const lock = await this.deals.lockDeal(tx, code)
@@ -111,30 +120,44 @@ export class OpportunityAccept {
           at,
         },
       )
+      const was = found.owners.map((o) => o.id)
       const after = fresh.owners.map((o) => o.id)
-      await announceOwners(tx, this.hub, {
-        code,
-        label,
-        actorId: who.id,
-        before: found.owners.map((o) => o.id),
-        after,
-        occurrence,
-      })
-      /* No occurrence: a deal is accepted once (`acceptVerdict`). */
-      await this.hub.announce(tx, {
-        event: {
-          name: OPPORTUNITY_ACCEPTED,
-          ref: { code },
-          actorId: who.id,
-          audiences: { holders: opener ? [...after, opener] : after },
-        },
-        subject: { kind: 'opportunity', code, label },
-      })
+      const people = { code, label, actorId: who.id, before: was, after }
+      await announceOwners(tx, this.hub, { ...people, occurrence })
+      /* One act, one line: whoever it added hears `announceOwners`, the rest
+         hear this, so no primary-changed line either. */
+      const stayed = after.filter((id) => was.includes(id))
+      await announceAccepted(tx, this.hub, { ...people, holders: stayed })
+      if (opener && !after.includes(opener)) {
+        await this.tellOpener(tx, { code, label, actorId: who.id }, opener, fresh.row.leadCode)
+      }
     })
 
     const read = await this.deals.byCode(null, code)
     if (!read) throw notFound('cơ hội', code)
     return OpportunityAcceptResponse.parse(await this.facts.row(read))
+  }
+
+  /** An opener off the deal may not open it: they hear it on the lead (ADR
+   *  0093 §7), and only while they hold that lead or are not own-only — else
+   *  the lead is not theirs to open either. A failed read skips the line. */
+  private async tellOpener(
+    tx: Db,
+    deal: { code: string; label: string; actorId: string },
+    opener: string,
+    leadCode: string,
+  ): Promise<void> {
+    const lead = await this.hub.bellRead(tx, `lead of ${deal.code}`, null, async (s) => {
+      const read = await this.deals.leadCompany(s, leadCode)
+      if (!read) return null
+      /* The shared role audience is exactly "active and not own-only". */
+      const roles = (await actorRoles(s, [opener])).get(opener) ?? []
+      const shared = (await this.hub.sharedInRoles(s, roles)).includes(opener)
+      return read.ownerId === opener || shared ? read : null
+    })
+    if (!lead) return
+    const subject = { kind: 'lead' as const, code: leadCode, label: lead.company }
+    await announceAccepted(tx, this.hub, { ...deal, holders: [opener], subject })
   }
 
   /** The holder once `by` is the acceptor — read before the move, because the

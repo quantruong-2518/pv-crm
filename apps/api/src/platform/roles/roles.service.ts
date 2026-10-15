@@ -1,10 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common'
-import type { Actor, Permission, RoleId } from '@pv/engines'
+import { randomUUID } from 'node:crypto'
+import { Inject, Injectable, Logger } from '@nestjs/common'
+import { ModuleRef } from '@nestjs/core'
+import { ROLE_GRANTS_REPLACED, type Actor, type Permission, type RoleId } from '@pv/engines'
 import { RoleId as ContractRoleId, type RoleGrants, type RoleMatrixView } from '@pv/contracts'
 import { AuditRepository } from '../audit/audit.repository'
 import { ADMIN_KEYS, lockAdminSurface } from '../db/admin-surface'
 import { DB, type Db } from '../db/db.module'
 import { conflict } from '../http/problem'
+import { NotificationHub } from '../notification/notification.hub'
 import { RolePermissionRepository } from './role-permission.repository'
 
 /** Rules about WHO may change the matrix, and what change would leave nobody
@@ -19,6 +22,9 @@ export class RolesService {
     @Inject(DB) private readonly db: Db,
     private readonly repo: RolePermissionRepository,
     private readonly audit: AuditRepository,
+    /* `NotificationModule` imports this module, so importing it back is a cycle;
+       the hub is looked up by class at call time, as `MailBell` reaches its hooks. */
+    private readonly modules: ModuleRef,
   ) {}
 
   /** Every role, including roles holding nothing.
@@ -57,9 +63,36 @@ export class RolesService {
       await this.repo.replace(tx, roleId, wanted, who.id)
 
       const note = this.noteFor(roleId, before, wanted)
-      if (note) await this.audit.write({ actorId: who.id, action: 'edit', note }, tx)
+      if (note) {
+        await this.audit.write({ actorId: who.id, action: 'edit', note }, tx)
+        await this.ringHolders(tx, who, roleId)
+      }
 
       return { roleId, permissions: wanted }
+    })
+  }
+
+  /** Everyone wearing the role, own-only seats too: their access moved whatever
+   *  their scope. One line per save (a fresh occurrence); E4 skips the editor. */
+  private async ringHolders(tx: Db, who: Actor, roleId: RoleId): Promise<void> {
+    /* A bell that cannot be found must not roll back the grants themselves. */
+    let hub: NotificationHub
+    try {
+      hub = this.modules.get(NotificationHub, { strict: false })
+    } catch (error) {
+      new Logger(RolesService.name).error(`Role ${roleId} bell not rung: ${String(error)}`)
+      return
+    }
+    await hub.announce(tx, {
+      event: {
+        name: ROLE_GRANTS_REPLACED,
+        ref: { code: `role:${roleId}` },
+        occurrence: randomUUID(),
+        actorId: who.id,
+        audiences: { holders: await hub.inRoles(tx, [roleId]) },
+      },
+      /* No label: the search matches this kind's sentence only on label-less rows. */
+      subject: { kind: 'user', code: roleId, label: null },
     })
   }
 

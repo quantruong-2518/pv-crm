@@ -1,8 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import { Inject, Injectable, Logger } from '@nestjs/common'
+import {
+  CONDITION_DONE,
+  INSTALLMENT_PAID,
+  INSTALLMENT_UNDONE,
+  SCHEDULE_REPLACED,
+  type AccessControl,
+  type Actor,
+} from '@pv/engines'
 import {
   CONTRACT_INSTALLMENTS_MAX,
   ContractScheduleResponse,
+  NOTIFICATION_DETAIL_NO,
   type ContractCode,
   type ContractInstallmentsBody,
   type InstallmentConditionBody,
@@ -13,22 +21,33 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { vnDay } from '../opportunity/opportunity-lifecycle'
 import { toDetail } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
 import type { ContractInstallmentRowDb, ContractRowDb } from './contract.schema'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 
+/** What a door did: the audit note, and the bell it rings, if any. `occurrence`
+ *  keeps two acts of one kind on one contract apart in the bell's ledger. */
+type Done = {
+  note: string
+  bell?: { name: string; occurrence: string; no?: number }
+}
+
 /** The write doors of a signed contract's schedule (ADR 0090). Every door takes
  *  the scope fence first, then the contract's row lock, and answers the
  *  contract re-read; the audit line commits with the row that caused it. */
 @Injectable()
 export class ContractScheduleService {
+  private readonly log = new Logger('contract')
+
   constructor(
     private readonly contracts: ContractRepository,
     private readonly schedule: ContractScheduleRepository,
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly hub: NotificationHub,
   ) {}
 
   /** The UNPAID instalments become exactly the body's list; paid ones stay. A
@@ -74,7 +93,10 @@ export class ContractScheduleService {
       const lines = edits.map((e) => ({ ...e, no: e.no ?? ++last }))
       await this.schedule.replaceUnpaid(tx, code, unpaid, lines)
       const dropped = unpaid.length - named.length
-      return `schedule replaced: ${named.length} kept, ${edits.length - named.length} added, ${dropped} deleted, ${paid.length} paid untouched`
+      return {
+        note: `schedule replaced: ${named.length} kept, ${edits.length - named.length} added, ${dropped} deleted, ${paid.length} paid untouched`,
+        bell: { name: SCHEDULE_REPLACED, occurrence: String(Date.now()) },
+      }
     })
   }
 
@@ -102,7 +124,10 @@ export class ContractScheduleService {
         recordedAt: now,
       })
       if (!written) throw conflict('Đợt này vừa được ghi thu. Tải lại trang.')
-      return `installment ${no} marked paid (${vnDay(landed)})`
+      return {
+        note: `installment ${no} marked paid (${vnDay(landed)})`,
+        bell: { name: INSTALLMENT_PAID, occurrence: `${no}@${now.getTime()}`, no },
+      }
     })
   }
 
@@ -119,7 +144,10 @@ export class ContractScheduleService {
       if (!(await this.schedule.undoPaid(tx, code, no, who.id))) {
         throw conflict('Đợt này vừa thay đổi. Tải lại trang.')
       }
-      return `installment ${no} payment undone`
+      return {
+        note: `installment ${no} payment undone`,
+        bell: { name: INSTALLMENT_UNDONE, occurrence: `${no}@${Date.now()}`, no },
+      }
     })
   }
 
@@ -141,7 +169,7 @@ export class ContractScheduleService {
         what: body.what,
         detail: body.detail,
       })
-      return `installment ${no} reminder recorded (${body.channel})`
+      return { note: `installment ${no} reminder recorded (${body.channel})` }
     })
   }
 
@@ -149,7 +177,7 @@ export class ContractScheduleService {
     return this.write(who, code, async (tx) => {
       await this.installmentOf(tx, code, no)
       await this.schedule.addCondition(tx, code, no, { ...body, due: new Date(body.due) })
-      return `installment ${no} condition added (${body.side})`
+      return { note: `installment ${no} condition added (${body.side})` }
     })
   }
 
@@ -159,29 +187,61 @@ export class ContractScheduleService {
       if (!condition) throw notFound('điều kiện', id)
       if (condition.doneAt) throw conflict('Điều kiện này đã xong.')
       await this.schedule.markConditionDone(tx, id, new Date())
-      return `installment ${no} condition ${id} done`
+      return {
+        note: `installment ${no} condition ${id} done`,
+        bell: { name: CONDITION_DONE, occurrence: id, no },
+      }
     })
   }
 
   /** Scope fence, then one transaction: lock the contract, run the change, write
-   *  the audit line it returns. Out of scope answers the same 404 as the read. */
+   *  the audit line and ring the bell it returns. Out of scope answers the same
+   *  404 as the read. */
   private async write(
     who: Actor,
     code: ContractCode,
-    work: (tx: Db, contract: ContractRowDb) => Promise<string>,
+    work: (tx: Db, contract: ContractRowDb) => Promise<Done>,
   ): Promise<ContractScheduleResponse> {
     if (!(await this.contracts.inScope(who, code))) throw notFound('hợp đồng', code)
 
     await this.schedule.run(async (tx) => {
       const row = await this.schedule.lock(tx, code)
       if (!row) throw notFound('hợp đồng', code)
-      const note = await work(tx, row)
+      const { note, bell } = await work(tx, row)
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
+      if (bell) await this.ring(tx, who, code, bell)
     })
 
     const found = await this.contracts.byCode(who, code)
     if (!found) throw notFound('hợp đồng', code)
     return ContractScheduleResponse.parse(toDetail(found))
+  }
+
+  /** The actor is passed so E4 skips them: nobody is told about their own act.
+   *  The audience read sits under a savepoint, like `NotificationHub.holding`:
+   *  a failed bell must never roll back the payment it describes. */
+  private async ring(tx: Db, who: Actor, code: string, bell: NonNullable<Done['bell']>) {
+    const heard = await tx
+      .transaction((savepoint) => this.schedule.bellAudience(savepoint, code))
+      .catch((error: unknown) => {
+        this.log.error(`Audience for ${bell.name} on ${code} was not read: ${String(error)}`)
+        return null
+      })
+    if (!heard) return
+    await this.hub.announce(tx, {
+      event: {
+        name: bell.name,
+        ref: { code },
+        actorId: who.id,
+        audiences: {
+          owner: heard.ownerId ? [heard.ownerId] : [],
+          participants: heard.participants,
+        },
+        occurrence: bell.occurrence,
+      },
+      subject: { kind: 'contract', code, label: heard.label },
+      detail: bell.no === undefined ? null : { [NOTIFICATION_DETAIL_NO]: bell.no },
+    })
   }
 
   private async installmentOf(tx: Db, code: string, no: number): Promise<ContractInstallmentRowDb> {

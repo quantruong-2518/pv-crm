@@ -10,6 +10,7 @@ import {
   isNull,
   lt,
   or,
+  type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { NotificationKind, PageQuery } from '@pv/contracts'
@@ -50,15 +51,20 @@ export class NotificationRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   /** Which of these ids are real actors, whether each is locked, and the roles
-   *  the kind policy mutes by (ADR 0093 §1). `KEY
-   *  SHARE` is the lock the foreign keys take anyway: holding it from here
+   *  and branches the kind policy and the link backstop read (ADR 0093 §1, §7).
+   *  `KEY SHARE` is the lock the foreign keys take anyway: holding it from here
    *  means no delete can land between this answer and the insert it guards. */
   actors(
     tx: Db,
     ids: readonly string[],
-  ): Promise<{ id: string; disabledAt: Date | null; roleIds: RoleId[] }[]> {
+  ): Promise<{ id: string; disabledAt: Date | null; roleIds: RoleId[]; branches: Branch[] }[]> {
     return tx
-      .select({ id: actor.id, disabledAt: actor.disabledAt, roleIds: actor.roleIds })
+      .select({
+        id: actor.id,
+        disabledAt: actor.disabledAt,
+        roleIds: actor.roleIds,
+        branches: actor.branches,
+      })
       .from(actor)
       .where(inArray(actor.id, [...ids]))
       .for('key share')
@@ -76,6 +82,23 @@ export class NotificationRepository {
   /** Unlocked actors in one of these roles; with a branch, only those licensed
    *  for it — the same two questions E2's `check` asks of a signed-in person. */
   async activeIn(tx: Db, roles: readonly RoleId[], branch?: Branch): Promise<string[]> {
+    /* A role audience hears about things nobody holds yet; someone who may
+       only see their own could not open any of them. */
+    return this.inRoles(tx, roles, branch, eq(actor.ownOnly, false))
+  }
+
+  /** `activeIn` with own-only people kept: for news about the role itself or
+   *  about a thing the emitter already knows they may open (ADR 0093 §7). */
+  activeInRoles(tx: Db, roles: readonly RoleId[], branch?: Branch): Promise<string[]> {
+    return this.inRoles(tx, roles, branch)
+  }
+
+  private async inRoles(
+    tx: Db,
+    roles: readonly RoleId[],
+    branch?: Branch,
+    extra?: SQL,
+  ): Promise<string[]> {
     const rows = await tx
       .select({ id: actor.id })
       .from(actor)
@@ -83,10 +106,8 @@ export class NotificationRepository {
         and(
           arrayOverlaps(actor.roleIds, [...roles]),
           isNull(actor.disabledAt),
-          /* A role audience hears about things nobody holds yet; someone who
-             may only see their own could not open any of them. */
-          eq(actor.ownOnly, false),
           branch ? arrayContains(actor.branches, [branch]) : undefined,
+          extra,
         ),
       )
     return rows.map((r) => r.id)

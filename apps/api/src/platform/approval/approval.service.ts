@@ -252,6 +252,12 @@ export class ApprovalService {
     })
   }
 
+  /** The person's own waiting requests of one kind, payload included — for the
+   *  branch that raised them and reads its own handwriting back. */
+  waitingRaisedBy(who: Actor, kind: ApprovalKind): Promise<ApprovalRowDb[]> {
+    return this.repo.waitingRaisedBy(who.id, kind)
+  }
+
   /** What is still waiting on one object — the `approvals` input every caller of
    *  `pipelinePosition` has to supply.
    *
