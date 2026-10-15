@@ -7,6 +7,7 @@ import {
   NOTIFICATION_DETAIL_NO,
   NOTIFICATION_DETAIL_STAGE,
   NOTIFICATION_KIND_LABEL,
+  notificationSentence,
   type NotificationRow,
   type NotificationSubject,
 } from '@pv/contracts'
@@ -29,16 +30,20 @@ export function NotificationLine({
   const path = useNotificationPath()(row)
   const unread = row.readAt === null
   const installment = overdueInstallment(row)
-  /* An overdue installment adds which one, how much and since when. */
-  const extra = [
-    row.subject.label,
-    ...detailFragments(row),
-    installment ? `Đợt ${installment.no}` : null,
-    typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
-    installment?.due ? `hạn ${dm(installment.due)}` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
+  const sentence = notificationSentence(row)
+  /* An overdue installment adds which one, how much and since when. A built
+     sentence already says the name and the counts. */
+  const extra = sentence
+    ? ''
+    : [
+        row.subject.label,
+        ...detailFragments(row),
+        installment ? `Đợt ${installment.no}` : null,
+        typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
+        installment?.due ? `hạn ${dm(installment.due)}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
   const body = (
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -48,7 +53,7 @@ export function NotificationLine({
             unread ? 'text-foreground font-semibold' : 'text-muted-foreground',
           )}
         >
-          {NOTIFICATION_KIND_LABEL[row.kind]}
+          {sentence ?? NOTIFICATION_KIND_LABEL[row.kind]}
         </span>
         {extra ? (
           <span className="text-muted-foreground tnum text-[12.5px] leading-[1.5]">{extra}</span>

@@ -243,7 +243,8 @@ export const NOTE = {
 
   /** On the LEAD, when the stop above was its last live deal (ADR 0069 §3).
    *  No deal code: the lead's readers may not see the deal. The stop door only
-   *  writes `nurturing` now (ADR 0097 §2); `new` is kept for `seed.ts`. */
+   *  writes `nurturing`, when its stopper picks the waiting group (owner,
+   *  15/10/2026); `new` is kept for `seed.ts`. */
   lastLost: {
     nurturing: 'Cơ hội cuối đã dừng — lead về nhóm chờ chăm sóc',
     new: 'Cơ hội cuối đã dừng — lead không có người giữ nên về kho chung',

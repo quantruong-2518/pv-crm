@@ -71,7 +71,11 @@ export class CampaignSweeper {
        failed park retries all three. No actor, so even the owner hears it. */
     const { closed, parked } = await this.repo.run(async (tx) => {
       const rows = await this.repo.closeFinished(tx)
+      const closed = rows.map((row) => row.code)
+      const silent = await this.parks.silentMembers(tx, closed)
+      /* The owner's one line counts every lead this close parks (owner, 15/10/2026). */
       for (const row of rows) {
+        const n = silent.filter((m) => m.campaignCode === row.code).length
         await this.hub.announce(tx, {
           event: {
             name: CAMPAIGN_FINISHED,
@@ -80,10 +84,9 @@ export class CampaignSweeper {
             occurrence: String(row.updatedAt.getTime()),
           },
           subject: { kind: 'campaign', code: row.code, label: row.name },
+          detail: n > 0 ? { [NOTIFICATION_DETAIL_COUNT]: n } : null,
         })
       }
-      const closed = rows.map((row) => row.code)
-      const silent = await this.parks.silentMembers(tx, closed)
       const note = LEAD_NOTE.nurtured(CAMPAIGN_SILENT_REASON, undefined)
       for (const { code } of silent) {
         const park = { by: null, reasonId: CAMPAIGN_SILENT_REASON, note }
@@ -105,15 +108,17 @@ export class CampaignSweeper {
 
   /** C5's bell (ADR 0093): ONE `lead-nurtured` line per holder per campaign,
    *  on the campaign as a `lead-batch` and counted — a Sale reads the leads
-   *  through the book, where `campaign` would need `campaign.view`. */
+   *  through the book, where `campaign` would need `campaign.view`. The
+   *  campaign's owner is skipped: their `campaign-finished` line counts them. */
   private async ringParks(
     tx: Db,
-    campaigns: readonly { code: string; name: string; updatedAt: Date }[],
+    campaigns: readonly { code: string; name: string; updatedAt: Date; ownerId: string | null }[],
     silent: readonly SilentMember[],
   ): Promise<void> {
     for (const c of campaigns) {
       const mine = silent.filter((m) => m.campaignCode === c.code)
       for (const holder of new Set(mine.map((m) => m.ownerId))) {
+        if (holder === c.ownerId) continue
         await this.hub.announce(tx, {
           event: {
             name: LEAD_NURTURED,

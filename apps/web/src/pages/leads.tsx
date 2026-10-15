@@ -14,7 +14,7 @@ import {
   SearchField,
   SegmentedControl,
 } from '@pv/ui'
-import { LEAD_OPEN_STATES, LeadBookQuery, OWNER_NONE, type LeadStateFilter } from '@pv/contracts'
+import { LEAD_ACTIVE_STATES, LeadBookQuery, OWNER_NONE, type LeadStateFilter } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
@@ -189,7 +189,7 @@ export function LeadsPage() {
     /* A selection never crosses the switched-off tab's edge: its action flips. */
     if ((value === DISABLED) !== disabledView) clearSelection()
     /* The pinned and switched-off tabs REPLACE the state filter: pins span every
-       state. Off the open tab the state-list filter is hidden, so it is dropped. */
+       state. Off the active tab the state-list filter is hidden, so it is dropped. */
     if (value === PINNED)
       patch({ pinned: true, state: 'all', states: undefined, disabled: undefined })
     else if (value === DISABLED)
@@ -202,7 +202,7 @@ export function LeadsPage() {
     else
       patch({
         state: value as LeadStateFilter,
-        states: value === 'open' ? query.states : undefined,
+        states: value === 'active' ? query.states : undefined,
         disabled: undefined,
         pinned: undefined,
         /* The held tab trades the created-date column for the hold's date. */
@@ -239,7 +239,7 @@ export function LeadsPage() {
       )}
     </ColumnFilter>
   )
-  const stateOptions = LEAD_OPEN_STATES.map((state) => ({
+  const stateOptions = LEAD_ACTIVE_STATES.map((state) => ({
     value: state,
     label:
       byState === undefined
@@ -368,7 +368,7 @@ export function LeadsPage() {
       { header: listFilter('Nguồn lead', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
       {
         header:
-          tabValue === 'open' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
+          tabValue === 'active' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
         width: 'minmax(0,1.2fr)',
       },
       heldView

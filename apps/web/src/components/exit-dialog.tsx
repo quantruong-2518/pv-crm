@@ -123,12 +123,18 @@ export function StopReasonField({
   note,
   onNoteChange,
   notePlaceholder,
+  size,
+  label,
 }: {
   reasonKey: string
   onReasonChange: (key: string) => void
   note: string
   onNoteChange: (note: string) => void
   notePlaceholder?: string
+  /** `lg` inside a drawer whose other pickers are `lg` (48px on touch). */
+  size?: 'md' | 'lg'
+  /** Names whose reason it is when the deal's own reason field sits above it. */
+  label?: string
 }) {
   /* `leadStopReasonsQuery`, not `salesCatalogQuery`: the picker is open to
      anyone who stops a lead, and that permission (`lead.view`) is not
@@ -141,7 +147,7 @@ export function StopReasonField({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">
-          Lý do
+          {label ?? 'Lý do'}
           <span className="text-warning" aria-hidden="true">
             {' '}
             *
@@ -153,6 +159,7 @@ export function StopReasonField({
           value={reasonKey}
           neutralValue=""
           onChange={onReasonChange}
+          size={size}
           className="w-full"
           options={[
             { value: '', label: '— chọn một lý do —' },

@@ -180,7 +180,8 @@ export const JourneyLead = z.object({
 })
 
 /** The fail log of a lost deal (ADR 0069 §1). A lost deal draws no waiting
- *  door — only the lead parks, and only when its last live deal is lost. */
+ *  door — only the lead moves, when its last live deal is lost: the lead parks
+ *  or stops, by the stopper's choice. */
 export const JourneyDealStop = z.object({
   reason: textInput(200),
   note: textInput(OPPORTUNITY_STOP_NOTE_MAX).nullable(),

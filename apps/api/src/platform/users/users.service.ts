@@ -361,6 +361,11 @@ export class UsersService {
       held.leads > 0 ? `${held.leads} lead` : '',
       held.opportunities > 0 ? `${held.opportunities} cơ hội` : '',
       held.nextSteps > 0 ? `${held.nextSteps} việc tiếp theo` : '',
+      held.switchedOffLeads > 0
+        ? `${held.switchedOffLeads} lead đã vô hiệu`
+        : held.switchedOffOther > 0
+          ? 'việc trên lead đã vô hiệu'
+          : '',
     ].filter((p) => p !== '')
     if (parts.length === 0) return null
     if (toId === undefined) {

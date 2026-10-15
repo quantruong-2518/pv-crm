@@ -417,32 +417,41 @@ Raised while recording the opportunity flow decisions (ADR 0088).
 ## Waiting group and holds (added 15/10/2026)
 
 Raised while recording the waiting group and the hold list (ADR 0097). Each
-default is the assistant's default, built 15/10/2026; the owner has not
-answered yet.
+default is the assistant's default, built 15/10/2026; all answered by the
+owner the same day (ADR 0097 §8).
 
 92. **Who is reminded about a held deal whose SALE lane is empty?** Default:
     the deal's holders (plus whoever set the hold). _(see ADR 0097 §4)_
+    **Answered 15/10/2026: yes, the default stands.**
 93. **What does the receiver read when a locked account's work moves?**
     Default: one counted line "Bạn được giao lead … kèm N cơ hội", even when
     only deals or next steps moved; next steps are moved but not counted in
     the line. _(see ADR 0097 §7)_
+    **Answered 15/10/2026: "Bạn nhận việc của {người nghỉ}: X lead, Y cơ hội, Z việc tiếp theo"; a kind at zero is left out.**
 94. **Does the "Nhãn nhóm chờ" card show on every lead?** Default: only on
     leads in Nhóm chờ chăm sóc or already labelled. _(see ADR 0097 §5)_
+    **Answered 15/10/2026: yes, the default stands.**
 95. **Does "Đang hoạt động" still include waiting-group leads now that they
     have their own tab?** Default: yes, unheld ones; held leads leave every
     tab but "Tạm hoãn" and "Tất cả". _(see ADR 0097 §3)_
+    **Answered 15/10/2026: no — "Đang hoạt động" leaves the waiting group to its own tab; the campaign picker still offers it.**
 96. **What happens to switched-off leads under a hold or an account lock?**
     Default: they keep their hold; reminders skip them; a locked account's
     switched-off leads are not handed over. _(see ADR 0097 §3, §7)_
+    **Answered 15/10/2026: switched-off leads move on a lock too, with their deals, uncounted; holds kept, reminders skip them.**
 97. **When does a campaign "start" for the C5 re-park?** Default: the first
     wave's creation time; campaigns already running before this change never
     re-park (no backfill). _(see ADR 0097 §6)_
+    **Answered 15/10/2026: yes, the default stands; no backfill.**
 98. **How often do hold reminders run?** Default: once an hour on the worker
     tick (env `PV_HOLD_REMINDER_MINUTES`). _(see ADR 0097 §4)_
+    **Answered 15/10/2026: yes, hourly.**
 99. **Should the hold's exit button say "Bỏ tạm hoãn"?** Default: the button
     keeps the word "Mở lại"; its toast says "Đã bỏ tạm hoãn {code}."
     _(see ADR 0097 §3)_
+    **Answered 15/10/2026: yes — the button says "Bỏ tạm hoãn".**
 100.  **What do reminders do when a hold's date is changed?** Default: a new
       date within half a month gets no "sắp tới" reminder (it would ring at
       once); the day-of reminder rings again for the new date.
       _(see ADR 0097 §4)_
+      **Answered 15/10/2026: yes, the default stands.**

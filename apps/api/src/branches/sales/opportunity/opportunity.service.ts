@@ -54,6 +54,7 @@ import {
 import { dealAtOf, vnDay } from './opportunity-lifecycle'
 import { toHold } from '../hold/hold.mapper'
 import { pendingSignOf, profileContractsOf, stageSpansOf } from './opportunity-profile'
+import { LeadAfterStopRule } from './opportunity-stop-lead'
 import { signsDirect } from './opportunity-sign.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
@@ -143,6 +144,7 @@ export class OpportunityService {
     private readonly facetsRepo: OpportunityFacetsRepository,
     private readonly meetings: MeetingService,
     private readonly quotes: QuotationService,
+    private readonly leadAfter: LeadAfterStopRule,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -309,18 +311,23 @@ export class OpportunityService {
       ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
+    const verdicts = await this.acts.of(who, found, sign !== undefined)
     return OpportunityProfileResponse.parse({
       ...row,
       position: positionOf(found.row, stageRows, approvals),
       pendingSign: pendingSignOf(sign),
       signsDirect: signsDirect(who),
       contacts,
-      ...(await this.acts.of(who, found, sign !== undefined)),
+      ...verdicts,
       stages: stageSpansOf(found.row, events, stageRows, new Date()),
       contracts: profileContractsOf(signedRows),
       money: await this.quotes.money(who, found.row, signedRows),
       chain: story.chain.map(toChainLink),
       hold: hold ? toHold(hold, vnDay(new Date())) : null,
+      /* Asked only of a reader who may stop: holder names stay with them. */
+      leadAfterStop: verdicts.acts.stop.ok
+        ? await this.leadAfter.of(this.repo.readonlyHandle, who, found)
+        : null,
     })
   }
 

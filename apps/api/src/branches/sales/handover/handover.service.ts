@@ -3,6 +3,7 @@ import { LEAD_HANDED_OVER, type AccessControl, type Actor } from '@pv/engines'
 import {
   NOTIFICATION_DETAIL_COUNT,
   NOTIFICATION_DETAIL_DEALS,
+  NOTIFICATION_DETAIL_STEPS,
   type TouchHolder,
   type UserHoldingsResponse,
 } from '@pv/contracts'
@@ -29,8 +30,8 @@ import { HandoverRepository } from './handover.repository'
  *  primary rules), `handStepOver` for steps. A BD seat, or a deal held only
  *  through the leaver's acceptance, has no such door: `seatsOver` writes it.
  *  Same timeline rows as a hand-over by hand; ONE bell line for the whole
- *  lock (ADR 0093). A hold rides with its subject: it is keyed by the
- *  subject, not by a person. */
+ *  lock (ADR 0093). Switched-off leads move too, uncounted. A hold rides with
+ *  its subject: it is keyed by the subject, not by a person. */
 @Injectable()
 export class SalesWorkHandover implements WorkHandover {
   constructor(
@@ -59,23 +60,16 @@ export class SalesWorkHandover implements WorkHandover {
   }
 
   /** Locks first, then judges: the leads by code, then the deals (the stop
-   *  door's order). The bell counts are read off the locked rows, so the
-   *  line says what moved. */
+   *  door's order). The bell counts are `holdings` read after the locks and
+   *  before any move, so the line says what the lock dialog said. */
   async handOver(tx: Db, move: { fromId: string; toId: string; by: Actor }): Promise<void> {
     const from = await this.repo.person(tx, move.fromId)
     const to = await this.repo.person(tx, move.toId)
     if (!from || !to) return
     const leads = await this.repo.lockLeads(tx, from.id)
-    const deals = await this.repo.lockDeals(tx, from.id)
-    // The owner's call (ADR 0097 §7): the lock goes ahead; a deal a waiting sign
-    // request freezes stays on the leaver and is left out of the counts.
-    const frozen = await this.repo.signFrozen(tx, from.id, deals)
+    await this.repo.lockDeals(tx, from.id)
+    const counts = await this.repo.holdings(tx, from.id)
     const owned = leads.filter((l) => l.ownedByLeaver)
-    const counts: UserHoldingsResponse = {
-      leads: owned.length,
-      opportunities: deals.length - frozen.length,
-      nextSteps: await this.repo.stepCount(tx, from.id),
-    }
     const giver: TouchHolder = { actorId: from.id, name: from.name }
     const taker: TouchHolder = { actorId: to.id, name: to.name, ...headRole(to.roleIds) }
     const by = byOf(move.by)
@@ -102,7 +96,7 @@ export class SalesWorkHandover implements WorkHandover {
     const seated = [...new Map([...bd, ...accepted].map((d) => [d.row.code, d])).values()]
     await this.seatsOver(tx, seated, handed, { giver, taker, by, note })
 
-    const dated = await this.touch.record(
+    await this.touch.record(
       tx,
       owned.map((l) => ({
         subjectCode: l.code,
@@ -115,20 +109,12 @@ export class SalesWorkHandover implements WorkHandover {
       })),
     )
     await this.repo.moveSteps(tx, from.id, to.id)
-    const [one] = owned
-    await this.ring(
-      tx,
-      { from, toId: to.id, actorId: move.by.id, counts },
-      one && owned.length === 1 && counts.opportunities === 0
-        ? { ...one, occurrence: dated[0] }
-        : null,
-    )
+    await this.ring(tx, { from, toId: to.id, actorId: move.by.id, counts })
   }
 
-  /** ONE line to the receiver for the whole lock (ADR 0093): a lone lead keeps
-   *  the per-lead line; with deals, whose leads may differ, or several leads it
-   *  is a `lead-batch` line on the leaver, counted. Next steps ride along
-   *  uncounted: no `detail` key names them yet. */
+  /** ONE line to the receiver for the whole lock (ADR 0093), on the leaver,
+   *  counting leads, deals and next steps (owner, 15/10/2026). It opens the
+   *  lead book, or the deal board when no lead moved. */
   private async ring(
     tx: Db,
     act: {
@@ -137,25 +123,25 @@ export class SalesWorkHandover implements WorkHandover {
       actorId: string
       counts: UserHoldingsResponse
     },
-    one: { code: string; company: string; occurrence: string | undefined } | null,
   ): Promise<void> {
     const { leads, opportunities, nextSteps } = act.counts
     if (leads + opportunities + nextSteps === 0) return
-    const deals: Record<string, number> =
-      opportunities > 0 ? { [NOTIFICATION_DETAIL_DEALS]: opportunities } : {}
+    const kind = leads === 0 && opportunities > 0 ? 'opportunity-batch' : 'lead-batch'
     await this.hub.announce(tx, {
       event: {
         name: LEAD_HANDED_OVER,
-        ref: { code: one ? one.code : act.from.id },
+        ref: { code: act.from.id },
         actorId: act.actorId,
         audiences: { 'new-holder': [act.toId], 'previous-holder': [] },
         /* A second lock of the same person must ring again. */
-        occurrence: one?.occurrence ?? new Date().toISOString(),
+        occurrence: new Date().toISOString(),
       },
-      subject: one
-        ? { kind: 'lead', code: one.code, label: one.company }
-        : { kind: 'lead-batch', code: act.from.id, label: act.from.name },
-      detail: one ? null : { [NOTIFICATION_DETAIL_COUNT]: leads, ...deals },
+      subject: { kind, code: act.from.id, label: act.from.name },
+      detail: {
+        [NOTIFICATION_DETAIL_COUNT]: leads,
+        [NOTIFICATION_DETAIL_DEALS]: opportunities,
+        [NOTIFICATION_DETAIL_STEPS]: nextSteps,
+      },
     })
   }
 

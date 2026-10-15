@@ -18,6 +18,7 @@ import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  LEAD_ACTIVE_STATES,
   LEAD_OPEN_STATES,
   LeadState,
   OWNER_NONE,
@@ -623,7 +624,8 @@ export class LeadRepository {
     return this.signed() as SQL<boolean>
   }
 
-  /** The book's `state` filter: `open` is the five `LEAD_OPEN_STATES`, `live`
+  /** The book's `state` filter: `active` is the open states minus the waiting
+   *  group, `open` is the five `LEAD_OPEN_STATES`, `live`
    *  is everything not gone, `all` is no condition, `held` the leads on hold,
    *  anything else is one state. A held lead leaves `open` and every single
    *  state (ADR 0097 §3), so the tabs never list one lead twice. */
@@ -632,6 +634,7 @@ export class LeadRepository {
     if (state === 'all') return undefined
     if (state === 'live') return notInArray(lead.state, [...LEAD_GONE_STATES])
     if (state === 'held') return held
+    if (state === 'active') return and(inArray(lead.state, [...LEAD_ACTIVE_STATES]), not(held))
     if (state === 'open') return and(inArray(lead.state, [...LEAD_OPEN_STATES]), not(held))
     return and(eq(lead.state, state), not(held))
   }

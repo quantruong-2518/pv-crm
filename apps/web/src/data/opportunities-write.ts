@@ -513,8 +513,8 @@ function useMoveSettled(code: ObjectCode) {
     void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })
     void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     if (row.state !== 'lost') return
-    /* A stop clears the deal's next step, and the last one parks the lead and
-       closes the journey (ADR 0069 §3) — both read elsewhere. */
+    /* A stop clears the deal's next step, and the last one moves the lead where
+       its stopper chose and closes the journey (ADR 0069 §3) — both read elsewhere. */
     void client.invalidateQueries({ queryKey: nextStepKey(code) })
     invalidateLeadState(client)
   }
@@ -603,11 +603,15 @@ export const opportunityStopReasonsQuery = queryOptions({
 })
 
 export function useStopDeal(code: ObjectCode) {
+  const client = useQueryClient()
   const settled = useMoveSettled(code)
 
   return useMutation<OpportunityStopResponse, ApiError, OpportunityStopBody>({
     mutationFn: (body) => stopDeal(code, body),
     onSuccess: settled,
+    /* A sibling deal stopped meanwhile can make this the lead's last one: the
+       re-read profile brings the where-does-the-lead-go question the 409 asks for. */
+    onError: () => void client.invalidateQueries({ queryKey: ['sales', 'ops', code] }),
   })
 }
 

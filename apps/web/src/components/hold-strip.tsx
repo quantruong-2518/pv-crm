@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { CalendarClock, GlassCard, Icon, MetaPill, cn } from '@pv/ui'
 import type { Hold } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
-import { BADGE_INK } from '@/data/opportunities'
 import { DueBadge } from '@/components/contract-bits'
 
 /** The open hold over a profile, above everything like the switched-off
@@ -12,8 +11,7 @@ import { DueBadge } from '@/components/contract-bits'
  *  On a card face, not a tint: the strip sits on the page ground under the
  *  glow, where the due pills measured 3.80:1 (warning) and 3.53:1 (danger)
  *  in the light theme (law 13). On `--card` they clear 4.5 in both themes, and the
- *  opaque card keeps the glow out of the sum. The grey `upcoming` pill keeps
- *  the darker ink the journey cards give it. */
+ *  opaque card keeps the glow out of the sum. */
 export function HoldStrip({ hold, actions }: { hold: Hold; actions?: ReactNode }) {
   return (
     <GlassCard
@@ -26,10 +24,7 @@ export function HoldStrip({ hold, actions }: { hold: Hold; actions?: ReactNode }
         <div className="flex min-w-0 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-2 text-[13px] font-semibold">
             <span className="tnum">Tạm hoãn đến {dmy(hold.until)}</span>
-            <DueBadge
-              level={hold.dueLevel}
-              className={hold.dueLevel === 'upcoming' ? BADGE_INK : undefined}
-            />
+            <DueBadge level={hold.dueLevel} />
           </span>
           {hold.note && (
             <span className="text-muted-foreground break-words text-[12px]">{hold.note}</span>
@@ -78,7 +73,7 @@ export function HoldUntilCell({ hold }: { hold: Pick<Hold, 'until' | 'dueLevel'>
   return (
     <span className="flex min-w-0 flex-col items-start gap-1">
       <span className="tnum text-[13px]">{dmy(hold.until)}</span>
-      <DueBadge level={hold.dueLevel} className={BADGE_INK} />
+      <DueBadge level={hold.dueLevel} />
     </span>
   )
 }

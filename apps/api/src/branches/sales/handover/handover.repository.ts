@@ -17,16 +17,26 @@ import {
 
 /** The leaver hand-over's SQL (ADR 0097 §7). Each predicate is written once
  *  and both `holdings` and the move read it, so the lock dialog's counts are
- *  exactly what moves. */
+ *  exactly what moves, less what hangs off a switched-off lead: that moves
+ *  too, so nothing stays on the leaver, but uncounted (owner, 15/10/2026). */
 
 /** A lead the leaver holds that is still being worked: an open state (held
- *  ones included — a hold is an overlay), or `converted` with a live deal. */
+ *  ones included — a hold is an overlay), or `converted` with a live deal.
+ *  No `leadLive`: a switched-off lead moves with the rest. */
 const leadHeldBy = (userId: string): SQL =>
-  sql`(${lead.ownerId} = ${userId} AND ${leadLive}
+  sql`(${lead.ownerId} = ${userId}
        AND (${lead.state} IN (${sql.join(
          LEAD_OPEN_STATES.map((s) => sql`${s}`),
          sql`, `,
        )}) OR (${lead.state} = 'converted' AND ${leadHasOpenDeal(lead.code)})))`
+
+/** The lead or deal at `code` is, or hangs off, a switched-off lead. */
+const switchedOff = (code: SQL): SQL =>
+  sql`EXISTS (SELECT 1 FROM "sales"."lead" ho_x
+               WHERE ho_x."disabled_at" IS NOT NULL
+                 AND (ho_x."code" = ${code}
+                      OR ho_x."code" = (SELECT ho_d."lead_code" FROM "sales"."opportunity" ho_d
+                                         WHERE ho_d."code" = ${code})))`
 
 /** The leaver stands on the deal's SALE lane. */
 const onSaleOf = (userId: string, code: SQL): SQL =>
@@ -85,33 +95,36 @@ export type LeaverLead = Pick<LeadRowDb, 'code' | 'state' | 'company'> & {
 
 @Injectable()
 export class HandoverRepository {
+  /** The counts, also the receiver's bell line. Read after the move's locks,
+   *  as a statement of its own: the locking ones judged their subqueries on
+   *  the snapshot they took before waiting. */
   async holdings(tx: Db, userId: string): Promise<UserHoldingsResponse> {
     const r = (await tx.execute(sql`
-      SELECT (SELECT count(*)::int FROM ${lead} WHERE ${leadHeldBy(userId)}) AS "leads",
+      SELECT (SELECT count(*)::int FROM ${lead}
+               WHERE ${leadHeldBy(userId)} AND ${leadLive}) AS "leads",
+             (SELECT count(*)::int FROM ${lead}
+               WHERE ${leadHeldBy(userId)} AND NOT ${leadLive}) AS "switchedOffLeads",
              (SELECT count(*)::int FROM "sales"."opportunity" ho_o
-               WHERE ${dealMovedBy(userId)}) AS "opportunities",
+               WHERE ${dealMovedBy(userId)} AND NOT ${switchedOff(hoCode)}) AS "opportunities",
              (SELECT count(*)::int FROM "sales"."next_step" ho_s
-               WHERE ho_s."doer_id" = ${userId}) AS "nextSteps"
+               WHERE ho_s."doer_id" = ${userId}
+                 AND NOT ${switchedOff(sql`ho_s."subject_code"`)}) AS "nextSteps",
+             (SELECT count(*)::int FROM "sales"."opportunity" ho_o
+               WHERE ${dealMovedBy(userId)} AND ${switchedOff(hoCode)})
+             + (SELECT count(*)::int FROM "sales"."next_step" ho_s
+                 WHERE ho_s."doer_id" = ${userId}
+                   AND ${switchedOff(sql`ho_s."subject_code"`)}) AS "switchedOffOther"
     `)) as { rows: UserHoldingsResponse[] }
     const [row] = r.rows
-    return row ?? { leads: 0, opportunities: 0, nextSteps: 0 }
-  }
-
-  /** Of the locked deals, those a waiting sign request keeps on the leaver.
-   *  A statement of its own after the lock: the locking one judged its
-   *  subqueries on the snapshot it took before waiting. */
-  async signFrozen(tx: Db, userId: string, codes: readonly string[]): Promise<string[]> {
-    if (codes.length === 0) return []
-    const r = (await tx.execute(sql`
-      SELECT ho_o."code" FROM "sales"."opportunity" ho_o
-       WHERE ho_o."code" IN (${sql.join(
-         codes.map((c) => sql`${c}`),
-         sql`, `,
-       )})
-         AND ${dealSignFrozenFor(userId, hoCode, hoState, hoAccepted)}
-       ORDER BY ho_o."code"
-    `)) as { rows: { code: string }[] }
-    return r.rows.map((row) => row.code)
+    return (
+      row ?? {
+        leads: 0,
+        opportunities: 0,
+        nextSteps: 0,
+        switchedOffLeads: 0,
+        switchedOffOther: 0,
+      }
+    )
   }
 
   /** Every lead the move touches, locked by code before any deal: the leaver's
@@ -142,14 +155,6 @@ export class HandoverRepository {
          FOR UPDATE
     `)) as { rows: { code: string }[] }
     return r.rows.map((row) => row.code)
-  }
-
-  async stepCount(tx: Db, userId: string): Promise<number> {
-    const [row] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(nextStep)
-      .where(eq(nextStep.doerId, userId))
-    return row?.n ?? 0
   }
 
   /** The leaver's BD deals, locked after their leads. */
@@ -232,7 +237,7 @@ export class HandoverRepository {
   }
 
   /** Steps still on the leaver once their leads and deals moved: steps they
-   *  do on somebody else's subject. One UPDATE; the lock's one bell counts them. */
+   *  do on somebody else's subject. One UPDATE; `holdings` counted them. */
   async moveSteps(tx: Db, fromId: string, toId: string): Promise<void> {
     await tx
       .update(nextStep)

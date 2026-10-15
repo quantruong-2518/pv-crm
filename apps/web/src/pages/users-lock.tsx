@@ -73,12 +73,8 @@ export function HandoverDrawer({
       onClose={onClose}
       title={`Khoá ${user.name}`}
       subtitle={
-        holdings && (
-          <span className="tnum">
-            Đang phụ trách {holdings.leads} lead, {holdings.opportunities} cơ hội,{' '}
-            {holdings.nextSteps} việc tiếp theo.
-          </span>
-        )
+        holdings &&
+        heldLine(holdings) && <span className="tnum">Đang phụ trách {heldLine(holdings)}.</span>
       }
       footer={
         <StepFooter
@@ -123,7 +119,36 @@ export function HandoverDrawer({
           {fieldError ??
             'Lead, cơ hội và việc tiếp theo chuyển sang người này. Cơ hội đang chờ duyệt ký giữ nguyên.'}
         </p>
+        {holdings && offLine(holdings) ? (
+          <p className="text-muted-foreground tnum m-0 text-[11.5px]">
+            {heldLine(holdings)
+              ? `Kèm ${offLine(holdings)}.`
+              : `${capitalize(offLine(holdings))} chuyển sang người này.`}
+          </p>
+        ) : null}
       </div>
     </Drawer>
   )
 }
+
+/** The counted work, a kind at zero left out — switched-off leads have their own note. */
+const heldLine = (h: UserHoldingsResponse) =>
+  [
+    [h.leads, 'lead'],
+    [h.opportunities, 'cơ hội'],
+    [h.nextSteps, 'việc tiếp theo'],
+  ]
+    .filter(([n]) => Number(n) > 0)
+    .map(([n, noun]) => `${Number(n).toLocaleString('vi-VN')} ${noun}`)
+    .join(', ')
+
+/** Work on switched-off leads: the leads when the leaver holds some, else
+ *  only deals or steps on them, which have no count of their own. */
+const offLine = (h: UserHoldingsResponse) =>
+  h.switchedOffLeads > 0
+    ? `${h.switchedOffLeads.toLocaleString('vi-VN')} lead đã vô hiệu`
+    : h.switchedOffOther > 0
+      ? 'việc trên lead đã vô hiệu'
+      : ''
+
+const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)

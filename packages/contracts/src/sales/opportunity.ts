@@ -850,16 +850,10 @@ export const OpportunityMilestoneBody = z.object({
   note: textInputOptional(OPPORTUNITY_STAGE_NOTE_MAX),
 })
 
-/** `POST /sales/opportunities/:code/stop` — the deal is lost, for good; there is
- *  no reopen door. Nurturing again starts from the lead.
- *
- *  `reasonKey` is a STRING, deliberately not an enum: the reasons are the
- *  `LOSS_REASON` catalogue in `sales.config_entry` that the desk edits without a
- *  deploy, so a closed list here would refuse a row somebody just added. The
- *  server checks the key against the catalogue; the contract only guarantees a
- *  key was sent — and that `other` came with a sentence, because "Khác" with no
- *  note is a reason nobody can read later. */
-export const OpportunityStopBody = z
+/** A catalogue reason plus its note — shared by the deal's stop and the lead's
+ *  stop doors (`LeadStopBody`, ADR 0070). Extended with `safeExtend`, which
+ *  keeps the refine. */
+export const StopReasonBody = z
   .object({
     reasonKey: textInput(OPPORTUNITY_STOP_REASON_MAX),
     note: textInputOptional(OPPORTUNITY_STOP_NOTE_MAX),
@@ -868,6 +862,31 @@ export const OpportunityStopBody = z
     error: 'Chọn "Khác" thì phải ghi lý do.',
     path: ['note'],
   })
+
+/** Where the lead goes when a stop ends its last live deal with nothing signed
+ *  (owner, 15/10/2026): the waiting group under one of the profile's
+ *  `leadAfterStop.holders`, or stopped (`disqualified`) with an `EXIT_REASON` key. */
+export const LeadAfterStopChoice = z.discriminatedUnion('to', [
+  z.object({ to: z.literal('waiting'), holderId: textInput(64) }),
+  StopReasonBody.safeExtend({ to: z.literal('stop') }),
+])
+
+/** `POST /sales/opportunities/:code/stop` — the deal is lost, for good; there is
+ *  no reopen door. Nurturing again starts from the lead.
+ *
+ *  `reasonKey` is a STRING, deliberately not an enum: the reasons are the
+ *  `LOSS_REASON` catalogue in `sales.config_entry` that the desk edits without a
+ *  deploy, so a closed list here would refuse a row somebody just added. The
+ *  server checks the key against the catalogue; the contract only guarantees a
+ *  key was sent — and that `other` came with a sentence, because "Khác" with no
+ *  note is a reason nobody can read later.
+ *
+ *  `lead` is required exactly when the profile's `leadAfterStop` is set; the
+ *  server judges that again under its locks (409 when missing) and ignores
+ *  `lead` on any other stop. */
+export const OpportunityStopBody = StopReasonBody.safeExtend({
+  lead: LeadAfterStopChoice.optional(),
+})
 
 /** `POST /sales/opportunities/:code/accept` — a head-of-sales or director
  *  takes a `new` deal to `assigned`. Permission `opportunity.accept`.
@@ -953,6 +972,8 @@ export type CareActivityKind = z.infer<typeof CareActivityKind>
 export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>
+export type StopReasonBody = z.infer<typeof StopReasonBody>
+export type LeadAfterStopChoice = z.infer<typeof LeadAfterStopChoice>
 export type OpportunityStopBody = z.infer<typeof OpportunityStopBody>
 export type OpportunityStopResponse = z.infer<typeof OpportunityStopResponse>
 export type OpportunityContactsBody = z.infer<typeof OpportunityContactsBody>

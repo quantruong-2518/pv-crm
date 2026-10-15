@@ -3,19 +3,22 @@ import type { Actor } from '@pv/engines'
 import {
   OpportunityMilestoneResponse,
   OpportunityStopResponse,
+  type LeadAfterStopChoice,
   type ObjectCode,
   type OpportunityMilestoneBody,
   type OpportunityStopBody,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { notFound } from '@api/platform/http/problem'
+import { conflict, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { endHolds, shiftDealClock } from '../hold/hold.sql'
 import { syncLeadRuns } from '../workstream/workstream-sync'
+import { LeadExitService } from '../lead/lead-exit.service'
 import { LeadStateWriter } from '../lead/lead-state'
 import { announceOpened } from './opportunity-bell'
 import { OpportunityFacts } from './opportunity-facts'
 import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
+import { LeadAfterStopRule } from './opportunity-stop-lead'
 import { daysInStageOf, NOTE } from './opportunity.mapper'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -39,6 +42,8 @@ export class OpportunityMoves {
     private readonly lifecycle: OpportunityLifecycle,
     private readonly hub: NotificationHub,
     private readonly leadStates: LeadStateWriter,
+    private readonly leadExits: LeadExitService,
+    private readonly leadRule: LeadAfterStopRule,
     private readonly facts: OpportunityFacts,
   ) {}
 
@@ -67,8 +72,9 @@ export class OpportunityMoves {
   /** `POST /sales/opportunities/:code/stop` — the deal is lost, with a reason.
    *
    *  One transaction for everything the stop causes: the bell line, the lead
-   *  parked when this was its last live deal (ADR 0069 §3), the LEAD's run
-   *  re-synced — the deal's own run code may be an older journey of the lead.
+   *  sent where the stopper chose when this was its last live deal (owner,
+   *  15/10/2026), the LEAD's run re-synced — the deal's own run code may be an
+   *  older journey of the lead.
    *  The lead is locked BEFORE the deal — the order the lead hand-over takes.
    *  Stopping a held deal is allowed and ends its hold (ADR 0097 §3). */
   async stop(
@@ -101,32 +107,51 @@ export class OpportunityMoves {
           [],
         )
       }
-      const parked =
-        (await this.deals.allLost(tx, written.leadCode)) &&
-        (await this.parkLead(tx, who, written, { lead, sale: primarySaleOf(fresh.owners) }))
-      if (!parked) await syncLeadRuns(tx, [written.leadCode])
+      /* "Last live" judged here, under both locks and after the stop's own write. */
+      const last =
+        lead?.state === 'converted' && (await this.deals.allLost(tx, written.leadCode))
+          ? lead
+          : undefined
+      const moved =
+        last !== undefined &&
+        (await this.leadAfter(tx, who, written, last, fresh.owners, body.lead))
+      if (!moved) await syncLeadRuns(tx, [written.leadCode])
       return written
     })
 
     return OpportunityStopResponse.parse(await this.answer(found, row, at))
   }
 
-  /** The lead goes back to waiting (the state writer re-syncs its run and
-   *  withholds its mail, ADR 0068 §6). A lead nobody holds first takes the lost
-   *  deal's primary Sale, else the stopper (ADR 0097 §2), credited to the
-   *  stopper — no `lead-received` line: the stop's `opportunity-lost` reaches
-   *  them already. `true` when the lead moved. */
-  private async parkLead(
+  /** The stopper's answer to "where does the lead go" (owner, 15/10/2026),
+   *  judged by `LeadAfterStopRule.options` as the profile offered it: the
+   *  waiting group under one of its holders — handed over, and rung,
+   *  when that is someone new — or the lead exit door's own write. The state
+   *  writer re-syncs the run and withholds mail. `true` when the lead moved. */
+  private async leadAfter(
     tx: Db,
     who: Actor,
     deal: OpportunityRead['row'],
-    on: { lead: LockedLead | undefined; sale: { id: string } | null },
+    lead: LockedLead,
+    owners: OpportunityRead['owners'],
+    choice: LeadAfterStopChoice | undefined,
   ): Promise<boolean> {
-    if (on.lead && on.lead.ownerId === null && on.lead.state === 'converted') {
-      /* A locked primary Sale cannot hold a lead: the stopper takes it. */
-      const sale = on.sale ? await this.deals.liveActor(tx, on.sale.id) : undefined
-      await this.leadStates.claimed(tx, [on.lead], sale ?? who, who, false)
+    if (!choice) throw conflict('Đây là cơ hội cuối của lead. Chọn lead này đi đâu.')
+    const may = await this.leadRule.options(tx, who, lead.ownerId, owners)
+    if (choice.to === 'stop') {
+      if (!may.canStop) throw conflict('Bạn không được ngừng chăm sóc lead này.')
+      const held = { ownerId: lead.ownerId, workstreamCode: lead.workstreamCode }
+      await this.leadExits.disqualify(
+        tx,
+        who,
+        deal.leadCode,
+        { ...held, label: lead.company },
+        choice,
+      )
+      return true
     }
+    const to = may.holders.find((h) => h.id === choice.holderId)
+    if (!to) throw conflict('Người này không nhận được lead. Chọn người khác.')
+    if (to.id !== lead.ownerId) await this.leadStates.handOver(tx, lead, to, who)
     return this.leadStates.dealsLost(tx, deal.leadCode, mover(who), NOTE.lastLost.nurturing)
   }
 
@@ -170,11 +195,5 @@ export class OpportunityMoves {
 }
 
 const mover = (who: Actor) => ({ id: who.id, name: who.name })
-
-/** The deal's primary Sale (ADR 0086), or none when its SALE lane is empty. */
-const primarySaleOf = (owners: OpportunityRead['owners']) => {
-  const sale = owners.find((o) => o.role === 'SALE' && o.primary)
-  return sale ? { id: sale.id } : null
-}
 
 type LockedLead = Awaited<ReturnType<OpportunityRepository['lockLeads']>>[number]

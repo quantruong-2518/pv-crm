@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, Installment, InstallmentView } from '@/data/contracts'
 import { DUE_LABEL, standingOf } from '@/data/contracts'
+import { BADGE_INK } from '@/data/opportunities'
 
 /** The three pieces every contract screen repeats. They live here rather than in
  *  `@pv/ui` because none of them is a general control — each one only means
@@ -39,10 +40,12 @@ export function ContractStanding({
 }
 
 /** The level badge. Colour alone never carries it — the word is always there,
- *  which is also what keeps the two overdue levels apart at a glance. */
+ *  which is also what keeps the two overdue levels apart at a glance. Ink is
+ *  `BADGE_INK` at every level: the tone inks fell under 4.5:1 on a selected
+ *  light row (danger 4.05, warning 4.35); the tint still carries the colour. */
 export function DueBadge({ level, className }: { level: DueLevel; className?: string }) {
   return (
-    <Badge tone={TONE[level]} className={className}>
+    <Badge tone={TONE[level]} className={cn(BADGE_INK, className)}>
       {DUE_LABEL[level]}
     </Badge>
   )

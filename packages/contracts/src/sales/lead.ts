@@ -41,7 +41,7 @@ import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
 import { PartnerCode } from './partner'
-import { OPPORTUNITY_STOP_REASON_OTHER, OpportunityStopBody } from './opportunity'
+import { OPPORTUNITY_STOP_REASON_OTHER, StopReasonBody } from './opportunity'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
  *
@@ -216,15 +216,16 @@ export const LeadRow = z.object({
 // Filters — every one of them has to survive the URL
 // ---------------------------------------------------------------------------
 
-/** The book's `state` filter: one `LeadState`, or a group — `open` (the five
- *  `LEAD_OPEN_STATES`, the default: the book is a work list), `live` (open or
+/** The book's `state` filter: one `LeadState`, or a group — `active` (the
+ *  `LEAD_ACTIVE_STATES`, the default: the book is a work list), `open` (the five
+ *  `LEAD_OPEN_STATES`, waiting group included — the campaign picker), `live` (open or
  *  converted — every lead a deal may still be raised on) or `all`. A group
  *  key rather than a list param, so "which five are open" is decided on the
  *  server and not re-spelled by every caller. `held` = leads with an open hold
  *  (`./hold`); a held lead leaves `open` and every single-state value, so the
  *  `nurturing` (waiting group) tab lists only the unheld ones. */
 export const LeadStateFilter = z.enum(
-  [...LeadState.options, 'open', 'live', 'held', 'all'],
+  [...LeadState.options, 'active', 'open', 'live', 'held', 'all'],
   'Trạng thái không có trong danh sách.',
 )
 
@@ -273,7 +274,7 @@ export const LeadBookQuery = PageQuery.extend({
   tier: LeadTier.optional(),
   category: LeadCategory.optional(),
 
-  state: LeadStateFilter.default('open'),
+  state: LeadStateFilter.default('active'),
   /** `true` = ONLY the leads switched off (`disabledAt`), for the people who
    *  may switch them back. Silently ignored without `lead.disable` — the
    *  partner book's `includeInactive` rule — so the flag is never an oracle. */
@@ -962,7 +963,7 @@ export const LeadOwnerResponse = LeadRow
 /** The lead's stop doors take the SAME body as the deal's (ADR 0070): one
  *  catalogue kind of choice, one pair of caps, one `'other'` string. */
 export const LEAD_STOP_REASON_OTHER = OPPORTUNITY_STOP_REASON_OTHER
-export const LeadStopBody = OpportunityStopBody
+export const LeadStopBody = StopReasonBody
 
 /** `GET /sales/lead-stop-reasons` — the `EXIT_REASON` catalogue for people who
  *  stop leads or read their history but hold no `config.view`. Inactive rows

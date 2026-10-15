@@ -169,7 +169,8 @@ export const userHoldingsQuery = (id: string) =>
     staleTime: 0,
   })
 
-const heldAny = (h: UserHoldingsResponse) => h.leads + h.opportunities + h.nextSteps > 0
+const heldAny = (h: UserHoldingsResponse) =>
+  h.leads + h.opportunities + h.nextSteps + h.switchedOffLeads + h.switchedOffOther > 0
 
 /** The read in front of the lock. `check` calls `onFree` when the person
  *  holds nothing; otherwise `holdings` is set and the drawer opens on it. */

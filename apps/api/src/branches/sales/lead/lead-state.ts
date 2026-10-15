@@ -306,11 +306,11 @@ export class LeadStateWriter {
     )
   }
 
-  /** The last live deal of a `converted` lead stopped with nothing signed (ADR
-   *  0069 §3, 0097 §2): → `nurturing`. The caller gives an unheld lead its
-   *  holder first (`claimed`), so the park never lands on `new` —
-   *  `lead_open_owner_matches` refuses an ownerless `nurturing`. Parked as every
-   *  park is (`afterPark`). `true` when the lead moved. */
+  /** The last live deal of a `converted` lead stopped with nothing signed and
+   *  its stopper chose the waiting group (ADR 0069 §3, owner 15/10/2026): →
+   *  `nurturing`. The caller hands the lead to the chosen holder first
+   *  (`handOver`) — `lead_open_owner_matches` refuses an ownerless `nurturing`.
+   *  Parked as every park is (`afterPark`). `true` when the lead moved. */
   async dealsLost(
     tx: Db,
     code: string,
@@ -333,7 +333,7 @@ export class LeadStateWriter {
    *  the nurture door, a hold ended "to waiting" and a campaign's close (C5)
    *  all land here, so a park always reads, withholds and rings the same way.
    *  The holder hears it unless they pressed it — a machine park included
-   *  (ADR 0093 §6). `dealsLost` does not ring: a stop rings `opportunity-lost` only.
+   *  (ADR 0093 §6). `dealsLost` itself does not ring; the stop rings the rest.
    *  `ring: false` = the caller rings one counted line for many parks (C5). */
   async parked(tx: Db, code: string, park: Park, ring = true): Promise<void> {
     await this.move(tx, code, 'nurturing')
@@ -412,15 +412,11 @@ export class LeadStateWriter {
   /** A deal door's opener takes the leads nobody holds (ADR 0088 §17): the
    *  owner door's claim out of the pool — same write, same `handed-over` row
    *  with no giver, same bell event. Rows locked by the caller, before
-   *  `converted`. `by` differs from the taker when a stop hands an unheld lead
-   *  to the lost deal's primary Sale (ADR 0097 §2); that claim passes
-   *  `ring: false`, since the stop's `opportunity-lost` already tells them. */
+   *  `converted`. */
   async claimed(
     tx: Db,
     leads: readonly Pick<LeadRowDb, 'code' | 'state' | 'company'>[],
     who: Pick<Actor, 'id' | 'name' | 'roleIds'>,
-    by: Pick<Actor, 'id' | 'name'> = who,
-    ring = true,
   ): Promise<void> {
     for (const found of leads) await this.ownerSet(tx, found, who.id)
     const [role] = who.roleIds
@@ -430,26 +426,66 @@ export class LeadStateWriter {
         subjectCode: found.code,
         subjectKind: 'lead' as const,
         kind: 'handed-over' as const,
-        ...byOf(by),
+        ...byOf(who),
         to: { actorId: who.id, name: who.name, ...(role ? { role } : {}) },
         note: `${LEAD_NOTE.handedTo} ${who.name}`,
       })),
     )
     /* The lead door's claim event. The taker is the actor, so E4's own-action
        rule rings nobody today; reported anyway so a new rule hears both doors. */
-    if (!ring) return
     for (const [i, found] of leads.entries()) {
       await this.hub.announce(tx, {
         event: {
           name: LEAD_HANDED_OVER,
           ref: { code: found.code },
-          actorId: by.id,
+          actorId: who.id,
           audiences: { 'new-holder': [who.id], 'previous-holder': [] },
           occurrence: dated[i],
         },
         subject: { kind: 'lead', code: found.code, label: found.company },
       })
     }
+  }
+
+  /** The stopper of a lead's last live deal gave it to `to` for the waiting
+   *  group (owner, 15/10/2026): the owner door's write and its one
+   *  `handed-over` row with both ends, rung to both holders — never a silent
+   *  claim. On a row the caller locked; a `converted` lead has no step to carry. */
+  async handOver(
+    tx: Db,
+    found: Pick<LeadRowDb, 'code' | 'state' | 'company' | 'ownerId'>,
+    to: Pick<Actor, 'id' | 'name' | 'roleIds'>,
+    by: Pick<Actor, 'id' | 'name'>,
+  ): Promise<void> {
+    const [before] = found.ownerId ? await this.reload(tx, [found.code]) : []
+    await this.ownerSet(tx, found, to.id)
+    const [role] = to.roleIds
+    const [occurrence] = await this.touch.record(tx, [
+      {
+        subjectCode: found.code,
+        subjectKind: 'lead',
+        kind: 'handed-over',
+        ...byOf(by),
+        ...(found.ownerId && before?.ownerName
+          ? { from: { actorId: found.ownerId, name: before.ownerName } }
+          : {}),
+        to: { actorId: to.id, name: to.name, ...(role ? { role } : {}) },
+        note: `${LEAD_NOTE.handedTo} ${to.name}`,
+      },
+    ])
+    await this.hub.announce(tx, {
+      event: {
+        name: LEAD_HANDED_OVER,
+        ref: { code: found.code },
+        actorId: by.id,
+        audiences: {
+          'new-holder': [to.id],
+          'previous-holder': found.ownerId ? [found.ownerId] : [],
+        },
+        occurrence,
+      },
+      subject: { kind: 'lead', code: found.code, label: found.company },
+    })
   }
 
   /** Re-put the mirror rows from the stored lead, after any write that moved

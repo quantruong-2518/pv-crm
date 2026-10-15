@@ -64,7 +64,7 @@ export function OpportunityHoldStrip({ op }: { op: Profile }) {
     <>
       <Button size="md" className="pointer-coarse:h-12" disabled={end.isPending} onClick={resume}>
         <Icon icon={RotateCcw} size={16} />
-        Mở lại
+        Bỏ tạm hoãn
       </Button>
       <Button
         size="md"

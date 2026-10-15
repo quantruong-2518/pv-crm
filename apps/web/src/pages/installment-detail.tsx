@@ -16,7 +16,6 @@ import {
   StatCard,
   StatusDot,
   Timeline,
-  cn,
   vnd,
   millions,
   type StatusDotState,
@@ -150,13 +149,7 @@ function InstallmentScreen({
           title={
             <>
               {`Đợt ${installment.no} · ${installment.label}`}
-              <DueBadge
-                level={view.level}
-                className={cn(
-                  'ml-3 align-middle tracking-normal',
-                  view.level === 'upcoming' && 'text-foreground',
-                )}
-              />
+              <DueBadge level={view.level} className="ml-3 align-middle tracking-normal" />
             </>
           }
           actions={

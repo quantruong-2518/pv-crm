@@ -289,6 +289,11 @@ export const notificationPath = (
   if (installment) return installment.path
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
     return `${ACCOUNT}#requests`
+  /* The book opens on its `active` tab, which hides both batches' leads. */
+  if (row.subject.kind === 'lead-batch' && row.kind === 'lead-nurtured')
+    return '/sales/leads?state=nurturing'
+  if (row.subject.kind === 'lead-batch' && row.kind === 'lead-received')
+    return '/sales/leads?state=all'
   return SUBJECT_PATH[row.subject.kind](row.subject.code)
 }
 

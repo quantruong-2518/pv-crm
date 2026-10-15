@@ -13,12 +13,14 @@ import type { Db } from '../db/db.module'
  *  Unbound, the server still boots but every lock and every holdings read
  *  fails closed (500): failing open would lock an account with work on it. */
 export interface WorkHandover {
-  /** What would move, counted with the same predicates `handOver` moves by. */
+  /** What would move, counted with the same predicates `handOver` moves by;
+   *  switched-off leads are counted apart and their deals and steps not at all. */
   holdings(tx: Db, userId: string): Promise<UserHoldingsResponse>
   /** May `toId` receive sales work. Throws a 400 on `handoverTo` when not.
    *  Asked BEFORE the lock's transaction: it reads on the pool. */
   vetReceiver(toId: string): Promise<void>
-  /** Moves everything `holdings` counted, inside the lock's transaction. */
+  /** Moves everything `holdings` counted, and the leaver's switched-off
+   *  leads, inside the lock's transaction. */
   handOver(tx: Db, move: { fromId: string; toId: string; by: Actor }): Promise<void>
 }
 

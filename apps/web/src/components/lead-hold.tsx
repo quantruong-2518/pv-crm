@@ -65,7 +65,7 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
     <>
       <Button size="md" className="pointer-coarse:h-12" disabled={end.isPending} onClick={resume}>
         <Icon icon={RotateCcw} size={16} />
-        Mở lại
+        Bỏ tạm hoãn
       </Button>
       {lead.state !== 'nurturing' && (
         <Button

@@ -25,6 +25,11 @@ import { LeadWriteRepository } from './lead-write.repository'
 /** A lead as `lockForMove` hands it to a door, under the row lock. */
 export type LockedLead = NonNullable<Awaited<ReturnType<LeadWriteRepository['lockForMove']>>>
 
+/** These doors' scope on a locked row: an `ownOnly` actor moves only a lead they
+ *  hold. Exported for the deal stop, which may stop the lead (owner, 15/10/2026). */
+export const movesLead = (who: Pick<Actor, 'id' | 'ownOnly'>, ownerId: string | null): boolean =>
+  !who.ownOnly || ownerId === who.id
+
 /** The lifecycle doors a person presses (ADR 0058, 0063): confirm contact, exit
  *  and reopen (ADR 0057 §2 — direct, no E3, because each undoes the other),
  *  nurture and resume. Each locks the row, checks the state it leaves, moves it through
@@ -80,45 +85,58 @@ export class LeadExitService {
         throw conflict(`Lead ${code} còn cơ hội đang mở. Đóng cơ hội trước.`)
       }
       if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng, không rời phễu được.`)
-      await this.assertReason(tx, body.reasonKey)
-
-      await this.states.move(tx, code, 'disqualified', {
-        exitReason: body.reasonKey,
-        /* The DB clock, same as the `state_since` this move stamps. */
-        exitedAt: sql`now()`,
-      })
-      const occurrence = await this.record(
-        tx,
-        who,
-        code,
-        'exited',
-        LEAD_NOTE.exited(body.reasonKey, body.note),
-        { reasonId: body.reasonKey },
-      )
-      /* The holder hears when somebody else stopped their lead (ADR 0085). */
-      await this.hub.announce(tx, {
-        event: {
-          name: LEAD_STOPPED,
-          ref: { code },
-          actorId: who.id,
-          audiences: { holder: held.ownerId ? [held.ownerId] : [] },
-          occurrence,
-        },
-        subject: { kind: 'lead', code, label },
-      })
-      /* A timed letter or a queued wave must not reach a customer a person just
-         stopped caring for (ADR 0068 §5); reopen does not release them. */
-      await this.mailRuns.withholdSubject(
-        tx,
-        { aggregateType: 'lead', aggregateId: code },
-        { code: 'lead-disqualified', summary: 'lead đã ngừng chăm sóc: thư chưa gửi bị giữ lại' },
-      )
-      /* Stopping care ends a hold too (ADR 0097 §3); reopen does not restore it. */
-      await endHolds(tx, 'lead', [code], 'disqualified', who.id)
-      if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
+      await this.disqualify(tx, who, code, { ...held, label }, body)
     })
 
     return this.profiles.profile(who, code)
+  }
+
+  /** The exit door's write on a row the caller locked and judged — the deal
+   *  stop runs it too when its stopper picks `disqualified` for the lead of
+   *  its last live deal (owner, 15/10/2026). A lead nobody holds stays so. */
+  async disqualify(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+    held: Pick<LockedLead, 'ownerId' | 'workstreamCode'> & { label: string },
+    body: LeadExitBody,
+  ): Promise<void> {
+    await this.assertReason(tx, body.reasonKey)
+
+    await this.states.move(tx, code, 'disqualified', {
+      exitReason: body.reasonKey,
+      /* The DB clock, same as the `state_since` this move stamps. */
+      exitedAt: sql`now()`,
+    })
+    const occurrence = await this.record(
+      tx,
+      who,
+      code,
+      'exited',
+      LEAD_NOTE.exited(body.reasonKey, body.note),
+      { reasonId: body.reasonKey },
+    )
+    /* The holder hears when somebody else stopped their lead (ADR 0085). */
+    await this.hub.announce(tx, {
+      event: {
+        name: LEAD_STOPPED,
+        ref: { code },
+        actorId: who.id,
+        audiences: { holder: held.ownerId ? [held.ownerId] : [] },
+        occurrence,
+      },
+      subject: { kind: 'lead', code, label: held.label },
+    })
+    /* A timed letter or a queued wave must not reach a customer a person just
+       stopped caring for (ADR 0068 §5); reopen does not release them. */
+    await this.mailRuns.withholdSubject(
+      tx,
+      { aggregateType: 'lead', aggregateId: code },
+      { code: 'lead-disqualified', summary: 'lead đã ngừng chăm sóc: thư chưa gửi bị giữ lại' },
+    )
+    /* Stopping care ends a hold too (ADR 0097 §3); reopen does not restore it. */
+    await endHolds(tx, 'lead', [code], 'disqualified', who.id)
+    if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
   }
 
   /** `POST /sales/leads/:code/reopen` — the state is recomputed from facts
@@ -296,7 +314,7 @@ export class LeadExitService {
   async lockRow(tx: Db, who: Actor, code: ObjectCode): Promise<LockedLead> {
     const row = await this.repo.lockForMove(tx, code)
     if (!row) throw notFound('lead', code)
-    if (who.ownOnly && row.ownerId !== who.id) {
+    if (!movesLead(who, row.ownerId)) {
       throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
     return row

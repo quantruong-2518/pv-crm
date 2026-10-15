@@ -457,16 +457,6 @@ export class OpportunityRepository {
       .where(isNull(actor.disabledAt))
   }
 
-  /** One unlocked person with their roles, on the caller's `tx`; absent when
-   *  locked or unknown. */
-  async liveActor(tx: Db, id: string): Promise<ActorLite | undefined> {
-    const [row] = await tx
-      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
-      .from(actor)
-      .where(and(eq(actor.id, id), isNull(actor.disabledAt)))
-    return row
-  }
-
   /** Tên công ty → mã lead, cho cột "Account" của tệp.
    *
    *  ------------------------------------------------------------------
@@ -714,6 +704,7 @@ export class OpportunityRepository {
         company: lead.company,
         ownerId: lead.ownerId,
         accountCode: lead.accountCode,
+        workstreamCode: lead.workstreamCode,
       })
       .from(lead)
       .where(and(inArray(lead.code, [...leadCodes]), leadLive))

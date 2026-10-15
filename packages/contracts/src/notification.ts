@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { RoleId, type Permission } from './auth'
 import { PageQuery, paged } from './pagination'
 import { Moment } from './primitives'
+import { LEAD_STATE_LABEL } from './sales/enums'
 
 /** The in-app bell: `GET /notifications` pages the caller's own rows newest
  *  first, `GET /notifications/unread-count` feeds the badge, and
@@ -318,7 +319,7 @@ export const NOTIFICATION_KINDS_RING_WITHOUT_LINK = [
 export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly NotificationSubject[]> =
   {
     'lead-pooled': ['lead', 'lead-pool'],
-    'lead-received': ['lead', 'lead-batch'],
+    'lead-received': ['lead', 'lead-batch', 'opportunity-batch'],
     'lead-removed': ['lead'],
     'lead-re-entered': ['lead', 'lead-batch'],
     'lead-stopped': ['lead'],
@@ -377,6 +378,8 @@ export const NOTIFICATION_DETAIL_DEALS = 'deals'
 export const NOTIFICATION_DETAIL_STAGE = 'stage'
 export const NOTIFICATION_DETAIL_CONTRACT = 'contract'
 export const NOTIFICATION_DETAIL_NO = 'no'
+/** Next steps moved by an account lock; its presence marks the lock's line. */
+export const NOTIFICATION_DETAIL_STEPS = 'steps'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -397,6 +400,35 @@ export const NotificationRow = z.object({
   important: z.boolean(),
 })
 export type NotificationRow = z.infer<typeof NotificationRow>
+
+/** The whole sentence of a line built from its counts, or `null` for the
+ *  kind's fixed label. The bell line and the popup both ask here, so the two
+ *  never say different things. Owner's wording, 15/10/2026. */
+export function notificationSentence(
+  row: Pick<NotificationRow, 'kind' | 'subject' | 'detail'>,
+): string | null {
+  const n = (key: string) => {
+    const v = row.detail?.[key]
+    return typeof v === 'number' ? v : 0
+  }
+  const name = row.subject.label
+  if (!name) return null
+  const num = (v: number) => v.toLocaleString('vi-VN')
+  if (row.kind === 'lead-received' && row.detail?.[NOTIFICATION_DETAIL_STEPS] !== undefined) {
+    const parts = [
+      [n(NOTIFICATION_DETAIL_COUNT), 'lead'],
+      [n(NOTIFICATION_DETAIL_DEALS), 'cơ hội'],
+      [n(NOTIFICATION_DETAIL_STEPS), 'việc tiếp theo'],
+    ] as const
+    const said = parts.filter(([v]) => v > 0).map(([v, unit]) => `${num(v)} ${unit}`)
+    return `Bạn nhận việc của ${name}: ${said.join(', ')}`
+  }
+  const parked = n(NOTIFICATION_DETAIL_COUNT)
+  if (row.kind === 'campaign-finished' && parked > 0) {
+    return `Chiến dịch ${name} đã chạy xong, ${num(parked)} lead không phản hồi đã về ${LEAD_STATE_LABEL.nurturing}`
+  }
+  return null
+}
 
 /** Same paging as every book, plus three optional filters: `unread` (only `1`,
  *  since a coerced boolean would read "0" as true), `group`, and a text `q`.

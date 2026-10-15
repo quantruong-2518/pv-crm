@@ -64,7 +64,7 @@ export type DealAt = {
 }
 
 /** What every door refuses on a held deal but the stop and the hand-over. */
-export const DEAL_HELD_REFUSAL = 'Cơ hội đang tạm hoãn. Bấm Mở lại trước.'
+export const DEAL_HELD_REFUSAL = 'Cơ hội đang tạm hoãn. Bấm Bỏ tạm hoãn trước.'
 
 /** A read deal → what a move needs. The mirror row names the deal's holder
  *  (`holderOf`, ADR 0071 §5), as every door that writes it does. */

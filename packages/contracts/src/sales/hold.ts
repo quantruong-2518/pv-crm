@@ -8,7 +8,7 @@ import {
   textInputOptional,
 } from '../primitives'
 import { DueLevel } from './enums'
-import { OpportunityStopBody } from './opportunity'
+import { StopReasonBody } from './opportunity'
 import { WorkstreamHolder } from './workstream'
 
 /** Hold — a dated pause laid OVER a lead or a deal (ADR 0088 §10). An
@@ -74,7 +74,7 @@ export const HoldPatchBody = z
  *  carries that door's body (`LeadNurtureBody` = the stop body). */
 export const LeadHoldEndBody = z.discriminatedUnion('to', [
   z.object({ to: z.literal('resume') }),
-  OpportunityStopBody.safeExtend({ to: z.literal('waiting') }),
+  StopReasonBody.safeExtend({ to: z.literal('waiting') }),
 ])
 
 /** `POST /sales/opportunities/:code/hold/end`. Giving up on a held deal is the

@@ -462,11 +462,16 @@ export const UserPatch = z
 /** `GET /users/:id/holdings` — open sales work still on this person, so the
  *  lock dialog can ask who receives it. `leads` counts nurturing, held and
  *  converted-with-a-live-deal too; `opportunities` counts open deals they hold
- *  or stand on as primary Sale; `nextSteps` the open steps assigned to them. */
+ *  or stand on as primary Sale; `nextSteps` the open steps assigned to them.
+ *  Nothing on a switched-off lead counts there, though the lock moves it:
+ *  `switchedOffLeads` counts such leads they hold, `switchedOffOther` the
+ *  deals and steps on such leads, so a lock moving only those still asks. */
 export const UserHoldingsResponse = z.object({
   leads: z.number().int().nonnegative(),
   opportunities: z.number().int().nonnegative(),
   nextSteps: z.number().int().nonnegative(),
+  switchedOffLeads: z.number().int().nonnegative(),
+  switchedOffOther: z.number().int().nonnegative(),
 })
 
 /** The answer to "send this person a set-password link".

@@ -490,11 +490,10 @@ export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draf
   won: 'success',
 }
 
-/** Ink for the `draft` tone `lost` wears, born as a law 13 rescue when `Badge`'s
- *  `draft` ink measured 4.41:1 dark and 3.81:1 light. That ink is now
- *  `--muted-foreground` and measures 6.3:1 dark and 5.4:1 light, so this only
- *  darkens a pill that already clears 4.5. Same mechanism as `CLOSE_BADGE` in
- *  `components/workstream-bits.tsx`. */
+/** Ink for a pill whose tone ink falls short, born as a law 13 rescue when
+ *  `Badge`'s `draft` ink measured 4.41:1 dark and 3.81:1 light. `lost` wears it,
+ *  and `DueBadge` at every level (tone inks fell under 4.5 on selected light
+ *  rows). Same mechanism as `CLOSE_BADGE` in `components/workstream-bits.tsx`. */
 export const BADGE_INK = 'text-foreground'
 
 /** What a row's pill SAYS: the COLUMN while the deal is on the board, the read

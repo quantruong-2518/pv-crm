@@ -85,9 +85,10 @@ export const ContractKind = z
  *   · `working`    — first real touch: call, message, meeting held, any mail sent
  *   · `nurturing`  — parked by hand from `assigned`/`verifying`/`working`, never
  *                    expires; any real touch loops it back to `working`
- *   · `converted`  — the first opportunity was opened from it. Parks when the last
- *                    live deal is lost unsigned, or by hand when nothing is live
- *                    or signed (ADR 0069 §3, ADR 0097)
+ *   · `converted`  — the first opportunity was opened from it. When its last
+ *                    live deal is stopped unsigned the stopper sends it to
+ *                    `nurturing` or `disqualified`; parked by hand when nothing
+ *                    is live or signed (ADR 0069 §3, ADR 0097)
  *   · `disqualified` — a person pressed "stop caring"; out of the loop (ADR 0068)
  *  Tier belongs to no state, and neither does a hold (`./hold`, an overlay).
  *  Not `StageKey`: that is the deal's. */
@@ -144,7 +145,7 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   converted: {
     does: 'Đã mở cơ hội đầu tiên từ lead này.',
     who: 'Người có quyền tạo cơ hội và sửa lead',
-    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Cơ hội cuối bị dừng mà chưa ký thì về Nhóm chờ chăm sóc, lead chưa có PIC thì Sale chính của cơ hội đó nhận. Không còn cơ hội nào chạy và chưa ký thì tạm gác được, lead sang Nhóm chờ chăm sóc.',
+    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Dừng cơ hội cuối mà chưa ký thì người dừng chọn cho lead về Nhóm chờ chăm sóc hoặc Ngừng chăm sóc. Không còn cơ hội nào chạy và chưa ký thì tạm gác được, lead sang Nhóm chờ chăm sóc.',
   },
   disqualified: {
     does: 'Có người bấm ngừng chăm sóc. Chiến dịch và mail không đưa lead này trở lại.',
@@ -162,6 +163,13 @@ export const LEAD_OPEN_STATES = [
   'working',
   'nurturing',
 ] as const satisfies readonly LeadState[]
+
+/** The open states being worked on — the book's default `active` tab. The
+ *  waiting group has its own tab (ADR 0097 §3); a campaign picker still reads
+ *  `LEAD_OPEN_STATES`, since re-campaigning the waiting group is its job. */
+export const LEAD_ACTIVE_STATES = LEAD_OPEN_STATES.filter(
+  (s): s is Exclude<(typeof LEAD_OPEN_STATES)[number], 'nurturing'> => s !== 'nurturing',
+)
 
 /** The part a contact plays in one deal; `null` on a pick means nobody has said. */
 export const OpportunityContactRole = z.enum(['decision-maker', 'user', 'influencer'])
