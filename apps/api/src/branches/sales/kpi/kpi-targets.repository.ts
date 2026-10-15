@@ -106,8 +106,8 @@ export class KpiTargetsRepository {
   }
 
   /** Acknowledging again moves the stamp; the row count stays one per holder. */
-  async acknowledge(row: KpiAcknowledgementValues): Promise<void> {
-    await this.db
+  async acknowledge(row: KpiAcknowledgementValues, handle: Db = this.db): Promise<void> {
+    await handle
       .insert(kpiAcknowledgement)
       .values(row)
       .onConflictDoUpdate({

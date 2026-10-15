@@ -41,7 +41,7 @@ const quarterOf = (month: string) =>
   `${month.slice(0, 4)}-Q${Math.ceil(Number(month.slice(5)) / 3)}`
 
 /** Vietnam is UTC+7 all year; the API fences periods on Vietnam days. */
-const VN_OFFSET_MS = 7 * 3_600_000
+export const VN_OFFSET_MS = 7 * 3_600_000
 
 /** The month and the quarter `today` falls in on the Vietnam calendar, so the
  *  running period is the same one for every reader, whatever their clock. */

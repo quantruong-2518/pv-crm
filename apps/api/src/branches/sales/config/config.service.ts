@@ -27,6 +27,7 @@ import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/ap
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import type { Db } from '@api/platform/db/db.module'
 import { SettingService } from '@api/platform/setting/setting.service'
+import { applyKpiConfig, isKpiConfigChange } from '../kpi/kpi-config.approval'
 import { activityFreshnessOf } from './activity-freshness'
 import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
@@ -281,7 +282,7 @@ export class SalesConfigService implements ApprovalApplier {
    *  `approved` bên dưới là đường sẽ chạy ngày E3 gật ngay (chuỗi duyệt rỗng,
    *  hoặc người đề nghị cũng là người gật); nhánh `waiting` KHÔNG ghi gì cả, và
    *  đó là toàn bộ điểm của việc tách hai bước. */
-  private async propose(who: Actor, change: ConfigChange): Promise<ConfigProposalReceipt> {
+  async propose(who: Actor, change: ConfigChange): Promise<ConfigProposalReceipt> {
     /* Nothing is applied here any more, not even when the proposer could
        approve it themselves a second later. Applying belongs to
        `ApprovalService.decide`, which is the only place that can settle the
@@ -337,6 +338,8 @@ export class SalesConfigService implements ApprovalApplier {
   private async applyChange(tx: Db, change: ConfigChange, proposerId: string): Promise<void> {
     /* The journey frame re-judges and writes its own four kinds (ADR 0080). */
     if (isFrameChange(change)) return this.frame.apply(tx, change)
+    /* The KPI overlay and alert pair (ADR 0099 §2) re-judge and write their own. */
+    if (isKpiConfigChange(change)) return applyKpiConfig(tx, change, proposerId, this.settings)
     if (change.kind === 'activity-freshness') {
       /* Both keys land in the approval's tx, so the pair never half-applies. */
       await this.settings.setIn(tx, proposerId, [

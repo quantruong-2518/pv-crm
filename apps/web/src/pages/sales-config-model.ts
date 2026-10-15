@@ -92,6 +92,15 @@ export const CONFIG_AREAS = [
       { id: 'contract-kinds', no: '5.15', title: 'Loại hợp đồng' },
     ],
   },
+  {
+    key: 'kpi',
+    label: 'KPI',
+    step: null,
+    sections: [
+      { id: 'kpi-metrics', no: '5.16', title: 'Chỉ số theo vai trò' },
+      { id: 'kpi-alert', no: '5.17', title: 'Ngưỡng cảnh báo' },
+    ],
+  },
 ] as const
 
 export type ConfigArea = (typeof CONFIG_AREAS)[number]

@@ -771,6 +771,34 @@
       "when": 1792825560000,
       "tag": "0111_care_lists",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1792911960000,
+      "tag": "0112_notification_kpi_kinds",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1792998360000,
+      "tag": "0113_kpi_allocation",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1793084760000,
+      "tag": "0114_kpi_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1793171160000,
+      "tag": "0115_notification_kinds_union",
+      "breakpoints": true
     }
   ]
 }

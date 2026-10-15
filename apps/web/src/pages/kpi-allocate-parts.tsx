@@ -1,0 +1,94 @@
+import { Badge, Check, Icon, Stepper, cn } from '@pv/ui'
+import type { KpiAllocation } from '@pv/contracts'
+import type { ApiError } from '@/app/api'
+import { NOTE } from './home-tiles'
+import { PACKAGE_LABEL, actedAt, failText } from './kpi-allocate-model'
+
+/** Small blocks the allocation and proposal screens share: a package's status
+ *  pill, its four-step bar, and a refused write said in place. */
+
+export function PackageBadge({ pkg }: { pkg: KpiAllocation | undefined }) {
+  if (!pkg) return <Badge tone="draft">Chưa phân bổ</Badge>
+  const label = PACKAGE_LABEL[pkg.status]
+  return <Badge tone={label.tone}>{label.text}</Badge>
+}
+
+export function FailLine({
+  error,
+  conflict,
+}: {
+  error: ApiError | null
+  /** Added after a 409's own sentence, where a 409 means the figures moved. */
+  conflict?: string
+}) {
+  if (!error) return null
+  const after = conflict && error.kind === 'conflict' ? ` ${conflict}` : ''
+  return (
+    <p role="alert" className="text-destructive-foreground text-[12px] leading-5">
+      {failText(error)}
+      {after}
+    </p>
+  )
+}
+
+const STEPS = [
+  { key: 'total', label: 'Đặt chỉ tiêu vai trò' },
+  { key: 'split', label: 'Phân bổ' },
+  { key: 'ack', label: 'Người nhận xác nhận' },
+  { key: 'lock', label: 'Duyệt và khoá' },
+]
+
+/** Where a role stands: no agreed role target, being split, handed down and
+ *  waiting on its holders, or every holder answered and only approval is left. */
+function stepOf(pkg: KpiAllocation | undefined, hasTotal: boolean): number {
+  if (!pkg) return hasTotal ? 1 : 0
+  if (pkg.status === 'draft' || pkg.status === 'returned') return 1
+  return pkg.lines.every((l) => l.ackStatus === 'acknowledged') ? 3 : 2
+}
+
+/** Who moved the package last and when. */
+function stampOf(pkg: KpiAllocation | undefined): string | null {
+  if (!pkg) return null
+  if (pkg.decidedAt) {
+    return actedAt(pkg.decidedBy, pkg.status === 'returned' ? 'trả lại' : 'duyệt', pkg.decidedAt)
+  }
+  if (!pkg.submittedAt) return null
+  const verb = pkg.status === 'draft' ? 'đặt số sau cùng' : 'gửi'
+  return actedAt(pkg.submittedBy, verb, pkg.submittedAt)
+}
+
+/** An agreed package has passed every step, which `Stepper` cannot draw (one
+ *  step is always open), so the four are read out as done instead. */
+function AllDone() {
+  return (
+    <ol aria-label="Các bước" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {STEPS.map((step) => (
+        <li key={step.key} className="inline-flex items-center gap-2 text-[12px] font-medium">
+          <Icon icon={Check} size={14} className="text-success shrink-0" />
+          {step.label}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+export function PackageSteps({
+  pkg,
+  hasTotal,
+}: {
+  pkg: KpiAllocation | undefined
+  /** The role has at least one agreed role target this month. */
+  hasTotal: boolean
+}) {
+  const stamp = stampOf(pkg)
+  const done = pkg?.status === 'agreed' || pkg?.status === 'superseded'
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        {done ? <AllDone /> : <Stepper steps={STEPS} current={stepOf(pkg, hasTotal)} />}
+        <PackageBadge pkg={pkg} />
+      </div>
+      {stamp && <p className={cn(NOTE, 'tnum font-num')}>{stamp}</p>}
+    </div>
+  )
+}

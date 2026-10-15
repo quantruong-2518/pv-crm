@@ -40,6 +40,11 @@ export const ROLE_GRANTS_REPLACED = 'platform.role.grants-replaced'
 export const NEXT_STEP_SET = 'sales.next-step.set'
 export const NEXT_STEP_DONE = 'sales.next-step.done'
 export const CONTRACT_INSTALLMENT_OVERDUE = 'sales.contract.installment-overdue'
+export const KPI_ALLOCATION_SUBMITTED = 'sales.kpi.allocation-submitted'
+export const KPI_ALLOCATION_RETURNED = 'sales.kpi.allocation-returned'
+export const KPI_COUNTER_RESOLVED = 'sales.kpi.counter-resolved'
+/** `data.flag` is the forecast's `slip` or `hit` (ADR 0098 §6). */
+export const KPI_FORECAST_FLAGGED = 'sales.kpi.forecast-flagged'
 export const COMM_RECORD_LATE = 'platform.comms.record-late'
 /** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
 export const HOLD_DUE_SOON = 'sales.hold.due-soon'
@@ -136,6 +141,12 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('hold-due-soon', HOLD_DUE_SOON, 'setter'),
   bell('hold-due', HOLD_DUE, 'holders'),
   bell('hold-due', HOLD_DUE, 'setter'),
+
+  bell('kpi-target-allocated', KPI_ALLOCATION_SUBMITTED, 'holders'),
+  bell('kpi-allocation-returned', KPI_ALLOCATION_RETURNED, 'sender'),
+  bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
+  bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
+  bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
 
   bell('approval-waiting', APPROVAL_WAITING, 'approver'),
   bell('approval-approved', APPROVAL_DECIDED, 'requester', flag('approved', true)),

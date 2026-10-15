@@ -6,6 +6,7 @@ import {
   ListChecks,
   Phone,
   Route,
+  Target,
   Users,
   cn,
   type IconGlyph,
@@ -19,6 +20,7 @@ const VIEW_ICON: Record<ConfigView, IconGlyph> = {
   assign: Users,
   care: Phone,
   deal: BriefcaseDollar,
+  kpi: Target,
 }
 
 const ENTRIES = [

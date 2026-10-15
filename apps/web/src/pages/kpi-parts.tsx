@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import type { UseQueryResult } from '@tanstack/react-query'
 import {
   Badge,
   Button,
@@ -22,10 +21,13 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { keyOf, periodLabel, type PeriodPick } from './home-model'
 import { GROW_WIDTH, NOTE, TILE } from './home-tiles'
 import {
   boardOf,
+  BAR_FILL,
+  itemsOf,
   paceOf,
   printTile,
   printValue,
@@ -35,7 +37,8 @@ import {
 } from './kpi-model'
 
 /** Blocks both KPI screens share: the month picker, one reading as a tile, a
- *  role's readings as a board, and the loading / failed state of a read.
+ *  role's readings as a board (personal) or an even strip (company), and the
+ *  loading / failed state of a read.
  *
  *  A verdict is never told by colour alone: its label is always printed, and
  *  the bar is hidden from assistive tech because the value, the target and
@@ -93,15 +96,6 @@ const VERDICT_TONE: Record<KpiVerdict, NonNullable<BadgeProps['tone']>> = {
 
 export function VerdictBadge({ verdict }: { verdict: KpiVerdict }) {
   return <Badge tone={VERDICT_TONE[verdict]}>{KPI_VERDICT_LABEL[verdict]}</Badge>
-}
-
-const BAR_FILL: Record<KpiVerdict, string> = {
-  'no-data': 'bg-muted-foreground',
-  unset: 'bg-muted-foreground',
-  met: 'bg-success',
-  'on-track': 'bg-primary',
-  behind: 'bg-warning',
-  missed: 'bg-destructive',
 }
 
 /** The figure as a share of its target, with a tick where pace asks it to be.
@@ -193,8 +187,16 @@ export function ReadingTile({
 
 /** One role's readings: the primary metric large, the rest in ONE grid in
  *  layer order. A grid per layer left empty cells beside single-metric layers. */
-export function Scoreboard({ role, readings }: { role: RoleId; readings: readonly KpiReading[] }) {
-  const { hero, rest } = boardOf(role, readings)
+export function Scoreboard({
+  catalog,
+  role,
+  readings,
+}: {
+  catalog: KpiCatalog
+  role: RoleId
+  readings: readonly KpiReading[]
+}) {
+  const { hero, rest } = boardOf(catalog, role, readings)
   return (
     <div className="flex flex-col gap-4">
       {hero && <ReadingTile item={hero} hero />}
@@ -209,6 +211,74 @@ export function Scoreboard({ role, readings }: { role: RoleId; readings: readonl
   )
 }
 
+/** What the strip prints under the bar: the tick's meaning, a ceiling, and
+ *  whether the figure is a snapshot. The target itself sits beside the value. */
+function stripNote({ def, reading }: KpiItem): string | null {
+  const { target, expected } = reading
+  const paced = def.paced && target !== null && expected !== null && expected < target
+  return (
+    [
+      paced && `Cần đạt đến hôm nay ${printTile(def.unit, expected)}`,
+      !def.higherIsBetter && target !== null && `Tối đa ${printValue(def.unit, target, true)}`,
+      def.snapshot && 'Số tại thời điểm hiện tại',
+    ]
+      .filter(Boolean)
+      .join(' · ') || null
+  )
+}
+
+/** One reading in the company strip: every tile the same size, no hero, so
+ *  the room's figures are compared across rather than ranked. */
+function StripTile({ item }: { item: KpiItem }) {
+  const { def, reading } = item
+  const note = stripNote(item)
+  const empty = reading.value === null
+  return (
+    <GlassCard className={TILE}>
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+        <h3 className="min-w-0 text-[13px] font-semibold leading-5">{KPI_METRIC_LABEL[def.key]}</h3>
+        <VerdictBadge verdict={reading.verdict} />
+      </div>
+      <p className="mt-auto flex flex-wrap items-baseline gap-x-2">
+        <span
+          className={cn(
+            FIGURE,
+            empty ? 'text-muted-foreground text-[16px]' : 'text-[24px] tracking-[-.6px]',
+          )}
+        >
+          {printTile(def.unit, reading.value)}
+        </span>
+        {def.higherIsBetter && reading.target !== null && (
+          <span className="text-muted-foreground tnum font-num text-[13px]">
+            / {printValue(def.unit, reading.target, true)}
+          </span>
+        )}
+      </p>
+      <PaceBar item={item} />
+      {note && <span className={cn(NOTE, 'tnum font-num')}>{note}</span>}
+    </GlassCard>
+  )
+}
+
+/** The room's scorecard as one even row, in catalog order. */
+export function CompanyStrip({
+  catalog,
+  role,
+  readings,
+}: {
+  catalog: KpiCatalog
+  role: RoleId
+  readings: readonly KpiReading[]
+}) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {itemsOf(catalog, role, readings).map((item) => (
+        <StripTile key={item.def.key} item={item} />
+      ))}
+    </div>
+  )
+}
+
 /** A read's states in one place: skeleton, failure with a retry, data — and
  *  data kept from an earlier load after a failed refetch, which is named.
  *  `variant` follows what the data will sit on (law 8: tables on `.glass-b`). */
@@ -219,7 +289,7 @@ export function QueryBlock<T>({
   quiet = false,
   children,
 }: {
-  query: UseQueryResult<T>
+  query: BlockQuery<T>
   /** Names the block in the failure sentence, lower case. */
   what: string
   variant?: 'a' | 'b'
@@ -235,7 +305,7 @@ export function QueryBlock<T>({
         {query.isRefetchError && !quiet && (
           <p className={cn(NOTE, 'flex flex-wrap items-center gap-2')}>
             <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
-            Đang hiện số của lần tải trước. Tải lại không thành công.
+            Không tải lại được, đang hiện số lần trước.
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
               Thử lại
             </Button>

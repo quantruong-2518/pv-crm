@@ -1,10 +1,12 @@
 import {
-  KPI_CATALOG,
   RoleId,
+  type KpiAckStatus,
+  type KpiMetricKey,
   type KpiReading,
   type KpiRoleTargets,
   type KpiScorecard,
 } from '@pv/contracts'
+import type { KpiCatalog } from './kpi-config.overlay'
 import { valueKey, type KpiSeat, type KpiValues } from './kpi-readings.repository'
 import type { KpiTargetRow } from './kpi-targets.repository'
 import { expectedOf, verdictOf } from './kpi-verdict'
@@ -19,6 +21,16 @@ export type TargetSlots = ReadonlyMap<string, TargetSlot>
 
 const slotKey = (role: RoleId, key: string): string => `${role}|${key}`
 
+/** The effective target row of one role × metric, whichever source won it. */
+export const agreedIn = (
+  slots: TargetSlots,
+  role: RoleId,
+  key: KpiMetricKey,
+): KpiTargetRow | null => slots.get(slotKey(role, key))?.agreed ?? null
+
+/** A holder's answer on one personal line (ADR 0098 §3). */
+export type LineAck = { metricKey: KpiMetricKey; ackStatus: KpiAckStatus }
+
 /** `rows` come oldest first, so the last agreed row seen is the highest agreed
  *  version — the effective target. At most one row is pending: propose
  *  replaces it in place rather than stacking a second one. */
@@ -32,11 +44,11 @@ export function slotsOf(rows: readonly KpiTargetRow[]): TargetSlots {
   return slots
 }
 
-/** Every role × catalog metric, empty ones included (`KpiTargetsResponse`). */
-export function toRoleTargets(slots: TargetSlots): KpiRoleTargets[] {
+/** Every role × effective metric, empty ones included (`KpiTargetsResponse`). */
+export function toRoleTargets(slots: TargetSlots, catalog: KpiCatalog): KpiRoleTargets[] {
   return RoleId.options.map((role) => ({
     role,
-    metrics: KPI_CATALOG[role].map((def) => {
+    metrics: catalog[role].map((def) => {
       const { agreed, pending } = slots.get(slotKey(role, def.key)) ?? {}
       return {
         key: def.key,
@@ -63,6 +75,8 @@ export function toRoleTargets(slots: TargetSlots): KpiRoleTargets[] {
 }
 
 export type ScoreContext = {
+  /** The effective catalog (`KpiConfigService.effectiveCatalog`). */
+  catalog: KpiCatalog
   values: KpiValues
   slots: TargetSlots
   /** Share of the month gone — `elapsedOf`. */
@@ -82,8 +96,8 @@ function valueOf(seat: KpiSeat, actorId: string, ctx: ScoreContext): number | nu
 }
 
 export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): KpiReading[] {
-  return KPI_CATALOG[role].map((def) => {
-    const agreed = ctx.slots.get(slotKey(role, def.key))?.agreed ?? null
+  return ctx.catalog[role].map((def) => {
+    const agreed = agreedIn(ctx.slots, role, def.key)
     const value = valueOf({ role, def }, actorId, ctx)
     const target = agreed ? Number(agreed.value) : null
     return {
@@ -97,24 +111,32 @@ export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): Kp
   })
 }
 
-/** `acknowledgedAt` is the holder's stamp for this role × month, if any. Stale
- *  = some agreed target of the role was agreed after it. */
+/** `acknowledgedAt` is the holder's stamp for this role × month, if any.
+ *
+ *  A slot with a personal line is answered on the line itself (`own`), so it
+ *  is left out of "stale" and instead holds the card unacknowledged until
+ *  every line reads `acknowledged`. A slot without one keeps the role rule:
+ *  stale = its agreed target was agreed after the stamp. */
 export function toScorecard(
   role: RoleId,
   actorId: string,
   ctx: ScoreContext,
   acknowledgedAt: Date | null,
+  own: readonly LineAck[] = [],
 ): KpiScorecard {
+  const personal = new Set(own.map((l) => l.metricKey))
+  const answered = own.every((l) => l.ackStatus === 'acknowledged')
+  const at = answered ? acknowledgedAt : null
   const stale =
-    acknowledgedAt !== null &&
-    KPI_CATALOG[role].some((def) => {
-      const agreedAt = ctx.slots.get(slotKey(role, def.key))?.agreed?.agreedAt
-      return agreedAt ? agreedAt.getTime() > acknowledgedAt.getTime() : false
+    at !== null &&
+    ctx.catalog[role].some((def) => {
+      const agreedAt = personal.has(def.key) ? null : agreedIn(ctx.slots, role, def.key)?.agreedAt
+      return agreedAt ? agreedAt.getTime() > at.getTime() : false
     })
   return {
     role,
     readings: toReadings(role, actorId, ctx),
-    acknowledgedAt: acknowledgedAt?.toISOString() ?? null,
+    acknowledgedAt: at?.toISOString() ?? null,
     acknowledgementStale: stale,
   }
 }

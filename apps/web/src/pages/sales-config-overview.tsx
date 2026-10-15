@@ -1,6 +1,7 @@
 import { Button, GlassCard } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import type { ConfigBundle, MotionPolicy } from '@pv/contracts'
+import { kpiAlertQuery, kpiRoleMetricsQuery } from '@/data/kpi-config'
 import { activityFreshnessQuery, ladderRows } from '@/data/sales-config'
 import { salesMotionsQuery } from '@/data/sales-motions'
 import { FRAME_STATES, stepFrameQuery, templatesAt } from '@/data/step-frame'
@@ -19,6 +20,13 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
   const { data: freshness } = useQuery(activityFreshnessQuery)
   const { data: motions } = useQuery(salesMotionsQuery())
   const { data: frame } = useQuery(stepFrameQuery)
+  const { data: kpiMetrics } = useQuery(kpiRoleMetricsQuery)
+  const { data: kpiAlert } = useQuery(kpiAlertQuery)
+  /* Distinct metrics and roles, not cells: one metric off in two roles is one metric. */
+  const offIn = kpiMetrics?.roles.filter((r) => r.metrics.some((m) => !m.enabled))
+  const offKeys = new Set(
+    offIn?.flatMap((r) => r.metrics.filter((m) => !m.enabled).map((m) => m.metricKey)),
+  )
 
   const tiers = ladderRows(catalog, 'TIER')
   const states = [...FRAME_STATES.lead, ...FRAME_STATES.opportunity]
@@ -49,6 +57,13 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
     products: catalog.PRODUCT.length === 0 ? 'Chưa có' : `${catalog.PRODUCT.length} mục`,
     'contract-kinds':
       catalog.CONTRACT_KIND.length === 0 ? 'Chưa có' : `${catalog.CONTRACT_KIND.length} loại`,
+    'kpi-metrics':
+      offIn &&
+      (offIn.length === 0
+        ? 'Đang tính đủ'
+        : `${offKeys.size} chỉ số đang tắt ở ${offIn.length} vai trò`),
+    'kpi-alert':
+      kpiAlert && `Sắp trượt dưới ${kpiAlert.slipPercent}% · sắp đạt từ ${kpiAlert.hitPercent}%`,
   }
 }
 

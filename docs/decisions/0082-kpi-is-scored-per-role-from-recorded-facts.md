@@ -1,6 +1,6 @@
 # 0082 · KPI is scored per role from recorded facts, against an agreed, versioned monthly target
 
-Status: accepted (§2's "no poller, no worker, no snapshot table" and two Consequences bullets partially superseded by 0088; §3 and §3a amended by 0088)
+Status: accepted (§1 decision 1 and 3 partially superseded by 0098; §2's "no poller, no worker, no snapshot table" and two Consequences bullets partially superseded by 0088; §3 and §3a amended by 0088; §3a `debriefs-closed` amended by 0099: does not count a debrief closed as "Không liên lạc được")
 Source: project owner's decisions in chat, 09/10/2026
 
 ## Context

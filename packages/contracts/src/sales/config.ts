@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { ApprovalState } from '../approval'
 import { Moment, textInput, textInputOptional } from '../primitives'
-import { SETTING_REGISTRY } from '../setting'
+import { KpiAlertPatch, SETTING_REGISTRY } from '../setting'
 import { LeadMotion, StageKey } from './enums'
+import { KpiRoleMetricsPatch } from './kpi-config'
 import { MotionPolicyPatch } from './motion'
 
 /** Cấu hình danh mục Sales — module 6. `/sales/config`.
@@ -492,6 +493,8 @@ export const ConfigProposalChange = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('motion'), motion: LeadMotion, patch: MotionPolicyPatch }),
   z.object({ kind: z.literal('activity-freshness'), value: ActivityFreshness }),
   z.object({ kind: z.literal(FRAME_CHANGE_KINDS) }),
+  z.object({ kind: z.literal('kpi-metrics'), value: KpiRoleMetricsPatch }),
+  z.object({ kind: z.literal('kpi-alert'), value: KpiAlertPatch }),
 ])
 
 /** `GET /sales/config/proposals/mine` (`config.view`) — the reader's own

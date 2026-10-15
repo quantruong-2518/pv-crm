@@ -61,6 +61,11 @@ export const NotificationKind = z.enum([
   'lead-reopened',
   'mail-run-replied',
   'contract-installment-overdue',
+  'kpi-target-allocated',
+  'kpi-counter-resolved',
+  'kpi-allocation-returned',
+  'kpi-about-to-miss',
+  'kpi-about-to-hit',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -81,6 +86,8 @@ export const NotificationSubject = z.enum([
   'lead-batch',
   'opportunity-batch',
   'comm-record',
+  'kpi-scorecard',
+  'kpi-allocation',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -133,6 +140,11 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'lead-reopened': 'Lead của bạn được mở lại',
   'mail-run-replied': 'Khách trả lời thư của lô gửi',
   'contract-installment-overdue': 'Đợt thanh toán của hợp đồng đã quá hạn thu',
+  'kpi-target-allocated': 'Bạn được giao chỉ tiêu mới',
+  'kpi-counter-resolved': 'Đề xuất chỉ tiêu của bạn đã được xử lý',
+  'kpi-allocation-returned': 'Gói chỉ tiêu bạn gửi bị trả lại',
+  'kpi-about-to-miss': 'Bạn sắp trượt chỉ tiêu',
+  'kpi-about-to-hit': 'Bạn sắp đạt chỉ tiêu',
 }
 
 /** The filter chips on the bell screen. */
@@ -215,6 +227,11 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'lead-reopened': 'lead',
   'mail-run-replied': 'mail',
   'contract-installment-overdue': 'contract',
+  'kpi-target-allocated': 'kpi',
+  'kpi-counter-resolved': 'kpi',
+  'kpi-allocation-returned': 'kpi',
+  'kpi-about-to-miss': 'kpi',
+  'kpi-about-to-hit': 'kpi',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -272,6 +289,12 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'lead-reopened': { important: false, locked: false },
   'mail-run-replied': { important: false, locked: false },
   'contract-installment-overdue': { important: true, locked: false },
+  'kpi-target-allocated': { important: true, locked: false },
+  'kpi-counter-resolved': { important: false, locked: false },
+  /* Owner's call 15/10/2026: a returned package holds up the month's split. */
+  'kpi-allocation-returned': { important: true, locked: false },
+  'kpi-about-to-miss': { important: false, locked: false },
+  'kpi-about-to-hit': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -295,11 +318,15 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'google-link': null,
   contract: 'contract.view',
   campaign: 'campaign.view',
-  'kpi-target': 'performance.view',
+  /* `kpi.view`, not `performance.view`: a person's own target line reaches
+     roles that cannot open the performance screens (ADR 0098 §3). */
+  'kpi-target': 'kpi.view',
   comm: 'comm.view',
   'lead-batch': 'lead.view',
   'opportunity-batch': 'opportunity.view',
   'comm-record': 'comm.view',
+  'kpi-scorecard': 'kpi.view',
+  'kpi-allocation': 'kpi.view-all',
 }
 
 /** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
@@ -365,6 +392,11 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'lead-reopened': ['lead'],
     'mail-run-replied': ['mail-run'],
     'contract-installment-overdue': ['contract'],
+    'kpi-target-allocated': ['kpi-target'],
+    'kpi-counter-resolved': ['kpi-target'],
+    'kpi-allocation-returned': ['kpi-allocation'],
+    'kpi-about-to-miss': ['kpi-scorecard'],
+    'kpi-about-to-hit': ['kpi-scorecard'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

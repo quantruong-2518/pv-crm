@@ -136,6 +136,13 @@ export const KPI_CATALOG: Record<RoleId, readonly KpiMetricDef[]> = {
   ],
 }
 
+/** Whether a metric has a weekly running total: a tally (count or money) that
+ *  only grows with the month. A snapshot, a lower-is-better figure or an
+ *  unpaced ratio has no meaningful cumulative series. Declared here so the
+ *  screen offers the weekly chart for exactly the set the server accepts. */
+export const isCumulative = (def: KpiMetricDef): boolean =>
+  def.paced && def.higherIsBetter && !def.snapshot && (def.unit === 'count' || def.unit === 'money')
+
 /** Vietnamese labels, declared ONCE for the reason `LEAD_STATE_LABEL` is: both
  *  ends print them, and two copies of one word drift. */
 export const KPI_METRIC_LABEL: Record<KpiMetricKey, string> = {
@@ -166,8 +173,8 @@ export const KPI_VERDICT_LABEL: Record<KpiVerdict, string> = {
   'no-data': 'Chưa có dữ liệu',
   unset: 'Chưa đặt chỉ tiêu',
   met: 'Đạt',
-  'on-track': 'Đúng nhịp',
-  behind: 'Chậm nhịp',
+  'on-track': 'Đúng tiến độ',
+  behind: 'Chậm tiến độ',
   missed: 'Không đạt',
 }
 

@@ -55,14 +55,16 @@ export const SettingKey = z.enum([
   'sales.activity.warn-days',
   'sales.activity.alert-days',
   'auth.session.remembered-days',
+  'kpi.alert.slip-percent',
+  'kpi.alert.hit-percent',
 ])
 
 export type SettingKey = z.infer<typeof SettingKey>
 
 /** Every unit a system constant on this table is measured in today. `count`
- *  is the one non-duration member — `sequence.max-steps` counts steps, not
- *  days. */
-export const SettingUnit = z.enum(['days', 'count'])
+ *  is for `sequence.max-steps`, which counts steps, not days; `percent` is a
+ *  whole percent because the column holds a positive integer. */
+export const SettingUnit = z.enum(['days', 'count', 'percent'])
 
 export type SettingUnit = z.infer<typeof SettingUnit>
 
@@ -159,6 +161,22 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     max: 90,
     description: 'Số ngày giữ đăng nhập khi chọn Ghi nhớ. Chỉ áp cho lần đăng nhập sau.',
   },
+  /* Same pairing as the activity keys: written only through `KpiAlertPatch`
+     below, which holds slip < hit; neither is in `SettingPatch`. */
+  'kpi.alert.slip-percent': {
+    unit: 'percent',
+    defaultValue: 80,
+    min: 1,
+    max: 99,
+    description: 'Sắp trượt khi dự báo cuối tháng dưới (%).',
+  },
+  'kpi.alert.hit-percent': {
+    unit: 'percent',
+    defaultValue: 90,
+    min: 2,
+    max: 100,
+    description: 'Sắp đạt khi đã đạt từ (%).',
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +220,7 @@ export type SettingListResponse = z.infer<typeof SettingListResponse>
  *  min/max for a key is written. */
 function boundedValue(key: SettingKey) {
   const def = SETTING_REGISTRY[key]
-  const unit = def.unit === 'days' ? 'ngày' : 'lần'
+  const unit = { days: ' ngày', count: ' lần', percent: '%' }[def.unit]
   /* Vietnamese messages, not zod's defaults: this refusal reaches an operator's
      screen, and zod would otherwise answer "Too big: expected number to be <=50"
      in a product whose every other refusal speaks Vietnamese. The bound itself
@@ -211,8 +229,8 @@ function boundedValue(key: SettingKey) {
   return z
     .number('Nhập một con số.')
     .int('Nhập số nguyên.')
-    .min(def.min, `Thấp nhất là ${def.min} ${unit}.`)
-    .max(def.max, `Cao nhất là ${def.max} ${unit}.`)
+    .min(def.min, `Thấp nhất là ${def.min}${unit}.`)
+    .max(def.max, `Cao nhất là ${def.max}${unit}.`)
 }
 
 /** Set one key's override. A discriminated union on `key` rather than a plain
@@ -254,3 +272,18 @@ export const SettingPatch = z.discriminatedUnion('key', [
 ])
 
 export type SettingPatch = z.infer<typeof SettingPatch>
+
+/** The KPI alert thresholds, written as ONE body so `slipPercent < hitPercent`
+ *  is judged on both numbers at once — two lone `SettingPatch` writes could
+ *  each pass and leave the pair inverted between them. */
+export const KpiAlertPatch = z
+  .object({
+    slipPercent: boundedValue('kpi.alert.slip-percent'),
+    hitPercent: boundedValue('kpi.alert.hit-percent'),
+  })
+  .refine((v) => v.hitPercent > v.slipPercent, {
+    error: 'Ngưỡng sắp đạt phải lớn hơn ngưỡng sắp trượt.',
+    path: ['hitPercent'],
+  })
+
+export type KpiAlertPatch = z.infer<typeof KpiAlertPatch>

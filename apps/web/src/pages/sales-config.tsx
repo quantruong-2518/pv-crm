@@ -17,6 +17,7 @@ import { pendingApprovalsQuery } from '@/data/approvals'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { DealArea } from './sales-config-deal'
 import { FrameArea } from './sales-config-frame'
+import { KpiArea } from './sales-config-kpi'
 import { AssignArea, CareArea, IntakeArea } from './sales-config-lead'
 import {
   CONFIG_AREAS,
@@ -158,6 +159,8 @@ function AreaBody({ area, ...props }: AreaProps & { area: AreaKey }) {
       return <DealArea {...props} />
     case 'frame':
       return <FrameArea {...props} />
+    case 'kpi':
+      return <KpiArea />
   }
 }
 

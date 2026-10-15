@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import { KPI_TARGET_AGREED, KPI_TARGET_PROPOSED, type Actor } from '@pv/engines'
 import {
-  KPI_CATALOG,
   ROLE_LABEL,
   KpiCompanyResponse,
   KpiMeResponse,
@@ -16,27 +15,26 @@ import {
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { toContractRole } from '@api/platform/auth/auth.mapper'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, denied, invalid } from '@api/platform/http/problem'
+import { conflict, denied } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
+import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
+import { KpiAllocationRepository } from './kpi-allocation.repository'
+import { targetSources } from './kpi-allocation.mapper'
+import type { KpiCatalog } from './kpi-config.overlay'
+import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
-import { elapsedOf, phaseOf } from './kpi-verdict'
+import { assertTargetValues, monthClock, stillOpen } from './kpi-rules'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
 
 type Holder = { id: string; roleIds: readonly RoleId[] }
-
-/** Vietnam is UTC+7 all year, so its calendar day is a fixed shift. */
-const vietnamToday = (): string => new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
 
 /** KPI by role: scorecards computed on read, and the agreed monthly targets.
  *
  *  A scorecard belongs to a ROLE, so a person holding two roles carries two.
  *  Nothing here is stored but what a person decided — a target and an
- *  acknowledgement; no worker, no snapshot.
- *
- *  The clock is read here and handed to `kpi-verdict.ts` as a number, which
- *  is what keeps the verdict pure. */
+ *  acknowledgement; no worker, no snapshot. The clock is `kpi-rules.ts`'s. */
 @Injectable()
 export class KpiService {
   constructor(
@@ -44,6 +42,9 @@ export class KpiService {
     private readonly targets: KpiTargetsRepository,
     private readonly audit: AuditRepository,
     private readonly hub: NotificationHub,
+    private readonly allocations: KpiAllocationRepository,
+    private readonly lines: KpiAllocationCounterService,
+    private readonly config: KpiConfigService,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -51,7 +52,7 @@ export class KpiService {
     const cards = await this.scorecards(period, [holder], who.id)
     return KpiMeResponse.parse({
       period,
-      closed: this.clock(period).phase === 'closed',
+      closed: monthClock(period).phase === 'closed',
       scorecards: cards.get(who.id),
     })
   }
@@ -59,12 +60,13 @@ export class KpiService {
   /** The director's card: every metric on it is a room figure, so it is read
    *  for no actor and carries nothing to acknowledge. */
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
-    const seats = KPI_CATALOG.director.map((def) => ({ role: 'director' as const, def }))
+    const catalog = await this.config.effectiveCatalog()
+    const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
     const [values, rows] = await Promise.all([
       this.readings.values(seats, spansOf(period).current),
       this.targets.ofPeriod(period),
     ])
-    const ctx = this.context(period, values, rows)
+    const ctx = this.context(period, catalog, values, rows)
     return KpiCompanyResponse.parse({
       period,
       scorecard: { role: 'director', readings: toReadings('director', '', ctx) },
@@ -89,11 +91,14 @@ export class KpiService {
   }
 
   async targetsOf(period: KpiPeriodKey): Promise<KpiTargetsResponse> {
-    const rows = await this.targets.ofPeriod(period)
+    const [rows, catalog] = await Promise.all([
+      this.targets.ofPeriod(period),
+      this.config.effectiveCatalog(),
+    ])
     return KpiTargetsResponse.parse({
       period,
-      closed: this.clock(period).phase === 'closed',
-      roles: toRoleTargets(slotsOf(rows)),
+      closed: monthClock(period).phase === 'closed',
+      roles: toRoleTargets(slotsOf(rows), catalog),
     })
   }
 
@@ -104,19 +109,9 @@ export class KpiService {
     role: RoleId,
     body: KpiProposeBody,
   ): Promise<KpiTargetsResponse> {
-    this.stillOpen(period)
-    const defs = new Map(KPI_CATALOG[role].map((d) => [d.key, d]))
-    const stray = body.targets.filter((t) => !defs.has(t.key)).map((t) => t.key)
-    if (stray.length > 0) {
-      throw invalid({ targets: [`Vai này không có chỉ số: ${stray.join(', ')}.`] })
-    }
-    /* A ratio is 0–1 on the wire; 40 where 0.4 was meant can never be met. */
-    const over = body.targets.filter((t) => defs.get(t.key)?.unit === 'ratio' && t.value > 1)
-    if (over.length > 0) {
-      throw invalid({
-        targets: [`Chỉ tiêu dạng tỷ lệ không vượt quá 100%: ${over.map((t) => t.key).join(', ')}.`],
-      })
-    }
+    stillOpen(period)
+    const entries = body.targets.map((t) => ({ metricKey: t.key, value: t.value }))
+    assertTargetValues((await this.config.effectiveCatalog())[role], entries, 'targets')
 
     const proposedAt = new Date()
     await this.targets.run(async (tx) => {
@@ -151,18 +146,21 @@ export class KpiService {
    *  CHECK `kpi_target_agreed_by_another` would answer with a bare 500.
    *
    *  And never blind: `seen` is what stood on the agreer's screen. The role's
-   *  pending rows must be exactly those, stamp for stamp, or nothing is agreed. */
+   *  pending rows must be exactly those, stamp for stamp, or nothing is agreed.
+   *  A metric switched off since its proposal is off that screen, so its
+   *  pending row is left as it is rather than agreed unseen. */
   async agree(
     who: Actor,
     period: KpiPeriodKey,
     role: RoleId,
     body: KpiAgreeBody,
   ): Promise<KpiTargetsResponse> {
-    this.stillOpen(period)
+    stillOpen(period)
     const stale = conflict('Chỉ tiêu đang chờ duyệt đã thay đổi. Tải lại rồi duyệt lại.')
     await this.targets.run(async (tx) => {
+      const live = new Set((await this.config.effectiveCatalog(tx))[role].map((d) => d.key))
       const pending = (await this.targets.ofPeriod(period, tx)).filter(
-        (r) => r.role === role && r.agreedAt === null,
+        (r) => r.role === role && r.agreedAt === null && live.has(r.metricKey),
       )
       if (pending.length === 0) throw conflict('Vai này không có chỉ tiêu nào đang chờ duyệt.')
       if (pending.some((r) => r.proposedById === who.id)) {
@@ -191,59 +189,57 @@ export class KpiService {
     if (!who.roleIds.map(toContractRole).includes(role)) {
       throw denied('permission-denied', 'Bạn không giữ vai này nên không nhận được chỉ tiêu.')
     }
-    this.stillOpen(period)
-    await this.targets.acknowledge({ actorId: who.id, role, period, acknowledgedAt: new Date() })
+    stillOpen(period)
+    await this.targets.run((tx) => this.lines.receive(tx, who, period, role))
     return this.me(who, period)
   }
 
   /** One read for however many people: figures grouped by actor, the month's
-   *  targets, the month's acknowledgements — then welded per person × role. */
+   *  targets, the month's acknowledgements — then welded per person × role.
+   *  Which target a slot reads is `targetSources`' call (ADR 0098 §4). */
   private async scorecards(
     period: KpiPeriodKey,
     holders: readonly Holder[],
     only?: string,
   ): Promise<Map<string, KpiScorecard[]>> {
+    const catalog = await this.config.effectiveCatalog()
     const seats = holders.flatMap((h) =>
-      h.roleIds.flatMap((role) => KPI_CATALOG[role].map((def) => ({ role, def }))),
+      h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
-    const [values, rows, acks] = await Promise.all([
+    const [values, rows, acks, lines] = await Promise.all([
       this.readings.values(seats, spansOf(period).current, only),
       this.targets.ofPeriod(period),
       this.targets.acknowledgements(period),
+      this.allocations.agreedLines(period),
     ])
-    const ctx = this.context(period, values, rows)
+    const base = this.context(period, catalog, values, rows)
+    const sources = targetSources(rows, lines)
     const ackAt = new Map(acks.map((a) => [`${a.actorId}|${a.role}`, a.acknowledgedAt]))
 
     return new Map(
-      holders.map((h) => [
-        h.id,
-        h.roleIds.map((role) => toScorecard(role, h.id, ctx, ackAt.get(`${h.id}|${role}`) ?? null)),
-      ]),
+      holders.map((h) => {
+        const ctx = { ...base, slots: sources.slotsFor(h.id) }
+        const card = (role: RoleId) =>
+          toScorecard(
+            role,
+            h.id,
+            ctx,
+            ackAt.get(`${h.id}|${role}`) ?? null,
+            sources.acksFor(h.id, role),
+          )
+        return [h.id, h.roleIds.map(card)]
+      }),
     )
-  }
-
-  private clock(period: KpiPeriodKey): { elapsed: number; phase: ReturnType<typeof phaseOf> } {
-    const { from, to } = spansOf(period).current
-    const today = vietnamToday()
-    return { elapsed: elapsedOf(from, to, today), phase: phaseOf(from, to, today) }
   }
 
   private context(
     period: KpiPeriodKey,
+    catalog: KpiCatalog,
     values: ScoreContext['values'],
     rows: Parameters<typeof slotsOf>[0],
   ): ScoreContext {
-    const { elapsed, phase } = this.clock(period)
-    return { values, slots: slotsOf(rows), elapsed, running: phase === 'running' }
-  }
-
-  /** A closed month is read-only: its targets are what the month was judged
-   *  against. The running month and every future one stay open — a target is
-   *  meant to be agreed before its month starts. */
-  private stillOpen(period: KpiPeriodKey): void {
-    if (this.clock(period).phase === 'closed') {
-      throw conflict('Tháng này đã kết thúc, không đổi được chỉ tiêu.')
-    }
+    const { elapsed, phase } = monthClock(period)
+    return { catalog, values, slots: slotsOf(rows), elapsed, running: phase === 'running' }
   }
 
   /** One role's month on the bell, in the target write's own transaction. `at`

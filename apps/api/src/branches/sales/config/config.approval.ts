@@ -15,6 +15,12 @@ import {
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import type { ConfigDraft, ConfigPatchDb } from './config.repository'
 import type { MotionPolicyPatchDb } from './motion.schema'
+import {
+  isKpiConfigChange,
+  kpiConsequenceOf,
+  kpiSubjectOf,
+  type KpiConfigChange,
+} from '../kpi/kpi-config.approval'
 import { frameConsequenceOf, isFrameChange, type FrameChange } from './step-frame.approval'
 
 /** THE E3 SEAM — one point for every write door, and it is now WIRED.
@@ -80,6 +86,8 @@ export type ConfigChange =
   | { kind: 'activity-freshness'; value: ActivityFreshness }
   /** The journey frame's four (ADR 0080) — declared beside their words. */
   | FrameChange
+  /** The KPI metric overlay and alert pair (ADR 0099 §2), beside their words. */
+  | KpiConfigChange
 
 /** Biên lai của một đề nghị. `state` là của E3, không phải của module này. */
 export type ConfigReceipt = {
@@ -117,6 +125,7 @@ const CONFIG_APPROVERS: RoleId[] = ['director']
  *  an inbox row is scanned, not studied. */
 function consequenceOf(change: ConfigChange): string {
   if (isFrameChange(change)) return frameConsequenceOf(change)
+  if (isKpiConfigChange(change)) return kpiConsequenceOf(change)
   const list =
     change.kind === 'create' || change.kind === 'update' || change.kind === 'reorder'
       ? CONFIG_LIST_LABEL[change.list]
@@ -232,11 +241,13 @@ export class SalesConfigGateE3 extends SalesConfigGate {
 
     const subject = isFrameChange(change)
       ? 'step-frame'
-      : change.kind === 'motion'
-        ? change.motion
-        : change.kind === 'activity-freshness'
-          ? `${change.value.warnDays}/${change.value.alertDays}`
-          : change.list
+      : isKpiConfigChange(change)
+        ? kpiSubjectOf(change)
+        : change.kind === 'motion'
+          ? change.motion
+          : change.kind === 'activity-freshness'
+            ? `${change.value.warnDays}/${change.value.alertDays}`
+            : change.list
     this.log.log(`đề nghị ${request.id} · ${change.kind} · ${subject} · bởi ${who.id}`)
 
     return { requestId: request.id, state: request.state, change }

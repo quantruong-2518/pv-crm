@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Badge, Button, DataTable, GlassCard, Input, cn, type TableColumn } from '@pv/ui'
 import {
-  KPI_CATALOG,
   KPI_LAYER_LABEL,
   KPI_METRIC_LABEL,
   KPI_VERDICT_LABEL,
@@ -14,6 +13,7 @@ import {
 import { userMessage, type ApiError } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
 import { useAgreeKpiTargets, useProposeKpiTargets } from '@/data/kpi'
+import type { KpiCatalog } from '@/data/kpi-catalog'
 import { ROLE_LABEL } from '@/data/users'
 import { dmhm } from '@/lib/date'
 import { num } from './home-model'
@@ -102,11 +102,13 @@ const failed = (error: ApiError) =>
   )
 
 export function RoleTargets({
+  catalog,
   period,
   entry,
   canSet,
   me,
 }: {
+  catalog: KpiCatalog
   period: string
   entry: KpiRoleTargets
   /** Holds `kpi.set-target` AND the month still takes writes. */
@@ -118,7 +120,7 @@ export function RoleTargets({
   const agree = useAgreeKpiTargets(period, entry.role)
   const [draft, setDraft] = useState<Draft>({})
 
-  const lines = KPI_CATALOG[entry.role].flatMap((def) =>
+  const lines = catalog[entry.role].flatMap((def) =>
     entry.metrics.filter((m) => m.key === def.key).map((target) => ({ def, target })),
   )
   const seen = lines.flatMap(({ def, target }) =>

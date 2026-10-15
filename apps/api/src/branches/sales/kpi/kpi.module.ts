@@ -1,23 +1,71 @@
 import { Module } from '@nestjs/common'
 import { AuditModule } from '@api/platform/audit/audit.module'
+import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
+import { SettingModule } from '@api/platform/setting/setting.module'
+import { SalesConfigModule } from '../config/config.module'
+import { KpiAlertRepository } from './kpi-alert.repository'
+import { KpiAlertService } from './kpi-alert.service'
+import { KpiAlertSweeper } from './kpi-alert.sweeper'
+import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
+import { KpiAllocationController } from './kpi-allocation.controller'
+import { KpiAllocationRepository } from './kpi-allocation.repository'
+import { KpiAllocationService } from './kpi-allocation.service'
+import { KpiConfigController } from './kpi-config.controller'
+import { KpiConfigRepository } from './kpi-config.repository'
+import { KpiConfigService } from './kpi-config.service'
+import { KpiContributionsController } from './kpi-contributions.controller'
+import { KpiContributionsRepository } from './kpi-contributions.repository'
+import { KpiContributionsService } from './kpi-contributions.service'
 import { KpiController } from './kpi.controller'
+import { KpiForecastController } from './kpi-forecast.controller'
+import { KpiForecastService } from './kpi-forecast.service'
+import { KpiHistoryController } from './kpi-history.controller'
+import { KpiHistoryService } from './kpi-history.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 
-/** KPI by role — scorecards computed on read, plus the agreed targets.
+/** KPI by role — scorecards computed on read, the agreed targets, and their
+ *  per-person split (ADR 0098).
  *
- *  Two repositories because they know different things: one reads the books'
- *  fact tables and writes nothing, the other owns the module's two tables.
+ *  A repository per thing known: the books' fact tables (read only), the role
+ *  targets, and the allocation packages with their lines and counters. The
+ *  forecast owns no table: it reads through the first three.
  *
- *  `AuditModule` for the two target writes, `NotificationModule` for the
- *  bell each of them rings (ADR 0093). No `EnginesModule`: the doors ask
- *  E2 nothing beyond `@Need`, and the verdict is a pure function beside the
- *  service. `exports` is empty: no module asks this one. */
+ *  `AuditModule` for every target and allocation write. `EnginesModule` for
+ *  one question: whether the allocation reader also holds `kpi.view-all`.
+ *  `SettingModule` for the forecast thresholds. `SalesConfigModule` for the
+ *  config gate the metric overlay and alert pair are proposed through
+ *  (ADR 0099 §2). `NotificationModule` for the bell: target proposals and
+ *  agreements (ADR 0093) and the KPI kinds (ADR 0099 §4).
+ *  `exports` is empty. */
 @Module({
-  imports: [AuditModule, NotificationModule],
-  controllers: [KpiController],
-  providers: [KpiService, KpiReadingsRepository, KpiTargetsRepository],
+  imports: [AuditModule, EnginesModule, SettingModule, SalesConfigModule, NotificationModule],
+  controllers: [
+    KpiController,
+    KpiAllocationController,
+    KpiForecastController,
+    KpiConfigController,
+    KpiHistoryController,
+    KpiContributionsController,
+  ],
+  providers: [
+    KpiService,
+    KpiReadingsRepository,
+    KpiTargetsRepository,
+    KpiAllocationRepository,
+    KpiAllocationService,
+    KpiAllocationCounterService,
+    KpiForecastService,
+    KpiConfigService,
+    KpiConfigRepository,
+    KpiHistoryService,
+    KpiAlertService,
+    KpiAlertRepository,
+    KpiAlertSweeper,
+    KpiContributionsService,
+    KpiContributionsRepository,
+  ],
 })
 export class KpiModule {}

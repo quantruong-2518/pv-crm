@@ -230,13 +230,22 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   'google-link': () => `${ACCOUNT}#google`,
   contract: (code) => `/sales/contracts/${encodeURIComponent(code)}`,
   campaign: (code) => `/sales/campaigns/${encodeURIComponent(code)}`,
-  /* The code is `<period>:<role>`, but the scorecard keeps its month in state, not the address. */
-  'kpi-target': () => '/sales/kpi/company',
+  /* Two code shapes: `<period>:<role>` from a role target's proposal or
+     agreement, a bare `<period>` from a person's own line (ADR 0098 §3). */
+  'kpi-target': (code) => {
+    const [month = '', role] = code.split(':')
+    const q = `?month=${encodeURIComponent(month)}`
+    return role
+      ? `/sales/kpi/targets${q}&role=${encodeURIComponent(role)}`
+      : `/sales/kpi/receive${q}`
+  },
   comm: (code) => `/comms/${encodeURIComponent(code)}`,
   /* The leads book has no batch filter in its address yet; a batch lands on the book. */
   'lead-batch': () => '/sales/leads',
   'opportunity-batch': () => '/sales/opportunities',
   'comm-record': (code) => `/comms/${encodeURIComponent(code)}`,
+  'kpi-scorecard': (code) => `/sales/kpi/me?month=${encodeURIComponent(code)}`,
+  'kpi-allocation': (code) => `/sales/kpi/proposals?month=${encodeURIComponent(code)}`,
 }
 
 /** An overdue-installment row, read back. `detail` keys are named by the
