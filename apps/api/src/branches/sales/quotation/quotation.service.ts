@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor, Permission } from '@pv/engines'
 import {
+  ContractKindsResponse,
   OPPORTUNITY_STOP_REASON_OTHER,
   QuotationReasonsResponse,
   QuotationRow,
@@ -16,6 +17,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { assertKindUsable, kindLabel } from '../config/contract-kind'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { announceRound, dealOwnerIds } from '../opportunity/deal-money.bell'
 import { OpportunityLifecycle, vnDay, type DealAt } from '../opportunity/opportunity-lifecycle'
@@ -61,6 +63,11 @@ export class QuotationService {
     return QuotationReasonsResponse.parse({ rows: await this.repo.reasons() })
   }
 
+  /** `GET /sales/opportunities/contract-kinds`. */
+  async kinds(): Promise<ContractKindsResponse> {
+    return ContractKindsResponse.parse({ rows: await this.repo.kinds() })
+  }
+
   /** `POST /sales/opportunities/:code/quotations`. */
   async create(who: Actor, code: ObjectCode, body: QuotationRecordBody): Promise<QuotationRow> {
     await this.moves.inScope(who, code)
@@ -90,7 +97,7 @@ export class QuotationService {
       assertValidUntil(body.validUntil, round.sentAt)
       const owned = round.source === 'backfill' && (body.kind ?? round.kind) !== null
       const written = await this.repo.updatePending(tx, id, {
-        ...placeOf(rows, round, body.kind),
+        ...(await placeOf(tx, rows, round, body.kind)),
         ...(owned ? { source: 'manual' as const, createdBy: round.createdBy ?? who.id } : {}),
         ...(body.amount === undefined ? {} : { amount: body.amount, currency: body.currency }),
         ...(body.validUntil === undefined ? {} : { validUntil: body.validUntil }),
@@ -127,13 +134,15 @@ export class QuotationService {
   async record(tx: Db, deal: DealAt, by: By, sending: QuotationSending): Promise<QuotationRowDb> {
     const manual = sending.source === 'manual' ? sending : null
     const code = deal.row.code
+    const rows = await this.repo.byDeal(tx, code)
+    await assertKindUsable(tx, rows, manual?.kind)
     const sent = await this.lifecycle.quotation(tx, deal, by, {
       at: manual?.sentAt === undefined ? undefined : new Date(manual.sentAt),
       note: sending.note,
     })
     assertValidUntil(manual?.validUntil, sent.at)
 
-    const slot = slotOf(await this.repo.byDeal(tx, code), manual?.kind ?? null)
+    const slot = slotOf(rows, manual?.kind ?? null)
     let place = { negotiationNo: slot.negotiationNo + 1, roundNo: 1 }
     if (slot.pending && manual) {
       if (!manual.supersede) {
@@ -278,16 +287,18 @@ function pendingOf(rows: readonly QuotationRowDb[], id: string): QuotationRowDb 
 
 /** Where a round goes when its kind is named. A round that already has a kind
  *  keeps it; a kind-less one opens the kind's next negotiation. */
-function placeOf(
+async function placeOf(
+  tx: Db,
   rows: readonly QuotationRowDb[],
   round: QuotationRowDb,
   kind: ContractKind | undefined,
-): Pick<QuotationValues, 'kind' | 'negotiationNo' | 'roundNo'> | Record<string, never> {
+): Promise<Pick<QuotationValues, 'kind' | 'negotiationNo' | 'roundNo'> | Record<string, never>> {
   if (kind === undefined || kind === round.kind) return {}
   if (round.kind !== null) {
     throw conflict('Lần báo giá này đã có loại hợp đồng, không đổi được.')
   }
-  return { ...adoptedPlace(rows, kind), roundNo: 1 }
+  await assertKindUsable(tx, rows, kind)
+  return { ...adoptedPlace(rows, kind, await kindLabel(tx, kind)), roundNo: 1 }
 }
 
 /** A VN-day rule the row is needed for: valid at least through its send day. */

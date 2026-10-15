@@ -28,6 +28,7 @@ export const NotificationKind = z.enum([
   'opportunity-unassigned',
   'next-step-assigned',
   'next-step-done',
+  'comm-record-late',
   'approval-waiting',
   'approval-approved',
   'approval-rejected',
@@ -56,6 +57,7 @@ export const NotificationKind = z.enum([
   'lead-resumed',
   'lead-reopened',
   'mail-run-replied',
+  'contract-installment-overdue',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -75,6 +77,7 @@ export const NotificationSubject = z.enum([
   'comm',
   'lead-batch',
   'opportunity-batch',
+  'comm-record',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -95,6 +98,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'opportunity-unassigned': 'Bạn không còn phụ trách cơ hội',
   'next-step-assigned': 'Bạn được giao việc tiếp theo',
   'next-step-done': 'Việc bạn giao đã xong',
+  'comm-record-late': 'Lượt liên hệ quá hạn chưa xác nhận',
   'approval-waiting': 'Có yêu cầu đang chờ bạn duyệt',
   'approval-approved': 'Yêu cầu của bạn đã được duyệt',
   'approval-rejected': 'Yêu cầu của bạn bị từ chối',
@@ -123,17 +127,18 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'lead-resumed': 'Lead của bạn được chăm sóc lại',
   'lead-reopened': 'Lead của bạn được mở lại',
   'mail-run-replied': 'Khách trả lời thư của lô gửi',
+  'contract-installment-overdue': 'Đợt thanh toán của hợp đồng đã quá hạn thu',
 }
 
 /** The filter chips on the bell screen. */
 export const NotificationGroup = z.enum([
   'lead',
   'opportunity',
+  'contract',
   'next-step',
   'approval',
   'mail',
   'account',
-  'contract',
   'campaign',
   'kpi',
   'comm',
@@ -143,11 +148,11 @@ export type NotificationGroup = z.infer<typeof NotificationGroup>
 export const NOTIFICATION_GROUP_LABEL: Record<NotificationGroup, string> = {
   lead: 'Lead',
   opportunity: 'Cơ hội',
+  contract: 'Hợp đồng',
   'next-step': 'Việc tiếp theo',
   approval: 'Phê duyệt',
   mail: 'Thư',
   account: 'Tài khoản',
-  contract: 'Hợp đồng',
   campaign: 'Chiến dịch',
   kpi: 'KPI',
   comm: 'Liên hệ',
@@ -171,6 +176,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'opportunity-unassigned': 'opportunity',
   'next-step-assigned': 'next-step',
   'next-step-done': 'next-step',
+  'comm-record-late': 'next-step',
   'approval-waiting': 'approval',
   'approval-approved': 'approval',
   'approval-rejected': 'approval',
@@ -199,6 +205,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'lead-resumed': 'lead',
   'lead-reopened': 'lead',
   'mail-run-replied': 'mail',
+  'contract-installment-overdue': 'contract',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -224,6 +231,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'opportunity-unassigned': { important: false, locked: false },
   'next-step-assigned': { important: false, locked: false },
   'next-step-done': { important: false, locked: false },
+  'comm-record-late': { important: false, locked: false },
   'approval-waiting': { important: true, locked: true },
   'approval-approved': { important: false, locked: false },
   'approval-rejected': { important: false, locked: false },
@@ -252,6 +260,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'lead-resumed': { important: false, locked: false },
   'lead-reopened': { important: false, locked: false },
   'mail-run-replied': { important: false, locked: false },
+  'contract-installment-overdue': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -279,6 +288,7 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   comm: 'comm.view',
   'lead-batch': 'lead.view',
   'opportunity-batch': 'opportunity.view',
+  'comm-record': 'comm.view',
 }
 
 /** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
@@ -312,6 +322,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'opportunity-unassigned': ['opportunity'],
     'next-step-assigned': ['lead', 'opportunity'],
     'next-step-done': ['lead', 'opportunity'],
+    'comm-record-late': ['comm-record'],
     'approval-waiting': ['approval'],
     'approval-approved': ['approval'],
     'approval-rejected': ['approval'],
@@ -340,6 +351,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'lead-resumed': ['lead'],
     'lead-reopened': ['lead'],
     'mail-run-replied': ['mail-run'],
+    'contract-installment-overdue': ['contract'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

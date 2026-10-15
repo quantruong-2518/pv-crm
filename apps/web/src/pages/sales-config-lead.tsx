@@ -2,7 +2,7 @@ import { GlassCard } from '@pv/ui'
 import { useMyConfigProposals } from '@/data/sales-config'
 import { MotionPickerSection } from './lead-origins-motions'
 import { AddStopReason } from './sales-config-add-rows'
-import { CommCriteriaConfig, EntryRow, StepKindConfig } from './sales-config-comm'
+import { CommCriteriaConfig, EntryRow, FlatListConfig } from './sales-config-comm'
 import { byOrd, motionPickerWaiting } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
 import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-config-section'
@@ -64,7 +64,7 @@ export function CareArea({ catalog }: AreaProps) {
       </Section>
 
       <Section at="step-kinds" summary={<EntryCount rows={catalog?.STEP_KIND ?? []} noun="loại" />}>
-        <StepKindConfig />
+        <FlatListConfig list="STEP_KIND" unit="bước" addLabel="Thêm loại bước tiếp theo" />
       </Section>
     </>
   )

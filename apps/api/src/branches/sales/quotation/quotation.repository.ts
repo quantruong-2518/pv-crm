@@ -137,6 +137,23 @@ export class QuotationRepository {
       .orderBy(asc(configEntry.ord), asc(configEntry.id))
   }
 
+  /** The whole `CONTRACT_KIND` catalogue in desk order, retired rows included:
+   *  a hidden kind already stored on a deal still needs its name on screen. */
+  kinds(
+    handle: Db = this.db,
+  ): Promise<{ id: string; name: string; active: boolean; ord: number }[]> {
+    return handle
+      .select({
+        id: configEntry.id,
+        name: configEntry.name,
+        active: configEntry.active,
+        ord: configEntry.ord,
+      })
+      .from(configEntry)
+      .where(eq(configEntry.list, 'CONTRACT_KIND'))
+      .orderBy(asc(configEntry.ord), asc(configEntry.id))
+  }
+
   /** Label by config id across both reason lists, retired rows included: a
    *  round closed under a reason since switched off still says why. */
   async reasonNames(handle: Db, ids: readonly string[]): Promise<Map<string, string>> {

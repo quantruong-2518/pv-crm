@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common'
 import type { Actor, RoleId } from '@pv/engines'
 import {
-  CONTRACT_KIND_LABEL,
   ConfigProposalReceipt,
   ContractSignProposal,
   type ContractSign,
@@ -16,6 +15,7 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/approval.service'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
+import { assertKindUsable, kindLabel } from '../config/contract-kind'
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign } from '../contract/contract.mapper'
 import { dropStep } from '../next-step/next-step.handover'
@@ -94,7 +94,7 @@ export class OpportunitySign implements ApprovalApplier {
       }
       const draft = {
         kind: 'contract-sign' as const,
-        consequence: consequenceOf(fresh, body),
+        consequence: consequenceOf(fresh, body, await kindLabel(tx, body.kind)),
         payload: proposal,
         chain,
         links: [{ objectCode: code, objectLabel: fresh.row.name }],
@@ -145,6 +145,7 @@ export class OpportunitySign implements ApprovalApplier {
     const facts = signFactsOf(found, rounds.length > 0)
     const verdict = signVerdict({ ...facts, pendingSign })
     if (!verdict.ok) throw conflict(verdict.reason)
+    await assertKindUsable(handle, rounds, body.kind)
     const round = body.quotationId === undefined ? null : waiting(rounds, body.quotationId)
     if (body.quotationId !== undefined && !round) {
       throw conflict('Lần báo giá đã chọn không còn chờ khách. Tải lại rồi chọn lại.')
@@ -154,7 +155,9 @@ export class OpportunitySign implements ApprovalApplier {
     }
     /* A kind-less round takes the contract's kind when it wins; ask now whether
        that kind has room, so nobody approves a signature that cannot land. */
-    if (round && round.kind === null) adoptedPlace(rounds, body.kind)
+    if (round && round.kind === null) {
+      adoptedPlace(rounds, body.kind, await kindLabel(handle, body.kind))
+    }
     /* Commission follows a Sale standing on the deal, never a stranger. The
        lane's people are frozen while the request waits; only its primary may
        move, through the assign door with a reason. */
@@ -283,7 +286,7 @@ export class OpportunitySign implements ApprovalApplier {
       )
     }
     if (round && round.kind === null) {
-      const place = adoptedPlace(rows, sign.kind)
+      const place = adoptedPlace(rows, sign.kind, await kindLabel(tx, sign.kind))
       await this.quotes.adopt(tx, round, place)
       round = { ...round, ...place }
     }
@@ -388,7 +391,7 @@ export const signsDirect = (who: Actor): boolean =>
   who.roleIds.some((role) => SIGN_DIRECT.includes(role))
 
 /** What the approver reads instead of the payload: deal, customer, kind, amount. */
-function consequenceOf(found: OpportunityRead, body: ContractSign): string {
+function consequenceOf(found: OpportunityRead, body: ContractSign, kind: string): string {
   const money = `${body.amount.toLocaleString('vi-VN')} ${body.currency}`
-  return `Ký hợp đồng ${CONTRACT_KIND_LABEL[body.kind]} cho cơ hội ${found.row.code} · ${found.account} · ${money}`
+  return `Ký hợp đồng ${kind} cho cơ hội ${found.row.code} · ${found.account} · ${money}`
 }

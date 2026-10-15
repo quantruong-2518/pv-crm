@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chip, Drawer, Select } from '@pv/ui'
 import {
-  CONTRACT_KIND_LABEL,
-  ContractKind,
   ContractSign,
+  type ContractKind,
   type CurrencyCode,
   type InstallmentDraft,
   type OpportunityMoneyNegotiation,
@@ -14,6 +13,8 @@ import { toastDone } from '@/app/toast'
 import { useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
+import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
+import { ContractKindField } from '@/components/contract-kind-field'
 import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/money'
 import { ScheduleEditor } from '@/components/deal-pay'
 import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
@@ -78,23 +79,19 @@ function bodyOf(form: SignForm): ContractSign | null {
 const NO_QUOTATION = { value: '', label: 'Không gắn báo giá' }
 
 /** One option per negotiation still waiting for the customer. */
-function waitingOptions(op: OpportunityProfileResponse) {
+function waitingOptions(op: OpportunityProfileResponse, resolveKind: (code: string) => string) {
   return op.money.open.flatMap((n: OpportunityMoneyNegotiation) => {
     if (n.pendingId === null) return []
     const round = n.rounds.find((r) => r.id === n.pendingId)
+    /* Short parts first: the box truncates from the right, so it cuts the name. */
     const parts = [
-      kindLabel(n.kind),
+      round && `Lần ${round.roundNo}`,
       n.amount === null ? NO_AMOUNT : compactMoney(n.amount, n.currency),
-      round && `lần ${round.roundNo}`,
+      kindLabel(n.kind, resolveKind),
     ]
     return [{ value: n.pendingId, label: parts.filter(Boolean).join(' · ') }]
   })
 }
-
-const KIND_OPTIONS = [
-  { value: '', label: 'Chọn loại hợp đồng…' },
-  ...ContractKind.options.map((k) => ({ value: k, label: CONTRACT_KIND_LABEL[k] })),
-]
 
 /** Picking a round lends its kind, value and currency; all stay editable. */
 function lend(form: SignForm, op: OpportunityProfileResponse, pendingId: string): SignForm {
@@ -120,6 +117,7 @@ type Props = {
 
 export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const people = useSalesPeople()
+  const resolveKind = useContractKindLabel()
   const sign = useSignContract(op.code)
   const direct = op.signsDirect
   const again = op.state === 'won'
@@ -154,7 +152,8 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const body = bodyOf(form)
   const check = body ? ContractSign.safeParse(body) : null
   const blocked = check !== null && !check.success
-  const waiting = waitingOptions(op)
+  const waiting = waitingOptions(op, resolveKind)
+  const noKind = useContractKindOptions(form.kind).length === 0
   const pick = (pendingId: string) => setForm((f) => lend(f, op, pendingId))
   const currency = form.currency === '' ? null : form.currency
   /* Sums that do not add up are said by the editor's own line, so the footer
@@ -176,7 +175,9 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
           ? direct
             ? 'Ký xong là có hợp đồng.'
             : 'Gửi xong, đề nghị chờ duyệt.'
-          : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'
+          : noKind
+            ? ''
+            : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'
 
   return (
     <Drawer
@@ -235,17 +236,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
           </Field>
         )}
 
-        <Field label="Loại hợp đồng" required plain>
-          <Select
-            label="Loại hợp đồng"
-            hideLabel
-            size="lg"
-            value={form.kind}
-            onChange={(v) => set('kind', v as ContractKind | '')}
-            options={KIND_OPTIONS}
-            className="w-full"
-          />
-        </Field>
+        <ContractKindField value={form.kind} onChange={(v) => set('kind', v)} />
 
         <SignAmount
           amount={form.amount}

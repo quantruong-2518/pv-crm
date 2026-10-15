@@ -16,7 +16,8 @@ import { byOrd, entryWaiting } from './sales-config-model'
 import { SENT, WaitingAdds, WaitingNote } from './sales-config-section'
 
 /** Config sections for the comm confirm form (ADR 0074): evaluation questions
- *  with their answers, and next-step kinds. Mounted by `sales-config-lead.tsx`.
+ *  with their answers, and the flat name lists — next-step kinds and contract
+ *  kinds. Mounted from `sales-config-lead.tsx` and `sales-config-deal.tsx`.
  *  `EntryRow` is also the config screen's generic catalog row.
  *
  *  Same rules as every list on the config screen: no hard delete (a row with
@@ -65,27 +66,41 @@ export function CommCriteriaConfig() {
   )
 }
 
-export function StepKindConfig() {
+/** A flat catalog: one row per entry, then the add box. Serves every list
+ *  that is only a name list (no stage, no parent). */
+export function FlatListConfig({
+  list,
+  unit,
+  addLabel,
+}: {
+  list: 'STEP_KIND' | 'CONTRACT_KIND'
+  unit: string
+  addLabel: string
+}) {
   const { data: catalog } = useQuery(salesCatalogQuery)
-  const kinds = [...(catalog?.STEP_KIND ?? [])].sort(byOrd)
+  const kinds = [...(catalog?.[list] ?? [])].sort(byOrd)
 
   return (
     <div className="flex flex-col gap-4">
-      <GlassCard variant="b" className="p-4">
-        <ul className="flex flex-col gap-2">
-          {kinds.map((k) => (
-            <li key={k.id}>
-              <EntryRow
-                entry={k}
-                list="STEP_KIND"
-                usage={catalog?.usage.STEP_KIND[k.id] ?? 0}
-                unit="bước"
-              />
-            </li>
-          ))}
-        </ul>
-      </GlassCard>
-      <AddEntry list="STEP_KIND" placeholder="Thêm loại bước tiếp theo" />
+      {kinds.length === 0 ? (
+        <p className="text-muted-foreground text-[11.5px]">Chưa có loại nào.</p>
+      ) : (
+        <GlassCard variant="b" className="p-4">
+          <ul className="flex flex-col gap-2">
+            {kinds.map((k) => (
+              <li key={k.id}>
+                <EntryRow
+                  entry={k}
+                  list={list}
+                  usage={catalog?.usage[list][k.id] ?? 0}
+                  unit={unit}
+                />
+              </li>
+            ))}
+          </ul>
+        </GlassCard>
+      )}
+      <AddEntry list={list} placeholder={addLabel} />
     </div>
   )
 }
@@ -129,11 +144,13 @@ export function EntryRow({
           <Input
             value={name}
             aria-label={`Tên mới cho ${entry.name}`}
-            className="pointer-coarse:h-12 min-w-0 flex-1"
+            className="pointer-coarse:h-12 min-w-40 flex-1"
             onChange={(e) => setName(e.target.value)}
           />
         ) : (
-          <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium">{entry.name}</span>
+          <span className="min-w-40 flex-1 break-words text-[12.5px] font-medium">
+            {entry.name}
+          </span>
         )}
         {extra}
         <Badge

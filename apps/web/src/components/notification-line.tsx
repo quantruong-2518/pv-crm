@@ -1,4 +1,4 @@
-import { Badge, ChevronRight, Icon, cn } from '@pv/ui'
+import { Badge, ChevronRight, Icon, cn, vnd } from '@pv/ui'
 import {
   NOTIFICATION_DETAIL_CONTRACT,
   NOTIFICATION_DETAIL_COUNT,
@@ -10,8 +10,8 @@ import {
   type NotificationRow,
   type NotificationSubject,
 } from '@pv/contracts'
-import { dmhm } from '@/lib/date'
-import { useNotificationPath } from '@/data/notifications'
+import { dm, dmhm } from '@/lib/date'
+import { overdueInstallment, useNotificationPath } from '@/data/notifications'
 
 /** One notification, as the `/notifications` screen draws it. The caller owns
  *  what a press does; the line only says whether there is a place to go.
@@ -28,7 +28,17 @@ export function NotificationLine({
 }) {
   const path = useNotificationPath()(row)
   const unread = row.readAt === null
-  const extra = [row.subject.label, ...detailFragments(row)].filter(Boolean).join(' · ')
+  const installment = overdueInstallment(row)
+  /* An overdue installment adds which one, how much and since when. */
+  const extra = [
+    row.subject.label,
+    ...detailFragments(row),
+    installment ? `Đợt ${installment.no}` : null,
+    typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
+    installment?.due ? `hạn ${dm(installment.due)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const body = (
     <>
       <span className="flex min-w-0 flex-1 flex-col gap-1">

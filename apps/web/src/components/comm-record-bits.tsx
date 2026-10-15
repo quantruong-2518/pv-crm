@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowRight, Button, GlassCard, Icon, SectionTitle, cn } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
-import { COMM_CARD_SURFACE, summaryTextOf } from '@/data/comm-record-detail'
+import { COMM_CARD_SURFACE, UNREACHED_LINE, summaryTextOf } from '@/data/comm-record-detail'
 import { commRecordPath } from '@/data/comm-records'
 import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-bits'
 
@@ -12,6 +12,7 @@ import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-
  *  where the header above already names channel, time and state. */
 export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'page' }) {
   const navigate = useNavigate()
+  const unreached = row.state === 'unreached'
   const body = (
     <>
       {as === 'panel' && row.title && (
@@ -20,10 +21,12 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
       <p
         className={cn(
           'm-0 whitespace-pre-wrap break-words text-[13px] leading-[1.6]',
-          row.summary.state === 'visible' ? 'text-foreground' : 'text-muted-foreground',
+          !unreached && row.summary.state === 'visible'
+            ? 'text-foreground'
+            : 'text-muted-foreground',
         )}
       >
-        {summaryTextOf(row.summary)}
+        {unreached ? UNREACHED_LINE : summaryTextOf(row.summary)}
       </p>
 
       <dl className="m-0 grid gap-x-3 gap-y-2 text-[12.5px] sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
@@ -31,7 +34,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
         <dd className="m-0">{row.owner.name}</dd>
         {row.closedAt && (
           <>
-            <dt className="text-muted-foreground">Xác nhận lúc</dt>
+            <dt className="text-muted-foreground">{unreached ? 'Đóng lúc' : 'Xác nhận lúc'}</dt>
             <dd className="m-0 tabular-nums">{dmhm(row.closedAt)}</dd>
           </>
         )}
@@ -40,7 +43,7 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
         ))}
       </dl>
 
-      {row.step ? (
+      {unreached ? null : row.step ? (
         <div className="flex min-w-0 flex-col gap-2">
           <span className="text-muted-foreground text-[12px] font-medium">Bước tiếp theo</span>
           <StepCopyLine step={row.step} />
@@ -55,8 +58,11 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
 
   if (as === 'page') {
     return (
-      <GlassCard className="flex flex-col gap-4 p-5 lg:p-6" aria-label="Nội dung đã xác nhận">
-        <SectionTitle size="detail">Đã xác nhận</SectionTitle>
+      <GlassCard
+        className="flex flex-col gap-4 p-5 lg:p-6"
+        aria-label={unreached ? 'Lượt liên hệ đã đóng' : 'Nội dung đã xác nhận'}
+      >
+        {!unreached && <SectionTitle size="detail">Đã xác nhận</SectionTitle>}
         {body}
       </GlassCard>
     )

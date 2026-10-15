@@ -82,6 +82,7 @@ export * from './organisms/brief-card'
 export * from './organisms/kiosk-tile'
 export * from './organisms/order-lifecycle-card'
 export * from './organisms/toast'
+export * from './organisms/action-banner'
 
 // ---- Zone 04 · Templates (T-04 · T-07) ----
 export * from './layout/app-shell'

@@ -9,7 +9,7 @@
  *
  *  It lives HERE and not in `apps/web` because this same level decides what E4
  *  sends and to whom: the screen only paints from it, while the server sweeps
- *  daily and fires from it. Both sides must read the same level for the same
+ *  hourly and fires from it. Both sides must read the same level for the same
  *  day, and the only way to guarantee that is a single function.
  *
  *  No `Date.now()` anywhere: every function takes `today` from the caller. A

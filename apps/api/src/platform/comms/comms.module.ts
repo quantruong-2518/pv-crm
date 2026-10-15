@@ -8,6 +8,7 @@ import { CommAttachmentController } from './comm-attachment.controller'
 import { CommAttachmentRepository } from './comm-attachment.repository'
 import { CommAttachmentService } from './comm-attachment.service'
 import { COMM_DEBRIEF_HOOK, type CommDebriefHook } from './comm-debrief.hook'
+import { CommLateSweeper } from './comm-late.sweeper'
 import { CommRecordModule } from './comm-record.module'
 import {
   COMM_ATTACHMENT_CONSTRAINTS,
@@ -55,10 +56,10 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
  *  ask E2 about it is a `SELECT` on a table this schema already references,
  *  not a reason to import the write half of the object graph.
  *
- *  No `exports`: a branch that opens a record imports `CommRecordModule`. */
+ *  `NotificationModule` for the hub alone: `CommLateSweeper` emits, and so
+ *  does a debrief someone else confirms (ADR 0093 wave 2). No `exports`: a branch that opens a record imports
+ *  `CommRecordModule`. */
 @Module({
-  /* `NotificationModule` for the owner's line when someone else confirms their
-     record (ADR 0093 wave 2); it imports nothing that reaches back here. */
   imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule, NotificationModule],
   controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
   providers: [
@@ -69,6 +70,7 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     MeetingDebriefService,
     CommAttachmentService,
     CommAttachmentRepository,
+    CommLateSweeper,
   ],
 })
 export class CommsModule {

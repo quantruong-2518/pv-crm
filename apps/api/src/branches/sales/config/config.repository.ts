@@ -184,6 +184,19 @@ export class SalesConfigRepository {
        WHERE q.reason_id IS NOT NULL AND q.reason_id <> ${OPPORTUNITY_STOP_REASON_OTHER}
        GROUP BY q.reason_id
       UNION ALL
+      /* One tally for both stores: a kind is a CK config id under a composite FK on each.
+         Rows of a disabled lead drop out, like every branch above. */
+      SELECT 'CONTRACT_KIND', k.kind, count(*)::int FROM (
+        SELECT c.kind FROM sales.contract c
+          JOIN sales.lead l ON l.code = c.lead_code AND l.disabled_at IS NULL
+         WHERE c.kind IS NOT NULL
+        UNION ALL
+        SELECT q.kind FROM sales.quotation q
+          JOIN sales.opportunity o ON o.code = q.opportunity_code
+          JOIN sales.lead l ON l.code = o.lead_code AND l.disabled_at IS NULL
+         WHERE q.kind IS NOT NULL
+      ) k GROUP BY k.kind
+      UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL

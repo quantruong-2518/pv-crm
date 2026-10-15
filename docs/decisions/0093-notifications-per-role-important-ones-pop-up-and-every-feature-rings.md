@@ -232,5 +232,7 @@ permissions are a union, and so are mutes.
 
 ## Rollout
 
-Wave 1 built and live 15/10/2026 (migration 0106). Wave 2 built 15/10/2026
-(migration 0107; migrate before deploy). Wave 3 not started.
+Wave 1 built and live 15/10/2026 (migration 0106). Wave 2 live 15/10/2026
+(migration `0110_notification_wave2`, first run on Neon as 0107 before the
+merge with ADR 0094-0096 renumbered it; it restates every kind so either
+order ends with the full lists). Wave 3 not started.

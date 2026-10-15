@@ -39,7 +39,8 @@ export const notification = platform.table(
     /** Where a click goes. Kind alone cannot say: `mail-failed` and
      *  `customer-replied` land on a lead or an opportunity. */
     subjectKind: text('subject_kind').$type<NotificationSubject>().notNull(),
-    /** Lead/opportunity code, approval id, scan batch id, run id or actor id. */
+    /** Lead/opportunity/contract code, approval id, scan batch id, run id,
+     *  actor id or `comms.debrief` id (`comm-record`). */
     subjectCode: text('subject_code').notNull(),
     /** Company or run name copied at write time, so the bell never joins into
      *  another module to draw a line. NULL when the subject has no name. */
@@ -73,7 +74,7 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The forty-three `NotificationKind` values, copied out for
+    /** The forty-five `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
@@ -91,14 +92,15 @@ export const notification = platform.table(
                      'contract-schedule-replaced', 'contract-condition-done',
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
-                     'lead-resumed', 'lead-reopened', 'mail-run-replied')`,
+                     'lead-resumed', 'lead-reopened', 'mail-run-replied',
+                     'comm-record-late', 'contract-installment-overdue')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
       'notification_subject_kind_known',
       sql`"subject_kind" IN ('lead', 'lead-pool', 'opportunity', 'approval', 'lead-scan', 'mail-run',
                              'user', 'google-link', 'contract', 'campaign', 'kpi-target', 'comm',
-                             'lead-batch', 'opportunity-batch')`,
+                             'lead-batch', 'opportunity-batch', 'comm-record')`,
     ),
   ],
 )
@@ -156,7 +158,8 @@ export const notificationKindPolicy = platform.table(
                      'contract-schedule-replaced', 'contract-condition-done',
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
-                     'lead-resumed', 'lead-reopened', 'mail-run-replied')`,
+                     'lead-resumed', 'lead-reopened', 'mail-run-replied',
+                     'comm-record-late', 'contract-installment-overdue')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

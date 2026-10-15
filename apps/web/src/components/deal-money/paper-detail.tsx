@@ -7,6 +7,7 @@ import {
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dmy } from '@/lib/date'
+import { useContractKindLabel } from '@/data/sales-config'
 import { ContractFiles } from './contract-files'
 import { InstallmentTiles } from './installment-tiles'
 import { NO_AMOUNT, compactMoney, kindLabel } from './money'
@@ -38,12 +39,15 @@ export function PaperDetail({
   onOpen: (contract: OpportunityMoneyContract, installment: OpportunityMoneyInstallment) => void
   onSchedule: (contract: OpportunityMoneyContract) => void
 }) {
+  const resolveKind = useContractKindLabel()
   if (paper.kind === 'quote') {
     const { negotiation: n, round } = paper
     return (
       <div className={WELL}>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <h3 className="font-display m-0 text-[20px] font-semibold">{kindLabel(n.kind)}</h3>
+          <h3 className="font-display m-0 text-[20px] font-semibold">
+            {kindLabel(n.kind, resolveKind)}
+          </h3>
           <Badge tone="running">{QUOTATION_OUTCOME_LABEL.pending}</Badge>
           {round && (
             <span className="text-muted-foreground tnum text-[12px]">
@@ -86,6 +90,7 @@ function SignedPaper({
   onSchedule: (contract: OpportunityMoneyContract) => void
 }) {
   const navigate = useNavigate()
+  const resolveKind = useContractKindLabel()
   /* Parked contract screens answer no here, so the heading offers no dead door. */
   const canOpen = useCan('contract.view')
   const unpaid = c.installments.some((i) => i.status !== 'paid')
@@ -93,7 +98,9 @@ function SignedPaper({
   return (
     <div className={WELL}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h3 className="font-display m-0 text-[20px] font-semibold">{kindLabel(c.kind)}</h3>
+        <h3 className="font-display m-0 text-[20px] font-semibold">
+          {kindLabel(c.kind, resolveKind)}
+        </h3>
         <Chip>{c.code}</Chip>
         <span className="text-muted-foreground tnum text-[12px]">Ký {dmy(c.signedAt)}</span>
         <span className="tnum font-num ml-auto text-[20px] font-semibold">

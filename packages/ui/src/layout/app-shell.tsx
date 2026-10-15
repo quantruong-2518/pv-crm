@@ -3,6 +3,7 @@ import { AuroraField } from '../layout/aurora-field'
 import { AssistantFab } from '../layout/assistant-fab'
 import { AppHeader, type AppHeaderProps } from '../organisms/app-header'
 import { BottomNav, type BottomNavKey } from '../organisms/bottom-nav'
+import { ActionBannerHost, type ActionBannerItem } from '../organisms/action-banner'
 import { cn } from '../lib/cn'
 
 /** AppShell — khung màn, mobile-first.
@@ -53,6 +54,11 @@ export type AppShellProps = {
   /** Không truyền thì khung KHÔNG vẽ nút Trợ lý nổi — xem lý do ở chỗ render. */
   onOpenAssistant?: () => void
   onNavigate?: (key: BottomNavKey) => void
+  /** Something to act on now, floating at bottom-centre — see `ActionBanner`.
+   *  `@pv/ui` only draws from props; it does not know this is an overdue
+   *  installment or anything else about it. */
+  banners?: ActionBannerItem[]
+  onDismissBanner?: (id: string) => void
 }
 
 export function AppShell({
@@ -64,6 +70,8 @@ export function AppShell({
   children,
   onOpenAssistant,
   onNavigate,
+  banners,
+  onDismissBanner,
 }: AppShellProps) {
   return (
     <AuroraField>
@@ -98,6 +106,10 @@ export function AppShell({
         locked={lockedNav}
         onNavigate={(key) => (key === 'assistant' ? onOpenAssistant?.() : onNavigate?.(key))}
       />
+
+      {banners ? (
+        <ActionBannerHost items={banners} onDismiss={onDismissBanner ?? (() => {})} />
+      ) : null}
     </AuroraField>
   )
 }

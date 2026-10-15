@@ -7,15 +7,15 @@ import {
   type ConfigEntry,
 } from '@pv/contracts'
 import { AddLossReason, AddProduct } from './sales-config-add-rows'
-import { AddEntry, EntryRow } from './sales-config-comm'
+import { AddEntry, EntryRow, FlatListConfig } from './sales-config-comm'
 import { ActivityFreshnessConfig } from './sales-config-freshness'
 import { byOrd } from './sales-config-model'
 import { EntryCount, Section, type AreaProps } from './sales-config-section'
 
 /** The deal flow — how stale a deal's last activity may get, why a deal leaves
- *  the board for the care list, why a quotation is redone, and what the
- *  department sells. Switched-off
- *  rows stay listed in both catalogs: off is the only delete this system has. */
+ *  the board for the care list, why a quotation is redone, what the department
+ *  sells and what kinds of contract it signs. Switched-off rows stay listed in
+ *  every catalog: off is the only delete this system has. */
 export function DealArea({ catalog }: AreaProps) {
   const products = [...(catalog?.PRODUCT ?? [])].sort(byOrd)
   const reasons = catalog?.LOSS_REASON ?? []
@@ -78,6 +78,15 @@ export function DealArea({ catalog }: AreaProps) {
         )}
 
         <AddProduct />
+      </Section>
+
+      {/* 5.15 — what a quotation or contract is for; a quotation and a
+          contract store the code, so a switched-off kind keeps its name. */}
+      <Section
+        at="contract-kinds"
+        summary={<EntryCount rows={catalog?.CONTRACT_KIND ?? []} noun="loại" />}
+      >
+        <FlatListConfig list="CONTRACT_KIND" unit="lần dùng" addLabel="Thêm loại hợp đồng" />
       </Section>
     </>
   )

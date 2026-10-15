@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  ContractKindsResponse,
   QuotationReasonsResponse,
   type ObjectCode,
   type QuotationCloseBody,
@@ -41,6 +42,18 @@ export const quotationReasonsQuery = queryOptions({
     api.read<QuotationReasonsResponse>('/sales/opportunities/quotation-reasons', {
       need: { branch: 'Sales', permission: 'opportunity.edit' },
       schema: QuotationReasonsResponse,
+      signal,
+    }),
+})
+
+/** `GET …/contract-kinds` — every `CONTRACT_KIND` entry, retired ones included,
+ *  for anyone who can view a deal but lacks `config.view`. */
+export const contractKindsQuery = queryOptions({
+  queryKey: ['sales', 'contract-kinds'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ContractKindsResponse>('/sales/opportunities/contract-kinds', {
+      need: { branch: 'Sales', permission: 'opportunity.view' },
+      schema: ContractKindsResponse,
       signal,
     }),
 })

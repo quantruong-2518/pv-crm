@@ -2,6 +2,7 @@ import {
   bigint,
   check,
   date,
+  foreignKey,
   integer,
   text,
   timestamp,
@@ -9,9 +10,10 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import type { ContractKind, CurrencyCode, QuotationOutcome, QuotationSource } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { sales } from '../sales.schema'
@@ -40,9 +42,13 @@ export const quotation = sales.table(
       .notNull()
       .references(() => opportunity.code, { onDelete: 'cascade' }),
 
-    /** What the paper is for. NULL only off the hand door — see
-     *  `quotation_manual_has_kind`. */
+    /** What the paper is for: a `CONTRACT_KIND` config id ('CK-01'). NULL only
+     *  off the hand door — see `quotation_manual_has_kind`. */
     kind: text('kind').$type<ContractKind>(),
+    /** Key half only, same trick and reason as `contract.kind_list`. */
+    kindList: text('kind_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "kind" IS NULL THEN NULL ELSE 'CONTRACT_KIND' END`,
+    ),
 
     /** Both minted by the server under the deal lock, never by the browser. */
     negotiationNo: integer('negotiation_no').notNull(),
@@ -98,11 +104,13 @@ export const quotation = sales.table(
      *  asks, and the fence against one touch counted as two quotations. */
     unique('quotation_touch_uq').on(t.touchId),
 
-    /** `ContractKind.options`, copied out for `touch_kind_known`'s reason. */
-    check(
-      'quotation_kind_known',
-      sql`"kind" IS NULL OR "kind" IN ('licence', 'deployment', 'training')`,
-    ),
+    /** Replaces `quotation_kind_known` (dropped in 0108), for the reason
+     *  `contract_kind_fk` gives: the kind list is edited, not enumerated. */
+    foreignKey({
+      name: 'quotation_kind_fk',
+      columns: [t.kind, t.kindList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
     /** `QuotationSource` and `QuotationOutcome`, copied out the same way. */
     check('quotation_source_known', sql`"source" IN ('manual', 'mail', 'backfill')`),
     check('quotation_outcome_known', sql`"outcome" IN ('pending', 'won', 'not-closed')`),

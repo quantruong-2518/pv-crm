@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  notExists,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
 import {
@@ -12,6 +25,7 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
+import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
@@ -50,6 +64,19 @@ export type ContractRead = {
 export type ContractBookRead = ContractRead & {
   customer: string
   installments: ContractInstallmentRowDb[]
+}
+
+/** One installment past due and unpaid, with the one person to tell. */
+export type OverdueInstallment = {
+  contractCode: string
+  no: number
+  /** E4's occurrence, `<no>/<due day>`: spelled once, in the SQL that also reads it. */
+  occurrence: string
+  ownerId: string
+  /** `<code> · <company>`: the bell copies a label at write time, never joins. */
+  label: string
+  due: Date
+  amount: number
 }
 
 export type ContractBookPage = {
@@ -534,6 +561,49 @@ export class ContractRepository {
       else by.set(r.contractCode, [r])
     }
     return by
+  }
+
+  /** Overdue installments — `summary()`'s predicate, unpaid and `due < now()` —
+   *  whose contract owner holds no bell line for them yet, on live leads and
+   *  unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
+   *  (recipient, event key) is what refuses a duplicate. The key is spelled
+   *  as E4's `plan` builds it (`<kind>/<code>/<occurrence>`): move both together.
+   *  The occurrence carries the due day (ADR 0093 §5's anchor date), so a due
+   *  date moved by a schedule edit rings again once the new day passes. */
+  overdueUntold(tx: Db): Promise<OverdueInstallment[]> {
+    const ci = contractInstallment
+    const occurrence = sql<string>`${ci.no} || '/' || to_char(${ci.due} AT TIME ZONE 'UTC', 'YYYY-MM-DD')`
+    const eventKey = sql`'contract-installment-overdue/' || ${ci.contractCode} || '/' || ${occurrence}`
+    return tx
+      .select({
+        contractCode: ci.contractCode,
+        no: ci.no,
+        occurrence,
+        ownerId: actor.id,
+        label: sql<string>`${contract.code} || ' · ' || ${lead.company}`,
+        due: ci.due,
+        amount: ci.amount,
+      })
+      .from(ci)
+      .innerJoin(contract, eq(contract.code, ci.contractCode))
+      .innerJoin(lead, ON_LEAD)
+      .innerJoin(actor, and(eq(actor.id, contract.ownerId), isNull(actor.disabledAt)))
+      .where(
+        and(
+          isNull(ci.paidAt),
+          sql`${ci.due} < now()`,
+          leadLive,
+          notExists(
+            tx
+              .select({ one: sql`1` })
+              .from(notification)
+              .where(
+                and(eq(notification.recipientId, actor.id), eq(notification.eventKey, eventKey)),
+              ),
+          ),
+        ),
+      )
+      .orderBy(asc(ci.due), asc(ci.contractCode), asc(ci.no))
   }
 
   /** The chosen column first, then newest signature and the code — a book with

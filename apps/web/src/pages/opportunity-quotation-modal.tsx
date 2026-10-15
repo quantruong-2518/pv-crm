@@ -3,13 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { CircleX, FileText, Trash2 } from '@pv/ui'
 import { Button, Icon, Input, Select, Textarea } from '@pv/ui'
 import {
-  CONTRACT_KIND_LABEL,
   CURRENCIES,
-  ContractKind,
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   QUOTATION_OUTCOME_LABEL,
+  type ContractKind,
   type CurrencyCode,
   type OpportunityMoneyNegotiation,
   type OpportunityProfileResponse,
@@ -37,6 +36,8 @@ import {
   useUploadDocument,
   type DocumentUpload,
 } from '@/data/workstream-documents'
+import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
+import { ContractKindField } from '@/components/contract-kind-field'
 import { Field } from '@/components/ops-fields'
 import { compactMoney, symbolOf } from '@/components/deal-money/money'
 import { FormModal } from '@/components/deal-pay/form-modal'
@@ -49,11 +50,6 @@ import { DropArea } from '@/components/run/run-documents'
  *  sentence when it refuses. */
 
 const NOT_CLOSED = QUOTATION_OUTCOME_LABEL['not-closed']
-
-const KIND_OPTIONS = [
-  { value: '', label: 'Chọn loại hợp đồng…' },
-  ...ContractKind.options.map((k) => ({ value: k, label: CONTRACT_KIND_LABEL[k] })),
-]
 
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code as string, label: c.label }))
 
@@ -74,13 +70,17 @@ function closesText(negotiation: OpportunityMoneyNegotiation): string {
 
 /** What the press will record, once the boxes are filled: the round it
  *  becomes (only known when a round is being replaced), value and kind. */
-function summaryOf(form: Form, waiting: OpportunityMoneyNegotiation | null): string {
+function summaryOf(
+  form: Form,
+  waiting: OpportunityMoneyNegotiation | null,
+  resolveKind: (code: string) => string,
+): string {
   if (form.amount === null || form.kind === '') return ''
   const round = waiting?.rounds.find((r) => r.id === waiting.pendingId)
   return [
     round && `Lần ${round.roundNo + 1}`,
     compactMoney(form.amount, form.currency),
-    CONTRACT_KIND_LABEL[form.kind],
+    resolveKind(form.kind),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -307,6 +307,7 @@ export function QuotationModal({
   open: boolean
   onClose: () => void
 }) {
+  const resolveKind = useContractKindLabel()
   const seed = useMemo(() => seedOf(op, negotiation), [op, negotiation])
   const [form, setForm] = useState<Form>(seed)
   const [uploading, setUploading] = useState(false)
@@ -387,7 +388,7 @@ export function QuotationModal({
           <span className="font-mono">{op.code}</span> · {op.account}
         </>
       }
-      line={blocker || summaryOf(form, waiting)}
+      line={blocker || summaryOf(form, waiting, resolveKind)}
       error={record.error}
       busy={record.isPending || uploading}
       busyLabel={uploading ? 'Đang tải tệp…' : 'Đang ghi…'}
@@ -405,23 +406,7 @@ export function QuotationModal({
         onAmount={(next) => set('amount', next)}
         onCurrency={(next) => set('currency', next)}
       />
-      <Field label="Loại hợp đồng" required plain>
-        {locked ? (
-          <span className="bg-input text-foreground pointer-coarse:h-12 flex h-10 items-center rounded-md px-4 text-[12.5px]">
-            {kind === '' ? '' : CONTRACT_KIND_LABEL[kind]}
-          </span>
-        ) : (
-          <Select
-            label="Loại hợp đồng"
-            hideLabel
-            size="lg"
-            value={kind}
-            onChange={(v) => set('kind', v as ContractKind | '')}
-            options={KIND_OPTIONS}
-            className="w-full"
-          />
-        )}
-      </Field>
+      <ContractKindField value={kind} locked={locked} onChange={(v) => set('kind', v)} />
       <Field label="Ngày gửi" required hint={range(min)}>
         <Input
           type="date"
@@ -528,7 +513,8 @@ export function QuotationPatchDialog({
   const [currency, setCurrency] = useState<CurrencyCode>(round.currency ?? op.currency ?? 'VND')
   const [validUntil, setValidUntil] = useState('')
   const patch = usePatchQuotation(op.code)
-  const pickedKind = ContractKind.safeParse(kind)
+  const kindOptions = useContractKindOptions()
+  const kindPicked = kindOptions.some((o) => o.value === kind)
   const sentDay = vnDayOf(round.sentAt)
   const missing = {
     kind: round.kind === null,
@@ -544,7 +530,7 @@ export function QuotationPatchDialog({
   }, [open])
 
   const filled = {
-    kind: missing.kind && pickedKind.success,
+    kind: missing.kind && kindPicked,
     amount: missing.amount && amount !== null && amount > 0,
     validUntil: missing.validUntil && validUntil !== '',
   }
@@ -579,7 +565,7 @@ export function QuotationPatchDialog({
           {
             id: round.id,
             body: {
-              ...(filled.kind && pickedKind.success ? { kind: pickedKind.data } : {}),
+              ...(filled.kind ? { kind } : {}),
               ...(filled.amount && amount !== null ? { amount, currency } : {}),
               ...(filled.validUntil ? { validUntil } : {}),
             },
@@ -601,19 +587,7 @@ export function QuotationPatchDialog({
           onCurrency={setCurrency}
         />
       )}
-      {missing.kind && (
-        <Field label="Loại hợp đồng" required plain>
-          <Select
-            label="Loại hợp đồng"
-            hideLabel
-            size="lg"
-            value={kind}
-            onChange={setKind}
-            options={KIND_OPTIONS}
-            className="w-full"
-          />
-        </Field>
-      )}
+      {missing.kind && <ContractKindField value={kind} onChange={setKind} />}
       {missing.validUntil && (
         <Field label="Hiệu lực đến">
           <Input

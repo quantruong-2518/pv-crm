@@ -236,6 +236,41 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   /* The leads book has no batch filter in its address yet; a batch lands on the book. */
   'lead-batch': () => '/sales/leads',
   'opportunity-batch': () => '/sales/opportunities',
+  'comm-record': (code) => `/comms/${encodeURIComponent(code)}`,
+}
+
+/** An overdue-installment row, read back. `detail` keys are named by the
+ *  sweeper that writes them (`installmentNo` · `amountVnd` · `due`); `null`
+ *  when the row is another kind or carries no installment number, so no path
+ *  ends in `/undefined`. */
+export type OverdueInstallment = {
+  id: string
+  code: string
+  /** The company only — the contract code already sits in the caller's title,
+   *  so the raw `"<code> · <company>"` label would say the code twice. */
+  company: string | null
+  no: number
+  amount: number | null
+  due: string | null
+  path: string
+}
+
+export function overdueInstallment(row: NotificationRow): OverdueInstallment | null {
+  if (row.kind !== 'contract-installment-overdue' || row.subject.kind !== 'contract') return null
+  const { installmentNo, amountVnd, due } = row.detail ?? {}
+  const n = Number(installmentNo)
+  if (!Number.isInteger(n) || n < 1) return null
+  const { code, label } = row.subject
+  const company = label?.startsWith(`${code} · `) ? label.slice(code.length + 3) : (label ?? null)
+  return {
+    id: row.id,
+    code,
+    company,
+    no: n,
+    amount: typeof amountVnd === 'number' ? amountVnd : null,
+    due: typeof due === 'string' ? due : null,
+    path: `${SUBJECT_PATH.contract(code)}/installments/${n}`,
+  }
 }
 
 /** `null` = nowhere to go, the row only marks itself read. A decided request
@@ -250,6 +285,8 @@ export const notificationPath = (
   if (row.kind === 'lead-removed' || row.kind === 'opportunity-unassigned') return null
   const need = NOTIFICATION_SUBJECT_PERMISSION[row.subject.kind]
   if (need && !may(need)) return null
+  const installment = overdueInstallment(row)
+  if (installment) return installment.path
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
     return `${ACCOUNT}#requests`
   return SUBJECT_PATH[row.subject.kind](row.subject.code)

@@ -1,7 +1,8 @@
 import { FileText } from '@pv/ui'
 import { Badge, Button, GlassCard, Icon } from '@pv/ui'
-import { CONTRACT_KIND_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
+import type { OpportunityProfileResponse } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
+import { useContractKindLabel } from '@/data/sales-config'
 import { compactMoney } from '@/components/deal-money/money'
 
 /** Module 3 · the sign request waiting on a decision (ADR 0077 §2, ADR 0078
@@ -20,6 +21,7 @@ export function SignRequestCard({
   /** Absent = this reader has nowhere to read the request. */
   onView?: (() => void) | undefined
 }) {
+  const kindLabel = useContractKindLabel()
   const pending = op.pendingSign
   if (!pending) return null
 
@@ -29,7 +31,7 @@ export function SignRequestCard({
       aria-label="Đề nghị ký hợp đồng"
     >
       <span className="flex min-w-0 flex-col gap-1">
-        <span className="text-foreground">Đề nghị ký · {CONTRACT_KIND_LABEL[pending.kind]}</span>
+        <span className="text-foreground">Đề nghị ký · {kindLabel(pending.kind)}</span>
         <span className="text-muted-foreground tnum text-[11.5px]">
           gửi {dmhm(pending.raisedAt)} · {pending.raisedBy}
         </span>

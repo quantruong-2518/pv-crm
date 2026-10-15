@@ -1,5 +1,4 @@
 import {
-  CONTRACT_KIND_LABEL,
   OPPORTUNITY_STOP_REASON_OTHER,
   OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   type ContractKind,
@@ -72,12 +71,13 @@ export function slotOf(rows: readonly QuotationRowDb[], kind: ContractKind | nul
 
 /** Where a kind-less round lands once its kind is named — by PATCH, or by the
  *  signature that wins it: the kind's NEXT negotiation, so no number can
- *  collide. Refused while that kind has a round waiting (one pending a kind). */
-export function adoptedPlace(rows: readonly QuotationRowDb[], kind: ContractKind) {
+ *  collide. Refused while that kind has a round waiting (one pending a kind).
+ *  `label` is the catalogue name, passed in so this stays a pure function. */
+export function adoptedPlace(rows: readonly QuotationRowDb[], kind: ContractKind, label: string) {
   const slot = slotOf(rows, kind)
   if (slot.pending) {
     throw conflict(
-      `Loại ${CONTRACT_KIND_LABEL[kind]} đang có lần báo giá ${slot.pending.roundNo} chờ khách. Đóng lần đó trước.`,
+      `Loại ${label} đang có lần báo giá ${slot.pending.roundNo} chờ khách. Đóng lần đó trước.`,
     )
   }
   return { kind, negotiationNo: slot.negotiationNo + 1 }

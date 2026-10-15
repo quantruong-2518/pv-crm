@@ -9,11 +9,12 @@ import {
   inArray,
   isNull,
   lt,
+  notInArray,
   or,
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { NotificationKind, PageQuery } from '@pv/contracts'
+import type { NotificationKind, NotificationSubject, PageQuery } from '@pv/contracts'
 import type { Branch, RoleId } from '@pv/engines'
 import { contains } from '@api/platform/db/like'
 import { DB, type Db } from '../db/db.module'
@@ -77,6 +78,27 @@ export class NotificationRepository {
       .insert(notification)
       .values(rows)
       .onConflictDoNothing({ target: [notification.recipientId, notification.eventKey] })
+  }
+
+  /** Which of these subjects already hold a line of this kind, whoever it rang. */
+  async told(
+    tx: Db,
+    kind: NotificationKind,
+    subjectKind: NotificationSubject,
+    codes: readonly string[],
+  ): Promise<Set<string>> {
+    if (codes.length === 0) return new Set()
+    const rows = await tx
+      .selectDistinct({ code: notification.subjectCode })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.kind, kind),
+          eq(notification.subjectKind, subjectKind),
+          inArray(notification.subjectCode, [...codes]),
+        ),
+      )
+    return new Set(rows.map((r) => r.code))
   }
 
   /** Unlocked actors in one of these roles; with a branch, only those licensed
@@ -188,8 +210,15 @@ export class NotificationRepository {
   async purgeReadBefore(mark: Date): Promise<number> {
     const rows = await this.db
       .delete(notification)
-      .where(lt(notification.readAt, mark))
+      .where(and(lt(notification.readAt, mark), notInArray(notification.kind, DURABLE_KINDS)))
       .returning({ id: notification.id })
     return rows.length
   }
 }
+
+/** Kinds the sweeper must never purge, read or not. Their ledger row is the
+ *  ONLY thing standing between the owner and a second bell for the same debt
+ *  (the UNIQUE on `(recipient_id, event_key)` keys off a row that still has to
+ *  exist) — purging it on the normal 90-day clock would ring the same overdue
+ *  installment again the day the sweeper next finds it untold. */
+const DURABLE_KINDS: NotificationKind[] = ['contract-installment-overdue']

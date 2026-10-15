@@ -24,11 +24,11 @@ import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadR
  *      GET  /comms/debriefs/:id              `comm.view` + reach · one record
  *      POST /comms/debriefs/:id/close        `comm.view` · owner only (the confirm button)
  *      POST /comms/debriefs/:id/close-meeting  same gate, plus per-person attendance
+ *      POST /comms/debriefs/:id/unreached    same gate · empty body · `DebriefView` with state `unreached`
  *
  *  `POST /comms/messages` opens or joins a debrief too (`MessageCreateResponse.debriefId`).
- *  Config ids are stored with name copies, so renaming an entry never rewrites a
- *  closed debrief. The step lands on the subject through the sales hook, which
- *  is why its shape is borrowed from `NextStepSetBody` rather than restated. */
+ *  Config ids are stored with name copies, so renaming an entry never rewrites a closed
+ *  debrief. The step shape is borrowed from `NextStepSetBody`: it lands via the sales hook. */
 
 export const DEBRIEF_SUMMARY_MAX = 2000
 export const DEBRIEF_TITLE_MAX = 120
@@ -198,7 +198,7 @@ export const PendingDebriefRow = z.object({
   anchorAt: Moment,
   createdAt: Moment,
   turnsCovered: z.number().int().positive(),
-  state: CommRecordState.exclude(['done', 'scheduled']),
+  state: CommRecordState.exclude(['done', 'scheduled', 'unreached']),
   late: z.boolean(),
   subject: DebriefSubject,
   stepTarget: DebriefStepTarget.nullable(),

@@ -12,7 +12,6 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  CONTRACT_KIND_LABEL,
   JOURNEY_BORN_BY_LABEL,
   LEAD_STATE_LABEL,
   LOSS_REASON_DO_NOT_CONTACT_LABEL,
@@ -26,6 +25,7 @@ import {
 import { dm, dmy } from '@/lib/date'
 import { ACCEPTOR_LABEL, acceptorText } from '@/data/deal-sale'
 import { BADGE_INK } from '@/data/opportunities'
+import { useContractKindLabel } from '@/data/sales-config'
 import { DueBadge } from '@/components/contract-bits'
 import { ContractInside } from '@/components/contract-inside'
 import { hasInside } from '@/components/contract-run'
@@ -432,11 +432,12 @@ export function ContractCard({
   ...track
 }: Track & { contract: JourneyContract; box: Box; open: boolean; onToggle: () => void }) {
   const late = contractLate(contract)
+  const kindLabel = useContractKindLabel()
   return (
     <Card id={contract.code} {...CARD.contract} box={box} className="gap-3 p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[14px] font-semibold">
-          {contract.kind && CONTRACT_KIND_LABEL[contract.kind]}
+          {contract.kind && kindLabel(contract.kind)}
         </span>
         {contract.amount !== null && <MoneyPill>{moneyShort(contract.amount)}</MoneyPill>}
       </div>

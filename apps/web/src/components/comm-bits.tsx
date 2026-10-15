@@ -18,13 +18,15 @@ import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
  *  `COMM_RECORD_STATE_LABEL` in the contract (ADR 0075 §2). */
 
 /** Law 16: a state is a text pill. Red for "nothing typed yet" because it is
- *  the furthest from done; a booked meeting reads as running, not as a debt.
+ *  the furthest from done; a booked meeting reads as running, not as a debt;
+ *  an unreached record is closed with nothing owed, so it stays neutral.
  *  Every tone carries its tint's own ink (law 13). */
 const STATE_TONE: Record<CommRecordState, BadgeProps['tone']> = {
   empty: 'danger',
   unconfirmed: 'warning',
   done: 'success',
   scheduled: 'running',
+  unreached: 'draft',
 }
 
 export function CommStateBadge({ state }: { state: CommRecordState }) {

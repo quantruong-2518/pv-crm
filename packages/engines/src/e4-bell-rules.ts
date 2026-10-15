@@ -39,6 +39,8 @@ export const LEAD_REOPENED = 'sales.lead.reopened'
 export const ROLE_GRANTS_REPLACED = 'platform.role.grants-replaced'
 export const NEXT_STEP_SET = 'sales.next-step.set'
 export const NEXT_STEP_DONE = 'sales.next-step.done'
+export const CONTRACT_INSTALLMENT_OVERDUE = 'sales.contract.installment-overdue'
+export const COMM_RECORD_LATE = 'platform.comms.record-late'
 export const APPROVAL_WAITING = 'platform.approval.waiting'
 export const APPROVAL_DECIDED = 'platform.approval.decided'
 export const MAIL_RUN_FINISHED = 'platform.mail-run.finished'
@@ -123,6 +125,8 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
 
   bell('next-step-assigned', NEXT_STEP_SET, 'doer'),
   bell('next-step-done', NEXT_STEP_DONE, 'setter'),
+  bell('contract-installment-overdue', CONTRACT_INSTALLMENT_OVERDUE, 'owner'),
+  bell('comm-record-late', COMM_RECORD_LATE, 'owner'),
 
   bell('approval-waiting', APPROVAL_WAITING, 'approver'),
   bell('approval-approved', APPROVAL_DECIDED, 'requester', flag('approved', true)),

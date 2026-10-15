@@ -3,6 +3,7 @@ import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { ContractController } from './contract.controller'
+import { ContractOverdueSweeper } from './contract-overdue.sweeper'
 import { ContractRepository } from './contract.repository'
 import { ContractService } from './contract.service'
 import { ContractScheduleRepository } from './contract-schedule.repository'
@@ -14,7 +15,8 @@ import { ContractScheduleService } from './contract-schedule.service'
  *  other Sales modules follow: reading this line is how you learn the module
  *  asks E2. `EnginesModule` is here for the second grid in `book()` — SQL has
  *  already cut by scope, so the engine's job is to still be standing the day a
- *  new door forgets to declare it.
+ *  new door forgets to declare it. `NotificationModule` for the overdue
+ *  sweeper's bell line.
  *
  *  `ContractRepository` is ALSO a provider of `OpportunityModule`, and that is
  *  deliberate for now: the sign door was written before this module existed
@@ -32,6 +34,7 @@ import { ContractScheduleService } from './contract-schedule.service'
     ContractRepository,
     ContractScheduleService,
     ContractScheduleRepository,
+    ContractOverdueSweeper,
   ],
   exports: [ContractService],
 })

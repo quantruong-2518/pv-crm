@@ -175,7 +175,7 @@ function licenceContract(c: {
   return {
     code: c.code,
     dealCode: c.dealCode,
-    kind: 'licence',
+    kind: 'CK-01',
     amount: c.amount,
     signedAt: c.signedAt,
     holder: c.holder,
@@ -347,7 +347,7 @@ function hd2607(dealCode: string): JourneyContract {
   return {
     code: hd.code,
     dealCode,
-    kind: 'deployment',
+    kind: 'CK-02',
     amount: hd.amount,
     signedAt: hd.signedAt,
     holder,
@@ -392,7 +392,7 @@ function hd2609(dealCode: string, holder: WorkstreamHolder): JourneyContract {
   return {
     code: 'HĐ-2609',
     dealCode,
-    kind: 'training',
+    kind: 'CK-03',
     amount: HD_2609_AMOUNT,
     signedAt,
     holder,

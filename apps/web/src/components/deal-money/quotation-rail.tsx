@@ -1,5 +1,6 @@
 import { Button, Chip, FileText, Icon } from '@pv/ui'
 import type { OpportunityMoneyNegotiation, QuotationRow } from '@pv/contracts'
+import { useContractKindLabel } from '@/data/sales-config'
 import { RunBlock } from '@/components/run/run-block'
 import { QUOTE_LABEL, kindLabel } from './money'
 import { roundsOf, type Paper } from './papers'
@@ -30,6 +31,7 @@ export function QuotationRail({
   workstreamCode: string | null
   doors: QuotationDoors | undefined
 }) {
+  const resolveKind = useContractKindLabel()
   if (!paper && !doors && closed.length === 0) return null
   const rounds = roundsOf(paper)
   const negotiation = paper?.kind === 'quote' ? paper.negotiation : null
@@ -42,7 +44,9 @@ export function QuotationRail({
       aside={
         paper && (
           <Chip>
-            {paper.kind === 'contract' ? paper.contract.code : kindLabel(paper.negotiation.kind)}
+            {paper.kind === 'contract'
+              ? paper.contract.code
+              : kindLabel(paper.negotiation.kind, resolveKind)}
           </Chip>
         )
       }

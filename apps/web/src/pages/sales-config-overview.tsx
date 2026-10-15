@@ -37,7 +37,7 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
     'motion-policy': motions && `${motions.filter(isDeclared).length}/${motions.length} đã đặt`,
     'stop-reasons': `${catalog.EXIT_REASON.length} lý do`,
     'comm-criteria': `${catalog.COMM_CRITERION.length} câu`,
-    'step-kinds': `${catalog.STEP_KIND.length} loại`,
+    'step-kinds': catalog.STEP_KIND.length === 0 ? 'Chưa có' : `${catalog.STEP_KIND.length} loại`,
     freshness: freshness && `Vàng ${freshness.warnDays} · đỏ ${freshness.alertDays} ngày`,
     'care-reasons': `${catalog.LOSS_REASON.length} lý do`,
     'quote-reasons':
@@ -45,6 +45,8 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
         ? 'Chưa có'
         : `${catalog.QUOTE_REVISION_REASON.length} lý do`,
     products: catalog.PRODUCT.length === 0 ? 'Chưa có' : `${catalog.PRODUCT.length} mục`,
+    'contract-kinds':
+      catalog.CONTRACT_KIND.length === 0 ? 'Chưa có' : `${catalog.CONTRACT_KIND.length} loại`,
   }
 }
 

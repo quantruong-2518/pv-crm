@@ -59,7 +59,9 @@ opportunities sit beside the lost ones.
 ### 5 · A won opportunity can sign again
 
 Each sign request carries its own amount, currency and contract kind
-(licence · deployment · training), and the director approves it through E3
+(licence · deployment · training; since 0095 the kind is the config list
+`CONTRACT_KIND`, see `0095-contract-kind-is-a-config-list-not-a-closed-enum.md`),
+and the director approves it through E3
 as the first time. The opportunity's own amount is untouched — no summing.
 There is no `UNIQUE` on `contract.opportunity_code`.
 

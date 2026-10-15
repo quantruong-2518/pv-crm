@@ -288,12 +288,14 @@ export const COMM_FOCUS =
 
 /** The dot of a comm state — one map, so the rail card and the axis agree
  *  with the pill's tone (`empty` is the furthest from done, hence `bad`; a
- *  booked meeting is still ahead, hence `next`). */
+ *  booked meeting is still ahead, hence `next`; `unreached` borrows `next`
+ *  only because `StatusDot` has no neutral closed state). */
 export const COMM_STATE_DOT = {
   empty: 'bad',
   unconfirmed: 'warning',
   done: 'ok',
   scheduled: 'next',
+  unreached: 'next',
 } as const satisfies Record<CommRecordState, string>
 
 /** A booked meeting past its end and not closed out. Judged at render against
@@ -321,6 +323,21 @@ export function subjectKindLabel(code: string): string {
 /** The subject's own screen, or undefined while its module is parked. */
 export const subjectPath = (code: string) => chainPath(code.split('-')[0] ?? '', code)
 
+/** What an unreached record says in place of a summary, in rows and on its page. */
+export const UNREACHED_LINE = 'Đóng không có nội dung.'
+
+/** The unsent form of a comm is kept in this browser under one key; a write that
+ *  closes the record without the form must drop it too. */
+export const commDraftKey = (id: string) => `comm-draft:${id}`
+
+export function clearCommDraft(id: string) {
+  try {
+    localStorage.removeItem(commDraftKey(id))
+  } catch {
+    /* storage unavailable — nothing was kept */
+  }
+}
+
 /** `hidden` and `none` must not read alike: one is a permission, the other
  *  an open record with nothing written yet. */
 export function summaryTextOf(summary: DebriefSummary): string {
@@ -332,6 +349,7 @@ export function summaryTextOf(summary: DebriefSummary): string {
  *  title (the meeting's own) stands in; every other row prints the summary. */
 export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
   if (row.state === 'scheduled' && row.title) return { title: row.title, titleMuted: false }
+  if (row.state === 'unreached') return { title: UNREACHED_LINE, titleMuted: true }
   return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
 }
 

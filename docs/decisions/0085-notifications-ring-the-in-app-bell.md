@@ -23,7 +23,7 @@ second channel is added in their place.
 
 Wave 1 is the hub plus every moment whose recipient the data can already name.
 Clock-driven reminders (due, overdue, meeting today) are wave 2: no pg-boss
-schedule and no clock-driven reminder in wave 1. The one new sweep is a
+schedule and no clock-driven reminder in wave 1 _(amended by 0094: one exists, a late open comm record rings its creator)_. The one new sweep is a
 purge, not a reminder: it deletes READ rows older than 90 days, hourly, in
 the worker process only, served by the index `notification_read_purge_idx`
 (migration 0105). Unread rows are never purged.
@@ -64,7 +64,7 @@ loses the rung. A reply never un-parks a `nurturing` lead and never moves an
 opportunity's stage. A switched-off lead gets nothing. No KPI or rung reader
 counts `customer-replied` as the holder's own contact.
 
-Subjects are of eight kinds, including `lead-pool`. A file import that pools
+Subjects are of eight kinds _(nine since 0094, which adds `comm-record`)_, including `lead-pool`. A file import that pools
 leads rings ONE batched line; an opportunity import rings once per deal (known
 gap).
 
@@ -152,7 +152,7 @@ follow-up after the Neon queue is checked.
 
 ## Not in wave 1
 
-- Clock-driven reminders (wave 2).
+- Clock-driven reminders (wave 2) _(the overdue comm-record reminder is built, 0094)_.
 - Per-user preferences.
 - Push delivery _(superseded by 0089)_.
 - Notifications whose recipient the data cannot name: the campaign owner is

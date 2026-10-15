@@ -19,8 +19,10 @@ const CLAIM_WAIT_MS = 200
 let snapshot: { userId: string; ids: Set<string> } | null = null
 
 /** The server's effective value: the admin's switch on `/admin/notifications`,
- *  else the contract default. */
-const isImportant = (row: NotificationRow) => row.important
+ *  else the contract default. An overdue installment pops as its own banner
+ *  (`contract-overdue-banner.ts`, ADR 0096), so it never toasts too. */
+const toasts = (row: NotificationRow) =>
+  row.important && row.kind !== 'contract-installment-overdue'
 
 /** `null` forgets it, so the next `changed` only re-takes it. The channel
  *  opens here, not at the first claim: a channel hears only what is posted
@@ -45,7 +47,7 @@ export function toastNewNotifications(
   fresh.forEach((row) => known.add(row.id))
   if (!live) return
   /* Rows are newest first: keep the newest three, push the oldest first so the newest lands last. */
-  const due = fresh.filter((row) => row.readAt === null && isImportant(row)).slice(0, MAX_TOASTS)
+  const due = fresh.filter((row) => row.readAt === null && toasts(row)).slice(0, MAX_TOASTS)
   for (const row of due.reverse()) {
     void claim(userId, row.id).then((won) => {
       if (won) show(row, open(row))

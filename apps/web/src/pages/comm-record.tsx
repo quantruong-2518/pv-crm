@@ -11,6 +11,7 @@ import { CommFileList } from '@/components/comm-files'
 import { threadMessagesQuery } from '@/data/comms'
 import {
   COMM_CARD_SURFACE,
+  commFilesQuery,
   commRecordQuery,
   meetingOverdue,
   subjectPath,
@@ -64,7 +65,8 @@ function RecordBody({ record }: { record: DebriefView }) {
   const me = useSession((s) => s.actor)
   const now = useMinuteClock()
   const mine = me?.id === record.owner.id
-  const open = record.state !== 'done'
+  const open = record.closedAt === null
+  const unreached = record.state === 'unreached'
   const path = subjectPath(record.subject.code)
 
   const strip = (
@@ -103,7 +105,7 @@ function RecordBody({ record }: { record: DebriefView }) {
     />
   )
   const header = headerOf()
-  const turns = <Turns threadId={record.threadId} />
+  const turns = <Turns threadId={record.threadId} textOnly={unreached} />
 
   if (record.state === 'scheduled') {
     return <ScheduledMeeting key={record.id} record={record} strip={strip} header={headerOf} />
@@ -127,11 +129,7 @@ function RecordBody({ record }: { record: DebriefView }) {
       main={
         <>
           {turns}
-          {/* Law 8 · a list sits on glass-b. */}
-          <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Tệp">
-            <SectionTitle size="detail">Tệp đính kèm</SectionTitle>
-            <CommFileList id={record.id} canDelete={false} />
-          </GlassCard>
+          <FilesCard id={record.id} hideEmpty={unreached} />
         </>
       }
       rail={
@@ -145,16 +143,21 @@ function RecordBody({ record }: { record: DebriefView }) {
           <CommRecordRead row={record} as="page" />
         )
       }
-      railLabel="Xác nhận liên hệ"
+      railLabel={unreached ? 'Lượt liên hệ đã đóng' : 'Xác nhận liên hệ'}
     />
   )
 }
 
 /** The conversation's turns, newest first. Reading bodies writes an audit
  *  line server-side, which is the point: this screen is where they are read. */
-function Turns({ threadId }: { threadId: string }) {
+function Turns({ threadId, textOnly = false }: { threadId: string; textOnly?: boolean }) {
   const { data, isPending, error } = useQuery(threadMessagesQuery(threadId))
-  const rows = data ? [...data.rows].reverse() : []
+  const all = data ? [...data.rows].reverse() : []
+  /* A record closed without content has no card of "nothing yet" to show. */
+  const rows = textOnly
+    ? all.filter((row) => row.content.state === 'visible' && row.content.bodyText.trim() !== '')
+    : all
+  if (textOnly && (isPending || rows.length === 0) && !error) return null
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Nội dung đã ghi">
@@ -174,6 +177,20 @@ function Turns({ threadId }: { threadId: string }) {
           ))}
         </ul>
       )}
+    </GlassCard>
+  )
+}
+
+/** The attachments of a closed record. `hideEmpty` drops the card when there
+ *  are none, instead of an empty-list line on a record that stays shut. */
+function FilesCard({ id, hideEmpty }: { id: string; hideEmpty: boolean }) {
+  const files = useQuery({ ...commFilesQuery(id), enabled: hideEmpty })
+  if (hideEmpty && (files.data ? files.data.rows.length === 0 : files.isPending)) return null
+  return (
+    /* Law 8 · a list sits on glass-b. */
+    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Tệp">
+      <SectionTitle size="detail">Tệp đính kèm</SectionTitle>
+      <CommFileList id={id} canDelete={false} />
     </GlassCard>
   )
 }
