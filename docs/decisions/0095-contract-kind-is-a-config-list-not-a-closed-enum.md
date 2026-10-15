@@ -53,6 +53,10 @@ Migrate Neon → deploy the API immediately → push web. The old API cannot par
 serves. The gap between migrate and deploy is the window where the old API
 reads `CK` codes it cannot parse.
 
+Shipped 15/10: migration 0108 applied on Neon, API release v140. Web had been
+pushed to master before the migrate, so the web ran ahead of the API until the
+deploy finished — the order above was not kept.
+
 ## Alternatives rejected
 
 | Alternative                               | Why not                                        |
