@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  ContextRail,
   EmptyState,
   GlassCard,
   ScreenHeader,
@@ -11,12 +10,11 @@ import {
   Skeleton,
   TriangleAlert,
 } from '@pv/ui'
-import { dasVina } from '@pv/engines/fixtures/das-vina'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
 import { ConfigBooks } from '@/components/config-books'
 import { pendingApprovalsQuery } from '@/data/approvals'
-import { ANCHOR_CODE, salesCatalogQuery } from '@/data/sales-config'
+import { salesCatalogQuery } from '@/data/sales-config'
 import { DealArea } from './sales-config-deal'
 import { FrameArea } from './sales-config-frame'
 import { AssignArea, CareArea, IntakeArea } from './sales-config-lead'
@@ -41,7 +39,9 @@ import type { AreaProps } from './sales-config-section'
  *  overview): sections keep unsent input in local state, and a route per area
  *  would unmount them and silently drop it. Nothing is sent from here — each
  *  section proposes its own change, and the page only holds the deadline draft
- *  so a half-typed number survives a change of area. */
+ *  so a half-typed number survives a change of area.
+ *
+ *  No ContextRail (law 10): a config list holds no object code to anchor one. */
 export function SalesConfigPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm mục cấu hình…' })
   const { data: catalog, isPending, error, refetch } = useQuery(salesCatalogQuery)
@@ -68,24 +68,16 @@ export function SalesConfigPage() {
     setParams(next === OVERVIEW ? {} : { area: next }, { replace: true })
   }
 
-  /* Law 10 · the rail is built from the E1 graph and sits OUTSIDE the loading
-     branch: it must be present on every screen, skeleton included. */
-  const rail = dasVina.graph
-    .story(ANCHOR_CODE)
-    .map((o) => ({ code: o.code, source: o.code === ANCHOR_CODE }))
-
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Cấu hình phòng kinh doanh"
+          title="Thiết lập bán hàng"
           description="Thay đổi có hiệu lực sau khi được duyệt."
           actions={<PendingLink />}
         />
 
         <ConfigBooks />
-
-        <ContextRail objects={rail} />
 
         <div className="grid gap-4 xl:grid-cols-[240px_minmax(0,1fr)] xl:gap-6">
           <ConfigNav view={view} onOpen={open} />
@@ -95,15 +87,18 @@ export function SalesConfigPage() {
               <Skeleton className="h-32 w-full" />
               <Skeleton className="h-32 w-full" />
             </div>
-          ) : error || !catalog ? (
-            /* An unread catalog must not draw as an EMPTY one: "no products yet"
-               over a failed request is a false statement with a working form. */
+          ) : !catalog ? (
+            /* An unread catalog must not draw as an EMPTY one. Not `error`: a
+               failed focus refetch keeps the old data, and swapping to this card
+               would unmount the areas and drop unsent input. */
             <GlassCard className="p-5 lg:p-6">
               <EmptyState
                 icon={TriangleAlert}
-                message={`Không tải được cấu hình. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
-                }`}
+                message={
+                  isApiError(error)
+                    ? `Không tải được thiết lập. ${userMessage(error)}`
+                    : 'Không tải được thiết lập.'
+                }
                 action={{ label: 'Thử lại', onClick: () => void refetch() }}
                 className="py-12"
               />

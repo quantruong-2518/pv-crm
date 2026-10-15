@@ -92,8 +92,7 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/settings'),
   },
   {
-    /** One Core · "my account". No permission: it is about the reader, and
-     *  the bell sends every signed-in person here. */
+    /** One Core · "my account". No permission: it is about the reader. */
     path: '/account',
     name: 'Tài khoản của tôi',
     load: () => import('@/pages/account'),
@@ -138,6 +137,14 @@ export const SCREENS: ScreenDef[] = [
     name: 'Vai trò',
     permission: 'role.manage',
     load: () => import('@/pages/roles'),
+  },
+  {
+    /** One Core · notification policy per role (ADR 0093 §2). No `branch`:
+     *  notifications are not Sales-only. */
+    path: '/admin/notifications',
+    name: 'Thông báo theo vai trò',
+    permission: 'setting.manage',
+    load: () => import('@/pages/admin-notifications'),
   },
   {
     /** Admin · lead origins — the origin catalogue behind every lead, plus
@@ -432,7 +439,7 @@ export const SCREENS: ScreenDef[] = [
   },
   {
     path: '/sales/config',
-    name: 'Cấu hình',
+    name: 'Thiết lập bán hàng',
     branch: 'Sales',
     permission: 'config.view',
     load: () => import('@/pages/sales-config'),

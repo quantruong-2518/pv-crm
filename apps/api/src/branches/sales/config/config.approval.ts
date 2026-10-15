@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
 import type { Actor, ApprovalState, RoleId } from '@pv/engines'
 import {
+  CONFIG_LIST_LABEL,
   FIRST_TOUCH_UNITS,
   MOTION_ASKS_LABEL,
+  MOTION_LABEL,
+  ROLE_LABEL,
   splitFirstTouch,
   type ActivityFreshness,
   type ConfigList,
@@ -62,8 +65,11 @@ import { frameConsequenceOf, isFrameChange, type FrameChange } from './step-fram
  *  giữ sẵn `ord` thì cái được gật sau mang một số đã cũ. */
 export type ConfigChange =
   | { kind: 'create'; list: ConfigList; draft: ConfigDraft }
-  | { kind: 'update'; list: ConfigList; id: string; patch: ConfigPatchDb }
-  | { kind: 'reorder'; list: ConfigList; ids: string[] }
+  /** `was` and `names` are WORDS ONLY, like `FrameChange`'s: the entry's name
+   *  (the new order's names, for a reorder) as the proposer saw it, so the
+   *  sentence can say it instead of a code. The apply step never reads them. */
+  | { kind: 'update'; list: ConfigList; id: string; patch: ConfigPatchDb; was?: string }
+  | { kind: 'reorder'; list: ConfigList; ids: string[]; names?: string[] }
   /** A motion's own declaration — no `list`, because the six motions are not a
    *  vocabulary list: they cannot be added to, removed or reordered, and each
    *  carries four unrelated fields. Same approval path, different table. */
@@ -110,16 +116,39 @@ const CONFIG_APPROVERS: RoleId[] = ['director']
  *  an inbox row is scanned, not studied. */
 function consequenceOf(change: ConfigChange): string {
   if (isFrameChange(change)) return frameConsequenceOf(change)
-  if (change.kind === 'create') return `Thêm "${change.draft.name}" vào danh mục ${change.list}`
-  if (change.kind === 'update') return `Sửa dòng ${change.id} của danh mục ${change.list}`
+  const list =
+    change.kind === 'create' || change.kind === 'update' || change.kind === 'reorder'
+      ? CONFIG_LIST_LABEL[change.list]
+      : ''
+  if (change.kind === 'create') return `Thêm "${change.draft.name}" vào ${list}`
+  if (change.kind === 'update') {
+    return `Sửa "${change.was ?? change.id}" trong ${list}: ${patchWords(change.patch).join(' · ')}`
+  }
   if (change.kind === 'reorder') {
-    return `Xếp lại thứ tự danh mục ${change.list}: ${change.ids.length} dòng`
+    const order = change.names?.map((n) => `"${n}"`).join(' → ') ?? `${change.ids.length} dòng`
+    return `Xếp lại thứ tự ${list}: ${order}`
   }
   if (change.kind === 'activity-freshness') {
     const { warnDays, alertDays } = change.value
     return `Đổi ngưỡng hoạt động của cơ hội: nhắc từ ${warnDays} ngày, báo động từ ${alertDays} ngày`
   }
-  return `Đổi thiết lập luồng ${change.motion}: ${motionWords(change.patch).join(' · ')}`
+  return `Đổi thiết lập luồng ${MOTION_LABEL[change.motion]}: ${motionWords(change.patch).join(' · ')}`
+}
+
+/** What an update changes, so the approver sees the new value, not just the row id. */
+function patchWords(patch: ConfigPatchDb): string[] {
+  const said: string[] = []
+  if (patch.name !== undefined) said.push(`tên mới "${patch.name}"`)
+  if (patch.active !== undefined) said.push(patch.active ? 'bật lại' : 'tắt')
+  if (patch.limitDays !== undefined) said.push(`hạn ${patch.limitDays} ngày`)
+  if (patch.ownerId !== undefined)
+    said.push(patch.ownerId === null ? 'bỏ người phụ trách' : 'đổi người phụ trách')
+  if (patch.stage !== undefined)
+    said.push(patch.stage === null ? 'mọi giai đoạn' : 'đổi giai đoạn áp dụng')
+  if (patch.doNotContact !== undefined)
+    said.push(patch.doNotContact ? 'không liên hệ nữa' : 'được liên hệ lại')
+  if (patch.kind !== undefined || patch.criterionId !== undefined) said.push('đổi loại')
+  return said.length > 0 ? said : ['không đổi gì']
 }
 
 /** Each field of a motion patch, said in words.
@@ -135,16 +164,18 @@ function motionWords(patch: MotionPolicyPatchDb): string[] {
   const said: string[] = []
 
   if (patch.firstTouchMinutes !== undefined) {
-    if (patch.firstTouchMinutes === null) said.push('chạm đầu: bỏ khai')
+    if (patch.firstTouchMinutes === null) said.push('liên hệ lần đầu: bỏ hạn')
     else {
       const { value, unit } = splitFirstTouch(patch.firstTouchMinutes)
       const label = FIRST_TOUCH_UNITS.find((u) => u.unit === unit)?.label ?? 'phút'
-      said.push(`chạm đầu ${value} ${label}`)
+      said.push(`liên hệ lần đầu trong ${value} ${label}`)
     }
   }
   if (patch.ownerRoleId !== undefined) {
     said.push(
-      patch.ownerRoleId === null ? 'người nhận: bỏ khai' : `người nhận: ${patch.ownerRoleId}`,
+      patch.ownerRoleId === null
+        ? 'người nhận: bỏ khai'
+        : `người nhận: ${ROLE_LABEL[patch.ownerRoleId]}`,
     )
   }
   if (patch.coldMailAllowed !== undefined) {

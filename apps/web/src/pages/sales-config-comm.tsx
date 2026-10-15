@@ -194,7 +194,8 @@ export function EntryRow({
   )
 }
 
-function AddEntry({
+/** Add one row to any catalog; hidden from a reader without `config.propose`. */
+export function AddEntry({
   list,
   criterionId,
   placeholder,

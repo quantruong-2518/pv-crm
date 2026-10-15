@@ -209,6 +209,7 @@ export class MailRepository implements MailLedger {
             scheduledAt: mailRun.scheduledAt,
             releasedAt: mailRun.releasedAt,
             createdBy: mailRun.createdBy,
+            kind: mailRun.kind,
           })
           .from(mailRun)
           .where(eq(mailRun.id, row.mailRunId))
@@ -221,6 +222,7 @@ export class MailRepository implements MailLedger {
       ),
       addressesFrozen: rows.some((a) => a.outcomeAt !== null),
       sender: run?.createdBy ?? null,
+      runKind: run?.kind ?? null,
       /* Each of these precedes any send, so the latest is a safe lower bound. */
       sendableFrom: new Date(
         Math.max(
@@ -880,7 +882,7 @@ export class MailRepository implements MailLedger {
   private toDeliveryToSend(
     row: typeof emailDelivery.$inferSelect,
     addresses: MailAddressIntent[],
-  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom' | 'sender'> {
+  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom' | 'sender' | 'runKind'> {
     return {
       id: row.id,
       eventKey: row.eventKey,

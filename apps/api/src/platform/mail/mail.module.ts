@@ -63,9 +63,10 @@ import { UnsubscribeController } from './unsubscribe.controller'
  *
  *  `MailRunSweeper` — the batch-level half of the worker's loop, resolved by
  *  name in `worker.ts` exactly as `MailRelay` is. A token would buy nothing
- *  here: there is one implementation, one caller, and no branch is ever meant
- *  to hold it — cancelling a run because its bounce rate is over the ceiling is
- *  a decision about the SENDING ACCOUNT, not about anybody's leads. */
+ *  here: there is one implementation, and no branch ever runs a sweep —
+ *  cancelling a run because its bounce rate is over the ceiling is a decision
+ *  about the SENDING ACCOUNT, not about anybody's leads. A branch holds it only
+ *  for `cancelledByHand`, so a person's stop and the breaker's share one line. */
 @Module({
   /* `NotificationModule` for the hub: a finished run, a dead letter and a
      customer reply each ring the bell from here (ADR 0085). */

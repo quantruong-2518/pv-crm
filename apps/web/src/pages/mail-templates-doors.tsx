@@ -3,7 +3,6 @@ import {
   MAIL_DOOR_LABEL,
   MailDoor,
   OPPORTUNITY_MILESTONE_LABEL,
-  OPPORTUNITY_STAGE_LABEL,
   type MailTemplateMilestone,
 } from '@pv/contracts'
 
@@ -23,6 +22,10 @@ type DoorSets = { doors: MailDoor[]; defaultFor: MailDoor[] }
 
 const toggle = (list: readonly MailDoor[], door: MailDoor): MailDoor[] =>
   list.includes(door) ? list.filter((d) => d !== door) : [...list, door]
+
+/** The quote door is not built yet, so it is offered only to a template that already has it. */
+const offeredDoors = (ticked: readonly MailDoor[]): MailDoor[] =>
+  MailDoor.options.filter((door) => door !== 'quote' || ticked.includes(door))
 
 /** In `MailDoor` order, whatever order they were ticked in. */
 const ordered = (list: readonly MailDoor[]): MailDoor[] =>
@@ -49,7 +52,7 @@ export function DoorsField({
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-3 p-4">
       <span className="text-[13px] font-semibold leading-5">Dùng ở</span>
       <div role="group" aria-label="Dùng ở" className="flex flex-wrap gap-x-6">
-        {MailDoor.options.map((door) => (
+        {offeredDoors(doors).map((door) => (
           <Checkbox
             key={door}
             className="min-h-12"
@@ -80,7 +83,7 @@ export function DoorsField({
           </div>
           <Problem lines={errors.defaultFor} />
           <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-            Mỗi nơi chỉ có một mẫu mặc định. Chọn ở đây sẽ thay mẫu mặc định cũ.
+            Chọn ở đây sẽ thay mẫu mặc định cũ.
           </span>
         </div>
       )}
@@ -134,16 +137,19 @@ export function MilestoneField({
         value={milestone ?? NO_MILESTONE}
         onChange={(value) => onChange(value === 'sample' || value === 'quotation' ? value : null)}
         options={[
-          { value: NO_MILESTONE, label: 'Không gắn' },
+          { value: NO_MILESTONE, label: 'Không ghi' },
           { value: 'sample', label: OPPORTUNITY_MILESTONE_LABEL.sample },
-          { value: 'quotation', label: OPPORTUNITY_MILESTONE_LABEL.quotation },
+          /* The quote door is not built yet: shown only when already saved. */
+          ...(milestone === 'quotation'
+            ? [{ value: 'quotation', label: OPPORTUNITY_MILESTONE_LABEL.quotation }]
+            : []),
         ]}
       />
       {errors?.length ? (
         <Problem lines={errors} />
       ) : (
         <span className="text-muted-foreground text-[11px] leading-[1.5]">
-          {`Gửi từ cơ hội đã nhận PIC: ${OPPORTUNITY_MILESTONE_LABEL.sample} ghi một hoạt động chăm sóc; ${OPPORTUNITY_MILESTONE_LABEL.quotation} ghi một lần báo giá (lần đầu chuyển sang cột ${OPPORTUNITY_STAGE_LABEL.quotation}).`}
+          Chỉ ghi khi cơ hội đã có người phụ trách.
         </span>
       )}
     </div>

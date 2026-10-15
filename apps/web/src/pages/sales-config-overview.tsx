@@ -10,12 +10,8 @@ import { CONFIG_AREAS, type AreaKey, type SectionId } from './sales-config-model
  *  would be a statement about the configuration that nobody has checked. */
 const UNREAD = '—'
 
-/** Same test as the section's "nothing declared" pill, so the two agree. */
-const isDeclared = (m: MotionPolicy) =>
-  m.firstTouchMinutes !== null ||
-  m.ownerRoleId !== null ||
-  m.coldMailAllowed !== null ||
-  m.selfServeCountsAsInitData !== null
+/** Only the field section 5.9 shows; the other three are hidden (ADR 0093 §5). */
+const isDeclared = (m: MotionPolicy) => m.firstTouchMinutes !== null
 
 /** What each section currently holds, in one line. Every figure is counted
  *  from a read the section itself makes; `undefined` is "not read". */
@@ -38,12 +34,16 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
         ? 'Chưa có'
         : `${tiers.filter((t) => t.limitDays !== null).length}/${tiers.length} bậc có hạn`,
     motions: motions && `${motions.filter((m) => m.active).length}/${motions.length} đang bật`,
-    'motion-policy': motions && `${motions.filter(isDeclared).length}/${motions.length} đã khai`,
+    'motion-policy': motions && `${motions.filter(isDeclared).length}/${motions.length} đã đặt`,
     'stop-reasons': `${catalog.EXIT_REASON.length} lý do`,
     'comm-criteria': `${catalog.COMM_CRITERION.length} câu`,
     'step-kinds': `${catalog.STEP_KIND.length} loại`,
     freshness: freshness && `Vàng ${freshness.warnDays} · đỏ ${freshness.alertDays} ngày`,
     'care-reasons': `${catalog.LOSS_REASON.length} lý do`,
+    'quote-reasons':
+      catalog.QUOTE_REVISION_REASON.length === 0
+        ? 'Chưa có'
+        : `${catalog.QUOTE_REVISION_REASON.length} lý do`,
     products: catalog.PRODUCT.length === 0 ? 'Chưa có' : `${catalog.PRODUCT.length} mục`,
   }
 }

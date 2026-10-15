@@ -28,6 +28,7 @@ const KEEP = [
   'role_permission',
   'permission_seed',
   'setting',
+  'notification_kind_policy',
   'email_suppression',
   'motion_policy',
   'mail_template',

@@ -17,9 +17,12 @@ const SWEEP_EVERY_MS = 60 * 60_000
 
 /** Deletes read bell lines past `KEEP_READ_DAYS`.
  *
- *  Self-timed exactly like `SessionSweeper`, and for its reasons: hourly and
- *  once at boot, off under `NODE_ENV=test`, and left to overlap with the worker
- *  process because the statement is an idempotent `DELETE`. */
+ *  Self-timed like `SessionSweeper`: hourly and once at boot, off under
+ *  `NODE_ENV=test`. Unlike it, only the worker process runs it: one pass an
+ *  hour is enough, the worker group always runs, and every API machine would
+ *  otherwise repeat the same statement for nothing.
+ *  `PV_ROLE` is the entrypoint's own mark (see `create-db.ts#detectRole`), not
+ *  a setting, so there is nothing to configure wrong. */
 @Injectable()
 export class NotificationSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly log = new Logger('notification')
@@ -31,7 +34,7 @@ export class NotificationSweeper implements OnApplicationBootstrap, OnApplicatio
   ) {}
 
   onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
+    if (this.env.NODE_ENV === 'test' || process.env.PV_ROLE !== 'worker') return
     this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
     this.timer.unref()
     void this.sweep()

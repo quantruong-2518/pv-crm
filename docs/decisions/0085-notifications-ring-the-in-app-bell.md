@@ -25,7 +25,8 @@ Wave 1 is the hub plus every moment whose recipient the data can already name.
 Clock-driven reminders (due, overdue, meeting today) are wave 2: no pg-boss
 schedule and no clock-driven reminder in wave 1. The one new sweep is a
 purge, not a reminder: it deletes READ rows older than 90 days, hourly, in
-both the API and the worker process. Unread rows are never purged.
+the worker process only, served by the index `notification_read_purge_idx`
+(migration 0105). Unread rows are never purged.
 
 ### 3 · Audience
 

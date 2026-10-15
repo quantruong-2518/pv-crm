@@ -135,6 +135,10 @@ const INFLIGHT_STATES = ['pending', 'sending', 'delayed'] as const satisfies rea
 
 const FAILED_STATES = ['failed_permanent', 'dead'] as const satisfies readonly MailState[]
 
+/** A closing line's failed count. The breaker reads it from the snapshot its
+ *  own CTEs share, so the `pending` rows it turns `dead` are never counted. */
+const LOST_STATES = ['bounced', ...FAILED_STATES] as const satisfies readonly MailState[]
+
 /** Run states a person may still stop. The other two are terminal: a `SENT`
  *  run has nothing left to withhold, and cancelling a `CANCELLED` one would
  *  rewrite `finished_at` — moving the moment a batch was stopped every time
@@ -226,11 +230,13 @@ export type BounceTrip = {
   /** For the bell only (`RunEnded`); the breaker's log line prints neither. */
   created_by: string
   label: string
+  failed: number
 }
 
-/** A run the worker just closed, as its sender's bell needs it (ADR 0085). */
-export type RunEnded = { id: string; created_by: string; label: string }
-type RunSent = RunEnded & { kind: 'bulk' | 'group' }
+/** A run just closed, by the worker or a person, as its sender's bell needs it (ADR 0085).
+ *  `failed`: recipient letters bounced or given up on (ADR 0093 §4). */
+export type RunEnded = { id: string; created_by: string; label: string; failed: number }
+export type RunClosed = RunEnded & { kind: 'bulk' | 'group' }
 
 /** One row of the aggregate pass over `mail_event`. */
 type EngagementCounts = {
@@ -449,8 +455,12 @@ export class MailRunRepository {
    *  Returns `null` when no row moved — either there is no such run, or it is
    *  already `SENT`/`CANCELLED`. The service turns the first into a 404 and the
    *  second into an idempotent answer; this method deliberately cannot tell
-   *  them apart in one statement and does not pretend to. */
-  async cancel(handle: Db, id: string): Promise<{ held: number } | null> {
+   *  them apart in one statement and does not pretend to.
+   *
+   *  `run` is what the closing bell line needs (ADR 0093 §4). Its `failed` is
+   *  read from the statement's own snapshot, as the breaker's is, so the
+   *  `pending` rows this cancel kills are not counted as failed letters. */
+  async cancel(handle: Db, id: string): Promise<{ held: number; run: RunClosed } | null> {
     const r = (await handle.execute(sql`
       WITH stopped AS (
         UPDATE "platform"."mail_run" r
@@ -459,7 +469,7 @@ export class MailRunRepository {
                "updated_at" = now()
          WHERE r."id" = ${id}::uuid
            AND r."state" IN (${params(CANCELLABLE_STATES)})
-        RETURNING r."id"
+        RETURNING r."id", r."created_by", r."label", r."kind"
       ),
       held AS (
         UPDATE "platform"."email_delivery" d
@@ -472,12 +482,19 @@ export class MailRunRepository {
            AND d."mail_run_id" IN (SELECT "id" FROM stopped)
         RETURNING d."id"
       )
-      SELECT (SELECT count(*) FROM stopped)::int AS runs,
-             (SELECT count(*) FROM held)::int    AS held
-    `)) as { rows: { runs: number; held: number }[] }
+      SELECT s."id", s."created_by", s."label", s."kind",
+             (SELECT count(*) FROM held)::int AS held,
+             (SELECT count(*) FROM "platform"."email_delivery" d
+               WHERE d."mail_run_id" = s."id"
+                 AND d."role" = 'recipient'
+                 AND d."state" IN (${params(LOST_STATES)}))::int AS failed
+        FROM stopped s
+    `)) as { rows: (RunClosed & { held: number })[] }
 
     const row = r.rows[0]
-    return row && row.runs > 0 ? { held: row.held } : null
+    if (!row) return null
+    const { held, ...run } = row
+    return { held, run }
   }
 
   /** EDIT A BATCH THAT HAS NOT LEFT YET — the other half of `cancel()`: a run
@@ -777,7 +794,7 @@ export class MailRunRepository {
    *  same tick is legitimately touched twice — the empty run and the wholly
    *  suppressed one always are — and summing the passes would report two runs
    *  where there is one. */
-  async sweepStates(finished?: (tx: Db, runs: RunSent[]) => Promise<void>): Promise<number> {
+  async sweepStates(finished?: (tx: Db, runs: RunClosed[]) => Promise<void>): Promise<number> {
     const started = (await this.db.execute(sql`
       UPDATE "platform"."mail_run" AS r
          SET "state" = 'SENDING',
@@ -814,8 +831,12 @@ export class MailRunRepository {
                   WHERE d."mail_run_id" = r."id"
                     AND d."state" IN (${params(INFLIGHT_STATES)})
                )
-        RETURNING r."id", r."created_by", r."label", r."kind"
-      `)) as { rows: RunSent[] }
+        RETURNING r."id", r."created_by", r."label", r."kind",
+                  (SELECT count(*) FROM "platform"."email_delivery" d
+                    WHERE d."mail_run_id" = r."id"
+                      AND d."role" = 'recipient'
+                      AND d."state" IN (${params(LOST_STATES)}))::int AS failed
+      `)) as { rows: RunClosed[] }
       if (r.rows.length > 0) await finished?.(tx, r.rows)
       return r.rows
     })
@@ -904,14 +925,15 @@ export class MailRunRepository {
       stats AS (
         SELECT d."mail_run_id" AS run_id,
                count(*) FILTER (WHERE d."state" IN (${params(SENT_STATES)}))::int AS sent,
-               count(*) FILTER (WHERE d."state" = 'bounced')::int                  AS bounced
+               count(*) FILTER (WHERE d."state" = 'bounced')::int                  AS bounced,
+               count(*) FILTER (WHERE d."state" IN (${params(LOST_STATES)}))::int  AS failed
           FROM "platform"."email_delivery" d
          WHERE d."mail_run_id" IN (SELECT "id" FROM live)
            AND d."role" = 'recipient'
          GROUP BY d."mail_run_id"
       ),
       tripped AS (
-        SELECT s.run_id, s.sent, s.bounced
+        SELECT s.run_id, s.sent, s.bounced, s.failed
           FROM stats s
          WHERE s.sent >= ${opts.minSample}::int
            AND s.bounced * 100.0 > ${opts.ceilingPercent}::float8 * s.sent
@@ -939,7 +961,7 @@ export class MailRunRepository {
       held_per_run AS (
         SELECT run_id, count(*)::int AS held FROM held GROUP BY run_id
       )
-      SELECT t.run_id, t.sent, t.bounced, COALESCE(h.held, 0)::int AS held,
+      SELECT t.run_id, t.sent, t.bounced, t.failed, COALESCE(h.held, 0)::int AS held,
              s."created_by", s."label"
         FROM tripped t
         JOIN stopped s ON s."id" = t.run_id

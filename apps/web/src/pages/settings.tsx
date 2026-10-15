@@ -2,7 +2,7 @@ import { AppShell, EmptyState, Icon, ScreenHeader, ScreenLayout, ShieldCheck } f
 import { useNavigate } from 'react-router-dom'
 import { useAppChrome } from '@/app/chrome'
 
-/** One Core · the door behind the avatar menu's settings entry.
+/** The door behind the avatar menu's settings entry.
  *
  *  Reads `chrome.settings`, already cut by the same permission checks as the
  *  routes, so a role sees only the screens it can open. No ContextRail (law 10):
@@ -15,9 +15,8 @@ export function SettingsPage() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          kicker="One Core"
           title="Cài đặt & quản trị"
-          description="Người dùng, vai trò và danh mục."
+          description="Người dùng, vai trò, thông báo và danh mục."
         />
         {chrome.settings.length === 0 ? (
           <EmptyState

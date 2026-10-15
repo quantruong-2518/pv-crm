@@ -102,7 +102,7 @@ export function MailTemplatesPage() {
             /* HIDDEN, not greyed out — for a read-only role "not yet" never
                arrives. The real gate is in `app/api/client.ts`, not here. */
             canWrite ? (
-              <Button size="md" onClick={openCreate} className="max-sm:flex-1">
+              <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
                 <Icon icon={Plus} size={16} />
                 Thêm mẫu thư
               </Button>

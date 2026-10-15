@@ -46,9 +46,8 @@ export default function AccountScreen() {
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          kicker="One Core"
           title="Tài khoản của tôi"
-          description="Thông tin về bạn, mật khẩu, kết nối Google và các yêu cầu bạn đã gửi."
+          description="Thông tin cá nhân, mật khẩu, Google và yêu cầu đã gửi."
         />
         {actor ? <IdentityBlock actor={actor} /> : null}
         <div className="grid items-start gap-4 md:grid-cols-2">

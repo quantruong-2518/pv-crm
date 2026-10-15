@@ -93,11 +93,11 @@ export const RESOURCE_LABEL = {
   performance: 'Hiệu suất',
   kpi: 'KPI',
   plan: 'Số liệu & kế hoạch',
-  config: 'Thiết lập Kinh doanh',
+  config: 'Thiết lập bán hàng',
   'lead-origin': 'Nguồn lead',
   comm: 'Sổ giao tiếp',
-  setting: 'Hằng số hệ thống',
-  'audit-log': 'Ghi vết',
+  setting: 'Thiết lập chung',
+  'audit-log': 'Nhật ký thao tác',
   user: 'Tài khoản người dùng',
   role: 'Vai trò & quyền',
   approval: 'Phê duyệt',
@@ -107,53 +107,52 @@ export const RESOURCE_LABEL = {
 /** What each permission lets a person DO, in the words a sales manager uses.
  *
  *  Not a translation of the key. What `campaign.broadcast` grants is
- *  irreversible mail leaving the company, so the label says it is fired
- *  OUTWARDS; a neutral "send" would hide the part that cannot be undone. The
- *  key itself stays on screen under every label, so nobody trusts the gloss
- *  alone.
+ *  irreversible mail leaving the company, so the label names the customer as
+ *  the receiver. The key itself stays on screen under every label, so nobody
+ *  trusts the gloss alone.
  *
  *  `satisfies Record<Permission, string>` — a permission added to the contract
  *  without a label here is a red build, not a blank row in the matrix. */
 export const PERMISSION_LABEL = {
   'campaign.view': 'Xem chiến dịch và sự kiện',
-  'campaign.edit': 'Dựng và sửa chiến dịch',
-  'campaign.broadcast': 'Bắn chiến dịch ra ngoài',
+  'campaign.edit': 'Tạo và sửa chiến dịch',
+  'campaign.broadcast': 'Gửi chiến dịch cho khách',
   'lead.view': 'Xem sổ lead',
-  'workstream.view': 'Xem sổ hành trình',
+  'workstream.view': 'Xem hành trình khách hàng',
   'lead.edit': 'Sửa hồ sơ lead',
-  'lead.send-email': 'Gửi thư cho lead đang giữ',
+  'lead.send-email': 'Gửi thư cho lead mình phụ trách',
   'lead.assign': 'Giao việc trên lead cho người khác',
-  'lead.disqualify': 'Đưa lead ra khỏi luồng',
-  'lead.disable': 'Vô hiệu hoá và khôi phục lead',
-  'account.view': 'Xem sổ khách hàng công ty',
+  'lead.disqualify': 'Ngừng chăm sóc lead',
+  'lead.disable': 'Tắt và bật lại lead',
+  'account.view': 'Xem khách hàng công ty',
   'account.edit': 'Sửa hồ sơ khách hàng công ty',
-  'opportunity.view': 'Xem sổ cơ hội',
-  'opportunity.create': 'Mở cơ hội mới từ một lead',
-  'opportunity.edit': 'Sửa cơ hội và bảng giá',
-  'opportunity.accept': 'Nhận PIC cơ hội mới',
-  'opportunity.assign': 'Giao hoặc đổi Sale của cơ hội',
-  'opportunity.close': 'Chốt hoặc buông một cơ hội',
+  'opportunity.view': 'Xem cơ hội',
+  'opportunity.create': 'Tạo cơ hội mới từ lead',
+  'opportunity.edit': 'Sửa cơ hội và báo giá',
+  'opportunity.accept': 'Nhận phụ trách cơ hội mới',
+  'opportunity.assign': 'Giao hoặc đổi Sale phụ trách cơ hội',
+  'opportunity.close': 'Chốt thắng hoặc dừng một cơ hội',
   'contract.view': 'Xem hợp đồng',
   'contract.edit': 'Sửa hợp đồng và đợt thanh toán',
-  'contract.record-payment': 'Ghi nhận tiền về',
+  'contract.record-payment': 'Ghi nhận khách đã thanh toán',
   'performance.view': 'Xem hiệu suất cả phòng',
   'kpi.view': 'Xem KPI của mình',
   'kpi.view-all': 'Xem KPI của mọi người',
   'kpi.set-target': 'Đặt và chốt chỉ tiêu KPI',
   'plan.view': 'Xem số liệu và kế hoạch',
-  'plan.submit': 'Chốt kế hoạch gửi lên duyệt',
-  'config.view': 'Xem thiết lập Kinh doanh',
-  'config.propose': 'Đề nghị đổi thiết lập Kinh doanh',
+  'plan.submit': 'Gửi kế hoạch đi duyệt',
+  'config.view': 'Xem Thiết lập bán hàng',
+  'config.propose': 'Đề nghị thay đổi Thiết lập bán hàng',
   'lead-origin.manage': 'Quản lý nguồn lead',
-  'audit-log.view': 'Đọc nhật ký ghi vết',
-  'user.manage': 'Mở tài khoản, gán vai, khoá người',
-  'role.manage': 'Sửa chính bảng vai → quyền này',
-  'approval.decide': 'Gật hoặc bác một đề nghị',
-  'comm.view': 'Xem đã trao đổi với khách những gì, khi nào',
-  'comm.view-content': 'Đọc nội dung thư, tin nhắn, bản ghi — để lại vết',
-  'comm.capture-manage': 'Nối địa chỉ thư, chat, số máy với đúng người',
-  'setting.manage': 'Chỉnh ngưỡng và thời hạn của cả hệ',
-  'data.export': 'Tải dữ liệu ra ngoài',
+  'audit-log.view': 'Xem nhật ký thao tác',
+  'user.manage': 'Tạo tài khoản, chọn vai trò, khoá tài khoản',
+  'role.manage': 'Sửa quyền của từng vai trò',
+  'approval.decide': 'Duyệt hoặc từ chối đề nghị',
+  'comm.view': 'Xem lịch sử trao đổi với khách',
+  'comm.view-content': 'Đọc nội dung thư, tin nhắn, bản ghi',
+  'comm.capture-manage': 'Gắn email, chat, số điện thoại với đúng người',
+  'setting.manage': 'Chỉnh ngưỡng, thời hạn và thông báo theo vai trò',
+  'data.export': 'Tải dữ liệu về máy',
 } as const satisfies Record<Permission, string>
 
 /** The seven role keys in the contract's own order — widest reach first, which

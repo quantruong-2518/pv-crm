@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
+import { NOTIFICATION_DETAIL_FAILED } from '@pv/contracts'
 import { MAIL_RUN_CANCELLED, MAIL_RUN_FINISHED } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
-import { MailRunRepository } from './mail-run.repository'
+import { MailRunRepository, type RunClosed, type RunEnded } from './mail-run.repository'
 
 /** THE BATCH-LEVEL PASS OF THE WORKER LOOP — the sibling of `MailRelay`.
  *
@@ -101,18 +102,28 @@ export class MailRunSweeper {
     }
   }
 
+  /** A person stopped a run through `MailRunRepository.cancel` — call on that
+   *  same transaction with what it returned. Bulk only: a group run's one letter
+   *  already rang `mail-failed` itself. Same key as the breaker's line, so a
+   *  run gets one closing line whichever path stopped it; the canceller is the
+   *  actor, so a sender who stops their own run hears nothing. Only when a
+   *  letter was lost: stopping a campaign's unsent waves rings nobody. */
+  async cancelledByHand(tx: Db, run: RunClosed, actorId: string): Promise<void> {
+    if (run.kind === 'bulk' && run.failed > 0) {
+      await this.tell(tx, MAIL_RUN_CANCELLED, [run], actorId)
+    }
+  }
+
   /** The sender's bell, on the transaction that closed the run (ADR 0085). No
-   *  `actorId`: the worker closed it, so the sender is told about their own
-   *  run. Keyed by run id alone — a run ends once. */
-  private async tell(
-    tx: Db,
-    name: string,
-    runs: { id: string; created_by: string; label: string }[],
-  ): Promise<void> {
+   *  `actorId` from the worker, so the sender is told about their own run.
+   *  Keyed by run id alone — a run ends once. Its letters rang nothing one
+   *  by one, so this line carries how many failed (ADR 0093 §4). */
+  private async tell(tx: Db, name: string, runs: RunEnded[], actorId?: string): Promise<void> {
     for (const run of runs) {
       await this.hub.announce(tx, {
-        event: { name, ref: { code: run.id }, audiences: { sender: [run.created_by] } },
+        event: { name, ref: { code: run.id }, actorId, audiences: { sender: [run.created_by] } },
         subject: { kind: 'mail-run', code: run.id, label: run.label },
+        detail: run.failed > 0 ? { [NOTIFICATION_DETAIL_FAILED]: run.failed } : null,
       })
     }
   }

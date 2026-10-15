@@ -133,6 +133,13 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     permission: 'role.manage',
   },
   {
+    icon: Bell,
+    label: 'Thông báo theo vai trò',
+    description: 'Vai trò nào nhận loại thông báo nào, loại nào hiện lên ngay',
+    path: '/admin/notifications',
+    permission: 'setting.manage',
+  },
+  {
     icon: Route,
     label: 'Nguồn lead',
     description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
@@ -159,12 +166,11 @@ export type SettingsEntry = {
  *  được danh sách. Bảng này là nguồn duy nhất của cả ba câu hỏi về chúng: mục
  *  nào đi được, mục nào khoá, mục nào đang sáng.
  *
- *  Ba mục cuối là ba màn One chưa dựng (§7 · 02 Hộp phê duyệt · 03 Tìm toàn cục ·
- *  04 Trợ lý AI). Dựng xong màn nào thì điền đường dẫn vào đúng dòng của nó ở
- *  đây — không phải sửa chín màn, và không phải nhớ gỡ nó khỏi danh sách khoá. */
+ *  Hai mục cuối là hai màn One chưa dựng (§7 · 03 Tìm toàn cục · 04 Trợ lý
+ *  AI). Dựng xong màn nào thì điền đường dẫn vào đúng dòng của nó ở đây — không phải sửa chín màn, và không phải nhớ gỡ nó khỏi danh sách khoá. */
 const BOTTOM_NAV: { key: BottomNavKey; path?: string }[] = [
   { key: 'home', path: '/' },
-  { key: 'approvals' },
+  { key: 'approvals', path: '/approvals' },
   { key: 'search' },
   { key: 'assistant' },
 ]
@@ -348,7 +354,7 @@ export const SALES_MODULES: SalesModule[] = [
      *  định hình cái vòng. Vì thế nó đứng cuối nav dù được dựng sớm. */
     no: 7,
     icon: SlidersHorizontal,
-    label: 'Thiết lập',
+    label: 'Thiết lập bán hàng',
     path: '/sales/config',
     permission: 'config.view',
     question: 'Quản lý danh mục và quy tắc bán hàng',

@@ -140,7 +140,7 @@ export function LadderTable({
 }
 
 /** What a rung is called in the sentence of its pending edit. */
-const RUNG = { STAGE: 'cột', TIER: 'bậc' } as const
+const RUNG = { STAGE: 'giai đoạn', TIER: 'bậc' } as const
 
 /** The send of ONE ladder, drawn next to its boxes. It sends every pending
  *  edit of the list, not of the rows in sight: a box typed under another

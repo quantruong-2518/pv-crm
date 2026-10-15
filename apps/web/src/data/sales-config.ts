@@ -91,10 +91,6 @@ export const E4_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram', 'in-a
  *  nhau — "hệ có gửi hộ được không" và "gửi hỏng thì có đo được không". */
 export const ADDRESSED_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram']
 
-/** Object neo của ContextRail — cùng chuỗi với sổ lead, vì cấu hình ở đây là
- *  thứ đang áp lên đúng câu chuyện đó (luật 10). */
-export const ANCHOR_CODE = 'OP-0288'
-
 // ---------------------------------------------------------------------------
 // Danh mục THẬT — sáu bảng từ `GET /sales/config`
 // ---------------------------------------------------------------------------
@@ -114,10 +110,9 @@ export const ANCHOR_CODE = 'OP-0288'
  *  quan trọng khi nối, vì bốn danh mục còn khoá theo chuỗi cũ chứ chưa theo
  *  `id` cấu hình (nợ §6).
  *
- *  Cache dài là mặc định của cả app (`staleTime: Infinity` ở
- *  `app/query-client.ts`) và ở đây nó đúng theo nghĩa mạnh nhất: danh mục chỉ
- *  đổi khi có người duyệt một đề nghị qua E3, tức là một biến cố có người
- *  bấm nút — không phải thứ trôi sau lưng người dùng. */
+ *  Not the app-wide `staleTime: Infinity`: an approval in another tab changes
+ *  the catalog, so it expires after a minute and re-reads on focus — the same
+ *  pair `data/search.ts` and `data/notifications.ts` use. */
 export const salesCatalogQuery = queryOptions({
   queryKey: ['sales', 'config', 'catalog'] as const,
   queryFn: ({ signal }) =>
@@ -125,6 +120,8 @@ export const salesCatalogQuery = queryOptions({
       need: { branch: 'Sales', permission: 'config.view' },
       signal,
     }),
+  staleTime: 60_000,
+  refetchOnWindowFocus: true,
 })
 
 /** The label behind a stored stop key — a config id, or the virtual `'other'`

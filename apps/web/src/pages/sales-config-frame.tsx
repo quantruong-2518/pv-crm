@@ -82,7 +82,7 @@ function StepFrame({ catalog, draft }: AreaProps) {
   const paired = StageKey.options.every((key) => stages.some((row) => row.key === key))
   const stageTable = stages.length > 0 && (
     <GlassCard variant="b" className="p-4">
-      <LadderTable list="STAGE" head="Cột" rows={stages} unit="đơn" draft={draft} />
+      <LadderTable list="STAGE" head="Giai đoạn" rows={stages} unit="cơ hội" draft={draft} />
     </GlassCard>
   )
   /* Mounted ONCE, outside the keyed state detail: a send in flight must
@@ -97,9 +97,11 @@ function StepFrame({ catalog, draft }: AreaProps) {
       <>
         <EmptyState
           icon={TriangleAlert}
-          message={`Không tải được khung hành trình. ${
-            isApiError(error) ? userMessage(error) : 'Thử lại.'
-          }`}
+          message={
+            isApiError(error)
+              ? `Không tải được khung hành trình. ${userMessage(error)}`
+              : 'Không tải được khung hành trình.'
+          }
           action={{ label: 'Thử lại', onClick: () => void refetch() }}
           className="py-12"
         />

@@ -9,12 +9,12 @@ import { verify } from './unsubscribe-token'
  *  one a RECIPIENT reaches.
  *
  *  ------------------------------------------------------------------
- *  WHY A SIXTH `@Public()` ROUTE IS STILL SAFE
+ *  WHY THE SIXTH TO EIGHTH `@Public()` ROUTES ARE STILL SAFE
  *  ------------------------------------------------------------------
  *  `need.decorator.ts` says the right list of public routes is very short and
  *  that a third one should make you stop and ask. The landing intake door was
  *  the third, the Resend webhook and `/healthz/email` were the fourth and
- *  fifth; these two are the sixth and seventh, so the reason is written down
+ *  fifth; these three are the sixth to eighth, so the reason is written down
  *  rather than assumed.
  *
  *  `@Public()` means "no SESSION required". It does not mean "no proof
@@ -25,8 +25,9 @@ import { verify } from './unsubscribe-token'
  *     the letter carried. There is no person, no browser, no cookie jar, and no
  *     credential this system could hand a mail provider that would not itself
  *     be a secret sitting in someone else's configuration;
- *   · `GET` is the person, in a mail client, tapping a link in a letter that
- *     may have been forwarded, read on a phone, or opened a month later. A
+ *   · `GET` and `POST …/confirm` are the person, in a mail client, tapping a
+ *     link in a letter that may have been forwarded, read on a phone, or
+ *     opened a month later. `GET` only ASKS; `POST …/confirm` acts. A
  *     login wall in front of "stop mailing me" is not security — it is a dark
  *     pattern, and the people it stops are exactly the people who then press
  *     "this is spam" instead, which costs the sending domain far more.
@@ -102,21 +103,41 @@ export class UnsubscribeController {
     return { ok: true }
   }
 
-  /** The page a person lands on. Answers 200 with a page in BOTH cases rather
-   *  than throwing on a bad token: a thrown error would leave this route
-   *  through `ProblemFilter`, which answers `application/problem+json` — a
-   *  browser would show a recipient a blob of JSON in place of an answer to
-   *  "did it work". */
+  /** The page a person lands on. It changes nothing: corporate mail scanners
+   *  (Safe Links and the like) open every link in a letter, and a GET that
+   *  unsubscribed would suppress recipients who never clicked. Answers 200 with
+   *  a page in BOTH cases rather than throwing on a bad token: a thrown error
+   *  would leave this route through `ProblemFilter`, which answers
+   *  `application/problem+json` — a browser would show a recipient a blob of
+   *  JSON in place of an answer to "did it work". */
   @Get(':token')
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Cache-Control', 'no-store')
   @Public()
-  async page(@Param('token') token: string): Promise<string> {
-    return (await this.apply(token, 'GET')) ? DONE_PAGE : BAD_TOKEN_PAGE
+  page(@Param('token') token: string): string {
+    if (verify(token, this.env.PV_UNSUBSCRIBE_SECRET)) return confirmPage(token)
+    this.log.warn('unsubscribe GET · invalid signature')
+    return BAD_TOKEN_PAGE
   }
 
-  /** The whole action, shared by both routes because it IS the same act — the
-   *  only difference between them is what the caller can read afterwards.
+  /** The button on that page. A distinct path rather than content negotiation
+   *  on `POST :token`: the one-click contract (JSON, RFC 8058) stays untouched
+   *  and a browser form cannot set `Accept`. `@MachineDoor()` because a form
+   *  post is urlencoded and `Origin` is the API itself, both refused by
+   *  `CrossSiteGuard`; CSRF is moot — the token is the credential and the act
+   *  is idempotent. */
+  @Post(':token/confirm')
+  @MachineDoor()
+  @HttpCode(200)
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('Cache-Control', 'no-store')
+  @Public()
+  async confirm(@Param('token') token: string): Promise<string> {
+    return (await this.apply(token, 'FORM')) ? DONE_PAGE : BAD_TOKEN_PAGE
+  }
+
+  /** The whole action, shared by the one-click and the form route because it IS
+   *  the same act — the only difference is what the caller can read afterwards.
    *
    *  Two writes, in this order and never merged into one ledger method:
    *  `suppress()` is what actually stops the next letter, and it is keyed by
@@ -128,10 +149,10 @@ export class UnsubscribeController {
    *
    *  Idempotent by construction: `suppress()` is an upsert by address, and a
    *  second call changes nothing a screen reads. */
-  private async apply(token: string, via: 'GET' | 'POST'): Promise<boolean> {
+  private async apply(token: string, via: 'POST' | 'FORM'): Promise<boolean> {
     const deliveryId = verify(token, this.env.PV_UNSUBSCRIBE_SECRET)
     if (!deliveryId) {
-      this.log.warn(`unsubscribe ${via} · chữ ký không hợp lệ`)
+      this.log.warn(`unsubscribe ${via} · invalid signature`)
       return false
     }
 
@@ -160,7 +181,7 @@ export class UnsubscribeController {
   }
 }
 
-/** The two pages, whole, as constants.
+/** The pages, whole, as constants and one function.
  *
  *  Self-contained on purpose: no stylesheet, no font, no image, no script. A
  *  mail client's in-app browser may block every external request it does not
@@ -204,6 +225,8 @@ function shell(heading: string, body: string): string {
   p { margin: 0 0 12px; }
   p:last-child { margin-bottom: 0; }
   small { color: GrayText; }
+  button { min-height: 48px; padding: 0 24px; border: 0; border-radius: 8px; cursor: pointer;
+           background: CanvasText; color: Canvas; font: inherit; font-weight: 600; }
 </style>
 <main>
   <h1>${heading}</h1>
@@ -213,12 +236,21 @@ function shell(heading: string, body: string): string {
 `
 }
 
+function confirmPage(token: string): string {
+  return shell(
+    'Ngừng nhận thư từ Pebble Vina?',
+    `<p>Bạn sẽ không nhận thêm thư giới thiệu của Pebble Vina.</p>
+  <form method="post" action="${encodeURIComponent(token)}/confirm">
+    <button type="submit">Ngừng nhận thư</button>
+  </form>`,
+  )
+}
+
 const DONE_PAGE = shell(
   'Đã huỷ đăng ký.',
   `<p>Địa chỉ email này đã được gỡ khỏi danh sách nhận thư giới thiệu của Pebble Vina.</p>
   <p>Bạn sẽ không nhận thêm thư quảng bá nào nữa. Thư liên quan trực tiếp tới
-  giao dịch hoặc tài khoản của bạn (nếu có) vẫn được gửi.</p>
-  <p><small>Bấm lại liên kết này cũng không sao: kết quả vẫn như trên.</small></p>`,
+  giao dịch hoặc tài khoản của bạn (nếu có) vẫn được gửi.</p>`,
 )
 
 const BAD_TOKEN_PAGE = shell(

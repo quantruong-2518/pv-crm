@@ -152,7 +152,7 @@ export function MotionSend({
             Gửi đề nghị
           </Button>
           <span className="text-muted-foreground tnum text-[11.5px]">
-            {changed} ô đổi · chưa gửi
+            {changed} thay đổi · chưa gửi
           </span>
         </>
       )}

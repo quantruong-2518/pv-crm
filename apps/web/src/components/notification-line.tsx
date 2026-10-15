@@ -1,8 +1,11 @@
 import { Badge, ChevronRight, Icon, cn } from '@pv/ui'
-import { NOTIFICATION_KIND_LABEL, type NotificationRow } from '@pv/contracts'
-import { useAccess } from '@/app/auth'
+import {
+  NOTIFICATION_DETAIL_FAILED,
+  NOTIFICATION_KIND_LABEL,
+  type NotificationRow,
+} from '@pv/contracts'
 import { dmhm } from '@/lib/date'
-import { notificationPath } from '@/data/notifications'
+import { useNotificationPath } from '@/data/notifications'
 
 /** One notification, as the `/notifications` screen draws it. The caller owns
  *  what a press does; the line only says whether there is a place to go.
@@ -17,17 +20,18 @@ export function NotificationLine({
   row: NotificationRow
   onPress: (row: NotificationRow, path: string | null) => void
 }) {
-  /* The run book's own door (`routes.tsx`); every other target is session-only. */
-  const canOpenRuns = useAccess({ branch: 'Sales', permission: 'campaign.view' }).ok
-  const path = notificationPath(row, canOpenRuns)
+  const path = useNotificationPath()(row)
   const unread = row.readAt === null
   /* The subject, then the one fact the sentence leaves out: how many, or why. */
   const extra = [
     row.subject.label,
-    typeof row.detail?.count === 'number'
+    typeof row.detail?.count === 'number' && row.detail.count > 0
       ? `${row.detail.count.toLocaleString('vi-VN')} lead`
       : null,
     row.detail?.reason ? `Lý do: ${row.detail.reason}` : null,
+    failedLetters(row) > 0
+      ? `${failedLetters(row).toLocaleString('vi-VN')} thư không tới nơi`
+      : null,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -47,7 +51,7 @@ export function NotificationLine({
         ) : null}
         <span className="text-muted-foreground tnum flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-[1.5]">
           {unread ? <Badge tone="running">Chưa đọc</Badge> : null}
-          {row.actor ? <span>Người thực hiện: {row.actor.name}</span> : null}
+          {row.actor ? <span>{row.actor.name}</span> : null}
           <time dateTime={row.createdAt}>{dmhm(row.createdAt)}</time>
         </span>
       </span>
@@ -73,4 +77,10 @@ export function NotificationLine({
       </button>
     </li>
   )
+}
+
+/** A bulk run's closing line carries its failed-letter count (ADR 0093 §4). */
+function failedLetters(row: NotificationRow): number {
+  const n = row.detail?.[NOTIFICATION_DETAIL_FAILED]
+  return typeof n === 'number' ? n : 0
 }

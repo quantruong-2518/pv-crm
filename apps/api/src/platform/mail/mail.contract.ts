@@ -322,6 +322,9 @@ export type DeliveryToSend = {
   sendableFrom: Date
   /** Who pressed send on the run (`mail_run.created_by`); `null` for a one-off. */
   sender: string | null
+  /** `mail_run.kind`; `null` for a one-off. A `bulk` letter rings no bell of
+   *  its own — its run's closing line carries the failed count (ADR 0093 §4). */
+  runKind: 'bulk' | 'group' | null
 }
 
 export type WebhookOutcome = 'applied' | 'ignored-duplicate' | 'ignored-stale' | 'unknown-delivery'

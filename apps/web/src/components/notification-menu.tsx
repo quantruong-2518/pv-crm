@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Button, Skeleton } from '@pv/ui'
@@ -14,9 +15,12 @@ import { NotificationLine } from './notification-line'
 /** Body of the bell's dropdown — the reader's newest notifications.
  *
  *  `@pv/ui` owns the panel shell; this is only what goes in it. It reads the
- *  unfiltered list, the same cache entry the chrome keeps subscribed, so it
- *  opens already filled. The list sits on `.glass-b` (law 8); the first page
- *  only, because `/notifications` has the rest. */
+ *  bell's own entry, the one the chrome keeps subscribed, so it opens already
+ *  filled. The list sits on `.glass-b` (law 8); the first page only, because
+ *  `/notifications` has the rest.
+ *
+ *  Focus goes to the heading on open and back to the bell on close, which the
+ *  shell closes on Escape or a click outside. */
 
 const SKELETON_DELAYS = [0, 80, 160]
 
@@ -34,6 +38,22 @@ export function NotificationMenu({
   const navigate = useNavigate()
   const list = useInfiniteQuery(notificationListQuery())
   const markRead = useMarkNotificationsRead()
+  const heading = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    const bell = heading.current
+      ?.closest('[role="dialog"]')
+      ?.parentElement?.querySelector<HTMLElement>(':scope > button')
+    heading.current?.focus()
+    /* After the click that closed it has moved focus: a click on another
+       control keeps it, a click on nothing or Escape leaves it on `body`. */
+    return () => {
+      window.setTimeout(() => {
+        const at = document.activeElement
+        if (!at || at === document.body) bell?.focus()
+      })
+    }
+  }, [])
 
   const press = (row: NotificationRow, path: string | null) => {
     if (!row.readAt) markRead.mutate({ ids: [row.id] })
@@ -47,7 +67,13 @@ export function NotificationMenu({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex items-center justify-between gap-2 px-2">
-        <h2 className="text-foreground m-0 text-sm font-semibold leading-[1.5]">Thông báo</h2>
+        <h2
+          ref={heading}
+          tabIndex={-1}
+          className="text-foreground m-0 text-sm font-semibold leading-[1.5] outline-none"
+        >
+          Thông báo
+        </h2>
         {unread ? (
           <Button
             variant="ghost"

@@ -249,7 +249,8 @@ Connection budget hiện tại:
 - API application pool: tối đa 10;
 - worker application pool: tối đa 10;
 - pg-boss worker pool: concurrency 2 + headroom 3 = tối đa 5;
-- tổng lý thuyết 25, thấp hơn nhiều so với trần hiện tại.
+- API giữ thêm 1 kết nối `LISTEN` trực tiếp (ADR 0089), chỉ giữ khi có người mở tab đang hiển thị, cộng 30 giây;
+- tổng lý thuyết 26, thấp hơn nhiều so với trần hiện tại.
 
 Thêm `application_name` riêng cho API DB pool và worker DB pool để
 `pg_stat_activity` không còn hai dòng tên rỗng. Đặt `connectionTimeoutMillis`,
