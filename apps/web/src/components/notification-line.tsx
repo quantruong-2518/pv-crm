@@ -1,11 +1,11 @@
-import { Badge, ChevronRight, Icon, cn } from '@pv/ui'
+import { Badge, ChevronRight, Icon, cn, vnd } from '@pv/ui'
 import {
   NOTIFICATION_DETAIL_FAILED,
   NOTIFICATION_KIND_LABEL,
   type NotificationRow,
 } from '@pv/contracts'
-import { dmhm } from '@/lib/date'
-import { useNotificationPath } from '@/data/notifications'
+import { dm, dmhm } from '@/lib/date'
+import { overdueInstallment, useNotificationPath } from '@/data/notifications'
 
 /** One notification, as the `/notifications` screen draws it. The caller owns
  *  what a press does; the line only says whether there is a place to go.
@@ -22,7 +22,9 @@ export function NotificationLine({
 }) {
   const path = useNotificationPath()(row)
   const unread = row.readAt === null
-  /* The subject, then the one fact the sentence leaves out: how many, or why. */
+  const installment = overdueInstallment(row)
+  /* The subject, then the one fact the sentence leaves out: how many, or why;
+     for an overdue installment, which one, how much and since when. */
   const extra = [
     row.subject.label,
     typeof row.detail?.count === 'number' && row.detail.count > 0
@@ -32,6 +34,9 @@ export function NotificationLine({
     failedLetters(row) > 0
       ? `${failedLetters(row).toLocaleString('vi-VN')} thư không tới nơi`
       : null,
+    installment ? `Đợt ${installment.no}` : null,
+    typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
+    installment?.due ? `hạn ${dm(installment.due)}` : null,
   ]
     .filter(Boolean)
     .join(' · ')

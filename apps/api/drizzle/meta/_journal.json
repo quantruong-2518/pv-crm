@@ -750,6 +750,13 @@
       "when": 1792566360000,
       "tag": "0108_contract_kind_config",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1792652760000,
+      "tag": "0109_notification_installment_overdue",
+      "breakpoints": true
     }
   ]
 }

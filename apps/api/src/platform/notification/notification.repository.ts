@@ -9,6 +9,7 @@ import {
   inArray,
   isNull,
   lt,
+  notInArray,
   or,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
@@ -188,8 +189,15 @@ export class NotificationRepository {
   async purgeReadBefore(mark: Date): Promise<number> {
     const rows = await this.db
       .delete(notification)
-      .where(lt(notification.readAt, mark))
+      .where(and(lt(notification.readAt, mark), notInArray(notification.kind, DURABLE_KINDS)))
       .returning({ id: notification.id })
     return rows.length
   }
 }
+
+/** Kinds the sweeper must never purge, read or not. Their ledger row is the
+ *  ONLY thing standing between the owner and a second bell for the same debt
+ *  (the UNIQUE on `(recipient_id, event_key)` keys off a row that still has to
+ *  exist) — purging it on the normal 90-day clock would ring the same overdue
+ *  installment again the day the sweeper next finds it untold. */
+const DURABLE_KINDS: NotificationKind[] = ['contract-installment-overdue']

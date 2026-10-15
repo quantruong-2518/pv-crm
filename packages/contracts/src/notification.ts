@@ -39,6 +39,7 @@ export const NotificationKind = z.enum([
   'access-changed',
   'password-reset-by-admin',
   'google-link-broken',
+  'contract-installment-overdue',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -53,6 +54,7 @@ export const NotificationSubject = z.enum([
   'user',
   'google-link',
   'comm-record',
+  'contract',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -84,12 +86,14 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'access-changed': 'Quyền của bạn vừa thay đổi',
   'password-reset-by-admin': 'Quản trị viên đã đặt lại mật khẩu của bạn',
   'google-link-broken': 'Tài khoản Google bị mất kết nối',
+  'contract-installment-overdue': 'Đợt thanh toán của hợp đồng đã quá hạn thu',
 }
 
 /** The filter chips on the bell screen. */
 export const NotificationGroup = z.enum([
   'lead',
   'opportunity',
+  'contract',
   'next-step',
   'approval',
   'mail',
@@ -100,6 +104,7 @@ export type NotificationGroup = z.infer<typeof NotificationGroup>
 export const NOTIFICATION_GROUP_LABEL: Record<NotificationGroup, string> = {
   lead: 'Lead',
   opportunity: 'Cơ hội',
+  contract: 'Hợp đồng',
   'next-step': 'Việc tiếp theo',
   approval: 'Phê duyệt',
   mail: 'Thư',
@@ -135,6 +140,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'access-changed': 'account',
   'password-reset-by-admin': 'account',
   'google-link-broken': 'account',
+  'contract-installment-overdue': 'contract',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -171,6 +177,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'access-changed': { important: false, locked: true },
   'password-reset-by-admin': { important: false, locked: true },
   'google-link-broken': { important: false, locked: true },
+  'contract-installment-overdue': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -193,6 +200,7 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   user: null,
   'google-link': null,
   'comm-record': 'comm.view',
+  contract: 'contract.view',
 }
 
 /** Every subject each kind is written with, read off the emitters' `announce`
@@ -226,6 +234,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'access-changed': ['user'],
     'password-reset-by-admin': ['user'],
     'google-link-broken': ['google-link'],
+    'contract-installment-overdue': ['contract'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

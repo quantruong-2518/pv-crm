@@ -22,6 +22,7 @@ import { useState } from 'react'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
+  ActionBanner,
   ApprovalCard,
   AppHeader,
   BottomNav,
@@ -356,6 +357,33 @@ export function ZoneOrganisms() {
               }}
               onDismiss={() => {}}
               defaultTtlMs={6000}
+            />
+          </SpecCard>
+
+          {/* O-09 */}
+          <SpecCard
+            className="col-span-2"
+            code="O-09"
+            name="ActionBanner"
+            note="việc CẦN LÀM NGAY, không phải việc đã xong"
+            noteAccent
+            bodyClassName="flex flex-col gap-3 p-4"
+            footer={
+              <>
+                Khác Toast: đứng GIỮA chân màn, không bao giờ tự tắt — đây là chỗ cho "câu hỏi cần
+                trả lời" mà Toast từ chối nhận. Luôn đúng một hành động, không tự điều hướng. Danh
+                sách đứng ở tầng app, host chỉ nhận props.
+              </>
+            }
+          >
+            <ActionBanner
+              item={{
+                id: 'kit-1',
+                title: 'Đợt 2 hợp đồng HĐ-0042 đã quá hạn thu',
+                detail: 'Công ty TNHH Ví Dụ · 45.000.000 ₫ · hạn 10/10',
+                action: { label: 'Xem đợt thanh toán', onClick: () => {} },
+              }}
+              onDismiss={() => {}}
             />
           </SpecCard>
         </div>

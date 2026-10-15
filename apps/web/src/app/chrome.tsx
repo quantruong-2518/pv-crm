@@ -35,6 +35,7 @@ import {
   unreadNotificationsQuery,
   useNotificationStream,
 } from '@/data/notifications'
+import { useOverdueBanners } from '@/data/contract-overdue-banner'
 import { useHeaderSearch } from '@/data/search'
 import { MeetingCountdownBar } from '@/components/meeting-countdown-bar'
 import { NotificationMenu } from '@/components/notification-menu'
@@ -379,6 +380,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   /* Preload the dropdown's rows with the header; the stream refreshes them. */
   useNotificationStream()
   useInfiniteQuery(notificationListQuery())
+  const overdueBanners = useOverdueBanners()
   const canComm = access.check(actor, { branch: 'Sales', permission: 'comm.view' }).ok
   /* The one read behind the countdown bar; every screen shares its key. */
   const { data: meetingToday } = useQuery({ ...meetingTodayQuery, enabled: canComm })
@@ -549,6 +551,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     lockedNav: LOCKED_NAV,
     onNavigate,
     subBar: <MeetingCountdownBar today={meetingToday} />,
+    banners: overdueBanners.items,
+    onDismissBanner: overdueBanners.dismiss,
   }
 
   return { shell, settings }
