@@ -15,14 +15,15 @@ pop-up for what matters, and every feature ringing the right person.
 ### 1 · A per-role policy, which only narrows
 
 - **Table.** `platform.notification_kind_policy`, one row per kind:
-  `important boolean`, `muted_role_ids text[]`, `updated_by`, `updated_at`. No
-  row means the defaults from contracts. It stores MUTES, not grants, so a new
+  `important boolean` (null = the contract default), `muted_role_ids text[]`,
+  `updated_by`, `updated_at`. No row means the defaults from contracts. It stores MUTES, not grants, so a new
   kind reaches everyone until someone mutes it. The opposite, as in
   `role_permission` where no row means denied, would silence every new kind.
 - **Where it applies.** In the hub
   (`apps/api/src/platform/notification/notification.hub.ts`), after E4
-  `plan()`. A recipient is dropped only when EVERY role they hold is muted for
-  that kind (a union, like permissions). The filter only removes intents, so it
+  `plan()`. A recipient is dropped only when at least one role they hold is
+  muted for that kind and every other role is muted or cannot open the kind's
+  subject (a union, like permissions). The filter only removes intents, so it
   can never widen past E4 or past permissions. It is read inside the same
   transaction, with no cache, because the worker announces too.
 - **Locked kinds** can never be muted: `approval-waiting`, `access-changed`,
@@ -192,7 +193,22 @@ permissions are a union, and so are mutes.
 
 - The §5 defaults (first touch, the hidden 5.9 fields) were the assistant's;
   the owner accepted them on 14/10/2026.
+- A role counts as "not applicable" for a kind when it cannot open ANY of the
+  kind's subjects (`NOTIFICATION_KIND_SUBJECTS` × `NOTIFICATION_SUBJECT_PERMISSION`
+  × role grants). The grid cannot mute it, and the hub does not let it keep a
+  line alive: a person is dropped when at least one role is muted and every
+  role is muted or not applicable.
+- `important` is stored only when it differs from the contract default
+  (`null` = follow the default), so muting a kind never freezes its importance.
+- Locked kinds refuse mutes; their importance may still change.
+- A bulk run ends with one closing line carrying the count of letters that did
+  not arrive (bounced, failed, dead). A run a person cancels rings its creator
+  only when letters were already lost, so stopping unsent waves rings nobody.
+- Engineering defaults the owner has not confirmed: stream retry after a
+  refusal 30 s, doubling, capped at 5 minutes; tab claim wait for a toast
+  200 ms (`apps/web/src/data/notification-toasts.ts`). A toast's clock pauses
+  while it is hovered or focused.
 
 ## Rollout
 
-Not built.
+Wave 1 built 15/10/2026 (migration 0106). Waves 2 and 3 not started.

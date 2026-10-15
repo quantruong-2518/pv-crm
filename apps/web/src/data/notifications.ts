@@ -1,25 +1,33 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   infiniteQueryOptions,
   keepPreviousData,
   queryOptions,
   useMutation,
   useQueryClient,
+  type InfiniteData,
+  type QueryClient,
 } from '@tanstack/react-query'
-import type {
-  NotificationListQuery,
-  NotificationListResponse,
-  NotificationReadBody,
-  NotificationReadResponse,
-  NotificationRow,
-  NotificationSubject,
-  NotificationUnreadCount,
+import {
+  NOTIFICATION_SUBJECT_PERMISSION,
+  type NotificationListQuery,
+  type NotificationListResponse,
+  type NotificationReadBody,
+  type NotificationReadResponse,
+  type NotificationRow,
+  type NotificationStreamEvent,
+  type NotificationSubject,
+  type NotificationUnreadCount,
+  type Permission,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { toast } from '@/app/toast'
 import { bookQueryParams } from '@/app/book-query'
-import { useSession } from '@/app/auth'
+import { access, useSession } from '@/app/auth'
+import { isParked } from '@/app/parked'
 import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './notification-stream'
+import { snapshotNotifications, toastNewNotifications } from './notification-toasts'
 
 /** The in-app bell — the caller's own rows, nothing wider.
  *
@@ -31,13 +39,19 @@ import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './not
  *  need is empty (a live session) because the server scopes all three to the
  *  caller, the same posture as `GET /approvals/pending`.
  *
- *  Live, not polled: `useNotificationStream` holds the SSE stream and every
- *  signal invalidates `KEY`. Polling every minute is only the fallback while
- *  the stream is not live; window focus always re-asks. Neither inherits the
- *  app-wide `staleTime: Infinity`. */
+ *  Live, not polled: `useNotificationStream` holds the SSE stream; a signal
+ *  re-reads the bell's first page and the count, and the full page only while
+ *  it is on screen. Polling every minute is only the fallback while the stream
+ *  is not live; window focus always re-asks. Neither inherits the app-wide
+ *  `staleTime: Infinity`. */
 const NEED: ApiNeed = {}
 
 const KEY = ['platform', 'notifications'] as const
+/** The bell and `/notifications` keep apart: a deep scroll on the page must
+ *  not become pages the bell re-reads on every signal. */
+const BELL_KEY = [...KEY, 'bell'] as const
+const PAGE_KEY = [...KEY, 'page'] as const
+const COUNT_KEY = [...KEY, 'unread-count'] as const
 
 const POLL_MS = 60_000
 
@@ -57,61 +71,117 @@ export const NOTIFICATION_PAGE_SIZE = 20
 export function useNotificationStream(): boolean {
   const client = useQueryClient()
   const userId = useSession((s) => (s.status === 'signed-in' ? s.actor?.id : undefined))
+  const navigate = useNavigate()
+  const { mutate: markRead } = useMarkNotificationsRead()
 
-  useEffect(
-    () =>
-      userId
-        ? holdNotificationStream(userId, () => void client.invalidateQueries({ queryKey: KEY }))
-        : undefined,
-    [client, userId],
-  )
+  useEffect(() => {
+    if (!userId) return undefined
+    /* "Xem" on a toast does what a press on the bell row does. */
+    const open = (row: NotificationRow) => {
+      const path = notificationPath(row, mayOpen(useSession.getState().actor))
+      if (!path) return null
+      return () => {
+        if (!row.readAt) markRead({ ids: [row.id] })
+        navigate(path)
+      }
+    }
+    return holdNotificationStream(userId, (event) => onStreamSignal(client, userId, event, open))
+  }, [client, userId, navigate, markRead])
 
   return useSyncExternalStore(subscribeStreamLive, streamIsLive)
 }
 
+/** One signal at a time, so a `changed` never diffs before the `ready`
+ *  snapshot it depends on has landed. */
+let signals: Promise<void> = Promise.resolve()
+
+function onStreamSignal(
+  client: QueryClient,
+  userId: string,
+  event: NotificationStreamEvent,
+  open: (row: NotificationRow) => (() => void) | null,
+) {
+  void client.invalidateQueries({ queryKey: PAGE_KEY, refetchType: 'active' })
+  signals = signals
+    .then(async () => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: BELL_KEY }),
+        client.invalidateQueries({ queryKey: COUNT_KEY }),
+      ])
+      /* A failed read would diff stale rows: a `ready` then drops the snapshot,
+         a `changed` waits for the next signal. */
+      const ok = client.getQueryState(BELL_KEY)?.status === 'success'
+      const page = client.getQueryData<InfiniteData<NotificationListResponse>>(BELL_KEY)?.pages[0]
+      const rows = ok ? page?.rows : undefined
+      if (event === 'ready') snapshotNotifications(userId, rows ?? null)
+      else if (rows) toastNewNotifications(userId, rows, streamIsLive(), open)
+    })
+    .catch(() => undefined)
+}
+
 export const unreadNotificationsQuery = () =>
   queryOptions({
-    queryKey: [...KEY, 'unread-count'] as const,
+    queryKey: COUNT_KEY,
     queryFn: ({ signal }) =>
       api.read<NotificationUnreadCount>('/notifications/unread-count', { need: NEED, signal }),
     select: (d: NotificationUnreadCount) => d.count,
     ...FRESH,
   })
 
-/** The filter is part of the key, so each filter reads its own entry; the
- *  mutation's prefix invalidation on `KEY` reaches every one.
- *
- *  Polling stops once a second page is loaded: a deep scroll would otherwise
- *  re-read N pages a minute for rows nobody is looking at. */
-export const notificationListQuery = (
-  filter: Pick<NotificationListQuery, 'unread' | 'group' | 'q'> = {},
-) =>
+type ListFilter = Pick<NotificationListQuery, 'unread' | 'group' | 'q'>
+
+const readPage = (filter: ListFilter, page: number, signal: AbortSignal) =>
+  api.read<NotificationListResponse>(
+    `/notifications?${bookQueryParams({ ...filter, page, size: NOTIFICATION_PAGE_SIZE })}`,
+    { need: NEED, signal },
+  )
+
+/** A row that arrives between two page reads shifts the next page by one, so
+ *  the same id can come back twice; keep the first. `total` is the last
+ *  page's, the freshest read. */
+const flatten = (
+  data: InfiniteData<NotificationListResponse>,
+): { rows: NotificationRow[]; total: number } => {
+  const seen = new Set<string>()
+  return {
+    rows: data.pages
+      .flatMap((page) => page.rows)
+      .filter((row) => !seen.has(row.id) && seen.add(row.id)),
+    total: data.pages[data.pages.length - 1]?.total ?? 0,
+  }
+}
+
+/** The bell's dropdown: the unfiltered first page and never a second, so a
+ *  signal costs one read. Infinite only to share its shape with the page. */
+export const notificationListQuery = () =>
   infiniteQueryOptions({
-    queryKey: [...KEY, 'list', filter] as const,
+    queryKey: BELL_KEY,
     initialPageParam: 1,
-    queryFn: ({ pageParam, signal }) =>
-      api.read<NotificationListResponse>(
-        `/notifications?${bookQueryParams({ ...filter, page: pageParam, size: NOTIFICATION_PAGE_SIZE })}`,
-        { need: NEED, signal },
-      ),
+    queryFn: ({ pageParam, signal }) => readPage({}, pageParam, signal),
+    getNextPageParam: () => undefined,
+    select: flatten,
+    ...FRESH,
+  })
+
+/** `/notifications`. The filter is part of the key, so each filter reads its
+ *  own entry; a stream signal, or the mutation while the stream is down,
+ *  invalidates every one.
+ *
+ *  Polling and focus re-reads stop once a second page is loaded: a deep
+ *  scroll would otherwise re-read N pages a minute. A stream signal still
+ *  re-reads it while it is on screen. */
+export const notificationPageQuery = (filter: ListFilter) =>
+  infiniteQueryOptions({
+    queryKey: [...PAGE_KEY, filter] as const,
+    initialPageParam: 1,
+    queryFn: ({ pageParam, signal }) => readPage(filter, pageParam, signal),
     /* An empty page ends the list whatever `total` says, as in `workstreams.ts`. */
     getNextPageParam: (last, pages, lastParam) => {
       if (last.rows.length === 0) return undefined
       const got = pages.reduce((n, page) => n + page.rows.length, 0)
       return got < last.total ? lastParam + 1 : undefined
     },
-    /* A row that arrives between two page reads shifts the next page by one,
-       so the same id can come back twice; keep the first. `total` is the last
-       page's, the freshest read. */
-    select: (data): { rows: NotificationRow[]; total: number } => {
-      const seen = new Set<string>()
-      return {
-        rows: data.pages
-          .flatMap((page) => page.rows)
-          .filter((row) => !seen.has(row.id) && seen.add(row.id)),
-        total: data.pages[data.pages.length - 1]?.total ?? 0,
-      }
-    },
+    select: flatten,
     placeholderData: keepPreviousData,
     staleTime: 60_000,
     refetchInterval: (q) => ((q.state.data?.pages.length ?? 0) > 1 ? false : fallbackPoll()),
@@ -120,7 +190,8 @@ export const notificationListQuery = (
 
 /** One row or everything. Invalidation and the failure toast sit on the hook,
  *  not on the call: a row press navigates away, and per-call callbacks die
- *  with the screen. */
+ *  with the screen. A live stream announces the read itself (the `read_at`
+ *  trigger), so re-reading here too would fetch everything twice. */
 export function useMarkNotificationsRead() {
   const client = useQueryClient()
 
@@ -131,7 +202,7 @@ export function useMarkNotificationsRead() {
         body,
         need: NEED,
       }),
-    onSuccess: () => client.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => (streamIsLive() ? undefined : client.invalidateQueries({ queryKey: KEY })),
     onError: (error) =>
       toast(isApiError(error) ? userMessage(error) : 'Chưa đánh dấu được. Vui lòng thử lại.', {
         tone: 'danger',
@@ -160,14 +231,31 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
 }
 
 /** `null` = nowhere to go, the row only marks itself read. A decided request
- *  has left the inbox, so its outcome is read on the requester's own list. The
- *  run book is the one target behind a permission: without it the press would
- *  land on a locked screen. */
-export const notificationPath = (row: NotificationRow, canOpenRuns: boolean): string | null => {
+ *  has left the inbox, so its outcome is read on the requester's own list. A
+ *  target the reader may not open has no link: the press would land on a
+ *  locked screen. */
+export const notificationPath = (
+  row: NotificationRow,
+  may: (permission: Permission) => boolean,
+): string | null => {
   /* The record just left the reader; for some it is no longer theirs to open. */
   if (row.kind === 'lead-removed' || row.kind === 'opportunity-unassigned') return null
-  if (row.subject.kind === 'mail-run' && !canOpenRuns) return null
+  const need = NOTIFICATION_SUBJECT_PERMISSION[row.subject.kind]
+  if (need && !may(need)) return null
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
     return `${ACCOUNT}#requests`
   return SUBJECT_PATH[row.subject.kind](row.subject.code)
+}
+
+/** The same question the route gate asks: every gated target is a Sales door
+ *  (`routes.tsx`), and a parked module is shut whatever the role holds. */
+const mayOpen =
+  (actor: Parameters<typeof access.check>[0]) =>
+  (permission: Permission): boolean =>
+    !isParked(permission) && access.check(actor, { branch: 'Sales', permission }).ok
+
+/** Where a row press goes for the signed-in reader. */
+export function useNotificationPath(): (row: NotificationRow) => string | null {
+  const actor = useSession((s) => s.actor)
+  return (row) => notificationPath(row, mayOpen(actor))
 }

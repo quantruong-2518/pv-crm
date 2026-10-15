@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus } from '@pv/ui'
 import { Button, Icon, Input, Select } from '@pv/ui'
 import { OPPORTUNITY_STAGE_LABEL, StageKey } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { useProposeLossReason, useProposeProduct, useProposeStopReason } from '@/data/sales-config'
 import { SENT } from './sales-config-section'
@@ -17,7 +18,9 @@ import { SENT } from './sales-config-section'
  *  is a different row, not an edit of the one just sent. */
 export function AddProduct() {
   const [name, setName] = useState('')
+  const canPropose = useCan('config.propose')
   const propose = useProposeProduct()
+  if (!canPropose) return null
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -53,7 +56,7 @@ export function AddProduct() {
  *  choice (empty value), which sends no `stage` at all — an absent `stage` is
  *  what makes a reason apply everywhere (ADR 0064 §6). */
 const LOSS_REASON_STAGE_OPTIONS = [
-  { value: '', label: 'Mọi cột' },
+  { value: '', label: 'Mọi giai đoạn' },
   ...StageKey.options.map((key) => ({ value: key, label: OPPORTUNITY_STAGE_LABEL[key] })),
 ]
 
@@ -66,7 +69,9 @@ const LOSS_REASON_STAGE_OPTIONS = [
 export function AddLossReason() {
   const [name, setName] = useState('')
   const [stage, setStage] = useState('')
+  const canPropose = useCan('config.propose')
   const propose = useProposeLossReason()
+  if (!canPropose) return null
 
   return (
     <div className="flex flex-wrap items-end gap-3">
@@ -78,7 +83,7 @@ export function AddLossReason() {
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
       <Select
-        label="Áp dụng ở cột"
+        label="Áp dụng ở giai đoạn"
         className="pointer-coarse:[&>button]:h-12"
         value={stage}
         onChange={setStage}
@@ -115,7 +120,9 @@ export function AddLossReason() {
  *  picker: unlike `LOSS_REASON`, this list is not scoped to a board column. */
 export function AddStopReason() {
   const [name, setName] = useState('')
+  const canPropose = useCan('config.propose')
   const propose = useProposeStopReason()
+  if (!canPropose) return null
 
   return (
     <div className="flex flex-wrap items-end gap-3">

@@ -7,17 +7,19 @@ import {
   type ConfigEntry,
 } from '@pv/contracts'
 import { AddLossReason, AddProduct } from './sales-config-add-rows'
-import { EntryRow } from './sales-config-comm'
+import { AddEntry, EntryRow } from './sales-config-comm'
 import { ActivityFreshnessConfig } from './sales-config-freshness'
 import { byOrd } from './sales-config-model'
 import { EntryCount, Section, type AreaProps } from './sales-config-section'
 
 /** The deal flow — how stale a deal's last activity may get, why a deal leaves
- *  the board for the care list, and what the department sells. Switched-off
+ *  the board for the care list, why a quotation is redone, and what the
+ *  department sells. Switched-off
  *  rows stay listed in both catalogs: off is the only delete this system has. */
 export function DealArea({ catalog }: AreaProps) {
   const products = [...(catalog?.PRODUCT ?? [])].sort(byOrd)
   const reasons = catalog?.LOSS_REASON ?? []
+  const requotes = [...(catalog?.QUOTE_REVISION_REASON ?? [])].sort(byOrd)
   return (
     <>
       <Section at="freshness">
@@ -27,6 +29,30 @@ export function DealArea({ catalog }: AreaProps) {
       <Section at="care-reasons" summary={<EntryCount rows={reasons} noun="lý do" />}>
         <CareReasons rows={reasons} usage={catalog?.usage.LOSS_REASON ?? {}} />
         <AddLossReason />
+      </Section>
+
+      {/* 5.4d — why a waiting quotation round closed when a new round was
+          recorded. Not `LOSS_REASON`: the deal carries on. */}
+      <Section at="quote-reasons" summary={<EntryCount rows={requotes} noun="lý do" />}>
+        {requotes.length === 0 ? (
+          <p className="text-muted-foreground text-[11.5px]">Chưa có lý do nào.</p>
+        ) : (
+          <GlassCard variant="b" className="p-4">
+            <ul className="flex flex-col gap-2">
+              {requotes.map((r) => (
+                <li key={r.id}>
+                  <EntryRow
+                    entry={r}
+                    list="QUOTE_REVISION_REASON"
+                    usage={catalog?.usage.QUOTE_REVISION_REASON[r.id] ?? 0}
+                    unit="lần báo giá"
+                  />
+                </li>
+              ))}
+            </ul>
+          </GlassCard>
+        )}
+        <AddEntry list="QUOTE_REVISION_REASON" placeholder="Thêm lý do báo giá lại" />
       </Section>
 
       {/* 5.4c — the only catalog with a real foreign key pointing at it. It
@@ -43,7 +69,7 @@ export function DealArea({ catalog }: AreaProps) {
                     entry={p}
                     list="PRODUCT"
                     usage={catalog?.usage.PRODUCT[p.id] ?? 0}
-                    unit="đơn"
+                    unit="cơ hội"
                   />
                 </li>
               ))}
@@ -72,13 +98,13 @@ function CareReasons({ rows, usage }: { rows: ConfigEntry[]; usage: Record<strin
       value: key as string,
       label: OPPORTUNITY_STAGE_LABEL[key],
     })),
-    { value: ANY_STAGE, label: 'Mọi cột' },
+    { value: ANY_STAGE, label: 'Mọi giai đoạn' },
   ].map((t) => ({ ...t, count: rows.filter((r) => inTab(r, t.value)).length }))
 
   return (
     <>
       <SegmentedControl
-        label="Cột của sổ cơ hội"
+        label="Giai đoạn của cơ hội"
         hideLabel
         tone="quiet"
         options={tabs}
@@ -96,7 +122,7 @@ function CareReasons({ rows, usage }: { rows: ConfigEntry[]; usage: Record<strin
                   entry={r}
                   list="LOSS_REASON"
                   usage={usage[r.id] ?? 0}
-                  unit="đơn"
+                  unit="cơ hội"
                   extra={
                     r.doNotContact ? (
                       <Badge tone="warning">{LOSS_REASON_DO_NOT_CONTACT_LABEL}</Badge>

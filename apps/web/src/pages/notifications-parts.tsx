@@ -88,7 +88,7 @@ export function NotificationToolbar({
           filters are wide, rather than squeezing the search box to nothing. */}
       <div className="flex min-w-0 grow basis-[360px] flex-wrap items-center justify-end gap-2">
         <SearchField
-          placeholder="Tìm theo tên lead, cơ hội hoặc nội dung…"
+          placeholder="Tìm theo tên công ty, cơ hội hoặc lô gửi…"
           value={book.text}
           onChange={book.setText}
           className="pointer-coarse:h-12 min-w-[200px] flex-1 sm:max-w-[320px]"
@@ -150,9 +150,9 @@ export function NotificationFeed({
   }, [canLoadMore, fetchNextPage])
 
   const retry = { label: 'Thử lại', onClick: () => void refetch() }
-  const failure = `Không tải được danh sách thông báo. ${
-    isApiError(list.error) ? userMessage(list.error) : 'Thử lại.'
-  }`
+  const failure = isApiError(list.error)
+    ? `Không tải được danh sách thông báo. ${userMessage(list.error)}`
+    : 'Không tải được danh sách thông báo.'
 
   if (isPending || (isPlaceholderData && rows.length === 0)) {
     return (

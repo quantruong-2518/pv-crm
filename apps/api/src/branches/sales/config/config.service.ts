@@ -120,7 +120,8 @@ export class SalesConfigService implements ApprovalApplier {
 
     if (!rows.some((r) => r.id === id)) throw notFound(`mục của danh mục ${list}`, id)
 
-    const change: ConfigChange = { kind: 'update', list, id, patch: body }
+    const was = rows.find((r) => r.id === id)?.name
+    const change: ConfigChange = { kind: 'update', list, id, patch: body, ...(was && { was }) }
     this.assertShapeKept(change, rows)
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
     await this.assertCriterionReal(body.criterionId)
@@ -140,8 +141,14 @@ export class SalesConfigService implements ApprovalApplier {
     list: ConfigList,
     body: ConfigOrderPatch,
   ): Promise<ConfigProposalReceipt> {
-    const change: ConfigChange = { kind: 'reorder', list, ids: body.ids }
     const rows = await this.repo.list(list)
+    const names = body.ids.flatMap((id) => rows.find((r) => r.id === id)?.name ?? [])
+    const change: ConfigChange = {
+      kind: 'reorder',
+      list,
+      ids: body.ids,
+      ...(names.length === body.ids.length && { names }),
+    }
     this.assertShapeKept(change, rows)
     this.assertOrderCovers(
       rows.map((r) => r.id),

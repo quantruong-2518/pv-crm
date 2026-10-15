@@ -74,8 +74,9 @@ unchanged.
 - Push exists only where a LISTEN can be trusted: PGlite, or
   `PV_QUEUE_DATABASE_URL` set (the rule the queue's `useListenNotify` follows in
   `boss.provider.ts`). Without it `GET /notifications/stream` answers 503, the
-  browser's stream closes, the web keeps the fallback refetch and asks again at
-  a fixed interval.
+  browser's stream closes, the web keeps the fallback refetch and asks again,
+  waiting longer after each refusal (ADR 0093, Consequences). A 401 renews the
+  session once and reconnects at once; a failed renewal stops asking.
 - `ready` is a promise that the line is listening: a stream says it only while
   the listener is up. When the LISTEN connection is lost every open stream is
   closed, browsers fall back to refetching and reconnect, and the new stream

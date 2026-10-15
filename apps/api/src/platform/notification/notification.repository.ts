@@ -19,11 +19,18 @@ import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
 import {
   notification,
+  notificationKindPolicy,
   type NotificationRowDb,
   type NotificationValues,
 } from './notification.schema'
 
-export type NotificationWithActor = { row: NotificationRowDb; actorName: string | null }
+/** `important` is the kind policy row's switch, `null` when the kind has no
+ *  row or follows the default; `effectiveImportant` resolves both. */
+export type NotificationWithActor = {
+  row: NotificationRowDb
+  actorName: string | null
+  important: boolean | null
+}
 
 /** `labelKinds` are the kinds whose printed sentence matches `text`: rows about
  *  a user or a Google link carry no `subject_label`, so the sentence is all
@@ -42,12 +49,16 @@ export type NotificationFilter = {
 export class NotificationRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
-  /** Which of these ids are real actors, and whether each is locked. `KEY
+  /** Which of these ids are real actors, whether each is locked, and the roles
+   *  the kind policy mutes by (ADR 0093 §1). `KEY
    *  SHARE` is the lock the foreign keys take anyway: holding it from here
    *  means no delete can land between this answer and the insert it guards. */
-  actors(tx: Db, ids: readonly string[]): Promise<{ id: string; disabledAt: Date | null }[]> {
+  actors(
+    tx: Db,
+    ids: readonly string[],
+  ): Promise<{ id: string; disabledAt: Date | null; roleIds: RoleId[] }[]> {
     return tx
-      .select({ id: actor.id, disabledAt: actor.disabledAt })
+      .select({ id: actor.id, disabledAt: actor.disabledAt, roleIds: actor.roleIds })
       .from(actor)
       .where(inArray(actor.id, [...ids]))
       .for('key share')
@@ -82,7 +93,8 @@ export class NotificationRepository {
   }
 
   /** Newest first. One `announce` writes all its rows at the same
-   *  `created_at`, so `id` breaks the tie and paging stays stable. */
+   *  `created_at`, so `id` breaks the tie and paging stays stable. The policy
+   *  join is on its primary key, so it adds a column and never a row. */
   async page(
     recipientId: string,
     q: PageQuery,
@@ -90,9 +102,14 @@ export class NotificationRepository {
   ): Promise<{ rows: NotificationWithActor[]; total: number }> {
     const where = this.where(recipientId, f)
     const rows = await this.db
-      .select({ row: notification, actorName: actor.name })
+      .select({
+        row: notification,
+        actorName: actor.name,
+        important: notificationKindPolicy.important,
+      })
       .from(notification)
       .leftJoin(actor, eq(actor.id, notification.actorId))
+      .leftJoin(notificationKindPolicy, eq(notificationKindPolicy.kind, notification.kind))
       .where(where)
       .orderBy(desc(notification.createdAt), desc(notification.id))
       .limit(q.size)

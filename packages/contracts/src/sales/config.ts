@@ -87,6 +87,23 @@ export const ConfigList = z.enum([
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
 export type ConfigList = z.infer<typeof ConfigList>
 
+/** Each list named the way a sentence needs it (lower-case), taken from the
+ *  config screen's section titles. The approvals inbox reads these. */
+export const CONFIG_LIST_LABEL: Record<ConfigList, string> = {
+  STAGE: 'danh sách giai đoạn',
+  TIER: 'danh sách bậc lead',
+  CATEGORY: 'danh sách nhóm ngành',
+  EXIT_REASON: 'lý do dừng chăm sóc',
+  CHANNEL: 'danh sách kênh',
+  SOURCE: 'danh sách nguồn',
+  PRODUCT: 'sản phẩm/dịch vụ',
+  LOSS_REASON: 'lý do vào danh sách chăm sóc',
+  COMM_CRITERION: 'câu hỏi đánh giá liên hệ',
+  COMM_ANSWER: 'câu trả lời đánh giá liên hệ',
+  STEP_KIND: 'loại bước tiếp theo',
+  QUOTE_REVISION_REASON: 'lý do báo giá lại',
+}
+
 /** Tiền tố id của từng danh mục. Máy chủ sinh `<tiền tố>-<số thứ tự>`.
  *
  *  Tiền tố mang tên danh mục để một mã lạc chỗ đọc ra được ngay ('ST-05' rơi

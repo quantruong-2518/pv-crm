@@ -349,10 +349,12 @@ export class MailConsumer {
     /* One try per hook: a branch that fails to report must not silence the next. */
     for (const hook of this.sent) {
       try {
-        /* The branch's trail row and the bell line commit together or not at all. */
+        /* Trail row and bell line commit together. A bulk letter keeps its trail
+           row but rings nothing: its run's closing line counts it (ADR 0093 §4). */
         await this.db.transaction(async (tx) => {
           const people = await hook.afterTrouble(tx, delivery, trouble)
-          if (people && trouble.kind === 'failed') await this.bell.failed(tx, people, delivery)
+          const rings = trouble.kind === 'failed' && delivery.runKind !== 'bulk'
+          if (people && rings) await this.bell.failed(tx, people, delivery)
         })
       } catch (error) {
         this.log.error(

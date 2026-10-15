@@ -248,10 +248,7 @@ export function RequestsBlock({ requests }: { requests: UseQueryResult<ApprovalR
 
   return (
     <section id="requests" className="flex scroll-mt-44 flex-col gap-4">
-      <SectionTitle
-        size="detail"
-        hint="Các yêu cầu bạn gửi đi để chờ phê duyệt, mới nhất ở trên cùng."
-      >
+      <SectionTitle size="detail" hint="Mới nhất ở trên cùng.">
         Yêu cầu tôi đã gửi
       </SectionTitle>
 
@@ -268,7 +265,7 @@ export function RequestsBlock({ requests }: { requests: UseQueryResult<ApprovalR
         <EmptyState
           className="glass-b rounded-lg p-6"
           icon={Inbox}
-          message="Bạn chưa gửi yêu cầu nào. Khi bạn gửi một yêu cầu cần phê duyệt, kết quả sẽ hiện ở đây."
+          message="Bạn chưa gửi yêu cầu nào."
           action={{ label: 'Tải lại', onClick: () => void requests.refetch() }}
         />
       ) : (
@@ -281,8 +278,7 @@ export function RequestsBlock({ requests }: { requests: UseQueryResult<ApprovalR
           {/* The server cuts the list there and sends no total. */}
           {rows.length === MY_APPROVALS_LIMIT ? (
             <p className={`text-muted-foreground ${BODY}`}>
-              Danh sách chỉ hiện {MY_APPROVALS_LIMIT} yêu cầu mới nhất. Các yêu cầu cũ hơn không
-              hiện ở đây.
+              Chỉ hiện {MY_APPROVALS_LIMIT} yêu cầu mới nhất.
             </p>
           ) : null}
         </>

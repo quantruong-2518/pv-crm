@@ -1,6 +1,7 @@
-import { check, index, jsonb, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, index, jsonb, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { NotificationKind, NotificationSubject } from '@pv/contracts'
+import type { RoleId } from '@pv/engines'
 import { actor, platform } from '../db/platform.schema'
 
 /** The bell's ledger — one row per person per thing worth telling them.
@@ -96,3 +97,59 @@ export const notification = platform.table(
 
 export type NotificationRowDb = typeof notification.$inferSelect
 export type NotificationValues = typeof notification.$inferInsert
+
+/** One admin override of a kind's defaults (ADR 0093 §1). No row = the defaults
+ *  in `NOTIFICATION_KIND_POLICY` (`@pv/contracts`), the ordinary state.
+ *
+ *  It stores MUTES, not grants, so a kind added later reaches everyone until
+ *  somebody mutes it; the reverse, as in `role_permission`, would silence it.
+ *  Locked kinds are refused by the API, not here: the locked set is contract
+ *  data, and a CHECK copy would drift from it.
+ *
+ *  No index beyond the primary key: the hub asks "this kind's row" (the key)
+ *  and the admin screen asks "every row", at most one per kind — a scan. */
+export const notificationKindPolicy = platform.table(
+  'notification_kind_policy',
+  {
+    kind: text('kind').$type<NotificationKind>().primaryKey(),
+
+    /** `null` = follow the contract default, so saving a mute never freezes
+     *  importance at today's default; only a deliberate switch stores a value. */
+    important: boolean('important'),
+
+    /** Roles that do not receive this kind. A person is dropped only when a role
+     *  they hold is listed and every other one is listed or not applicable
+     *  (ADR 0093 §2). Empty is normal: importance changed, nobody muted. */
+    mutedRoleIds: text('muted_role_ids').array().$type<RoleId[]>().notNull().default([]),
+
+    /** Who changed it. A real FK for `setting.updated_by`'s reason: only a
+     *  signed-in `setting.manage` holder writes, and nobody's choice is no row. */
+    updatedBy: text('updated_by')
+      .notNull()
+      .references(() => actor.id),
+
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  () => [
+    /** `notification_kind_known`'s list, copied by hand for the same reason. */
+    check(
+      'notification_kind_policy_kind_known',
+      sql`"kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered',
+                     'lead-stopped', 'lead-scan-ready', 'lead-scan-committed',
+                     'lead-scan-failed', 'opportunity-awaiting-accept', 'opportunity-lost',
+                     'opportunity-accepted', 'opportunity-assigned', 'opportunity-unassigned',
+                     'next-step-assigned', 'next-step-done', 'approval-waiting',
+                     'approval-approved', 'approval-rejected', 'mail-run-sent',
+                     'mail-run-cancelled', 'mail-failed', 'customer-replied',
+                     'access-changed', 'password-reset-by-admin', 'google-link-broken')`,
+    ),
+    /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
+    check(
+      'notification_kind_policy_muted_roles_known',
+      sql`"muted_role_ids" <@ ARRAY['director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale', 'account-executive']::text[]`,
+    ),
+  ],
+)
+
+export type NotificationKindPolicyRowDb = typeof notificationKindPolicy.$inferSelect
+export type NotificationKindPolicyValues = typeof notificationKindPolicy.$inferInsert

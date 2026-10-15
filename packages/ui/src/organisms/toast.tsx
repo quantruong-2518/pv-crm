@@ -18,6 +18,9 @@ import { cn } from '../lib/cn'
  *   · **Việc đang chạy** — đó là thanh tiến độ ở chỗ người dùng bấm nút.
  *   · **Câu hỏi cần trả lời** — toast tự tắt, nên hỏi ở đây là hỏi rồi bỏ đi.
  *
+ *  One exception (ADR 0093 §3): an IMPORTANT notification addressed to the
+ *  reader may also toast, with a "Xem" action that opens its target.
+ *
  *  ------------------------------------------------------------------
  *  TONE `danger` KHÔNG TỰ TẮT
  *  ------------------------------------------------------------------
@@ -77,6 +80,8 @@ export type ToastProps = {
 export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
   const tone = item.tone ?? 'info'
   const [leaving, setLeaving] = useState(false)
+  /* Hovered or focused: the reader is reaching for the action, so the clock waits. */
+  const [held, setHeld] = useState(false)
 
   /* `onDismiss` đổi định danh mỗi lượt vẽ của cha thì đồng hồ bị đặt lại từ
      đầu, và một toast 6 giây sống mãi trên màn có cha hay vẽ lại. Giữ trong ref
@@ -85,11 +90,11 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
   dismiss.current = onDismiss
 
   useEffect(() => {
-    if (tone === 'danger') return
+    if (tone === 'danger' || held) return
     const ttl = item.ttlMs ?? defaultTtlMs
     const timer = setTimeout(() => dismiss.current(item.id), ttl)
     return () => clearTimeout(timer)
-  }, [item.id, item.ttlMs, tone, defaultTtlMs])
+  }, [item.id, item.ttlMs, tone, defaultTtlMs, held])
 
   /* Tắt bằng tay chạy hoạt cảnh đi ra trước khi gỡ; tự hết giờ thì gỡ thẳng.
      Lý do khác nhau: bấm tắt là người dùng đang NHÌN vào tấm đó, nên nó biến
@@ -101,6 +106,10 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
 
   return (
     <div
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onBlur={() => setHeld(false)}
       className={cn(
         'glass-overlay pointer-events-auto flex w-[min(360px,calc(100vw-32px))] items-start gap-3 rounded-lg p-4',
         leaving ? 'animate-drawer-out' : 'animate-drawer-in',
@@ -118,6 +127,7 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
             <Button
               size="sm"
               variant="ghost"
+              className="pointer-coarse:h-12"
               onClick={() => {
                 item.action?.onClick()
                 close()
@@ -133,7 +143,7 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
         type="button"
         onClick={close}
         aria-label="Đóng thông báo"
-        className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 -mr-1 shrink-0 rounded-sm p-1"
+        className="motion-std text-muted-foreground hover:text-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 -mr-1 flex shrink-0 items-center justify-center rounded-md p-1"
       >
         <Icon icon={X} size={16} />
       </button>

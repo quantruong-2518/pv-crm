@@ -17,7 +17,7 @@ import { SegmentedControl } from '@pv/ui'
  *  `campaign`/`source`/`mail_run` does — it is shared configuration every
  *  campaign reads, not the record of one send. */
 const BOOKS = [
-  { value: '/sales/config', label: 'Cấu hình' },
+  { value: '/sales/config', label: 'Thiết lập bán hàng' },
   { value: '/sales/config/mail-templates', label: 'Mẫu thư' },
 ] as const
 

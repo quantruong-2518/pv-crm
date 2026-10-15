@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { RoleId, type Permission } from './auth'
 import { PageQuery, paged } from './pagination'
 import { Moment } from './primitives'
 
@@ -73,11 +74,11 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'approval-waiting': 'Có yêu cầu đang chờ bạn duyệt',
   'approval-approved': 'Yêu cầu của bạn đã được duyệt',
   'approval-rejected': 'Yêu cầu của bạn bị từ chối',
-  'mail-run-sent': 'Lô thư đã gửi xong',
-  'mail-run-cancelled': 'Lô thư bị dừng vì nhiều thư bị trả lại',
+  'mail-run-sent': 'Lô gửi đã xong',
+  'mail-run-cancelled': 'Lô gửi đã dừng',
   'mail-failed': 'Thư không gửi được',
   'customer-replied': 'Khách đã trả lời thư',
-  'access-changed': 'Quyền của bạn đã được thay đổi',
+  'access-changed': 'Quyền của bạn vừa thay đổi',
   'password-reset-by-admin': 'Quản trị viên đã đặt lại mật khẩu của bạn',
   'google-link-broken': 'Tài khoản Google bị mất kết nối',
 }
@@ -132,6 +133,98 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'google-link-broken': 'account',
 }
 
+/** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
+ *  its `important` is null). A locked kind can never be muted; `Record` makes
+ *  a new kind fail to compile until it is classified. Role-wide audiences are
+ *  never important. */
+export const NOTIFICATION_KIND_POLICY: Record<
+  NotificationKind,
+  { important: boolean; locked: boolean }
+> = {
+  'lead-pooled': { important: false, locked: false },
+  'lead-received': { important: true, locked: false },
+  'lead-removed': { important: false, locked: false },
+  'lead-re-entered': { important: false, locked: false },
+  'lead-stopped': { important: false, locked: false },
+  'lead-scan-ready': { important: false, locked: false },
+  'lead-scan-committed': { important: false, locked: false },
+  'lead-scan-failed': { important: false, locked: false },
+  'opportunity-awaiting-accept': { important: false, locked: false },
+  'opportunity-lost': { important: false, locked: false },
+  'opportunity-accepted': { important: false, locked: false },
+  'opportunity-assigned': { important: false, locked: false },
+  'opportunity-unassigned': { important: false, locked: false },
+  'next-step-assigned': { important: false, locked: false },
+  'next-step-done': { important: false, locked: false },
+  'approval-waiting': { important: true, locked: true },
+  'approval-approved': { important: false, locked: false },
+  'approval-rejected': { important: false, locked: false },
+  'mail-run-sent': { important: false, locked: false },
+  'mail-run-cancelled': { important: false, locked: false },
+  'mail-failed': { important: true, locked: false },
+  'customer-replied': { important: true, locked: false },
+  'access-changed': { important: false, locked: true },
+  'password-reset-by-admin': { important: false, locked: true },
+  'google-link-broken': { important: false, locked: true },
+}
+
+/** A stored `important` of `null` (or no row) follows the contract default,
+ *  so a mute saved today does not freeze importance if the default moves. */
+export const effectiveImportant = (
+  kind: NotificationKind,
+  stored: boolean | null | undefined,
+): boolean => stored ?? NOTIFICATION_KIND_POLICY[kind].important
+
+/** The permission needed to OPEN a subject; `null` where none gates it (the
+ *  reader's own account, or a requester's own approval). The admin grid prints
+ *  its "not applicable" cell from it, and ADR 0093 §7 (wave 2) reuses it as a hub backstop. */
+export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permission | null> = {
+  lead: 'lead.view',
+  'lead-pool': 'lead.view',
+  opportunity: 'opportunity.view',
+  approval: null,
+  'lead-scan': 'lead.edit',
+  'mail-run': 'campaign.view',
+  user: null,
+  'google-link': null,
+}
+
+/** Every subject each kind is written with, read off the emitters' `announce`
+ *  calls. A role cannot use a kind when it may open none of these (ADR 0093
+ *  §2); a new emitter that adds a subject must add it here. */
+export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly NotificationSubject[]> =
+  {
+    'lead-pooled': ['lead', 'lead-pool'],
+    'lead-received': ['lead'],
+    'lead-removed': ['lead'],
+    'lead-re-entered': ['lead'],
+    'lead-stopped': ['lead'],
+    'lead-scan-ready': ['lead-scan'],
+    'lead-scan-committed': ['lead-scan'],
+    'lead-scan-failed': ['lead-scan'],
+    'opportunity-awaiting-accept': ['opportunity'],
+    'opportunity-lost': ['opportunity'],
+    'opportunity-accepted': ['opportunity'],
+    'opportunity-assigned': ['opportunity'],
+    'opportunity-unassigned': ['opportunity'],
+    'next-step-assigned': ['lead', 'opportunity'],
+    'next-step-done': ['lead', 'opportunity'],
+    'approval-waiting': ['approval'],
+    'approval-approved': ['approval'],
+    'approval-rejected': ['approval'],
+    'mail-run-sent': ['mail-run'],
+    'mail-run-cancelled': ['mail-run'],
+    'mail-failed': ['lead', 'opportunity'],
+    'customer-replied': ['lead', 'opportunity'],
+    'access-changed': ['user'],
+    'password-reset-by-admin': ['user'],
+    'google-link-broken': ['google-link'],
+  }
+
+/** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
+ *  `mail-run-cancelled` row (ADR 0093 §4); absent when no letter failed. */
+export const NOTIFICATION_DETAIL_FAILED = 'failed'
+
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
  *  subject's own screen. */
@@ -147,6 +240,8 @@ export const NotificationRow = z.object({
   detail: z.record(z.string(), z.union([z.string(), z.number()])).nullable(),
   createdAt: Moment,
   readAt: Moment.nullable(),
+  /** The kind's live policy, so the admin's switch decides the popup. */
+  important: z.boolean(),
 })
 export type NotificationRow = z.infer<typeof NotificationRow>
 
@@ -191,3 +286,40 @@ export const NotificationStreamEvent = z.enum(['ready', 'changed'])
 export type NotificationStreamEvent = z.infer<typeof NotificationStreamEvent>
 
 export const NOTIFICATION_STREAM_PATH = '/notifications/stream'
+
+/** Admin policy, permission `setting.manage`: `GET /admin/notifications` lists
+ *  every kind, `PUT /admin/notifications/:kind` writes one (ADR 0093 §1-§2). */
+export const NOTIFICATION_POLICY_PATH = '/admin/notifications'
+
+export const NotificationPolicyParams = z.object({ kind: NotificationKind })
+export type NotificationPolicyParams = z.infer<typeof NotificationPolicyParams>
+
+/** `locked` comes from `NOTIFICATION_KIND_POLICY`, never from storage, and
+ *  `important` is already effective. `inapplicableRoleIds` are roles whose
+ *  live grants open none of the kind's subjects; the grid prints them as
+ *  "not applicable", never as a mute. */
+export const NotificationPolicyRow = z.object({
+  kind: NotificationKind,
+  important: z.boolean(),
+  mutedRoleIds: z.array(RoleId),
+  inapplicableRoleIds: z.array(RoleId),
+  locked: z.boolean(),
+  updatedAt: Moment.nullable(),
+  updatedBy: z.object({ id: z.string().min(1), name: z.string().min(1) }).nullable(),
+})
+export type NotificationPolicyRow = z.infer<typeof NotificationPolicyRow>
+
+/** The server fills the defaults for kinds that have no row yet. */
+export const NotificationPolicyResponse = z.object({ rows: z.array(NotificationPolicyRow) })
+export type NotificationPolicyResponse = z.infer<typeof NotificationPolicyResponse>
+
+/** A locked kind with any muted role is refused by the server, since
+ *  muting `approval-waiting` would silently stall approvals. `important`
+ *  is `null` to follow the contract default (`effectiveImportant`). */
+export const NotificationPolicyBody = z.strictObject({
+  important: z.boolean().nullable(),
+  mutedRoleIds: z
+    .array(RoleId)
+    .refine((r) => new Set(r).size === r.length, { message: 'Vai trò bị trùng.' }),
+})
+export type NotificationPolicyBody = z.infer<typeof NotificationPolicyBody>

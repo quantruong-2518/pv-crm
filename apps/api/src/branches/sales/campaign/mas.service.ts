@@ -33,6 +33,7 @@ import { MAIL_ENQUEUE, type MailEnqueue, type MailIntent } from '@api/platform/m
 import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository, type MailRunUpdate } from '@api/platform/mail/mail-run.repository'
+import { MailRunSweeper } from '@api/platform/mail/mail-run.sweeper'
 import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
 import { deadNote, mailKey } from './mail-domain'
 import {
@@ -157,6 +158,7 @@ export class MasService {
     @Inject(ENV) private readonly env: Env,
     private readonly states: LeadStateWriter,
     private readonly domains: MailDomainCheck,
+    private readonly sweeper: MailRunSweeper,
   ) {}
 
   /** A dry run that writes nothing — not even a sequence number. */
@@ -675,7 +677,10 @@ export class MasService {
        `LeadWriteRepository.writeBatchNote` exists rather than calling it. */
     const stopped = await this.repo.run(async (tx) => {
       const result = await this.runs.cancel(tx, id)
-      if (result) await this.repo.writeCancelNote(tx, { actorId: who.id, runId: id, door })
+      if (result) {
+        await this.repo.writeCancelNote(tx, { actorId: who.id, runId: id, door })
+        await this.sweeper.cancelledByHand(tx, result.run, who.id)
+      }
       return result
     })
 

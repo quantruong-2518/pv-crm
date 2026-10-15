@@ -315,6 +315,9 @@ export function ZoneOrganisms() {
                 Ba thứ KHÔNG phải toast: lỗi của ô đang gõ (thuộc về ô đó) · việc đang chạy (đó là
                 thanh tiến độ ở chỗ bấm nút) · câu hỏi cần trả lời (toast tự tắt).
                 <br />
+                Ngoại lệ duy nhất: thông báo quan trọng gửi cho chính người đang dùng, có nút Xem.
+                Rê chuột hoặc focus vào tấm thì đồng hồ dừng.
+                <br />
                 Tone `danger` KHÔNG tự tắt — cưỡng chế ở tầng kiểu, `ttlMs` bị bỏ qua. Host đứng góc
                 phải dưới, `bottom-[118px]` trên mobile để né nav 84 + safe-area 34 (luật 3). Danh
                 sách nằm ở `app/toast.ts`, host chỉ nhận props.
@@ -338,6 +341,18 @@ export function ZoneOrganisms() {
                 tone: 'danger',
                 title: 'Không gửi được đợt 3',
                 detail: 'Hệ gửi chung từ chối 12 địa chỉ. Tấm này không tự tắt.',
+              }}
+              onDismiss={() => {}}
+              defaultTtlMs={6000}
+            />
+            {/* ADR 0093 §3: the one exception, an important notification for the reader. */}
+            <Toast
+              item={{
+                id: 'kit-3',
+                tone: 'info',
+                title: 'Có yêu cầu đang chờ bạn duyệt',
+                detail: 'Đổi hạn giai đoạn Báo giá',
+                action: { label: 'Xem', onClick: () => {} },
               }}
               onDismiss={() => {}}
               defaultTtlMs={6000}

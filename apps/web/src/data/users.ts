@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Branch } from '@pv/contracts'
+import { Branch, ROLE_LABEL } from '@pv/contracts'
 import type {
   InviteView,
   RoleId,
@@ -41,8 +41,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  `@pv/contracts` and `@pv/engines` spell roles identically, so `UserRow.roleIds`
  *  needs no translation at all — this screen only ever PRINTS it (via
  *  `ROLE_LABEL`) or sends it back unchanged. `ROLE_LABEL` is `satisfies
- *  Record<RoleId, string>` so a role added to the contract without a Vietnamese
- *  label here is a red build rather than a blank cell in the people book. */
+ *  Record<RoleId, string>` in the contract, so a role without a Vietnamese
+ *  label is a red build rather than a blank cell in the people book. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -194,31 +194,9 @@ export function useResetUserPassword() {
 // Vocabulary the screen prints
 // ---------------------------------------------------------------------------
 
-/** The Vietnamese name of every role key — ONE table, and it lives here rather
- *  than in `@pv/contracts` on purpose.
- *
- *  `SOURCE_KIND_LABEL` sits in the contract because it has readers outside the
- *  browser: an export, a digest mail, an audit line all have to call a lead
- *  source the same thing. This table has exactly one reader — the role column
- *  and the role picker of this screen — because the API never renders a role
- *  name for anybody. A label with one reader belongs next to that reader; put
- *  it in the shared contract and it becomes a second place to look for a string
- *  only one screen prints.
- *
- *  `satisfies Record<RoleId, string>` is the whole guard: adding a seventh role
- *  to the contract without naming it here is a red build, not a picker that
- *  quietly offers six of seven roles. Order follows `RoleId` — widest reach
- *  first — because the picker renders in this order and a manager scanning it
- *  should meet the dangerous options first, not find them buried. */
-export const ROLE_LABEL = {
-  director: 'Giám đốc',
-  'head-of-sales': 'Trưởng phòng Kinh doanh',
-  marketing: 'Marketing',
-  bd: 'BD',
-  presales: 'Presales',
-  sale: 'Sale',
-  'account-executive': 'Account Executive',
-} as const satisfies Record<RoleId, string>
+/** Role names live in the contract since the approvals inbox, written by the
+ *  server, names roles too; re-exported so screens keep one import path. */
+export { ROLE_LABEL }
 
 /** The role picker's list, built FROM the label table so the two can never
  *  disagree about which roles exist. */
@@ -254,7 +232,7 @@ export const BRANCH_OPTIONS = Branch.options
 export const CORE_BRANCH = 'One' as const satisfies Branch
 
 export const SCOPE_ALL = 'Toàn bộ dữ liệu'
-export const SCOPE_OWN = 'Chỉ dữ liệu phụ trách'
+export const SCOPE_OWN = 'Chỉ lead và cơ hội bạn phụ trách'
 
 /** Axis 3 of E2, in the two words the table column has room for. `ownOnly`
  *  cuts a person down to the rows standing in their own name — it is not a

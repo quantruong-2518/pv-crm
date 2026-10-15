@@ -4,11 +4,10 @@ import { Permission, RoleId } from './auth'
 /** The ROLE → PERMISSION MATRIX on the wire — a compile-time constant in
  *  `@pv/engines` until 14/09, editable data ever since.
  *
- *  Carries no display labels. The screen owns the Vietnamese wording for a role
- *  and for a permission (`ROLE_LABEL` already does exactly that for roles), and
- *  it groups permissions by the resource prefix of the key itself. Putting
- *  labels here would make the server keep a table of words only one screen ever
- *  reads. */
+ *  The matrix carries no permission labels: the roles screen owns that wording
+ *  and groups permissions by the key's resource prefix. Role names are the one
+ *  exception (`ROLE_LABEL` below), because the server writes them into
+ *  approval sentences. */
 
 /** One ROW of the matrix: what this role may do today. */
 export const RoleGrants = z.object({
@@ -38,3 +37,16 @@ export const RoleGrantsPatch = z.object({ permissions: z.array(Permission) })
 export type RoleGrants = z.infer<typeof RoleGrants>
 export type RoleMatrixView = z.infer<typeof RoleMatrixView>
 export type RoleGrantsPatch = z.infer<typeof RoleGrantsPatch>
+
+/** Role names as people say them. Read where the server writes a sentence about
+ *  a role (the approvals inbox) and on every screen (re-exported by
+ *  `apps/web/src/data/users.ts`). `satisfies` makes a new role a red build. */
+export const ROLE_LABEL = {
+  director: 'Giám đốc',
+  'head-of-sales': 'Trưởng phòng Kinh doanh',
+  marketing: 'Marketing',
+  bd: 'BD',
+  presales: 'Presales',
+  sale: 'Sale',
+  'account-executive': 'Account Executive',
+} as const satisfies Record<RoleId, string>

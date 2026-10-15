@@ -5,7 +5,7 @@ import { NotificationListQuery, type NotificationRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useBookQuery } from '@/app/book-query'
 import {
-  notificationListQuery,
+  notificationPageQuery,
   unreadNotificationsQuery,
   useMarkNotificationsRead,
 } from '@/data/notifications'
@@ -28,7 +28,7 @@ export default function NotificationsPage() {
   const { query } = book
 
   const list = useInfiniteQuery(
-    notificationListQuery({ unread: query.unread, group: query.group, q: query.q }),
+    notificationPageQuery({ unread: query.unread, group: query.group, q: query.q }),
   )
   const { data: unreadCount } = useQuery(unreadNotificationsQuery())
   const markRead = useMarkNotificationsRead()
