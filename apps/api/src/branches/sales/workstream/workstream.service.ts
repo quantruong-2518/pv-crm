@@ -219,8 +219,9 @@ export class WorkstreamService {
       toContract({
         read: w.read,
         stand: standOf(w.read, w.kept, stage),
-        /* A folded row prints the lead's rung, so it prints no deadline of the deal. */
-        overdueBy: w.kept ? overdueOf(w.read.row.standDueAt, now) : null,
+        /* A folded row prints the lead's rung, so it prints no deadline of the
+           deal; a held stand has its clock stopped (ADR 0097 §3). */
+        overdueBy: w.kept && !w.read.held ? overdueOf(w.read.row.standDueAt, now) : null,
         position: positionOf(
           w.read,
           w.live,

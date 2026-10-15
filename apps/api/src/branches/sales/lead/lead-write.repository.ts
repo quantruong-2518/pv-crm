@@ -7,6 +7,7 @@ import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { motionPolicy } from '../config/motion.schema'
 import { leadConverted, leadHasOpenDeal, leadSigned } from '../open-deal'
+import { leadHeld } from '../hold/hold.sql'
 import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
 import { leadLive } from './lead-scope'
@@ -241,17 +242,21 @@ export class LeadWriteRepository {
    *  `state` comes back because a hand-over can move it (ADR 0058): `new` →
    *  `assigned` on a claim, back to `new` on a release.
    *
-   *  A disabled lead is not there: `null`, so every door answers 404. */
+   *  A disabled lead is not there: `null`, so every door answers 404. `held`:
+   *  a lead on hold may change hands but not be released (ADR 0097 §2). */
   async lockForOwnerChange(
     tx: Db,
     code: string,
-  ): Promise<Pick<LeadRowDb, 'code' | 'state' | 'ownerId' | 'company'> | null> {
+  ): Promise<
+    (Pick<LeadRowDb, 'code' | 'state' | 'ownerId' | 'company'> & { held: boolean }) | null
+  > {
     const [row] = await tx
       .select({
         code: lead.code,
         state: lead.state,
         ownerId: lead.ownerId,
         company: lead.company,
+        held: sql<boolean>`${leadHeld(lead.code)}`,
       })
       .from(lead)
       .where(and(eq(lead.code, code), leadLive))
@@ -277,6 +282,7 @@ export class LeadWriteRepository {
         signed: boolean
         hasDeal: boolean
         reached: LeadReach
+        held: boolean
       })
     | null
   > {
@@ -290,6 +296,7 @@ export class LeadWriteRepository {
         signed: sql<boolean>`${leadSigned(lead.code)}`,
         hasDeal: sql<boolean>`${leadConverted(lead.code)}`,
         reached: reachedRung,
+        held: sql<boolean>`${leadHeld(lead.code)}`,
       })
       .from(lead)
       .where(and(eq(lead.code, code), leadLive))

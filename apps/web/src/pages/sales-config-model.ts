@@ -75,6 +75,7 @@ export const CONFIG_AREAS = [
     step: 3,
     sections: [
       { id: 'stop-reasons', no: '5.4', title: 'Lý do dừng chăm sóc' },
+      { id: 'waiting-labels', no: '5.4e', title: 'Nhãn nhóm chờ' },
       { id: 'comm-criteria', no: '5.10', title: 'Câu hỏi đánh giá liên hệ' },
       { id: 'step-kinds', no: '5.11', title: 'Loại bước tiếp theo' },
     ],
@@ -85,7 +86,7 @@ export const CONFIG_AREAS = [
     step: 4,
     sections: [
       { id: 'freshness', no: '5.12', title: 'Hoạt động cuối' },
-      { id: 'care-reasons', no: '5.4b', title: 'Lý do vào danh sách chăm sóc' },
+      { id: 'care-reasons', no: '5.4b', title: 'Lý do dừng cơ hội' },
       { id: 'quote-reasons', no: '5.4d', title: 'Lý do báo giá lại' },
       { id: 'products', no: '5.4c', title: 'Sản phẩm/dịch vụ' },
       { id: 'contract-kinds', no: '5.15', title: 'Loại hợp đồng' },

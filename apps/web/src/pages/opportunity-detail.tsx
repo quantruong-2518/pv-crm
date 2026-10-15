@@ -12,6 +12,7 @@ import { useAppChrome } from '@/app/chrome'
 import type { DealEditPart } from '@/data/deal-draft'
 import { eventOfferOf, opportunityProfileQuery, railOf, refusalOf } from '@/data/opportunities'
 import { AssignSaleButton } from '@/components/opportunity-assign'
+import { OpportunityHoldDialog, OpportunityHoldStrip } from '@/components/opportunity-hold'
 import { FailLogCard, StopDrawer } from '@/components/opportunity-stop'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { MeetingsDock } from '@/components/meetings-dock'
@@ -85,6 +86,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const [signOn, setSignOn] = useState('')
   const [stopping, setStopping] = useState(false)
   const [assigning, setAssigning] = useState(false)
+  const [holding, setHolding] = useState(false)
   /* Which contact the letter is addressed to; `null` = composer closed. */
   const [mailTo, setMailTo] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
@@ -114,6 +116,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
     onRecord: record,
     onEditOwners: () => edit('owners'),
     onStop: () => setStopping(true),
+    onHold: () => setHolding(true),
   })
   const subject = { kind: 'opportunity', code: op.code } as const
   const money = useDealMoney(op, quote)
@@ -122,11 +125,14 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   return (
     <RecordShell
       strip={
-        <RunStrip
-          workstreamCode={op.workstream?.code ?? null}
-          current={{ kind: 'opportunity', code: op.code }}
-          fallback={railOf(op.chain, op.code, navigate)}
-        />
+        <>
+          <RunStrip
+            workstreamCode={op.workstream?.code ?? null}
+            current={{ kind: 'opportunity', code: op.code }}
+            fallback={railOf(op.chain, op.code, navigate)}
+          />
+          <OpportunityHoldStrip op={op} />
+        </>
       }
       header={<DealHeader op={op} primary={primary} onSign={() => sign()} onQuote={quoteNew} />}
       main={
@@ -182,6 +188,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
         onClose={() => setSigning(false)}
       />
       <StopDrawer op={op} open={stopping} onClose={() => setStopping(false)} />
+      <OpportunityHoldDialog op={op} open={holding} onClose={() => setHolding(false)} />
       <AssignSaleButton
         op={op}
         hasSeller={op.hasSeller}

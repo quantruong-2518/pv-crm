@@ -28,6 +28,8 @@ import { LeadAdmissionService } from './lead-admission.service'
 import { LeadDisableRepository } from './lead-disable.repository'
 import { LeadDisableService } from './lead-disable.service'
 import { LeadExitService } from './lead-exit.service'
+import { LeadLabelRepository } from './lead-label.repository'
+import { LeadLabelService } from './lead-label.service'
 import { LeadWriteService } from './lead-write.service'
 import { LeadIntakeController } from './lead-intake.controller'
 import { LeadIntakeGuard } from './lead-intake.guard'
@@ -117,6 +119,8 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadAdmissionService,
     LeadAdmissionRepository,
     LeadExitService,
+    LeadLabelService,
+    LeadLabelRepository,
     LeadDisableService,
     LeadDisableRepository,
     LeadIntakeService,
@@ -148,6 +152,15 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
       }),
     },
   ],
-  exports: [LeadService, LeadMailComposer, LeadCommsHook, SCAN_JOB_HANDLER, LeadMailSentHook],
+  exports: [
+    LeadService,
+    /* The hold doors (`../hold`) lock, scope and park a lead through this door's
+       own methods — one verdict for "may this lead be parked", not two. */
+    LeadExitService,
+    LeadMailComposer,
+    LeadCommsHook,
+    SCAN_JOB_HANDLER,
+    LeadMailSentHook,
+  ],
 })
 export class LeadModule {}

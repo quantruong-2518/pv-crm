@@ -197,6 +197,11 @@ export class SalesConfigRepository {
          WHERE q.kind IS NOT NULL
       ) k GROUP BY k.kind
       UNION ALL
+      SELECT 'WAITING_LABEL', ll.label_id, count(*)::int
+        FROM sales.lead_label ll
+        JOIN sales.lead l ON l.code = ll.lead_code AND l.disabled_at IS NULL
+       GROUP BY ll.label_id
+      UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL

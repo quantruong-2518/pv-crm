@@ -511,9 +511,11 @@ export function useStageLimits(): Map<string, number | null> {
   return stageLimits(data)
 }
 
-/** The catalog changed only once approved; until then the inbox did. */
+/** The catalog changed only once approved; until then the inbox did. The
+ *  waiting labels have their own catalogue read (`leadLabelOptionsQuery`). */
 function proposalSent(client: ReturnType<typeof useQueryClient>) {
   void client.invalidateQueries({ queryKey: ['sales', 'config', 'catalog'] })
+  void client.invalidateQueries({ queryKey: ['sales', 'lead-labels'] })
   void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
 }
 

@@ -17,9 +17,11 @@ import {
   useCreateUser,
   useInviteUser,
   useResetUserPassword,
+  useHoldingsCheck,
   useLockUser,
   useSaveUser,
 } from '@/data/users'
+import { HandoverDrawer } from './users-lock'
 
 /** The blocks of Quản trị · Người dùng — the row cells, and the panel that does
  *  double duty for "thêm người" and "sửa một người".
@@ -183,6 +185,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const create = useCreateUser()
   const save = useSaveUser()
   const lock = useLockUser()
+  const holdings = useHoldingsCheck()
   const invite = useInviteUser()
   const resetPassword = useResetUserPassword()
 
@@ -269,11 +272,9 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     save.mutate({ id: user.id, patch }, { onSuccess: onClose, onError: onRefusal })
   }
 
-  const toggleLock = () => {
-    if (!user || isMe || lock.isPending) return
-    setFailure('')
+  const lockNow = (id: string) =>
     lock.mutate(
-      { id: user.id, disabled: lockedAt === null },
+      { id, disabled: lockedAt === null },
       {
         onSuccess: (row) => {
           setLockedAt(row.disabledAt)
@@ -287,6 +288,13 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
         onError: (error) => setFailure(userMessage(error)),
       },
     )
+
+  /* A lock asks first what work this person still holds (ADR 0097 §7). */
+  const toggleLock = () => {
+    if (!user || isMe || lock.isPending || holdings.checking) return
+    setFailure('')
+    if (lockedAt !== null) return lockNow(user.id)
+    holdings.check(user.id, { onFree: () => lockNow(user.id), onFail: setFailure })
   }
 
   /* No confirmation dialog in front of it, unlike what a destructive-looking
@@ -421,7 +429,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                   <LockButton
                     locked={lockedAt !== null}
                     isMe={isMe}
-                    pending={lock.isPending}
+                    pending={lock.isPending || holdings.checking}
                     onClick={toggleLock}
                   />
                 </>
@@ -601,6 +609,14 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           )}
         </section>
       </form>
+      {user && (
+        <HandoverDrawer
+          user={user}
+          holdings={holdings.holdings}
+          onClose={holdings.close}
+          onLocked={(row) => setLockedAt(row.disabledAt)}
+        />
+      )}
     </Drawer>
   )
 }

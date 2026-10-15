@@ -347,6 +347,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/opportunities'),
   },
   {
+    /** Held leads and deals, one list (ADR 0097 §3). */
+    path: '/sales/holds',
+    name: 'Tạm hoãn',
+    branch: 'Sales',
+    permission: 'lead.view',
+    load: () => import('@/pages/holds'),
+  },
+  {
     /** Typing a deal by hand — the same door `/sales/leads/new` opens, and it
      *  reaches the same form card `:code` draws.
      *

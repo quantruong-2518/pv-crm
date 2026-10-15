@@ -34,6 +34,8 @@ import { GraphService } from '@api/platform/graph/graph.service'
 import { phasesOf, tierConfigOf } from '../ladder'
 import { AccountService } from '../account/account.service'
 import { ContactService } from '../contact/contact.service'
+import { toHold } from '../hold/hold.mapper'
+import { vnDay } from '../opportunity/opportunity-lifecycle'
 import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
 import { toContract, toMailEvent, toMailTimeline, toProfile, toRef } from './lead.mapper'
@@ -82,13 +84,14 @@ export class LeadService {
        đó thêm một endpoint quên `scoped: true`, không còn gì đỡ. */
     const items = page.rows.map((r) => ({ ...r, ref: toRef(r.row, r.ownerName) }))
     const { visible, hidden } = this.access.visible(who, items)
+    const today = vnDay(new Date())
 
     /* Kiểm chính dữ liệu MÌNH trả ra bằng hợp đồng.
        Một cột đổi kiểu trong bảng, một trường quên map — cả hai lọt qua `tsc`
        nếu mapper cũng sai theo, nhưng không lọt qua đây. Giá phải trả bị chặn
        trên bởi `size` tối đa 200 dòng. */
     return LeadBookResponse.parse({
-      rows: visible.map((v) => toContract(v)),
+      rows: visible.map((v) => toContract(v, today)),
       total: page.total,
       hidden: page.hidden + hidden,
     })
@@ -102,13 +105,15 @@ export class LeadService {
    *  lead nào để gắn `ref` mà xét lại. Hàng rào duy nhất là `scopeOf()` trong
    *  SQL, đúng hàng rào `book()` dùng để cắt xuống cùng một tập lead. */
   async facets(who: Actor, q: LeadFacetsQuery): Promise<LeadFacets> {
-    const [sourceKinds, byState, { motions, origins }, disabled] = await Promise.all([
-      this.repo.sourceKindFacets(who),
-      this.repo.stateFacets(who, q),
-      this.repo.originFacets(who),
-      this.seesDisabled(who) ? this.repo.disabledCount(who, q) : undefined,
-    ])
-    return LeadFacets.parse({ sourceKinds, motions, origins, byState, disabled })
+    const [sourceKinds, { byState, held }, { motions, origins }, labels, disabled] =
+      await Promise.all([
+        this.repo.sourceKindFacets(who),
+        this.repo.stateFacets(who, q),
+        this.repo.originFacets(who),
+        this.repo.labelFacets(who, q),
+        this.seesDisabled(who) ? this.repo.disabledCount(who, q) : undefined,
+      ])
+    return LeadFacets.parse({ sourceKinds, motions, origins, byState, held, labels, disabled })
   }
 
   /** Hồ sơ một lead. Ba cách hỏng, và chúng KHÔNG gộp được vào nhau.
@@ -167,16 +172,18 @@ export class LeadService {
       this.approvals.pendingOn(code),
       this.graph.storyFor(who, code),
     ])
+    const today = vnDay(new Date())
 
     /* Cùng lý do với `book()`: kiểm chính dữ liệu mình trả ra bằng hợp đồng.
        Một cột đổi kiểu, một trường quên map — cả hai lọt qua `tsc` nếu mapper
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
     return LeadProfile.parse({
-      ...toProfile(found),
+      ...toProfile(found, today),
       /* A deal owner reads the lead but does not edit it: only `holds` does. */
       canEdit: found.holds && this.access.allows(who, 'lead.edit'),
       position: positionOf(found, tierRows, tierSince, approvals),
       chain: story.chain.map(toChainLink),
+      hold: found.hold ? toHold(found.hold, today) : null,
     })
   }
 

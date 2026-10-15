@@ -57,6 +57,7 @@ import { PartnerService } from '../partner/partner.service'
 import { referrerOf, refuseByAsks } from './lead-motion-asks'
 import { handStepOver } from '../next-step/next-step.handover'
 import { handDealsOver } from '../opportunity/opportunity-handover'
+import { vnDay } from '../opportunity/opportunity-lifecycle'
 
 /** `sales.touch.to_role` holds one role: the first of the receiver's, with the
  *  column left empty when they hold none. */
@@ -257,7 +258,7 @@ export class LeadWriteService {
     if (typeof row === 'string') {
       const found = await this.leads.byCode(who, row)
       if (!found) throw notFound('lead', row)
-      return LeadCreateResponse.parse(toContract(found))
+      return LeadCreateResponse.parse(toContract(found, vnDay(new Date())))
     }
 
     /* `daysHere` is 0 and `signed` is false by construction, not by guesswork:
@@ -265,17 +266,22 @@ export class LeadWriteService {
        existed for a millisecond has no contract. Both are computed at read
        time by `lead.repository.ts`; here the answer is known without asking. */
     return LeadCreateResponse.parse(
-      toContract({
-        row: row.written,
-        daysHere: 0,
-        ownerName: owner?.name ?? null,
-        ownerEmail: owner?.email ?? null,
-        createdByName: who.name,
-        campaignName,
-        originName: row.originName,
-        partnerName: referrer?.name ?? null,
-        signed: false,
-      }),
+      toContract(
+        {
+          row: row.written,
+          daysHere: 0,
+          ownerName: owner?.name ?? null,
+          ownerEmail: owner?.email ?? null,
+          createdByName: who.name,
+          campaignName,
+          originName: row.originName,
+          partnerName: referrer?.name ?? null,
+          signed: false,
+          labels: [],
+          hold: null,
+        },
+        vnDay(new Date()),
+      ),
     )
   }
 
@@ -453,6 +459,13 @@ export class LeadWriteService {
          held once. Returning early skips a touch row that would read as a
          second hand-over on the timeline. */
       if (found.ownerId === (body.ownerId ?? null)) return
+      if (body.ownerId === null && (found.state === 'nurturing' || found.held)) {
+        throw conflict(
+          found.held
+            ? 'Lead đang tạm hoãn nên chỉ đổi được người giữ, không bỏ trống được.'
+            : 'Lead đang ở Nhóm chờ chăm sóc nên chỉ đổi được người giữ, không bỏ trống được.',
+        )
+      }
 
       /* The holder being replaced, looked up for their NAME — the timeline row
          copies names rather than joining `actor` later. Read here rather than
@@ -488,7 +501,7 @@ export class LeadWriteService {
             ...(body.dealCodes ? { dealCodes: body.dealCodes } : {}),
           },
         )
-        deals = handed.moved
+        deals = handed.moved.length
       }
 
       const [occurrence] = await this.touch.record(tx, [
@@ -533,7 +546,7 @@ export class LeadWriteService {
     const after = await this.leads.byCode(who, code)
     if (!after) throw notFound('lead', code)
 
-    return LeadOwnerResponse.parse(toContract(after))
+    return LeadOwnerResponse.parse(toContract(after, vnDay(new Date())))
   }
 
   /** Whether this person may open deals, through E2 off the `Actor` the

@@ -764,6 +764,13 @@
       "when": 1792739160000,
       "tag": "0110_notification_wave2",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1792825560000,
+      "tag": "0111_care_lists",
+      "breakpoints": true
     }
   ]
 }

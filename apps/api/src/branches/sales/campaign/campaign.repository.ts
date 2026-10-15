@@ -27,6 +27,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
+import { leadHeld } from '../hold/hold.sql'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { mailSequenceRun } from '../mail-sequence.schema'
 import { campaign, campaignMember, type CampaignRowDb } from './campaign.schema'
@@ -345,13 +346,20 @@ export class CampaignRepository {
     return r.rows
   }
 
+  /** Who a wave mails: active members, live, and not on hold — no campaign
+   *  audience takes a held lead (ADR 0097 §3), whenever the hold was set. */
   async activeMemberCodes(code: string): Promise<string[]> {
     const rows = await this.db
       .select({ leadCode: campaignMember.leadCode })
       .from(campaignMember)
       .innerJoin(lead, eq(lead.code, campaignMember.leadCode))
       .where(
-        and(eq(campaignMember.campaignCode, code), eq(campaignMember.state, 'ACTIVE'), leadLive),
+        and(
+          eq(campaignMember.campaignCode, code),
+          eq(campaignMember.state, 'ACTIVE'),
+          leadLive,
+          not(leadHeld(lead.code)),
+        ),
       )
     return rows.map((r) => r.leadCode)
   }
@@ -363,6 +371,17 @@ export class CampaignRepository {
       .select({ code: lead.code })
       .from(lead)
       .where(and(inArray(lead.code, [...leadCodes]), not(leadLive)))
+      .orderBy(asc(lead.code))
+    return rows.map((r) => r.code)
+  }
+
+  /** Which of `leadCodes` are on hold — `members()` refuses to add them. */
+  async heldAmong(tx: Db, leadCodes: readonly string[]): Promise<string[]> {
+    if (leadCodes.length === 0) return []
+    const rows = await tx
+      .select({ code: lead.code })
+      .from(lead)
+      .where(and(inArray(lead.code, [...leadCodes]), leadHeld(lead.code)))
       .orderBy(asc(lead.code))
     return rows.map((r) => r.code)
   }
@@ -424,14 +443,24 @@ export class CampaignRepository {
    *  thay đổi TRẠNG THÁI" mà `campaign_member.state` đã đặt ra. */
   async addMembers(tx: Db, code: string, leadCodes: readonly string[]): Promise<number> {
     if (leadCodes.length === 0) return 0
+    /* "Added while nurturing" is read off the lead IN this statement (C5); a
+       re-add keeps an ACTIVE row's fact — wave 1 may have moved the lead since. */
     const rows = await tx
       .insert(campaignMember)
       .values(
-        leadCodes.map((leadCode) => ({ campaignCode: code, leadCode, state: 'ACTIVE' as const })),
+        leadCodes.map((leadCode) => ({
+          campaignCode: code,
+          leadCode,
+          state: 'ACTIVE' as const,
+          addedWhileNurturing: sql<boolean>`COALESCE((SELECT l."state" = 'nurturing' FROM "sales"."lead" l WHERE l."code" = ${leadCode}), false)`,
+        })),
       )
       .onConflictDoUpdate({
         target: [campaignMember.campaignCode, campaignMember.leadCode],
-        set: { state: 'ACTIVE' as const },
+        set: {
+          state: 'ACTIVE' as const,
+          addedWhileNurturing: sql`CASE WHEN ${campaignMember.state} = 'REMOVED' THEN excluded."added_while_nurturing" ELSE ${campaignMember.addedWhileNurturing} END`,
+        },
       })
       .returning({ leadCode: campaignMember.leadCode })
     return rows.length

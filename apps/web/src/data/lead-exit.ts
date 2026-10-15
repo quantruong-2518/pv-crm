@@ -40,6 +40,9 @@ export const LEAD_STATE_KEYS = [
   ['sales', 'lead-touches'],
   ['sales', 'accounts'],
   WORKSTREAM_BOOK_KEY,
+  /* `HOLD_LIST_KEY` (`./holds`), spelled out: that file imports this one. A
+     touch, a disqualify or a convert ends a lead's hold. */
+  ['sales', 'holds'],
 ] as const
 
 export function invalidateLeadState(client: QueryClient) {

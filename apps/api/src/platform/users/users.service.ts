@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common'
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
 import {
   USER_ACCESS_CHANGED,
   USER_PASSWORD_RESET,
@@ -8,6 +8,7 @@ import {
 import {
   DirectoryResponse,
   InviteView,
+  UserHoldingsResponse,
   UserListResponse,
   UserRow,
   type UserCreate,
@@ -21,10 +22,11 @@ import { ENV, type Env } from '../config/env'
 import type { Db } from '../db/db.module'
 import type { ActorRow } from '../db/platform.schema'
 import { isDbConstraint } from '../http/db-error'
-import { conflict, denied, notFound } from '../http/problem'
+import { conflict, denied, invalid, notFound } from '../http/problem'
 import { NotificationHub } from '../notification/notification.hub'
 import { toActorColumns, toActorDraft, toUserRow } from './users.mapper'
 import { UsersRepository } from './users.repository'
+import { WORK_HANDOVER, type WorkHandover } from './work-handover'
 
 // ---------------------------------------------------------------------------
 // Facts this module derives once, at load
@@ -41,6 +43,8 @@ const ACTOR_PK = 'actor_pkey'
  *  not a race to ride out, it is a naming scheme that no longer fits — and an
  *  unbounded loop against a primary key is a request that never returns. */
 const ID_ATTEMPTS = 25
+
+const RECEIVER_INVALID = 'Người nhận việc không hợp lệ.'
 
 /** Can this person open accounts, right now. Both halves matter: a locked
  *  administrator holds a role that grants everything and can do none of it.
@@ -124,6 +128,8 @@ export class UsersService {
     private readonly auth: AuthService,
     private readonly hub: NotificationHub,
     @Inject(ENV) private readonly env: Env,
+    /* Bound by `app.module.ts`; `work()` fails closed when it is not. */
+    @Optional() @Inject(WORK_HANDOVER) private readonly handover: WorkHandover | null,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -265,7 +271,13 @@ export class UsersService {
    *  lock is one advisory lock rather than a row lock on everybody counted. */
   async patch(who: Actor, id: string, body: UserPatch): Promise<UserRow> {
     this.refuseSelfSabotage(who, id, body)
+    const toId = body.handoverTo
+    if (toId === id) throw invalid({ handoverTo: ['Chọn một người khác.'] }, RECEIVER_INVALID)
+    /* Before the transaction: the vet reads on the pool, and PGlite has one connection. */
+    if (toId !== undefined) await this.work().vetReceiver(toId)
 
+    /* Logged once the transaction commits: the hand-over below can still throw. */
+    let revoked: number | undefined
     const row = await this.repo.run(async (tx) => {
       /* FIRST statement of the transaction, before any row is read. Everything
          below is a read-then-write over the same handful of rows, and this is
@@ -276,6 +288,7 @@ export class UsersService {
       if (!target) throw notFound('người dùng', id)
 
       await this.assertSomebodyKeepsTheKeys(tx, target, body)
+      const move = body.disabled === true ? await this.lockHandover(tx, target, toId) : null
 
       const columns = toActorColumns(body)
       /* Locking an account that is already locked must NOT move "khoá từ bao
@@ -307,13 +320,13 @@ export class UsersService {
          wrote no columns above: the statement matches zero rows when there is
          nothing live, which costs one round trip and removes the branch where
          somebody has to be right about that. */
-      if (body.disabled === true) {
-        const killed = await this.auth.revokeAllSessions(target.id, tx)
-        this.log.log(`Khoá tài khoản · ${target.id} · thu hồi ${killed} phiên`)
-      }
+      if (body.disabled === true) revoked = await this.auth.revokeAllSessions(target.id, tx)
+      /* After the lock is written, so the hub already drops the leaver's own lines. */
+      if (move) await this.work().handOver(tx, { fromId: target.id, toId: move.id, by: who })
 
+      const note = this.noteFor(target, body) + (move ? ` · giao việc cho ${move.name}` : '')
       const noteId = await this.repo.writeNote(
-        { actorId: who.id, action: 'edit', code: target.id, note: this.noteFor(target, body) },
+        { actorId: who.id, action: 'edit', code: target.id, note },
         tx,
       )
       /* One bell line per save, keyed by its audit row. A save that locks the
@@ -321,8 +334,51 @@ export class UsersService {
       if (changesAccess(body)) await this.ring(tx, USER_ACCESS_CHANGED, who, target.id, noteId)
       return saved
     })
+    if (revoked !== undefined) this.log.log(`Khoá tài khoản · ${id} · thu hồi ${revoked} phiên`)
 
     return UserRow.parse(toUserRow(row))
+  }
+
+  /** `GET /users/:id/holdings` — the lock dialog's counts, read by the same
+   *  predicates the hand-over moves by. */
+  async holdings(id: string): Promise<UserHoldingsResponse> {
+    const target = await this.repo.byId(id)
+    if (!target) throw notFound('người dùng', id)
+    return UserHoldingsResponse.parse(await this.repo.run((tx) => this.work().holdings(tx, id)))
+  }
+
+  /** ADR 0097 §7: a person still holding open sales work is not locked
+   *  without a receiver. Answers the receiver when there is work to move.
+   *  Only a fresh lock refuses; re-locking with a receiver still moves what
+   *  an old lock left behind. Runs under `lockPeopleBook`. */
+  private async lockHandover(
+    tx: Db,
+    target: ActorRow,
+    toId: string | undefined,
+  ): Promise<ActorRow | null> {
+    const held = await this.work().holdings(tx, target.id)
+    const parts = [
+      held.leads > 0 ? `${held.leads} lead` : '',
+      held.opportunities > 0 ? `${held.opportunities} cơ hội` : '',
+      held.nextSteps > 0 ? `${held.nextSteps} việc tiếp theo` : '',
+    ].filter((p) => p !== '')
+    if (parts.length === 0) return null
+    if (toId === undefined) {
+      if (target.disabledAt !== null) return null
+      throw conflict(`${target.name} còn giữ ${parts.join(', ')}. Chọn người nhận rồi khoá.`, {
+        handoverTo: ['Chọn người nhận việc.'],
+      })
+    }
+    const to = await this.repo.byIdForUpdate(tx, toId)
+    if (!to || to.disabledAt !== null) {
+      throw invalid({ handoverTo: ['Người nhận đang bị khoá.'] }, RECEIVER_INVALID)
+    }
+    return to
+  }
+
+  private work(): WorkHandover {
+    if (!this.handover) throw new Error('WORK_HANDOVER is not bound: see UsersModule.withHandover')
+    return this.handover
   }
 
   // -------------------------------------------------------------------------

@@ -35,6 +35,7 @@ import {
   taxCodeClearable,
   taxCodeOptional,
 } from './lead-fields'
+import { Hold } from './hold'
 import { AdmissionChoice } from './lead-admission'
 import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
@@ -74,6 +75,10 @@ import { OPPORTUNITY_STOP_REASON_OTHER, OpportunityStopBody } from './opportunit
  *  lead tốt, và không dòng log nào nói vì sao. Đổi cổng là đổi cột sinh (một
  *  migration) VÀ đổi dòng này, cùng một lượt. */
 export const REQUIRED_SLOTS = 6
+
+/** One `WAITING_LABEL` entry on a lead; the name rides along so a chip needs
+ *  no catalogue read. */
+export const LeadLabel = z.object({ id: ConfigCode, name: z.string().min(1) })
 
 export const LeadRow = z.object({
   code: ObjectCode,
@@ -201,6 +206,10 @@ export const LeadRow = z.object({
    *  `null` entries are leads OUTSIDE this reader's scope (see `scopeOf`):
    *  present, so the count is right, but unnamed. */
   duplicateOf: z.array(ObjectCode.nullable()).optional(),
+  /** Waiting labels (`sales.lead_label`), in catalogue order; `[]` when none. */
+  labels: z.array(LeadLabel),
+  /** The open hold's date and due level, so a held row reads as held in any tab. */
+  hold: Hold.pick({ until: true, dueLevel: true }).nullable(),
 })
 
 // ---------------------------------------------------------------------------
@@ -211,9 +220,11 @@ export const LeadRow = z.object({
  *  `LEAD_OPEN_STATES`, the default: the book is a work list), `live` (open or
  *  converted — every lead a deal may still be raised on) or `all`. A group
  *  key rather than a list param, so "which five are open" is decided on the
- *  server and not re-spelled by every caller. */
+ *  server and not re-spelled by every caller. `held` = leads with an open hold
+ *  (`./hold`); a held lead leaves `open` and every single-state value, so the
+ *  `nurturing` (waiting group) tab lists only the unheld ones. */
 export const LeadStateFilter = z.enum(
-  [...LeadState.options, 'open', 'live', 'all'],
+  [...LeadState.options, 'open', 'live', 'held', 'all'],
   'Trạng thái không có trong danh sách.',
 )
 
@@ -312,6 +323,13 @@ export const LeadBookQuery = PageQuery.extend({
     .max(200)
     .refine((v) => v.split(',').every((s) => LeadState.safeParse(s).success))
     .optional(),
+  /** `WAITING_LABEL` ids joined by commas; a lead carrying ANY of them matches.
+   *  Also the campaign audience picker's label filter. */
+  label: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((s) => ConfigCode.safeParse(s).success))
+    .optional(),
 
   /** Entry date range on `createdAt`, inclusive both ends, as a Vietnam
    *  calendar day (`YYYY-MM-DD`) - the day the entry-date column prints. */
@@ -384,6 +402,12 @@ export const LeadFacets = z.object({
    *  off the object — the rule `WorkstreamFootprint.byChannel` states. `open`
    *  and `all` are sums the screen takes itself. */
   byState: z.record(LeadState, z.number().int().nonnegative()),
+  /** Leads with an open hold — the held tab. They are counted here and
+   *  in no `byState` entry, matching what each tab lists. */
+  held: z.number().int().nonnegative(),
+  /** Waiting labels in use on the scoped book, for the label filter; ignores
+   *  `label` itself, the rule `sourceKinds` follows. */
+  labels: z.array(LeadLabel),
   /** How many leads are switched off. Present only for a reader holding
    *  `lead.disable`; everyone else gets no number to infer anything from. */
   disabled: z.number().int().nonnegative().optional(),
@@ -591,6 +615,9 @@ export const LeadProfile = LeadRow.extend({
    *  screen must leave the rail blank rather than draw a chip of its own
    *  invention. */
   chain: z.array(ObjectChainLink),
+
+  /** The open hold on this lead; `null` when none. */
+  hold: Hold.nullable(),
 })
 
 // ---------------------------------------------------------------------------
@@ -876,7 +903,8 @@ export const LeadPatchResponse = LeadProfile
 // HANDING A LEAD OVER — `PATCH /sales/leads/:code/owner`
 // ---------------------------------------------------------------------------
 
-/** Who holds this lead from now on. `null` puts it back in the common pool.
+/** Who holds this lead from now on. `null` puts it back in the common pool —
+ *  refused (409) on a `nurturing` or held lead, which may change hands only.
  *
  *  ------------------------------------------------------------------
  *  ONE FIELD, AND NO `task` BESIDE IT
@@ -965,17 +993,36 @@ export const LeadReopenResponse = LeadProfile
 // MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058)
 // ---------------------------------------------------------------------------
 
-/** `POST /sales/leads/:code/nurture` — `verifying` | `working` → `nurturing`.
+/** `POST /sales/leads/:code/nurture` — `assigned` | `verifying` | `working`, or
+ *  `converted` with no open deal and no contract, → `nurturing`.
  *  `POST :code/resume` (no body) brings it back to `working` if an exchange
  *  was ever logged on the lead, else to `verifying`. Same reason, same
  *  catalogue as `:code/exit` (ADR 0070) — both are stop events counted on
- *  `EXIT_REASON`. */
+ *  `EXIT_REASON`. Labels are not in this body: they go through `:code/labels`. */
 export const LeadNurtureBody = LeadStopBody
 
 /** All lifecycle doors answer the re-read profile, like `:code/exit`. */
 export const LeadContactedResponse = LeadProfile
 export const LeadNurtureResponse = LeadProfile
 export const LeadResumeResponse = LeadProfile
+/** `POST|PATCH :code/hold` and `POST :code/hold/end` (bodies in `./hold`). */
+export const LeadHoldResponse = LeadProfile
+
+/** `PUT /sales/leads/:code/labels` — the WHOLE label set, replacing the old
+ *  one, so `[]` clears and sending twice changes nothing. Any open state. */
+export const LEAD_LABELS_MAX = 20
+export const LeadLabelsBody = z.object({
+  labelIds: z
+    .array(ConfigCode)
+    .max(LEAD_LABELS_MAX)
+    .refine((ids) => new Set(ids).size === ids.length, { message: 'Nhãn bị lặp.' }),
+})
+export const LeadLabelsResponse = LeadProfile
+
+/** `GET /sales/lead-labels` — the `WAITING_LABEL` catalogue for people without
+ *  `config.view`, same rule as `LeadStopReasonResponse`. */
+export const LeadLabelOption = LeadLabel.extend({ active: z.boolean() })
+export const LeadLabelOptionsResponse = z.object({ rows: z.array(LeadLabelOption) })
 
 // ---------------------------------------------------------------------------
 // The scorecard — `GET /sales/leads/scorecard`
@@ -1040,4 +1087,10 @@ export type LeadNurtureBody = z.infer<typeof LeadNurtureBody>
 export type LeadContactedResponse = z.infer<typeof LeadContactedResponse>
 export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>
 export type LeadResumeResponse = z.infer<typeof LeadResumeResponse>
+export type LeadHoldResponse = z.infer<typeof LeadHoldResponse>
+export type LeadLabel = z.infer<typeof LeadLabel>
+export type LeadLabelsBody = z.infer<typeof LeadLabelsBody>
+export type LeadLabelsResponse = z.infer<typeof LeadLabelsResponse>
+export type LeadLabelOption = z.infer<typeof LeadLabelOption>
+export type LeadLabelOptionsResponse = z.infer<typeof LeadLabelOptionsResponse>
 export type LeadScorecard = z.infer<typeof LeadScorecard>

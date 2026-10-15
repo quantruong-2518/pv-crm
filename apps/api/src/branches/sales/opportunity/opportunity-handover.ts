@@ -53,7 +53,7 @@ export async function handDealsOver(
     /** The user's choice; absent = every eligible deal. */
     dealCodes?: readonly string[]
   },
-): Promise<{ moved: number }> {
+): Promise<{ moved: string[] }> {
   const rows = await tx
     .select({
       row: opportunity,
@@ -93,7 +93,7 @@ export async function handDealsOver(
     )
   }
   const chosen = move.dealCodes ? rows.filter((r) => move.dealCodes?.includes(r.row.code)) : rows
-  if (chosen.length === 0) return { moved: 0 }
+  if (chosen.length === 0) return { moved: [] }
   if (!move.toSeesDeals || !(await isLiveSalesActor(tx, move.to.actorId))) {
     throw invalid(
       {
@@ -154,7 +154,7 @@ export async function handDealsOver(
       note: NOTE.handOverSkipped(move.to.name, why),
     })),
   ])
-  return { moved: moving.length }
+  return { moved: moving.map((r) => r.row.code) }
 }
 
 async function swapSale(

@@ -187,7 +187,7 @@ export class OpportunityImport {
           at += p.touches.length
         }
       }
-      await this.leadStates.converted(tx, leadCodes)
+      await this.leadStates.converted(tx, leadCodes, who.id)
       await this.workstreams.syncClosed(tx, [
         ...new Set(ready.flatMap((p) => p.row.workstreamCode ?? [])),
       ])

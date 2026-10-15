@@ -333,6 +333,9 @@ Raised while recording the opportunity flow decisions (ADR 0088).
 68. **Who are "the people who need to know" for the pause reminder, per
     flow?** The owner set the reminder half a month ahead of the proposed
     re-meet date and did not name its recipients. _(see ADR 0088 §10)_
+    **Answered 15/10/2026: the lead holder or the deal's primary Sale, plus
+    whoever set the hold when different; half a month ahead and on the date —
+    ADR 0097 §4.**
 69. **How does the Sunday capture run, given the Neon compute quota?** A cron
     on Fly, or on the first read after Sunday. _(see ADR 0088 §8; ADR 0082
     §2)_
@@ -410,3 +413,36 @@ Raised while recording the opportunity flow decisions (ADR 0088).
     _(see ADR 0090 §5, §10)_
 91. **May a person mute notification kinds for themselves?** The policy is
     per role only; per person was left for later. _(see ADR 0093 §1)_
+
+## Waiting group and holds (added 15/10/2026)
+
+Raised while recording the waiting group and the hold list (ADR 0097). Each
+default is the assistant's default, built 15/10/2026; the owner has not
+answered yet.
+
+92. **Who is reminded about a held deal whose SALE lane is empty?** Default:
+    the deal's holders (plus whoever set the hold). _(see ADR 0097 §4)_
+93. **What does the receiver read when a locked account's work moves?**
+    Default: one counted line "Bạn được giao lead … kèm N cơ hội", even when
+    only deals or next steps moved; next steps are moved but not counted in
+    the line. _(see ADR 0097 §7)_
+94. **Does the "Nhãn nhóm chờ" card show on every lead?** Default: only on
+    leads in Nhóm chờ chăm sóc or already labelled. _(see ADR 0097 §5)_
+95. **Does "Đang hoạt động" still include waiting-group leads now that they
+    have their own tab?** Default: yes, unheld ones; held leads leave every
+    tab but "Tạm hoãn" and "Tất cả". _(see ADR 0097 §3)_
+96. **What happens to switched-off leads under a hold or an account lock?**
+    Default: they keep their hold; reminders skip them; a locked account's
+    switched-off leads are not handed over. _(see ADR 0097 §3, §7)_
+97. **When does a campaign "start" for the C5 re-park?** Default: the first
+    wave's creation time; campaigns already running before this change never
+    re-park (no backfill). _(see ADR 0097 §6)_
+98. **How often do hold reminders run?** Default: once an hour on the worker
+    tick (env `PV_HOLD_REMINDER_MINUTES`). _(see ADR 0097 §4)_
+99. **Should the hold's exit button say "Bỏ tạm hoãn"?** Default: the button
+    keeps the word "Mở lại"; its toast says "Đã bỏ tạm hoãn {code}."
+    _(see ADR 0097 §3)_
+100.  **What do reminders do when a hold's date is changed?** Default: a new
+      date within half a month gets no "sắp tới" reminder (it would ring at
+      once); the day-of reminder rings again for the new date.
+      _(see ADR 0097 §4)_

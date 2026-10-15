@@ -8,6 +8,7 @@ import {
   boardVerdict,
   careVerdict,
   dealAtOf,
+  holdVerdict,
   OpportunityLifecycle,
   vnDay,
   type DealAt,
@@ -21,7 +22,7 @@ import type { OpportunityRowDb } from './opportunity.schema'
 /** The profile's `acts` and `floors`: for each door, this reader's permission
  *  (E2, scoped like the door's `@Need`) and then the door's OWN predicate —
  *  `careVerdict`, `signVerdict`, `boardVerdict`, `acceptVerdict`,
- *  `assignVerdict`, `editTermsVerdict`, `editDetailsVerdict`. No rule is
+ *  `assignVerdict`, `editTermsVerdict`, `editDetailsVerdict`, `holdVerdict`. No rule is
  *  restated here; a door that changes its guard changes what the screen is told. */
 
 /** Contacts, description, attachments (ADR 0077 §5): editable until lost. Gates
@@ -115,6 +116,7 @@ export class OpportunityActs {
       assign: gate('opportunity.assign', assignVerdict(deal, saleCountOf(found))),
       editTerms: gate('opportunity.edit', editTermsVerdict(deal)),
       editDetails: gate('opportunity.edit', editDetailsVerdict(found.row)),
+      hold: gate('opportunity.edit', holdVerdict(deal)),
     }
     return {
       acts,

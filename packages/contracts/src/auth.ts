@@ -446,10 +446,28 @@ export const UserPatch = z
     /** `true` locks the account and kills every live session it holds;
      *  `false` unlocks it. Absent leaves the lock exactly as it was. */
     disabled: z.boolean().optional(),
+    /** Active user id receiving every open lead, deal and next step of the
+     *  account being locked, in the same transaction (ADR 0088 §14). Locking
+     *  someone who still holds work without it answers 409. */
+    handoverTo: z.string().min(1).max(64).optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có gì để sửa.',
   })
+  .refine((p) => p.handoverTo === undefined || p.disabled === true, {
+    message: 'Chỉ chọn người nhận việc khi khoá tài khoản.',
+    path: ['handoverTo'],
+  })
+
+/** `GET /users/:id/holdings` — open sales work still on this person, so the
+ *  lock dialog can ask who receives it. `leads` counts nurturing, held and
+ *  converted-with-a-live-deal too; `opportunities` counts open deals they hold
+ *  or stand on as primary Sale; `nextSteps` the open steps assigned to them. */
+export const UserHoldingsResponse = z.object({
+  leads: z.number().int().nonnegative(),
+  opportunities: z.number().int().nonnegative(),
+  nextSteps: z.number().int().nonnegative(),
+})
 
 /** The answer to "send this person a set-password link".
  *
@@ -468,4 +486,5 @@ export type UserListResponse = z.infer<typeof UserListResponse>
 export type DirectoryResponse = z.infer<typeof DirectoryResponse>
 export type UserCreate = z.infer<typeof UserCreate>
 export type UserPatch = z.infer<typeof UserPatch>
+export type UserHoldingsResponse = z.infer<typeof UserHoldingsResponse>
 export type InviteView = z.infer<typeof InviteView>

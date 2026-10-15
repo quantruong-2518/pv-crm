@@ -38,6 +38,7 @@ import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
+import { dealHeld, openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import {
   opportunity,
   opportunityOwner,
@@ -80,6 +81,8 @@ export type OpportunityRead = {
    *  (ADR 0069 §5). `signed` là "danh sách không rỗng": hai trường, MỘT nguồn. */
   contractCodes: string[]
   signed: boolean
+  /** An open hold lies on the deal (ADR 0097 §3): its moves are refused. */
+  held: boolean
   /** Số ngày đơn đã đứng trong cột hiện tại. `null` = đơn đã ra khỏi bảng. */
   daysInStage: number | null
   /** What the deal is asking about, with labels already resolved from
@@ -99,6 +102,9 @@ export type OpportunityStageEventInsert = Omit<typeof opportunityStageEvent.$inf
 /** Every contract of the deal, oldest first — a won deal may sign again (ADR
  *  0069 §5). A subquery, not a join: a join would print the deal once per paper
  *  while `total` counts it once. `ARRAY(…)` is `{}` when nothing is signed. */
+/** Selected beside the row so every read — the lock re-read included — knows. */
+const HELD = sql<boolean>`${dealHeld(opportunity.code)}`
+
 const CONTRACT_CODES = sql<string[]>`ARRAY(
   SELECT k.code FROM ${contract} k
    WHERE k.opportunity_code = ${opportunity.code} AND k.lead_code = ${opportunity.leadCode}
@@ -208,7 +214,7 @@ export class OpportunityRepository {
        theo lead sẽ đọc ra "số đơn cả sổ bạn không thấy", tức một con số đúng
        cho câu không ai hỏi. Tính chất đó không đổi khi bộ lọc mọc từ một ô lên
        sáu — `filtersOf` trả về một MẢNG, và trục phạm vi vẫn đứng ngoài nó. */
-    const filters = await this.filtersOf(q, who.id)
+    const filters = [...(await this.filtersOf(q, who.id)), this.onBoard(q)]
     const where = and(...filters, scope)
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
@@ -224,6 +230,7 @@ export class OpportunityRepository {
         row: opportunity,
         account: lead.company,
         contractCodes: CONTRACT_CODES,
+        held: HELD,
         daysInStage: DAYS_IN_STAGE,
         acceptorName: ACCEPTOR_NAME,
       })
@@ -277,6 +284,7 @@ export class OpportunityRepository {
         row: opportunity,
         account: lead.company,
         contractCodes: CONTRACT_CODES,
+        held: HELD,
         daysInStage: DAYS_IN_STAGE,
         acceptorName: ACCEPTOR_NAME,
         inScope: who ? this.inScopeValue(who) : sql<boolean>`true`,
@@ -299,6 +307,11 @@ export class OpportunityRepository {
       ...peopleOf(found.row, acceptorName, owners.get(code)),
       products: products.get(code) ?? [],
     }
+  }
+
+  /** The deal's open hold, for the profile. */
+  async openHold(code: string): Promise<HoldRead | null> {
+    return (await openHoldsOf(this.db, 'opportunity', [code])).get(code) ?? null
   }
 
   /** Người đứng đơn của một loạt đơn, đọc MỘT lần cho cả trang.
@@ -385,6 +398,7 @@ export class OpportunityRepository {
         ))::int`,
         daysInStage: DAYS_IN_STAGE,
         acceptorName: ACCEPTOR_NAME,
+        held: HELD,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -441,6 +455,16 @@ export class OpportunityRepository {
       .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
       .from(actor)
       .where(isNull(actor.disabledAt))
+  }
+
+  /** One unlocked person with their roles, on the caller's `tx`; absent when
+   *  locked or unknown. */
+  async liveActor(tx: Db, id: string): Promise<ActorLite | undefined> {
+    const [row] = await tx
+      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
+      .from(actor)
+      .where(and(eq(actor.id, id), isNull(actor.disabledAt)))
+    return row
   }
 
   /** Tên công ty → mã lead, cho cột "Account" của tệp.
@@ -963,6 +987,13 @@ export class OpportunityRepository {
     ]
   }
 
+  /** A held deal is off the book and the board (ADR 0097 §3) — except in a
+   *  per-lead list (`leadCode`), which answers "what deals does this lead have".
+   *  Not in `filtersOf`: the facets count `held` under those same filters. */
+  onBoard(q: Pick<BookFilters, 'leadCode'>): SQL | undefined {
+    return q.leadCode ? undefined : not(dealHeld(opportunity.code))
+  }
+
   /** Lọc theo trạng thái, và trạng thái thứ BA không có cột.
    *
    *  `won` là SỰ TỒN TẠI của một dòng `sales.contract` — cột `state` chỉ chở hai
@@ -1001,11 +1032,13 @@ export class OpportunityRepository {
    *  (PGlite thì trả số). `Number()` ở dưới nuốt cả hai; ép `::int` ở đây thì
    *  một pipeline vài nghìn tỷ đồng tràn `int4` và câu truy vấn nổ. */
   async scorecard(): Promise<OpportunityScorecardRow> {
-    const open = sql`${opportunity.stage} IS NOT NULL`
+    /* A held deal is off the board (ADR 0097 §3), so off its open count and
+       the total too: total stays open + won + lost. */
+    const open = sql`${opportunity.stage} IS NOT NULL AND NOT ${dealHeld(opportunity.code)}`
 
     const [r] = await this.db
       .select({
-        total: count(),
+        total: sql<number>`count(*) FILTER (WHERE NOT ${dealHeld(opportunity.code)})::int`,
         open: sql<number>`count(*) FILTER (WHERE ${open})::int`,
         openAmountVnd: sql<
           number | string
@@ -1058,7 +1091,7 @@ export class OpportunityRepository {
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(and(isNotNull(opportunity.stage), leadLive))
+      .where(and(isNotNull(opportunity.stage), leadLive, not(dealHeld(opportunity.code))))
       .groupBy(opportunity.stage)
 
     const tally = new Map(rows.map((r) => [r.stage, r]))

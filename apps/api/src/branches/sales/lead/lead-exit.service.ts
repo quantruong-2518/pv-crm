@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { Injectable } from '@nestjs/common'
-import { LEAD_NURTURED, LEAD_REOPENED, LEAD_RESUMED, LEAD_STOPPED, type Actor } from '@pv/engines'
+import { LEAD_REOPENED, LEAD_RESUMED, LEAD_STOPPED, type Actor } from '@pv/engines'
 import {
   LEAD_STATE_LABEL,
   LEAD_STOP_REASON_OTHER,
@@ -13,19 +13,17 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { endHolds } from '../hold/hold.sql'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
-import {
-  LEAD_GONE_WORDS,
-  LEAD_NURTURED_WITHHOLD,
-  LeadStateWriter,
-  stateByWork,
-  stateOnReopen,
-} from './lead-state'
+import { LEAD_GONE_WORDS, LeadStateWriter, stateByWork, stateOnReopen } from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
+
+/** A lead as `lockForMove` hands it to a door, under the row lock. */
+export type LockedLead = NonNullable<Awaited<ReturnType<LeadWriteRepository['lockForMove']>>>
 
 /** The lifecycle doors a person presses (ADR 0058, 0063): confirm contact, exit
  *  and reopen (ADR 0057 §2 — direct, no E3, because each undoes the other),
@@ -115,6 +113,8 @@ export class LeadExitService {
         { aggregateType: 'lead', aggregateId: code },
         { code: 'lead-disqualified', summary: 'lead đã ngừng chăm sóc: thư chưa gửi bị giữ lại' },
       )
+      /* Stopping care ends a hold too (ADR 0097 §3); reopen does not restore it. */
+      await endHolds(tx, 'lead', [code], 'disqualified', who.id)
       if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
     })
 
@@ -146,36 +146,61 @@ export class LeadExitService {
     return this.profiles.profile(who, code)
   }
 
-  /** `POST /sales/leads/:code/nurture` — `verifying|working` → `nurturing`. */
+  /** `POST /sales/leads/:code/nurture` — `assigned|verifying|working`, or
+   *  `converted` with no open deal and nothing signed, → `nurturing` (ADR 0097 §1). */
   async nurture(who: Actor, code: ObjectCode, body: LeadNurtureBody): Promise<LeadProfile> {
-    const label = (await this.inScope(who, code)).row.company
+    await this.inScope(who, code)
 
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
-      if (held.state !== 'verifying' && held.state !== 'working') {
-        throw conflict(
-          `Lead ${code} không ở “${LEAD_STATE_LABEL.verifying}” hay “${LEAD_STATE_LABEL.working}” nên không chuyển sang “${LEAD_STATE_LABEL.nurturing}” được.`,
-        )
-      }
-      await this.assertReason(tx, body.reasonKey)
-
-      await this.states.move(tx, code, 'nurturing')
-      /* The reason lives on the touch, not the lead: nurturing loops in place,
-         and a column on the lead would be overwritten by the next park (ADR 0070). */
-      const note = LEAD_NOTE.nurtured(body.reasonKey, body.note)
-      const occurrence = await this.record(tx, who, code, 'nurtured', note, {
-        reasonId: body.reasonKey,
-      })
-      await this.tellHolder(tx, LEAD_NURTURED, who, held.ownerId, { code, label, occurrence })
-      /* Parked means parked: a timed letter must not undo it (ADR 0068). */
-      await this.mailRuns.withholdSubject(
-        tx,
-        { aggregateType: 'lead', aggregateId: code },
-        LEAD_NURTURED_WITHHOLD,
-      )
+      await this.park(tx, who, code, held, body)
     })
 
     return this.profiles.profile(who, code)
+  }
+
+  /** The nurture door's verdict and write on a row the caller locked — the
+   *  hold's "to waiting" end runs it too, and only that end
+   *  may re-park a lead already `nurturing` (`inPlace`): one code path. */
+  async park(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+    held: LockedLead,
+    body: LeadNurtureBody,
+    inPlace = false,
+  ): Promise<void> {
+    const waiting = `“${LEAD_STATE_LABEL.nurturing}”`
+    const from = [
+      'assigned',
+      'verifying',
+      'working',
+      'converted',
+      ...(inPlace ? ['nurturing'] : []),
+    ]
+    if (!from.includes(held.state)) {
+      throw conflict(
+        `Lead ${code} đang ở “${LEAD_STATE_LABEL[held.state]}” nên không chuyển sang ${waiting} được.`,
+      )
+    }
+    /* The exit door's two facts: a lead whose deal is still worked or signed stays put. */
+    if (held.state === 'converted' && (held.openDeal || held.signed)) {
+      throw conflict(
+        `Lead ${code} còn cơ hội đang chạy hoặc đã ký hợp đồng nên không chuyển sang ${waiting} được.`,
+      )
+    }
+    if (held.ownerId === null) {
+      throw conflict(`Lead ${code} chưa có người phụ trách. Giao lead cho một người trước.`)
+    }
+    await this.assertReason(tx, body.reasonKey)
+
+    /* The reason lives on the touch, not the lead: nurturing loops in place,
+       and a column on the lead would be overwritten by the next park (ADR 0070). */
+    await this.states.parked(tx, code, {
+      by: who,
+      reasonId: body.reasonKey,
+      note: LEAD_NOTE.nurtured(body.reasonKey, body.note),
+    })
   }
 
   /** `POST /sales/leads/:code/resume` — `nurturing` → `working` when an exchange
@@ -193,6 +218,8 @@ export class LeadExitService {
       }
 
       await this.states.move(tx, code, stateByWork(held.reached === 'working'))
+      // Picking the lead up again answers any re-meet date it was waiting on.
+      await endHolds(tx, 'lead', [code], 'resumed', who.id)
       const occurrence = await this.record(tx, who, code, 'resumed', LEAD_NOTE.resumed)
       await this.tellHolder(tx, LEAD_RESUMED, who, held.ownerId, { code, label, occurrence })
     })
@@ -252,8 +279,9 @@ export class LeadExitService {
     }
   }
 
-  /** The same two refusals, in the same words, as `LeadWriteService.patch`. */
-  private async inScope(who: Actor, code: ObjectCode) {
+  /** The same two refusals, in the same words, as `LeadWriteService.patch`.
+   *  Public: the hold doors are scoped exactly like this door. */
+  async inScope(who: Actor, code: ObjectCode) {
     const found = await this.leads.byCode(who, code)
     if (!found) throw notFound('lead', code)
     if (!found.holds) {
@@ -264,8 +292,8 @@ export class LeadExitService {
 
   /** The row under lock, with scope re-checked ON it: `inScope` read the pool
    *  before the tx, and a lead handed away since then must not be moved by an
-   *  `ownOnly` actor who no longer holds it. */
-  private async lockRow(tx: Db, who: Actor, code: ObjectCode) {
+   *  `ownOnly` actor who no longer holds it. Public for the hold doors. */
+  async lockRow(tx: Db, who: Actor, code: ObjectCode): Promise<LockedLead> {
     const row = await this.repo.lockForMove(tx, code)
     if (!row) throw notFound('lead', code)
     if (who.ownOnly && row.ownerId !== who.id) {

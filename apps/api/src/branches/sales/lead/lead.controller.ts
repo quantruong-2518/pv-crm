@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ContactCreate,
@@ -10,6 +21,7 @@ import {
   LeadExitBody,
   LeadFacetsQuery,
   LeadImportBody,
+  LeadLabelsBody,
   LeadNurtureBody,
   LeadOwnerWrite,
   LeadPatch,
@@ -26,6 +38,7 @@ import { LeadAdmissionService } from './lead-admission.service'
 import { LeadDisableService } from './lead-disable.service'
 import { LeadService } from './lead.service'
 import { LeadExitService } from './lead-exit.service'
+import { LeadLabelService } from './lead-label.service'
 import { LeadWriteService } from './lead-write.service'
 
 /** `/sales/leads` — sổ lead, module 2 của nhánh Sales.
@@ -61,6 +74,7 @@ export class LeadController {
     private readonly exits: LeadExitService,
     private readonly disabling: LeadDisableService,
     private readonly admission: LeadAdmissionService,
+    private readonly labels: LeadLabelService,
   ) {}
 
   @Get()
@@ -379,6 +393,18 @@ export class LeadController {
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   resume(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
     return this.exits.resume(who, code)
+  }
+
+  /** Waiting labels (ADR 0097 §5): the whole set, replacing the old one, so `PUT`.
+   *  `lead.edit`, scoped like `nurture` — labelling is editing one's own lead. */
+  @Put(':code/labels')
+  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  setLabels(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Body(zod(LeadLabelsBody)) body: LeadLabelsBody,
+  ) {
+    return this.labels.put(who, code, body)
   }
 
   /** Correct one lead's profile — the save button of the detail screen's card.

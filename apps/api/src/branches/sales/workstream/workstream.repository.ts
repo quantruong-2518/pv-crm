@@ -15,6 +15,7 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm'
+import { dealHeld, leadHeld } from '../hold/hold.sql'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { WORKSTREAM_PRIORITY_LADDER, type Actor, type WorkstreamPriorityRung } from '@pv/engines'
@@ -576,6 +577,8 @@ export type WorkstreamRead = {
   /** The campaign the anchor lead is attributed to, by NAME — the lead lane
    *  prints it and a `SR-09` on screen is an id nobody can read. */
   campaignName: string | null
+  /** The run stands on a held lead or deal (`STAND_HELD`): never overdue. */
+  held: boolean
 }
 
 /** What BOTH doors narrow by — the book's query minus paging and sorting, which
@@ -671,10 +674,14 @@ const STAND_DEAL = sql`COALESCE(
  *  `date_trunc` follows the session TimeZone, so the two would split at night. */
 const dueDay = (due: SQL): SQL => sql`date_trunc('day', (${due}) AT TIME ZONE 'UTC')`
 
+/** The run stands on a held lead or deal: its clock is stopped (ADR 0097 §3),
+ *  so it is never late. A lead stand's code IS the lead's. */
+const STAND_HELD = sql<boolean>`(${dealHeld(STAND_DEAL)} OR ${leadHeld(workstream.standCode)})`
+
 /** "Open and past its deadline" — the ONE predicate behind the overdue card and
  *  the book's `overdue` filter, so the card opens exactly the rows it counts. */
 const overdueOpen = (due: SQL): SQL =>
-  sql`(${isNull(workstream.closedAt)} AND ${dueDay(due)} < date_trunc('day', now() AT TIME ZONE 'UTC'))`
+  sql`(${isNull(workstream.closedAt)} AND ${dueDay(due)} < date_trunc('day', now() AT TIME ZONE 'UTC') AND NOT ${STAND_HELD})`
 
 /** Each rung of `WORKSTREAM_PRIORITY_LADDER` as a column — or `null` while the
  *  fact is not one. TWO OF THE FOUR ARE NULL TODAY, and they are named here so
@@ -694,7 +701,10 @@ const overdueOpen = (due: SQL): SQL =>
 const rungSql = (
   stand: StandPair,
 ): Record<WorkstreamPriorityRung['key'], { at: SQL; inverted: boolean } | null> => ({
-  overdueBy: { at: dueDay(stand.due), inverted: true },
+  overdueBy: {
+    at: sql`CASE WHEN ${STAND_HELD} THEN NULL ELSE ${dueDay(stand.due)} END`,
+    inverted: true,
+  },
   waitingOverdue: null,
   lastContactedAt: null,
   openedAt: { at: OPENED_AT, inverted: false },
@@ -720,6 +730,7 @@ const READ_COLUMNS = {
   saleName: SALE_ACTOR.name,
   bdName: BD_ACTOR.name,
   campaignName: configEntry.name,
+  held: STAND_HELD,
 }
 
 function toRead(r: {
@@ -729,6 +740,7 @@ function toRead(r: {
   saleName: string | null
   bdName: string | null
   campaignName: string | null
+  held: boolean
 }): WorkstreamRead {
   return {
     row: r.row,
@@ -737,6 +749,7 @@ function toRead(r: {
     saleName: r.saleName,
     bdName: r.bdName,
     campaignName: r.campaignName,
+    held: r.held,
   }
 }
 

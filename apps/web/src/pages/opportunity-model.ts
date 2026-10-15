@@ -123,6 +123,8 @@ export function primaryStateOf(
   const again = op.state === 'won' && can.close && !op.pendingSign
   const signWhy = move === 'sign' || again ? refusalOf(op.acts.sign) : null
   const open = signWhy === null && !op.pendingSign
+  /* Held: the server shuts every move and says why on its acts. */
+  const held = op.hold ? refusalOf(op.acts.quotation) : null
   /* An open deal nobody here can move says why once, in the server's words. */
   const idle =
     op.state === 'open' && move === null && !op.acts.activity.ok && !op.acts.quotation.ok
@@ -131,8 +133,8 @@ export function primaryStateOf(
   return {
     move,
     quote: op.acts.quotation.ok,
-    sign: !open ? null : move === 'sign' ? 'win' : again ? 'again' : null,
-    note: signWhy ?? idle,
+    sign: !open || op.hold ? null : move === 'sign' ? 'win' : again ? 'again' : null,
+    note: held ?? signWhy ?? idle,
     acceptMounted: op.state === 'open' && can.accept,
   }
 }
@@ -145,9 +147,9 @@ export { QUOTE_LABEL }
  *  quote's share it. */
 export const SIGN_LABEL = { win: 'Chốt thắng', again: 'Ký thêm hợp đồng' } as const
 
-/** The floating bar's more menu: the activity record, the owners' drawer and
- *  the stop. Quoting and signing are the header's, and the seller swap is the
- *  rail's door, so neither repeats here. A stop is final, so a lost deal
+/** The floating bar's more menu: the activity record, the owners' drawer, the
+ *  hold and the stop. Quoting and signing are the header's, and the seller swap
+ *  is the rail's door, so neither repeats here. A stop is final, so a lost deal
  *  offers nothing. */
 export function dealMoreChoices(
   op: Profile,
@@ -155,6 +157,7 @@ export function dealMoreChoices(
     onRecord: () => void
     onEditOwners: () => void
     onStop: () => void
+    onHold: () => void
   },
 ): MenuChoice[] {
   if (op.state === 'lost') return []
@@ -172,6 +175,9 @@ export function dealMoreChoices(
       label: 'Sửa người chịu trách nhiệm',
       onSelect: doors.onEditOwners,
     })
+  }
+  if (op.acts.hold.ok) {
+    choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
   }
   if (op.acts.stop.ok) {
     choices.push({ key: 'stop', label: 'Dừng cơ hội', tone: 'danger', onSelect: doors.onStop })

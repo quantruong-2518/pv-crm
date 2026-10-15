@@ -3,6 +3,7 @@ import {
   Bell,
   BriefcaseDollar,
   Building,
+  CalendarClock,
   ChartColumn,
   CircleCheck,
   Contact,
@@ -297,6 +298,16 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/opportunities',
     permission: 'opportunity.view',
     question: 'Theo dõi cơ hội từ tiếp cận đến ký kết',
+    group: 'primary',
+  },
+  {
+    /* Not a numbered module: one list across leads and deals (ADR 0097 §3). */
+    no: 0,
+    icon: CalendarClock,
+    label: 'Tạm hoãn',
+    path: '/sales/holds',
+    permission: 'lead.view',
+    question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại',
     group: 'primary',
   },
   {

@@ -230,6 +230,7 @@ function ws0041(): Body {
     openedAt: at('2025-06-02'),
     closedAt: at('2026-07-08', '14:00'),
     lead: {
+      hold: null,
       code: 'LD-0058',
       state: 'converted',
       holder: huy,
@@ -247,6 +248,7 @@ function ws0041(): Body {
     },
     deals: [
       {
+        hold: null,
         code: 'OP-0074',
         name: 'Bản quyền CMMS',
         holder: huy,
@@ -469,6 +471,7 @@ function ws0088(): Body {
     openedAt: at('2026-07-08'),
     closedAt: null,
     lead: {
+      hold: null,
       code: lead.code,
       state: 'converted',
       holder: ha,
@@ -486,6 +489,7 @@ function ws0088(): Body {
     },
     deals: [
       {
+        hold: null,
         code: 'OP-0289',
         name: 'Cân tự động cho kho thành phẩm',
         holder: huy,
@@ -514,6 +518,7 @@ function ws0088(): Body {
         },
       },
       {
+        hold: null,
         code: 'OP-0290',
         name: 'Đào tạo lập kế hoạch sản xuất trên MES cho phòng Kế hoạch',
         holder: huy,
@@ -540,6 +545,7 @@ function ws0088(): Body {
         stop: null,
       },
       {
+        hold: null,
         code: 'OP-0291',
         name: 'MES xưởng X1',
         holder: huy,
@@ -604,6 +610,7 @@ function ws0089(): Body {
     openedAt: at('2026-07-08', '14:00'),
     closedAt: null,
     lead: {
+      hold: null,
       code: 'LD-0335',
       state: 'converted',
       holder: huy,
@@ -621,6 +628,7 @@ function ws0089(): Body {
     },
     deals: [
       {
+        hold: null,
         code: 'OP-0292',
         name: 'Gia hạn bản quyền CMMS',
         holder: huy,
@@ -648,6 +656,7 @@ function ws0089(): Body {
         stop: null,
       },
       {
+        hold: null,
         code: 'OP-0293',
         name: 'Mở rộng CMMS sang xưởng X2',
         holder: huy,
@@ -699,6 +708,7 @@ function ws0093(): Body {
     openedAt: born,
     closedAt: null,
     lead: {
+      hold: null,
       code: 'LD-0352',
       state: 'assigned',
       holder: ha,

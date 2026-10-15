@@ -41,6 +41,9 @@ export const NEXT_STEP_SET = 'sales.next-step.set'
 export const NEXT_STEP_DONE = 'sales.next-step.done'
 export const CONTRACT_INSTALLMENT_OVERDUE = 'sales.contract.installment-overdue'
 export const COMM_RECORD_LATE = 'platform.comms.record-late'
+/** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
+export const HOLD_DUE_SOON = 'sales.hold.due-soon'
+export const HOLD_DUE = 'sales.hold.due'
 export const APPROVAL_WAITING = 'platform.approval.waiting'
 export const APPROVAL_DECIDED = 'platform.approval.decided'
 export const MAIL_RUN_FINISHED = 'platform.mail-run.finished'
@@ -127,6 +130,12 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('next-step-done', NEXT_STEP_DONE, 'setter'),
   bell('contract-installment-overdue', CONTRACT_INSTALLMENT_OVERDUE, 'owner'),
   bell('comm-record-late', COMM_RECORD_LATE, 'owner'),
+
+  /* The holder, plus whoever set the hold; `plan` rings one person once. */
+  bell('hold-due-soon', HOLD_DUE_SOON, 'holders'),
+  bell('hold-due-soon', HOLD_DUE_SOON, 'setter'),
+  bell('hold-due', HOLD_DUE, 'holders'),
+  bell('hold-due', HOLD_DUE, 'setter'),
 
   bell('approval-waiting', APPROVAL_WAITING, 'approver'),
   bell('approval-approved', APPROVAL_DECIDED, 'requester', flag('approved', true)),

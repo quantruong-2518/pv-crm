@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Branch, ROLE_LABEL } from '@pv/contracts'
+import { Branch, ROLE_LABEL, UserHoldingsResponse } from '@pv/contracts'
 import type {
   InviteView,
   RoleId,
@@ -8,7 +9,7 @@ import type {
   UserPatch,
   UserRow,
 } from '@pv/contracts'
-import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 
 /** Quản trị · Người dùng — the four doors of `platform.actor`.
  *
@@ -139,17 +140,56 @@ export function useSaveUser() {
 export function useLockUser() {
   const client = useQueryClient()
 
-  return useMutation<UserRow, ApiError, { id: string; disabled: boolean }>({
-    mutationFn: ({ id, disabled }) =>
+  return useMutation<UserRow, ApiError, { id: string; disabled: boolean; handoverTo?: string }>({
+    mutationFn: ({ id, disabled, handoverTo }) =>
       api.write<UserRow>(`/users/${encodeURIComponent(id)}`, {
         method: 'PATCH',
-        body: { disabled },
+        body: { disabled, ...(handoverTo ? { handoverTo } : {}) },
         need: USERS_NEED,
       }),
-    onSuccess: () => {
+    onSuccess: (_row, { handoverTo }) => {
       void client.invalidateQueries({ queryKey: USERS_KEY })
+      /* A handover moved leads, deals and next steps to someone else. */
+      if (handoverTo) void client.invalidateQueries({ queryKey: ['sales'] })
     },
   })
+}
+
+/** `GET /users/:id/holdings` — the open sales work a lock must hand on
+ *  (ADR 0097 §7). Read right before the lock, never from cache. */
+export const userHoldingsQuery = (id: string) =>
+  queryOptions({
+    queryKey: [...USERS_KEY, id, 'holdings'] as const,
+    queryFn: ({ signal }) =>
+      api.read<UserHoldingsResponse>(`/users/${encodeURIComponent(id)}/holdings`, {
+        need: USERS_NEED,
+        schema: UserHoldingsResponse,
+        signal,
+      }),
+    staleTime: 0,
+  })
+
+const heldAny = (h: UserHoldingsResponse) => h.leads + h.opportunities + h.nextSteps > 0
+
+/** The read in front of the lock. `check` calls `onFree` when the person
+ *  holds nothing; otherwise `holdings` is set and the drawer opens on it. */
+export function useHoldingsCheck() {
+  const client = useQueryClient()
+  const [holdings, setHoldings] = useState<UserHoldingsResponse | null>(null)
+  const [checking, setChecking] = useState(false)
+
+  const check = (id: string, on: { onFree: () => void; onFail: (message: string) => void }) => {
+    setChecking(true)
+    client
+      .fetchQuery(userHoldingsQuery(id))
+      .then((h) => (heldAny(h) ? setHoldings(h) : on.onFree()))
+      .catch((e: unknown) =>
+        on.onFail(isApiError(e) ? userMessage(e) : 'Không đọc được việc người này đang giữ.'),
+      )
+      .finally(() => setChecking(false))
+  }
+
+  return { holdings, checking, check, close: () => setHoldings(null) }
 }
 
 /** Send somebody a set-password link. `POST /users/:id/invite`.

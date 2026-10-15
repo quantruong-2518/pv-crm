@@ -61,7 +61,7 @@ const LOSS_REASON_STAGE_OPTIONS = [
   ...StageKey.options.map((key) => ({ value: key, label: OPPORTUNITY_STAGE_LABEL[key] })),
 ]
 
-/** 5.4b · add one care reason to the catalog, optionally scoped to a column.
+/** 5.4b · add one deal stop reason to the catalog, optionally scoped to a column.
  *
  *  Same shape as `AddProduct` above — an OPEN list, its own `POST` door —
  *  plus one more field: the column picker. Left on the clearing option, no
@@ -78,10 +78,10 @@ export function AddLossReason() {
     <div className="flex flex-wrap items-end gap-3">
       <WaitingAdds list="LOSS_REASON" />
       <Input
-        aria-label="Thêm lý do vào danh sách chăm sóc"
+        aria-label="Thêm lý do dừng cơ hội"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="Lý do vào danh sách chăm sóc"
+        placeholder="Lý do dừng cơ hội"
         className="pointer-coarse:h-12 min-w-0 flex-1"
       />
       <Select

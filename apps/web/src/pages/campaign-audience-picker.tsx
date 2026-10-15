@@ -24,9 +24,11 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useSelectionGesture } from '@/components/book-selection'
 import { CompanyCell, MomentCell } from '@/components/lead-cells'
+import { LabelChips } from '@/components/lead-labels'
 import { AvatarCell, PersonCell, SelectionCell } from '@/components/table-bits'
 import { LEAD_CATEGORIES, LEAD_TIERS } from '@/data/campaigns'
 import { useSalesPeople } from '@/data/directory'
+import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { NO_OWNER_TITLE, leadBookQuery } from '@/data/leads'
 
 /** Module 1 · the campaign audience's PICKER — the lead table inside the
@@ -57,11 +59,13 @@ type PickerFilters = {
   category?: LeadCategory
   tier?: LeadTier
   owner: string[]
+  /** Waiting label ids; a lead carrying ANY of them matches. */
+  label: string[]
   createdFrom?: string
   createdTo?: string
 }
 
-const NO_PICKER_FILTERS: PickerFilters = { owner: [] }
+const NO_PICKER_FILTERS: PickerFilters = { owner: [], label: [] }
 
 /** THE DRAWER'S CANDIDATE LIST, AND THE ROWS IT MUST NOT OFFER AGAIN.
  *
@@ -101,6 +105,7 @@ export function AudiencePicker({
       category: filters.category,
       tier: filters.tier,
       owner: filters.owner.length > 0 ? filters.owner.join(',') : undefined,
+      label: filters.label.length > 0 ? filters.label.join(',') : undefined,
       createdFrom: filters.createdFrom,
       createdTo: filters.createdTo,
     }),
@@ -118,6 +123,7 @@ export function AudiencePicker({
     filters.category ||
     filters.tier ||
     filters.owner.length > 0 ||
+    filters.label.length > 0 ||
     filters.createdFrom ||
     filters.createdTo,
   )
@@ -143,6 +149,10 @@ export function AudiencePicker({
     { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
+  const { data: labelCatalog } = useQuery(leadLabelOptionsQuery)
+  const labelOptions = (labelCatalog?.rows ?? [])
+    .filter((l) => l.active)
+    .map((l) => ({ value: l.id, label: l.name }))
 
   return (
     <div className="flex flex-col gap-3">
@@ -169,7 +179,15 @@ export function AudiencePicker({
         }
         onRetry={() => void refetch()}
         rows={rows}
-        columns={pickerColumns({ rows, selected, onSetMany, filters, patch, ownerOptions })}
+        columns={pickerColumns({
+          rows,
+          selected,
+          onSetMany,
+          filters,
+          patch,
+          ownerOptions,
+          labelOptions,
+        })}
         alreadyOnPage={alreadyOnPage}
         wholeMatchShown={(data?.total ?? 0) <= page.length}
         filtered={filtered}
@@ -197,6 +215,7 @@ function pickerColumns({
   filters,
   patch,
   ownerOptions,
+  labelOptions,
 }: {
   rows: LeadBookResponse['rows']
   selected: ReadonlySet<string>
@@ -204,6 +223,7 @@ function pickerColumns({
   filters: PickerFilters
   patch: (next: Partial<PickerFilters>) => void
   ownerOptions: { value: string; label: string }[]
+  labelOptions: { value: string; label: string }[]
 }): TableColumn[] {
   const shownSelected = rows.filter((r) => selected.has(r.code)).length
   const allShown = rows.length > 0 && shownSelected === rows.length
@@ -260,6 +280,22 @@ function pickerColumns({
         </ColumnFilter>
       ),
       width: 'minmax(0,0.8fr)',
+    },
+    {
+      header: (
+        <ColumnFilter label="Nhãn" active={filters.label.length > 0}>
+          {(close) => (
+            <ColumnFilterList
+              options={labelOptions}
+              selected={filters.label}
+              close={close}
+              onApply={(label) => patch({ label })}
+              emptyText="Chưa có nhãn nào."
+            />
+          )}
+        </ColumnFilter>
+      ),
+      width: 'minmax(0,1fr)',
     },
     {
       header: (
@@ -369,7 +405,7 @@ function PickerTable({
         <DataTable
           flush
           rowHeight="h-14"
-          className="min-w-[640px]"
+          className="min-w-[760px]"
           columns={columns}
           rows={rows.map((l) => ({
             id: l.code,
@@ -400,6 +436,16 @@ function PickerTable({
                 value={l.tier && (LEAD_TIERS.find((t) => t.key === l.tier)?.label ?? l.tier)}
                 missing="Chưa xếp bậc"
               />,
+              l.labels.length > 0 ? (
+                <LabelChips
+                  key="labels"
+                  labels={l.labels}
+                  max={2}
+                  className="max-w-full flex-nowrap"
+                />
+              ) : (
+                <PersonCell key="labels" missing="Chưa gắn nhãn" />
+              ),
               <MomentCell key="d" iso={l.createdAt} />,
               <AvatarCell key="o" email={l.ownerEmail} name={l.ownerName} empty={NO_OWNER_TITLE} />,
             ],

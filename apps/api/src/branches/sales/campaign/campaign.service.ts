@@ -220,6 +220,8 @@ export class CampaignService {
       /* A switched-off lead answers as one that is not there, to everyone. */
       const [off] = await this.repo.disabledAmong(tx, body.add ?? [])
       if (off) throw notFound('lead', off)
+      const [held] = await this.repo.heldAmong(tx, body.add ?? [])
+      if (held) throw conflict(`Lead ${held} đang tạm hoãn nên không thêm vào chiến dịch được.`)
       const added = await this.repo.addMembers(tx, code, body.add ?? [])
       const removed = await this.repo.removeMembers(tx, code, body.remove ?? [])
       return [added, removed] as const

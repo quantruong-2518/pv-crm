@@ -213,6 +213,20 @@ export class LeadStopReasonController {
   }
 }
 
+/** `GET /sales/lead-labels` — the waiting labels (ADR 0097 §5), on `lead.view`
+ *  for `LeadStopReasonController`'s reason: whoever reads or labels a lead must
+ *  see the catalogue without `config.view`. */
+@Controller('sales/lead-labels')
+export class LeadLabelController {
+  constructor(private readonly config: SalesConfigService) {}
+
+  @Get()
+  @Need({ branch: 'Sales', permission: 'lead.view' })
+  list() {
+    return this.config.leadLabels()
+  }
+}
+
 /** `GET /sales/lead-motions` — the live `asks` for whoever types a lead. On
  *  `lead.edit`, not `config.view`: typists lack config rights yet must follow it. */
 @Controller('sales/lead-motions')

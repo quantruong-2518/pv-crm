@@ -11,6 +11,7 @@ import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import { CampaignController } from './campaign.controller'
 import { CampaignRepository } from './campaign.repository'
 import { CampaignService } from './campaign.service'
+import { CampaignParkRepository } from './campaign-park.repository'
 import { CampaignSweeper } from './campaign.sweeper'
 import { MailLetterController } from './mail-letter.controller'
 import { MailLetterRepository } from './mail-letter.repository'
@@ -102,6 +103,8 @@ import { SourceService } from './source.service'
        ai gọi, đúng như `MailRunSweeper` nằm sẵn trong `MailModule`. Export vì
        `worker.ts` `app.get()` nó từ ngoài module này. */
     CampaignSweeper,
+    /* C5's read: which audience leads a closing campaign parks again. */
+    CampaignParkRepository,
     /* G6 release gate — `worker.ts` runs it before the relay, like the one above. */
     MailWaveGateSweeper,
   ],

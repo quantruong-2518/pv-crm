@@ -11,6 +11,7 @@ import {
   isLadder,
   MotionPolicyResponse,
   LeadMotionOptionResponse,
+  LeadLabelOptionsResponse,
   LeadStopReasonResponse,
   type ActivityFreshnessPatch,
   type LeadMotion,
@@ -182,6 +183,15 @@ export class SalesConfigService implements ApprovalApplier {
    *  Inactive rows included, so an old stop still prints its label. */
   async stopReasons() {
     return LeadStopReasonResponse.parse({ rows: await this.repo.list('EXIT_REASON') })
+  }
+
+  /** The `WAITING_LABEL` catalogue in desk order, retired rows flagged: a chip
+   *  on a lead may still name one, and the picker offers the active ones only. */
+  async leadLabels(): Promise<LeadLabelOptionsResponse> {
+    const rows = await this.repo.list('WAITING_LABEL')
+    return LeadLabelOptionsResponse.parse({
+      rows: rows.map(({ id, name, active }) => ({ id, name, active })),
+    })
   }
 
   /** The close-out vocabulary (ADR 0074) — and the rule of which questions a

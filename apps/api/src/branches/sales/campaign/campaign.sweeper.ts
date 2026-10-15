@@ -1,7 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { CAMPAIGN_FINISHED } from '@pv/engines'
+import { CAMPAIGN_FINISHED, LEAD_NURTURED } from '@pv/engines'
+import { NOTIFICATION_DETAIL_COUNT } from '@pv/contracts'
+import type { Db } from '@api/platform/db/db.module'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { LEAD_NOTE } from '../lead/lead-write.mapper'
+import { LeadStateWriter } from '../lead/lead-state'
+import { CampaignParkRepository, type SilentMember } from './campaign-park.repository'
 import { CampaignRepository } from './campaign.repository'
+
+/** The machine's park reason, "no reply to the campaign" (flow C5), named by
+ *  id because migration 0111 inserts it under this id and fails if the id holds
+ *  any other reason; the desk may rename it, the id never moves. */
+export const CAMPAIGN_SILENT_REASON = 'EX-07'
 
 /** LƯỢT QUÉT TẦNG TRÊN CÙNG — anh em của `MailRelay` và `MailRunSweeper`, và
  *  là bậc thứ ba của cùng một câu hỏi.
@@ -45,6 +55,8 @@ export class CampaignSweeper {
   constructor(
     private readonly repo: CampaignRepository,
     private readonly hub: NotificationHub,
+    private readonly parks: CampaignParkRepository,
+    private readonly states: LeadStateWriter,
   ) {}
 
   /** Một lượt. Trả về mã những chiến dịch vừa đóng, cho người gọi muốn khẳng
@@ -54,9 +66,10 @@ export class CampaignSweeper {
    *  (`void … .catch`), và một lượt chết không để lại gì dở dang — câu UPDATE
    *  hoặc chạy trọn hoặc không chạy — nên nhịp sau làm lại từ đầu. */
   async sweep(): Promise<string[]> {
-    /* One transaction: a `DONE` row and its owner's bell line commit together.
-       No actor — the worker closed it, so even the owner hears it. */
-    const closed = await this.repo.run(async (tx) => {
+    /* Close, the owner's bell and C5 in ONE transaction (ADR 0093, 0097 §6): a
+       campaign is never DONE while its silent leads stay in `working`, and a
+       failed park retries all three. No actor, so even the owner hears it. */
+    const { closed, parked } = await this.repo.run(async (tx) => {
       const rows = await this.repo.closeFinished(tx)
       for (const row of rows) {
         await this.hub.announce(tx, {
@@ -69,13 +82,49 @@ export class CampaignSweeper {
           subject: { kind: 'campaign', code: row.code, label: row.name },
         })
       }
-      return rows.map((row) => row.code)
+      const closed = rows.map((row) => row.code)
+      const silent = await this.parks.silentMembers(tx, closed)
+      const note = LEAD_NOTE.nurtured(CAMPAIGN_SILENT_REASON, undefined)
+      for (const { code } of silent) {
+        const park = { by: null, reasonId: CAMPAIGN_SILENT_REASON, note }
+        await this.states.parked(tx, code, park, false)
+      }
+      await this.ringParks(tx, rows, silent)
+      return { closed, parked: silent.map((m) => m.code) }
     })
 
     if (closed.length > 0) {
       this.log.log(`Chiến dịch đã chạy xong mọi đợt, chuyển XONG: ${closed.join(' · ')}`)
     }
+    if (parked.length > 0) {
+      this.log.log(`Campaign close parked ${parked.length} silent lead(s): ${parked.join(' · ')}`)
+    }
 
     return closed
+  }
+
+  /** C5's bell (ADR 0093): ONE `lead-nurtured` line per holder per campaign,
+   *  on the campaign as a `lead-batch` and counted — a Sale reads the leads
+   *  through the book, where `campaign` would need `campaign.view`. */
+  private async ringParks(
+    tx: Db,
+    campaigns: readonly { code: string; name: string; updatedAt: Date }[],
+    silent: readonly SilentMember[],
+  ): Promise<void> {
+    for (const c of campaigns) {
+      const mine = silent.filter((m) => m.campaignCode === c.code)
+      for (const holder of new Set(mine.map((m) => m.ownerId))) {
+        await this.hub.announce(tx, {
+          event: {
+            name: LEAD_NURTURED,
+            ref: { code: c.code },
+            audiences: { holder: [holder] },
+            occurrence: String(c.updatedAt.getTime()),
+          },
+          subject: { kind: 'lead-batch', code: c.code, label: c.name },
+          detail: { [NOTIFICATION_DETAIL_COUNT]: mine.filter((m) => m.ownerId === holder).length },
+        })
+      }
+    }
   }
 }

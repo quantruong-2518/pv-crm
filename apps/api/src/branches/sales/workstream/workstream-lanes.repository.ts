@@ -16,6 +16,7 @@ import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadDealsAllLost } from '../open-deal'
+import { openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import {
   opportunity,
@@ -165,7 +166,11 @@ export class WorkstreamLanesRepository {
         .from(lead)
         .where(eq(lead.code, leadCode)),
     ])
-    const acceptors = await this.acceptorsOf(deals)
+    const [acceptors, leadHolds, dealHolds] = await Promise.all([
+      this.acceptorsOf(deals),
+      openHoldsOf(this.db, 'lead', [leadCode]),
+      openHoldsOf(this.db, 'opportunity', deals),
+    ])
 
     return {
       leadTouches,
@@ -180,6 +185,7 @@ export class WorkstreamLanesRepository {
       dealOwners: owners,
       dealAcceptors: new Map(acceptors.map((a) => [a.deal, { id: a.id, name: a.name }])),
       allLost: lost[0]?.allLost ?? false,
+      holds: new Map([...leadHolds, ...dealHolds]),
     }
   }
 
@@ -347,4 +353,6 @@ export type LaneRows = {
   dealAcceptors: Map<string, { id: string; name: string }>
   /** `leadDealsAllLost` over EVERY deal of the lead, hidden ones included. */
   allLost: boolean
+  /** Open holds of the lead and the visible deals, by code (codes never collide). */
+  holds: Map<string, HoldRead>
 }

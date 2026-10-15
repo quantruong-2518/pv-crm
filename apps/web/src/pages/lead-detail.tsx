@@ -7,7 +7,6 @@ import { userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { toastDone, toastFail } from '@/app/toast'
-import { leadContactOf } from '@/data/comm-records'
 import { leadContactsQuery } from '@/data/contacts'
 import { useLeadDealReach } from '@/data/deal-sale'
 import { useLeadDraft } from '@/data/lead-draft'
@@ -20,12 +19,14 @@ import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
 import { ExitDialog } from '@/components/exit-dialog'
 import { DisableLeadsDialog } from '@/components/lead-disable'
+import { LeadHoldDialog, LeadHoldStrip } from '@/components/lead-hold'
+import { LeadLabelsCard } from '@/components/lead-labels'
 import { NurtureDialog } from '@/components/lead-state-actions'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { MeetingsDock } from '@/components/meetings-dock'
 import { useDockRow } from '@/data/meeting-upcoming'
 import { usePinToggle } from '@/data/pins'
-import { ActionBar, type BarContact } from '@/components/record/action-bar'
+import { ActionBar } from '@/components/record/action-bar'
 import { RecordShell } from '@/components/record/record-shell'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -33,7 +34,7 @@ import { RunOwners, type OwnerDoors } from '@/components/run/run-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { RunDocuments } from '@/components/run/run-documents'
 import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
-import { leadMoreChoices } from './lead-model'
+import { barPeopleOf, leadMoreChoices, mailBlockedOf } from './lead-model'
 import { LeadForm } from './lead-parts'
 
 /** Module 2 · one lead's profile — `/sales/leads/:code`, on the record shell
@@ -113,20 +114,13 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const [converting, setConverting] = useState(false)
   const [exiting, setExiting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
+  const [holding, setHolding] = useState(false)
   const [composing, setComposing] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [disabling, setDisabling] = useState(false)
 
-  /* A dropped lead has left the funnel: no mail, said on every mail row. */
-  const mailBlocked = !canSendEmail
-    ? 'Cần quyền gửi email cho lead.'
-    : lead.state === 'disqualified'
-      ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
-      : undefined
-  const people: BarContact[] =
-    contacts && contacts.length > 0
-      ? contacts.map((c) => ({ ...c, primary: c.isPrimary, role: c.title }))
-      : [{ ...leadContactOf(lead), primary: true }]
+  const mailBlocked = mailBlockedOf(lead, canSendEmail)
+  const people = barPeopleOf(lead, contacts)
 
   const assignDoor = assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined)
   const more = leadMoreChoices(
@@ -144,6 +138,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           onError: (e) => toastFail('Không chăm lại được lead.', userMessage(e)),
         }),
       onNurture: () => setNurturing(true),
+      onHold: () => setHolding(true),
       onAssign: () => setAssigning(true),
       onPin: pin.toggle,
       onExit: () => setExiting(true),
@@ -166,6 +161,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             current={{ kind: 'lead', code: lead.code }}
             fallback={railOf(lead.chain, lead.code, navigate)}
           />
+          <LeadHoldStrip lead={lead} canWrite={canWrite} />
         </>
       }
       header={<LeadHeader lead={lead} readOnly={dealReach} onConvert={convert} />}
@@ -173,6 +169,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
         <>
           {off && <MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={false} />}
           <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
+          <LeadLabelsCard lead={lead} canEdit={canWrite && isOpenState(lead.state)} />
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
       }
@@ -225,6 +222,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
       <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
+      <LeadHoldDialog lead={lead} open={holding} onClose={() => setHolding(false)} />
       <DisableLeadsDialog
         codes={[lead.code]}
         open={disabling}

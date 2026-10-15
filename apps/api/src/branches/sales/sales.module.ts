@@ -6,6 +6,8 @@ import { CAMPAIGN_CONSTRAINTS } from './campaign/campaign.constraints'
 import { CampaignModule } from './campaign/campaign.module'
 import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
 import { CONFIG_CONSTRAINTS } from './config/config.constraints'
+import { HOLD_CONSTRAINTS } from './hold/hold.constraints'
+import { HoldModule } from './hold/hold.module'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
@@ -44,6 +46,7 @@ registerConstraints(CONTACT_CONSTRAINTS)
 registerConstraints(NEXT_STEP_CONSTRAINTS)
 registerConstraints(CONFIG_CONSTRAINTS)
 registerConstraints(CAMPAIGN_CONSTRAINTS)
+registerConstraints(HOLD_CONSTRAINTS)
 
 /** Nhánh Sales — sáu module, đối xứng với sáu mục nav bên `apps/web`.
  *
@@ -90,6 +93,8 @@ registerConstraints(CAMPAIGN_CONSTRAINTS)
     WorkstreamModule,
     NextStepModule,
     SearchModule,
+    /* Holds over leads and deals: it imports both books, none imports it. */
+    HoldModule,
   ],
   exports: [
     LeadModule,

@@ -2,11 +2,13 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { Injectable, Module } from '@nestjs/common'
 import { LEAD_OPEN_STATES, LEAD_STATE_LABEL, type LeadState } from '@pv/contracts'
-import { LEAD_HANDED_OVER, LEAD_POOLED, type Actor } from '@pv/engines'
+import { LEAD_HANDED_OVER, LEAD_NURTURED, LEAD_POOLED, type Actor } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { MailModule } from '@api/platform/mail/mail.module'
+import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { NotificationHub, type Announcement } from '@api/platform/notification/notification.hub'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { byOf, SYSTEM_ACTOR, TouchService } from '../touch/touch.service'
@@ -17,6 +19,7 @@ import { lead, type LeadRowDb } from './lead.schema'
 import { leadLive } from './lead-scope'
 import { dropStep, dropSteps } from '../next-step/next-step.handover'
 import { syncLeadRuns } from '../workstream/workstream-sync'
+import { endHolds } from '../hold/hold.sql'
 
 /** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058, 0063, 0068).
  *
@@ -30,8 +33,8 @@ import { syncLeadRuns } from '../workstream/workstream-sync'
  *  the write that caused it. `leadLive` on every UPDATE skips a disabled lead in silence.
  *
  *  A leaf on purpose: lead table and mappers, `TouchModule` (no controller, no
- *  lead import) and the module-free `next-step.handover` and `workstream-sync`
- *  only — so the meeting, contact, account, MAS and deal modules can import
+ *  lead import), `MailModule` (platform) and the module-free `next-step.handover`,
+ *  `workstream-sync` and `hold.sql` only — so the meeting, contact, account, MAS and deal modules can import
  *  `LeadStateModule` without a cycle through `LeadModule`. */
 
 /** The terminal state a deal may not be opened on, and mail may not reach — a
@@ -94,6 +97,10 @@ type LeadColumns = Omit<PgUpdateSetSource<typeof lead>, 'code' | 'state' | 'stat
 
 type StoredLead = { row: LeadRowDb; ownerName: string | null }
 
+/** One park into the waiting group: who parked (`null` = the machine, flow C5),
+ *  the `EXIT_REASON` id if the door asked one, and the timeline sentence. */
+export type Park = { by: { id: string; name: string } | null; reasonId?: string; note: string }
+
 /** Who a move is credited to: the holder (only their own leads move), a named
  *  person moving any holder's lead, or the system. */
 type Mover = { holderId: string } | { anyone: { id: string; name: string } } | null
@@ -104,6 +111,7 @@ export class LeadStateWriter {
     private readonly mirror: ObjectMirror,
     private readonly touch: TouchService,
     private readonly hub: NotificationHub,
+    private readonly mailRuns: MailRunRepository,
   ) {}
 
   /** Leads landed in the common pool — one lead, or a batch (`count`) — so
@@ -180,7 +188,9 @@ export class LeadStateWriter {
 
   /** `assigned|verifying` → `working`, and `nurturing` loops back to `working`
    *  on the same lead, holder kept (ADR 0068 §4). Two UPDATEs so the looped
-   *  row says so; `exchange-logged` on both keeps the SQL rung walk right. */
+   *  row says so; `exchange-logged` on both keeps the SQL rung walk right.
+   *  The same touch ends an open hold (ADR 0097 §3), moved or not, on the
+   *  leads the mover's predicate covers. */
   private async touched(
     tx: Db,
     codes: readonly string[],
@@ -194,6 +204,17 @@ export class LeadStateWriter {
       from: ['nurturing'],
       note: `${note} · ${LEAD_NOTE.resumed.toLowerCase()}`,
     })
+    if (codes.length === 0) return
+    const covered =
+      mover && 'holderId' in mover
+        ? (
+            await tx
+              .select({ code: lead.code })
+              .from(lead)
+              .where(and(inArray(lead.code, [...codes]), eq(lead.ownerId, mover.holderId)))
+          ).map((r) => r.code)
+        : codes
+    await endHolds(tx, 'lead', covered, 'touch', null)
   }
 
   /** One forward move plus its dated timeline row, credited to `mover`.
@@ -260,8 +281,9 @@ export class LeadStateWriter {
   }
 
   /** A deal was opened on these leads: any open state → `converted`. Skipping
-   *  is allowed, so the tier may stay unset. */
-  async converted(tx: Db, codes: readonly string[]): Promise<void> {
+   *  is allowed, so the tier may stay unset. A held lead's hold ends with it
+   *  (`converted`), credited to the opener when one is named. */
+  async converted(tx: Db, codes: readonly string[], openerId: string | null = null): Promise<void> {
     if (codes.length === 0) return
     const moved = await tx
       .update(lead)
@@ -275,48 +297,84 @@ export class LeadStateWriter {
       moved.map((r) => r.code),
     )
     await this.dropSteps(tx, moved)
+    await endHolds(
+      tx,
+      'lead',
+      moved.map((r) => r.code),
+      'converted',
+      openerId,
+    )
   }
 
   /** The last live deal of a `converted` lead stopped with nothing signed (ADR
-   *  0069 §3): → `nurturing`, holder kept. With no holder it goes to the pool
-   *  (`new`) — `lead_open_owner_matches` refuses an ownerless `nurturing`.
-   *  Either landing is dated by a `nurtured` row (a pool release names a
-   *  giver, and there is none), with the caller's sentence for that landing.
-   *  Re-syncs the lead's run. Returns where it landed, `null` if it did not move. */
+   *  0069 §3, 0097 §2): → `nurturing`. The caller gives an unheld lead its
+   *  holder first (`claimed`), so the park never lands on `new` —
+   *  `lead_open_owner_matches` refuses an ownerless `nurturing`. Parked as every
+   *  park is (`afterPark`). `true` when the lead moved. */
   async dealsLost(
     tx: Db,
     code: string,
     by: { id: string; name: string },
-    notes: Record<'nurturing' | 'new', string>,
-  ): Promise<'nurturing' | 'new' | null> {
+    note: string,
+  ): Promise<boolean> {
     const [moved] = await tx
       .update(lead)
-      .set({
-        state: sql`CASE WHEN ${lead.ownerId} IS NULL THEN 'new' ELSE 'nurturing' END`,
-        stateSince: sql`now()`,
-      })
+      .set({ state: 'nurturing', stateSince: sql`now()` })
       .where(and(eq(lead.code, code), eq(lead.state, 'converted'), leadLive))
-      .returning({ state: lead.state, company: lead.company })
-    if (!moved) return null
-    const landed = moved.state === 'new' ? 'new' : 'nurturing'
-
+      .returning({ code: lead.code })
+    if (!moved) return false
     await this.refresh(tx, [code])
     await syncLeadRuns(tx, [code])
+    await this.afterPark(tx, code, { by, note })
+    return true
+  }
+
+  /** THE park into the waiting group, on a row the caller locked and judged:
+   *  the nurture door, a hold ended "to waiting" and a campaign's close (C5)
+   *  all land here, so a park always reads, withholds and rings the same way.
+   *  The holder hears it unless they pressed it — a machine park included
+   *  (ADR 0093 §6). `dealsLost` does not ring: a stop rings `opportunity-lost` only.
+   *  `ring: false` = the caller rings one counted line for many parks (C5). */
+  async parked(tx: Db, code: string, park: Park, ring = true): Promise<void> {
+    await this.move(tx, code, 'nurturing')
+    const occurrence = await this.afterPark(tx, code, park)
+    if (!ring) return
+    const [stored] = await this.reload(tx, [code])
+    if (!stored) return
+    await this.hub.announce(tx, {
+      event: {
+        name: LEAD_NURTURED,
+        ref: { code },
+        actorId: park.by?.id,
+        audiences: { holder: stored.row.ownerId ? [stored.row.ownerId] : [] },
+        occurrence,
+      },
+      subject: { kind: 'lead', code, label: stored.row.company },
+    })
+  }
+
+  /** What every park owes beside the move: the dated `nurtured` row carrying the
+   *  reason (ADR 0070), unsent mail withheld (ADR 0068 §6), and an open hold
+   *  ended — a parked lead sits in the waiting group, not in the hold list.
+   *  Returns the `nurtured` row's id, the bell's occurrence. */
+  private async afterPark(tx: Db, code: string, park: Park): Promise<string | undefined> {
     const [occurrence] = await this.touch.record(tx, [
       {
         subjectCode: code,
         subjectKind: 'lead',
         kind: 'nurtured',
-        by: by.name,
-        actorId: by.id,
-        note: notes[landed],
+        ...byOf(park.by),
+        note: park.note,
+        ...(park.reasonId ? { reasonId: park.reasonId } : {}),
       },
     ])
-    if (landed === 'new') {
-      const subject = { kind: 'lead' as const, code, label: moved.company }
-      await this.pooled(tx, { subject, actorId: by.id, occurrence })
-    }
-    return landed
+    await this.mailRuns.withholdSubject(
+      tx,
+      { aggregateType: 'lead', aggregateId: code },
+      LEAD_NURTURED_WITHHOLD,
+    )
+    await endHolds(tx, 'lead', [code], 'to-waiting', park.by?.id ?? null)
+    return occurrence
   }
 
   /** A move the caller has already decided under its own row lock. `also`
@@ -354,11 +412,15 @@ export class LeadStateWriter {
   /** A deal door's opener takes the leads nobody holds (ADR 0088 §17): the
    *  owner door's claim out of the pool — same write, same `handed-over` row
    *  with no giver, same bell event. Rows locked by the caller, before
-   *  `converted`. */
+   *  `converted`. `by` differs from the taker when a stop hands an unheld lead
+   *  to the lost deal's primary Sale (ADR 0097 §2); that claim passes
+   *  `ring: false`, since the stop's `opportunity-lost` already tells them. */
   async claimed(
     tx: Db,
     leads: readonly Pick<LeadRowDb, 'code' | 'state' | 'company'>[],
     who: Pick<Actor, 'id' | 'name' | 'roleIds'>,
+    by: Pick<Actor, 'id' | 'name'> = who,
+    ring = true,
   ): Promise<void> {
     for (const found of leads) await this.ownerSet(tx, found, who.id)
     const [role] = who.roleIds
@@ -368,19 +430,20 @@ export class LeadStateWriter {
         subjectCode: found.code,
         subjectKind: 'lead' as const,
         kind: 'handed-over' as const,
-        ...byOf(who),
+        ...byOf(by),
         to: { actorId: who.id, name: who.name, ...(role ? { role } : {}) },
         note: `${LEAD_NOTE.handedTo} ${who.name}`,
       })),
     )
     /* The lead door's claim event. The taker is the actor, so E4's own-action
        rule rings nobody today; reported anyway so a new rule hears both doors. */
+    if (!ring) return
     for (const [i, found] of leads.entries()) {
       await this.hub.announce(tx, {
         event: {
           name: LEAD_HANDED_OVER,
           ref: { code: found.code },
-          actorId: who.id,
+          actorId: by.id,
           audiences: { 'new-holder': [who.id], 'previous-holder': [] },
           occurrence: dated[i],
         },
@@ -425,7 +488,7 @@ export class LeadStateWriter {
 }
 
 @Module({
-  imports: [GraphModule, TouchModule, NotificationModule],
+  imports: [GraphModule, TouchModule, NotificationModule, MailModule],
   providers: [LeadStateWriter],
   exports: [LeadStateWriter],
 })

@@ -8,6 +8,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  not,
   notInArray,
   or,
   sql,
@@ -22,6 +23,7 @@ import {
   OWNER_NONE,
   type LeadBookQuery,
   type LeadFacetsQuery,
+  type LeadLabel,
   type LeadMotion,
   type LeadSourceKind,
   type LeadTier,
@@ -32,12 +34,14 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
+import { leadHeld, openHoldsOf } from '../hold/hold.sql'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
-import { lead } from './lead.schema'
+import { lead, leadLabel } from './lead.schema'
+import { labelsOf, leadLabelledAny } from './lead-label.sql'
 import { leadLive, leadScope } from './lead-scope'
 import type {
   LeadMailEventRead,
@@ -175,7 +179,9 @@ export class LeadRepository {
           ...this.filtersOf(q),
           pinned,
           this.stateFilter(q.state),
-          q.states ? inArray(lead.state, listOf(q.states) as LeadState[]) : undefined,
+          q.states
+            ? and(inArray(lead.state, listOf(q.states) as LeadState[]), not(leadHeld(lead.code)))
+            : undefined,
           leadLive,
         ]
 
@@ -213,7 +219,20 @@ export class LeadRepository {
       .limit(q.size)
       .offset((q.page - 1) * q.size)
 
-    return { rows, total: scoped_, hidden: all === null ? 0 : all - scoped_ }
+    const codes = rows.map((r) => r.row.code)
+    const [labels, holds] = await Promise.all([
+      labelsOf(this.db, codes),
+      openHoldsOf(this.db, 'lead', codes),
+    ])
+    return {
+      rows: rows.map((r) => ({
+        ...r,
+        labels: labels.get(r.row.code) ?? [],
+        hold: holds.get(r.row.code) ?? null,
+      })),
+      total: scoped_,
+      hidden: all === null ? 0 : all - scoped_,
+    }
   }
 
   /** Nửa "không chiến dịch" của ô lọc Nguồn — bốn `LeadSourceKind` nào đang
@@ -264,10 +283,19 @@ export class LeadRepository {
   }
 
   /** How many leads each state tab would show: the book's own filters and
-   *  scope, minus `state`. Every state is present, zeros included. */
-  async stateFacets(who: Actor, q: LeadFacetsQuery): Promise<Record<LeadState, number>> {
+   *  scope, minus `state`. Every state is present, zeros included. A held lead
+   *  counts in `held` only — the tab it is listed under (`stateFilter`). */
+  async stateFacets(
+    who: Actor,
+    q: LeadFacetsQuery,
+  ): Promise<{ byState: Record<LeadState, number>; held: number }> {
+    const held = leadHeld(lead.code)
     const rows = await this.db
-      .select({ state: lead.state, n: count() })
+      .select({
+        state: lead.state,
+        n: sql<number>`count(*) FILTER (WHERE NOT ${held})::int`,
+        held: sql<number>`count(*) FILTER (WHERE ${held})::int`,
+      })
       .from(lead)
       .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
       .groupBy(lead.state)
@@ -275,8 +303,28 @@ export class LeadRepository {
       LeadState,
       number
     >
-    for (const r of rows) byState[r.state] = r.n
-    return byState
+    let heldCount = 0
+    for (const r of rows) {
+      byState[r.state] = r.n
+      heldCount += r.held
+    }
+    return { byState, held: heldCount }
+  }
+
+  /** The waiting labels in use on the scoped book under its other filters,
+   *  `label` itself ignored — the rule `sourceKinds` follows. Catalogue order. */
+  async labelFacets(who: Actor, q: LeadFacetsQuery): Promise<LeadLabel[]> {
+    return this.db
+      .selectDistinct({ id: configEntry.id, name: configEntry.name, ord: configEntry.ord })
+      .from(leadLabel)
+      .innerJoin(lead, eq(lead.code, leadLabel.leadCode))
+      .innerJoin(
+        configEntry,
+        and(eq(configEntry.id, leadLabel.labelId), eq(configEntry.list, leadLabel.list)),
+      )
+      .where(and(...this.filtersOf({ ...q, label: undefined }), leadLive, this.scopeOf(who, true)))
+      .orderBy(asc(configEntry.ord), asc(configEntry.id))
+      .then((rows) => rows.map(({ id, name }) => ({ id, name })))
   }
 
   /** How many leads the "disabled" view would list — the book's filters and
@@ -355,7 +403,12 @@ export class LeadRepository {
       .where(and(eq(lead.code, code), withDisabled ? undefined : leadLive))
       .limit(1)
 
-    return row ?? null
+    if (!row) return null
+    const [labels, holds] = await Promise.all([
+      labelsOf(this.db, [code]),
+      openHoldsOf(this.db, 'lead', [code]),
+    ])
+    return { ...row, labels: labels.get(code) ?? [], hold: holds.get(code) ?? null }
   }
 
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.
@@ -571,12 +624,16 @@ export class LeadRepository {
   }
 
   /** The book's `state` filter: `open` is the five `LEAD_OPEN_STATES`, `live`
-   *  is everything not gone, `all` is no condition, anything else is one state. */
+   *  is everything not gone, `all` is no condition, `held` the leads on hold,
+   *  anything else is one state. A held lead leaves `open` and every single
+   *  state (ADR 0097 §3), so the tabs never list one lead twice. */
   private stateFilter(state: LeadStateFilter): SQL | undefined {
+    const held = leadHeld(lead.code)
     if (state === 'all') return undefined
-    if (state === 'open') return inArray(lead.state, [...LEAD_OPEN_STATES])
     if (state === 'live') return notInArray(lead.state, [...LEAD_GONE_STATES])
-    return eq(lead.state, state)
+    if (state === 'held') return held
+    if (state === 'open') return and(inArray(lead.state, [...LEAD_OPEN_STATES]), not(held))
+    return and(eq(lead.state, state), not(held))
   }
 
   /** Sort column for `q.sort`, plus the tiebreaker every sort needs.
@@ -638,6 +695,7 @@ export class LeadRepository {
       q.sourceKind ? and(isNull(lead.campaignId), eq(lead.sourceKind, q.sourceKind)) : undefined,
       q.motion ? eq(lead.motion, q.motion) : undefined,
       q.origin ? inArray(lead.originId, listOf(q.origin)) : undefined,
+      q.label ? leadLabelledAny(lead.code, listOf(q.label)) : undefined,
       /* Ô tìm hứa "tên công ty hoặc mã lead" (placeholder ở `pages/leads.tsx`)
          nên phải hỏi CẢ HAI cột, không riêng company — trước bản sửa này gõ
          `LD-0235` trả về rỗng dù dòng đó tồn tại, đúng nghĩa "search chưa gọi

@@ -36,6 +36,8 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
     motions: motions && `${motions.filter((m) => m.active).length}/${motions.length} đang bật`,
     'motion-policy': motions && `${motions.filter(isDeclared).length}/${motions.length} đã đặt`,
     'stop-reasons': `${catalog.EXIT_REASON.length} lý do`,
+    'waiting-labels':
+      catalog.WAITING_LABEL.length === 0 ? 'Chưa có' : `${catalog.WAITING_LABEL.length} nhãn`,
     'comm-criteria': `${catalog.COMM_CRITERION.length} câu`,
     'step-kinds': catalog.STEP_KIND.length === 0 ? 'Chưa có' : `${catalog.STEP_KIND.length} loại`,
     freshness: freshness && `Vàng ${freshness.warnDays} · đỏ ${freshness.alertDays} ngày`,

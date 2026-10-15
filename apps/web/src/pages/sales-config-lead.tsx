@@ -2,7 +2,7 @@ import { GlassCard } from '@pv/ui'
 import { useMyConfigProposals } from '@/data/sales-config'
 import { MotionPickerSection } from './lead-origins-motions'
 import { AddStopReason } from './sales-config-add-rows'
-import { CommCriteriaConfig, EntryRow, FlatListConfig } from './sales-config-comm'
+import { AddEntry, CommCriteriaConfig, EntryRow, FlatListConfig } from './sales-config-comm'
 import { byOrd, motionPickerWaiting } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
 import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-config-section'
@@ -29,10 +29,11 @@ export function AssignArea() {
   )
 }
 
-/** Care and contact — why a lead stops being cared for, and the vocabulary of
- *  the contact confirm form. */
+/** Care and contact — why a lead stops being cared for, the labels of the
+ *  waiting group, and the vocabulary of the contact confirm form. */
 export function CareArea({ catalog }: AreaProps) {
   const stops = [...(catalog?.EXIT_REASON ?? [])].sort(byOrd)
+  const labels = [...(catalog?.WAITING_LABEL ?? [])].sort(byOrd)
   return (
     <>
       {/* 5.4 — counts STOPS, not leads (ADR 0070): one `sales.touch` row per
@@ -54,6 +55,33 @@ export function CareArea({ catalog }: AreaProps) {
         </GlassCard>
 
         <AddStopReason />
+      </Section>
+
+      {/* 5.4e — ADR 0097 §5: the lead book and the campaign picker filter by these. */}
+      <Section
+        at="waiting-labels"
+        hint="Gắn cho lead ở Nhóm chờ chăm sóc để lọc và chọn vào chiến dịch."
+        summary={<EntryCount rows={labels} noun="nhãn" />}
+      >
+        {labels.length === 0 ? (
+          <p className="text-muted-foreground text-[11.5px]">Chưa có nhãn nào.</p>
+        ) : (
+          <GlassCard variant="b" className="p-4">
+            <ul className="flex flex-col gap-2">
+              {labels.map((r) => (
+                <li key={r.id}>
+                  <EntryRow
+                    entry={r}
+                    list="WAITING_LABEL"
+                    usage={catalog?.usage.WAITING_LABEL[r.id] ?? 0}
+                    unit="lead"
+                  />
+                </li>
+              ))}
+            </ul>
+          </GlassCard>
+        )}
+        <AddEntry list="WAITING_LABEL" placeholder="Thêm nhãn nhóm chờ" />
       </Section>
 
       <Section

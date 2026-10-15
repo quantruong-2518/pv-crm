@@ -220,6 +220,8 @@ rest is decided and has no code:
 Until each is built, the superseded paragraphs below still describe what the
 code does.
 
+Update 15/10/2026: §5, §10 and §14 are settled and built by 0097.
+
 ## Superseded and amended
 
 - **0071 §1** — "Sale, presales and marketing may not." Sale may (§16);

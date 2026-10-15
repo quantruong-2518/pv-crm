@@ -93,7 +93,8 @@ export const notification = platform.table(
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
                      'lead-resumed', 'lead-reopened', 'mail-run-replied',
-                     'comm-record-late', 'contract-installment-overdue')`,
+                     'comm-record-late', 'contract-installment-overdue',
+                     'hold-due-soon', 'hold-due')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -159,7 +160,8 @@ export const notificationKindPolicy = platform.table(
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
                      'lead-resumed', 'lead-reopened', 'mail-run-replied',
-                     'comm-record-late', 'contract-installment-overdue')`,
+                     'comm-record-late', 'contract-installment-overdue',
+                     'hold-due-soon', 'hold-due')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  primaryKey,
   smallint,
   text,
   timestamp,
@@ -508,3 +509,32 @@ export const lead = sales.table(
 )
 
 export type LeadRowDb = typeof lead.$inferSelect
+
+/** A waiting-group label (ADR 0088 §5) on a lead — `opportunity_product`'s
+ *  shape: `list` is the second half of a composite key on `config_id_list`, so
+ *  a lead cannot be labelled with an exit reason. Typed as the one literal, not
+ *  `ConfigList`, because the CHECK pins it there. */
+export const leadLabel = sales.table(
+  'lead_label',
+  {
+    leadCode: text('lead_code')
+      .notNull()
+      .references(() => lead.code, { onDelete: 'cascade' }),
+    labelId: text('label_id').notNull(),
+    list: text('list').$type<'WAITING_LABEL'>().notNull().default('WAITING_LABEL'),
+  },
+  (t) => [
+    primaryKey({ name: 'lead_label_pk', columns: [t.leadCode, t.labelId] }),
+    /** "Which leads carry label X" — the lead book filter, the campaign audience
+     *  filter and the config screen's usage count. */
+    index('lead_label_label_idx').on(t.labelId),
+    foreignKey({
+      name: 'lead_label_config_fk',
+      columns: [t.labelId, t.list],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
+    check('lead_label_list', sql`"list" = 'WAITING_LABEL'`),
+  ],
+)
+
+export type LeadLabelRowDb = typeof leadLabel.$inferSelect

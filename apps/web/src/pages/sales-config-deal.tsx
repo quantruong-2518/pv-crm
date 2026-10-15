@@ -12,10 +12,10 @@ import { ActivityFreshnessConfig } from './sales-config-freshness'
 import { byOrd } from './sales-config-model'
 import { EntryCount, Section, type AreaProps } from './sales-config-section'
 
-/** The deal flow — how stale a deal's last activity may get, why a deal leaves
- *  the board for the care list, why a quotation is redone, what the department
- *  sells and what kinds of contract it signs. Switched-off rows stay listed in
- *  every catalog: off is the only delete this system has. */
+/** The deal flow — how stale a deal's last activity may get, why a deal is
+ *  stopped, why a quotation is redone, what the department sells and what
+ *  kinds of contract it signs. Switched-off rows stay listed in every catalog:
+ *  off is the only delete this system has. */
 export function DealArea({ catalog }: AreaProps) {
   const products = [...(catalog?.PRODUCT ?? [])].sort(byOrd)
   const reasons = catalog?.LOSS_REASON ?? []

@@ -11,6 +11,7 @@ import {
   StageKey,
   WorkstreamCloseReason,
 } from './enums'
+import { Hold } from './hold'
 import { NextStep } from './next-step'
 import { CareActivityKind, OPPORTUNITY_STOP_NOTE_MAX } from './opportunity'
 import { LEAD_LANE_BACKBONE, WorkstreamHolder } from './workstream'
@@ -174,6 +175,8 @@ export const JourneyLead = z.object({
   state: LeadState,
   holder: WorkstreamHolder.nullable(),
   rungs: z.array(JourneyLeadRung).length(LEAD_LANE_BACKBONE.length),
+  /** The open hold — drawn as the card's held-until marker. */
+  hold: Hold.nullable(),
 })
 
 /** The fail log of a lost deal (ADR 0069 §1). A lost deal draws no waiting
@@ -204,6 +207,8 @@ export const JourneyDeal = z.object({
   contractCodes: z.array(ContractCode),
   /** Set exactly when `outcome` is `lost`; the rung is the `stopped` one. */
   stop: JourneyDealStop.nullable(),
+  /** Same as `JourneyLead.hold`; only an open deal can carry one. */
+  hold: Hold.nullable(),
 })
 
 /** Invoice fields are RECORDED only — this system does not issue invoices. */
@@ -248,7 +253,9 @@ export const JourneyDoorAnchor = z.object({
 
 /** The lead's park only — a lost deal carries its own `stop` instead. `reason`
  *  is a catalogue name, never a raw config id. `concludedBy` is null when the
- *  machine parked the lead (flow C5: a campaign ended with no real exchange). */
+ *  machine parked the lead (flow C5): it joined a campaign from `nurturing`, and
+ *  the campaign closed with no real exchange since it started (outbound mail
+ *  does not count) — reason EX-07 (no campaign response). */
 export const JourneyWaitingDoor = z.object({
   kind: z.literal('waiting'),
   leadCode: ObjectCode,

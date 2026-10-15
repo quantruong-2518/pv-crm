@@ -89,6 +89,14 @@ export class UsersController {
     return this.users.directory()
   }
 
+  /** What open sales work this person still holds — the lock dialog's
+   *  counts (ADR 0097 §7). A read, so no reauth, like the two GETs above. */
+  @Get(':id/holdings')
+  @Need({ permission: 'user.manage' })
+  holdings(@Param('id') id: string) {
+    return this.users.holdings(id)
+  }
+
   /** Open an account. 201 with the row, so the panel can show what it created
    *  without waiting for the list to come back.
    *

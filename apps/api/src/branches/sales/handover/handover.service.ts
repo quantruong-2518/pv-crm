@@ -1,0 +1,207 @@
+import { Inject, Injectable } from '@nestjs/common'
+import { LEAD_HANDED_OVER, type AccessControl, type Actor } from '@pv/engines'
+import {
+  NOTIFICATION_DETAIL_COUNT,
+  NOTIFICATION_DETAIL_DEALS,
+  type TouchHolder,
+  type UserHoldingsResponse,
+} from '@pv/contracts'
+import type { Db } from '@api/platform/db/db.module'
+import { ACCESS } from '@api/platform/engines/tokens'
+import { ObjectMirror } from '@api/platform/graph/object-mirror'
+import { invalid } from '@api/platform/http/problem'
+import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { ActorRepository } from '@api/platform/session/actor.repository'
+import type { WorkHandover } from '@api/platform/users/work-handover'
+import { LeadStateWriter } from '../lead/lead-state'
+import { LEAD_NOTE } from '../lead/lead-write.mapper'
+import { handStepOver } from '../next-step/next-step.handover'
+import { handDealsOver } from '../opportunity/opportunity-handover'
+import { acceptorOf, holderOf, toRef } from '../opportunity/opportunity.mapper'
+import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
+import { byOf, TouchService } from '../touch/touch.service'
+import { HandoverRepository } from './handover.repository'
+
+/** Sales' answer to `WorkHandover` (ADR 0088 §14, 0097 §7): a leaver's open
+ *  leads, deals and next steps move to one receiver inside the lock's
+ *  transaction, each through the door a person's hand-over already uses —
+ *  `ownerSet` for the lead, `handDealsOver` for the SALE lane (ADR 0086
+ *  primary rules), `handStepOver` for steps. A BD seat, or a deal held only
+ *  through the leaver's acceptance, has no such door: `seatsOver` writes it.
+ *  Same timeline rows as a hand-over by hand; ONE bell line for the whole
+ *  lock (ADR 0093). A hold rides with its subject: it is keyed by the
+ *  subject, not by a person. */
+@Injectable()
+export class SalesWorkHandover implements WorkHandover {
+  constructor(
+    private readonly repo: HandoverRepository,
+    private readonly states: LeadStateWriter,
+    private readonly mirror: ObjectMirror,
+    private readonly touch: TouchService,
+    private readonly hub: NotificationHub,
+    private readonly actors: ActorRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
+  ) {}
+
+  holdings(tx: Db, userId: string): Promise<UserHoldingsResponse> {
+    return this.repo.holdings(tx, userId)
+  }
+
+  /** The lead hand-over's receiver rule: on Sales and able to open deals
+   *  (`opportunity.view` through E2). Being unlocked is the caller's check. */
+  async vetReceiver(toId: string): Promise<void> {
+    const to = (await this.actors.byId(toId))?.actor
+    if (to && this.access.check(to, { branch: 'Sales', permission: 'opportunity.view' }).ok) return
+    throw invalid(
+      { handoverTo: ['Người này không nhận được lead và cơ hội. Chọn người thuộc Sales.'] },
+      'Người nhận việc không hợp lệ.',
+    )
+  }
+
+  /** Locks first, then judges: the leads by code, then the deals (the stop
+   *  door's order). The bell counts are read off the locked rows, so the
+   *  line says what moved. */
+  async handOver(tx: Db, move: { fromId: string; toId: string; by: Actor }): Promise<void> {
+    const from = await this.repo.person(tx, move.fromId)
+    const to = await this.repo.person(tx, move.toId)
+    if (!from || !to) return
+    const leads = await this.repo.lockLeads(tx, from.id)
+    const deals = await this.repo.lockDeals(tx, from.id)
+    // The owner's call (ADR 0097 §7): the lock goes ahead; a deal a waiting sign
+    // request freezes stays on the leaver and is left out of the counts.
+    const frozen = await this.repo.signFrozen(tx, from.id, deals)
+    const owned = leads.filter((l) => l.ownedByLeaver)
+    const counts: UserHoldingsResponse = {
+      leads: owned.length,
+      opportunities: deals.length - frozen.length,
+      nextSteps: await this.repo.stepCount(tx, from.id),
+    }
+    const giver: TouchHolder = { actorId: from.id, name: from.name }
+    const taker: TouchHolder = { actorId: to.id, name: to.name, ...headRole(to.roleIds) }
+    const by = byOf(move.by)
+    const note = `${LEAD_NOTE.handedTo} ${to.name}`
+    const deps = { mirror: this.mirror, touch: this.touch }
+
+    const handed = new Set<string>()
+    for (const found of leads) {
+      if (found.ownedByLeaver) {
+        await this.states.ownerSet(tx, found, to.id)
+        await handStepOver(tx, found.code, from.id, to.id)
+      }
+      /* Vetted before the transaction, so the receiver may hold these deals. */
+      const step = { leadCode: found.code, from: giver, to: taker, toSeesDeals: true, by, note }
+      for (const code of (await handDealsOver(tx, deps, step)).moved) handed.add(code)
+    }
+
+    const bd = await this.repo.lockBdDeals(tx, from.id)
+    const accepted = await this.repo.lockAcceptedDeals(tx, from.id)
+    if (bd.length > 0) await this.repo.swapBd(tx, codesOf(bd), from.id, to.id)
+    if (accepted.length > 0) await this.repo.seatSale(tx, codesOf(accepted), to.id)
+    /* One `handed-over` row per deal across the SALE, BD and acceptance moves:
+       a deal `handDealsOver` moved already has its row. */
+    const seated = [...new Map([...bd, ...accepted].map((d) => [d.row.code, d])).values()]
+    await this.seatsOver(tx, seated, handed, { giver, taker, by, note })
+
+    const dated = await this.touch.record(
+      tx,
+      owned.map((l) => ({
+        subjectCode: l.code,
+        subjectKind: 'lead' as const,
+        kind: 'handed-over' as const,
+        ...by,
+        from: giver,
+        to: taker,
+        note,
+      })),
+    )
+    await this.repo.moveSteps(tx, from.id, to.id)
+    const [one] = owned
+    await this.ring(
+      tx,
+      { from, toId: to.id, actorId: move.by.id, counts },
+      one && owned.length === 1 && counts.opportunities === 0
+        ? { ...one, occurrence: dated[0] }
+        : null,
+    )
+  }
+
+  /** ONE line to the receiver for the whole lock (ADR 0093): a lone lead keeps
+   *  the per-lead line; with deals, whose leads may differ, or several leads it
+   *  is a `lead-batch` line on the leaver, counted. Next steps ride along
+   *  uncounted: no `detail` key names them yet. */
+  private async ring(
+    tx: Db,
+    act: {
+      from: { id: string; name: string }
+      toId: string
+      actorId: string
+      counts: UserHoldingsResponse
+    },
+    one: { code: string; company: string; occurrence: string | undefined } | null,
+  ): Promise<void> {
+    const { leads, opportunities, nextSteps } = act.counts
+    if (leads + opportunities + nextSteps === 0) return
+    const deals: Record<string, number> =
+      opportunities > 0 ? { [NOTIFICATION_DETAIL_DEALS]: opportunities } : {}
+    await this.hub.announce(tx, {
+      event: {
+        name: LEAD_HANDED_OVER,
+        ref: { code: one ? one.code : act.from.id },
+        actorId: act.actorId,
+        audiences: { 'new-holder': [act.toId], 'previous-holder': [] },
+        /* A second lock of the same person must ring again. */
+        occurrence: one?.occurrence ?? new Date().toISOString(),
+      },
+      subject: one
+        ? { kind: 'lead', code: one.code, label: one.company }
+        : { kind: 'lead-batch', code: act.from.id, label: act.from.name },
+      detail: one ? null : { [NOTIFICATION_DETAIL_COUNT]: leads, ...deals },
+    })
+  }
+
+  /** Seats with no person-to-person door (BD, an empty SALE lane), already
+   *  written: the mirror names the holder after the change and each deal's
+   *  timeline says who took over, unless `handed` already said it. */
+  private async seatsOver(
+    tx: Db,
+    deals: { row: OpportunityRowDb; acceptorName: string | null }[],
+    handed: ReadonlySet<string>,
+    move: {
+      giver: TouchHolder
+      taker: TouchHolder
+      by: ReturnType<typeof byOf>
+      note: string
+    },
+  ): Promise<void> {
+    if (deals.length === 0) return
+    const codes = codesOf(deals)
+    const after = await this.repo.people(tx, codes)
+    const on = (code: string) => after.filter((p) => p.code === code)
+    await this.mirror.putMany(
+      tx,
+      deals.map(({ row, acceptorName }) =>
+        toRef(row, holderOf(on(row.code), acceptorOf(row, acceptorName))),
+      ),
+    )
+    await this.touch.record(
+      tx,
+      deals
+        .filter(({ row }) => !handed.has(row.code))
+        .map(({ row }) => ({
+          subjectCode: row.code,
+          subjectKind: 'opportunity' as const,
+          kind: 'handed-over' as const,
+          ...move.by,
+          from: move.giver,
+          to: move.taker,
+          note: move.note,
+        })),
+    )
+  }
+}
+
+const codesOf = (deals: readonly { row: OpportunityRowDb }[]) => deals.map((d) => d.row.code)
+
+/** `sales.touch.to_role` holds one role, the receiver's first. */
+const headRole = (roleIds: readonly TouchHolder['role'][]): Pick<TouchHolder, 'role'> =>
+  roleIds[0] ? { role: roleIds[0] } : {}

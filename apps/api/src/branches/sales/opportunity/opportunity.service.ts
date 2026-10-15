@@ -51,7 +51,8 @@ import {
   OpportunityActs,
   touchesTerms,
 } from './opportunity-acts'
-import { dealAtOf } from './opportunity-lifecycle'
+import { dealAtOf, vnDay } from './opportunity-lifecycle'
+import { toHold } from '../hold/hold.mapper'
 import { pendingSignOf, profileContractsOf, stageSpansOf } from './opportunity-profile'
 import { signsDirect } from './opportunity-sign.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
@@ -295,15 +296,17 @@ export class OpportunityService {
     /* Independent reads, profile-only (see `OpportunityProfileResponse`).
        `storyFor`, not `story`: E2 cuts the chain to what this reader may open,
        and `hidden` is dropped because a count of what was cut is itself a leak. */
-    const [stageRows, approvals, story, row, contacts, events, signedRows] = await Promise.all([
-      this.repo.stageRows(),
-      this.approvals.pendingOn(code),
-      this.graph.storyFor(who, code),
-      this.facts.row(found),
-      this.facts.contacts(found),
-      this.repo.stageEventsOf(code),
-      found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
-    ])
+    const [stageRows, approvals, story, row, contacts, events, signedRows, hold] =
+      await Promise.all([
+        this.repo.stageRows(),
+        this.approvals.pendingOn(code),
+        this.graph.storyFor(who, code),
+        this.facts.row(found),
+        this.facts.contacts(found),
+        this.repo.stageEventsOf(code),
+        found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
+        this.repo.openHold(code),
+      ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
     return OpportunityProfileResponse.parse({
@@ -317,6 +320,7 @@ export class OpportunityService {
       contracts: profileContractsOf(signedRows),
       money: await this.quotes.money(who, found.row, signedRows),
       chain: story.chain.map(toChainLink),
+      hold: hold ? toHold(hold, vnDay(new Date())) : null,
     })
   }
 
@@ -452,7 +456,7 @@ export class OpportunityService {
       /* Keyed on the entry touch: whoever was written onto the new deal hears once. */
       const born = { code, label: written.name, actorId: who.id, before: [], after: pic }
       await announceOwners(tx, this.hub, { ...born, occurrence: entry })
-      await this.leadStates.converted(tx, [body.leadCode])
+      await this.leadStates.converted(tx, [body.leadCode], who.id)
       if (written.workstreamCode) await this.workstreams.syncClosed(tx, [written.workstreamCode])
       return written
     })

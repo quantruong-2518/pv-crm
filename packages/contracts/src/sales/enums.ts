@@ -83,12 +83,14 @@ export const ContractKind = z
  *   · `new` / `assigned` — no PIC yet / a PIC who has scheduled nothing yet
  *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
  *   · `working`    — first real touch: call, message, meeting held, any mail sent
- *   · `nurturing`  — parked, never expires; any real touch loops it back to `working`
- *   · `converted`  — the first opportunity was opened from it; the last live one
- *                    lost with nothing signed parks it in `nurturing` (ADR 0069 §3)
+ *   · `nurturing`  — parked by hand from `assigned`/`verifying`/`working`, never
+ *                    expires; any real touch loops it back to `working`
+ *   · `converted`  — the first opportunity was opened from it. Parks when the last
+ *                    live deal is lost unsigned, or by hand when nothing is live
+ *                    or signed (ADR 0069 §3, ADR 0097)
  *   · `disqualified` — a person pressed "stop caring"; out of the loop (ADR 0068)
- *
- *  Tier (prospect/mql/sql) belongs to no state. Not `StageKey`: that is the deal's. */
+ *  Tier belongs to no state, and neither does a hold (`./hold`, an overlay).
+ *  Not `StageKey`: that is the deal's. */
 export const LeadState = z.enum(
   ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified'],
   'Trạng thái lead không có trong danh sách',
@@ -122,12 +124,12 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   assigned: {
     does: 'Một người nhận phụ trách lead.',
     who: 'Người phụ trách (PIC); với mail hẹn giờ là người hẹn',
-    next: 'Có lịch chăm sóc thì sang Tạo chiến lược chăm sóc. Đã liên hệ khách thì sang Tình trạng chăm sóc.',
+    next: 'Có lịch chăm sóc thì sang Tạo chiến lược chăm sóc. Đã liên hệ khách thì sang Tình trạng chăm sóc. Tạm gác thì sang Nhóm chờ chăm sóc.',
   },
   verifying: {
     does: 'Đã lên lịch chăm sóc (họp sắp tới, mail hẹn giờ), chưa liên hệ khách.',
     who: 'PIC',
-    next: 'Liên hệ khách lần đầu (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc.',
+    next: 'Liên hệ khách lần đầu (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc. Tạm gác thì sang Nhóm chờ chăm sóc.',
   },
   working: {
     does: 'Đang chăm sóc. Mỗi lần liên hệ được ghi vào lịch sử.',
@@ -142,7 +144,7 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   converted: {
     does: 'Đã mở cơ hội đầu tiên từ lead này.',
     who: 'Người có quyền tạo cơ hội và sửa lead',
-    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Cơ hội cuối bị dừng mà chưa ký thì về Nhóm chờ chăm sóc.',
+    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Cơ hội cuối bị dừng mà chưa ký thì về Nhóm chờ chăm sóc, lead chưa có PIC thì Sale chính của cơ hội đó nhận. Không còn cơ hội nào chạy và chưa ký thì tạm gác được, lead sang Nhóm chờ chăm sóc.',
   },
   disqualified: {
     does: 'Có người bấm ngừng chăm sóc. Chiến dịch và mail không đưa lead này trở lại.',

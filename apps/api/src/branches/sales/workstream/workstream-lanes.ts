@@ -20,6 +20,7 @@ import {
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
 import { daysUntil, dueLevelOf, stepLevelOf } from '@pv/engines'
+import { toHold } from '../hold/hold.mapper'
 import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
@@ -148,7 +149,8 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
   const deals = [...input.deals]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.code.localeCompare(b.code))
     .map((deal) => dealOf(deal, input))
-  const lead = leadOf(read, input.all, rows, input.now, parkedOnDeal(input.all, deals, rows))
+  const onDeal = parkedOnDeal(input.all, deals, rows)
+  const lead = leadOf(read, input.all, rows, { now: input.now, today: input.today }, onDeal)
 
   return {
     code: row.code,
@@ -213,10 +215,11 @@ function leadOf(
   read: WorkstreamRead,
   deals: readonly OpportunityRowDb[],
   rows: LaneRows,
-  now: Date,
+  clock: { now: Date; today: string },
   onDeal: DealPark | null,
 ): { lead: JourneyLead; door: JourneyDoor | null } {
   const { lead } = read
+  const { now, today } = clock
   const trail = rows.leadTouches
   const firstDeal = deals.reduce<Date | null>(
     (min, d) => (min === null || d.createdAt < min ? d.createdAt : min),
@@ -296,6 +299,7 @@ function leadOf(
       state: lead.state,
       holder: personOf(lead.ownerId, read.saleName),
       rungs,
+      hold: holdOf(rows, lead.code, today),
     },
     door,
   }
@@ -405,7 +409,14 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
     nextAction: step && outcome === 'open' ? toNextStep(step, input.today) : null,
     contractCodes: signed.map((c) => c.code),
     stop: outcome === 'lost' ? stopOf(deal, events, rows) : null,
+    hold: holdOf(input.rows, deal.code, input.today),
   }
+}
+
+/** The open hold on one lead or deal of the journey, graded on `today`. */
+function holdOf(rows: LaneRows, code: string, today: string) {
+  const read = rows.holds.get(code)
+  return read ? toHold(read, today) : null
 }
 
 /** The quotation rung's drawer: one round per quote send, then each sign request,

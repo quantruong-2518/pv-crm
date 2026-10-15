@@ -8,6 +8,7 @@ import {
   InstallmentSummaryRow,
 } from './contract'
 import { ContractKind, CurrencyCode, StageKey } from './enums'
+import { Hold } from './hold'
 import { OpportunityContact, OpportunityRow } from './opportunity'
 import { QuotationRow } from './quotation'
 import { WorkstreamHolder } from './workstream'
@@ -46,7 +47,8 @@ export const OpportunityAct = z.discriminatedUnion('ok', [
  *  differ: `editTerms` (amount, expected close, products) is refused while a sign
  *  request is pending and on won or lost deals — the terms are what is being
  *  signed; `editDetails` (contacts, description, attachments) holds until lost,
- *  and also gates the contacts door. */
+ *  and also gates the contacts door. `hold` is the hold door: open deal,
+ *  on a stage, no sign request waiting, no hold already open. */
 export const OpportunityActs = z.object({
   activity: OpportunityAct,
   quotation: OpportunityAct,
@@ -56,6 +58,7 @@ export const OpportunityActs = z.object({
   assign: OpportunityAct,
   editTerms: OpportunityAct,
   editDetails: OpportunityAct,
+  hold: OpportunityAct,
 })
 
 /** Time the deal spent in one column. `leftAt: null` with `enteredAt` set is the
@@ -179,7 +182,13 @@ export const OpportunityProfileResponse = OpportunityRow.extend({
   money: OpportunityMoney,
   /** The graph's chain, permission-cut — rule 10: no screen assembles its own. */
   chain: z.array(ObjectChainLink),
+  /** The open hold; while set, the move, sign and quotation acts are refused
+   *  with the held-deal sentence. */
+  hold: Hold.nullable(),
 })
+
+/** `POST|PATCH /sales/opportunities/:code/hold` and `…/hold/end` (bodies in `./hold`). */
+export const OpportunityHoldResponse = OpportunityProfileResponse
 
 export type PendingSign = z.infer<typeof PendingSign>
 export type OpportunityAct = z.infer<typeof OpportunityAct>
@@ -192,3 +201,4 @@ export type OpportunityMoneyInstallment = z.infer<typeof OpportunityMoneyInstall
 export type OpportunityMoneyContract = z.infer<typeof OpportunityMoneyContract>
 export type OpportunityMoney = z.infer<typeof OpportunityMoney>
 export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
+export type OpportunityHoldResponse = z.infer<typeof OpportunityHoldResponse>

@@ -27,6 +27,7 @@ import { ACCEPTOR_LABEL, acceptorText } from '@/data/deal-sale'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { DueBadge } from '@/components/contract-bits'
+import { HoldMark } from '@/components/hold-strip'
 import { ContractInside } from '@/components/contract-inside'
 import { hasInside } from '@/components/contract-run'
 import {
@@ -296,6 +297,7 @@ export function LeadCard({ lead, box, ...track }: Track & { lead: Journey['lead'
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="LD" code={lead.code} {...track} />
         {status && <StatusPill status={status} />}
+        <HoldMark hold={lead.hold} due />
       </div>
       <Rail kind="lead" code={lead.code} rungs={railOf('lead', lead.rungs, null)} {...track} />
       <Holder person={lead.holder} />
@@ -377,6 +379,7 @@ export function DealCard({
           <span className="flex flex-wrap items-center gap-2">
             <CodePill kind="OP" code={deal.code} {...track} />
             <StatusPill status={status} />
+            <HoldMark hold={deal.hold} due />
           </span>
           <StopLine deal={deal} />
         </div>
@@ -413,8 +416,9 @@ export function DealCard({
         notes={{ assigned: acceptorNote(deal), engaged: activityNote(deal) }}
         {...track}
       />
-      <div className="flex">
+      <div className="flex flex-wrap items-center gap-2">
         <StatusPill status={status} />
+        <HoldMark hold={deal.hold} due />
       </div>
       <StopLine deal={deal} />
       {deal.outcome === 'open' && deal.nextAction && <NextAction action={deal.nextAction} />}

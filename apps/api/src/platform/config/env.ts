@@ -399,6 +399,10 @@ const Env = z
     PV_GMAIL_POLL_MINUTES: z.coerce.number().int().min(1).max(1440).default(10),
     /** How long after a letter was accepted its thread is still read. */
     PV_GMAIL_POLL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+
+    // HOLDS — the see-again reminders (`branches/sales/hold`)
+    /** How often the worker looks for holds owed a bell; the bells are by the day. */
+    PV_HOLD_REMINDER_MINUTES: z.coerce.number().int().min(1).max(1440).default(60),
   })
   /* Half a Google config reads as "off" with no error anywhere. */
   .refine(

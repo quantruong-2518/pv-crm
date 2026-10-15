@@ -112,6 +112,18 @@ export const CONFIG_ENTRIES = [
     criterionId: null,
   },
   {
+    id: 'EX-07',
+    list: 'EXIT_REASON',
+    name: 'Không phản hồi chiến dịch',
+    ord: 7,
+    active: true,
+    limitDays: null,
+    kind: null,
+    stage: null,
+    doNotContact: false,
+    criterionId: null,
+  },
+  {
     id: 'LR-01',
     list: 'LOSS_REASON',
     name: 'Giá cao hơn đối thủ',

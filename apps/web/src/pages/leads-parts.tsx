@@ -3,6 +3,7 @@ import {
   Button,
   Badge,
   CalendarCheck,
+  ColumnFilterList,
   CalendarDays,
   FileCheck,
   Handshake,
@@ -16,13 +17,15 @@ import {
   Users,
   percent,
 } from '@pv/ui'
-import { sourceKindLabel, type LeadMotion, type LeadRow } from '@pv/contracts'
+import { sourceKindLabel, type LeadLabel, type LeadMotion, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { AssignMenu } from '@/components/assign-menu'
 import { MomentCell } from '@/components/lead-cells'
-import { AvatarCell } from '@/components/table-bits'
+import { HoldMark } from '@/components/hold-strip'
+import { LabelChips } from '@/components/lead-labels'
+import { AvatarCell, FilterMenu } from '@/components/table-bits'
 import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
@@ -186,7 +189,7 @@ export function DisabledAtCell({ lead }: { lead: LeadRow }) {
  *  is an `fr` track, so an untruncated pill spills over the PIC column. */
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const face = LEAD_STATE_FACE[lead.state]
-  return (
+  const badge = (
     <Badge
       tone={face.badge}
       className={face.badge === 'draft' ? 'text-foreground max-w-full' : 'max-w-full'}
@@ -194,6 +197,51 @@ export function StatusCell({ lead }: { lead: LeadRow }) {
     >
       <span className="truncate">{face.label}</span>
     </Badge>
+  )
+  if (lead.labels.length === 0 && !lead.hold) return badge
+  /* Hold mark and waiting labels share ONE line under the pill: the row height
+     is fixed. The mark keeps its room; labels shrink to one and a "+N". */
+  return (
+    <span className="flex min-w-0 max-w-full flex-col items-start gap-1">
+      {badge}
+      <span className="flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-hidden">
+        <HoldMark hold={lead.hold} className="max-w-full shrink-0" />
+        <LabelChips
+          labels={lead.labels}
+          max={lead.hold ? 1 : 2}
+          className="max-w-full flex-nowrap"
+        />
+      </span>
+    </span>
+  )
+}
+
+const noop = () => {}
+
+/** The label filter (ADR 0097 §5): a lead carrying ANY picked label matches.
+ *  Options are the labels in use on the book, so none offers an empty list. */
+export function LabelFilterMenu({
+  labels,
+  selected,
+  onApply,
+}: {
+  labels: readonly LeadLabel[]
+  selected: string[]
+  onApply: (ids: string[]) => void
+}) {
+  return (
+    <FilterMenu label="Lọc sổ lead theo nhãn" active={selected.length > 0 ? 1 : 0}>
+      <section aria-label="Nhãn nhóm chờ" className="flex max-h-[280px] min-h-0 flex-col gap-2">
+        <h3 className="text-muted-foreground m-0 text-[12px] font-semibold">Nhãn nhóm chờ</h3>
+        <ColumnFilterList
+          options={labels.map((l) => ({ value: l.id, label: l.name }))}
+          selected={selected}
+          close={noop}
+          onApply={onApply}
+          emptyText="Chưa lead nào có nhãn."
+        />
+      </section>
+    </FilterMenu>
   )
 }
 

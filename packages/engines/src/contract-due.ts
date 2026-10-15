@@ -31,6 +31,9 @@ export type DueLevel = 'done' | 'upcoming' | 'due-soon' | 'due' | 'overdue' | 'l
  *  delivering" — and leaving it until month two is too late to matter. */
 export const DUE_NEAR_DAYS = 14
 export const DUE_LONG_OVERDUE_DAYS = 15
+/** A hold's "due soon" window (ADR 0097 §3): the owner's "half a month". Wider
+ *  than an installment's because a see-again date is set weeks or months out. */
+export const HOLD_DUE_NEAR_DAYS = 15
 
 const DAY_MS = 86_400_000
 
@@ -50,11 +53,17 @@ export function daysUntil(due: string, today: string): number {
 
 /** Level of one milestone. A present `doneAt` outranks everything else: an
  *  installment already collected is never "overdue", not even when it arrived
- *  late. The lateness lives in history, not in today's status. */
-export function dueLevelOf(due: string, today: string, doneAt?: string): DueLevel {
+ *  late. The lateness lives in history, not in today's status. `nearDays` opens
+ *  the near level; a hold passes `HOLD_DUE_NEAR_DAYS`. */
+export function dueLevelOf(
+  due: string,
+  today: string,
+  doneAt?: string,
+  nearDays: number = DUE_NEAR_DAYS,
+): DueLevel {
   if (doneAt) return 'done'
   const left = daysUntil(due, today)
-  if (left > DUE_NEAR_DAYS) return 'upcoming'
+  if (left > nearDays) return 'upcoming'
   if (left > 0) return 'due-soon'
   if (left === 0) return 'due'
   if (-left < DUE_LONG_OVERDUE_DAYS) return 'overdue'

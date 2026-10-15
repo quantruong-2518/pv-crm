@@ -14,20 +14,14 @@ import {
   SearchField,
   SegmentedControl,
 } from '@pv/ui'
-import {
-  LEAD_OPEN_STATES,
-  LeadBookQuery,
-  LeadState,
-  OWNER_NONE,
-  type LeadStateFilter,
-} from '@pv/contracts'
+import { LEAD_OPEN_STATES, LeadBookQuery, OWNER_NONE, type LeadStateFilter } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
-import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
+import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory, useSalesPeople } from '@/data/directory'
@@ -42,16 +36,19 @@ import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { BookQueueButton } from '@/components/book-queue-button'
 import { useBookSelection } from '@/components/book-selection'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
+import { HoldUntilCell } from '@/components/hold-strip'
 import { CompanyCell } from '@/components/lead-cells'
 import {
   DisabledAtCell,
   CreatedByCell,
   EnteredCell,
+  LabelFilterMenu,
   LeadPicCell,
   ScoreStrip,
   SourceCell,
   StatusCell,
 } from './leads-parts'
+import { STATE_TABS, stateTabOf, tabCount } from './leads-model'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
@@ -76,23 +73,6 @@ const PAGE_SIZE = 10
  *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
  *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
 
-/** The state tabs (ADR 0058). `open` is the default because the book is a work
- *  list; a dropped lead is still one tab away, since that is where "why did we
- *  lose it" is answered. Each key is a `LeadStateFilter` value, so it goes onto
- *  the URL and the wire unchanged.
- *
- *  Narrowing to ONE open state (every `assigned` lead, say) is the state select
- *  in the filter menu, not a sixth to ninth tab: a row of nine tabs has no
- *  first tab on a tablet. */
-type StateTab = 'open' | 'converted' | 'disqualified' | 'all'
-
-const STATE_TABS: { key: StateTab; label: string }[] = [
-  { key: 'open', label: 'Đang hoạt động' },
-  { key: 'converted', label: LEAD_STATE_FACE.converted.label },
-  { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
-  { key: 'all', label: 'Tất cả' },
-]
-
 /** Filter axes that count as "dirty" and that "clear all" resets — the schema's
  *  own keys; `disabled`, sort and tier/category are not among them. */
 const FILTER_KEYS = [
@@ -107,6 +87,7 @@ const FILTER_KEYS = [
   'createdTo',
   'state',
   'pinned',
+  'label',
 ] as const
 
 /** The pinned tab's value — `pinned=true` on the URL across every state, not a state. */
@@ -188,6 +169,7 @@ export function LeadsPage() {
      exactly the viewer's own leads, so a hand-picked owner list stays as is. */
   const mineOnly = meId !== undefined && query.owner === meId
   const disabledView = query.disabled === true
+  const heldView = !disabledView && !pinnedView && query.state === 'held'
 
   /* One read answers every tab — `byState` under the current search and source
      filter; `open` and `all` are sums the screen takes — and feeds the
@@ -197,28 +179,12 @@ export function LeadsPage() {
      wire's 'true'/'false', not the boolean the URL parse already produced. */
   const { data: counts } = useQuery(leadFacetsQuery({ ...urlQuery, disabled: undefined }))
   const byState = counts?.byState
-  const sumOf = (states: readonly LeadState[]) =>
-    byState && states.reduce((sum, state) => sum + (byState[state] ?? 0), 0)
-  const countOf = (key: StateTab) =>
-    key === 'open'
-      ? sumOf(LEAD_OPEN_STATES)
-      : key === 'all'
-        ? sumOf(LeadState.options)
-        : byState?.[key]
   const tabs = [
-    ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: countOf(t.key) })),
+    ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: tabCount(counts, t.key) })),
     { value: PINNED, label: 'Đã ghim', count: pinCount },
     ...(canDisable ? [{ value: DISABLED, label: 'Đã vô hiệu', count: counts?.disabled }] : []),
   ]
-  /* One open state picked in the filter menu still lights the `open` tab. */
-  const oneOpenState = isOpenState(query.state)
-  const tabValue = pinnedView
-    ? PINNED
-    : query.disabled
-      ? DISABLED
-      : oneOpenState
-        ? 'open'
-        : query.state
+  const tabValue = pinnedView ? PINNED : query.disabled ? DISABLED : stateTabOf(query.state)
   const onTab = (value: string) => {
     /* A selection never crosses the switched-off tab's edge: its action flips. */
     if ((value === DISABLED) !== disabledView) clearSelection()
@@ -239,6 +205,8 @@ export function LeadsPage() {
         states: value === 'open' ? query.states : undefined,
         disabled: undefined,
         pinned: undefined,
+        /* The held tab trades the created-date column for the hold's date. */
+        ...(value === 'held' ? { createdFrom: undefined, createdTo: undefined } : {}),
       })
   }
 
@@ -403,7 +371,9 @@ export function LeadsPage() {
           tabValue === 'open' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
         width: 'minmax(0,1.2fr)',
       },
-      { header: dateFilter, width: 'minmax(0,0.8fr)' },
+      heldView
+        ? { header: 'Ngày hẹn gặp lại', width: 'minmax(0,1fr)' }
+        : { header: dateFilter, width: 'minmax(0,0.8fr)' },
       /* A switched-off lead takes no hand-over and no pin: the two action
          columns give way to the one fact that tab adds. */
       ...(disabledView
@@ -450,7 +420,11 @@ export function LeadsPage() {
         />,
         <SourceCell key="s" lead={l} />,
         <StatusCell key="w" lead={l} />,
-        <EnteredCell key="d" lead={l} />,
+        heldView ? (
+          <span key="d">{l.hold && <HoldUntilCell hold={l.hold} />}</span>
+        ) : (
+          <EnteredCell key="d" lead={l} />
+        ),
         ...(disabledView
           ? [<DisabledAtCell key="x" lead={l} />]
           : [
@@ -576,6 +550,11 @@ export function LeadsPage() {
                   onPress={() => patch({ owner: mineOnly ? undefined : meId })}
                 />
               )}
+              <LabelFilterMenu
+                labels={counts?.labels ?? []}
+                selected={csvOf(query.label)}
+                onApply={(v) => patch({ label: v.length ? v.join(',') : undefined })}
+              />
               {dirty && (
                 <Button
                   size="md"

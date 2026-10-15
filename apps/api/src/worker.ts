@@ -9,6 +9,8 @@ import { NestFactory } from '@nestjs/core'
 import type { JobWithMetadata, PgBoss } from 'pg-boss'
 import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
+import { HoldReminderModule } from './branches/sales/hold/hold-reminder.module'
+import { HoldReminderSweeper } from './branches/sales/hold/hold-reminder.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
@@ -77,6 +79,8 @@ import {
 @Module({
   imports: [
     AppModule,
+    /* Worker-only: the HTTP process has no tick to drive it. */
+    HoldReminderModule,
     /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
        `MAIL_LEDGER` và `MAIL_PORT`. `LeadModule` vào cùng vì một trong hai bộ
        dựng thân mail do nhánh Sales cung cấp: `platform/` không được biết bảng
@@ -121,6 +125,7 @@ async function bootstrap(): Promise<void> {
   const gmailThreads = app.get(GmailThreadSweeper)
   const campaigns = app.get(CampaignSweeper)
   const gates = app.get(MailWaveGateSweeper)
+  const holds = app.get(HoldReminderSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -237,6 +242,10 @@ async function bootstrap(): Promise<void> {
     })
     void campaigns.sweep().catch((error: unknown) => {
       log.error(`Quét chiến dịch lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
+    void holds.sweep().catch((error: unknown) => {
+      log.error(`Hold reminders failed: ${error instanceof Error ? error.message : String(error)}`)
     })
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */

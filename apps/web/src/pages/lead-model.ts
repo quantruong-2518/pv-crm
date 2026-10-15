@@ -6,14 +6,17 @@ import {
   type JourneyRungState,
   type LeadProfile,
   type OpportunityLiveDeal,
+  type ContactListResponse,
   type TouchKind,
 } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
-import { isOpenState } from '@/data/lead-state'
+import { leadContactOf } from '@/data/comm-records'
+import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { StepSubject } from '@/data/next-step'
 import type { TouchEvent } from '@/data/touches'
 import type { AssignDoor } from '@/components/assign-door'
+import type { BarContact } from '@/components/record/action-bar'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { RungMark, TodoRung } from '@/components/record/todo-card'
 
@@ -161,6 +164,29 @@ export function momentText(iso: string): string {
   return `${HOUR.format(at)} ngày ${dmy(iso)}`
 }
 
+/** The floating bar's people: the lead's contacts, or its own contact line
+ *  while it has none on file. */
+export function barPeopleOf(
+  lead: LeadProfile,
+  contacts: ContactListResponse['rows'] | undefined,
+): BarContact[] {
+  return contacts && contacts.length > 0
+    ? contacts.map((c) => ({ ...c, primary: c.isPrimary, role: c.title }))
+    : [{ ...leadContactOf(lead), primary: true }]
+}
+
+/** Why the bar's mail row is shut, or `undefined` when it is open. A dropped
+ *  lead has left the funnel: no mail, said on every mail row. */
+export function mailBlockedOf(lead: LeadProfile, canSendEmail: boolean): string | undefined {
+  if (!canSendEmail) return 'Cần quyền gửi email cho lead.'
+  return lead.state === 'disqualified'
+    ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
+    : undefined
+}
+
+/** States with a holder still being worked — where parking and a hold start. */
+const WORKED: ReadonlySet<string> = new Set(['assigned', 'verifying', 'working'])
+
 /** The bar's more menu: the state moves the header does not hold, the
  *  hand-over and the pin. Same gates as the old toolbar's `…` menu; a door
  *  this reader cannot use is left out rather than shown shut. */
@@ -176,6 +202,7 @@ export function leadMoreChoices(
   doors: {
     onResume: () => void
     onNurture: () => void
+    onHold: () => void
     onAssign: () => void
     onPin: () => void
     onExit: () => void
@@ -187,17 +214,23 @@ export function leadMoreChoices(
      not signed — the same two refusals the exit door answers 409 with. */
   const noDeal = liveDeal.codes.length === 0 && liveDeal.hidden === 0 && !lead.signed
   const droppable = isOpenState(lead.state) || (lead.state === 'converted' && noDeal)
+  /* A held lead's ways out sit on its hold strip (ADR 0097 §3), not here. */
+  const free = can.write && lead.hold === null
   const choices: MenuChoice[] = []
 
-  if (can.write && lead.state === 'nurturing') {
+  if (free && lead.state === 'nurturing') {
     choices.push({ key: 'resume', label: 'Chăm lại', onSelect: doors.onResume })
   }
-  if (can.write && (lead.state === 'verifying' || lead.state === 'working')) {
+  /* ADR 0097 §1: a converted lead parks on the same terms it may be dropped. */
+  if (free && (WORKED.has(lead.state) || (lead.state === 'converted' && noDeal))) {
     choices.push({
       key: 'nurture',
       label: `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
       onSelect: doors.onNurture,
     })
+  }
+  if (free && lead.ownerId && (WORKED.has(lead.state) || lead.state === 'nurturing')) {
+    choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
   }
   if (!assign.shut) {
     choices.push({ key: 'assign', label: assign.label, onSelect: doors.onAssign })

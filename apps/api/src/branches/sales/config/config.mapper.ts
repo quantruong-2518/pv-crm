@@ -61,6 +61,7 @@ export function toUsage(tallies: UsageTally[]): ConfigUsage {
     STEP_KIND: {},
     QUOTE_REVISION_REASON: {},
     CONTRACT_KIND: {},
+    WAITING_LABEL: {},
     slots: {},
     roles: {},
     signedDeals: 0,
@@ -96,6 +97,7 @@ export function toBundle(rows: ConfigRowDb[], usage: ConfigUsage): ConfigBundle 
     STEP_KIND: [],
     QUOTE_REVISION_REASON: [],
     CONTRACT_KIND: [],
+    WAITING_LABEL: [],
     usage,
   }
   for (const row of rows) bundle[row.list].push(toContract(row))

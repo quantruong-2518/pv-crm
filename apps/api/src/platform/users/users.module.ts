@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nestjs/common'
 import { AuthModule } from '../auth/auth.module'
 import { NotificationModule } from '../notification/notification.module'
 import { RolesModule } from '../roles/roles.module'
@@ -7,6 +7,7 @@ import { ACTOR_CONSTRAINTS } from './users.constraints'
 import { UsersController } from './users.controller'
 import { UsersRepository } from './users.repository'
 import { UsersService } from './users.service'
+import { WORK_HANDOVER, type WorkHandover } from './work-handover'
 
 /** This module plugs its own constraint book into the database-error
  *  translator, the same one line `sales.module.ts` uses.
@@ -58,4 +59,18 @@ registerConstraints(ACTOR_CONSTRAINTS)
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],
 })
-export class UsersModule {}
+export class UsersModule {
+  /** The `CommsModule.withHook` shape: this module may not name a branch, so
+   *  the composition root hands over the class that answers "what does this
+   *  person still hold" and the module that exports it. */
+  static withHandover(wiring: {
+    imports: ModuleMetadata['imports']
+    handover: Type<WorkHandover>
+  }): DynamicModule {
+    return {
+      module: UsersModule,
+      imports: wiring.imports ?? [],
+      providers: [{ provide: WORK_HANDOVER, useExisting: wiring.handover }],
+    }
+  }
+}

@@ -26,6 +26,7 @@ import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { announceSigned } from './deal-money.bell'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
+import { DEAL_HELD_REFUSAL } from './opportunity-lifecycle'
 import { lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -338,6 +339,8 @@ export type SignFacts = {
   signed: boolean
   quoted: boolean
   hasSeller: boolean
+  /** A hold blocks the request, not the approval: none can be set while one waits. */
+  held: boolean
 }
 
 export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts => ({
@@ -346,6 +349,7 @@ export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts 
   signed: found.signed,
   quoted,
   hasSeller: found.hasSeller,
+  held: found.held,
 })
 
 /** The two refusals the approval re-checks when it applies. A won deal passes
@@ -365,6 +369,8 @@ export function signableVerdict(f: SignFacts): OpportunityAct {
  *  order — the door and the profile's `acts.sign` both read it. The SALE lane
  *  may stay empty until signing and no longer (ADR 0071 §4). */
 export function signVerdict(f: SignFacts & { pendingSign: boolean }): OpportunityAct {
+  /* First: resuming is the one press that leads anywhere on a held deal. */
+  if (f.held && !f.lost) return refuse(DEAL_HELD_REFUSAL)
   const signable = signableVerdict(f)
   if (!signable.ok) return signable
   if (!f.hasSeller)

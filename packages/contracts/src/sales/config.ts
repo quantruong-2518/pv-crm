@@ -85,6 +85,9 @@ export const ConfigList = z.enum([
   'QUOTE_REVISION_REASON',
   /** What a contract or quotation is for. `kind` on both stores the CK code. */
   'CONTRACT_KIND',
+  /** Free tags on a lead, mostly for the waiting group (ADR 0088 §5). Joined by
+   *  `sales.lead_label`, anchored on `config_id_list` like `PRODUCT`. */
+  'WAITING_LABEL',
 ])
 
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
@@ -100,12 +103,13 @@ export const CONFIG_LIST_LABEL: Record<ConfigList, string> = {
   CHANNEL: 'danh sách kênh',
   SOURCE: 'danh sách nguồn',
   PRODUCT: 'sản phẩm/dịch vụ',
-  LOSS_REASON: 'lý do vào danh sách chăm sóc',
+  LOSS_REASON: 'lý do dừng cơ hội',
   COMM_CRITERION: 'câu hỏi đánh giá liên hệ',
   COMM_ANSWER: 'câu trả lời đánh giá liên hệ',
   STEP_KIND: 'loại bước tiếp theo',
   QUOTE_REVISION_REASON: 'lý do báo giá lại',
   CONTRACT_KIND: 'loại hợp đồng',
+  WAITING_LABEL: 'nhãn nhóm chờ',
 }
 
 /** Tiền tố id của từng danh mục. Máy chủ sinh `<tiền tố>-<số thứ tự>`.
@@ -128,6 +132,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   STEP_KIND: 'SK',
   QUOTE_REVISION_REASON: 'QR',
   CONTRACT_KIND: 'CK',
+  WAITING_LABEL: 'WL',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -138,7 +143,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK|WL)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 
@@ -253,6 +258,8 @@ export const ConfigUsage = z.object({
   QUOTE_REVISION_REASON: Tally,
   /** Keyed by config id — contracts plus quotations carrying that kind. */
   CONTRACT_KIND: Tally,
+  /** Keyed by config id — leads carrying that label in `sales.lead_label`. */
+  WAITING_LABEL: Tally,
 
   /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
    *  the generated column `sales.lead.required_filled` sums over and the config
@@ -293,6 +300,7 @@ export const ConfigBundle = z.object({
   STEP_KIND: z.array(ConfigEntry),
   QUOTE_REVISION_REASON: z.array(ConfigEntry),
   CONTRACT_KIND: z.array(ConfigEntry),
+  WAITING_LABEL: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 

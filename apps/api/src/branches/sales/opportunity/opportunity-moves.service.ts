@@ -9,10 +9,10 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { notFound } from '@api/platform/http/problem'
-import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { endHolds, shiftDealClock } from '../hold/hold.sql'
 import { syncLeadRuns } from '../workstream/workstream-sync'
-import { LEAD_NURTURED_WITHHOLD, LeadStateWriter } from '../lead/lead-state'
+import { LeadStateWriter } from '../lead/lead-state'
 import { announceOpened } from './opportunity-bell'
 import { OpportunityFacts } from './opportunity-facts'
 import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
@@ -39,7 +39,6 @@ export class OpportunityMoves {
     private readonly lifecycle: OpportunityLifecycle,
     private readonly hub: NotificationHub,
     private readonly leadStates: LeadStateWriter,
-    private readonly mailRuns: MailRunRepository,
     private readonly facts: OpportunityFacts,
   ) {}
 
@@ -70,7 +69,8 @@ export class OpportunityMoves {
    *  One transaction for everything the stop causes: the bell line, the lead
    *  parked when this was its last live deal (ADR 0069 §3), the LEAD's run
    *  re-synced — the deal's own run code may be an older journey of the lead.
-   *  The lead is locked BEFORE the deal — the order the lead hand-over takes. */
+   *  The lead is locked BEFORE the deal — the order the lead hand-over takes.
+   *  Stopping a held deal is allowed and ends its hold (ADR 0097 §3). */
   async stop(
     who: Actor,
     code: ObjectCode,
@@ -83,6 +83,9 @@ export class OpportunityMoves {
       /* A lead switched off meanwhile: `locked` re-reads the deal and 404s. */
       const [lead] = await this.deals.lockLeads(tx, [found.row.leadCode])
       const fresh = await this.locked(tx, who, code)
+      /* The held time leaves the column clock first, so `days_in_from` excludes it. */
+      const [ended] = await endHolds(tx, 'opportunity', [code], 'stopped', who.id)
+      if (ended) fresh.row = { ...fresh.row, stageSince: await shiftDealClock(tx, code, ended) }
       const written = await this.lifecycle.stop(tx, fresh, mover(who), body, at)
       const accepted = written.acceptedById !== null
       const dead = { code, name: written.name, actorId: who.id, accepted }
@@ -99,7 +102,8 @@ export class OpportunityMoves {
         )
       }
       const parked =
-        (await this.deals.allLost(tx, written.leadCode)) && (await this.parkLead(tx, who, written))
+        (await this.deals.allLost(tx, written.leadCode)) &&
+        (await this.parkLead(tx, who, written, { lead, sale: primarySaleOf(fresh.owners) }))
       if (!parked) await syncLeadRuns(tx, [written.leadCode])
       return written
     })
@@ -107,19 +111,23 @@ export class OpportunityMoves {
     return OpportunityStopResponse.parse(await this.answer(found, row, at))
   }
 
-  /** The lead goes back to waiting (the state writer re-syncs its run); parked
-   *  means parked, so its unsent mail is held like the lead's own nurture door
-   *  holds it (ADR 0068 §6). `true` when the lead moved. */
-  private async parkLead(tx: Db, who: Actor, deal: OpportunityRead['row']): Promise<boolean> {
-    const landed = await this.leadStates.dealsLost(tx, deal.leadCode, mover(who), NOTE.lastLost)
-    if (landed === 'nurturing') {
-      await this.mailRuns.withholdSubject(
-        tx,
-        { aggregateType: 'lead', aggregateId: deal.leadCode },
-        LEAD_NURTURED_WITHHOLD,
-      )
+  /** The lead goes back to waiting (the state writer re-syncs its run and
+   *  withholds its mail, ADR 0068 §6). A lead nobody holds first takes the lost
+   *  deal's primary Sale, else the stopper (ADR 0097 §2), credited to the
+   *  stopper — no `lead-received` line: the stop's `opportunity-lost` reaches
+   *  them already. `true` when the lead moved. */
+  private async parkLead(
+    tx: Db,
+    who: Actor,
+    deal: OpportunityRead['row'],
+    on: { lead: LockedLead | undefined; sale: { id: string } | null },
+  ): Promise<boolean> {
+    if (on.lead && on.lead.ownerId === null && on.lead.state === 'converted') {
+      /* A locked primary Sale cannot hold a lead: the stopper takes it. */
+      const sale = on.sale ? await this.deals.liveActor(tx, on.sale.id) : undefined
+      await this.leadStates.claimed(tx, [on.lead], sale ?? who, who, false)
     }
-    return landed !== null
+    return this.leadStates.dealsLost(tx, deal.leadCode, mover(who), NOTE.lastLost.nurturing)
   }
 
   /** The same two refusals every read door of this module makes, in the same
@@ -134,12 +142,20 @@ export class OpportunityMoves {
    *  included, so an owners edit that landed while this waited is judged too.
    *  `pendingSign` comes from the LOCK read: it is the fact a move must never
    *  race with the sign door's own apply step. */
-  async locked(tx: Db, who: Actor, code: ObjectCode): Promise<DealAt & { ownerIds: string[] }> {
+  async locked(
+    tx: Db,
+    who: Actor,
+    code: ObjectCode,
+  ): Promise<DealAt & { ownerIds: string[]; owners: OpportunityRead['owners'] }> {
     const lock = await this.deals.lockDeal(tx, code)
     if (!lock) throw notFound('cơ hội', code)
     const fresh = await this.deals.byCode(who, code, tx)
     if (!fresh || !fresh.inScope) throw notFound('cơ hội', code)
-    return { ...dealAtOf(fresh, lock.pendingSign), ownerIds: fresh.owners.map((o) => o.id) }
+    return {
+      ...dealAtOf(fresh, lock.pendingSign),
+      ownerIds: fresh.owners.map((o) => o.id),
+      owners: fresh.owners,
+    }
   }
 
   /** The book row, built from the row the move returned plus the labels the read
@@ -154,3 +170,11 @@ export class OpportunityMoves {
 }
 
 const mover = (who: Actor) => ({ id: who.id, name: who.name })
+
+/** The deal's primary Sale (ADR 0086), or none when its SALE lane is empty. */
+const primarySaleOf = (owners: OpportunityRead['owners']) => {
+  const sale = owners.find((o) => o.role === 'SALE' && o.primary)
+  return sale ? { id: sale.id } : null
+}
+
+type LockedLead = Awaited<ReturnType<OpportunityRepository['lockLeads']>>[number]

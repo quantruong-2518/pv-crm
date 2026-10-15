@@ -32,6 +32,8 @@ import { SettingModule } from './platform/setting/setting.module'
 import { SessionModule } from './platform/session/session.module'
 import { StorageModule } from './platform/storage/storage.module'
 import { UsersModule } from './platform/users/users.module'
+import { HandoverModule } from './branches/sales/handover/handover.module'
+import { SalesWorkHandover } from './branches/sales/handover/handover.service'
 import { RolesModule } from './platform/roles/roles.module'
 
 /** Gốc của app. Hai nhóm import, và ranh giới giữa chúng là luật:
@@ -75,7 +77,7 @@ import { RolesModule } from './platform/roles/roles.module'
        people book, so reading this list has to show that the server has them.
        Filed under `platform/` rather than a branch because `platform.actor`
        belongs to no product line; `users.module.ts` writes that out in full. */
-    UsersModule,
+    UsersModule.withHandover({ imports: [HandoverModule], handover: SalesWorkHandover }),
     /* Right after `UsersModule` and for the matching reason: `/users` decides
        who gets in, `/roles` decides what they may do once in, and the two
        screens sit side by side under Admin. It is also the module that owns

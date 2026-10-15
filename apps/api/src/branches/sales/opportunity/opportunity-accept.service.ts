@@ -10,7 +10,12 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { TouchService } from '../touch/touch.service'
-import { boardVerdict, dealAtOf, OpportunityLifecycle } from './opportunity-lifecycle'
+import {
+  boardVerdict,
+  DEAL_HELD_REFUSAL,
+  dealAtOf,
+  OpportunityLifecycle,
+} from './opportunity-lifecycle'
 import { announceAccepted, announceOwners } from './opportunity-bell'
 import {
   actorRoles,
@@ -100,7 +105,7 @@ export class OpportunityAccept {
       const owner = await this.holderAfter(tx, fresh, by)
       const moved = await this.lifecycle.assigned(
         tx,
-        { row: fresh.row, owner, signed: false, pendingSign: false },
+        { row: fresh.row, owner, signed: false, pendingSign: false, held: fresh.held },
         by,
         at,
       )
@@ -187,6 +192,8 @@ const DAY_MONTH = new Intl.DateTimeFormat('en-GB', {
 export function acceptVerdict(found: OpportunityRead, pendingSign: boolean): OpportunityAct {
   const board = boardVerdict(dealAtOf(found, pendingSign), 'nhận PIC')
   if (!board.ok) return board
+  /* Accepting moves the column, and a held deal's column does not move. */
+  if (found.held) return { ok: false, reason: DEAL_HELD_REFUSAL }
   return board.stage === 'new' ? { ok: true } : { ok: false, reason: alreadyAccepted(found) }
 }
 

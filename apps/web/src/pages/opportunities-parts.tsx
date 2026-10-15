@@ -1,11 +1,14 @@
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  ArrowRight,
   Button,
   CircleX,
   SearchField,
   SegmentedControl,
   Select,
   FileCheck,
+  Icon,
   StatCard,
   Target,
   Wallet,
@@ -57,6 +60,8 @@ export function BookTabs({
     opportunityFacetQuery(facetsQueryOf({ ...query, pinned: undefined, stopReason: undefined })),
   )
   const pinCount = usePins('opportunity').codes.length
+  /* `/sales/holds` is a `lead.view` screen; a deal-only reader gets no dead link. */
+  const canSeeHolds = useCan('lead.view')
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <SegmentedControl
@@ -82,6 +87,16 @@ export function BookTabs({
       />
       <StopReasonFilter query={query} patch={onPatch} />
       <BookCount total={total} noun="cơ hội" hidden={hidden} />
+      {/* Held deals are off the book and the board; the hold list is where they wait. */}
+      {canSeeHolds && (facets?.held ?? 0) > 0 && (
+        <Link
+          to="/sales/holds"
+          className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 text-[11.5px] font-semibold hover:underline"
+        >
+          <span className="tnum">{facets?.held}</span> cơ hội đang tạm hoãn
+          <Icon icon={ArrowRight} size={16} />
+        </Link>
+      )}
     </div>
   )
 }

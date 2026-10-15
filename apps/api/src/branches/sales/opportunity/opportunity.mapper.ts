@@ -242,7 +242,8 @@ export const NOTE = {
       : `${OPPORTUNITY_STATE_LABEL.lost} · ${reasonKey}`,
 
   /** On the LEAD, when the stop above was its last live deal (ADR 0069 §3).
-   *  No deal code: the lead's readers may not see the deal. */
+   *  No deal code: the lead's readers may not see the deal. The stop door only
+   *  writes `nurturing` now (ADR 0097 §2); `new` is kept for `seed.ts`. */
   lastLost: {
     nurturing: 'Cơ hội cuối đã dừng — lead về nhóm chờ chăm sóc',
     new: 'Cơ hội cuối đã dừng — lead không có người giữ nên về kho chung',

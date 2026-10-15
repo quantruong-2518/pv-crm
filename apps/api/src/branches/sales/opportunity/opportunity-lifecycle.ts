@@ -59,14 +59,25 @@ export type DealAt = {
    *  row lock a move takes, so the answer is the approval the apply step will
    *  actually see — not one a screen was looking at a moment earlier. */
   pendingSign: boolean
+  /** An open hold (ADR 0097 §3), from the same in-transaction re-read. */
+  held: boolean
 }
+
+/** What every door refuses on a held deal but the stop and the hand-over. */
+export const DEAL_HELD_REFUSAL = 'Cơ hội đang tạm hoãn. Bấm Mở lại trước.'
 
 /** A read deal → what a move needs. The mirror row names the deal's holder
  *  (`holderOf`, ADR 0071 §5), as every door that writes it does. */
 export const dealAtOf = (
-  found: { row: OpportunityRowDb; holder: RefOwner | null; signed: boolean },
+  found: { row: OpportunityRowDb; holder: RefOwner | null; signed: boolean; held: boolean },
   pendingSign: boolean,
-): DealAt => ({ row: found.row, owner: found.holder, signed: found.signed, pendingSign })
+): DealAt => ({
+  row: found.row,
+  owner: found.holder,
+  signed: found.signed,
+  pendingSign,
+  held: found.held,
+})
 
 type By = { id: string; name: string }
 
@@ -135,13 +146,31 @@ export class OpportunityLifecycle {
 
   /** The earliest moment each care door accepts (ADR 0072 §3–4): an activity
    *  from the acceptance; a quotation from entry into the current column, or on
-   *  a won deal from its latest signing. The door and the profile both ask here. */
+   *  a won deal from its latest signing. The door and the profile both ask here.
+   *  Entry is the stage event, not `stage_since`: a resumed hold shifts that. */
   async floors(handle: Db, deal: DealAt): Promise<CareFloors> {
-    const [accepted, signedAt] = await Promise.all([
+    const [accepted, signedAt, entered] = await Promise.all([
       this.acceptedAt(handle, deal.row),
       deal.signed ? this.lastSignedAt(handle, deal.row.code) : null,
+      deal.signed ? null : this.enteredAt(handle, deal.row),
     ])
-    return { activity: accepted, quotation: signedAt ?? deal.row.stageSince ?? deal.row.createdAt }
+    const quotation = signedAt ?? entered ?? deal.row.stageSince ?? deal.row.createdAt
+    return { activity: accepted, quotation }
+  }
+
+  /** The last time the deal entered the column it stands in; `null` off the board. */
+  private async enteredAt(handle: Db, row: OpportunityRowDb): Promise<Date | null> {
+    if (row.stage === null) return null
+    const [r] = await handle
+      .select({ at: max(opportunityStageEvent.at) })
+      .from(opportunityStageEvent)
+      .where(
+        and(
+          eq(opportunityStageEvent.opportunityCode, row.code),
+          eq(opportunityStageEvent.toStage, row.stage),
+        ),
+      )
+    return r?.at ?? null
   }
 
   /** A care activity: repeatable, in any order, never at `new`. Only the first
@@ -411,13 +440,25 @@ export function boardVerdict(deal: DealAt, action: string): StageVerdict<StageKe
   return { ok: true, stage: deal.row.stage }
 }
 
+/** The hold door (ADR 0097 §3): an open deal on a stage, no sign request waiting
+ *  (`boardVerdict`), and no hold already open. */
+export function holdVerdict(deal: DealAt): StageVerdict<StageKey> {
+  const board = boardVerdict(deal, 'tạm hoãn')
+  if (!board.ok) return board
+  if (deal.held) return refuse(`Cơ hội ${deal.row.code} đang tạm hoãn rồi.`)
+  return board
+}
+
 /** The two milestone doors by kind (ADR 0072 §3, owner decision 01/10): open
  *  from `assigned` until lost — a pending sign does not close them, and on a
- *  won deal (`stage: null`) they write the timeline row only. Never at `new`. */
+ *  won deal (`stage: null`) they write the timeline row only. Never at `new`.
+ *  Refused while held. */
 export function careVerdict(deal: DealAt, door: CareDoor): StageVerdict<StageKey | null> {
   const code = deal.row.code
   if (deal.row.state === 'lost') return refuse(lostSentence(code, 'ghi hoạt động hay báo giá'))
   if (deal.signed) return { ok: true, stage: null }
+  /* Its clock is stopped: an activity may move the column, a quotation does. */
+  if (deal.held) return refuse(DEAL_HELD_REFUSAL)
   if (deal.row.stage === null) return refuse(`Cơ hội ${code} đã ra khỏi bảng, không ghi được.`)
   if (deal.row.stage !== 'new') return { ok: true, stage: deal.row.stage }
   return refuse(

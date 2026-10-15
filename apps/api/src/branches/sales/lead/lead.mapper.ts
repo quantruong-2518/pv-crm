@@ -1,11 +1,15 @@
 import type { ObjectRef } from '@pv/engines'
 import type {
+  Hold,
+  LeadLabel,
   LeadMailEventRow,
   LeadMailTimelineRow,
   LeadProfile,
   LeadRow,
   MailRunState,
 } from '@pv/contracts'
+import { toHold } from '../hold/hold.mapper'
+import type { HoldRead } from '../hold/hold.sql'
 import type { LeadRowDb } from './lead.schema'
 
 /** One row of `LeadRepository.mailTimeline()`, in the DRIVER's own spelling.
@@ -102,6 +106,10 @@ export type LeadRead = {
   signed: boolean
   /** From the book's correlated subquery; absent on write-door re-reads. */
   duplicateOf?: (string | null)[] | null
+  /** Waiting labels, read beside the row (`labelsOf`) like a deal's products. */
+  labels: LeadLabel[]
+  /** The open hold, read beside the row (`openHoldsOf`); `null` when none. */
+  hold: HoldRead | null
 }
 
 /** The two halves of an origin, assembled into the one object the wire carries.
@@ -148,8 +156,9 @@ function sourceOf({ row, campaignName, originName, partnerName }: LeadRead) {
  *
  *  Hai mươi trường hồ sơ (`pain`, `budget`, `decision_maker`…) CỐ TÌNH vắng:
  *  chúng thuộc hợp đồng của `GET /sales/leads/:code`, không thuộc dòng sổ —
- *  `toProfile` ở cuối file chở chúng, và nó GỌI hàm này chứ không chép lại. */
-export function toContract(read: LeadRead): LeadRow {
+ *  `toProfile` ở cuối file chở chúng, và nó GỌI hàm này chứ không chép lại.
+ *  `today` is the caller's Vietnam day (`vnDay`), the day the hold pill is graded on. */
+export function toContract(read: LeadRead, today: string): LeadRow {
   const { row, daysHere, ownerName, ownerEmail, signed } = read
   return {
     code: row.code,
@@ -181,8 +190,12 @@ export function toContract(read: LeadRead): LeadRow {
     ...(row.exitedAt ? { exitedAt: row.exitedAt.toISOString() } : {}),
     ...(read.duplicateOf?.length ? { duplicateOf: read.duplicateOf } : {}),
     ...(row.disabledAt ? { disabledAt: row.disabledAt.toISOString() } : {}),
+    labels: read.labels,
+    hold: read.hold ? pill(toHold(read.hold, today)) : null,
   }
 }
+
+const pill = ({ until, dueLevel }: Hold) => ({ until, dueLevel })
 
 /** Một hồ sơ đã đọc xong: dòng sổ, cộng hai người được ghi công.
  *
@@ -229,10 +242,11 @@ export type LeadProfileRead = LeadRead & {
  *  verdict about the reader rather than a fact of the row. */
 export function toProfile(
   read: LeadProfileRead,
-): Omit<LeadProfile, 'position' | 'chain' | 'canEdit'> {
+  today: string,
+): Omit<LeadProfile, 'position' | 'chain' | 'canEdit' | 'hold'> {
   const { row } = read
   return {
-    ...toContract(read),
+    ...toContract(read, today),
 
     ...(row.legalName ? { legalName: row.legalName } : {}),
     ...(row.taxCode ? { taxCode: row.taxCode } : {}),
