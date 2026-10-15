@@ -52,7 +52,7 @@ export function leadRungsOf(
   return steps.map(({ key, state, day }) => ({
     key,
     label: LEAD_STATE_LABEL[key],
-    mark: MARK[state],
+    mark: state === 'stopped' && lead.state === 'nurturing' ? 'waiting' : MARK[state],
     late: false,
     caption:
       state === 'stopped'
@@ -161,7 +161,7 @@ export function momentText(iso: string): string {
   return `${HOUR.format(at)} ngày ${dmy(iso)}`
 }
 
-/** The bar's more menu: the state moves the todo card does not hold, the
+/** The bar's more menu: the state moves the header does not hold, the
  *  hand-over and the pin. Same gates as the old toolbar's `…` menu; a door
  *  this reader cannot use is left out rather than shown shut. */
 export function leadMoreChoices(

@@ -49,8 +49,8 @@ export type RecordShellProps = {
 
 /* One grid for the page and its skeleton, so the wait has the page's shape.
    It splits at `xl`: 1024px is the tablet, which stacks (devices.md). */
-const GRID = 'grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_400px] xl:gap-6'
-const COLUMN = 'flex min-w-0 flex-col gap-4'
+const GRID = 'grid min-w-0 items-start gap-5 lg:gap-6 xl:grid-cols-[minmax(0,1fr)_400px]'
+const COLUMN = 'flex min-w-0 flex-col gap-5 lg:gap-6'
 /** The floating bar's band (24px off the bottom + 64px tall) plus a 16px gap,
  *  so a pinned tall rail ends above it. */
 const ACTION_BAR_INSET = 104
@@ -108,7 +108,7 @@ function RecordSkeleton({ strip, rail }: { strip: boolean; rail: boolean }) {
       </div>
       <div className={rail ? GRID : COLUMN}>
         <div className={COLUMN}>
-          <Skeleton height={240} />
+          <Skeleton height={128} />
           <Skeleton height={96} delay={200} />
         </div>
         {rail && (

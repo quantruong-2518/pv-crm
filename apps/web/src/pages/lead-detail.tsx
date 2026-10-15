@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, ArrowRight } from '@pv/ui'
+import { AppShell } from '@pv/ui'
 import type { LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
@@ -96,6 +96,10 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const canSendEmail = useCan('lead.send-email')
   const canConvert = useCan('opportunity.create') && lead.canEdit
   const canAssign = useCan('lead.assign')
+  const convert =
+    canConvert && !off && (isOpenState(lead.state) || lead.state === 'converted')
+      ? () => setConverting(true)
+      : undefined
   const pin = usePinToggle('lead', lead.code)
   const liveDeal = useQuery(opportunitiesOfLeadQuery(lead.code)).data ?? EMPTY_LIVE_DEAL
   const contacts = useQuery(leadContactsQuery(lead.code)).data?.rows
@@ -161,7 +165,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           />
         </>
       }
-      header={<LeadHeader lead={lead} readOnly={dealReach} />}
+      header={<LeadHeader lead={lead} readOnly={dealReach} onConvert={convert} />}
       main={
         <>
           <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
@@ -198,11 +202,6 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             mailBlocked={mailBlocked}
             onCompose={() => setComposing(true)}
             more={more}
-            primary={
-              canConvert && (isOpenState(lead.state) || lead.state === 'converted')
-                ? { label: 'Mở cơ hội', icon: ArrowRight, onClick: () => setConverting(true) }
-                : undefined
-            }
           />
         )
       }

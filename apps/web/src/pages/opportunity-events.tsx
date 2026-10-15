@@ -48,7 +48,7 @@ const KIND_OPTIONS = [
 const isActivity = (v: string): v is (typeof CARE_ACTIVITY_KINDS)[number] =>
   (CARE_ACTIVITY_KINDS as readonly string[]).includes(v)
 
-/** Opened from the todo card or the bar's more menu; whether the door shows is
+/** Opened from the header or the bar's more menu; whether the door shows is
  *  the server's `acts.activity`. Mount it with a fresh `key` per opening, so its
  *  form and phase start clean. */
 export function DealEventModal({

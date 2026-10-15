@@ -1,41 +1,32 @@
 import type { ReactNode } from 'react'
 import { Badge, Button, Icon, cn, type IconGlyph } from '@pv/ui'
-import { campaignLabel, type LeadProfile, type OpportunityProfileResponse } from '@pv/contracts'
-import { dmy } from '@/lib/date'
-import { acceptorText, noSellerSentence } from '@/data/deal-sale'
-import {
-  BADGE_INK,
-  STATE_TONE,
-  bdOwnersOf,
-  laneText,
-  namesOf,
-  saleOwnersOf,
-  standingLabel,
-} from '@/data/opportunities'
+import type { OpportunityProfileResponse } from '@pv/contracts'
+import { BADGE_INK, STATE_TONE, standingLabel } from '@/data/opportunities'
 import { RecordHeader } from '@/components/record/record-header'
-import { customerTagOf } from './opportunity-model'
+import { DealPrimary } from './opportunity-moves'
+import { customerTagOf, hasDealMoves, type DealPrimaryState } from './opportunity-model'
 
 /** Module 3 · the header of the deal screen, and the block the new-deal page
  *  draws when it will not open.
  *
- *  The header reads customer → where the deal stands → its code, small,
- *  then one meta line — the deal's name, the people on it, the lead's source,
- *  the day it was opened, and the run's customer tag (ADR 0076 §3).
- *  The name is edited from the description card, so the title has no pencil.
- *  The owners live here and nowhere else (ADR 0078 §1). A missing seller is
- *  said with the button it blocks, in the warning tone while the deal is open. */
+ *  The header reads customer → where the deal stands → its code, small, with
+ *  the deal's moves on the right (ADR 0078 §1, reshaped 14/10) and, when the
+ *  sign door is shut, the reason on a line under it. No meta pills: the people
+ *  are in the rail, the terms and the description in the cards. One muted line
+ *  under the title says the deal's name and its customer tag. The name is
+ *  edited from the description card, so the title has no pencil. */
 export function DealHeader({
   op,
-  lead,
+  primary,
+  onSign,
+  onQuote,
 }: {
   op: OpportunityProfileResponse
-  /** The origin lead; `null` while unread or out of the reader's scope. */
-  lead: LeadProfile | null
+  /** `primaryStateOf` — read once by the page, which also feeds the more menu. */
+  primary: DealPrimaryState
+  onSign: () => void
+  onQuote: () => void
 }) {
-  const bd = namesOf(bdOwnersOf(op))
-  const sellers = saleOwnersOf(op)
-  const pic = acceptorText(op)
-
   return (
     <RecordHeader
       title={
@@ -52,23 +43,13 @@ export function DealHeader({
           </span>
         </>
       }
-      meta={[
-        op.name,
-        bd.length > 0 && `BD ${bd.join(', ')}`,
-        pic && `PIC ${pic}`,
-        sellers.length > 0 ? (
-          `Sale ${laneText(sellers)}`
-        ) : op.state === 'lost' ? (
-          'Chưa có Sale'
-        ) : (
-          <span className={op.state === 'open' ? 'text-warning' : undefined}>
-            {noSellerSentence(op.state === 'won', op.acts.assign.ok)}
-          </span>
-        ),
-        lead && campaignLabel(lead.source),
-        <span className="tnum">tạo {dmy(op.createdAt)}</span>,
-        customerTagOf(op),
-      ]}
+      actions={
+        hasDealMoves(primary) ? (
+          <DealPrimary op={op} state={primary} onSign={onSign} onQuote={onQuote} />
+        ) : undefined
+      }
+      subtitle={[op.name, customerTagOf(op)].filter(Boolean).join(' · ')}
+      note={primary.note}
     />
   )
 }

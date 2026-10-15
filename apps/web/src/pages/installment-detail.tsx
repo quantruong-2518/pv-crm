@@ -232,6 +232,7 @@ function ConditionsTodo({
     <TodoCard
       rungs={installment.conditions.map((c) => conditionRung(c, blocking?.id === c.id, now))}
       rungsLabel="Điều kiện mở khoá"
+      layout="list"
       next={
         blocking && (
           <div className="flex flex-col items-start gap-2">

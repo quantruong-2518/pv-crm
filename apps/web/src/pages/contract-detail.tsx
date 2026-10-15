@@ -24,6 +24,7 @@ import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordCard } from '@/components/record/record-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
+import { ContractStanding } from '@/components/contract-bits'
 import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -110,7 +111,12 @@ function ContractScreen({ contract }: { contract: Contract }) {
       }
       header={
         <RecordHeader
-          title={run.title}
+          title={
+            <>
+              {run.title}
+              <ContractStanding views={views} className="ml-3 align-middle tracking-normal" />
+            </>
+          }
           meta={[
             /* Unless the title already fell back to it. */
             kind && kind !== run.title && `loại ${kind}`,

@@ -1,6 +1,6 @@
 # 0079 · Lead profile review: meta facts as pills, the primary move on the bar, industry tags
 
-Status: accepted (narrows 0078 §1 and §2 on where the primary move sits)
+Status: accepted (narrows 0078 §1 and §2 on where the primary move sits); §2 and §3 partly superseded 14/10/2026 by 0078's Amendment 14/10/2026
 Source: project owner's decisions, review of the lead profile screen, 05/10/2026
 
 Not to be confused: ADR 0078 (`0078-profiles-share-one-shell-with-a-run-rail.md`)
@@ -21,7 +21,8 @@ applies to all profiles. It replaces "one meta line" in 0078 §1.
 The record's primary move may live on the floating action bar
 (`apps/web/src/components/record/action-bar.tsx`), drawn last, instead of in the
 todo card (`apps/web/src/components/record/todo-card.tsx`). Decided for the lead:
-"Mở cơ hội".
+"Mở cơ hội". [Superseded 14/10/2026: the lead's "Mở cơ hội" now lives in the
+profile header, not on the floating bar.]
 
 This **narrows 0078 §1**, which said the primary move sits in the todo card and
 not on the bar (and 0078 §2, "the primary move leaves the floating bar for the
@@ -34,12 +35,15 @@ still drawn only from a server verdict (0078 §3, 0076 §4).
 
 ### 3 · Lead todo card and run strip wording
 
-- The todo card on the lead is titled "Tiến trình lead".
+- ~~The todo card on the lead is titled "Tiến trình lead".~~ [Superseded
+  14/10/2026: the card has no visible title.]
 - The run-strip link "Xem cây lượt" is now "Tiến trình tổng"
   (`apps/web/src/components/record/run-strip.tsx`).
 - A rung with no date shows a short state word on its second line instead of
   staying empty.
-- Rung cells size to their label.
+- ~~Rung cells size to their label.~~ [Superseded 14/10/2026: the stepper is
+  connected with equal-width rungs; free-text checklists such as installment
+  conditions use a list layout.]
 
 ### 4 · "Số nhà máy" leaves the lead and company forms
 

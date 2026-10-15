@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import type { DueLevel } from '@pv/engines'
-import type { ConditionSide, Installment } from '@/data/contracts'
+import type { ConditionSide, Installment, InstallmentView } from '@/data/contracts'
 import { DUE_LABEL } from '@/data/contracts'
 
 /** The three pieces every contract screen repeats. They live here rather than in
@@ -15,6 +15,30 @@ const TONE: Record<DueLevel, 'draft' | 'warning' | 'success' | 'danger'> = {
   due: 'warning',
   overdue: 'danger',
   'long-overdue': 'danger',
+}
+
+/** Where the contract stands in collecting, said the way the book's tabs say
+ *  it (the contract itself stores no state): any installment overdue, else
+ *  every one paid, else still collecting. */
+export function ContractStanding({
+  views,
+  className,
+}: {
+  views: InstallmentView[]
+  className?: string
+}) {
+  const overdue = views.some((v) => v.level === 'overdue' || v.level === 'long-overdue')
+  const collected = views.length > 0 && views.every((v) => v.installment.paidAt)
+  const [tone, label] = overdue
+    ? (['danger', 'Quá hạn'] as const)
+    : collected
+      ? (['success', 'Đã thu đủ'] as const)
+      : (['running', 'Đang thu'] as const)
+  return (
+    <Badge tone={tone} className={className}>
+      {label}
+    </Badge>
+  )
 }
 
 /** The level badge. Colour alone never carries it — the word is always there,

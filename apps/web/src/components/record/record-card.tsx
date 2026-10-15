@@ -7,8 +7,7 @@ import { GlassCard, cn, sectionTitleVariants } from '@pv/ui'
  *  `work` carries the 16px title of a working card. `reference` (description,
  *  forms) is set lighter: a 14px muted title and no lift — the inset sheen
  *  stays, so it still reads as a card in Aurora. `.glass-a`: a body card is
- *  neither a table nor a long list (law 8). The todo card is heavier on
- *  purpose and keeps its own frame. */
+ *  neither a table nor a long list (law 8). */
 export function RecordCard({
   title,
   tone = 'work',

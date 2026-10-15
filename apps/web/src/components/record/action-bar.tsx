@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BrandMark, Button, ChevronDown, Contact, Icon, cn, type IconGlyph } from '@pv/ui'
+import { BrandMark, ChevronDown, Contact, cn } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { phoneText } from '@/lib/phone'
@@ -15,8 +15,8 @@ import {
 import { MenuButton, type MenuChoice } from './menu-button'
 
 /** The floating bar of every profile — reach a contact, and a more menu for
- *  the rare doors (ADR 0078 §1). A screen may pass ONE `primary` move, drawn
- *  last; one that does must not repeat it in its todo card.
+ *  the rare doors (ADR 0078 §1). A record's primary moves live in its
+ *  header, never here.
  *
  *  Every channel asks which contact, primary first, then goes through the
  *  comm confirm, which records first and opens the channel second (ADR 0075).
@@ -71,7 +71,6 @@ export function ActionBar({
   mailBlocked,
   more = [],
   extra,
-  primary,
 }: {
   /** Names the group for a screen reader. */
   label: string
@@ -79,15 +78,13 @@ export function ActionBar({
   more?: MenuChoice[]
   /** A screen's own control, drawn before the more menu — the run overview's key. */
   extra?: ReactNode
-  /** The screen's one main move, drawn after everything else. */
-  primary?: { label: string; icon?: IconGlyph; onClick: () => void }
 } & Reach) {
   const [asking, setAsking] = useState<Asking | null>(null)
   const people = subject ? (contacts ?? null) : null
   const choicesOf = useContactChoices(subject, people ?? [], mailBlocked, (channel, contact) =>
     setAsking({ channel, contact }),
   )
-  if (people === null && more.length === 0 && !primary && !extra) return null
+  if (people === null && more.length === 0 && !extra) return null
 
   /* Above the bottom nav under `lg`; clear of the assistant button above it.
      `data-action-bar` tells the shell a bar drew, so it keeps the room. */
@@ -162,12 +159,6 @@ export function ActionBar({
             ariaLabel="Thao tác khác"
             choices={more}
           />
-        )}
-        {primary && (
-          <Button size="md" className="pointer-coarse:h-12" onClick={primary.onClick}>
-            {primary.icon && <Icon icon={primary.icon} size={16} />}
-            {primary.label}
-          </Button>
         )}
       </div>
 

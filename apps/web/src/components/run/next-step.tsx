@@ -50,8 +50,8 @@ import { EmptyFrameNote, PickedStepLine, TemplateChips } from './step-templates'
  *
  *  "Xong" asks for the NEXT step in the same breath and sends both in one
  *  request, so no other tab ever reads a gap between two steps. `embedded`
- *  draws the step as the foot row of a record's `TodoCard`, with no primary
- *  button of its own: the card places the record's one primary beside it. */
+ *  draws the step as the row under a record's stepper (`TodoCard`), with no
+ *  primary button of its own: a record's primary moves sit in its header. */
 
 /** The create door's stand-in: named, and saying it opens once the lead exists. */
 export function NextActionCard() {
@@ -77,7 +77,8 @@ export function NextStepCard({
 }) {
   if (embedded) {
     return (
-      <div aria-label="Bước tiếp theo" role="group" className="min-w-0">
+      <div aria-label="Việc tiếp theo" role="group" className="flex min-w-0 flex-col gap-1">
+        <p className="text-muted-foreground m-0 text-[12px] font-semibold">Việc tiếp theo</p>
         <StepBody subject={subject} canEdit={canEdit} embedded />
       </div>
     )
@@ -170,7 +171,7 @@ function StepBody({
 
 type ViewProps = { step: NextStep; canEdit: boolean; onEdit: () => void; onFinish: () => void }
 
-/** The embedded step as the todo card shows it: kind pill and step on one
+/** The embedded step as the row under the stepper shows it: kind pill and step on one
  *  line, due and doer under it; a quiet change and a secondary done beside. */
 function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
   return (
@@ -192,7 +193,7 @@ function StepRow({ step, canEdit, onEdit, onFinish }: ViewProps) {
         <div className="flex flex-wrap gap-2">
           <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onEdit}>
             <Icon icon={Pencil} size={16} />
-            Đổi
+            Sửa
           </Button>
           <Button size="sm" variant="secondary" className="pointer-coarse:h-12" onClick={onFinish}>
             <Icon icon={Check} size={16} />

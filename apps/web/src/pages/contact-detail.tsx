@@ -23,7 +23,7 @@ import { ContextStrip } from '@/components/record/run-strip'
  *
  *  So this is a READ screen plus one operation that needs no form, "set as
  *  primary". A contact has no ladder to climb, so it sits in the floating
- *  bar's more menu rather than as a todo card's primary. */
+ *  bar's more menu rather than as a header move. */
 export default function ContactDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()

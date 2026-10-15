@@ -205,7 +205,11 @@ function CampaignStanding({
 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 py-4 lg:px-6">
-      <TodoRungs rungs={campaignRungs(campaign)} label="Trạng thái chiến dịch" />
+      <TodoRungs
+        rungs={campaignRungs(campaign)}
+        label="Trạng thái chiến dịch"
+        className="w-full sm:w-auto"
+      />
       <div className="flex min-w-0 flex-1 basis-[280px] flex-col gap-2">
         <p className="tnum m-0 text-pretty text-[13px] leading-[1.6]">{sentence}</p>
         {sending && (

@@ -1,11 +1,10 @@
 import {
-  OPPORTUNITY_MILESTONE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type OpportunityProfileResponse,
   type OpportunityStageSpan,
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
-import { CHANGE_SALE_PRIMARY, OVERDUE_WORD, refusalOf } from '@/data/opportunities'
+import { OVERDUE_WORD, refusalOf } from '@/data/opportunities'
 import type { MenuChoice } from '@/components/record/menu-button'
 import type { TodoRung } from '@/components/record/todo-card'
 
@@ -77,7 +76,7 @@ export const statusStepsOf = (op: Profile): TodoRung[] => [
   contractStep(op),
 ]
 
-/** The ONE primary button of the todo card — the move that takes the deal to
+/** The ONE primary button of the header — the move that takes the deal to
  *  its next column. `null` on a closed deal and when this reader holds none. */
 export type PrimaryMove = 'accept' | 'assign' | 'quote' | 'sign' | null
 
@@ -90,8 +89,8 @@ export function primaryMoveOf(op: Profile, can: { accept: boolean; close: boolea
   return op.acts.quotation.ok ? 'quote' : null
 }
 
-/** What the primary slot of the todo card draws: the stage move, and the
- *  quote and sign doors beside it — each one press away, in this card only. */
+/** What the header's action slot draws: the stage move, and the quote and
+ *  sign doors beside it — each one press away, in the header only. */
 export type DealPrimaryState = {
   move: PrimaryMove
   /** The record door of the quotation ledger. */
@@ -104,6 +103,14 @@ export type DealPrimaryState = {
    *  outlives the accept that shuts the act. */
   acceptMounted: boolean
 }
+
+/** Whether any move draws; the header leaves its action slot empty otherwise. */
+export const hasDealMoves = (state: DealPrimaryState) =>
+  state.move === 'accept' ||
+  state.move === 'assign' ||
+  state.quote ||
+  state.sign !== null ||
+  state.acceptMounted
 
 export function primaryStateOf(
   op: Profile,
@@ -127,24 +134,20 @@ export function primaryStateOf(
   }
 }
 
-export const QUOTE_HINT = `Báo giá gửi bằng thư mẫu ${OPPORTUNITY_MILESTONE_LABEL.quotation} được ghi tự động, cần bổ sung giá trị và loại hợp đồng.`
-
 /** One label for the quote door wherever it stands: the modal decides which
  *  negotiation the round joins. */
 export const QUOTE_LABEL = 'Ghi báo giá'
 
-/** The floating bar's more menu: the activity record, the owners' drawer, the
- *  seller swap (the first seller is the primary's "Giao Sale"), and the stop.
- *  Quoting and signing are the todo card's, never repeated here. A stop is
- *  final, so a lost deal offers nothing. */
+/** The floating bar's more menu: the activity record, the owners' drawer and
+ *  the stop. Quoting and signing are the header's, and the seller swap is the
+ *  rail's door, so neither repeats here. A stop is final, so a lost deal
+ *  offers nothing. */
 export function dealMoreChoices(
   op: Profile,
   doors: {
     onRecord: () => void
     onEditOwners: () => void
     onStop: () => void
-    /** The head's seller swap. */
-    onAssign: () => void
   },
 ): MenuChoice[] {
   if (op.state === 'lost') return []
@@ -161,13 +164,6 @@ export function dealMoreChoices(
       key: 'owners',
       label: 'Sửa người chịu trách nhiệm',
       onSelect: doors.onEditOwners,
-    })
-  }
-  if (op.state === 'open' && op.hasSeller && op.acts.assign.ok) {
-    choices.push({
-      key: 'assign',
-      label: op.pendingSign ? CHANGE_SALE_PRIMARY : 'Đổi Sale',
-      onSelect: doors.onAssign,
     })
   }
   if (op.acts.stop.ok) {

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { CircleAlert } from '@pv/ui'
-import { Button, Icon, Skeleton } from '@pv/ui'
+import { ArrowRight, Badge, CircleAlert } from '@pv/ui'
+import { Button, Icon, Skeleton, cn } from '@pv/ui'
 import { campaignLabel, sourceKindLabel, type LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { dmy } from '@/lib/date'
 import { leadStopReasonsQuery } from '@/data/leads'
+import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { sourcePartnerLabel } from '@/data/partners'
 import { useMotionLabel } from '@/data/sales-motions'
 import { leadTouchesQuery, leadVectorQuery } from '@/data/touches'
@@ -15,19 +16,50 @@ import { TodoCard } from '@/components/record/todo-card'
 import { NextStepCard } from '@/components/run/next-step'
 import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
 
-/** Module 2 · the header and todo card of the lead profile; the meetings card
+/** Module 2 · the header and stepper of the lead profile; the meetings card
  *  is `MeetingsCard`, shared with the deal profile.
  *
- *  The header carries no code, state or run chip: the run strip and the todo
- *  card's rungs say those (ADR 0078 §1). Holder and origin live only in its
- *  meta line; the bar's more menu changes the holder. */
-export function LeadHeader({ lead, readOnly }: { lead: LeadProfile; readOnly: boolean }) {
+ *  The header names the lead's state in a badge (law 16) and carries no code
+ *  or run chip: the run strip says those (ADR 0078 §1). Its one move, to open
+ *  a deal, sits on the right. Holder and origin live only in its meta line; the bar's more menu
+ *  changes the holder. */
+export function LeadHeader({
+  lead,
+  readOnly,
+  onConvert,
+}: {
+  lead: LeadProfile
+  readOnly: boolean
+  /** Set when this reader may open a deal from the lead; omit to draw no button. */
+  onConvert?: () => void
+}) {
   const partner = sourcePartnerLabel(lead.source)
   const motionLabel = useMotionLabel()
 
   return (
     <RecordHeader
-      title={lead.company}
+      title={
+        <>
+          {lead.company}
+          <Badge
+            tone={LEAD_STATE_FACE[lead.state].badge}
+            className={cn(
+              'ml-3 align-middle tracking-normal',
+              LEAD_STATE_FACE[lead.state].badge === 'draft' && 'text-foreground',
+            )}
+          >
+            {LEAD_STATE_FACE[lead.state].label}
+          </Badge>
+        </>
+      }
+      actions={
+        onConvert && (
+          <Button size="lg" onClick={onConvert}>
+            <Icon icon={ArrowRight} size={16} />
+            Mở cơ hội
+          </Button>
+        )
+      }
       meta={[
         lead.ownerName ? `PIC ${lead.ownerName}` : 'Chưa ai nhận',
         lead.motion && `phương án tiếp cận ${motionLabel(lead.motion)}`,
@@ -70,9 +102,8 @@ export function LeadDisabledNotice({ code, since }: { code: string; since: strin
   )
 }
 
-/** The rungs, read off the run's journey; the lead's one next step; and the
- *  primary move — opening a deal — only for a reader the convert door admits
- *  (ADR 0078 §3: no verdict, no button). */
+/** The rungs, read off the run's journey, and the lead's one next step. The
+ *  move that opens a deal is in the header (`LeadHeader`). */
 export function LeadTodo({
   lead,
   canStep,
@@ -93,10 +124,9 @@ export function LeadTodo({
   const canAssign = useCan('lead.assign')
   const firstHeld = holders?.find((step) => step.kind === 'held')?.at
 
-  if (journey.isLoading) return <Skeleton height={240} />
+  if (journey.isLoading) return <Skeleton height={128} />
   return (
     <TodoCard
-      title="Tiến trình lead"
       rungs={leadRungsOf(lead, served, touches, firstHeld, reasons?.rows)}
       rungsLabel="Các bậc của lead"
       next={

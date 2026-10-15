@@ -1,25 +1,31 @@
 import { useId, type ReactNode } from 'react'
-import { Button, Icon, MetaPill, Pencil } from '@pv/ui'
+import { MetaPill } from '@pv/ui'
 
-/** The header of every profile: the record's name, then ONE row of meta pills
- *  for what the screen supplies (people, source, date), in that order — one
- *  pill per fact so the eye can pick each one out.
+/** The header of every profile: the record's name on the left (its code and
+ *  state badge ride in the title, law 16) and its primary moves on the right,
+ *  then one muted line for why a move is shut, then ONE row of meta pills for
+ *  what the screen supplies (people, source, date).
  *
- *  No code, no kicker naming the object type and no status pill (ADR 0078
- *  §1): the strip already shows the code and which step this is, and the todo
- *  card's stepper says where it stands. No buttons either — actions live in
- *  the todo card and the floating bar; the one exception is `onRename`, a
- *  pencil beside the title, because renaming is the edit people reach for most. */
+ *  No kicker naming the object type (ADR 0078 §1). Moves moved up here on
+ *  14/10 so the first thing a reader finds is what they can do; the title
+ *  keeps the left and the row wraps below it when the screen is narrow. The
+ *  action box hides itself when its children draw nothing. */
 export function RecordHeader({
   title,
   meta = [],
-  onRename,
+  actions,
+  subtitle,
+  note,
 }: {
   title: ReactNode
   /** One fact per entry; `null`/`false` entries are dropped, not separated. */
   meta?: ReactNode[]
-  /** Shows the pencil beside the title; omit when the reader cannot rename. */
-  onRename?: () => void
+  /** The record's primary moves, 48px buttons; omit when there are none. */
+  actions?: ReactNode
+  /** What the record is, in one muted line right under the title row. */
+  subtitle?: string | null
+  /** Why a move is shut: one muted line under the subtitle. */
+  note?: string | null
 }) {
   const titleId = useId()
   const facts = meta.filter(
@@ -27,24 +33,20 @@ export function RecordHeader({
   )
 
   return (
-    <header className="flex min-w-0 flex-col gap-1" aria-labelledby={titleId}>
-      <h2
-        id={titleId}
-        className="font-display break-words text-[26px] font-semibold tracking-[-.45px] lg:text-[30px]"
-      >
-        {title}
-        {onRename && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="pointer-coarse:h-12 ml-2 align-middle"
-            aria-label="Sửa tên cơ hội"
-            onClick={onRename}
-          >
-            <Icon icon={Pencil} size={16} />
-          </Button>
-        )}
-      </h2>
+    <header className="flex min-w-0 flex-col gap-2" aria-labelledby={titleId}>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h2
+          id={titleId}
+          className="font-display min-w-0 flex-1 basis-80 break-words text-[26px] font-semibold tracking-[-.45px] lg:text-[30px]"
+        >
+          {title}
+        </h2>
+        {actions && <div className="flex flex-wrap items-center gap-2 empty:hidden">{actions}</div>}
+      </div>
+      {subtitle && (
+        <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">{subtitle}</p>
+      )}
+      {note && <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">{note}</p>}
       {facts.length > 0 && (
         <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
           {facts.map((fact, i) => (

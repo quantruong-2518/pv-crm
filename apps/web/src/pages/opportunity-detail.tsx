@@ -17,7 +17,6 @@ import {
   railOf,
   refusalOf,
 } from '@/data/opportunities'
-import { leadProfileQuery } from '@/data/lead-profile'
 import { AssignSaleButton } from '@/components/opportunity-assign'
 import { FailLogCard, StopDrawer } from '@/components/opportunity-stop'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
@@ -42,9 +41,9 @@ import { DescriptionPanel } from './opportunity-side'
 import { DealTodo } from './opportunity-status'
 
 /** Module 3 · one deal's profile — `/sales/opportunities/:code`, on the
- *  record shell (ADR 0078): run strip, header, then the body — todo card,
+ *  record shell (ADR 0078): run strip, header, then the body — stepper,
  *  sign request, money, meetings, terms, history, description — and the run rail —
- *  comms, people, files. Quoting and signing sit in the todo card; the floating bar reaches contacts.
+ *  comms, people, files. Quoting and signing sit in the header; the floating bar reaches contacts.
  *
  *  Every edit opens a drawer — no always-open form. `DealScreen` is split out
  *  so that every hook of the profile runs only once there IS a profile. */
@@ -111,18 +110,11 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const canMeet = useCan('opportunity.edit') && op.state !== 'lost'
   /* The history card's own gate; the sign request's door points into it. */
   const historyOpen = useCan('workstream.view') && op.workstream !== null
-  /* The origin lead, for its source. A failure does not break the screen: a
-     deal stays readable when its lead is out of the reader's scope. */
-  const { data: lead = null } = useQuery({
-    ...leadProfileQuery(op.leadCode),
-    enabled: Boolean(op.leadCode),
-  })
   const primary = primaryStateOf(op, { accept: canAccept, close: canClose })
   const more = dealMoreChoices(op, {
     onRecord: record,
     onEditOwners: () => edit('owners'),
     onStop: () => setStopping(true),
-    onAssign: () => setAssigning(true),
   })
   const subject = { kind: 'opportunity', code: op.code } as const
 
@@ -135,10 +127,10 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           fallback={railOf(op.chain, op.code, navigate)}
         />
       }
-      header={<DealHeader op={op} lead={lead} />}
+      header={<DealHeader op={op} primary={primary} onSign={sign} onQuote={quoteNew} />}
       main={
         <>
-          <DealTodo op={op} primary={primary} onSign={sign} onQuote={quoteNew} />
+          <DealTodo op={op} />
           {op.state === 'lost' && <FailLogCard op={op} />}
           <SignRequestCard op={op} onView={historyOpen ? viewSignRequest : undefined} />
           <DealMoney op={op} onQuote={quote} />
@@ -155,8 +147,9 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
             workstreamCode={op.workstream?.code ?? null}
             focus={op.code}
             lanes={op.owners}
+            hasSeller={op.hasSeller}
             doors={
-              op.state === 'open' && op.acts.assign.ok
+              op.state === 'open' && op.acts.assign.ok && primary.move !== 'assign'
                 ? {
                     [op.code]: {
                       label: op.pendingSign

@@ -321,15 +321,6 @@ export const marksPrimary = (owner: OpportunityOwner, lane: readonly Opportunity
 export const laneText = (lane: OpportunityOwner[]) =>
   lane.map((o) => (marksPrimary(o, lane) ? `${o.name} (chính)` : o.name)).join(', ')
 
-/** Both lanes of a list of people on one line, SALE first then BD. */
-export function lanesText(people: OpportunityOwner[]): string {
-  const sale = people.filter((o) => o.role === 'SALE')
-  const bd = people.filter((o) => o.role === 'BD')
-  return [sale.length > 0 && `Sale ${laneText(sale)}`, bd.length > 0 && `BD ${laneText(bd)}`]
-    .filter(Boolean)
-    .join(' · ')
-}
-
 /** The primary a form stands on: the user's pick while that person is still on
  *  the lane, else the stored primary. NO further fallback — with neither, the
  *  form shows a placeholder and keeps Save shut until the user chooses.
