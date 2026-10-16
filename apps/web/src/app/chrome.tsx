@@ -305,14 +305,15 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'primary',
   },
   {
-    /* Not a numbered module: one list across leads and deals (ADR 0097 §3). */
+    /* Not a numbered module: one list across leads and deals (ADR 0097 §3). Off the
+     main bar: a waiting list, not daily work; the books link here too. */
     no: 0,
     icon: CalendarClock,
     label: 'Tạm hoãn',
     path: '/sales/holds',
     permission: 'lead.view',
     question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại',
-    group: 'primary',
+    group: 'customer',
   },
   {
     /* Sits after Ops because it is the next step for the same customer:
@@ -528,7 +529,12 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     apps: [
       [
         ...appsIn('primary'),
-        ...menuOf('Khách hàng', Users, 'Công ty, người liên hệ và đối tác', appsIn('customer')),
+        ...menuOf(
+          'Khách hàng',
+          Users,
+          'Công ty, người liên hệ, đối tác và lead tạm hoãn',
+          appsIn('customer'),
+        ),
         ...menuOf('Báo cáo', Gauge, 'KPI, chỉ tiêu và kế hoạch kỳ tới', appsIn('manage')),
       ],
     ],

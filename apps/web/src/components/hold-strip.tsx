@@ -37,7 +37,12 @@ export function HoldStrip({ hold, actions }: { hold: Hold; actions?: ReactNode }
 }
 
 /** Levels worth a second pill beside the mark; "not yet" says nothing new. */
-const LATE: ReadonlySet<Hold['dueLevel']> = new Set(['due-soon', 'due', 'overdue', 'long-overdue'])
+export const LATE: ReadonlySet<Hold['dueLevel']> = new Set([
+  'due-soon',
+  'due',
+  'overdue',
+  'long-overdue',
+])
 
 /** A held lead or deal says until when, wherever it is listed (ADR 0097 §3);
  *  the profile ends it. `due` adds the due pill once the date draws near, on

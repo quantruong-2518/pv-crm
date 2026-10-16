@@ -8,7 +8,7 @@ import { useAppChrome } from '@/app/chrome'
 import { oneOf, useClientBookFilter } from '@/app/client-book-filter'
 import { holdListQuery } from '@/data/holds'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
-import { HoldUntilCell } from '@/components/hold-strip'
+import { HoldUntilCell, LATE } from '@/components/hold-strip'
 import { AvatarCell } from '@/components/table-bits'
 
 /** The hold list — `/sales/holds` (ADR 0097 §3): every lead and deal on hold,
@@ -24,7 +24,13 @@ import { AvatarCell } from '@/components/table-bits'
 const KIND_LABEL: Record<HoldSubjectType, string> = { lead: 'Lead', opportunity: 'Cơ hội' }
 
 const KINDS = ['all', 'lead', 'opportunity'] as const
-const FILTERS = { kind: oneOf(KINDS, 'all') }
+const WHENS = ['all', 'late', 'later'] as const
+const WHEN_LABEL: Record<(typeof WHENS)[number], string> = {
+  all: 'Tất cả',
+  late: 'Cần xử lý',
+  later: 'Chưa tới hạn',
+}
+const FILTERS = { kind: oneOf(KINDS, 'all'), when: oneOf(WHENS, 'all') }
 
 const PATH: Record<HoldSubjectType, string> = {
   lead: '/sales/leads',
@@ -51,7 +57,10 @@ export function HoldsPage() {
   const { data, isPending, error, refetch } = useQuery(holdListQuery('all'))
 
   const all = useMemo(() => data?.rows ?? [], [data])
-  const rows = filters.kind === 'all' ? all : all.filter((r) => r.subjectType === filters.kind)
+  const ofKind = filters.kind === 'all' ? all : all.filter((r) => r.subjectType === filters.kind)
+  const whenOf = (when: (typeof WHENS)[number], list: HoldRow[]) =>
+    when === 'all' ? list : list.filter((r) => LATE.has(r.dueLevel) === (when === 'late'))
+  const rows = whenOf(filters.when, ofKind)
   const countOf = (kind: (typeof KINDS)[number]) =>
     data && (kind === 'all' ? all.length : all.filter((r) => r.subjectType === kind).length)
 
@@ -92,10 +101,10 @@ export function HoldsPage() {
 
   const empty =
     rows.length === 0
-      ? filters.kind !== 'all' && all.length > 0
+      ? all.length > 0
         ? {
-            message: `Không có ${KIND_LABEL[filters.kind].toLowerCase()} nào đang tạm hoãn.`,
-            action: { label: 'Xem tất cả', onClick: () => patch({ kind: 'all' }) },
+            message: 'Không có mục nào khớp bộ lọc.',
+            action: { label: 'Xem tất cả', onClick: () => patch({ kind: 'all', when: 'all' }) },
           }
         : {
             message: 'Chưa có lead hay cơ hội nào đang tạm hoãn.',
@@ -109,18 +118,32 @@ export function HoldsPage() {
         <BookPage
           title="Tạm hoãn"
           tabs={
-            <SegmentedControl
-              label="Loại"
-              hideLabel
-              tone="quiet"
-              value={filters.kind}
-              options={KINDS.map((k) => ({
-                value: k,
-                label: k === 'all' ? 'Tất cả' : KIND_LABEL[k],
-                count: countOf(k),
-              }))}
-              onChange={(value) => patch({ kind: value as (typeof KINDS)[number] })}
-            />
+            <div className="flex min-w-0 flex-wrap items-center gap-3">
+              <SegmentedControl
+                label="Mức đến hạn"
+                hideLabel
+                tone="quiet"
+                value={filters.when}
+                options={WHENS.map((w) => ({
+                  value: w,
+                  label: WHEN_LABEL[w],
+                  count: data && whenOf(w, ofKind).length,
+                }))}
+                onChange={(value) => patch({ when: value as (typeof WHENS)[number] })}
+              />
+              <SegmentedControl
+                label="Loại"
+                hideLabel
+                tone="quiet"
+                value={filters.kind}
+                options={KINDS.map((k) => ({
+                  value: k,
+                  label: k === 'all' ? 'Lead và cơ hội' : KIND_LABEL[k],
+                  count: countOf(k),
+                }))}
+                onChange={(value) => patch({ kind: value as (typeof KINDS)[number] })}
+              />
+            </div>
           }
           count={<BookCount total={rows.length} noun="mục" />}
           pending={isPending}
