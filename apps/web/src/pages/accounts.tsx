@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
-  Chip,
+  cn,
   Factory,
   Icon,
   ScreenLayout,
@@ -21,7 +21,8 @@ import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { accountBookQuery, accountFacetsQuery, CATEGORY_LABEL } from '@/data/accounts'
 import { BookCount, BookPage } from '@/components/book-page'
-import { TableFooter } from '@/components/table-bits'
+import { FilterMenu, TableFooter } from '@/components/table-bits'
+import { AccountCardGrid, AccountSortSelect } from '@/components/account-cards'
 import { MoneyCell } from '@/components/money-cell'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
@@ -85,11 +86,64 @@ function facetOptions(facets: Facet[], picked: string[], labelOf: (v: string) =>
   ]
 }
 
+/** A zero says "none" and fades, so the eye lands on the rows that have something. */
+function CountCell({ value, bold = false }: { value: number; bold?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'tnum font-num',
+        value === 0 ? 'text-muted-foreground' : bold && 'font-semibold',
+      )}
+    >
+      {value}
+    </span>
+  )
+}
+
+const VIEW_KEY = 'pv.accounts.view'
+const VIEWS = [
+  { value: 'grid', label: 'Lưới' },
+  { value: 'table', label: 'Bảng' },
+]
+
+/** The choice is the reader's own habit, not part of the book's address. */
+function useBookView() {
+  const [view, setView] = useState<'grid' | 'table'>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'grid'
+    } catch {
+      return 'grid'
+    }
+  })
+  const choose = (next: string) => {
+    const v = next === 'table' ? 'table' : 'grid'
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      /* private window: the choice just lasts until reload */
+    }
+  }
+  return [view, choose] as const
+}
+
+function FilterSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="flex max-h-[280px] min-h-0 flex-col gap-2">
+      <h3 className="text-muted-foreground m-0 text-[12px] font-semibold">{title}</h3>
+      {children}
+    </section>
+  )
+}
+
+const noop = () => {}
+
 export default function AccountsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm công ty, mã số thuế…' })
+  const chrome = useAppChrome()
   const navigate = useNavigate()
   const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
+  const [view, setView] = useBookView()
 
   /* The address is the source of truth; the hook owns patch, the debounced
      search box, the page reset and "clear all". */
@@ -207,6 +261,65 @@ export default function AccountsPage() {
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
+              {view === 'grid' && (
+                <>
+                  <AccountSortSelect
+                    sort={query.sort}
+                    dir={query.dir}
+                    onChange={(sort, dir) => book.patch({ sort: sort as typeof query.sort, dir })}
+                  />
+                  <FilterMenu
+                    label="Bộ lọc sổ công ty"
+                    active={
+                      (query.province ? 1 : 0) +
+                      (query.category ? 1 : 0) +
+                      (query.openDeals !== undefined ? 1 : 0)
+                    }
+                  >
+                    <FilterSection title="Tỉnh/thành">
+                      <ColumnFilterList
+                        options={provinceOptions}
+                        selected={provincePicked}
+                        close={noop}
+                        onApply={(v) =>
+                          book.patch({ province: v.length ? v.join(',') : undefined })
+                        }
+                      />
+                    </FilterSection>
+                    <FilterSection title="Ngành">
+                      <ColumnFilterList
+                        options={categoryOptions}
+                        selected={categoryPicked}
+                        close={noop}
+                        onApply={(v) =>
+                          book.patch({ category: v.length ? v.join(',') : undefined })
+                        }
+                      />
+                    </FilterSection>
+                    <FilterSection title="Cơ hội đang mở">
+                      <ColumnFilterList
+                        options={OPEN_DEALS_OPTIONS}
+                        selected={query.openDeals === undefined ? [] : [String(query.openDeals)]}
+                        close={noop}
+                        searchable={false}
+                        onApply={(v) =>
+                          book.patch({
+                            openDeals: v.length === 1 ? (Number(v[0]) as 0 | 1) : undefined,
+                          })
+                        }
+                      />
+                    </FilterSection>
+                  </FilterMenu>
+                </>
+              )}
+              <SegmentedControl
+                label="Kiểu hiển thị"
+                hideLabel
+                tone="quiet"
+                value={view}
+                options={VIEWS}
+                onChange={setView}
+              />
               {book.dirty && (
                 <Button
                   size="md"
@@ -235,90 +348,91 @@ export default function AccountsPage() {
               ? {
                   message: book.dirty
                     ? 'Không có công ty nào khớp bộ lọc.'
-                    : 'Chưa có công ty nào. Công ty tự tạo khi bạn thêm lead.',
+                    : 'Chưa có công ty nào.',
                   action: book.dirty
                     ? { label: 'Bỏ hết bộ lọc', onClick: book.clear }
                     : { label: 'Xem sổ lead', onClick: () => navigate('/sales/leads') },
                 }
               : undefined
           }
-          table={{
-            minWidth: 'min-w-[1200px]',
-            sort: tableSort,
-            onSort,
-            columns: [
-              { header: 'Mã', width: '0.8fr' },
-              { header: 'Tên công ty', width: '2.2fr', sortKey: 'name' },
-              { header: 'Mã số thuế', width: '1.1fr' },
-              {
-                header: 'Tỉnh/thành',
-                width: '1fr',
-                sortKey: 'province',
-                filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
-              },
-              { header: listFilter('Ngành', 'category', categoryOptions), width: '0.8fr' },
-              { header: 'Số lead', width: 'minmax(72px,0.6fr)', align: 'right', sortKey: 'leads' },
-              {
-                header: 'Cơ hội đang mở',
-                /* Floors keep a header and its icons on one line at the table's min width. */
-                width: 'minmax(128px,0.7fr)',
-                align: 'right',
-                sortKey: 'openDeals',
-                filter: openDealsFilter,
-              },
-              {
-                header: 'Hợp đồng đã ký',
-                width: 'minmax(112px,0.7fr)',
-                align: 'right',
-                sortKey: 'signedDeals',
-              },
-              {
-                header: 'Giá trị đã ký (₫)',
-                /* The deal book's money track: full digits up to tens of billions. */
-                width: '144px',
-                align: 'right',
-                sortKey: 'signedAmountVnd',
-              },
-            ],
-            rows: rows.map((a) => ({
-              id: a.code,
-              onOpen: () => navigate(`/sales/accounts/${a.code}`),
-              cells: [
-                <Chip key="c">{a.code}</Chip>,
-                <span key="n" className="block truncate" title={a.legalName ?? a.name}>
-                  {a.name}
-                </span>,
-                <span key="t" className="tnum font-num block truncate">
-                  {a.taxCode ?? '—'}
-                </span>,
-                <span key="p" className="block truncate">
-                  {a.province ?? '—'}
-                </span>,
-                <span key="g" className="block truncate">
-                  {a.category ? CATEGORY_LABEL[a.category] : '—'}
-                </span>,
-                <span key="l" className="tnum font-num">
-                  {a.leads}
-                </span>,
-                <span key="o" className="tnum font-num">
-                  {a.openDeals}
-                </span>,
-                /* The signed count is what separates a CUSTOMER from a name:
+          table={
+            view === 'table'
+              ? {
+                  minWidth: 'min-w-[960px]',
+                  sort: tableSort,
+                  onSort,
+                  columns: [
+                    { header: 'Tên công ty', width: '2.6fr', sortKey: 'name' },
+                    {
+                      header: 'Tỉnh/thành',
+                      width: '1fr',
+                      sortKey: 'province',
+                      filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
+                    },
+                    { header: listFilter('Ngành', 'category', categoryOptions), width: '0.8fr' },
+                    {
+                      header: 'Số lead',
+                      width: 'minmax(72px,0.6fr)',
+                      align: 'right',
+                      sortKey: 'leads',
+                    },
+                    {
+                      header: 'Cơ hội đang mở',
+                      /* Floors keep a header and its icons on one line at the table's min width. */
+                      width: 'minmax(128px,0.7fr)',
+                      align: 'right',
+                      sortKey: 'openDeals',
+                      filter: openDealsFilter,
+                    },
+                    {
+                      header: 'Hợp đồng đã ký',
+                      width: 'minmax(112px,0.7fr)',
+                      align: 'right',
+                      sortKey: 'signedDeals',
+                    },
+                    {
+                      header: 'Giá trị đã ký (₫)',
+                      /* The deal book's money track: full digits up to tens of billions. */
+                      width: '144px',
+                      align: 'right',
+                      sortKey: 'signedAmountVnd',
+                    },
+                  ],
+                  rows: rows.map((a) => ({
+                    id: a.code,
+                    onOpen: () => navigate(`/sales/accounts/${a.code}`),
+                    cells: [
+                      <span key="n" className="flex min-w-0 flex-col gap-1">
+                        <span className="truncate font-semibold" title={a.legalName ?? a.name}>
+                          {a.name}
+                        </span>
+                        <span className="text-muted-foreground tnum truncate text-[11.5px]">
+                          <span className="font-mono">{a.code}</span>
+                          {a.taxCode && ` · MST ${a.taxCode}`}
+                        </span>
+                      </span>,
+                      <span key="p" className="block truncate">
+                        {a.province ?? '—'}
+                      </span>,
+                      <span key="g" className="block truncate">
+                        {a.category ? CATEGORY_LABEL[a.category] : '—'}
+                      </span>,
+                      <CountCell key="l" value={a.leads} />,
+                      <CountCell key="o" value={a.openDeals} />,
+                      /* The signed count is what separates a CUSTOMER from a name:
                    bold it, and only it. The other three are context. */
-                <span
-                  key="s"
-                  className={a.signedDeals > 0 ? 'tnum font-num font-semibold' : 'tnum font-num'}
-                >
-                  {a.signedDeals}
-                </span>,
-                <MoneyCell
-                  key="m"
-                  amount={a.signedAmountVnd > 0 ? a.signedAmountVnd : null}
-                  missing="Chưa có giá trị hợp đồng đã ký"
-                />,
-              ],
-            })),
-          }}
+                      <CountCell key="s" value={a.signedDeals} bold />,
+                      <MoneyCell
+                        key="m"
+                        amount={a.signedAmountVnd > 0 ? a.signedAmountVnd : null}
+                        missing="Chưa có giá trị hợp đồng đã ký"
+                      />,
+                    ],
+                  })),
+                }
+              : undefined
+          }
+          cards={view === 'grid' ? <AccountCardGrid rows={rows} /> : undefined}
           footer={
             <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
           }

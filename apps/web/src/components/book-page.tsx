@@ -66,7 +66,10 @@ export type BookPageProps = {
    *  books is the point. Before this, the same failed read drew a triangle on
    *  one book and a circle on the next. The sentence carries the meaning. */
   empty?: { message: string; action: { label: string; onClick: () => void } }
-  table: BookTable
+  /** The rows as a table; leave it out when `cards` draws them. */
+  table?: BookTable
+  /** The rows as cards instead of a table — the screen draws them whole. */
+  cards?: ReactNode
   /** `TableFooter` — drawn inside the card, under the table. */
   footer?: ReactNode
 }
@@ -83,6 +86,7 @@ export function BookPage({
   failure,
   empty,
   table,
+  cards,
   footer,
 }: BookPageProps) {
   const hasToolbar = Boolean(tabs || count || tools)
@@ -132,7 +136,9 @@ export function BookPage({
               action={empty.action}
               className="py-12"
             />
-          ) : (
+          ) : cards ? (
+            cards
+          ) : table ? (
             <DataTable
               flush
               rowHeight={ROW_CLASS}
@@ -142,7 +148,7 @@ export function BookPage({
               sort={table.sort}
               onSort={table.onSort}
             />
-          )}
+          ) : null}
         </div>
 
         {hasRows && footer}
