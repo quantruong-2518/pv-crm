@@ -249,6 +249,10 @@ export class ContactRepository {
   }
 
   private orderBy(q: ContactBookQuery): SQL[] {
+    if (q.sort === 'best') {
+      const reachable = sql`(${contact.email} is not null)::int + (${contact.phone} is not null)::int`
+      return [desc(contact.isPrimary), desc(reachable), asc(contact.name), asc(contact.code)]
+    }
     const dir = q.dir === 'desc' ? desc : asc
     const column = {
       name: contact.name,

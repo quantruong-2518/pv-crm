@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { Chip, MapPin, MetaPill, Select, cn } from '@pv/ui'
+import { Chip, MapPin, MetaPill, cn } from '@pv/ui'
 import type { AccountRow } from '@pv/contracts'
 import { CATEGORY_LABEL } from '@/data/accounts'
+import { BOOK_CARD } from './book-cards'
 
 /** The company book as a grid of cards — the same rows as the table, laid out
  *  for scanning a customer at a glance. The four counts stay (they are the
@@ -10,12 +11,6 @@ import { CATEGORY_LABEL } from '@/data/accounts'
  *
  *  Cards sit flat on the book's `glass-b` card: a tinted fill, no glass of their
  *  own (law 8) and no border (law 4). */
-
-/* The card is the lightest tint and the counts sit in a `--card` well inside
-   it: two steps of the same surface read as a group in both themes, without a
-   border or a second hue. The link must set its own ink, or it inherits link blue. */
-const CARD =
-  'bg-surface-ink/5 hover:bg-surface-ink/8 text-foreground focus-visible:ring-ring flex min-w-0 flex-col gap-4 rounded-md p-5 no-underline outline-none transition-colors focus-visible:ring-2'
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -39,7 +34,7 @@ export function AccountCard({ account: a }: { account: AccountRow }) {
     a.taxCode && `MST ${a.taxCode}`,
   ]
   return (
-    <Link to={`/sales/accounts/${a.code}`} className={CARD}>
+    <Link to={`/sales/accounts/${a.code}`} className={BOOK_CARD}>
       <span className="flex min-w-0 flex-col gap-2">
         <span className="flex min-w-0 items-center justify-between gap-3">
           {/* Uppercase against law 6, by the project owner's call (16/10): a
@@ -87,44 +82,5 @@ export function AccountCardGrid({ rows }: { rows: AccountRow[] }) {
         <AccountCard key={a.code} account={a} />
       ))}
     </div>
-  )
-}
-
-/** Sort and direction in one pick: a grid has no column headers to click. */
-const SORTS = [
-  { value: 'name:asc', label: 'Tên A → Z' },
-  { value: 'name:desc', label: 'Tên Z → A' },
-  { value: 'signedAmountVnd:desc', label: 'Giá trị đã ký cao nhất' },
-  { value: 'signedDeals:desc', label: 'Nhiều hợp đồng đã ký nhất' },
-  { value: 'openDeals:desc', label: 'Nhiều cơ hội đang mở nhất' },
-  { value: 'leads:desc', label: 'Nhiều lead nhất' },
-  { value: 'createdAt:desc', label: 'Mới thêm gần đây' },
-]
-
-export function AccountSortSelect({
-  sort,
-  dir,
-  onChange,
-}: {
-  sort: string
-  dir: string
-  onChange: (sort: string, dir: 'asc' | 'desc') => void
-}) {
-  const current = `${sort}:${dir}`
-  /* A header click on the table can leave a sort the list does not offer. */
-  const options = SORTS.some((s) => s.value === current)
-    ? SORTS
-    : [...SORTS, { value: current, label: 'Theo cột đã chọn ở bảng' }]
-  return (
-    <Select
-      label="Sắp xếp"
-      value={current}
-      options={options}
-      neutralValue="name:asc"
-      onChange={(v) => {
-        const [key = 'name', d] = v.split(':')
-        onChange(key, d === 'desc' ? 'desc' : 'asc')
-      }}
-    />
   )
 }

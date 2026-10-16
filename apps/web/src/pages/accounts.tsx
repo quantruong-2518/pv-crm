@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -22,7 +22,9 @@ import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { accountBookQuery, accountFacetsQuery, CATEGORY_LABEL } from '@/data/accounts'
 import { BookCount, BookPage } from '@/components/book-page'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
-import { AccountCardGrid, AccountSortSelect } from '@/components/account-cards'
+import { AccountCardGrid } from '@/components/account-cards'
+import { FilterSection, SortSelect, ViewSwitch } from '@/components/book-cards'
+import { noop, useBookView } from '@/components/book-view'
 import { MoneyCell } from '@/components/money-cell'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
@@ -100,50 +102,23 @@ function CountCell({ value, bold = false }: { value: number; bold?: boolean }) {
   )
 }
 
-const VIEW_KEY = 'pv.accounts.view'
-const VIEWS = [
-  { value: 'grid', label: 'Lưới' },
-  { value: 'table', label: 'Bảng' },
+/** The grid's sort pick: the table's sort keys, each in its useful direction. */
+const ACCOUNT_SORTS = [
+  { value: 'name:asc', label: 'Tên A → Z' },
+  { value: 'name:desc', label: 'Tên Z → A' },
+  { value: 'signedAmountVnd:desc', label: 'Giá trị đã ký cao nhất' },
+  { value: 'signedDeals:desc', label: 'Nhiều hợp đồng đã ký nhất' },
+  { value: 'openDeals:desc', label: 'Nhiều cơ hội đang mở nhất' },
+  { value: 'leads:desc', label: 'Nhiều lead nhất' },
+  { value: 'createdAt:desc', label: 'Mới thêm gần đây' },
 ]
-
-/** The choice is the reader's own habit, not part of the book's address. */
-function useBookView() {
-  const [view, setView] = useState<'grid' | 'table'>(() => {
-    try {
-      return localStorage.getItem(VIEW_KEY) === 'table' ? 'table' : 'grid'
-    } catch {
-      return 'grid'
-    }
-  })
-  const choose = (next: string) => {
-    const v = next === 'table' ? 'table' : 'grid'
-    setView(v)
-    try {
-      localStorage.setItem(VIEW_KEY, v)
-    } catch {
-      /* private window: the choice just lasts until reload */
-    }
-  }
-  return [view, choose] as const
-}
-
-function FilterSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section aria-label={title} className="flex max-h-[280px] min-h-0 flex-col gap-2">
-      <h3 className="text-muted-foreground m-0 text-[12px] font-semibold">{title}</h3>
-      {children}
-    </section>
-  )
-}
-
-const noop = () => {}
 
 export default function AccountsPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
-  const [view, setView] = useBookView()
+  const [view, setView] = useBookView('pv.accounts.view')
 
   /* The address is the source of truth; the hook owns patch, the debounced
      search box, the page reset and "clear all". */
@@ -263,7 +238,8 @@ export default function AccountsPage() {
               />
               {view === 'grid' && (
                 <>
-                  <AccountSortSelect
+                  <SortSelect
+                    options={ACCOUNT_SORTS}
                     sort={query.sort}
                     dir={query.dir}
                     onChange={(sort, dir) => book.patch({ sort: sort as typeof query.sort, dir })}
@@ -312,14 +288,7 @@ export default function AccountsPage() {
                   </FilterMenu>
                 </>
               )}
-              <SegmentedControl
-                label="Kiểu hiển thị"
-                hideLabel
-                tone="quiet"
-                value={view}
-                options={VIEWS}
-                onChange={setView}
-              />
+              <ViewSwitch value={view} onChange={setView} />
               {book.dirty && (
                 <Button
                   size="md"

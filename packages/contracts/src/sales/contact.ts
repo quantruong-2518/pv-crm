@@ -297,10 +297,13 @@ export const ContactBookRow = ContactRow.extend({
 
 export const ContactBookResponse = paged(ContactBookRow)
 
-export const ContactSortKey = z.enum(['name', 'company', 'createdAt'])
+/** `best` = the person to call first: the lead's primary contact, then whoever
+ *  can be reached on both phone and mail, then by name. Its order is fixed;
+ *  `dir` does not flip it. */
+export const ContactSortKey = z.enum(['best', 'name', 'company', 'createdAt'])
 
 export const ContactBookQuery = PageQuery.extend({
-  sort: ContactSortKey.default('name'),
+  sort: ContactSortKey.default('best'),
   dir: SortDir.default('asc'),
   /** Name, mailbox or phone — one box, because somebody looking for a person
    *  types whichever of the three they remember. */
