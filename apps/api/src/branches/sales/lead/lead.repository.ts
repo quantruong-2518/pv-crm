@@ -668,7 +668,7 @@ export class LeadRepository {
   }
 
   /** Every filter but `state` — the half `stateFacets` shares with `book()`. */
-  private filtersOf(q: LeadFacetsQuery): (SQL | undefined)[] {
+  private filtersOf(q: LeadFacetsQuery & { codes?: string }): (SQL | undefined)[] {
     return [
       q.tier ? eq(lead.tier, q.tier) : undefined,
       q.category ? eq(lead.category, q.category) : undefined,
@@ -707,6 +707,7 @@ export class LeadRepository {
          đại diện — xem docblock hàm đó. Cùng mẫu với Ops book
          (`opportunity.repository.ts#filtersOf`) nên hai ô tìm không lệch
          nhau. */
+      q.codes ? inArray(lead.code, listOf(q.codes)) : undefined,
       q.q ? or(ilike(lead.company, contains(q.q)), ilike(lead.code, contains(q.q))) : undefined,
     ]
   }

@@ -186,27 +186,30 @@ export const leadIndustryTagsQuery = queryOptions({
  *  chứ không nấp trong một chuỗi. */
 export const FACET_SIZE = 200
 
-/** CHẮP VÁ — không phải một giải pháp. Đọc hết trước khi dùng lại kiểu này.
- *
- *  KHÔNG còn nuôi ô lọc nào nữa (29/08 — chọn owner/account từ 200 dòng đầu
- *  không phải filter thật, nó là trúng-trật tuỳ owner/account đó có lọt vào
- *  200 dòng may mắn được kéo về hay không).
- *
- *  Hai việc còn sống nhờ lượt gọi này, cả hai cần CẢ SỔ chứ không phải một
- *  trang mười dòng (ghim đã sang `data/pins.ts`): khoá chống trùng của panel nạp tệp, và
- *  (18/09) `pages/opportunities.tsx` ghép `leadCode` sang đây lấy hòm thư cho
- *  mail hàng loạt vì `OpportunityRow` không tự mang hòm thư. Vẫn gãy ở lead
- *  thứ 201 — với sổ cơ hội, gãy nghĩa là một cơ hội lặng lẽ rơi khỏi danh
- *  sách nhận mail, không báo lỗi gì. Cách sửa THẬT: một endpoint tra theo mã
- *  (`GET /sales/leads/:code`) cho ghim và cho mail — ngoài phạm vi đợt này. */
-export const leadFacetQuery = queryOptions({
-  queryKey: ['sales', 'lead-book', 'facets'] as const,
-  queryFn: ({ signal }) =>
-    api.read<LeadBookResponse>(`/sales/leads?state=all&size=${FACET_SIZE}`, {
-      need: BOOK_NEED,
-      signal,
-    }),
-})
+/** Up to a screenful of leads matching `q` (company or code), for pickers
+ *  that look people up by typing rather than hold the whole book. */
+export const SEARCH_SIZE = 20
+export const leadSearchQuery = (text: string) =>
+  queryOptions({
+    queryKey: ['sales', 'lead-book', 'search', text] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadBookResponse>(
+        `/sales/leads?state=all&size=${SEARCH_SIZE}&q=${encodeURIComponent(text)}`,
+        { need: BOOK_NEED, signal },
+      ),
+  })
+
+/** The leads with exactly these codes, inside the caller's scope. Mail and the
+ *  ticked rows read them here instead of pulling the whole book. */
+export const leadsByCodesQuery = (codes: readonly string[]) =>
+  queryOptions({
+    queryKey: ['sales', 'lead-book', 'by-codes', [...codes].sort()] as const,
+    queryFn: ({ signal }) =>
+      api.read<LeadBookResponse>(
+        `/sales/leads?state=all&size=${FACET_SIZE}&codes=${codes.slice(0, FACET_SIZE).join(',')}`,
+        { need: BOOK_NEED, signal },
+      ),
+  })
 
 /** `GET /sales/leads/facets` — the state tabs' counts (`byState`) under the
  *  book's other filters, plus the no-campaign half of the Nguồn select

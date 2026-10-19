@@ -44,6 +44,9 @@ export type PersonTokenFieldProps = {
   suggestions: readonly TokenPerson[]
   onPick: (id: string) => void
   onRemove: (id: string) => void
+  /** Present when the caller looks people up itself: the box reports what is
+   *  typed and `suggestions` are taken as already matching, not filtered here. */
+  onSearch?: (text: string) => void
   /** Enter on text that matches nobody. Returning a sentence REFUSES the text
    *  and prints that sentence under the box; returning null accepts it. Absent
    *  means typing alone adds nobody, which is right for the staff directory. */
@@ -86,6 +89,7 @@ export function PersonTokenField({
   suggestions,
   onPick,
   onRemove,
+  onSearch,
   onFreeText,
   placeholder,
   hint,
@@ -106,12 +110,12 @@ export function PersonTokenField({
     () =>
       suggestions
         .filter((person) =>
-          needle === ''
+          needle === '' || onSearch
             ? true
             : `${person.name} ${person.note ?? ''}`.toLocaleLowerCase('vi').includes(needle),
         )
         .slice(0, SHOWN),
-    [suggestions, needle],
+    [suggestions, needle, onSearch],
   )
 
   const pick = (id: string) => {
@@ -157,6 +161,7 @@ export function PersonTokenField({
     onKeyDown: onKey,
     onChange: (event: ChangeEvent<HTMLInputElement>) => {
       setQuery(event.target.value)
+      onSearch?.(event.target.value)
       setRefusal('')
       setOpen(true)
     },

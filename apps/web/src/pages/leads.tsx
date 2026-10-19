@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { Contact, ImagePlus, Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
@@ -20,7 +20,7 @@ import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
-import { leadBookQuery, leadFacetQuery, leadFacetsQuery } from '@/data/leads'
+import { leadBookQuery, leadFacetsQuery, leadSearchQuery, leadsByCodesQuery } from '@/data/leads'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -148,11 +148,6 @@ export function LeadsPage() {
   const rows = bookPage?.rows ?? []
   const total = bookPage?.total ?? 0
 
-  /* The WHOLE book, read once — a patch whose limits are in `leadFacetQuery`'s
-     docblock. The mail modal needs rows beyond this page. */
-  const { data: facets } = useQuery(leadFacetQuery)
-  const wholeBook = useMemo(() => facets?.rows ?? [], [facets])
-
   /* Bảng tra mã → tên ĐÃ BỎ. Nó tồn tại vì dòng sổ chỉ chở một mã trần và màn
      phải tự đi tìm tên; nay `source.campaignName` về cùng dòng, nên không còn
      gì để tra. Cũng mất theo là cả một lớp lỗi: một nguồn vừa bị tắt không còn
@@ -274,9 +269,18 @@ export function LeadsPage() {
     clearSelection,
   } = useBookSelection(rows)
 
+  /* Ticked rows are read by code; the mail window looks further recipients up
+     by typing. The page never holds the whole book. */
+  const client = useQueryClient()
+  const searchLeads = (text: string) =>
+    client.fetchQuery(leadSearchQuery(text)).then((page) => page.rows)
+  const { data: picked } = useQuery({
+    ...leadsByCodesQuery([...selectedCodes]),
+    enabled: selectedCodes.size > 0,
+  })
   const selectedLeads = useMemo(
-    () => wholeBook.filter((lead) => selectedCodes.has(lead.code)),
-    [wholeBook, selectedCodes],
+    () => (picked?.rows ?? []).filter((lead) => selectedCodes.has(lead.code)),
+    [picked, selectedCodes],
   )
   const selectedEmailCount = selectedLeads.filter((lead) => Boolean(lead.email)).length
 
@@ -412,7 +416,8 @@ export function LeadsPage() {
             canEmail && !disabledView && l.state !== 'disqualified'
               ? () =>
                   openMasMail({
-                    recipients: wholeBook,
+                    recipients: [l],
+                    searchRecipients: searchLeads,
                     initialCode: l.code,
                   })
               : undefined
@@ -594,9 +599,12 @@ export function LeadsPage() {
             onSend={
               disabledView
                 ? undefined
-                : () =>
+                : async () =>
                     openMasMail({
-                      recipients: wholeBook,
+                      recipients: await client
+                        .ensureQueryData(leadsByCodesQuery([...selectedCodes]))
+                        .then((page) => page.rows),
+                      searchRecipients: searchLeads,
                       initialCodes: [...selectedCodes],
                       onQueued: clearSelection,
                     })

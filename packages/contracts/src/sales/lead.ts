@@ -345,6 +345,11 @@ export const LeadBookQuery = PageQuery.extend({
 
   q: z.string().trim().min(1).max(120).optional(),
 
+  /** Exact lead codes joined by commas: the book reads back just these rows,
+   *  still inside the caller's scope. Lets mail and selection fetch the leads
+   *  they hold instead of pulling the whole book. */
+  codes: z.string().min(1).max(4000).optional(),
+
   /** Default order is the book's own: newest first. That is both what the
    *  screen shows when no header is active and what the repository already
    *  does, so turning sorting on changes nothing until the user asks.
@@ -365,6 +370,7 @@ export const LeadBookResponse = paged(LeadRow)
  *  them and stays over the whole scoped book, or the source dropdown would
  *  shrink to the one value already picked. */
 export const LeadFacetsQuery = LeadBookQuery.omit({
+  codes: true,
   pinned: true,
   state: true,
   states: true,

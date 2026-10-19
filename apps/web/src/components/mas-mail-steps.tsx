@@ -43,11 +43,13 @@ export type RecipientVerdicts = { report?: MasPreflightResponse; checking: boole
 export function RecipientsStep({
   draft,
   recipients,
+  onSearch,
   chosen,
   verdicts,
 }: {
   draft: MasMailDraft
   recipients: readonly MasRecipient[]
+  onSearch?: (text: string) => void
   chosen: readonly MasRecipient[]
   verdicts: RecipientVerdicts
 }) {
@@ -73,6 +75,7 @@ export function RecipientsStep({
           label="Thêm người nhận"
           placeholder="Thêm người nhận…"
           tokens={[]}
+          onSearch={onSearch}
           suggestions={recipients
             .filter((lead) => !draft.selected.has(lead.code))
             .map((lead) => ({

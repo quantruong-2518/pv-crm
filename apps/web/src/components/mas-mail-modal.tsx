@@ -8,6 +8,7 @@ import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { MailGuideDrawer, type MailGuideSection } from '@/components/mail-guide-drawer'
 import { MailFloatingAids } from '@/components/mail-compose-bits'
+import { useRecipientSearch } from '@/data/mas-recipient-search'
 import { MailFooter } from '@/components/mas-mail-footer'
 import { WaveComposer } from '@/components/mail-sequence/wave-composer'
 import {
@@ -53,6 +54,9 @@ export type MasMailModalProps = {
   open: boolean
   onClose: () => void
   recipients: MasRecipient[]
+  /** For a book too long to hand over whole: step 1 looks people up through
+   *  this instead of filtering `recipients`. */
+  searchRecipients?: (text: string) => Promise<MasRecipient[]>
   initialCode?: string
   /** Rows highlighted in the source book. Seed, not a lock — more can be
    *  added in step 1. */
@@ -74,6 +78,7 @@ export function MasMailModal({
   open,
   onClose,
   recipients,
+  searchRecipients,
   initialCode,
   initialCodes,
   subjectType = 'lead',
@@ -140,9 +145,10 @@ export function MasMailModal({
     () => (campaignBook?.rows ?? []).filter((item) => item.state === 'RUNNING'),
     [campaignBook],
   )
+  const lookup = useRecipientSearch(recipients, searchRecipients)
   const chosen = useMemo(
-    () => recipients.filter((recipient) => draft.selected.has(recipient.code)),
-    [recipients, draft.selected],
+    () => lookup.known.filter((recipient) => draft.selected.has(recipient.code)),
+    [lookup.known, draft.selected],
   )
   const previewLead = chosen.find((lead) => lead.code === draft.previewCode) ?? chosen[0] ?? null
 
@@ -364,7 +370,8 @@ export function MasMailModal({
           {step === 0 ? (
             <RecipientsStep
               draft={draft}
-              recipients={recipients}
+              recipients={lookup.suggestions}
+              onSearch={lookup.onSearch}
               chosen={chosen}
               verdicts={{ report, checking: preflight.checking }}
             />
