@@ -6,10 +6,16 @@ import type { BookView } from './book-view'
  *  the Grid / Table switch, a sort pick and the filter-menu section. Shared by
  *  the company and contact books (`account-cards.tsx`, `contact-cards.tsx`).
  *
- *  The card is the lightest tint, flat on the book's `glass-b` (law 8), no
- *  border (law 4). A card is a link, so it sets its own ink or turns link blue. */
+ *  Each card is a `glass-b` panel on the page itself — `BookPage` drops its own
+ *  card around a grid — so a long list still sits on glass-b (law 8) and no
+ *  card nests in another. The card is `relative` so a stretched link can open
+ *  the profile while the buttons inside stay pressable. */
 export const BOOK_CARD =
-  'bg-surface-ink/5 hover:bg-surface-ink/8 text-foreground focus-visible:ring-ring flex min-w-0 flex-col gap-4 rounded-md p-5 no-underline outline-none transition-colors focus-visible:ring-2'
+  'glass-b hover:bg-muted text-foreground relative flex min-w-0 flex-col gap-3 rounded-md p-4 transition-colors has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring'
+
+/** The profile link over the whole card: its `::after` covers the card. */
+export const CARD_LINK =
+  "text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-md after:content-['']"
 
 export function ViewSwitch({
   value,

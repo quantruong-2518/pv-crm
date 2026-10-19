@@ -72,6 +72,7 @@ export const AccountRow = z.object({
   plants: z.number().int().nonnegative().nullable(),
 
   note: z.string().optional(),
+  logoUrl: z.string().optional(),
 
   /** How many enquiries this company has produced, ever. */
   leads: z.number().int().nonnegative(),
@@ -236,6 +237,13 @@ const companyFields = {
   plants: z.number().int().nonnegative().max(1_000).optional(),
 
   note: textInputOptional(1_000),
+
+  /** A link to the company's logo, laid behind its card in the book. https
+   *  only: the app is served over https and an http image is blocked. */
+  logoUrl: z
+    .url({ protocol: /^https$/, error: 'Dán link ảnh bắt đầu bằng https://.' })
+    .max(1_000, 'Tối đa 1000 ký tự.')
+    .optional(),
 }
 
 /** `POST /sales/accounts`.

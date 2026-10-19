@@ -9,7 +9,7 @@ import { contactBookQuery } from '@/data/contacts'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { SortSelect, ViewSwitch } from '@/components/book-cards'
-import { useBookView } from '@/components/book-view'
+import { GRID_PAGE_SIZE, useBookView } from '@/components/book-view'
 import { ContactCardGrid } from '@/components/contact-cards'
 import { useContactFilters } from './contacts-filters'
 
@@ -152,9 +152,10 @@ function contactTable(
 export default function ContactsPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
-  const book = useBookQuery(ContactBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
-  const { query, patch } = book
   const [view, setView] = useBookView('pv.contacts.view')
+  const pageSize = view === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE
+  const book = useBookQuery(ContactBookQuery, { size: pageSize, filterKeys: FILTER_KEYS })
+  const { query, patch } = book
 
   const { data, isPending, error, refetch } = useQuery(contactBookQuery(query))
   const { pageIndex } = useBookPageClamp(book, data?.total)
@@ -244,7 +245,7 @@ export default function ContactsPage() {
             view === 'table' ? contactTable(rows, filters, tableSort, onSort, navigate) : undefined
           }
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
+            <TableFooter page={pageIndex} pageSize={pageSize} total={total} onPage={book.goPage} />
           }
         />
       </ScreenLayout>

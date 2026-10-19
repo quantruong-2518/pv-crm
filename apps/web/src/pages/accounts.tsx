@@ -24,7 +24,7 @@ import { BookCount, BookPage } from '@/components/book-page'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { AccountCardGrid } from '@/components/account-cards'
 import { FilterSection, SortSelect, ViewSwitch } from '@/components/book-cards'
-import { noop, useBookView } from '@/components/book-view'
+import { GRID_PAGE_SIZE, noop, useBookView } from '@/components/book-view'
 import { MoneyCell } from '@/components/money-cell'
 import { AccountCreateDialog } from '@/components/account-create-dialog'
 
@@ -118,12 +118,13 @@ export default function AccountsPage() {
   const navigate = useNavigate()
   const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
-  const [view, setView] = useBookView('pv.accounts.view')
 
   /* The address is the source of truth; the hook owns patch, the debounced
      search box, the page reset and "clear all". */
+  const [view, setView] = useBookView('pv.accounts.view')
+  const pageSize = view === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE
   const book = useBookQuery(AccountBookQuery, {
-    size: PAGE_SIZE,
+    size: pageSize,
     filterKeys: ['province', 'category', 'customer', 'openDeals'],
   })
   const { query } = book
@@ -403,7 +404,7 @@ export default function AccountsPage() {
           }
           cards={view === 'grid' ? <AccountCardGrid rows={rows} /> : undefined}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={book.goPage} />
+            <TableFooter page={pageIndex} pageSize={pageSize} total={total} onPage={book.goPage} />
           }
         />
 

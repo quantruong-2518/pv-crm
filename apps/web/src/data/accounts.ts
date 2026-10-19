@@ -137,7 +137,7 @@ export function useSaveAccount(code: ObjectCode) {
 // The form
 // ---------------------------------------------------------------------------
 
-/** The FORM shape of a company — nine fields, all strings or numbers.
+/** The FORM shape of a company — ten fields, all strings or numbers.
  *
  *  Differs from `AccountRow` exactly where `OpportunityDraft` differs from
  *  `OpportunityRow`, and for the same reason: the wire uses `undefined` for
@@ -154,6 +154,7 @@ export type AccountDraft = {
   headcount: string
   plants: string
   note: string
+  logoUrl: string
 }
 
 export const BLANK_ACCOUNT: AccountDraft = {
@@ -166,6 +167,7 @@ export const BLANK_ACCOUNT: AccountDraft = {
   headcount: '',
   plants: '',
   note: '',
+  logoUrl: '',
 }
 
 /** Two NUMBER fields kept as STRINGS in the form, and that is not laziness.
@@ -187,6 +189,7 @@ export function accountDraftOf(row: AccountRow | AccountProfile): AccountDraft {
     headcount: row.headcount === null ? '' : String(row.headcount),
     plants: row.plants === null ? '' : String(row.plants),
     note: row.note ?? '',
+    logoUrl: row.logoUrl ?? '',
   }
 }
 
@@ -216,6 +219,7 @@ export function accountBodyOf(draft: AccountDraft): AccountCreate {
     ...(someInt(draft.headcount) === undefined ? {} : { headcount: someInt(draft.headcount) }),
     ...(someInt(draft.plants) === undefined ? {} : { plants: someInt(draft.plants) }),
     ...(some(draft.note) === undefined ? {} : { note: some(draft.note) }),
+    ...(some(draft.logoUrl) === undefined ? {} : { logoUrl: some(draft.logoUrl) }),
   }
 }
 

@@ -114,6 +114,10 @@ export const account = sales.table(
     /** What the account team knows that no column asks for. */
     note: text('note'),
 
+    /** A link to the company's logo, laid behind its card in the book. A link
+     *  rather than an upload: the logo already lives on the company's site. */
+    logoUrl: text('logo_url'),
+
     /** Who created the row; NULL for companies that predate the column and for
      *  the anonymous landing door. `SET NULL` like `lead.created_by`: removing
      *  a person must not be refused by a company they once typed in. */
@@ -127,6 +131,11 @@ export const account = sales.table(
      *  `config_entry` hold, and the reason the identity index below can use
      *  `nullif` on the tax code and get a truthful answer. */
     check('account_name_not_blank', sql`"name" <> ''`),
+    /** https only: the app is served over https, so an http image is blocked. */
+    check(
+      'account_logo_url_https',
+      sql`"logo_url" IS NULL OR ("logo_url" LIKE 'https://%' AND length("logo_url") <= 1000)`,
+    ),
 
     /** The merge rule, stated once — see the file docblock.
      *

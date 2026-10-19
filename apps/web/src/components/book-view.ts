@@ -4,6 +4,9 @@ import { useState } from 'react'
  *  that file exports components only. */
 export type BookView = 'grid' | 'table'
 
+/** Cards per page: a card is several rows tall, and 24 fills 2, 3 or 4 columns evenly. */
+export const GRID_PAGE_SIZE = 24
+
 /** The choice is the reader's own habit, not part of the book's address. */
 export function useBookView(storageKey: string) {
   const [view, setView] = useState<BookView>(() => {

@@ -91,29 +91,49 @@ export function BookPage({
 }: BookPageProps) {
   const hasToolbar = Boolean(tabs || count || tools)
   const hasRows = !pending && !failure && !empty
+  const toolbar = hasToolbar && (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        {tabs}
+        {count}
+      </div>
+      {tools && <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{tools}</div>}
+    </div>
+  )
+  const head = (
+    <>
+      <ScreenHeader title={<span className="uppercase">{title}</span>} actions={actions} />
+      {nav}
+      {score}
+    </>
+  )
+
+  /* Cards are surfaces of their own: laid on the page, not inside the book's
+     card, or the grid reads as boxes within a box. */
+  if (cards && hasRows) {
+    return (
+      <>
+        {head}
+        {toolbar && (
+          <GlassCard variant="b" aria-label={title}>
+            {toolbar}
+          </GlassCard>
+        )}
+        {cards}
+        {footer}
+      </>
+    )
+  }
 
   return (
     <>
-      <ScreenHeader title={<span className="uppercase">{title}</span>} actions={actions} />
-
-      {nav}
-      {score}
+      {head}
 
       {/* Law 8 — a table always sits on glass-b, and `DataTable` draws no glass
           of its own. No `overflow-hidden`: the filter popover must hang past
           the card's edge. */}
       <GlassCard variant="b" aria-label={title}>
-        {hasToolbar && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-            <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {tabs}
-              {count}
-            </div>
-            {tools && (
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{tools}</div>
-            )}
-          </div>
-        )}
+        {toolbar}
 
         <div className="overflow-x-auto">
           {pending ? (
@@ -136,8 +156,6 @@ export function BookPage({
               action={empty.action}
               className="py-12"
             />
-          ) : cards ? (
-            cards
           ) : table ? (
             <DataTable
               flush

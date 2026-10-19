@@ -5,7 +5,7 @@ import { CATEGORY_LABEL, type AccountDraft } from '@/data/accounts'
 import { AddressField } from './address-field'
 import { Field } from './ops-fields'
 
-/** The company form's nine fields, shared between TWO places.
+/** The company form's ten fields, shared between TWO places.
  *
  *  Same reason `ops-fields.tsx` exists: the "Open new company" popup on the
  *  book and the edit form on the profile must ask exactly the same
@@ -123,6 +123,23 @@ export function AccountFields({
           />
         </Field>
       </div>
+
+      <Field
+        label="Link logo"
+        errors={errors.logoUrl}
+        hint="Dán link ảnh logo, bắt đầu bằng https://. Logo hiện làm nền thẻ công ty."
+      >
+        <Input
+          type="url"
+          inputMode="url"
+          maxLength={1000}
+          placeholder="https://"
+          value={draft.logoUrl}
+          aria-label="Link logo"
+          invalid={Boolean(errors.logoUrl)}
+          onChange={(e) => onSet('logoUrl', e.target.value)}
+        />
+      </Field>
 
       <Field label="Ghi chú" errors={errors.note}>
         <Textarea

@@ -38,6 +38,7 @@ export function fromForm(body: AccountCreate): AccountValues {
     headcount: body.headcount ?? null,
     plants: body.plants ?? null,
     note: body.note ?? null,
+    logoUrl: body.logoUrl ?? null,
   }
 }
 
@@ -124,6 +125,7 @@ export function toContract(read: AccountRead): AccountRow {
     headcount: read.headcount,
     plants: read.plants,
     ...(read.note ? { note: read.note } : {}),
+    ...(read.logoUrl ? { logoUrl: read.logoUrl } : {}),
     leads: read.leads,
     openDeals: read.openDeals,
     signedDeals: read.signedDeals,

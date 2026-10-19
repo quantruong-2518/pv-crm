@@ -799,6 +799,13 @@
       "when": 1793171160000,
       "tag": "0115_notification_kinds_union",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1793257560000,
+      "tag": "0116_account_logo_url",
+      "breakpoints": true
     }
   ]
 }

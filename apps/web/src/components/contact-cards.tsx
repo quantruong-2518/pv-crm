@@ -1,125 +1,180 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar, Badge, Chip, Icon, Mail, Phone, cn, type IconGlyph } from '@pv/ui'
 import type { ContactBookRow } from '@pv/contracts'
-import { BOOK_CARD } from './book-cards'
+import { phoneText } from '@/lib/phone'
+import { CommActionConfirm } from './comm-action-confirm'
+import { LetterComposer } from './mail-letter/letter-composer'
+import { BOOK_CARD, CARD_LINK } from './book-cards'
 
 /** The contact book as cards. A lead's primary contact takes two columns: the
  *  book's question is "who do I call at this customer", and the default sort
  *  (`best`) puts those people first, so the wide cards lead the grid.
  *
- *  Phone and mail are plain text, not `tel:`/`mailto:` links: the whole card is
- *  already a link to the profile, and a link inside a link is invalid HTML. */
+ *  The phone opens Zalo and the mail opens the system's letter composer, both
+ *  through `CommActionConfirm` — the comm is recorded on the person's lead
+ *  first, as on the lead profile's action bar (ADR 0075). */
 
-function Reach({ icon, value, missing }: { icon: IconGlyph; value?: string; missing: string }) {
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <Icon icon={icon} size={16} className="text-muted-foreground shrink-0" />
-      <span
-        className={cn(
-          'min-w-0 truncate text-[13px]',
-          value ? 'tnum' : 'text-muted-foreground text-[12px]',
-        )}
-        title={value}
-      >
-        {value ?? missing}
+type Ask = { channel: 'zalo-oa' | 'email'; contact: ContactBookRow }
+
+function Reach({
+  icon,
+  value,
+  missing,
+  label,
+  large,
+  onPress,
+}: {
+  icon: IconGlyph
+  value?: string
+  missing: string
+  label: string
+  large: boolean
+  onPress: () => void
+}) {
+  if (!value) {
+    return (
+      <span className="text-muted-foreground flex min-w-0 items-center gap-2 py-1 text-[12px]">
+        <Icon icon={icon} size={14} className="shrink-0" />
+        {missing}
       </span>
-    </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      title={label}
+      aria-label={label}
+      className={cn(
+        'hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring pointer-coarse:min-h-12 relative z-[1] -mx-2 flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left outline-none transition-colors focus-visible:ring-2',
+        large ? 'text-[14px] font-semibold' : 'text-[12.5px]',
+      )}
+    >
+      <Icon icon={icon} size={large ? 16 : 14} className="text-muted-foreground shrink-0" />
+      <span className="tnum min-w-0 truncate">{value}</span>
+    </button>
   )
 }
 
-/** The wide card has room to name each channel and print it large. */
-function ReachLarge({ label, value, missing }: { label: string; value?: string; missing: string }) {
+function Owner({ name }: { name?: string }) {
   return (
-    <span className="flex min-w-0 flex-col gap-1">
-      <span className="text-muted-foreground text-[11.5px]">{label}</span>
-      <span
-        className={cn(
-          'min-w-0 truncate',
-          value ? 'tnum text-[15px] font-semibold' : 'text-muted-foreground text-[13px]',
-        )}
-        title={value}
-      >
-        {value ?? missing}
-      </span>
-    </span>
-  )
-}
-
-function ContactCard({ contact: c }: { contact: ContactBookRow }) {
-  const company = c.accountName ?? c.company
-  const role = [c.title, company].filter(Boolean).join(' · ')
-  const owner = (
-    <span className="text-muted-foreground mt-auto flex min-w-0 items-center gap-2 text-[12px]">
-      {c.ownerName ? (
+    <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
+      {name ? (
         <>
           Phụ trách
-          <Avatar name={c.ownerName} card={false} size="sm" />
-          <span className="text-foreground truncate">{c.ownerName}</span>
+          <Avatar name={name} card={false} size="sm" />
+          <span className="text-foreground truncate">{name}</span>
         </>
       ) : (
         'Chưa có người phụ trách'
       )}
     </span>
   )
+}
+
+function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a: Ask) => void }) {
+  const company = c.accountName ?? c.company
+  const role = [c.title, company].filter(Boolean).join(' · ')
+  const wide = c.isPrimary
+  const phone = (
+    <Reach
+      icon={Phone}
+      value={c.phone ? phoneText(c.phone) : undefined}
+      missing="Chưa có số điện thoại"
+      label={`Liên hệ Zalo với ${c.name}`}
+      large={wide}
+      onPress={() => onAsk({ channel: 'zalo-oa', contact: c })}
+    />
+  )
+  const mail = (
+    <Reach
+      icon={Mail}
+      value={c.email}
+      missing="Chưa có email"
+      label={`Gửi mail cho ${c.name}`}
+      large={wide}
+      onPress={() => onAsk({ channel: 'email', contact: c })}
+    />
+  )
+  /* One reading order for both sizes — who, how to reach, who holds them; the
+     wide card only lays the reach and the holder side by side. */
   return (
-    <Link
-      to={`/sales/contacts/${c.code}`}
-      className={cn(BOOK_CARD, c.isPrimary && 'md:col-span-2 md:grid md:grid-cols-2 md:gap-5')}
-    >
-      <span className="flex min-w-0 flex-col gap-3">
-        <span className="flex min-w-0 items-start gap-3">
-          <Avatar name={c.name} card={false} size={c.isPrimary ? 'lg' : 'md'} />
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="flex min-w-0 items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-[14px] font-semibold" title={c.name}>
-                {c.name}
-              </span>
-              <Chip className="shrink-0">{c.code}</Chip>
-            </span>
-            <span className="text-muted-foreground truncate text-[12px]" title={role}>
-              {role}
-            </span>
+    <article className={cn(BOOK_CARD, wide && 'sm:col-span-2')}>
+      <span className="flex min-w-0 items-center gap-3">
+        <Avatar name={c.name} card={false} size="md" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <Link
+              to={`/sales/contacts/${c.code}`}
+              className={cn(CARD_LINK, 'min-w-0 truncate text-[13.5px] font-semibold')}
+              title={c.name}
+            >
+              {c.name}
+            </Link>
+            {wide && (
+              <Badge tone="success" className="shrink-0">
+                Liên hệ chính
+              </Badge>
+            )}
+          </span>
+          <span className="text-muted-foreground truncate text-[12px]" title={role}>
+            {role}
           </span>
         </span>
-        {c.isPrimary && (
-          <span className="mt-auto flex min-w-0 flex-wrap items-center gap-3">
-            <Badge tone="success">Liên hệ chính</Badge>
-            {owner}
+        <Chip className="shrink-0">{c.code}</Chip>
+      </span>
+      {wide ? (
+        <span className="mt-auto flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1">
+          {phone}
+          {mail}
+          <span className="sm:ml-auto">
+            <Owner name={c.ownerName} />
           </span>
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col gap-3">
-        <span
-          className={cn(
-            'bg-card flex min-w-0 flex-col gap-2 rounded-sm p-3',
-            c.isPrimary && 'flex-1 justify-center gap-4 p-4',
-          )}
-        >
-          {c.isPrimary ? (
-            <>
-              <ReachLarge label="Điện thoại" value={c.phone} missing="Chưa có số điện thoại" />
-              <ReachLarge label="Email" value={c.email} missing="Chưa có email" />
-            </>
-          ) : (
-            <>
-              <Reach icon={Phone} value={c.phone} missing="Chưa có số điện thoại" />
-              <Reach icon={Mail} value={c.email} missing="Chưa có email" />
-            </>
-          )}
         </span>
-        {!c.isPrimary && owner}
-      </span>
-    </Link>
+      ) : (
+        <>
+          <span className="flex min-w-0 flex-col">
+            {phone}
+            {mail}
+          </span>
+          <span className="mt-auto">
+            <Owner name={c.ownerName} />
+          </span>
+        </>
+      )}
+    </article>
   )
 }
 
 /** Dense flow fills the hole a wide card leaves at a row's end. */
 export function ContactCardGrid({ rows }: { rows: ContactBookRow[] }) {
+  const [ask, setAsk] = useState<Ask | null>(null)
+  const [composing, setComposing] = useState<string | null>(null)
   return (
-    <div className="grid grid-flow-row-dense grid-cols-1 gap-4 p-5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-      {rows.map((c) => (
-        <ContactCard key={c.code} contact={c} />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-flow-row-dense grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {rows.map((c) => (
+          <ContactCard key={c.code} contact={c} onAsk={setAsk} />
+        ))}
+      </div>
+      {ask && (
+        <CommActionConfirm
+          channel={ask.channel}
+          subject={{ code: ask.contact.leadCode, kind: 'lead' }}
+          contact={ask.contact}
+          mail={{ onCompose: () => setComposing(ask.contact.leadCode) }}
+          onClose={() => setAsk(null)}
+        />
+      )}
+      {composing && (
+        <LetterComposer
+          door="lead"
+          code={composing}
+          leadCode={composing}
+          onClose={() => setComposing(null)}
+        />
+      )}
+    </>
   )
 }
