@@ -1,6 +1,6 @@
 # 0079 · Lead profile review: meta facts as pills, the primary move on the bar, industry tags
 
-Status: accepted (narrows 0078 §1 and §2 on where the primary move sits); §2 and §3 partly superseded 14/10/2026 by 0078's Amendment 14/10/2026
+Status: accepted (narrows 0078 §1 and §2 on where the primary move sits); §2 and §3 partly superseded 14/10/2026 by 0078's Amendment 14/10/2026; §1 superseded 19/10/2026 by 0078's Amendment 19/10/2026
 Source: project owner's decisions, review of the lead profile screen, 05/10/2026
 
 Not to be confused: ADR 0078 (`0078-profiles-share-one-shell-with-a-run-rail.md`)
@@ -10,6 +10,9 @@ nothing else.
 ## Decision
 
 ### 1 · Meta facts are separate pills
+
+[Superseded 19/10/2026: the headers have no meta row; see 0078 Amendment
+19/10/2026 item 1. Kept as the record of the decision.]
 
 The header of every profile shows its meta facts as separate pills, not one
 dot-separated sentence. The reason: each fact must be findable at a glance. This
@@ -21,7 +24,8 @@ applies to all profiles. It replaces "one meta line" in 0078 §1.
 The record's primary move may live on the floating action bar
 (`apps/web/src/components/record/action-bar.tsx`), drawn last, instead of in the
 todo card (`apps/web/src/components/record/todo-card.tsx`). Decided for the lead:
-"Mở cơ hội". [Superseded 14/10/2026: the lead's "Mở cơ hội" now lives in the
+"Mở cơ hội". [On the bar's contents since 19/10/2026: see 0078 Amendment
+19/10/2026 item 2.] [Superseded 14/10/2026: the lead's "Mở cơ hội" now lives in the
 profile header, not on the floating bar.]
 
 This **narrows 0078 §1**, which said the primary move sits in the todo card and

@@ -13,7 +13,9 @@ WhatsApp beside them.
 
 ### 1 · Five buttons, one path
 
-The bar is Gọi / Zalo / Telegram / WhatsApp / Gửi mail (+ "Khác"). A press on
+~~The bar is Gọi / Zalo / Telegram / WhatsApp / Gửi mail (+ "Khác").~~
+[Superseded 19/10/2026: Gọi is gone, the chat and mail buttons are logo-only,
+and "Khác" is the "⋯" rule; see 0078 Amendment 19/10/2026 item 2.] A press on
 Telegram or WhatsApp goes through the same comm confirm as the others: the record
 is created first (POST → 201), then the link opens.
 

@@ -1,6 +1,6 @@
 # 0078 · Every profile screen shares one shell: a run strip, a header, a body that puts the work first, a run rail and a floating contact bar
 
-Status: accepted (replaces 0077 §6 where it puts history only in the workstream drawer and the primary move in the floating bar; 0077's one-place-per-fact rule stands); amended in place 14/10/2026 — §1 Header and Body, §2, new Amendment 14/10/2026 (items 1–12)
+Status: accepted (replaces 0077 §6 where it puts history only in the workstream drawer and the primary move in the floating bar; 0077's one-place-per-fact rule stands); amended in place 14/10/2026 — §1 Header and Body, §2, new Amendment 14/10/2026 (items 1–12); amended 19/10/2026 — header meta, rail order, floating bar, see Amendment 19/10/2026
 Source: project owner's decisions, design review of the profile screens, 02/10/2026; 14/10/2026: review of the deal profile redesign canvas
 
 ## Context
@@ -30,13 +30,16 @@ only their own rail). A company's rail is the list of its runs.
   status Badge stays in the title on every profile (law 16).]
   Amended 14/10/2026: the primary moves now sit here, right of the title; the
   deal header drops its meta line. See Amendment 14/10/2026.
+  [Superseded 19/10/2026: no profile header has a meta line any more.]
 - **Body**, in fixed order: "Việc cần làm" (rungs with their dates, the next
   step and ~~the primary action from the server's verdicts~~ [superseded
   14/10/2026: the primary action moved to the header]) → working content →
   reference, set lighter.
 - **Run rail.** Liên hệ, Người liên hệ, Tệp: one copy each, each fed by the
-  workstream code or `{ kind, code }`.
-- **Floating bar.** Only Gọi / Zalo / Gửi mail and "Khác". The shell owns the
+  workstream code or `{ kind, code }`. [Order superseded 19/10/2026 on lead,
+  deal, workstream, contract and installment: Amendment 19/10/2026 item 3.]
+- **Floating bar.** ~~Only Gọi / Zalo / Gửi mail and "Khác".~~ [Superseded
+  19/10/2026: Amendment 19/10/2026 item 2.] The shell owns the
   spacer, the skeleton and the error state; a screen passes content, not
   geometry.
 
@@ -120,6 +123,41 @@ Owner decision, made while reviewing a redesign canvas of the deal profile.
     standing derived from installment statuses, the signed-vs-expected ratio,
     the quote days left.
 
+## Amendment 19/10/2026
+
+Owner decisions, made after the shipped screens were reviewed.
+
+1. Header meta pills are removed. `RecordHeader` has no meta row, and the seven
+   detail screens (lead, company, contact, contract, installment, workstream,
+   comm record) dropped theirs. The owner accepted that the facts they carried
+   are no longer shown anywhere on those screens: lead holder and
+   source/motion/referrer/campaign/created date, contract kind/owner/signed
+   date, installment share and its link to the contract, workstream
+   dates/ordinal/previous-journey link, comm record late/overdue marks,
+   channel, created date and owner, company legal name/bought/province/
+   category, contact title/primary/channel, and the lead's "read-only via a
+   deal" line. Reverses 0079 §1 and the "Other profiles keep theirs for now"
+   of Amendment 14/10/2026 item 3.
+2. Floating bar. Gọi is gone. Zalo, Telegram, WhatsApp and mail are logo or
+   icon-only borderless buttons (40px, 48px on touch); the three chat buttons
+   are disabled when no contact has a phone number. "Khác" is replaced by one
+   rule for every screen: everyday moves that carry an icon sit on the bar as
+   icon buttons (lead: hand over, pin; deal: record activity, edit owners);
+   state changes (resume, nurture, hold, reopen…) and destructive moves (stop
+   or disqualify, disable lead, stop deal) go behind a "⋯" icon menu at the
+   end after a thin divider, destructive last and in red. No "⋯" when nothing
+   is left for it. The pin icon is filled when the lead is pinned: an
+   owner-approved exception to law 11 (no filled icons). Item 8 of Amendment
+   14/10/2026 ("leaves the 'Khác' menu") now reads "leaves the '⋯' menu".
+3. Rail order on lead, deal, workstream, contract and installment profiles:
+   Người phụ trách → Người liên hệ → Lịch sử liên hệ, then the rest as before.
+   Owners, contacts and the signer at signing share one row component
+   (`apps/web/src/components/run/run-person.tsx`).
+4. Progress steps move on the write's 200, not after the refetch: a lead
+   hand-over patches the lead profile and the cached journey's lead rungs; a
+   deal move shifts the status card's stage columns from the response's
+   `stage`. The refetch that follows still has the last word.
+
 ## Open
 
 - The contract's primary action per rung (Postsale scope, undecided).
@@ -129,6 +167,8 @@ Owner decision, made while reviewing a redesign canvas of the deal profile.
 
 - **0077 §6** — see §2 here.
 - **0079 §2 and §3** — see Amendment 14/10/2026, item 9.
+- **0079 §1** — see Amendment 19/10/2026, item 1.
+- **0081** — the bar no longer holds Gọi; see Amendment 19/10/2026, item 2.
 
 ## Out of scope
 
