@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BrandMark, ChevronDown, Contact, cn } from '@pv/ui'
+import { BrandMark, Button, Contact, Icon, cn } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { phoneText } from '@/lib/phone'
@@ -14,19 +14,22 @@ import {
 } from '@/components/comm-action-confirm'
 import { MenuButton, type MenuChoice } from './menu-button'
 
-/** The floating bar of every profile — reach a contact, and a more menu for
- *  the rare doors (ADR 0078 §1). A record's primary moves live in its
+/** The floating bar of every profile — reach a contact, and buttons for
+ *  the rarer doors (ADR 0078 §1). A record's primary moves live in its
  *  header, never here.
+ *
+ *  The record's other moves (hand over, pin, stop…) sit on the bar as buttons
+ *  rather than behind a "more" menu, so none is hidden one click deep.
  *
  *  Every channel asks which contact, primary first, then goes through the
  *  comm confirm, which records first and opens the channel second (ADR 0075).
  *  Under `sm` they fold into one contact button; the bar may still wrap to two rows.
  *  A screen nobody is reached from (campaign, company, contact) passes no
- *  `subject`: the bar is the more menu alone. 48px buttons (law 13). The
+ *  `subject`: the bar is those buttons alone. 48px buttons (law 13). The
  *  shell keeps the room it floats over. `top` adds a first row (meetings). */
 
+/* No call button: a call is placed from the phone itself, not from this bar. */
 const CHANNELS: { channel: CommActionChannel; label: string }[] = [
-  { channel: 'phone', label: 'Gọi' },
   { channel: 'zalo-oa', label: 'Zalo' },
   { channel: 'telegram', label: 'Telegram' },
   { channel: 'whatsapp', label: 'WhatsApp' },
@@ -75,9 +78,9 @@ export function ActionBar({
 }: {
   /** Names the group for a screen reader. */
   label: string
-  /** The more menu — not drawn when empty. */
+  /** The record's other moves, one button each — none drawn when empty. */
   more?: MenuChoice[]
-  /** A screen's own control, drawn before the more menu — the run overview's key. */
+  /** A screen's own control, drawn before the other moves — the run overview's key. */
   extra?: ReactNode
   /** A full-width row above the buttons — the meeting row of a lead or a deal. */
   top?: ReactNode
@@ -119,7 +122,7 @@ export function ActionBar({
                 ariaLabel="Chọn cách và người liên hệ"
                 choices={
                   people.length === 0
-                    ? choicesOf('phone')
+                    ? choicesOf('zalo-oa')
                     : CHANNELS.flatMap(({ channel, label: verb }) =>
                         choicesOf(channel).map((c) => ({
                           ...c,
@@ -138,17 +141,28 @@ export function ActionBar({
             <div className="hidden sm:contents">
               {CHANNELS.map(({ channel, label: verb }) => {
                 const brand = BRAND[channel]
+                /* A chat app is reached by phone number: with nobody holding
+                   one, the button is shut rather than opening a list of refusals. */
+                const shut = channel !== 'email' && !people.some((c) => c.phone)
                 return (
                   <MenuButton
                     key={channel}
                     up
                     size="md"
-                    className={cn('pointer-coarse:h-12', brand && 'pointer-coarse:w-12 w-10 px-0')}
-                    label={brand ? null : verb}
-                    title={brand ? verb : undefined}
-                    mark={brand && <BrandMark brand={brand} size={20} />}
-                    icon={COMMS_CHANNEL_ICON[channel]}
-                    ariaLabel={`${verb}: chọn người liên hệ`}
+                    className="pointer-coarse:size-12 hover:bg-surface-ink/9 size-10 bg-transparent px-0 shadow-none"
+                    label={null}
+                    title={shut ? `${verb}: chưa có số điện thoại` : verb}
+                    mark={
+                      brand ? (
+                        <BrandMark brand={brand} size={24} />
+                      ) : (
+                        <Icon icon={COMMS_CHANNEL_ICON[channel]} size={20} />
+                      )
+                    }
+                    ariaLabel={
+                      shut ? `${verb}: chưa có số điện thoại` : `${verb}: chọn người liên hệ`
+                    }
+                    disabled={shut}
                     choices={choicesOf(channel)}
                   />
                 )
@@ -157,18 +171,21 @@ export function ActionBar({
           </>
         )}
         {extra}
-        {more.length > 0 && (
-          <MenuButton
-            up
-            align="right"
-            size="md"
-            className="pointer-coarse:h-12"
-            label="Khác"
-            icon={ChevronDown}
-            ariaLabel="Thao tác khác"
-            choices={more}
-          />
-        )}
+        {more.map((choice) => (
+          <Button
+            key={choice.key}
+            variant="ghost"
+            className={cn(
+              'pointer-coarse:h-12',
+              choice.tone === 'danger' && 'text-destructive-foreground',
+            )}
+            disabled={choice.blocked !== undefined}
+            title={choice.blocked}
+            onClick={choice.onSelect}
+          >
+            {choice.label}
+          </Button>
+        ))}
       </div>
 
       {subject && (

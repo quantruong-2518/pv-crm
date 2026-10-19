@@ -32,6 +32,7 @@ export function MenuButton({
   variant = 'ghost',
   size = 'lg',
   align = 'left',
+  disabled = false,
   className,
 }: {
   label: ReactNode
@@ -47,6 +48,8 @@ export function MenuButton({
   variant?: ButtonProps['variant']
   size?: ButtonProps['size']
   align?: 'left' | 'right'
+  /** Shut before it opens: every choice behind it would be blocked anyway. */
+  disabled?: boolean
   className?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -99,6 +102,7 @@ export function MenuButton({
         className={className}
         aria-label={ariaLabel}
         title={title}
+        disabled={disabled}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
