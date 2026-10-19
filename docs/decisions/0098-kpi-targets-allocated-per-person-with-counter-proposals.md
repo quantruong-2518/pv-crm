@@ -44,6 +44,8 @@ it uses the role target as in 0082.
 The management screen shows everyone holding a role that has KPIs to whoever
 holds `kpi.view-all`. No manager–employee table is added.
 
+> Superseded by 0100 §D: teams with a team lead are wanted (decided, not built).
+
 ### 6 · Warnings
 
 "About to miss" when the end-of-month forecast is below `slipRatio` of the

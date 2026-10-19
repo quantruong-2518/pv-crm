@@ -66,6 +66,10 @@ export const kpiAllocation = sales.table(
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     /** Kept after the package is superseded: it is why the next version exists. */
     returnReason: text('return_reason'),
+    /** Whole days the holders have to answer, counted from `decided_at` once
+     *  agreed (ADR 0099 §6). NULL = no deadline: every package agreed before
+     *  0117. The due date is derived on read, so there is no sweep to fail. */
+    ackDays: integer('ack_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -109,6 +113,8 @@ export const kpiAllocation = sales.table(
       'kpi_allocation_reason_only_when_returned',
       sql`"status" NOT IN ('draft', 'submitted', 'agreed') OR "return_reason" IS NULL`,
     ),
+    /** A month at most: the deadline is a nudge, not a way to park a package. */
+    check('kpi_allocation_ack_days_range', sql`"ack_days" IS NULL OR "ack_days" BETWEEN 1 AND 31`),
   ],
 )
 

@@ -57,6 +57,7 @@ export const SettingKey = z.enum([
   'auth.session.remembered-days',
   'kpi.alert.slip-percent',
   'kpi.alert.hit-percent',
+  'kpi.pace.tolerance-percent',
 ])
 
 export type SettingKey = z.infer<typeof SettingKey>
@@ -82,8 +83,8 @@ export type SettingUnit = z.infer<typeof SettingUnit>
  *  documents in `../approval.ts`. */
 const SettingDefinition = z.object({
   unit: SettingUnit,
-  defaultValue: z.number().int().positive(),
-  min: z.number().int().positive(),
+  defaultValue: z.number().int().nonnegative(),
+  min: z.number().int().nonnegative(),
   max: z.number().int().positive(),
   description: z.string().min(1),
 })
@@ -177,6 +178,15 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     max: 100,
     description: 'Sắp đạt khi đã đạt từ (%).',
   },
+  /* Zero is a legal default here, which the shared `positive()` definition
+     refuses; written only through `KpiAlertPatch`, never `SettingPatch`. */
+  'kpi.pace.tolerance-percent': {
+    unit: 'percent',
+    defaultValue: 0,
+    min: 0,
+    max: 99,
+    description: 'Thiếu bao nhiêu so với số cần có tới hôm nay vẫn tính Đúng tiến độ (%).',
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -196,7 +206,7 @@ export const SettingRow = z
   .object({
     key: SettingKey,
     unit: SettingUnit,
-    value: z.number().int().positive(),
+    value: z.number().int().nonnegative(),
     isDefault: z.boolean(),
     updatedAt: Moment.optional(),
     updatedBy: z.string().min(1).optional(),
@@ -280,6 +290,7 @@ export const KpiAlertPatch = z
   .object({
     slipPercent: boundedValue('kpi.alert.slip-percent'),
     hitPercent: boundedValue('kpi.alert.hit-percent'),
+    tolerancePercent: boundedValue('kpi.pace.tolerance-percent'),
   })
   .refine((v) => v.hitPercent > v.slipPercent, {
     error: 'Ngưỡng sắp đạt phải lớn hơn ngưỡng sắp trượt.',

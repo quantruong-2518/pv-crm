@@ -272,16 +272,17 @@ export const setting = platform.table(
        at most eight rows and so a scan whatever an index says. An index on
        `updated_by` would answer a question nobody asks and cost every write. */
 
-    /** The eight members of `SettingKey`, copied out by hand rather than
-     *  generated, character for character from the contract's enum. The two
-     *  `sales.activity.*` keys joined in 0076. */
+    /** The twelve members of `SettingKey`, copied out by hand rather than
+     *  generated, character for character from the contract's enum
+     *  (the three `kpi.*` keys joined in 0113 and 0116). */
     check(
       'setting_key_known',
-      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days', 'kpi.alert.slip-percent', 'kpi.alert.hit-percent')`,
+      sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days', 'kpi.alert.slip-percent', 'kpi.alert.hit-percent', 'kpi.pace.tolerance-percent')`,
     ),
-    /** True of every key today and of any added later: a non-positive constant
-     *  is one the reading code cannot act on. The per-key ceiling is zod's. */
-    check('setting_value_positive', sql`"value" > 0`),
+    /** A non-positive constant is one the reading code cannot act on; the pace
+     *  tolerance is the exception (0116): 0 % is its default, so an override
+     *  put back to 0 is legitimate. Per-key bounds are zod's. */
+    check('setting_value_positive', sql`"value" > 0 OR "key" = 'kpi.pace.tolerance-percent'`),
   ],
 )
 

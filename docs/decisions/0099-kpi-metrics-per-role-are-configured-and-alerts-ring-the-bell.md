@@ -90,6 +90,10 @@ counted by exactly the definition the number reader uses, never by another rule.
   people); moving to per-role is a change of the permission model.
 - "Only the director approves" belongs to the same place (see §4b: kept as is).
 - A manager–subordinate relation.
+
+> Superseded by 0100: the acknowledgement deadline (§B) and a team lead relation
+> (§D) are decided; "only the director approves" is not wanted.
+
 - The cap of 50 contribution records is a constant in code; the 1–99 / 2–100
   bounds and the slip < hit constraint on the two thresholds are registry
   defaults. None of these is a number the project owner has approved.

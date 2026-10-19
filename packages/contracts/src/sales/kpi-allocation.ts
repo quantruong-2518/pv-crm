@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { Day, Moment } from '../primitives'
 import { RoleId } from '../auth'
-import { KpiMetricKey, KpiPeriodKey, KpiPeriodParams, KpiTargetActor } from './kpi'
+import { KpiMetricKey, KpiMonthClose, KpiPeriodKey, KpiPeriodParams, KpiTargetActor } from './kpi'
 
 /** `/sales/kpi/:period/…` — a role's agreed target split per person.
  *
@@ -31,6 +31,9 @@ export const KpiAllocationStatus = z.enum([
   'superseded',
 ])
 export const KpiAckStatus = z.enum(['pending', 'acknowledged', 'countered'])
+/** `lapsed` is derived from the package's deadline, never stored: the head's
+ *  level applies as accepted (ADR 0100). `KpiAckStatus` stays the stored value. */
+export const KpiAckState = z.enum([...KpiAckStatus.options, 'lapsed'])
 export const KpiCounterStatus = z.enum(['open', 'accepted', 'kept', 'countered'])
 
 /** Declared once: the proposals screen and the bell line both print it. */
@@ -48,6 +51,7 @@ export const KpiAllocationLine = KpiTargetActor.extend({
   metricKey: KpiMetricKey,
   value: amount,
   ackStatus: KpiAckStatus,
+  ackState: KpiAckState,
   ackedAt: Moment.nullable(),
   /** The role's agreed target for this metric; `null` while none is agreed. */
   roleValue: amount.nullable(),
@@ -75,6 +79,10 @@ export const KpiAllocation = z.object({
   decidedBy: KpiTargetActor.nullable(),
   decidedAt: Moment.nullable(),
   returnReason: z.string().min(1).nullable(),
+  /** Days holders get to answer after the package is agreed; `null` on a row
+   *  from before the deadline existed. `ackDueOn` stays `null` until agreed. */
+  ackDays: z.number().int().min(1).max(31).nullable(),
+  ackDueOn: Day.nullable(),
   lines: z.array(KpiAllocationLine),
   /** Empty for a reader without `kpi.view-all`: a sum gives away others' shares. */
   totals: z.array(KpiAllocationTotal),
@@ -83,6 +91,7 @@ export const KpiAllocation = z.object({
 export const KpiAllocationResponse = z.object({
   period: KpiPeriodKey,
   closed: z.boolean(),
+  monthClose: KpiMonthClose,
   allocations: z.array(KpiAllocation),
 })
 
@@ -98,7 +107,10 @@ export const KpiAllocationDraftBody = z.object({
     }),
 })
 
-export const KpiAllocationSubmitBody = z.object({ role: RoleId })
+export const KpiAllocationSubmitBody = z.object({
+  role: RoleId,
+  ackDays: z.number('Nhập số ngày.').int('Nhập số nguyên.').min(1).max(31),
+})
 
 export const KpiAllocationDecideBody = z.discriminatedUnion('decision', [
   z.object({ decision: z.literal('agree') }),
@@ -177,6 +189,7 @@ export const KpiForecast = KpiTargetActor.extend({
 
 export const KpiForecastResponse = z.object({
   period: KpiPeriodKey,
+  monthClose: KpiMonthClose,
   thresholds: z.object({ slipRatio: z.number().positive(), hitRatio: z.number().positive() }),
   items: z.array(KpiForecast),
 })
@@ -192,6 +205,9 @@ export const KpiWeeklyPoint = z.object({
 
 export const KpiWeeklyResponse = z.object({
   period: KpiPeriodKey,
+  /** `true` for a closed month: the series is still live data and may differ
+   *  from the frozen figure. */
+  frozen: z.boolean(),
   role: RoleId,
   metricKey: KpiMetricKey,
   points: z.array(KpiWeeklyPoint),
@@ -199,6 +215,7 @@ export const KpiWeeklyResponse = z.object({
 
 export type KpiAllocationStatus = z.infer<typeof KpiAllocationStatus>
 export type KpiAckStatus = z.infer<typeof KpiAckStatus>
+export type KpiAckState = z.infer<typeof KpiAckState>
 export type KpiCounterStatus = z.infer<typeof KpiCounterStatus>
 export type KpiCounterParams = z.infer<typeof KpiCounterParams>
 export type KpiWeeklyQuery = z.infer<typeof KpiWeeklyQuery>

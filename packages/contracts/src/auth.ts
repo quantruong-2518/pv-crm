@@ -94,6 +94,7 @@ export const Permission = z.enum([
   'contract.view',
   'contract.edit',
   'contract.record-payment',
+  'contract.approve-overdue-reason',
   'performance.view',
   'kpi.view',
   'kpi.view-all',

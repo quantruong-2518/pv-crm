@@ -77,13 +77,15 @@ export const KpiEffectiveCatalogResponse = z.object({
 
 const slipDef = SETTING_REGISTRY['kpi.alert.slip-percent']
 const hitDef = SETTING_REGISTRY['kpi.alert.hit-percent']
+const toleranceDef = SETTING_REGISTRY['kpi.pace.tolerance-percent']
 
-/** The pair as stored in `platform.setting`. `isDefault` means neither key has
- *  a row; otherwise `updatedBy`/`updatedAt` name the latest write of the two. */
+/** The three keys as stored in `platform.setting`. `isDefault` means none has
+ *  a row; otherwise `updatedBy`/`updatedAt` name the latest write of them. */
 export const KpiAlertSettingResponse = z
   .object({
     slipPercent: z.number().int().min(slipDef.min).max(slipDef.max),
     hitPercent: z.number().int().min(hitDef.min).max(hitDef.max),
+    tolerancePercent: z.number().int().min(toleranceDef.min).max(toleranceDef.max),
     isDefault: z.boolean(),
     updatedBy: KpiTargetActor.nullable(),
     updatedAt: Moment.nullable(),
@@ -163,6 +165,8 @@ export const KpiPersonContributions = z.object({
 
 export const KpiContributionsResponse = z.object({
   period: KpiPeriodKey,
+  /** `true` for a closed month: the list is today's data, not the frozen figure. */
+  frozen: z.boolean(),
   actorId,
   groups: z.array(KpiPersonContributions),
 })

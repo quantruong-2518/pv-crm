@@ -74,7 +74,7 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The fifty-two `NotificationKind` values, copied out for
+    /** The fifty-four `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
@@ -96,7 +96,7 @@ export const notification = platform.table(
                      'comm-record-late', 'contract-installment-overdue',
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
-                     'kpi-about-to-hit')`,
+                     'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -166,7 +166,7 @@ export const notificationKindPolicy = platform.table(
                      'comm-record-late', 'contract-installment-overdue',
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
-                     'kpi-about-to-hit')`,
+                     'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

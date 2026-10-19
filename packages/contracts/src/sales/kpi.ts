@@ -5,7 +5,7 @@ import { RoleId, RoleIds } from '../auth'
 /** `/sales/kpi/:period/…` — scorecards per ROLE and the agreed monthly targets.
  *
  *  `GET me | company | people | targets`, `PUT targets/:role`,
- *  `POST targets/:role/agree`, `POST acknowledgements/:role`.
+ *  `POST targets/:role/agree`, `POST acknowledgements/:role`, `POST close`.
  *
  *  The metric catalog lives here as data, not in the API: the server computes
  *  readings from it and the screen groups and formats them from it, and two
@@ -207,16 +207,34 @@ export const KpiCompanyScorecard = KpiScorecard.omit({
   acknowledgementStale: true,
 })
 
+/** Month close: once set, every reading of the period is the stored one
+ *  (ADR 0100). `null` = the month is still live, closed or not. */
+export const KpiMonthClose = z
+  .object({
+    closedAt: Moment,
+    closedBy: z.object({ id: z.string().min(1).max(64), name: z.string().min(1) }),
+  })
+  .nullable()
+
 /** One scorecard per role the caller holds. */
 export const KpiMeResponse = z.object({
   period: KpiPeriodKey,
   closed: z.boolean(),
+  monthClose: KpiMonthClose,
   scorecards: z.array(KpiScorecard),
 })
 
 export const KpiCompanyResponse = z.object({
   period: KpiPeriodKey,
+  monthClose: KpiMonthClose,
   scorecard: KpiCompanyScorecard,
+})
+
+/** `POST /sales/kpi/:period/close` — `kpi.set-target`, no body. Answers the
+ *  close it just made, so the screen needs no second read. */
+export const KpiCloseResponse = z.object({
+  period: KpiPeriodKey,
+  monthClose: KpiMonthClose.unwrap(),
 })
 
 export const KpiPerson = z.object({
@@ -228,6 +246,7 @@ export const KpiPerson = z.object({
 
 export const KpiPeopleResponse = z.object({
   period: KpiPeriodKey,
+  monthClose: KpiMonthClose,
   people: z.array(KpiPerson),
 })
 
@@ -290,6 +309,8 @@ export const KpiAgreeBody = z.object({
 export type KpiReading = z.infer<typeof KpiReading>
 export type KpiScorecard = z.infer<typeof KpiScorecard>
 export type KpiCompanyScorecard = z.infer<typeof KpiCompanyScorecard>
+export type KpiMonthClose = z.infer<typeof KpiMonthClose>
+export type KpiCloseResponse = z.infer<typeof KpiCloseResponse>
 export type KpiMeResponse = z.infer<typeof KpiMeResponse>
 export type KpiCompanyResponse = z.infer<typeof KpiCompanyResponse>
 export type KpiPerson = z.infer<typeof KpiPerson>

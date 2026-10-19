@@ -66,6 +66,8 @@ export const NotificationKind = z.enum([
   'kpi-allocation-returned',
   'kpi-about-to-miss',
   'kpi-about-to-hit',
+  'overdue-reason-waiting',
+  'overdue-reason-decided',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -145,6 +147,8 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-allocation-returned': 'Gói chỉ tiêu bạn gửi bị trả lại',
   'kpi-about-to-miss': 'Bạn sắp trượt chỉ tiêu',
   'kpi-about-to-hit': 'Bạn sắp đạt chỉ tiêu',
+  'overdue-reason-waiting': 'Có lý do quá hạn chờ bạn duyệt',
+  'overdue-reason-decided': 'Lý do quá hạn của bạn đã được xử lý',
 }
 
 /** The filter chips on the bell screen. */
@@ -232,6 +236,8 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-allocation-returned': 'kpi',
   'kpi-about-to-miss': 'kpi',
   'kpi-about-to-hit': 'kpi',
+  'overdue-reason-waiting': 'contract',
+  'overdue-reason-decided': 'contract',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -295,6 +301,8 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-allocation-returned': { important: true, locked: false },
   'kpi-about-to-miss': { important: false, locked: false },
   'kpi-about-to-hit': { important: false, locked: false },
+  'overdue-reason-waiting': { important: true, locked: false },
+  'overdue-reason-decided': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -397,6 +405,8 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-allocation-returned': ['kpi-allocation'],
     'kpi-about-to-miss': ['kpi-scorecard'],
     'kpi-about-to-hit': ['kpi-scorecard'],
+    'overdue-reason-waiting': ['contract'],
+    'overdue-reason-decided': ['contract'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

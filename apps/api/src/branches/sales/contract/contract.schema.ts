@@ -5,8 +5,10 @@ import {
   index,
   integer,
   primaryKey,
+  serial,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
@@ -292,9 +294,84 @@ export const contractNote = sales.table(
   ],
 )
 
+/** Why an overdue installment is overdue, and whether the head accepts it.
+ *
+ *  Written by the contract's Sale owner, decided by someone else (ADR 0100).
+ *  `due` copies the installment's due date at writing: the reading code applies
+ *  a reason only while `reason.due = installment.due`, so a re-dated installment
+ *  needs a new reason without anything being deleted. Rows are history, never
+ *  edited but by the one decision. Both actor columns are real FKs, for
+ *  `kpi_target`'s reason: only a signed-in person writes here. */
+export const installmentOverdueReason = sales.table(
+  'installment_overdue_reason',
+  {
+    id: serial('id').primaryKey(),
+    contractCode: text('contract_code').notNull(),
+    installmentNo: integer('installment_no').notNull(),
+    due: timestamp('due', { withTimezone: true }).notNull(),
+    reason: text('reason').notNull(),
+    writtenById: text('written_by_id')
+      .notNull()
+      .references(() => actor.id),
+    writtenAt: timestamp('written_at', { withTimezone: true }).notNull().defaultNow(),
+    state: text('state').$type<'waiting' | 'approved' | 'rejected'>().notNull().default('waiting'),
+    /** Both NULL exactly while `waiting`. */
+    decidedById: text('decided_by_id').references(() => actor.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    /** Required on `rejected`; optional on `approved`. */
+    decisionNote: text('decision_note'),
+  },
+  (t) => [
+    foreignKey({
+      name: 'installment_overdue_reason_installment_fk',
+      columns: [t.contractCode, t.installmentNo],
+      foreignColumns: [contractInstallment.contractCode, contractInstallment.no],
+    }).onDelete('cascade'),
+    /** "Is a reason already waiting on this installment" — the write door's
+     *  fence: a second writer loses to this index, not to a read-then-insert. */
+    uniqueIndex('installment_overdue_reason_one_waiting_uq')
+      .on(t.contractCode, t.installmentNo)
+      .where(sql`"state" = 'waiting'`),
+    /** "Every reason of this installment, newest first" — the history door. */
+    index('installment_overdue_reason_installment_idx').on(
+      t.contractCode,
+      t.installmentNo,
+      t.writtenAt,
+    ),
+    /** "Which reasons wait for a decision, oldest due first" — the approver's
+     *  queue and the month-close dialog. Partial: decided rows are never asked. */
+    index('installment_overdue_reason_waiting_idx')
+      .on(t.due)
+      .where(sql`"state" = 'waiting'`),
+
+    check(
+      'installment_overdue_reason_state_known',
+      sql`"state" IN ('waiting', 'approved', 'rejected')`,
+    ),
+    check('installment_overdue_reason_reason_present', sql`length(btrim("reason")) > 0`),
+    /** Waiting has no decider and no stamp; every other state has both. */
+    check(
+      'installment_overdue_reason_decided_pair',
+      sql`("state" = 'waiting') = ("decided_by_id" IS NULL)
+          AND ("state" = 'waiting') = ("decided_at" IS NULL)`,
+    ),
+    /** The four-eyes rule. The NULL arm passes a waiting row by statement. */
+    check(
+      'installment_overdue_reason_decided_by_another',
+      sql`"decided_by_id" IS NULL OR "decided_by_id" <> "written_by_id"`,
+    ),
+    check(
+      'installment_overdue_reason_rejected_has_note',
+      sql`"state" <> 'rejected' OR length(btrim(coalesce("decision_note", ''))) > 0`,
+    ),
+  ],
+)
+
 export type ContractRowDb = typeof contract.$inferSelect
 export type ContractInstallmentRowDb = typeof contractInstallment.$inferSelect
 export type ContractConditionRowDb = typeof contractCondition.$inferSelect
 export type ContractDocumentRowDb = typeof contractDocument.$inferSelect
 export type ContractRecordRowDb = typeof contractRecord.$inferSelect
 export type ContractNoteRowDb = typeof contractNote.$inferSelect
+export type InstallmentOverdueReasonRowDb = typeof installmentOverdueReason.$inferSelect
+export type InstallmentOverdueReasonValues = typeof installmentOverdueReason.$inferInsert

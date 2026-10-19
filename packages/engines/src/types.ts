@@ -164,6 +164,9 @@ export const PERMISSIONS = [
    *  the money is in — receivables, performance and commission all read it. A
    *  Sale does NOT get this one: a seller does not confirm their own payment. */
   'contract.record-payment',
+  /** Approve the reason a Sale gives for an overdue installment (ADR 0100). Head
+   *  and director only, so the writer never clears their own overdue money. */
+  'contract.approve-overdue-reason',
   'performance.view',
   /** Own KPI readings, everyone-with-a-role's door (ADR 0082). */
   'kpi.view',

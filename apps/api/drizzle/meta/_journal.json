@@ -806,6 +806,34 @@
       "when": 1793257560000,
       "tag": "0116_account_logo_url",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1793257560000,
+      "tag": "0116_kpi_pace_tolerance",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1793343960000,
+      "tag": "0117_kpi_allocation_ack_days",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1793430360000,
+      "tag": "0118_installment_overdue_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1793516760000,
+      "tag": "0119_kpi_month_close",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,9 @@ export const KPI_ALLOCATION_RETURNED = 'sales.kpi.allocation-returned'
 export const KPI_COUNTER_RESOLVED = 'sales.kpi.counter-resolved'
 /** `data.flag` is the forecast's `slip` or `hit` (ADR 0098 §6). */
 export const KPI_FORECAST_FLAGGED = 'sales.kpi.forecast-flagged'
+/** An overdue installment's reason was sent, or decided (ADR 0100). */
+export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
+export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
 export const COMM_RECORD_LATE = 'platform.comms.record-late'
 /** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
 export const HOLD_DUE_SOON = 'sales.hold.due-soon'
@@ -147,6 +150,8 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
+  bell('overdue-reason-waiting', OVERDUE_REASON_SENT, 'approvers'),
+  bell('overdue-reason-decided', OVERDUE_REASON_DECIDED, 'writer'),
 
   bell('approval-waiting', APPROVAL_WAITING, 'approver'),
   bell('approval-approved', APPROVAL_DECIDED, 'requester', flag('approved', true)),
