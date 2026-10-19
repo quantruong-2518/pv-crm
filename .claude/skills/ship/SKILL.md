@@ -27,10 +27,14 @@ lượt. Tách thành **hai lần ship**: lần một cộng thêm phần mới 
 > Quy ước này mới chốt 15/09 và chưa từng ghi ở đâu trước đó — trước đây thứ tự
 > tuỳ tay người bấm. Chủ dự án muốn quy ước khác thì đây là chỗ sửa.
 
-**`apps/api/.env` trỏ vào Neon production.** Ba lệnh dựng lại database từ đầu bị
-hook `tools/scripts/guard-db.mjs` chặn và không được đi vòng — nếu một kịch bản
-có vẻ cần một trong ba, dừng lại và nói ra. Lệnh migrate thì được phép, nhưng
-**đọc file SQL và xác nhận không có `DROP` trước khi chạy**.
+**`apps/api/.env` là file riêng từng máy (gitignore) — đừng đoán nó trỏ đi đâu.**
+Trên máy WSL nó là `pglite://`, còn URL Neon production nằm ở `.env` gốc repo; máy
+khác có thể ngược lại. `drizzle.config.ts` đọc `DATABASE_URL` của `apps/api`, nên
+xem dòng đó trước khi chạy bất cứ lệnh `db:*` nào. Các lệnh dựng lại database từ
+đầu bị hook `tools/scripts/guard-db.mjs` chặn và không được đi vòng — nếu một kịch
+bản có vẻ cần một trong số đó, dừng lại và nói ra. Lệnh migrate thì được phép,
+nhưng **đọc file SQL trước khi chạy**: `DROP` duy nhất chấp nhận được là
+`DROP CONSTRAINT` đi liền với `ADD` lại bản rộng hơn.
 
 ## Bước 2 · Chạy migration
 
@@ -38,8 +42,21 @@ có vẻ cần một trong ba, dừng lại và nói ra. Lệnh migrate thì đ�
 pnpm db:migrate
 ```
 
-Rồi kiểm bằng mắt: bảng/cột mới có thật, và **bản đang chạy vẫn sống** —
-migration cộng thêm mà làm app cũ đỏ nghĩa là nó không phải cộng thêm.
+**Lệnh này xanh không chứng minh production đã có migration.** Hai lý do, cả hai
+đã gặp thật (09/10, migration 0092):
+
+- `DATABASE_URL` đang là PGlite thì nó chỉ migrate database trên máy.
+- Drizzle không so hash. Nó chỉ chạy những mục trong `drizzle/meta/_journal.json`
+  có `when` **lớn hơn** `created_at` mới nhất của `drizzle.__drizzle_migrations`.
+  Một migration có `when` thấp hơn mốc đó bị bỏ qua vĩnh viễn mà không báo gì.
+
+Nên kiểm **trên chính Neon**, không kiểm bằng mã thoát: đọc `pg_constraint` /
+`information_schema` xem bảng, cột, `CHECK` mới có thật chưa. Migration bị bỏ qua
+thì **dừng và hỏi chủ dự án** trước khi chạy tay SQL vào production — chạy tay thì
+gói trong một transaction và ghi thêm một dòng vào sổ migration.
+
+Cuối cùng xác nhận **bản đang chạy vẫn sống** — migration cộng thêm mà làm app cũ
+đỏ nghĩa là nó không phải cộng thêm.
 
 ## Bước 3 · Giao cho deploy-guardian
 
