@@ -109,8 +109,8 @@ Taken by the implementer; change them by amending this ADR.
 2. Team edits are direct (`kpi.set-target`), not through the config approval
    flow.
 3. Members are active actors holding at least one of marketing, bd, presales,
-   sale, account-executive. Director and head-of-sales are not team members;
-   the head splits them directly.
+   sale, account-executive and neither director nor head-of-sales; those two
+   are split by the head directly.
 4. Exactly one lead per team, and the lead is a member.
 5. Deleting a team removes its members from the roster of E; the team row stays
    for history.
@@ -120,14 +120,14 @@ Taken by the implementer; change them by amending this ADR.
 7. One new bell only, as above.
 8. Team figures on the team page: the sum of member values for count and money
    metrics; ratio, hours and days metrics show no team total (members only).
-9. (Amendment A2.) On a team package, resolving a counter in place and
-   reissuing an agreed package set the package's sender to the team's lead,
-   whoever resolved. This avoids a deadlock: otherwise the head resolving the
-   lead's own counter would become the sender and could no longer approve, and
-   a reissued draft would not be the lead's to rebalance and send. **It softens
-   the two-person rule in one case only:** the head counters the lead's own
-   line, then approves the package. The safety kept is that a settled line goes
-   back to pending, so the holder answers the new value.
+9. (Amendment A2.) When the head resolves the lead's OWN counter on a team
+   package, the package's sender stays the team's lead; every other resolution
+   makes the resolver the sender, as on the room tier. This avoids a deadlock
+   (the head as sender could no longer approve, and a reissued draft would not
+   be the lead's to send). **It softens the two-person rule in that one case
+   only:** the head counters the lead's own line, then approves. The safety
+   kept is that a settled line goes back to pending, so the lead answers the
+   new value.
 10. (Amendment A3.) A room package may hold zero lines when every holder of the
     role is in a team: it is then shares only. A package with neither lines nor
     shares is refused.
@@ -140,8 +140,17 @@ Taken by the implementer; change them by amending this ADR.
 13. A team package cannot be sent while a member holding the role has no line
     for a ratio, hours or days metric that carries a share: such a member would
     otherwise fall back to the whole room's role target.
-14. Team names are not unique, and the form says not to type "Nhóm": every
+14. Team names are not unique, and a name may not start with "Nhóm": every
     screen and bell prints "Nhóm {tên}".
+15. A room package cannot be sent while a team with a holder of the role gets
+    no share, so a team package never stays in force with nothing behind it.
+    A team line on a metric the team has no share for is refused.
+16. When the team's lead (in the roster of the month) is a disabled account, a
+    `kpi.set-target` holder may draft, send and resolve counters for that team,
+    since the month's roster is frozen; the two-person rule still applies. The
+    owner may overrule this.
+17. Members do not see their team's share through their own allocation read;
+    the lead sees it on the team page.
 
 ## Consequences
 

@@ -8,6 +8,7 @@ import {
   ScreenLayout,
   SectionTitle,
   SegmentedControl,
+  Skeleton,
 } from '@pv/ui'
 import type {
   KpiAllocation,
@@ -209,68 +210,66 @@ export function KpiAllocatePage() {
         />
 
         <QueryBlock query={withCatalog(people, catalog)} what="danh sách người nhận" variant="b">
-          {([{ people: list }, defs]) => (
-            <QueryBlock query={roster} what="danh sách nhóm" variant="b">
-              {({ teams }) => {
-                const groups = roleGroups(list)
-                const role = (groups.find((g) => g.role === picked) ?? groups[0])?.role
-                if (!role) return <p className={NOTE}>Chưa có ai giữ vai trò có KPI.</p>
-                return (
-                  <>
-                    <SegmentedControl
-                      label="Vai trò"
-                      tone="quiet"
-                      value={role}
-                      onChange={setPicked}
-                      options={groups.map((g) => ({
-                        value: g.role,
-                        label: ROLE_LABEL[g.role],
-                        count: g.holders.length,
-                      }))}
-                    />
-                    <QueryBlock query={allocations} what="gói phân bổ" variant="b">
-                      {(data) => {
-                        const pkg = data.allocations.find((a) => a.role === role && a.team === null)
-                        const teamPkgs = data.allocations.filter((a) => a.role === role && a.team)
-                        const body = (t?: KpiTargetsResponse) => (
-                          <>
-                            {data.closed && (
-                              <p className={NOTE}>
-                                Tháng đã kết thúc, chỉ tiêu không đổi được nữa.
-                              </p>
-                            )}
-                            <RoleAllocation
-                              key={`${period}/${role}/${pkg?.version ?? 0}`}
-                              period={period}
-                              role={role}
-                              defs={defs[role]}
-                              holders={holdersOf(role, list, pkg, teams)}
-                              teams={teamRowsOf(role, teams, pkg)}
-                              pkg={pkg}
-                              teamPkgs={teamPkgs}
-                              focusTeam={focusTeam}
-                              targets={t?.roles.find((r) => r.role === role)}
-                              closed={data.closed}
-                              canSet={canSet}
-                              me={me}
-                            />
-                          </>
-                        )
-                        /* A package carries its own role targets; the targets read is for a role not split yet. */
-                        return pkg ? (
-                          body()
-                        ) : (
-                          <QueryBlock query={targets} what="chỉ tiêu theo vai trò" variant="b">
-                            {body}
-                          </QueryBlock>
-                        )
-                      }}
-                    </QueryBlock>
-                  </>
-                )
-              }}
-            </QueryBlock>
-          )}
+          {([{ people: list }, defs]) => {
+            /* The roster only refines the table: if it cannot be read, the plain table stands. */
+            const teams = roster.data?.teams ?? []
+            /* Waiting keeps team members from showing as loose people for a moment. */
+            if (roster.isPending) return <Skeleton className="h-24 w-full" />
+            const groups = roleGroups(list)
+            const role = (groups.find((g) => g.role === picked) ?? groups[0])?.role
+            if (!role) return <p className={NOTE}>Chưa có ai giữ vai trò có KPI.</p>
+            return (
+              <>
+                <SegmentedControl
+                  label="Vai trò"
+                  tone="quiet"
+                  value={role}
+                  onChange={setPicked}
+                  options={groups.map((g) => ({
+                    value: g.role,
+                    label: ROLE_LABEL[g.role],
+                    count: g.holders.length,
+                  }))}
+                />
+                <QueryBlock query={allocations} what="gói phân bổ" variant="b">
+                  {(data) => {
+                    const pkg = data.allocations.find((a) => a.role === role && a.team === null)
+                    const teamPkgs = data.allocations.filter((a) => a.role === role && a.team)
+                    const body = (t?: KpiTargetsResponse) => (
+                      <>
+                        {data.closed && (
+                          <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
+                        )}
+                        <RoleAllocation
+                          key={`${period}/${role}/${pkg?.version ?? 0}`}
+                          period={period}
+                          role={role}
+                          defs={defs[role]}
+                          holders={holdersOf(role, list, pkg, teams)}
+                          teams={teamRowsOf(role, teams, pkg)}
+                          pkg={pkg}
+                          teamPkgs={teamPkgs}
+                          focusTeam={focusTeam}
+                          targets={t?.roles.find((r) => r.role === role)}
+                          closed={data.closed}
+                          canSet={canSet}
+                          me={me}
+                        />
+                      </>
+                    )
+                    /* A package carries its own role targets; the targets read is for a role not split yet. */
+                    return pkg ? (
+                      body()
+                    ) : (
+                      <QueryBlock query={targets} what="chỉ tiêu theo vai trò" variant="b">
+                        {body}
+                      </QueryBlock>
+                    )
+                  }}
+                </QueryBlock>
+              </>
+            )
+          }}
         </QueryBlock>
       </ScreenLayout>
     </AppShell>

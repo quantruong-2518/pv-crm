@@ -4,9 +4,7 @@ import {
   KpiTeamRosterResponse,
   ROLE_LABEL,
   type KpiPeriodKey,
-  type KpiTeam,
   type KpiTeamBody,
-  type KpiTeamMember,
   type RoleId,
 } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
@@ -14,14 +12,18 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { KpiReadingsRepository } from './kpi-readings.repository'
-import { KpiTeamRepository, type ActorFace, type RosterEntry } from './kpi-team.repository'
+import { memberOf, teamsOf } from './kpi-team.mapper'
+import { KpiTeamRepository, type ActorFace } from './kpi-team.repository'
 
 /** Roles that carry a personal KPI; director and head-of-sales split them instead. */
 const TEAM_ROLES: readonly RoleId[] = ['marketing', 'bd', 'presales', 'sale', 'account-executive']
+/** Holding either keeps a person out of every team, whatever else they hold. */
+const SPLITTERS: readonly RoleId[] = ['director', 'head-of-sales']
 
 /** The KPI team roster (ADR 0101). A write never edits a month already handed
- *  down: it lands on `effectiveFrom`, the first month with nothing sent, and
- *  runs under the roster lock so an allocation send cannot cross it.
+ *  down: it lands on `effectiveFrom`, the month after the last month anything
+ *  was sent for (never before this month), under the roster lock so an
+ *  allocation send cannot cross it.
  *
  *  Team edits are direct under `kpi.set-target`, not through the config
  *  approval flow (default 2): a roster is a list of names, not a target.
@@ -92,8 +94,8 @@ export class KpiTeamService {
     })
   }
 
-  /** Lock first, then pick the month: the answer to "which month has nothing
-   *  sent" must not change between the pick and the write. */
+  /** Lock first, then pick the month: the answer to "which month is still
+   *  unsent" must not change between the pick and the write. */
   private async write(
     who: Actor,
     apply: (tx: Db, at: KpiPeriodKey) => Promise<{ kpi: string; teamId: string }>,
@@ -113,8 +115,10 @@ export class KpiTeamService {
   }
 
   private async eligible(): Promise<ActorFace[]> {
-    return (await this.readings.people()).filter((p) =>
-      p.roleIds.some((r) => TEAM_ROLES.includes(r)),
+    return (await this.readings.people()).filter(
+      (p) =>
+        p.roleIds.some((r) => TEAM_ROLES.includes(r)) &&
+        !p.roleIds.some((r) => SPLITTERS.includes(r)),
     )
   }
 
@@ -125,9 +129,10 @@ export class KpiTeamService {
     if (bad.length === 0) return
     const names = (await this.repo.actors(bad)).map((a) => a.name)
     const roles = TEAM_ROLES.map((r) => ROLE_LABEL[r]).join(', ')
+    const splitters = SPLITTERS.map((r) => ROLE_LABEL[r]).join(', ')
     throw invalid({
       memberIds: [
-        `${names.length > 0 ? names.join(', ') : 'Người được chọn'} chưa vào nhóm được. Cần đang làm việc và giữ vai ${roles}.`,
+        `${names.length > 0 ? names.join(', ') : 'Người được chọn'} chưa vào nhóm được. Cần đang làm việc, giữ vai ${roles} và không giữ vai ${splitters}.`,
       ],
     })
   }
@@ -156,13 +161,6 @@ export class KpiTeamService {
   }
 }
 
-const memberOf = (a: ActorFace, lead: boolean): KpiTeamMember => ({
-  actorId: a.id,
-  name: a.name,
-  roleIds: a.roleIds,
-  lead,
-})
-
 const membersOf = (at: KpiPeriodKey, teamId: string, body: KpiTeamBody) =>
   body.memberIds.map((actorId) => ({
     fromPeriod: at,
@@ -170,23 +168,3 @@ const membersOf = (at: KpiPeriodKey, teamId: string, body: KpiTeamBody) =>
     actorId,
     lead: actorId === body.leadId,
   }))
-
-/** Rows of a roster grouped by team, the lead first and the rest by name. */
-function teamsOf(entries: readonly RosterEntry[], faces: Map<string, ActorFace>): KpiTeam[] {
-  const byTeam = new Map<string, { name: string; members: KpiTeamMember[] }>()
-  for (const e of entries) {
-    const face = faces.get(e.actorId)
-    if (!face) continue
-    const team = byTeam.get(e.teamId) ?? { name: e.teamName, members: [] }
-    team.members.push(memberOf(face, e.lead))
-    byTeam.set(e.teamId, team)
-  }
-  const teams: KpiTeam[] = []
-  for (const [id, { name, members }] of byTeam) {
-    members.sort((a, b) => Number(b.lead) - Number(a.lead) || a.name.localeCompare(b.name, 'vi'))
-    const [lead] = members
-    if (lead?.lead)
-      teams.push({ id, name, lead: { actorId: lead.actorId, name: lead.name }, members })
-  }
-  return teams.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-}

@@ -148,7 +148,7 @@ function noteOf(c: KpiCounter, def: KpiMetricDef, closed: boolean, me: string | 
     return `Xử lý lúc ${dmhm(c.resolvedAt)}${after}`
   }
   if (closed) return 'Tháng đã kết thúc, không xử lý được nữa.'
-  return c.actorId === me ? 'Trưởng phòng xử lý đề xuất của bạn.' : null
+  return c.actorId === me ? 'Quản lý xử lý đề xuất của bạn ở màn Xử lý đề xuất.' : null
 }
 
 function CounterCard({

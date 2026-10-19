@@ -10,16 +10,15 @@ import {
   type KpiTeam,
   type KpiTeamReading,
 } from '@pv/contracts'
-import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, invalid, notFound } from '@api/platform/http/problem'
+import { invalid, notFound } from '@api/platform/http/problem'
 import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
-import { KpiAllocationService } from './kpi-allocation.service'
-import type { Roster } from './kpi-allocation-team'
+import { KpiAllocationService, notLead } from './kpi-allocation.service'
 import { additive, defOf } from './kpi-allocation.mapper'
 import { KpiConfigService } from './kpi-config.service'
 import { monthClock } from './kpi-rules'
-import { KpiTeamRepository } from './kpi-team.repository'
+import { teamsOf } from './kpi-team.mapper'
+import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
 import { expectedOf, verdictOf } from './kpi-verdict'
 import { KpiService } from './kpi.service'
 
@@ -42,16 +41,17 @@ export class KpiTeamViewService {
   ) {}
 
   async view(who: Actor, period: KpiPeriodKey, teamId: string): Promise<KpiTeamViewResponse> {
-    const { roster } = await this.packages.tierContext(period)
+    const { roster, entries } = await this.packages.tierContext(period)
     const all = this.access.allows(who, 'kpi.view-all')
-    const iLead = roster.leadOf(teamId) === who.id
-    if (!all && !iLead) throw denied('permission-denied', 'Bạn không phụ trách nhóm này.')
+    /* A stand-in for a locked lead edits too, so `iLead` is "acts for the lead". */
+    const iLead = await this.packages.actsFor(who, roster, teamId)
+    if (!all && !iLead) throw notLead()
     if (!roster.team(teamId)) throw notFound('nhóm')
 
     const members = new Set(roster.membersOf(teamId))
     const [cards, team, shares, allocations, counters, tolerance] = await Promise.all([
       this.kpi.people(period, members),
-      this.teamOf(roster, teamId),
+      this.teamOf(entries, teamId),
       this.packages.sharesInForce(period),
       this.packages.teamPackages(period, teamId),
       this.counters.counterViews(period, teamId),
@@ -147,21 +147,13 @@ export class KpiTeamViewService {
   }
 
   /** Names come from `actor` whether or not the person is still enabled. */
-  private async teamOf(roster: Roster, teamId: string): Promise<KpiTeam> {
-    const ids = roster.membersOf(teamId)
-    const faces = new Map((await this.teams.actors(ids)).map((a) => [a.id, a]))
-    const leadId = roster.leadOf(teamId) ?? ''
-    const members = ids.map((id) => ({
-      actorId: id,
-      name: faces.get(id)?.name ?? id,
-      roleIds: (faces.get(id)?.roleIds ?? []).map(toContractRole),
-      lead: id === leadId,
-    }))
-    return {
-      id: teamId,
-      name: roster.team(teamId)?.name ?? '',
-      lead: { actorId: leadId, name: faces.get(leadId)?.name ?? leadId },
-      members,
-    }
+  private async teamOf(entries: readonly RosterEntry[], teamId: string): Promise<KpiTeam> {
+    const mine = entries.filter((e) => e.teamId === teamId)
+    const faces = new Map(
+      (await this.teams.actors(mine.map((e) => e.actorId))).map((a) => [a.id, a]),
+    )
+    const team = teamsOf(mine, faces).find((t) => t.id === teamId)
+    if (!team) throw notFound('nhóm')
+    return team
   }
 }

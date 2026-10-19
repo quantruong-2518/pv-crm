@@ -87,7 +87,7 @@ function SaveBar({
   const days = ACK_DAYS.safeParse(toDays(daysText))
   const problem =
     daysText === ''
-      ? 'Nhập số ngày để gửi duyệt.'
+      ? 'Nhập hạn trả lời để gửi duyệt.'
       : days.success
         ? undefined
         : `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
@@ -98,12 +98,17 @@ function SaveBar({
           Hàng nghìn ngăn bằng dấu chấm, số lẻ dùng dấu phẩy. Tỷ lệ nhập theo phần trăm.
         </p>
         {dirty && <p className={NOTE}>Có thay đổi chưa lưu. Lưu nháp rồi mới gửi duyệt được.</p>}
-        <Field label="Số ngày để nhận chỉ tiêu" problem={problem} className="mt-1 w-72 max-w-full">
+        <Field
+          label="Hạn trả lời (số ngày)"
+          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao."
+          problem={problem}
+          className="mt-1 w-72 max-w-full"
+        >
           {/* The unit beside the box, not `suffix`: the suffix shell is fixed at 40px, under law 13's 48. */}
           <span className="flex items-center gap-2">
             <Input
               inputMode="numeric"
-              aria-label="Số ngày để nhận chỉ tiêu"
+              aria-label="Hạn trả lời (số ngày)"
               className="pointer-coarse:h-12 tnum font-num w-24 text-right"
               value={daysText}
               invalid={problem !== undefined}
@@ -353,7 +358,6 @@ export function TeamSplit({
         size="lg"
         actions={
           <>
-            <Badge tone={state.tone}>{state.text}</Badge>
             {holders.length > 0 && (
               <TargetHistoryButton
                 period={period}
@@ -374,10 +378,13 @@ export function TeamSplit({
           </>
         }
       >
-        {ROLE_LABEL[role]}
+        Chia cho thành viên · {ROLE_LABEL[role]}
       </SectionTitle>
       <StateNotes pkg={pkg} />
       <GlassCard variant="b" className="flex flex-col gap-4 py-4">
+        <div className="px-5">
+          <Badge tone={state.tone}>{state.text}</Badge>
+        </div>
         {holders.length === 0 ? (
           <p className={cn(NOTE, 'px-5')}>Nhóm chưa có ai giữ vai trò này.</p>
         ) : (

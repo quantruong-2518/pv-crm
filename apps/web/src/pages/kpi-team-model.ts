@@ -5,7 +5,7 @@ import type {
   KpiTeamViewResponse,
   RoleId,
 } from '@pv/contracts'
-import { MONTH_PARAM, monthEnded } from './kpi-model'
+import { monthEnded } from './kpi-model'
 
 /** What the team page computes besides what it draws: which roles the team has
  *  a share of, who holds each, which package belongs to a role, and whether the
@@ -15,9 +15,6 @@ import { MONTH_PARAM, monthEnded } from './kpi-model'
 
 /** Someone a line can be handed to. */
 export type Recipient = { actorId: string; name: string }
-
-export const teamPath = (teamId: string, period: string) =>
-  `/sales/kpi/team/${encodeURIComponent(teamId)}?${MONTH_PARAM}=${period}`
 
 /** The view has `monthClose` but no `closed`: a month is shut once it is over or was closed by hand. */
 export const isClosed = (view: KpiTeamViewResponse) =>

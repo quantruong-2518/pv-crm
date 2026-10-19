@@ -24,9 +24,9 @@ import { flagsOf } from '@/data/kpi-forecast'
 import { weeklyMetricOf } from '@/data/kpi-personal'
 import { num, periodLabel } from './home-model'
 import { NOTE, TILE } from './home-tiles'
+import { teamPath } from './kpi-allocate-model'
 import { MONTH_PARAM, boardOf, printTile, printValue } from './kpi-model'
 import { ReadingTile } from './kpi-parts'
-import { teamPath } from './kpi-team-model'
 import { WeeklyChart } from './kpi-weekly-chart'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the door to
@@ -78,7 +78,7 @@ export function TeamLeadLink({
       onClick={() => navigate(teamPath(team.id, period))}
     >
       <Icon icon={Users} size={16} />
-      Nhóm {team.name} · Trưởng nhóm
+      Mở trang nhóm {team.name}
     </Button>
   )
 }

@@ -68,7 +68,7 @@ export function TeamNameCell({ team, pkg }: { team: TeamRow; pkg: KpiAllocation 
   return (
     <span className="flex min-w-0 flex-col items-start gap-1">
       <span className="truncate font-semibold">
-        Nhóm {team.name} · {team.memberCount} người
+        Nhóm {team.name} · {team.memberCount} thành viên
       </span>
       <Badge tone={status.tone} className="whitespace-normal">
         {status.text}

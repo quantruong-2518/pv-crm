@@ -69,7 +69,7 @@ export class KpiAlertService {
         audiences: { sender: [pkg.submittedBy] },
       },
       subject: await this.returnedSubject(tx, pkg),
-      detail: { reason },
+      detail: { reason, period: pkg.period },
     })
   }
 

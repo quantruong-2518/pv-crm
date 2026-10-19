@@ -1,4 +1,4 @@
-import { Badge, Check, Icon, Stepper, cn } from '@pv/ui'
+import { Badge, Check, GlassCard, Icon, Stepper, cn } from '@pv/ui'
 import type { KpiAllocation } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
 import { NOTE } from './home-tiles'
@@ -82,13 +82,14 @@ export function PackageSteps({
 }) {
   const stamp = stampOf(pkg)
   const done = pkg?.status === 'agreed' || pkg?.status === 'superseded'
+  /* On `.glass-b`, not the bare page: the badge text only clears 4.5:1 on that surface (law 13). */
   return (
-    <div className="flex flex-col gap-2">
+    <GlassCard variant="b" className="flex flex-col gap-2 p-4">
       <div className="flex flex-wrap items-center gap-3">
         {done ? <AllDone /> : <Stepper steps={STEPS} current={stepOf(pkg, hasTotal)} />}
         <PackageBadge pkg={pkg} />
       </div>
       {stamp && <p className={cn(NOTE, 'tnum font-num')}>{stamp}</p>}
-    </div>
+    </GlassCard>
   )
 }

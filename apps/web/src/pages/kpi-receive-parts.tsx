@@ -136,7 +136,6 @@ export function ReceivePackage({
         }
         actions={
           <>
-            <Badge tone={state.tone}>{state.text}</Badge>
             {me && (
               <TargetHistoryButton
                 period={period}
@@ -155,7 +154,10 @@ export function ReceivePackage({
         <p className={cn(NOTE, 'tnum font-num')}>Hạn trả lời: {dm(pack.ackDueOn)}</p>
       )}
 
-      <GlassCard variant="b" className="flex flex-col py-4">
+      <GlassCard variant="b" className="flex flex-col gap-3 py-4">
+        <div className="px-5">
+          <Badge tone={state.tone}>{state.text}</Badge>
+        </div>
         <div className="overflow-x-auto">
           <DataTable
             flush

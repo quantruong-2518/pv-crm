@@ -93,8 +93,6 @@ export function TeamFormDrawer({
             className="pointer-coarse:h-12"
             onChange={(e) => setName(e.target.value)}
           />
-          {/* Every screen and bell prefixes the team word, so typing it doubles it. */}
-          <span className="text-muted-foreground text-[11px]">Không cần ghi chữ "Nhóm".</span>
         </label>
 
         <div className="flex flex-col gap-1">
@@ -143,15 +141,19 @@ export function TeamRemoveDrawer({
   const remove = useDeleteKpiTeam()
   const { reset } = remove
   const open = team !== null
+  /* The drawer slides out after `team` is already null; keep the last one for its text. */
+  const [shown, setShown] = useState(team)
   useEffect(() => {
-    if (open) reset()
-  }, [open, reset])
+    if (!team) return
+    setShown(team)
+    reset()
+  }, [team, reset])
 
   return (
     <Drawer
       open={open}
       onClose={onClose}
-      title={`Xoá nhóm ${team?.name ?? ''}`}
+      title={`Xoá nhóm ${shown?.name ?? ''}`}
       subtitle={`Áp dụng từ tháng ${monthText(editableFrom)}.`}
       footer={
         <StepFooter
@@ -179,7 +181,7 @@ export function TeamRemoveDrawer({
       }
     >
       <p className="text-[13px] leading-5">
-        {team?.members.length ?? 0} thành viên sẽ không còn thuộc nhóm nào.
+        {shown?.members.length ?? 0} thành viên sẽ không còn thuộc nhóm nào.
       </p>
     </Drawer>
   )

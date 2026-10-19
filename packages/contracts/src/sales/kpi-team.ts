@@ -23,8 +23,8 @@ import { KpiAllocation, KpiCounter, KpiCounterParams } from './kpi-allocation'
  *      POST   …/:period/teams/:teamId/allocations/submit           the team's lead
  *      POST   …/:period/teams/:teamId/counters/:counterId/resolve  the team's lead
  *
- *  The roster is versioned by month: a write lands on `editableFrom`, the first
- *  month with nothing sent yet, so a month already handed down never shifts. */
+ *  The roster is versioned by month: a write lands on `editableFrom`, the month
+ *  after the last one anything was sent for, so a month handed down never shifts. */
 
 const amount = z.number().nonnegative()
 const actorId = z.string().min(1).max(64)
@@ -48,7 +48,8 @@ export const KpiTeamRosterQuery = z.object({ period: KpiPeriodKey })
 
 export const KpiTeamRosterResponse = z.object({
   period: KpiPeriodKey,
-  /** First month a team edit takes effect; earlier months stay as they were sent. */
+  /** First month a team edit takes effect: the month after the last one anything
+   *  was sent for, never before this month. */
   editableFrom: KpiPeriodKey,
   teams: z.array(KpiTeam),
   /** Eligible people in no team; filled only for a `kpi.view-all` caller. */
@@ -62,8 +63,14 @@ export const KpiTeamWriteResponse = KpiTeamRosterResponse
 
 export const KpiTeamBody = z
   .object({
-    name: z.string().trim().min(1, 'Nhập tên nhóm.').max(80, 'Tên nhóm tối đa 80 ký tự.'),
-    leadId: actorId,
+    /* Every screen and bell already prefixes the team word, so it may not lead the name. */
+    name: z
+      .string()
+      .trim()
+      .min(1, 'Nhập tên nhóm.')
+      .max(80, 'Tên nhóm tối đa 80 ký tự.')
+      .refine((n) => !/^nhóm\s/iu.test(n), { message: 'Bỏ chữ "Nhóm" ở đầu tên.' }),
+    leadId: z.string().min(1, 'Chọn trưởng nhóm.').max(64),
     memberIds: z
       .array(actorId)
       .min(1, 'Chọn ít nhất một thành viên.')
@@ -96,6 +103,7 @@ export const KpiTeamViewResponse = z.object({
   period: KpiPeriodKey,
   monthClose: KpiMonthClose,
   team: KpiTeam,
+  /** The reader acts for the lead: the lead, or a stand-in while the lead is locked. */
   iLead: z.boolean(),
   shares: z.array(KpiTeamShare),
   readings: z.array(KpiTeamReading),

@@ -19,6 +19,7 @@ import { kpiTeamViewQuery } from '@/data/kpi-team-view'
 import { dm } from '@/lib/date'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
+import { monthQuery } from './kpi-allocate-model'
 import { MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { TeamCounters } from './kpi-team-counters'
@@ -70,29 +71,31 @@ function Body({
         <TeamMembers catalog={catalog} people={view.people} />
       </section>
 
-      <section className="flex flex-col gap-3">
-        <SectionTitle size="lg">Chia cho thành viên</SectionTitle>
-        {roles.length === 0 && <p className={NOTE}>Phòng chưa giao phần cho nhóm.</p>}
-        {roles.map((role) => {
-          const pkg = packageOf(view.allocations, role)
-          const shares = new Map(
-            view.shares.filter((s) => s.role === role).map((s) => [s.metricKey, s.value]),
-          )
-          return (
-            <TeamSplit
-              key={`${view.period}/${role}/${pkg?.version ?? 0}/${pkg?.status ?? ''}`}
-              period={view.period}
-              teamId={view.team.id}
-              role={role}
-              defs={catalog[role]}
-              shares={shares}
-              holders={holdersOf(view.team, role, pkg)}
-              pkg={pkg}
-              canEdit={canEdit}
-            />
-          )
-        })}
-      </section>
+      {roles.length === 0 && (
+        <section className="flex flex-col gap-3">
+          <SectionTitle size="lg">Chia cho thành viên</SectionTitle>
+          <p className={NOTE}>Phòng chưa giao phần cho nhóm.</p>
+        </section>
+      )}
+      {roles.map((role) => {
+        const pkg = packageOf(view.allocations, role)
+        const shares = new Map(
+          view.shares.filter((s) => s.role === role).map((s) => [s.metricKey, s.value]),
+        )
+        return (
+          <TeamSplit
+            key={`${view.period}/${role}/${pkg?.version ?? 0}/${pkg?.status ?? ''}`}
+            period={view.period}
+            teamId={view.team.id}
+            role={role}
+            defs={catalog[role]}
+            shares={shares}
+            holders={holdersOf(view.team, role, pkg)}
+            pkg={pkg}
+            canEdit={canEdit}
+          />
+        )
+      })}
 
       <section className="flex flex-col gap-3">
         <SectionTitle size="lg">Đề xuất</SectionTitle>
@@ -123,17 +126,19 @@ export function KpiTeamPage() {
   const view = useQuery(kpiTeamViewQuery(period, teamId))
   const catalog = useQuery(kpiCatalogQuery)
   const day = dayOfMonth(period)
+  /* An index above 0 means this page was reached from another one inside the app. */
+  const from = seesAll
+    ? { label: 'Thống kê phòng', path: '/sales/kpi/department' }
+    : { label: 'KPI của tôi', path: '/sales/kpi/me' }
+  const goBack = () =>
+    window.history.state?.idx > 0 ? navigate(-1) : navigate(`${from.path}${monthQuery(period)}`)
   const refused = isApiError(view.error) && view.error.kind === 'forbidden'
 
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          back={
-            seesAll
-              ? { label: 'Thống kê phòng', onClick: () => navigate('/sales/kpi/department') }
-              : { label: 'KPI của tôi', onClick: () => navigate('/sales/kpi/me') }
-          }
+          back={{ label: from.label, onClick: goBack }}
           title={view.data ? `KPI nhóm ${view.data.team.name}` : 'KPI nhóm'}
           description={day && <span className="tnum font-num">{day}</span>}
           actions={

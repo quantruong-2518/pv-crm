@@ -14,11 +14,11 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { toContractRole } from '@api/platform/auth/auth.mapper'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { conflict, invalid } from '@api/platform/http/problem'
+import { conflict, denied, invalid } from '@api/platform/http/problem'
 import { spansOf, type PeriodSpan } from '../performance/performance-period'
 import { KpiAlertService } from './kpi-alert.service'
 import {
-  assertLead,
+  missingSharedLines,
   rosterOf,
   roomFaults,
   shareTargetOf,
@@ -55,6 +55,8 @@ export const stale = () =>
   conflict('Gói chỉ tiêu vừa được người khác thay đổi. Tải lại rồi làm lại.')
 
 /** A package its holders have been handed: they read it, confirm it, counter it. */
+export const notLead = () => denied('permission-denied', 'Bạn không phụ trách nhóm này.')
+
 export const handedDown = (p: Pick<KpiAllocationRowDb, 'status'>): boolean =>
   p.status === 'submitted' || p.status === 'agreed'
 
@@ -63,7 +65,11 @@ const tierKey = (p: Pick<KpiAllocationRowDb, 'role' | 'teamId'>): string =>
   `${p.role}|${p.teamId ?? ''}`
 
 const holdersOf = (
-  people: readonly { id: string; roleIds: readonly Parameters<typeof toContractRole>[0][] }[],
+  people: readonly {
+    id: string
+    name: string
+    roleIds: readonly Parameters<typeof toContractRole>[0][]
+  }[],
   role: RoleId,
 ): Set<string> =>
   new Set(people.filter((p) => p.roleIds.map(toContractRole).includes(role)).map((p) => p.id))
@@ -122,16 +128,11 @@ export class KpiAllocationService {
   /** A team's live packages, whole: the answer of the team's own doors. The
    *  lead sees the lines and sums of their team's packages, and nothing else. */
   async teamResponse(period: KpiPeriodKey, teamId: string): Promise<KpiAllocationResponse> {
-    const [packages, monthClose] = await Promise.all([
-      this.repo.packages(period),
-      this.closes.of(period),
-    ])
-    const shown = packages.filter((p) => p.teamId === teamId && p.status !== 'superseded')
     return KpiAllocationResponse.parse({
       period,
       closed: monthClock(period).phase === 'closed',
-      monthClose,
-      allocations: await this.present(period, shown, null),
+      monthClose: await this.closes.of(period),
+      allocations: await this.teamPackages(period, teamId),
     })
   }
 
@@ -168,15 +169,18 @@ export class KpiAllocationService {
       const target = share ? shareTargetOf(share) : roleTarget
       if (only !== null) {
         const own = mine.filter((l) => l.actorId === only)
-        return own.length > 0 ? [toAllocation(p, own, [], target, lastMonth, today)] : []
+        /* A member does not see the team's share: the lead's page does. */
+        const seen = share ? () => null : target
+        return own.length > 0 ? [toAllocation(p, own, [], seen, lastMonth, today)] : []
       }
       const shares = ownShares.filter((s) => s.allocationId === p.id)
       const totals = totalsOf(p.role, share ? mine : [...mine, ...shares], target)
       const members = (teamId: string) =>
         ctx!.roster.membersOf(teamId).filter((m) => ctx!.holders(p.role).has(m))
-      const changed = share
-        ? mismatchOf(p.role, teamAmounts(mine, share), target, 'team') !== null
-        : false
+      const changed =
+        share && p.status !== 'draft'
+          ? mismatchOf(p.role, teamAmounts(mine, share), target, 'team') !== null
+          : false
       const shareLines = toShareLines(shares, p.role, members, roleTarget, lastMonth)
       return [
         toAllocation(p, mine, totals, target, lastMonth, today, {
@@ -215,7 +219,7 @@ export class KpiAllocationService {
       this.teams.rosterAt(period),
     ])
     const roster = rosterOf(rosterRows)
-    if (teamId) assertLead(roster, teamId, who.id)
+    if (teamId) await this.assertActsFor(who, roster, teamId)
     const defs = await this.roleDefs(role)
     assertTargetValues(defs, body.lines, 'lines')
     assertTargetValues(defs, body.shares, 'shares')
@@ -226,14 +230,14 @@ export class KpiAllocationService {
       nameOf: (id: string) => names.get(id) ?? id,
       actorIds: body.lines.map((l) => l.actorId),
     }
-    throwFaults(
-      teamId
-        ? teamFaults({ ...input, teamId })
-        : roomFaults({ ...input, teamIds: body.shares.map((s) => s.teamId) }),
-      'draft',
-    )
-    if (teamId && shareValues(await this.sharesInForce(period), role, teamId).size === 0) {
-      throw conflict('Nhóm chưa được giao phần chỉ tiêu của vai này.')
+    if (teamId) {
+      const share = shareValues(await this.sharesInForce(period), role, teamId)
+      if (share.size === 0) throw conflict('Nhóm chưa được giao phần chỉ tiêu của vai này.')
+      const lineKeys = body.lines.map((l) => l.metricKey)
+      throwFaults(teamFaults({ ...input, teamId, share, lineKeys }), 'draft')
+    } else {
+      const teamIds = body.shares.map((s) => s.teamId)
+      throwFaults(roomFaults({ ...input, teamIds, complete: false }), 'draft')
     }
 
     await this.repo.run(async (tx) => {
@@ -311,10 +315,13 @@ export class KpiAllocationService {
     stillOpen(period)
     /* Read before the transaction: a second connection inside it would wait on it. */
     const people = await this.readings.people()
+    if (teamId) await this.assertActsFor(who, rosterOf(await this.teams.rosterAt(period)), teamId)
     await this.repo.run(async (tx) => {
       await this.teams.lockRoster(tx)
       const live = await this.repo.lockLive(tx, period, role, teamId)
-      if (teamId) assertLead(rosterOf(await this.teams.rosterAt(period, tx)), teamId, who.id)
+      if (teamId) {
+        await this.assertActsFor(who, rosterOf(await this.teams.rosterAt(period, tx)), teamId, tx)
+      }
       if (live?.status !== 'draft') {
         throw conflict('Vai này không có bản nháp chia chỉ tiêu để gửi.')
       }
@@ -402,9 +409,29 @@ export class KpiAllocationService {
 
   /** The roster of the month and who holds each role, read together. */
   async tierContext(period: KpiPeriodKey) {
-    const [rows, people] = await Promise.all([this.teams.rosterAt(period), this.readings.people()])
-    const roster: Roster = rosterOf(rows)
-    return { roster, holders: (role: RoleId) => holdersOf(people, role) }
+    const [entries, people] = await Promise.all([
+      this.teams.rosterAt(period),
+      this.readings.people(),
+    ])
+    const roster: Roster = rosterOf(entries)
+    return { entries, roster, holders: (role: RoleId) => holdersOf(people, role) }
+  }
+
+  /** The team's lead, judged by the roster of the month and not by a
+   *  permission (amendment A1) — or, while that lead is locked out, a
+   *  `kpi.set-target` holder, so the team is not stranded (ADR 0101 default). */
+  async actsFor(who: Actor, roster: Roster, teamId: string, handle?: Db): Promise<boolean> {
+    const lead = roster.leadOf(teamId)
+    if (lead === who.id) return true
+    return (
+      lead !== null &&
+      this.access.allows(who, 'kpi.set-target') &&
+      (await this.teams.disabledAmong([lead], handle)).has(lead)
+    )
+  }
+
+  async assertActsFor(who: Actor, roster: Roster, teamId: string, handle?: Db): Promise<void> {
+    if (!(await this.actsFor(who, roster, teamId, handle))) throw notLead()
   }
 
   /** Each role's highest agreed target, by `slotsOf`'s own reading. Not cut to
@@ -461,19 +488,27 @@ export class KpiAllocationService {
     const holders = (role: RoleId) => holdersOf(people, role)
     const lines = await this.repo.lines([pkg.id], tx)
     const shares = await this.repo.shares([pkg.id], tx)
-    const names = new Map(lines.map((l) => [l.actorId, l.name]))
+    const names = new Map([
+      ...people.map((p) => [p.id, p.name] as const),
+      ...lines.map((l) => [l.actorId, l.name] as const),
+    ])
     const input = {
       roster,
       holders: holders(pkg.role),
       nameOf: (id: string) => names.get(id) ?? id,
       actorIds: lines.map((l) => l.actorId),
     }
-    throwFaults(
-      pkg.teamId
-        ? teamFaults({ ...input, teamId: pkg.teamId })
-        : roomFaults({ ...input, teamIds: shares.map((s) => s.teamId) }),
-      'send',
-    )
+    const teamIds = shares.map((s) => s.teamId)
+    if (!pkg.teamId) {
+      throwFaults(roomFaults({ ...input, teamIds, complete: true }), 'send')
+    } else {
+      const share = shareValues(await this.sharesInForce(pkg.period, tx), pkg.role, pkg.teamId)
+      const lineKeys = lines.map((l) => l.metricKey)
+      const faults = teamFaults({ ...input, teamId: pkg.teamId, share, lineKeys })
+      const team = { teamId: pkg.teamId, role: pkg.role, lines, share }
+      const gaps = missingSharedLines({ ...input, ...team })
+      throwFaults({ ...faults, lines: [...faults.lines, ...gaps] }, 'send')
+    }
     await this.assertBalanced(tx, pkg)
   }
 

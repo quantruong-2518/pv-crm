@@ -1,6 +1,6 @@
-import type { KpiMetricKey, RoleId } from '@pv/contracts'
-import { conflict, denied, invalid } from '@api/platform/http/problem'
-import type { Amount, RoleTargetOf } from './kpi-allocation.mapper'
+import { KPI_METRIC_LABEL, type KpiMetricKey, type RoleId } from '@pv/contracts'
+import { conflict, invalid } from '@api/platform/http/problem'
+import { additive, defOf, type Amount, type RoleTargetOf } from './kpi-allocation.mapper'
 import type { KpiShareRow } from './kpi-allocation.repository'
 import type { RosterEntry } from './kpi-team.repository'
 
@@ -37,13 +37,6 @@ export function rosterOf(entries: readonly RosterEntry[]): Roster {
   }
 }
 
-/** Judged by the roster of the month, never by a permission (amendment A1). */
-export function assertLead(roster: Roster, teamId: string, actorId: string): void {
-  if (roster.leadOf(teamId) !== actorId) {
-    throw denied('permission-denied', 'Bạn không phụ trách nhóm này.')
-  }
-}
-
 /** True when `lead` leads the team `actorId` sits in. */
 export const leadsOver = (roster: Roster, lead: string, actorId: string): boolean => {
   const team = roster.teamOf(actorId)
@@ -66,9 +59,13 @@ const strangersOf = ({ holders, actorIds }: FaultInput): string[] => {
 }
 
 /** Room package: lines go to holders in no team, shares to teams that have a
- *  holder of the role. */
-export function roomFaults(input: FaultInput & { teamIds: readonly string[] }): Faults {
-  const { roster, holders, nameOf, actorIds, teamIds } = input
+ *  holder of the role. `complete` (a send, not a draft) also wants a share for
+ *  every such team, or its agreed package would stay in force with nothing
+ *  behind it. */
+export function roomFaults(
+  input: FaultInput & { teamIds: readonly string[]; complete: boolean },
+): Faults {
+  const { roster, holders, nameOf, actorIds, teamIds, complete } = input
   const inTeam = [...new Set(actorIds)].flatMap((id) => {
     const team = roster.teamOf(id)
     return team && holders.has(id)
@@ -88,18 +85,38 @@ export function roomFaults(input: FaultInput & { teamIds: readonly string[] }): 
       team ? `Nhóm ${team.name} chưa có ai giữ vai này.` : 'Có nhóm không còn trong tháng này.',
     ]
   })
-  return { lines: [...strangersOf(input), ...inTeam], shares: noHolder }
+  const given = new Set(teamIds)
+  const unshared = complete
+    ? roster
+        .teams()
+        .filter((t) => eligible.has(t.id) && !given.has(t.id))
+        .map((t) => `Nhóm ${t.name} chưa được giao phần.`)
+    : []
+  return { lines: [...strangersOf(input), ...inTeam], shares: [...noHolder, ...unshared] }
 }
 
-/** Team package: lines only for members who hold the role. */
-export function teamFaults(input: FaultInput & { teamId: string }): Faults {
-  const { roster, nameOf, actorIds, teamId } = input
+/** Team package: lines only for members who hold the role, and only for
+ *  metrics the team was given a share of. */
+export function teamFaults(
+  input: FaultInput & {
+    teamId: string
+    share: ReadonlyMap<KpiMetricKey, number>
+    lineKeys: readonly KpiMetricKey[]
+  },
+): Faults {
+  const { roster, nameOf, actorIds, teamId, share, lineKeys } = input
   const members = new Set(roster.membersOf(teamId))
   const outside = [...new Set(actorIds)]
     .filter((id) => !members.has(id))
     .map((id) => `${nameOf(id)} không thuộc nhóm này.`)
   const rest = actorIds.filter((id) => members.has(id))
-  return { lines: [...outside, ...strangersOf({ ...input, actorIds: rest })], shares: [] }
+  const unshared = [...new Set(lineKeys)]
+    .filter((key) => !share.has(key))
+    .map((key) => `${KPI_METRIC_LABEL[key]} không có trong phần của nhóm.`)
+  return {
+    lines: [...outside, ...strangersOf({ ...input, actorIds: rest }), ...unshared],
+    shares: [],
+  }
 }
 
 /** A draft answers 400 with the field; a send, whose body held nothing wrong,
@@ -142,3 +159,31 @@ export const teamAmounts = (
   lines: readonly Amount[],
   share: ReadonlyMap<KpiMetricKey, number>,
 ): Amount[] => [...lines, ...[...share.keys()].map((metricKey) => ({ metricKey, value: '0' }))]
+
+/** A metric that cannot be summed (ratio, hours, days) is not balanced, so
+ *  nothing would notice a member left without it — and their card would fall
+ *  back to the whole room's target. Each such gap is a fault at send. */
+export function missingSharedLines(input: {
+  roster: Roster
+  teamId: string
+  role: RoleId
+  holders: ReadonlySet<string>
+  nameOf: (actorId: string) => string
+  lines: readonly { actorId: string; metricKey: KpiMetricKey }[]
+  share: ReadonlyMap<KpiMetricKey, number>
+}): string[] {
+  const { roster, teamId, role, holders, nameOf, lines, share } = input
+  const keys = [...share.keys()].filter((key) => {
+    const def = defOf(role, key)
+    return def !== undefined && !additive(def)
+  })
+  const given = new Set(lines.map((l) => `${l.actorId}|${l.metricKey}`))
+  return roster
+    .membersOf(teamId)
+    .filter((id) => holders.has(id))
+    .flatMap((id) =>
+      keys
+        .filter((key) => !given.has(`${id}|${key}`))
+        .map((key) => `Chưa nhập ${KPI_METRIC_LABEL[key]} cho ${nameOf(id)}.`),
+    )
+}

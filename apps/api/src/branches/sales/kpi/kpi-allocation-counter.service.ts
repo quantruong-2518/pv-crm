@@ -17,7 +17,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
 import { KpiAlertService } from './kpi-alert.service'
-import { assertLead, rosterOf, shareTargetOf, shareValues } from './kpi-allocation-team'
+import { rosterOf, shareTargetOf, shareValues } from './kpi-allocation-team'
 import { KpiAllocationRepository, type LineKey } from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { effectOf, toCounter } from './kpi-allocation.mapper'
@@ -51,8 +51,8 @@ const PENDING = { ackStatus: 'pending' as const, ackedAt: null }
  *  the head rebalances it from `compensators` and sends it again, while cards
  *  keep reading the agreed version (`agreedLines`).
  *
- *  A team package stays the lead's: `submittedBy` is the lead whoever resolves
- *  (ADR 0101 default 9). A holder's line is found in whichever tier holds it. */
+ *  On a team package a counter on the lead's own line leaves the lead as
+ *  sender (ADR 0101 default 9). A holder's line is found in whichever tier has it. */
 @Injectable()
 export class KpiAllocationCounterService {
   constructor(
@@ -235,8 +235,14 @@ export class KpiAllocationCounterService {
     leadOf?: string,
   ): Promise<void> {
     stillOpen(period)
+    if (leadOf) {
+      await this.packages.assertActsFor(who, rosterOf(await this.teams.rosterAt(period)), leadOf)
+    }
     await this.repo.run(async (tx) => {
-      if (leadOf) assertLead(rosterOf(await this.teams.rosterAt(period, tx)), leadOf, who.id)
+      if (leadOf) {
+        const roster = rosterOf(await this.teams.rosterAt(period, tx))
+        await this.packages.assertActsFor(who, roster, leadOf, tx)
+      }
       /* Matched in JS first: the id comes off the URL and need not be a uuid. */
       const c = (await this.repo.counters(period, tx)).find((x) => x.id === counterId)
       if (!c || (leadOf && c.teamId !== leadOf)) throw notFound('đề xuất chỉ tiêu')
@@ -286,17 +292,23 @@ export class KpiAllocationCounterService {
     const set = value === null ? PENDING : { ...PENDING, value }
     if ((await this.repo.setLines(tx, pkg, [at], set)) !== 1) throw stale()
     if (value !== null && (pkg.status === 'submitted' || pkg.status === 'draft')) {
-      const sender = await this.senderOf(tx, who, pkg)
+      const sender = await this.senderOf(tx, who, pkg, at.actorId)
       if (!(await this.repo.movePackage(tx, pkg, { submittedBy: sender }))) throw stale()
     }
   }
 
-  /** The room tier's sender is whoever resolved last; a team package's is its
-   *  lead (amendment A2). Without that, the head resolving the lead's own
-   *  counter would become the sender and could no longer agree the package. */
-  private async senderOf(tx: Db, who: Actor, pkg: KpiAllocationRowDb): Promise<string> {
+  /** The sender is whoever resolved last. The one exception (amendment A2): a
+   *  counter on the LEAD's own line, whoever resolves it, leaves the lead as
+   *  sender — otherwise the head resolving it could no longer agree the package. */
+  private async senderOf(
+    tx: Db,
+    who: Actor,
+    pkg: KpiAllocationRowDb,
+    counterBy: string,
+  ): Promise<string> {
     if (!pkg.teamId) return who.id
-    return rosterOf(await this.teams.rosterAt(pkg.period, tx)).leadOf(pkg.teamId) ?? who.id
+    const lead = rosterOf(await this.teams.rosterAt(pkg.period, tx)).leadOf(pkg.teamId)
+    return lead === counterBy ? lead : who.id
   }
 
   /** An agreed package that must change takes a new version (ADR 0098 §3). */
@@ -317,7 +329,7 @@ export class KpiAllocationCounterService {
       teamId: pkg.teamId,
       version: await this.repo.nextVersion(tx, pkg.period, pkg.role, pkg.teamId),
       status: 'draft',
-      submittedBy: await this.senderOf(tx, who, pkg),
+      submittedBy: await this.senderOf(tx, who, pkg, at.actorId),
       ackDays: pkg.ackDays,
     })
     if (!id) throw stale()

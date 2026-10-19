@@ -53,9 +53,15 @@ function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
   /* On a team package the target it balances against is the team's share. */
   const target = c.team ? 'phần của nhóm' : 'chỉ tiêu vai trò'
   const print = (v: number) => printValue(def.unit, v)
-  if (allocatedAfter === null) return ['Chỉ số này không cộng dồn, tổng của vai trò không đổi.']
+  if (allocatedAfter === null) {
+    return [`Chỉ số này không cộng dồn, tổng của ${c.team ? 'nhóm' : 'vai trò'} không đổi.`]
+  }
   const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
-  if (roleTarget === null) return [`${after}. Vai trò chưa có chỉ tiêu được duyệt.`]
+  if (roleTarget === null) {
+    return [
+      `${after}. ${c.team ? 'Nhóm chưa được giao phần.' : 'Vai trò chưa có chỉ tiêu được duyệt.'}`,
+    ]
+  }
   if (allocatedAfter > roleTarget) {
     return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với ${target}.`]
   }
@@ -94,7 +100,9 @@ function Answers({
           if (!reopens || body.resolution === 'keep') return toastDone(done)
           toast(done, {
             tone: 'success',
-            detail: 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.',
+            detail: counter.team
+              ? 'Bản nháp mới đã mở. Trưởng nhóm chia lại rồi gửi duyệt.'
+              : 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.',
             action: {
               label: counter.team ? 'Mở trang nhóm' : 'Mở phân bổ',
               onClick: () =>
@@ -113,7 +121,11 @@ function Answers({
   return (
     <div className="flex flex-col gap-3">
       {reopens && (
-        <p className={NOTE}>Gói đã duyệt: đổi mức sẽ mở bản nháp mới, bạn gửi duyệt lại.</p>
+        <p className={NOTE}>
+          {counter.team
+            ? 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới. Trưởng nhóm chia lại rồi gửi duyệt.'
+            : 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới, bạn gửi duyệt lại.'}
+        </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Button

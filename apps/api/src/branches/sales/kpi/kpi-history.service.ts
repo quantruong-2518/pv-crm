@@ -96,14 +96,13 @@ export class KpiHistoryService {
     actorId: string,
   ): Promise<Entry[]> {
     const ofRole = (await this.allocations.packages(period)).filter((p) => p.role === q.role)
-    const [roleLines, counters] = await Promise.all([
+    const [lines, counters] = await Promise.all([
       this.allocations.lines(ofRole.map((p) => p.id)),
       this.allocations.counters(period),
     ])
-    const held = new Set(roleLines.filter((l) => l.actorId === actorId).map((l) => l.allocationId))
+    const held = new Set(lines.filter((l) => l.actorId === actorId).map((l) => l.allocationId))
     const tiers = new Set(ofRole.filter((p) => held.has(p.id)).map((p) => p.teamId ?? ''))
     const packages = ofRole.filter((p) => tiers.has(p.teamId ?? ''))
-    const lines = roleLines
     const mine = counters.filter(
       (c) => c.role === q.role && c.actorId === actorId && c.metricKey === q.metricKey,
     )

@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, max, ne, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, lte, max, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiPeriodKey, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -73,6 +73,17 @@ export class KpiTeamRepository {
       .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
       .from(actor)
       .where(inArray(actor.id, [...ids]))
+  }
+
+  /** Which of these actors are locked out (ADR 0101 default: a team whose lead
+   *  is locked is run by a `kpi.set-target` holder). */
+  async disabledAmong(ids: readonly string[], handle: Db = this.db): Promise<Set<string>> {
+    if (ids.length === 0) return new Set()
+    const rows = await handle
+      .select({ id: actor.id })
+      .from(actor)
+      .where(and(inArray(actor.id, [...ids]), isNotNull(actor.disabledAt)))
+    return new Set(rows.map((r) => r.id))
   }
 
   /** Makes sure roster `period` exists and stamps it. A new header starts as a
