@@ -14,7 +14,14 @@ import { KpiPeriodKey } from './kpi'
  *  written, so editing the due leaves the old row behind as `stale`. The writer
  *  never decides their own reason; the server answers 409. */
 
-const text = z.string().trim().min(1, 'Không được để trống.').max(500, 'Tối đa 500 ký tự.')
+/** Same ceiling as the KPI counter's reason (kpi-allocation.ts). */
+export const OVERDUE_REASON_TEXT_MAX = 500
+
+const text = z
+  .string()
+  .trim()
+  .min(1, 'Không được để trống.')
+  .max(OVERDUE_REASON_TEXT_MAX, `Tối đa ${OVERDUE_REASON_TEXT_MAX} ký tự.`)
 
 export const OverdueReasonState = z.enum(['waiting', 'approved', 'rejected'])
 
@@ -43,6 +50,8 @@ export const OverdueReasonRow = z.object({
   decidedBy: OverdueReasonActor.nullable(),
   decidedAt: Moment.nullable(),
   decisionNote: z.string().min(1).nullable(),
+  /** Written against a due the installment no longer has, so it no longer applies. */
+  stale: z.boolean(),
 })
 
 /** `current` judges the newest reason against the installment's present due:
@@ -51,6 +60,8 @@ export const OverdueReasonCurrent = z.enum(['none', ...OverdueReasonState.option
 
 export const OverdueReasonListResponse = z.object({
   current: OverdueReasonCurrent,
+  /** The server's own overdue rule, so the form never shows when the door would refuse. */
+  canWrite: z.boolean(),
   reasons: z.array(OverdueReasonRow),
 })
 

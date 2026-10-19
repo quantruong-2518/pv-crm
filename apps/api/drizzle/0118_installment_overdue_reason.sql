@@ -41,7 +41,7 @@ ALTER TABLE "sales"."installment_overdue_reason" DROP CONSTRAINT IF EXISTS "inst
 ALTER TABLE "sales"."installment_overdue_reason" ADD CONSTRAINT "installment_overdue_reason_written_by_id_actor_id_fk" FOREIGN KEY ("written_by_id") REFERENCES "platform"."actor"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sales"."installment_overdue_reason" DROP CONSTRAINT IF EXISTS "installment_overdue_reason_decided_by_id_actor_id_fk";--> statement-breakpoint
 ALTER TABLE "sales"."installment_overdue_reason" ADD CONSTRAINT "installment_overdue_reason_decided_by_id_actor_id_fk" FOREIGN KEY ("decided_by_id") REFERENCES "platform"."actor"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX IF NOT EXISTS "installment_overdue_reason_one_waiting_uq" ON "sales"."installment_overdue_reason" USING btree ("contract_code","installment_no") WHERE "state" = 'waiting';--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "installment_overdue_reason_one_waiting_uq" ON "sales"."installment_overdue_reason" USING btree ("contract_code","installment_no","due") WHERE "state" = 'waiting';--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "installment_overdue_reason_installment_idx" ON "sales"."installment_overdue_reason" USING btree ("contract_code","installment_no","written_at");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "installment_overdue_reason_waiting_idx" ON "sales"."installment_overdue_reason" USING btree ("due") WHERE "state" = 'waiting';--> statement-breakpoint
 

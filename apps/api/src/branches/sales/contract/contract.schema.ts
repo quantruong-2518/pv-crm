@@ -327,10 +327,10 @@ export const installmentOverdueReason = sales.table(
       columns: [t.contractCode, t.installmentNo],
       foreignColumns: [contractInstallment.contractCode, contractInstallment.no],
     }).onDelete('cascade'),
-    /** "Is a reason already waiting on this installment" — the write door's
-     *  fence: a second writer loses to this index, not to a read-then-insert. */
+    /** One waiting reason per due: a second writer loses to this index. Keyed on
+     *  `due` so a moved due leaves the old row as stale history, never deleted. */
     uniqueIndex('installment_overdue_reason_one_waiting_uq')
-      .on(t.contractCode, t.installmentNo)
+      .on(t.contractCode, t.installmentNo, t.due)
       .where(sql`"state" = 'waiting'`),
     /** "Every reason of this installment, newest first" — the history door. */
     index('installment_overdue_reason_installment_idx').on(
