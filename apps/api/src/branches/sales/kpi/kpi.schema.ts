@@ -6,8 +6,9 @@ import { sales } from '../sales.schema'
 
 /** KPI by role: the agreed, versioned target and who has acknowledged it.
  *
- *  Readings are NOT here — they are computed on read, so there is no snapshot
- *  table to drift from the book. Only the two things a person decides are
+ *  Readings are NOT here — they are computed on read, so nothing drifts from
+ *  the book; only a closed month freezes them (`kpi-close.schema.ts`, ADR
+ *  0100). Only the two things a person decides are
  *  stored: a target (proposed by one manager, agreed by a DIFFERENT one) and
  *  a holder's "I have received it".
  *

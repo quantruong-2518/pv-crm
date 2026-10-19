@@ -159,9 +159,11 @@ function SaveBar({
   const [daysText, setDaysText] = useState(initialDays === null ? '' : String(initialDays))
   const days = ACK_DAYS.safeParse(toDays(daysText))
   const problem =
-    daysText !== '' && !days.success
-      ? `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
-      : undefined
+    daysText === ''
+      ? 'Nhập hạn trả lời để gửi duyệt.'
+      : days.success
+        ? undefined
+        : `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
   return (
     <div className="flex flex-wrap items-center justify-end gap-3 px-5">
       <div className="mr-auto flex min-w-0 flex-col gap-1">
@@ -175,8 +177,8 @@ function SaveBar({
           </p>
         )}
         <Field
-          label="Số ngày để nhận chỉ tiêu"
-          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức này."
+          label="Hạn trả lời (số ngày)"
+          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức đã giao."
           problem={problem}
           className="mt-1 w-72 max-w-full"
         >
@@ -184,7 +186,7 @@ function SaveBar({
           <span className="flex items-center gap-2">
             <Input
               inputMode="numeric"
-              aria-label="Số ngày để nhận chỉ tiêu"
+              aria-label="Hạn trả lời (số ngày)"
               className="pointer-coarse:h-12 tnum font-num w-24 text-right"
               value={daysText}
               invalid={problem !== undefined}

@@ -96,6 +96,7 @@ function cellsOf(line: MyLine, live: boolean) {
           {ackState === 'countered' ? 'Đề xuất gửi lúc' : 'Lúc'} {dmhm(ackedAt)}
         </span>
       )}
+      {ackState === 'lapsed' && <span className={NOTE}>Áp dụng mức đã giao.</span>}
     </span>,
   ]
 }

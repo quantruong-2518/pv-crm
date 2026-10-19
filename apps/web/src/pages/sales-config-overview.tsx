@@ -63,7 +63,12 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
         ? 'Đang tính đủ'
         : `${offKeys.size} chỉ số đang tắt ở ${offIn.length} vai trò`),
     'kpi-alert':
-      kpiAlert && `Sắp trượt dưới ${kpiAlert.slipPercent}% · sắp đạt từ ${kpiAlert.hitPercent}%`,
+      kpiAlert &&
+      `Sắp trượt dưới ${kpiAlert.slipPercent}% · sắp đạt từ ${kpiAlert.hitPercent}%${
+        kpiAlert.tolerancePercent > 0
+          ? ` · thiếu ${kpiAlert.tolerancePercent}% vẫn tính Đúng tiến độ`
+          : ''
+      }`,
   }
 }
 

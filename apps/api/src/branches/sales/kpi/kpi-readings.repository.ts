@@ -351,7 +351,7 @@ export class KpiReadingsRepository {
 
   /** `values`, except that a closed month answers from its frozen copy, which
    *  is why every reader of a month's cards uses this one. A seat with no
-   *  stored row is absent, as an actor with no row is in the live read.
+   *  stored row reads null (no-data), never the zero a live tally defaults to.
    *  The weekly series and the close itself call `values`: they need live data. */
   async monthValues(
     seats: readonly KpiSeat[],
@@ -375,15 +375,23 @@ export class KpiReadingsRepository {
             : undefined,
         ),
       )
-    const bySeat = new Map(seats.map((s) => [`${s.role}|${s.def.key}`, s]))
-    return new Map(
-      rows.flatMap((r) => {
-        const seat = bySeat.get(`${r.role}|${r.metricKey}`)
-        return seat
-          ? [[valueKey(seat, r.actorId ?? ''), r.value === null ? null : Number(r.value)]]
-          : []
-      }),
+    /* Explicit nulls first: the mapper reads an absent key as a live zero. */
+    const actorIds = actorId ? [actorId] : (await this.people()).map((p) => p.id)
+    const values = new Map<string, number | null>(
+      seats.flatMap((seat) =>
+        (seat.def.scope === 'room' ? [''] : actorIds).map((id): [string, null] => [
+          valueKey(seat, id),
+          null,
+        ]),
+      ),
     )
+    const bySeat = new Map(seats.map((s) => [`${s.role}|${s.def.key}`, s]))
+    for (const r of rows) {
+      const seat = bySeat.get(`${r.role}|${r.metricKey}`)
+      if (seat)
+        values.set(valueKey(seat, r.actorId ?? ''), r.value === null ? null : Number(r.value))
+    }
+    return values
   }
 
   /** Everyone a Sales scorecard can belong to: enabled and licensed for the branch. */

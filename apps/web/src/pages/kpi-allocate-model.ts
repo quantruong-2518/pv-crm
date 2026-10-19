@@ -37,7 +37,7 @@ export const ACK_LABEL: Record<KpiAckState, { text: string; tone: Tone }> = {
   pending: { text: 'Chưa xác nhận', tone: 'warning' },
   countered: { text: 'Xin đổi mức', tone: 'running' },
   acknowledged: { text: 'Đã xác nhận', tone: 'success' },
-  lapsed: { text: 'Đã áp dụng vì quá hạn', tone: 'draft' },
+  lapsed: { text: 'Hết hạn trả lời', tone: 'draft' },
 }
 
 export const COUNTER_LABEL: Record<KpiCounterStatus, { text: string; tone: Tone }> = {

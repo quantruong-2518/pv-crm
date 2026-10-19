@@ -1,10 +1,16 @@
-import { and, desc, eq, lt, ne } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, lt, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Injectable } from '@nestjs/common'
 import type { OverdueReasonRow } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
-import { contractInstallment, installmentOverdueReason as reason } from './contract.schema'
+import { lead } from '../lead/lead.schema'
+import { leadLive } from '../lead/lead-scope'
+import {
+  contract,
+  contractInstallment,
+  installmentOverdueReason as reason,
+} from './contract.schema'
 
 const writer = alias(actor, 'reason_writer')
 const decider = alias(actor, 'reason_decider')
@@ -13,12 +19,18 @@ const COLUMNS = {
   row: reason,
   writerName: writer.name,
   deciderName: decider.name,
+  presentDue: contractInstallment.due,
 }
 
-type Joined = { row: typeof reason.$inferSelect; writerName: string; deciderName: string | null }
+type Joined = {
+  row: typeof reason.$inferSelect
+  writerName: string
+  deciderName: string | null
+  presentDue: Date
+}
 
 /** The reason row in the contract's wire shape. */
-function toRow({ row, writerName, deciderName }: Joined): OverdueReasonRow {
+function toRow({ row, writerName, deciderName, presentDue }: Joined): OverdueReasonRow {
   return {
     id: row.id,
     contractCode: row.contractCode,
@@ -31,6 +43,7 @@ function toRow({ row, writerName, deciderName }: Joined): OverdueReasonRow {
     decidedBy: row.decidedById && deciderName ? { id: row.decidedById, name: deciderName } : null,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     decisionNote: row.decisionNote,
+    stale: row.due.getTime() !== presentDue.getTime(),
   }
 }
 
@@ -42,6 +55,13 @@ export class ContractOverdueReasonRepository {
     return tx
       .select(COLUMNS)
       .from(reason)
+      .innerJoin(
+        contractInstallment,
+        and(
+          eq(contractInstallment.contractCode, reason.contractCode),
+          eq(contractInstallment.no, reason.installmentNo),
+        ),
+      )
       .innerJoin(writer, eq(writer.id, reason.writtenById))
       .leftJoin(decider, eq(decider.id, reason.decidedById))
   }
@@ -65,19 +85,31 @@ export class ContractOverdueReasonRepository {
     return found ?? null
   }
 
-  /** Waiting reasons that still explain their installment's present due, whose
-   *  installment falls due before `before`; oldest due first. */
-  async waitingBefore(tx: Db, before: Date): Promise<OverdueReasonRow[]> {
+  /** The contract's owner, read without a lock (`null` = no such contract). */
+  async ownerOf(tx: Db, code: string): Promise<{ ownerId: string | null } | null> {
+    const [found] = await tx
+      .select({ ownerId: contract.ownerId })
+      .from(contract)
+      .where(eq(contract.code, code))
+    return found ?? null
+  }
+
+  /** The KPI's overdue rule as of the month's last Vietnam day D, for a waiting
+   *  reason on its installment's present due: due before D's first instant,
+   *  unpaid by D's end (`dayEnd` = D+1 start), on a live lead. Oldest due first. */
+  async waitingAsOf(tx: Db, lastDayStart: Date, dayEnd: Date): Promise<OverdueReasonRow[]> {
     const rows = await this.joined(tx)
-      .innerJoin(
-        contractInstallment,
+      .innerJoin(contract, eq(contract.code, reason.contractCode))
+      .innerJoin(lead, eq(lead.code, contract.leadCode))
+      .where(
         and(
-          eq(contractInstallment.contractCode, reason.contractCode),
-          eq(contractInstallment.no, reason.installmentNo),
+          eq(reason.state, 'waiting'),
           eq(contractInstallment.due, reason.due),
+          lt(contractInstallment.due, lastDayStart),
+          or(isNull(contractInstallment.paidAt), gte(contractInstallment.paidAt, dayEnd)),
+          leadLive,
         ),
       )
-      .where(and(eq(reason.state, 'waiting'), lt(contractInstallment.due, before)))
       .orderBy(reason.due, reason.id)
     return rows.map(toRow)
   }
@@ -94,23 +126,6 @@ export class ContractOverdueReasonRepository {
   async insert(tx: Db, values: typeof reason.$inferInsert): Promise<number> {
     const [made] = await tx.insert(reason).values(values).returning({ id: reason.id })
     return made?.id ?? 0
-  }
-
-  /** A waiting reason whose due moved: it explains nothing now and would hold
-   *  the one-waiting index against the new one. Never decided, so no fact is lost. */
-  async dropStaleWaiting(tx: Db, code: string, no: number, due: Date): Promise<number[]> {
-    const dropped = await tx
-      .delete(reason)
-      .where(
-        and(
-          eq(reason.contractCode, code),
-          eq(reason.installmentNo, no),
-          eq(reason.state, 'waiting'),
-          ne(reason.due, due),
-        ),
-      )
-      .returning({ id: reason.id })
-    return dropped.map((r) => r.id)
   }
 
   async decide(

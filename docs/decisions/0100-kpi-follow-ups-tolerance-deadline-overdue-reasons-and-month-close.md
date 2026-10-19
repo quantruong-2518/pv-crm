@@ -80,6 +80,20 @@ Taken by the implementer; change them by amending this ADR.
   the due date changes.
 - Approved reasons also lift the amount from the running month's live figure.
 - Tolerance bounds 0–99 %; acknowledgement days 1–31.
+- Reason and rejection note are capped at 500 characters, the same ceiling as
+  the KPI counter reason.
+- Both overdue-reason bell kinds are "important" (they pop up).
+- A reason binds to the exact due it explains; when the due moves, the old row
+  stays as stale history (never deleted) and the Sale writes a new one.
+- The approve permission implies company-wide reach: decide and the waiting
+  list are not fenced by contract scope, so granting it to an own-only role
+  would widen that role's reach.
+- The overdue reason is its own small approval, deliberately not an E3
+  `platform.approval` request: it does not appear in the generic approvals
+  inbox and is not counted by `approval-turnaround-hours`.
+- The month-close dialog's count of waiting reasons is shown only to people who
+  hold the approve permission (head and director by default).
+- A reissued package keeps a missed deadline: lines that lapsed stay accepted.
 
 ## Consequences
 
@@ -94,4 +108,10 @@ Taken by the implementer; change them by amending this ADR.
   closed month are read from `kpi_month_value`. The contribution list and the
   weekly series stay live and say so on a closed month.
 - Questions 36, 37 and 38 are answered in `open-questions.md`.
+- Known gap: the overdue-day rule is Vietnam calendar days in the reason door,
+  the KPI reading and the waiting list; the existing hourly overdue bell
+  sweeper and the web due badge still read UTC calendar days (pre-existing,
+  not changed in this round), so for up to 7 hours around midnight the badge
+  and bell can disagree with the reason door. A later round should move them
+  onto one shared helper.
 - Part D adds a table and screens in a later round.

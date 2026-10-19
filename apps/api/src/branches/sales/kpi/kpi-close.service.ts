@@ -18,6 +18,7 @@ import { toReadings, type ScoreContext } from './kpi.mapper'
  *  so what is stored is exactly what a card printed, zero-for-empty-tally
  *  included. They are read live (`values`, never `monthValues`) just before the
  *  one transaction that inserts the close row, its values and the audit line.
+ *  Read outside it on purpose: READ COMMITTED has no cross-statement snapshot, one UNION ALL does.
  *  There is no unlock: nothing here updates or deletes. */
 @Injectable()
 export class KpiCloseService {

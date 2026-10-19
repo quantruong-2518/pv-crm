@@ -3,7 +3,7 @@
 Status: accepted (partially supersedes 0029's "no cancelling a signature",
 0057 §1's contract update, 0067 §4's flagged-stop rule, 0071 §1, 0073 §1
 import contacts, §2 renewal start and §4's refusal on an unheld lead, 0082 §2's
-"no poller, no worker, no snapshot table" and two of its Consequences bullets;
+"no poller, no worker, no snapshot table" (ADR 0100 adds the month-close snapshot) and two of its Consequences bullets;
 amends 0082 §3 — exact paragraphs under "Superseded and amended")
 Source: project owner's decisions in chat, 12/10/2026
 
@@ -235,7 +235,8 @@ Update 15/10/2026: §5, §10 and §14 are settled and built by 0097.
 - **0073 §2** — "Renewal and expansion … start from the account, not from the
   lead drawer": a repeat deal opens from the original lead (§6).
 - **0082 §2** — "No poller, no worker, no snapshot table": compute on read
-  stands; a weekly and a manual capture are added beside it (§8).
+  stands; a weekly and a manual capture are added beside it (§8). ADR 0100
+  adds the month-close snapshot.
 - **0082 §3 and §3a** — `opportunity-accept-rate` and `accept-lag-days` leave
   out deals opened by a head or director (§18); the first response of
   `first-response-hours` is the shared definition of §21.

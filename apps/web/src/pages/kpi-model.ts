@@ -52,8 +52,17 @@ const monthAfter = (key: string) => {
 /** The month is over in Vietnam time: only then may a head close it. */
 export const monthEnded = (period: string, today = new Date()) => period < currentPick(today).month
 
+/** The month as a sentence prints it: `9`, or `9/2025` once the year is not
+ *  the current one, so an old month is never read as this year's. */
+export function monthText(period: string, today = new Date()): string {
+  const month = Number(period.slice(5))
+  return period.slice(0, 4) === currentPick(today).month.slice(0, 4)
+    ? String(month)
+    : `${month}/${period.slice(0, 4)}`
+}
+
 /** Under a closed month's contributions and weekly series: they stay live data. */
-export const FROZEN_NOTE = 'Danh sách theo dữ liệu hiện tại, có thể khác số đã chốt.'
+export const FROZEN_NOTE = 'Số theo dữ liệu hiện tại, có thể khác số đã chốt.'
 
 /** Day of month over days in month, for the running month only: in any other
  *  month today is not inside it, so the line is left out. */

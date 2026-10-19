@@ -19,10 +19,6 @@ import { CONTRACT_BOOK_KEY, contractDetailQuery } from '@/data/contracts'
 const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'contract.view', scoped: true }
 const DECIDE_NEED: ApiNeed = { branch: 'Sales', permission: 'contract.approve-overdue-reason' }
 
-/** The ceiling `OverdueReasonBody` sets; the contract keeps it private, so the
- *  counter here repeats it. */
-export const OVERDUE_REASON_MAX = 500
-
 const pathOf = (code: string, no: number) =>
   `/sales/contracts/${encodeURIComponent(code)}/installments/${no}/overdue-reasons`
 

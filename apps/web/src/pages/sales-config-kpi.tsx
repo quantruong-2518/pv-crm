@@ -29,7 +29,7 @@ const FIELDS: readonly Field[] = [
     axis: 'tolerancePercent',
     label: 'Thiếu bao nhiêu vẫn tính Đúng tiến độ',
     short: 'Mức thiếu cho phép',
-    hint: 'So với số cần có tới hôm nay. 0% là phải đủ mới tính Đúng tiến độ.',
+    hint: 'Tính trên số cần đạt tới hôm nay. Để 0% nếu phải đủ.',
   },
 ]
 

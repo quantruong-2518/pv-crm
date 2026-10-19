@@ -26,6 +26,7 @@ import {
   ackStateOf,
   assertNotLapsed,
   assertTargetValues,
+  lapsedAt,
   monthClock,
   stillOpen,
   vietnamToday,
@@ -269,15 +270,20 @@ export class KpiAllocationCounterService {
     })
     if (!id) throw stale()
     const same = (l: LineKey) => l.actorId === at.actorId && l.metricKey === at.metricKey
+    /* A lapsed line is copied answered, at its lapse: the new version's own
+       deadline must not reopen a deadline already missed. */
+    const dueOn = ackDueOn(pkg)
+    const carried = (l: (typeof lines)[number]) =>
+      dueOn !== null && ackStateOf(l.ackStatus, dueOn, vietnamToday()) === 'lapsed'
+        ? { ackStatus: 'acknowledged' as const, ackedAt: lapsedAt(dueOn) }
+        : { ackStatus: l.ackStatus, ackedAt: l.ackedAt }
     await this.repo.insertLines(
       tx,
       lines.map((l) => ({
         allocationId: id,
         actorId: l.actorId,
         metricKey: l.metricKey,
-        ...(same(l)
-          ? { ...PENDING, value }
-          : { ackStatus: l.ackStatus, ackedAt: l.ackedAt, value: l.value }),
+        ...(same(l) ? { ...PENDING, value } : { ...carried(l), value: l.value }),
       })),
     )
     await this.repo.repointOpenCounters(tx, pkg.id, id)

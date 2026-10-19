@@ -10,7 +10,7 @@ import { useCloseKpiMonth, waitingReasonsQuery } from '@/data/kpi-close'
 import { dm } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import { monthEnded } from './kpi-model'
+import { monthEnded, monthText } from './kpi-model'
 
 /** The month-close control on the two screens that show a whole month (ADR 0100): the
  *  closed line for everyone, and for a head the note and button once the month
@@ -18,8 +18,6 @@ import { monthEnded } from './kpi-model'
  *
  *  The waiting-reason count comes from a read only an approver may make; a
  *  closer without that permission is asked the base question alone. */
-
-const monthNo = (period: string) => Number(period.slice(5))
 
 const ALERT = 'text-destructive-foreground m-0 text-[12.5px] leading-[1.5]'
 
@@ -50,7 +48,7 @@ function CloseDialog({
       open={open}
       onClose={onClose}
       className="h-auto max-h-[90dvh] self-end rounded-t-lg sm:h-auto sm:max-h-[calc(100dvh-48px)] sm:max-w-[480px] sm:self-center"
-      title={`Chốt KPI tháng ${monthNo(period)}?`}
+      title={`Chốt KPI tháng ${monthText(period)}?`}
       footer={
         <div className="flex flex-col gap-3">
           {close.error && (
@@ -69,7 +67,7 @@ function CloseDialog({
               onClick={() =>
                 close.mutate(undefined, {
                   onSuccess: () => {
-                    toastDone(`Đã chốt KPI tháng ${monthNo(period)}`)
+                    toastDone(`Đã chốt KPI tháng ${monthText(period)}`)
                     onClose()
                   },
                 })
@@ -90,8 +88,8 @@ function CloseDialog({
         {reasons.length > 0 && (
           <>
             <p className="m-0 text-[13px] leading-[1.6]">
-              Còn <span className="tnum font-num">{num(reasons.length)}</span> lý do quá hạn chờ
-              duyệt — tiền của các đợt này sẽ tính là quá hạn.
+              Còn <span className="tnum font-num">{num(reasons.length)}</span> đợt quá hạn có lý do
+              chưa duyệt. Chốt bây giờ thì tiền các đợt này tính là quá hạn.
             </p>
             <ul className="m-0 flex list-none flex-col p-0">
               {reasons.map((r) => (
@@ -134,7 +132,9 @@ export function MonthCloseBar({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <p className="m-0 text-[12.5px] font-semibold leading-5">Tháng {monthNo(period)} chưa chốt</p>
+      <p className="m-0 text-[12.5px] font-semibold leading-5">
+        Tháng {monthText(period)} chưa chốt
+      </p>
       <Button variant="secondary" className="pointer-coarse:h-12" onClick={() => setAsking(true)}>
         Chốt tháng
       </Button>

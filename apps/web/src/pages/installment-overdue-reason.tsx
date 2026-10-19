@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Skeleton, Textarea } from '@pv/ui'
 import {
   OVERDUE_REASON_STATE_LABEL,
+  OVERDUE_REASON_TEXT_MAX,
   OverdueReasonBody,
   OverdueReasonDecideBody,
   type OverdueReasonRow,
@@ -13,7 +14,6 @@ import { toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import type { Contract, Installment } from '@/data/contracts'
 import {
-  OVERDUE_REASON_MAX,
   overdueReasonsQuery,
   useDecideOverdueReason,
   useWriteOverdueReason,
@@ -25,8 +25,8 @@ import { RecordCard } from '@/components/record/record-card'
  *
  *  Who sees what: the contract's owner writes, a holder of
  *  `contract.approve-overdue-reason` other than the writer decides, everyone
- *  else reads. `current` comes from the server, which judges the newest reason
- *  against the present due date, so a `stale` reason reads as no reason.
+ *  else reads. The server judges "overdue" (`canWrite`) and "no longer applies"
+ *  (`stale`); this card only draws what it is told.
  *
  *  Hidden when the installment is not overdue and nothing was ever written. */
 
@@ -42,15 +42,20 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
   const me = useSession((s) => s.actor?.id)
   const canDecide = useCan('contract.approve-overdue-reason')
   const data = query.data
-  const latest =
-    data && data.current !== 'none' && data.current !== 'stale' ? data.reasons[0] : null
-  const mayWrite = overdue && me !== undefined && me === contract.ownerId
+  const latest = data?.reasons[0] ?? null
+  const live = latest !== null && !latest.stale
+  const mayWrite = data?.canWrite === true && me !== undefined && me === contract.ownerId
 
   if (query.isPending) return overdue ? <Skeleton className="h-24 w-full" /> : null
   if (!data)
     return overdue ? (
       <Frame>
-        <p className={LINE}>Chưa tải được lý do.</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className={LINE}>Chưa tải được lý do.</p>
+          <Button variant="ghost" size="sm" className={TAP} onClick={() => void query.refetch()}>
+            Thử lại
+          </Button>
+        </div>
       </Frame>
     ) : null
   if (!overdue && !latest) return null
@@ -58,10 +63,10 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
   return (
     <Frame>
       {latest && <Reason row={latest} />}
-      {latest?.state === 'waiting' && canDecide && latest.writtenBy.id !== me && (
+      {live && latest.state === 'waiting' && canDecide && latest.writtenBy.id !== me && (
         <Decide code={code} no={no} row={latest} />
       )}
-      {(!latest || latest.state === 'rejected') && mayWrite && <Write code={code} no={no} />}
+      {(!live || latest.state === 'rejected') && mayWrite && <Write code={code} no={no} />}
       {!latest && !mayWrite && <p className={`${LINE} text-muted-foreground`}>Chưa có lý do.</p>}
     </Frame>
   )
@@ -75,9 +80,13 @@ function Reason({ row }: { row: OverdueReasonRow }) {
   const tone = { waiting: 'warning', approved: 'success', rejected: 'danger' } as const
   const decided = row.decidedBy && row.decidedAt
   return (
-    <div className="bg-surface-ink/6 flex flex-col gap-2 rounded-md p-3">
+    <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={tone[row.state]}>{OVERDUE_REASON_STATE_LABEL[row.state]}</Badge>
+        {row.stale ? (
+          <Badge tone="draft">Hết hiệu lực</Badge>
+        ) : (
+          <Badge tone={tone[row.state]}>{OVERDUE_REASON_STATE_LABEL[row.state]}</Badge>
+        )}
         <span className="text-muted-foreground tnum text-[12px]">
           {row.writtenBy.name} · {dmhm(row.writtenAt)}
         </span>
@@ -85,13 +94,13 @@ function Reason({ row }: { row: OverdueReasonRow }) {
       <p className={`${LINE} whitespace-pre-wrap`}>{row.reason}</p>
       {row.state === 'approved' && decided && (
         <p className={`${LINE} text-muted-foreground`}>
-          Đã duyệt bởi {row.decidedBy?.name} · {dm(row.decidedAt ?? '')}
+          {row.decidedBy?.name} đã duyệt · {dm(row.decidedAt ?? '')}
         </p>
       )}
       {row.state === 'rejected' && decided && (
         <p className={`${LINE} text-muted-foreground`}>
           {row.decidedBy?.name} từ chối · {dm(row.decidedAt ?? '')}
-          {row.decisionNote ? `: ${row.decisionNote}` : ''}
+          {row.decisionNote ? ` · Lý do: ${row.decisionNote}` : ''}
         </p>
       )}
     </div>
@@ -118,13 +127,13 @@ function Write({ code, no }: { code: string; no: number }) {
         })
       }}
     >
-      <Field label="Ghi lý do" note={`${text.length}/${OVERDUE_REASON_MAX}`}>
+      <Field label="Ghi lý do" note={`${text.length}/${OVERDUE_REASON_TEXT_MAX}`}>
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          maxLength={OVERDUE_REASON_MAX}
+          maxLength={OVERDUE_REASON_TEXT_MAX}
           rows={3}
-          aria-label="Lý do quá hạn"
+          aria-label="Ghi lý do"
         />
       </Field>
       <Button
@@ -132,7 +141,7 @@ function Write({ code, no }: { code: string; no: number }) {
         className={`${TAP} self-start`}
         disabled={!parsed.success || write.isPending}
       >
-        Gửi lý do
+        Gửi duyệt
       </Button>
     </form>
   )
@@ -146,7 +155,7 @@ function Decide({ code, no, row }: { code: string; no: number; row: OverdueReaso
   const send = (body: OverdueReasonDecideBody, done: string) =>
     decide.mutate(body, {
       onSuccess: () => toastDone(done),
-      onError: (err) => toastFail('Chưa xử lý được lý do.', userMessage(err)),
+      onError: (err) => toastFail('Chưa lưu được quyết định.', userMessage(err)),
     })
 
   if (!refusing) {
@@ -174,14 +183,16 @@ function Decide({ code, no, row }: { code: string; no: number; row: OverdueReaso
   const rejection = OverdueReasonDecideBody.safeParse({ decision: 'reject', note })
   return (
     <div className="flex flex-col gap-3">
-      <Textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        maxLength={OVERDUE_REASON_MAX}
-        placeholder="Ghi lý do từ chối"
-        aria-label="Lý do từ chối"
-        rows={3}
-      />
+      <label className="flex flex-col gap-2">
+        <span className="text-[12.5px] font-semibold">Lý do từ chối</span>
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={OVERDUE_REASON_TEXT_MAX}
+          aria-label="Lý do từ chối"
+          rows={3}
+        />
+      </label>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="destructive"

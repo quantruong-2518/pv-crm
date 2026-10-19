@@ -19,7 +19,7 @@ function overdueReasonSentence(row: NotificationRow): string | null {
   if (!no) return null
   const what = `đợt ${no} của hợp đồng ${row.subject.code}`
   if (row.kind === 'overdue-reason-waiting')
-    return row.actor ? `${row.actor.name} ghi lý do quá hạn cho ${what}` : null
+    return row.actor ? `${row.actor.name} ghi lý do quá hạn ${what}, chờ bạn duyệt` : null
   const { decision, note } = row.detail ?? {}
   if (decision === 'approved') return `Lý do quá hạn ${what} đã được duyệt`
   if (decision !== 'rejected') return null
