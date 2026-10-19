@@ -25,7 +25,11 @@ import { KpiAllocationService } from './kpi-allocation.service'
  *  counter queue names everyone, so it is `kpi.view-all`, like `:period/people`.
  *
  *  Holding the line or having sent the package are facts about the caller,
- *  checked in the service. Writes that answer with refreshed state are 200. */
+ *  checked in the service. Writes that answer with refreshed state are 200.
+ *
+ *  Draft and send are the ROOM tier's. A team's package is drafted and sent by
+ *  its lead, who holds `kpi.view` only, so those two live under
+ *  `:period/teams/:teamId/…` in `kpi-team-view.controller.ts` (ADR 0004). */
 @Controller('sales/kpi')
 export class KpiAllocationController {
   constructor(
@@ -58,7 +62,7 @@ export class KpiAllocationController {
     @Param(zod(KpiPeriodParams)) params: KpiPeriodParams,
     @Body(zod(KpiAllocationSubmitBody)) body: KpiAllocationSubmitBody,
   ) {
-    return this.packages.submit(who, params.period, body.role, body.ackDays)
+    return this.packages.submit(who, params.period, body)
   }
 
   @Post(':period/allocations/:role/decide')

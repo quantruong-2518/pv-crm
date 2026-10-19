@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, EmptyState, GlassCard, Inbox, ScreenHeader, ScreenLayout } from '@pv/ui'
+import type { KpiAllocation, RoleId } from '@pv/contracts'
 import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { kpiAllocationsQuery } from '@/data/kpi-allocation'
@@ -23,6 +24,10 @@ import { ReceivePackage } from './kpi-receive-parts'
  *  record of any book, so there is no object a chain could be anchored on. */
 
 const ME_PATH = '/sales/kpi/me'
+
+/** A holder has lines of a role in one tier only, so the first package holding one names their team, if any. */
+const teamOf = (packages: readonly KpiAllocation[], role: RoleId, me: string | undefined) =>
+  packages.find((a) => a.role === role && a.lines.some((l) => l.actorId === me))?.team?.name
 
 export function KpiReceivePage() {
   const chrome = useAppChrome()
@@ -71,6 +76,7 @@ export function KpiReceivePage() {
                     closed={data.closed}
                     pack={pack}
                     me={me}
+                    team={teamOf(data.allocations, pack.role, me)}
                   />
                 ))}
               </>

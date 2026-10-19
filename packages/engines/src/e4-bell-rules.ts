@@ -45,6 +45,8 @@ export const KPI_ALLOCATION_RETURNED = 'sales.kpi.allocation-returned'
 export const KPI_COUNTER_RESOLVED = 'sales.kpi.counter-resolved'
 /** `data.flag` is the forecast's `slip` or `hit` (ADR 0098 §6). */
 export const KPI_FORECAST_FLAGGED = 'sales.kpi.forecast-flagged'
+/** A room package giving a team its share was agreed (ADR 0101). */
+export const KPI_TEAM_SHARE_ASSIGNED = 'sales.kpi.team-share-assigned'
 /** An overdue installment's reason was sent, or decided (ADR 0100). */
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
@@ -148,6 +150,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-target-allocated', KPI_ALLOCATION_SUBMITTED, 'holders'),
   bell('kpi-allocation-returned', KPI_ALLOCATION_RETURNED, 'sender'),
   bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
+  bell('kpi-team-share-assigned', KPI_TEAM_SHARE_ASSIGNED, 'lead'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
   bell('overdue-reason-waiting', OVERDUE_REASON_SENT, 'approvers'),

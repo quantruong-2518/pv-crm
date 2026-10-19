@@ -80,11 +80,12 @@ export class KpiService {
     })
   }
 
-  async people(period: KpiPeriodKey): Promise<KpiPeopleResponse> {
-    const people = (await this.readings.people()).map((p) => ({
-      ...p,
-      roleIds: p.roleIds.map(toContractRole),
-    }))
+  /** `only` keeps those people's cards: a team's lead reads their members
+   *  through this same code, so a member's card cannot differ from the room's. */
+  async people(period: KpiPeriodKey, only?: ReadonlySet<string>): Promise<KpiPeopleResponse> {
+    const people = (await this.readings.people())
+      .filter((p) => !only || only.has(p.id))
+      .map((p) => ({ ...p, roleIds: p.roleIds.map(toContractRole) }))
     const cards = await this.scorecards(period, people)
     return KpiPeopleResponse.parse({
       period,

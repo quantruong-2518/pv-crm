@@ -7,6 +7,7 @@ import { useAppChrome } from '@/app/chrome'
 import { kpiPeopleQuery } from '@/data/kpi'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { kpiForecastQuery } from '@/data/kpi-forecast'
+import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { ContributionsPanel } from './kpi-contributions'
@@ -21,6 +22,9 @@ import { PersonForecast } from './kpi-person-forecast'
  *
  *  The records behind each figure come from the contributions read, which
  *  runs the scorecard's own rule; never rebuilt here from the books.
+ *
+ *  The team name beside the roles comes from the roster of the month; it is a
+ *  label, so a failed roster read leaves it out rather than blocking the page.
  *
  *  No ContextRail (law 10 debt, as on the company screen): a scorecard is a
  *  sum over many records and opens no single object. */
@@ -75,9 +79,12 @@ export function KpiPersonPage() {
   const people = useQuery(kpiPeopleQuery(period))
   const catalog = useQuery(kpiCatalogQuery)
   const forecast = useQuery(kpiForecastQuery(period))
+  const roster = useQuery(kpiTeamRosterQuery(period))
   const person = people.data?.people.find((p) => p.actorId === actorId)
+  const team = roster.data?.teams.find((t) => t.members.some((m) => m.actorId === actorId))
   const about = [
     ...(person?.roleIds.map((role) => ROLE_LABEL[role]) ?? []),
+    team && `Nhóm ${team.name}`,
     dayOfMonth(period),
   ].filter(Boolean)
 

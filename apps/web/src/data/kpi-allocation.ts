@@ -102,7 +102,8 @@ function useAllocationWrite<B>(
   })
 }
 
-/** Replaces the role's draft; a returned or agreed package opens version + 1. */
+/** Replaces the role's draft; a returned or agreed package opens version + 1.
+ *  Room tier only: `shares` = the room's split to teams; a lead drafts on the team doors. */
 export const useDraftKpiAllocation = (period: string) =>
   useAllocationWrite<KpiAllocationDraftBody>(period, 'kpi.set-target', (body) => ({
     path: `${base(period)}/allocations/draft`,

@@ -14,7 +14,15 @@ import { useResolveKpiCounter } from '@/data/kpi-allocation'
 import { ROLE_LABEL } from '@/data/users'
 import { dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { ALLOCATE_PATH, COUNTER_LABEL, MOVED, defOfCounter, roleQuery } from './kpi-allocate-model'
+import {
+  ALLOCATE_PATH,
+  COUNTER_LABEL,
+  MOVED,
+  defOfCounter,
+  roleQuery,
+  teamPath,
+  teamSuffix,
+} from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
 import { UNIT_WORD, parseTyped, printValue } from './kpi-model'
 
@@ -42,15 +50,17 @@ function headlineOf(c: KpiCounter, def: KpiMetricDef): string {
 
 function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
   const { allocatedAfter, roleTarget, shortfall, compensators } = c.effect
+  /* On a team package the target it balances against is the team's share. */
+  const target = c.team ? 'phần của nhóm' : 'chỉ tiêu vai trò'
   const print = (v: number) => printValue(def.unit, v)
   if (allocatedAfter === null) return ['Chỉ số này không cộng dồn, tổng của vai trò không đổi.']
   const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
   if (roleTarget === null) return [`${after}. Vai trò chưa có chỉ tiêu được duyệt.`]
   if (allocatedAfter > roleTarget) {
-    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với chỉ tiêu vai trò.`]
+    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với ${target}.`]
   }
-  if (!shortfall) return [`${after} · vẫn khớp chỉ tiêu vai trò.`]
-  const gap = `${after} · thiếu ${print(shortfall)} so với chỉ tiêu vai trò.`
+  if (!shortfall) return [`${after} · vẫn khớp ${target}.`]
+  const gap = `${after} · thiếu ${print(shortfall)} so với ${target}.`
   if (compensators.length === 0) return [gap, 'Chưa có ai đúng tiến độ để bù phần thiếu.']
   const who = compensators.map((p) => `${p.name} thêm ${print(p.delta)}`).join(' · ')
   return [gap, `Gợi ý bù từ người đang đúng tiến độ: ${who}.`]
@@ -86,8 +96,13 @@ function Answers({
             tone: 'success',
             detail: 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.',
             action: {
-              label: 'Mở phân bổ',
-              onClick: () => navigate(`${ALLOCATE_PATH}${roleQuery(period, counter.role)}`),
+              label: counter.team ? 'Mở trang nhóm' : 'Mở phân bổ',
+              onClick: () =>
+                navigate(
+                  counter.team
+                    ? teamPath(counter.team.id, period)
+                    : `${ALLOCATE_PATH}${roleQuery(period, counter.role)}`,
+                ),
             },
           })
         },
@@ -201,7 +216,8 @@ export function CounterDetail({
             {headlineOf(counter, def)}
           </h3>
           <p className={cn(NOTE, 'tnum font-num')}>
-            {ROLE_LABEL[counter.role]} · gửi lúc {dmhm(counter.createdAt)}
+            {ROLE_LABEL[counter.role]}
+            {teamSuffix(counter.team)} · gửi lúc {dmhm(counter.createdAt)}
           </p>
         </div>
         <Badge tone={label.tone}>{label.text}</Badge>
@@ -250,6 +266,7 @@ export function ReturnedDetail({
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="text-[15px] font-semibold leading-6">
             {pkg.decidedBy?.name ?? 'Quản lý'} trả lại gói chỉ tiêu {ROLE_LABEL[pkg.role]}
+            {teamSuffix(pkg.team)}
           </h3>
           {pkg.decidedAt && <p className={cn(NOTE, 'tnum font-num')}>Lúc {dmhm(pkg.decidedAt)}</p>}
         </div>
@@ -258,13 +275,23 @@ export function ReturnedDetail({
       <blockquote className="bg-surface-ink/5 rounded-md px-4 py-3 text-[13px] leading-5">
         {pkg.returnReason}
       </blockquote>
-      {canFix && (
+      {pkg.team ? (
         <Button
+          variant="secondary"
           className="pointer-coarse:h-12 self-start"
-          onClick={() => navigate(`${ALLOCATE_PATH}${roleQuery(period, pkg.role)}`)}
+          onClick={() => pkg.team && navigate(teamPath(pkg.team.id, period))}
         >
-          Mở phân bổ để sửa
+          Mở trang nhóm
         </Button>
+      ) : (
+        canFix && (
+          <Button
+            className="pointer-coarse:h-12 self-start"
+            onClick={() => navigate(`${ALLOCATE_PATH}${roleQuery(period, pkg.role)}`)}
+          >
+            Mở phân bổ để sửa
+          </Button>
+        )
       )}
     </GlassCard>
   )

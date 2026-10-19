@@ -2,7 +2,7 @@ import type { KpiAllocation, KpiRoleTargets, RoleId } from '@pv/contracts'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 
 /** What waits for approval on the targets desk: role targets proposed and not
- *  yet agreed, and allocation packages sent and not yet decided, oldest first.
+ *  yet agreed, and allocation packages sent and not yet decided (room and team tier), oldest first.
  *  One function, so the desk and the company screen's door count the same items. */
 
 export type QueueItem =
@@ -40,7 +40,7 @@ export function queueOf(
     .filter((pkg) => pkg.status === 'submitted' && !(skip && pkg.submittedBy?.actorId === skip))
     .map((pkg): QueueItem => ({
       kind: 'package',
-      id: `package/${pkg.role}`,
+      id: `package/${pkg.role}/${pkg.team?.id ?? 'room'}`,
       at: pkg.submittedAt ?? '',
       pkg,
     }))

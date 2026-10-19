@@ -3,10 +3,13 @@ import {
   KPI_CATALOG,
   KPI_COUNTER_STATUS_LABEL,
   type KpiAckState,
+  type KpiAllocation,
   type KpiAllocationStatus,
   type KpiCounter,
   type KpiCounterStatus,
   type KpiMetricDef,
+  type KpiTeam,
+  type KpiTeamRef,
   type KpiUnit,
   type RoleId,
 } from '@pv/contracts'
@@ -51,9 +54,58 @@ export const ALLOCATE_PATH = '/sales/kpi/allocation'
 export const PROPOSALS_PATH = '/sales/kpi/proposals'
 export const TARGETS_PATH = '/sales/kpi/targets'
 
+/** The team page reads the month from the same query name as every KPI screen. */
+export const teamPath = (teamId: string, period: string) =>
+  `/sales/kpi/team/${encodeURIComponent(teamId)}?${MONTH_PARAM}=${period}`
+
 export const monthQuery = (period: string) => `?${MONTH_PARAM}=${period}`
-export const roleQuery = (period: string, role: RoleId) =>
-  `${monthQuery(period)}&role=${encodeURIComponent(role)}`
+export const roleQuery = (period: string, role: RoleId, teamId?: string) =>
+  `${monthQuery(period)}&role=${encodeURIComponent(role)}${
+    teamId ? `&team=${encodeURIComponent(teamId)}` : ''
+  }`
+
+/** The team's name after a role, for a package or counter that sits on a team. */
+export const teamSuffix = (team: KpiTeamRef | null) => (team ? ` · Nhóm ${team.name}` : '')
+
+/** A team the room package splits a share to. */
+export type TeamRow = { id: string; name: string; memberCount: number }
+
+/** Teams with someone holding the role, plus any team a saved share still names
+ *  after the roster moved: a share must stay visible to be cleared. */
+export function teamRowsOf(
+  role: RoleId,
+  teams: readonly KpiTeam[],
+  room: KpiAllocation | undefined,
+): TeamRow[] {
+  const rows = teams.flatMap((t) => {
+    const memberCount = t.members.filter((m) => m.roleIds.includes(role)).length
+    return memberCount > 0 ? [{ id: t.id, name: t.name, memberCount }] : []
+  })
+  const known = new Set(rows.map((r) => r.id))
+  const strays = (room?.shares ?? []).filter((s) => !known.has(s.team.id) && known.add(s.team.id))
+  return [
+    ...rows,
+    ...strays.map((s) => ({ id: s.team.id, name: s.team.name, memberCount: s.memberCount })),
+  ]
+}
+
+/** A team's box key, prefixed so it never meets an actor's key in one `edits` map. */
+export const teamCellKey = (teamId: string, metric: string) => `team/${teamId}|${metric}`
+
+/** The share the room package holds for a team and metric, if saved. */
+export const savedShare = (pkg: KpiAllocation | undefined, teamId: string, metric: string) =>
+  pkg?.shares.find((s) => s.team.id === teamId && s.metricKey === metric)
+
+/** Where a team's own package stands, as the head reads it under the team row.
+ *  A changed share outranks the stored status: the package in force no longer
+ *  matches what the room gave the team. */
+export function teamStatusOf(pkg: KpiAllocation | undefined): { text: string; tone: Tone } {
+  if (!pkg || pkg.status === 'draft') return { text: 'Chưa chia cho thành viên', tone: 'draft' }
+  if (pkg.shareChanged) return { text: 'Phần của nhóm đã đổi, chờ chia lại', tone: 'warning' }
+  if (pkg.status === 'submitted') return { text: 'Chờ duyệt', tone: 'warning' }
+  if (pkg.status === 'returned') return { text: 'Bị trả lại', tone: 'danger' }
+  return { text: 'Đã duyệt', tone: 'success' }
+}
 
 /** A stored value as the text a manager would type: `parseTyped` reads it back. */
 export function typedOf(unit: KpiUnit, value: number): string {

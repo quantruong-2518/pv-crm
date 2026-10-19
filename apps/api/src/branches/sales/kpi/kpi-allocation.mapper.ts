@@ -1,6 +1,7 @@
 import {
   KPI_METRIC_LABEL,
   type KpiAllocation,
+  type KpiAllocationShareLine,
   type KpiAllocationTotal,
   type KpiCounter,
   type KpiCounterEffect,
@@ -13,6 +14,7 @@ import type {
   KpiCounterRow,
   KpiLineRow,
   KpiPackageRow,
+  KpiShareRow,
 } from './kpi-allocation.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { ackDueOn, ackStateOf, lapsedAt } from './kpi-rules'
@@ -43,14 +45,20 @@ const keysOf = (lines: readonly { metricKey: KpiMetricKey }[]): KpiMetricKey[] =
   ...new Set(lines.map((l) => l.metricKey)),
 ]
 
-const sumOf = (lines: readonly { metricKey: KpiMetricKey; value: string }[], key: KpiMetricKey) =>
+/** What the balance adds up: a holder's line, or a team's share — a share
+ *  counts exactly like one more holder (ADR 0101). */
+export type Amount = { metricKey: KpiMetricKey; value: string }
+
+const sumOf = (lines: readonly Amount[], key: KpiMetricKey) =>
   lines.filter((l) => l.metricKey === key).reduce((n, l) => n + Number(l.value), 0)
 
 /** Per metric present in the package — a metric left out falls back to the
- *  role target on every card, so there is nothing of it to sum. */
+ *  role target on every card, so there is nothing of it to sum. On a team
+ *  package `roleTarget` answers the team's share, and `role` only picks the
+ *  metric's traits. */
 export function totalsOf(
   role: RoleId,
-  lines: readonly KpiLineRow[],
+  lines: readonly Amount[],
   roleTarget: RoleTargetOf,
 ): KpiAllocationTotal[] {
   return keysOf(lines).map((key) => {
@@ -67,24 +75,60 @@ export function totalsOf(
 }
 
 /** The sentence `submit` refuses with, or `null` when every additive metric
- *  sums exactly to its agreed role target. */
+ *  sums exactly to its target: the agreed role target on the room tier, the
+ *  team's share on a team package. */
 export function mismatchOf(
   role: RoleId,
-  lines: readonly KpiLineRow[],
+  lines: readonly Amount[],
   roleTarget: RoleTargetOf,
+  tier: 'room' | 'team' = 'room',
 ): string | null {
   const vn = new Intl.NumberFormat('vi-VN')
   const faults = totalsOf(role, lines, roleTarget).flatMap((t) => {
     const def = defOf(role, t.metricKey)
     if (!def || !additive(def)) return []
     const label = KPI_METRIC_LABEL[t.metricKey]
-    if (t.roleTarget === null) return [`${label} chưa có chỉ tiêu vai được duyệt`]
+    if (t.roleTarget === null) {
+      return [
+        `${label} ${tier === 'team' ? 'chưa có phần của nhóm' : 'chưa có chỉ tiêu vai được duyệt'}`,
+      ]
+    }
     if (t.delta === null || t.delta === 0) return []
     return [`${label} ${t.delta < 0 ? 'thiếu' : 'thừa'} ${vn.format(Math.abs(t.delta))}`]
   })
-  return faults.length > 0
-    ? `Tổng chỉ tiêu từng người chưa khớp chỉ tiêu vai: ${faults.join('; ')}.`
-    : null
+  if (faults.length === 0) return null
+  return tier === 'team'
+    ? `Tổng chỉ tiêu từng người chưa khớp phần của nhóm: ${faults.join('; ')}.`
+    : `Tổng chỉ tiêu từng người chưa khớp chỉ tiêu vai: ${faults.join('; ')}.`
+}
+
+/** What a team package adds to the wire beside the room package's fields. */
+export type TierView = { shares: KpiAllocationShareLine[]; shareChanged: boolean }
+
+/** A room package's shares as the head reads them. `members` are the team's
+ *  people who hold the role; last month's team figure is their sum, and only
+ *  an additive metric has one. */
+export function toShareLines(
+  shares: readonly KpiShareRow[],
+  role: RoleId,
+  members: (teamId: string) => readonly string[],
+  roleTarget: RoleTargetOf,
+  lastMonth: FigureOf,
+): KpiAllocationShareLine[] {
+  return shares.map((s) => {
+    const def = defOf(role, s.metricKey)
+    const ids = members(s.teamId)
+    const figures = ids.map((id) => lastMonth(role, id, s.metricKey))
+    const known = figures.filter((v): v is number => v !== null)
+    return {
+      team: { id: s.teamId, name: s.teamName },
+      memberCount: ids.length,
+      metricKey: s.metricKey,
+      value: Number(s.value),
+      roleValue: roleTarget(role, s.metricKey),
+      lastMonth: def && additive(def) && known.length > 0 ? known.reduce((n, v) => n + v, 0) : null,
+    }
+  })
 }
 
 export function toAllocation(
@@ -94,11 +138,13 @@ export function toAllocation(
   roleTarget: RoleTargetOf,
   lastMonth: FigureOf,
   today: string,
+  tier: TierView = { shares: [], shareChanged: false },
 ): KpiAllocation {
   const dueOn = ackDueOn(pkg)
   return {
     period: pkg.period,
     role: pkg.role,
+    team: pkg.teamId && pkg.teamName ? { id: pkg.teamId, name: pkg.teamName } : null,
     version: pkg.version,
     status: pkg.status,
     /* Set on a draft too: its last author is the one person who may send it. */
@@ -120,17 +166,23 @@ export function toAllocation(
       roleValue: roleTarget(pkg.role, l.metricKey),
       lastMonth: lastMonth(pkg.role, l.actorId, l.metricKey),
     })),
+    shares: tier.shares,
+    shareChanged: tier.shareChanged,
     totals,
   }
 }
 
-/** What accepting the counter does to the role's split.
+/** What accepting the counter does to the package's split.
  *
  *  `compensators`: the other holders of the same metric in the same package
  *  whose figure this month is `met` or `on-track` against THEIR line — the
  *  pace rule of `kpi-verdict.ts`, no new threshold. The shortfall is shared
  *  among them in proportion to their line: `delta_i = shortfall × line_i ÷
- *  Σ line`. Nobody on pace, or Σ line = 0, leaves the list empty. */
+ *  Σ line`. Nobody on pace, or Σ line = 0, leaves the list empty.
+ *
+ *  `target` is the package's own: the role target on the room tier, the team's
+ *  share on a team package. `shares` are the room package's, which count as
+ *  lines in the sum but are nobody to compensate. */
 export function effectOf(
   counter: KpiCounterRow,
   pkgLines: readonly KpiLineRow[],
@@ -138,6 +190,7 @@ export function effectOf(
   now: FigureOf,
   elapsed: number,
   tolerance: number,
+  shares: readonly Amount[] = [],
 ): KpiCounterEffect {
   const def = defOf(counter.role, counter.metricKey)
   if (!def || !additive(def)) {
@@ -145,7 +198,10 @@ export function effectOf(
   }
   const same = pkgLines.filter((l) => l.metricKey === counter.metricKey)
   const others = same.filter((l) => l.actorId !== counter.actorId)
-  const allocatedAfter = sumOf(others, counter.metricKey) + Number(counter.proposedValue)
+  const allocatedAfter =
+    sumOf(others, counter.metricKey) +
+    sumOf(shares, counter.metricKey) +
+    Number(counter.proposedValue)
   const shortfall = roleTarget === null ? null : Math.max(0, roleTarget - allocatedAfter)
 
   const ahead = others.filter((l) => {
@@ -178,6 +234,7 @@ export function toCounter(row: KpiCounterRow, effect: KpiCounterEffect): KpiCoun
     actorId: row.actorId,
     name: row.name,
     role: row.role,
+    team: row.teamId && row.teamName ? { id: row.teamId, name: row.teamName } : null,
     metricKey: row.metricKey,
     assigned: Number(row.assigned),
     proposed: Number(row.proposedValue),

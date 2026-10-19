@@ -1,0 +1,192 @@
+import { Inject, Injectable } from '@nestjs/common'
+import type { AccessControl, Actor } from '@pv/engines'
+import {
+  KpiTeamRosterResponse,
+  ROLE_LABEL,
+  type KpiPeriodKey,
+  type KpiTeam,
+  type KpiTeamBody,
+  type KpiTeamMember,
+  type RoleId,
+} from '@pv/contracts'
+import { AuditRepository } from '@api/platform/audit/audit.repository'
+import type { Db } from '@api/platform/db/db.module'
+import { ACCESS } from '@api/platform/engines/tokens'
+import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { KpiReadingsRepository } from './kpi-readings.repository'
+import { KpiTeamRepository, type ActorFace, type RosterEntry } from './kpi-team.repository'
+
+/** Roles that carry a personal KPI; director and head-of-sales split them instead. */
+const TEAM_ROLES: readonly RoleId[] = ['marketing', 'bd', 'presales', 'sale', 'account-executive']
+
+/** The KPI team roster (ADR 0101). A write never edits a month already handed
+ *  down: it lands on `effectiveFrom`, the first month with nothing sent, and
+ *  runs under the roster lock so an allocation send cannot cross it.
+ *
+ *  Team edits are direct under `kpi.set-target`, not through the config
+ *  approval flow (default 2): a roster is a list of names, not a target.
+ *  Renaming is immediate and also relabels past months, since the name lives on
+ *  the team row. */
+@Injectable()
+export class KpiTeamService {
+  constructor(
+    private readonly repo: KpiTeamRepository,
+    private readonly readings: KpiReadingsRepository,
+    private readonly audit: AuditRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
+  ) {}
+
+  /** Without `kpi.view-all`: only the caller's own team and no unassigned list. */
+  async read(who: Actor, period: KpiPeriodKey): Promise<KpiTeamRosterResponse> {
+    const [entries, editableFrom] = await Promise.all([
+      this.repo.rosterAt(period),
+      this.repo.effectiveFrom(),
+    ])
+    const mine = entries.find((e) => e.actorId === who.id)
+    const all = this.access.allows(who, 'kpi.view-all')
+    const faces = new Map(
+      (await this.repo.actors([...new Set(entries.map((e) => e.actorId))])).map((a) => [a.id, a]),
+    )
+    const teams = teamsOf(entries, faces).filter((t) => all || t.id === mine?.teamId)
+    const inTeam = new Set(entries.map((e) => e.actorId))
+    const unassigned = all
+      ? (await this.eligible()).filter((a) => !inTeam.has(a.id)).map((a) => memberOf(a, false))
+      : []
+    return KpiTeamRosterResponse.parse({
+      period,
+      editableFrom,
+      teams,
+      unassigned,
+      myTeamId: mine?.teamId ?? null,
+      iLead: mine?.lead ?? false,
+    })
+  }
+
+  async create(who: Actor, body: KpiTeamBody): Promise<KpiTeamRosterResponse> {
+    await this.assertEligible(body.memberIds)
+    return this.write(who, async (tx, at) => {
+      await this.assertFree(tx, at, body.memberIds)
+      const teamId = await this.repo.insertTeam(tx, body.name, who.id)
+      await this.repo.addMembers(tx, membersOf(at, teamId, body))
+      return { kpi: 'team-created', teamId }
+    })
+  }
+
+  async update(who: Actor, teamId: string, body: KpiTeamBody): Promise<KpiTeamRosterResponse> {
+    await this.assertEligible(body.memberIds)
+    return this.write(who, async (tx, at) => {
+      await this.assertInRoster(tx, at, teamId)
+      await this.repo.removeTeam(tx, at, teamId)
+      await this.assertFree(tx, at, body.memberIds)
+      await this.repo.addMembers(tx, membersOf(at, teamId, body))
+      await this.repo.renameTeam(tx, teamId, body.name)
+      return { kpi: 'team-updated', teamId }
+    })
+  }
+
+  async remove(who: Actor, teamId: string): Promise<KpiTeamRosterResponse> {
+    return this.write(who, async (tx, at) => {
+      await this.assertInRoster(tx, at, teamId)
+      await this.repo.removeTeam(tx, at, teamId)
+      return { kpi: 'team-removed', teamId }
+    })
+  }
+
+  /** Lock first, then pick the month: the answer to "which month has nothing
+   *  sent" must not change between the pick and the write. */
+  private async write(
+    who: Actor,
+    apply: (tx: Db, at: KpiPeriodKey) => Promise<{ kpi: string; teamId: string }>,
+  ): Promise<KpiTeamRosterResponse> {
+    const at = await this.repo.run(async (tx) => {
+      await this.repo.lockRoster(tx)
+      const month = await this.repo.effectiveFrom(tx)
+      await this.repo.openRoster(tx, month, who.id)
+      const note = await apply(tx, month)
+      await this.audit.write(
+        { actorId: who.id, action: 'edit', note: JSON.stringify({ ...note, from: month }) },
+        tx,
+      )
+      return month
+    })
+    return this.read(who, at)
+  }
+
+  private async eligible(): Promise<ActorFace[]> {
+    return (await this.readings.people()).filter((p) =>
+      p.roleIds.some((r) => TEAM_ROLES.includes(r)),
+    )
+  }
+
+  /** 400 naming the people, so the form can say whom to take out. */
+  private async assertEligible(ids: readonly string[]): Promise<void> {
+    const ok = new Set((await this.eligible()).map((a) => a.id))
+    const bad = ids.filter((id) => !ok.has(id))
+    if (bad.length === 0) return
+    const names = (await this.repo.actors(bad)).map((a) => a.name)
+    const roles = TEAM_ROLES.map((r) => ROLE_LABEL[r]).join(', ')
+    throw invalid({
+      memberIds: [
+        `${names.length > 0 ? names.join(', ') : 'Người được chọn'} chưa vào nhóm được. Cần đang làm việc và giữ vai ${roles}.`,
+      ],
+    })
+  }
+
+  /** The roster at `at` as it stands now, minus the team being rewritten. */
+  private async assertFree(tx: Db, at: KpiPeriodKey, ids: readonly string[]): Promise<void> {
+    const taken = (await this.repo.rosterAt(at, tx)).filter((e) => ids.includes(e.actorId))
+    if (taken.length === 0) return
+    const names = new Map(
+      (
+        await this.repo.actors(
+          taken.map((e) => e.actorId),
+          tx,
+        )
+      ).map((a) => [a.id, a.name]),
+    )
+    throw conflict(
+      taken.map((e) => `${names.get(e.actorId) ?? e.actorId} đang ở nhóm ${e.teamName}.`).join(' '),
+      { memberIds: taken.map((e) => e.actorId) },
+    )
+  }
+
+  private async assertInRoster(tx: Db, at: KpiPeriodKey, teamId: string): Promise<void> {
+    const entries = await this.repo.rosterAt(at, tx)
+    if (!entries.some((e) => e.teamId === teamId)) throw notFound('nhóm')
+  }
+}
+
+const memberOf = (a: ActorFace, lead: boolean): KpiTeamMember => ({
+  actorId: a.id,
+  name: a.name,
+  roleIds: a.roleIds,
+  lead,
+})
+
+const membersOf = (at: KpiPeriodKey, teamId: string, body: KpiTeamBody) =>
+  body.memberIds.map((actorId) => ({
+    fromPeriod: at,
+    teamId,
+    actorId,
+    lead: actorId === body.leadId,
+  }))
+
+/** Rows of a roster grouped by team, the lead first and the rest by name. */
+function teamsOf(entries: readonly RosterEntry[], faces: Map<string, ActorFace>): KpiTeam[] {
+  const byTeam = new Map<string, { name: string; members: KpiTeamMember[] }>()
+  for (const e of entries) {
+    const face = faces.get(e.actorId)
+    if (!face) continue
+    const team = byTeam.get(e.teamId) ?? { name: e.teamName, members: [] }
+    team.members.push(memberOf(face, e.lead))
+    byTeam.set(e.teamId, team)
+  }
+  const teams: KpiTeam[] = []
+  for (const [id, { name, members }] of byTeam) {
+    members.sort((a, b) => Number(b.lead) - Number(a.lead) || a.name.localeCompare(b.name, 'vi'))
+    const [lead] = members
+    if (lead?.lead)
+      teams.push({ id, name, lead: { actorId: lead.actorId, name: lead.name }, members })
+  }
+  return teams.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+}

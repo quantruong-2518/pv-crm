@@ -1,6 +1,6 @@
 # 0098 · KPI targets are allocated per person, and a person may counter-propose
 
-Status: accepted (partially supersedes 0082 §1 decisions 1 and 3; §5's two-person rule kept; §7's catalog and notification bullets done by 0099)
+Status: accepted (partially supersedes 0082 §1 decisions 1 and 3; §5's "no manager–employee relation" superseded by 0101 for KPI; §5's two-person rule kept; §7's catalog and notification bullets done by 0099)
 Source: project owner's decision on the design canvas, 15/10/2026
 
 ## Context

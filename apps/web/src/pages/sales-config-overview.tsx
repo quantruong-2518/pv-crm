@@ -2,9 +2,12 @@ import { Button, GlassCard } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import type { ConfigBundle, MotionPolicy } from '@pv/contracts'
 import { kpiAlertQuery, kpiRoleMetricsQuery } from '@/data/kpi-config'
+import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { activityFreshnessQuery, ladderRows } from '@/data/sales-config'
 import { salesMotionsQuery } from '@/data/sales-motions'
 import { FRAME_STATES, stepFrameQuery, templatesAt } from '@/data/step-frame'
+import { keyOf } from './home-model'
+import { monthPick } from './kpi-model'
 import { CONFIG_AREAS, type AreaKey, type SectionId } from './sales-config-model'
 
 /** Printed for a value that is still loading or failed to read: a zero there
@@ -22,6 +25,7 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
   const { data: frame } = useQuery(stepFrameQuery)
   const { data: kpiMetrics } = useQuery(kpiRoleMetricsQuery)
   const { data: kpiAlert } = useQuery(kpiAlertQuery)
+  const { data: roster } = useQuery(kpiTeamRosterQuery(keyOf(monthPick())))
   /* Distinct metrics and roles, not cells: one metric off in two roles is one metric. */
   const offIn = kpiMetrics?.roles.filter((r) => r.metrics.some((m) => !m.enabled))
   const offKeys = new Set(
@@ -69,6 +73,8 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
           ? ` · thiếu ${kpiAlert.tolerancePercent}% vẫn tính Đúng tiến độ`
           : ''
       }`,
+    'kpi-teams':
+      roster && (roster.teams.length === 0 ? 'Chưa có' : `${roster.teams.length} nhóm tháng này`),
   }
 }
 

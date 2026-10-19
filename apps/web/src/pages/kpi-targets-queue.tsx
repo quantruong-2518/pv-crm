@@ -25,9 +25,10 @@ import { queueOf, type QueueItem } from './kpi-targets-model'
  *  A total is printed only where the package carries one: a metric that does
  *  not add up across people has `allocated: null`, and no sum is made here. */
 
-/** Who sent which role's package on which day, and its primary total where it has one. */
+/** Who sent which role's package on which day, and its primary total where it has one.
+ *  A team's package names the team. */
 function packageSentence(catalog: KpiCatalog, pkg: KpiAllocation): string {
-  const role = ROLE_LABEL[pkg.role]
+  const role = pkg.team ? `${ROLE_LABEL[pkg.role]} của nhóm ${pkg.team.name}` : ROLE_LABEL[pkg.role]
   const head = pkg.submittedBy
     ? `${pkg.submittedBy.name} gửi gói chỉ tiêu ${role}`
     : `Gói chỉ tiêu ${role} đã gửi`
@@ -106,7 +107,9 @@ export function ApprovalQueue({
           key="open"
           variant="secondary"
           className={OPEN}
-          onClick={() => navigate(`${ALLOCATE_PATH}${roleQuery(period, item.pkg.role)}`)}
+          onClick={() =>
+            navigate(`${ALLOCATE_PATH}${roleQuery(period, item.pkg.role, item.pkg.team?.id)}`)
+          }
         >
           Mở gói chỉ tiêu
         </Button>

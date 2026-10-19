@@ -10,6 +10,7 @@ import { kpiMeQuery, useAcknowledgeKpi } from '@/data/kpi'
 import { kpiAllocationsQuery } from '@/data/kpi-allocation'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf } from '@/data/kpi-forecast'
+import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { answerable, kpiForecastMeQuery, myPackages } from '@/data/kpi-personal'
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
@@ -21,6 +22,7 @@ import {
   NewTargetsCard,
   PersonalBoard,
   SideFailure,
+  TeamLeadLink,
   ThresholdNote,
 } from './kpi-me-parts'
 import { MonthPicker, QueryBlock } from './kpi-parts'
@@ -99,6 +101,7 @@ export function KpiMePage() {
   const catalog = useQuery(kpiCatalogQuery)
   const allocations = useQuery(kpiAllocationsQuery(period))
   const forecast = useQuery(kpiForecastMeQuery(period))
+  const roster = useQuery(kpiTeamRosterQuery(period))
   const actorId = useSession((s) => s.actor?.id)
 
   const packs =
@@ -109,6 +112,10 @@ export function KpiMePage() {
     .filter((l) => l.ackState === 'pending').length
   const allocatedRoles = new Set(packs.map((p) => p.role))
   const seen = forecast.data
+  /* The roster is a side read: without it the link is simply absent. */
+  const ledTeam = roster.data?.iLead
+    ? roster.data.teams.find((t) => t.id === roster.data.myTeamId)
+    : undefined
 
   return (
     <AppShell {...chrome.shell}>
@@ -118,6 +125,8 @@ export function KpiMePage() {
           description={DESCRIPTION}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+
+        {ledTeam && <TeamLeadLink team={ledTeam} period={period} />}
 
         <QueryBlock query={withCatalog(me, catalog)} what="KPI của bạn">
           {([data, defs]) => {

@@ -68,6 +68,7 @@ export const NotificationKind = z.enum([
   'kpi-about-to-hit',
   'overdue-reason-waiting',
   'overdue-reason-decided',
+  'kpi-team-share-assigned',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -90,6 +91,7 @@ export const NotificationSubject = z.enum([
   'comm-record',
   'kpi-scorecard',
   'kpi-allocation',
+  'kpi-team',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -149,6 +151,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-about-to-hit': 'Bạn sắp đạt chỉ tiêu',
   'overdue-reason-waiting': 'Có lý do quá hạn chờ bạn duyệt',
   'overdue-reason-decided': 'Lý do quá hạn của bạn đã được xử lý',
+  'kpi-team-share-assigned': 'Nhóm được giao chỉ tiêu',
 }
 
 /** The filter chips on the bell screen. */
@@ -238,6 +241,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-about-to-hit': 'kpi',
   'overdue-reason-waiting': 'contract',
   'overdue-reason-decided': 'contract',
+  'kpi-team-share-assigned': 'kpi',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -303,6 +307,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-about-to-hit': { important: false, locked: false },
   'overdue-reason-waiting': { important: true, locked: false },
   'overdue-reason-decided': { important: true, locked: false },
+  'kpi-team-share-assigned': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -335,6 +340,8 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'comm-record': 'comm.view',
   'kpi-scorecard': 'kpi.view',
   'kpi-allocation': 'kpi.view-all',
+  /* A team lead holds `kpi.view` only; the team page checks the lead itself. */
+  'kpi-team': 'kpi.view',
 }
 
 /** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
@@ -402,11 +409,12 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'contract-installment-overdue': ['contract'],
     'kpi-target-allocated': ['kpi-target'],
     'kpi-counter-resolved': ['kpi-target'],
-    'kpi-allocation-returned': ['kpi-allocation'],
+    'kpi-allocation-returned': ['kpi-allocation', 'kpi-team'],
     'kpi-about-to-miss': ['kpi-scorecard'],
     'kpi-about-to-hit': ['kpi-scorecard'],
     'overdue-reason-waiting': ['contract'],
     'overdue-reason-decided': ['contract'],
+    'kpi-team-share-assigned': ['kpi-team'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

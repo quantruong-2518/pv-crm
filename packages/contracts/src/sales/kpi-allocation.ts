@@ -14,11 +14,18 @@ import { KpiMetricKey, KpiMonthClose, KpiPeriodKey, KpiPeriodParams, KpiTargetAc
  *  split against the role. Only additive metrics (count/money, scope `own`) are
  *  summed; any other split has no total, so it reads `null`, never 0. Where a
  *  person has an agreed line, `KpiReading.target` is that line and its
- *  `targetVersion` is the PACKAGE's version, not the role target's. */
+ *  `targetVersion` is the PACKAGE's version, not the role target's.
+ *
+ *  Two tiers (ADR 0101): `team: null` is the room package (lines for people in
+ *  no team, `shares` for teams); `team` set is that team's split of its share. */
 
 const amount = z.number().nonnegative()
 const actorId = z.string().min(1).max(64)
 const reason = z.string().trim().min(1).max(500)
+const teamId = z.uuid()
+
+/** Lives here, not in kpi-team.ts, because kpi-team.ts imports this file. */
+export const KpiTeamRef = z.object({ id: teamId, name: z.string().min(1) })
 
 /** A `kpi.view`-only reader gets `superseded` for exactly one case: the last
  *  agreed package, still the one their card is judged by, while the next
@@ -68,9 +75,21 @@ export const KpiAllocationTotal = z.object({
   delta: z.number().nullable(),
 })
 
+/** A team's share of a role's target, read in a room package. */
+export const KpiAllocationShareLine = z.object({
+  team: KpiTeamRef,
+  memberCount: z.number().int().nonnegative(),
+  metricKey: KpiMetricKey,
+  value: amount,
+  roleValue: amount.nullable(),
+  lastMonth: z.number().nullable(),
+})
+
 export const KpiAllocation = z.object({
   period: KpiPeriodKey,
   role: RoleId,
+  /** `null` = room tier. */
+  team: KpiTeamRef.nullable(),
   version: z.number().int().min(1),
   status: KpiAllocationStatus,
   /** Whoever set the numbers last — on a draft, its author and the only sender. */
@@ -84,7 +103,13 @@ export const KpiAllocation = z.object({
   ackDays: z.number().int().min(1).max(31).nullable(),
   ackDueOn: Day.nullable(),
   lines: z.array(KpiAllocationLine),
-  /** Empty for a reader without `kpi.view-all`: a sum gives away others' shares. */
+  /** Room tier only; empty on a team package. */
+  shares: z.array(KpiAllocationShareLine),
+  /** Team tier: the agreed room share now differs from this package's totals,
+   *  so the lead must resend. Always `false` on the room tier. */
+  shareChanged: z.boolean(),
+  /** Empty for a reader without `kpi.view-all`: a sum gives away others' shares.
+   *  On a team package `roleTarget` carries the team's share. */
   totals: z.array(KpiAllocationTotal),
 })
 
@@ -96,25 +121,42 @@ export const KpiAllocationResponse = z.object({
 })
 
 /** `PUT …/allocations/draft` replaces the whole draft, so a line left out is
- *  removed. Whether a key belongs to the role's catalog is checked server-side. */
-export const KpiAllocationDraftBody = z.object({
-  role: RoleId,
-  lines: z
-    .array(z.object({ actorId, metricKey: KpiMetricKey, value: amount }))
-    .min(1)
-    .refine((l) => new Set(l.map((x) => `${x.actorId}|${x.metricKey}`)).size === l.length, {
-      message: 'Chỉ tiêu bị lặp.',
-    }),
-})
+ *  removed. Whether a key belongs to the role's catalog is checked server-side.
+ *  `teamId` present = that team's package (no `shares`); absent = room package,
+ *  which may hold zero lines when every holder of the role is in a team. */
+export const KpiAllocationDraftBody = z
+  .object({
+    role: RoleId,
+    teamId: teamId.optional(),
+    lines: z
+      .array(z.object({ actorId, metricKey: KpiMetricKey, value: amount }))
+      .refine((l) => new Set(l.map((x) => `${x.actorId}|${x.metricKey}`)).size === l.length, {
+        message: 'Chỉ tiêu bị lặp.',
+      }),
+    shares: z
+      .array(z.object({ teamId, metricKey: KpiMetricKey, value: amount }))
+      .refine((s) => new Set(s.map((x) => `${x.teamId}|${x.metricKey}`)).size === s.length, {
+        message: 'Phần của nhóm bị lặp.',
+      })
+      .default([]),
+  })
+  .refine((b) => b.lines.length + b.shares.length > 0, {
+    message: 'Nhập chỉ tiêu cho ít nhất một người hoặc một nhóm.',
+  })
+  .refine((b) => b.teamId === undefined || b.shares.length === 0, {
+    message: 'Gói của nhóm không chia tiếp cho nhóm khác.',
+    path: ['shares'],
+  })
 
 export const KpiAllocationSubmitBody = z.object({
   role: RoleId,
+  teamId: teamId.optional(),
   ackDays: z.number('Nhập số ngày.').int('Nhập số nguyên.').min(1).max(31),
 })
 
 export const KpiAllocationDecideBody = z.discriminatedUnion('decision', [
-  z.object({ decision: z.literal('agree') }),
-  z.object({ decision: z.literal('return'), reason }),
+  z.object({ decision: z.literal('agree'), teamId: teamId.optional() }),
+  z.object({ decision: z.literal('return'), teamId: teamId.optional(), reason }),
 ])
 
 /** No `metricKeys` acknowledges every line the caller holds in the role. */
@@ -155,6 +197,8 @@ export const KpiCounterEffect = z.object({
 export const KpiCounter = KpiTargetActor.extend({
   id: z.string().min(1).max(64),
   role: RoleId,
+  /** `null` = the counter sits on a room package. */
+  team: KpiTeamRef.nullable(),
   metricKey: KpiMetricKey,
   assigned: amount,
   proposed: amount,
@@ -219,6 +263,8 @@ export type KpiAckState = z.infer<typeof KpiAckState>
 export type KpiCounterStatus = z.infer<typeof KpiCounterStatus>
 export type KpiCounterParams = z.infer<typeof KpiCounterParams>
 export type KpiWeeklyQuery = z.infer<typeof KpiWeeklyQuery>
+export type KpiTeamRef = z.infer<typeof KpiTeamRef>
+export type KpiAllocationShareLine = z.infer<typeof KpiAllocationShareLine>
 export type KpiAllocationLine = z.infer<typeof KpiAllocationLine>
 export type KpiAllocationTotal = z.infer<typeof KpiAllocationTotal>
 export type KpiAllocation = z.infer<typeof KpiAllocation>

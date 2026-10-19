@@ -8,13 +8,15 @@ import { toastDone } from '@/app/toast'
 import { kpiAlertQuery, useProposeKpiAlert } from '@/data/kpi-config'
 import { dmhm } from '@/lib/date'
 import { KpiMetricMatrix } from './sales-config-kpi-matrix'
+import { KpiTeamsConfig } from './sales-config-kpi-teams'
 import { SENT, Section } from './sales-config-section'
 
 /** The KPI area of the config screen (ADR 0099 §1–3, ADR 0100 §1): which metrics
  *  count per role, the two thresholds behind "about to miss" and "about to hit",
  *  and how far short of pace still counts as on track.
  *  Both go through the approval inbox like every config change; the boxes
- *  keep the stored values until the change is approved. */
+ *  keep the stored values until the change is approved. The Teams section
+ *  below them (ADR 0101) is the exception: team edits apply directly. */
 
 type Field = { axis: keyof KpiAlertPatch; label: string; short: string; hint?: string }
 
@@ -184,6 +186,7 @@ function KpiAlertConfig() {
 }
 
 export function KpiArea() {
+  const canView = useCan('kpi.view')
   return (
     <>
       <Section at="kpi-metrics" hint="Mỗi vai trò có đúng một chỉ số chính.">
@@ -192,6 +195,7 @@ export function KpiArea() {
       <Section at="kpi-alert">
         <KpiAlertConfig />
       </Section>
+      {canView && <KpiTeamsConfig />}
     </>
   )
 }

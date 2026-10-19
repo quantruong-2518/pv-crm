@@ -3,8 +3,10 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   KPI_METRIC_LABEL,
   KpiAllocationResponse,
+  type KpiAllocation,
   type KpiAllocationDecideBody,
   type KpiAllocationDraftBody,
+  type KpiAllocationSubmitBody,
   type KpiPeriodKey,
   type RoleId,
 } from '@pv/contracts'
@@ -15,11 +17,28 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid } from '@api/platform/http/problem'
 import { spansOf, type PeriodSpan } from '../performance/performance-period'
 import { KpiAlertService } from './kpi-alert.service'
-import { KpiAllocationRepository, type KpiLineRow } from './kpi-allocation.repository'
+import {
+  assertLead,
+  rosterOf,
+  roomFaults,
+  shareTargetOf,
+  shareValues,
+  teamAmounts,
+  teamFaults,
+  throwFaults,
+  type Roster,
+  type ShareInForce,
+} from './kpi-allocation-team'
+import {
+  KpiAllocationRepository,
+  type KpiLineRow,
+  type KpiPackageRow,
+} from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import {
   mismatchOf,
   toAllocation,
+  toShareLines,
   totalsOf,
   type FigureOf,
   type RoleTargetOf,
@@ -29,6 +48,7 @@ import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamRepository } from './kpi-team.repository'
 import { agreedIn, slotsOf, toReadings } from './kpi.mapper'
 
 export const stale = () =>
@@ -38,14 +58,26 @@ export const stale = () =>
 export const handedDown = (p: Pick<KpiAllocationRowDb, 'status'>): boolean =>
   p.status === 'submitted' || p.status === 'agreed'
 
+/** One package slot of a month: a role at a tier. */
+const tierKey = (p: Pick<KpiAllocationRowDb, 'role' | 'teamId'>): string =>
+  `${p.role}|${p.teamId ?? ''}`
+
+const holdersOf = (
+  people: readonly { id: string; roleIds: readonly Parameters<typeof toContractRole>[0][] }[],
+  role: RoleId,
+): Set<string> =>
+  new Set(people.filter((p) => p.roleIds.map(toContractRole).includes(role)).map((p) => p.id))
+
 /** A role's monthly package: drafted by one manager and sent by that same
  *  author, agreed or returned by another (ADR 0098 §1, 0082 §5). Whoever set
  *  the numbers last is the package's `submittedBy`, so they never agree them.
  *
- *  Re-splitting an agreed or a returned package supersedes it and opens
- *  version + 1, so a return reason and an agreed split stay on disk. Every
- *  write locks the live package row first and is one transaction with its
- *  audit line.
+ *  Two tiers (ADR 0101): the room package splits the target across people in
+ *  no team and teams (shares); a team's lead then splits the share in a team
+ *  package. Re-splitting an agreed or a returned package supersedes it and
+ *  opens version + 1 of the same tier, so a return reason and an agreed split
+ *  stay on disk. Every write locks the live package row first and is one
+ *  transaction with its audit line.
  *
  *  The read is one door on `kpi.view`; E2 decides whether the caller also sees
  *  everyone's lines and the totals (`kpi.view-all`) — `comms.mapper.ts`'s cut. */
@@ -60,6 +92,7 @@ export class KpiAllocationService {
     private readonly config: KpiConfigService,
     private readonly alerts: KpiAlertService,
     private readonly closes: KpiCloseRepository,
+    private readonly teams: KpiTeamRepository,
   ) {}
 
   /** Without `kpi.view-all`: only packages handed down — or, while the next
@@ -67,75 +100,152 @@ export class KpiAllocationService {
    *  caller's lines, and no totals: a sum would give away others' shares. */
   async read(who: Actor, period: KpiPeriodKey): Promise<KpiAllocationResponse> {
     const all = this.access.allows(who, 'kpi.view-all')
-    const today = vietnamToday()
     const [packages, inForce, monthClose] = await Promise.all([
       this.repo.packages(period),
       all ? [] : this.repo.lastAgreed(period),
       this.closes.of(period),
     ])
     const live = packages.filter((p) => p.status !== 'superseded')
-    /* While a role's next version is a draft or returned, its holder keeps
+    /* While a slot's next version is a draft or returned, its holder keeps
        reading the version their card is judged by — `superseded`, not new. */
-    const unsent = new Set(live.filter((p) => !handedDown(p)).map((p) => p.role))
-    const kept = new Set(inForce.filter((p) => unsent.has(p.role)).map((p) => p.id))
+    const unsent = new Set(live.filter((p) => !handedDown(p)).map(tierKey))
+    const kept = new Set(inForce.filter((p) => unsent.has(tierKey(p))).map((p) => p.id))
     const shown = all ? live : packages.filter((p) => handedDown(p) || kept.has(p.id))
-    const only = all ? undefined : who.id
-    const [lines, roleTarget, lastMonth] = await Promise.all([
-      this.repo.lines(shown.map((p) => p.id)),
-      this.roleTargets(period),
-      this.figures(
-        spansOf(period).previous,
-        shown.map((p) => p.role),
-        only,
-      ),
-    ])
-    const allocations = shown.flatMap((p) => {
-      const mine = lines.filter((l) => l.allocationId === p.id)
-      if (!all) {
-        const own = mine.filter((l) => l.actorId === who.id)
-        return own.length > 0 ? [toAllocation(p, own, [], roleTarget, lastMonth, today)] : []
-      }
-      const totals = totalsOf(p.role, mine, roleTarget)
-      return [toAllocation(p, mine, totals, roleTarget, lastMonth, today)]
-    })
     return KpiAllocationResponse.parse({
       period,
       closed: monthClock(period).phase === 'closed',
       monthClose,
-      allocations,
+      allocations: await this.present(period, shown, all ? null : who.id),
+    })
+  }
+
+  /** A team's live packages, whole: the answer of the team's own doors. The
+   *  lead sees the lines and sums of their team's packages, and nothing else. */
+  async teamResponse(period: KpiPeriodKey, teamId: string): Promise<KpiAllocationResponse> {
+    const [packages, monthClose] = await Promise.all([
+      this.repo.packages(period),
+      this.closes.of(period),
+    ])
+    const shown = packages.filter((p) => p.teamId === teamId && p.status !== 'superseded')
+    return KpiAllocationResponse.parse({
+      period,
+      closed: monthClock(period).phase === 'closed',
+      monthClose,
+      allocations: await this.present(period, shown, null),
+    })
+  }
+
+  /** The live packages of one team. */
+  async teamPackages(period: KpiPeriodKey, teamId: string): Promise<KpiAllocation[]> {
+    const packages = await this.repo.packages(period)
+    const live = packages.filter((p) => p.teamId === teamId && p.status !== 'superseded')
+    return this.present(period, live, null)
+  }
+
+  /** `only` null is the full view (every line, totals, shares): a reader with
+   *  `kpi.view-all`, or a team's own lead reading their team's packages. */
+  async present(
+    period: KpiPeriodKey,
+    shown: readonly KpiPackageRow[],
+    only: string | null,
+  ): Promise<KpiAllocation[]> {
+    const today = vietnamToday()
+    const [lines, roleTarget, inForce, ownShares, lastMonth, ctx] = await Promise.all([
+      this.repo.lines(shown.map((p) => p.id)),
+      this.roleTargets(period),
+      this.sharesInForce(period),
+      this.repo.shares(shown.map((p) => p.id)),
+      this.figures(
+        spansOf(period).previous,
+        shown.map((p) => p.role),
+        only ?? undefined,
+      ),
+      only === null ? this.tierContext(period) : null,
+    ])
+    return shown.flatMap((p) => {
+      const mine = lines.filter((l) => l.allocationId === p.id)
+      const share = p.teamId ? shareValues(inForce, p.role, p.teamId) : null
+      const target = share ? shareTargetOf(share) : roleTarget
+      if (only !== null) {
+        const own = mine.filter((l) => l.actorId === only)
+        return own.length > 0 ? [toAllocation(p, own, [], target, lastMonth, today)] : []
+      }
+      const shares = ownShares.filter((s) => s.allocationId === p.id)
+      const totals = totalsOf(p.role, share ? mine : [...mine, ...shares], target)
+      const members = (teamId: string) =>
+        ctx!.roster.membersOf(teamId).filter((m) => ctx!.holders(p.role).has(m))
+      const changed = share
+        ? mismatchOf(p.role, teamAmounts(mine, share), target, 'team') !== null
+        : false
+      const shareLines = toShareLines(shares, p.role, members, roleTarget, lastMonth)
+      return [
+        toAllocation(p, mine, totals, target, lastMonth, today, {
+          shares: shareLines,
+          shareChanged: changed,
+        }),
+      ]
     })
   }
 
   /** A draft is edited in place and its author becomes the caller; anything
-   *  else live is superseded first and the caller authors version + 1. */
+   *  else live is superseded first and the caller authors version + 1. This
+   *  door is `kpi.set-target` and so the room tier's: a team's package has its
+   *  own door, whose permission is the lead's (ADR 0004). */
   async draft(
     who: Actor,
     period: KpiPeriodKey,
     body: KpiAllocationDraftBody,
   ): Promise<KpiAllocationResponse> {
+    if (body.teamId)
+      throw invalid({ teamId: ['Gói của nhóm do trưởng nhóm chia, không qua cửa này.'] })
+    await this.saveDraft(who, period, body, null)
+    return this.read(who, period)
+  }
+
+  async saveDraft(
+    who: Actor,
+    period: KpiPeriodKey,
+    body: KpiAllocationDraftBody,
+    teamId: string | null,
+  ): Promise<void> {
     stillOpen(period)
     const { role } = body
-    assertTargetValues(await this.roleDefs(role), body.lines, 'lines')
-    const holders = new Set(
-      (await this.readings.people())
-        .filter((p) => p.roleIds.map(toContractRole).includes(role))
-        .map((p) => p.id),
+    const [people, rosterRows] = await Promise.all([
+      this.readings.people(),
+      this.teams.rosterAt(period),
+    ])
+    const roster = rosterOf(rosterRows)
+    if (teamId) assertLead(roster, teamId, who.id)
+    const defs = await this.roleDefs(role)
+    assertTargetValues(defs, body.lines, 'lines')
+    assertTargetValues(defs, body.shares, 'shares')
+    const names = new Map(people.map((p) => [p.id, p.name]))
+    const input = {
+      roster,
+      holders: holdersOf(people, role),
+      nameOf: (id: string) => names.get(id) ?? id,
+      actorIds: body.lines.map((l) => l.actorId),
+    }
+    throwFaults(
+      teamId
+        ? teamFaults({ ...input, teamId })
+        : roomFaults({ ...input, teamIds: body.shares.map((s) => s.teamId) }),
+      'draft',
     )
-    const strangers = new Set(
-      body.lines.filter((l) => !holders.has(l.actorId)).map((l) => l.actorId),
-    )
-    if (strangers.size > 0) {
-      throw invalid({ lines: [`${strangers.size} người được giao không giữ vai này.`] })
+    if (teamId && shareValues(await this.sharesInForce(period), role, teamId).size === 0) {
+      throw conflict('Nhóm chưa được giao phần chỉ tiêu của vai này.')
     }
 
     await this.repo.run(async (tx) => {
-      const live = await this.repo.lockLive(tx, period, role)
+      const live = await this.repo.lockLive(tx, period, role, teamId)
       const rows = (id: string) =>
         body.lines.map((l) => ({ ...l, allocationId: id, value: String(l.value) }))
+      let id: string
       if (live?.status === 'draft') {
         if (!(await this.repo.movePackage(tx, live, { submittedBy: who.id }))) throw stale()
         await this.keepCounteredLines(tx, live.id, body)
         await this.repo.saveDraftLines(tx, rows(live.id))
+        id = live.id
       } else {
         if (live?.status === 'submitted') {
           throw conflict('Gói chỉ tiêu đang chờ duyệt nên chưa chia lại được.')
@@ -147,41 +257,71 @@ export class KpiAllocationService {
         if (live && !(await this.repo.movePackage(tx, live, { status: 'superseded' }))) {
           throw stale()
         }
-        const version = await this.repo.nextVersion(tx, period, role)
-        const id = await this.repo.insertPackage(tx, {
+        const made = await this.repo.insertPackage(tx, {
           period,
           role,
-          version,
+          teamId,
+          version: await this.repo.nextVersion(tx, period, role, teamId),
           status: 'draft',
           submittedBy: who.id,
         })
-        if (!id) throw stale()
-        await this.repo.insertLines(tx, rows(id))
+        if (!made) throw stale()
+        await this.repo.insertLines(tx, rows(made))
+        id = made
       }
-      await this.note(tx, who, { kpi: 'allocation-drafted', period, role, lines: body.lines })
+      const shares = body.shares.map((s) => ({ ...s, value: String(s.value) }))
+      if (!teamId) await this.repo.replaceShares(tx, id, shares)
+      await this.note(tx, who, {
+        kpi: 'allocation-drafted',
+        period,
+        role,
+        team: teamId,
+        lines: body.lines,
+        shares: body.shares,
+      })
     })
+  }
+
+  /** Room door: `kpi.set-target`. A body naming a team is refused, as for `draft`. */
+  async submit(
+    who: Actor,
+    period: KpiPeriodKey,
+    body: KpiAllocationSubmitBody,
+  ): Promise<KpiAllocationResponse> {
+    if (body.teamId)
+      throw invalid({ teamId: ['Gói của nhóm do trưởng nhóm gửi, không qua cửa này.'] })
+    await this.send(who, period, body.role, body.ackDays, null)
     return this.read(who, period)
   }
 
   /** Only the draft's last author sends it: a second manager sending someone
    *  else's numbers would leave the author free to agree them. `ackDays` is
-   *  the sender's, and starts counting once the package is agreed. */
-  async submit(
+   *  the sender's, and starts counting once the package is agreed.
+   *
+   *  The roster lock comes first and the roster is read again under it: a team
+   *  edit that landed since the draft must not slip a stale split through
+   *  (ADR 0101, amendment A4). */
+  async send(
     who: Actor,
     period: KpiPeriodKey,
     role: RoleId,
     ackDays: number,
-  ): Promise<KpiAllocationResponse> {
+    teamId: string | null,
+  ): Promise<void> {
     stillOpen(period)
+    /* Read before the transaction: a second connection inside it would wait on it. */
+    const people = await this.readings.people()
     await this.repo.run(async (tx) => {
-      const live = await this.repo.lockLive(tx, period, role)
+      await this.teams.lockRoster(tx)
+      const live = await this.repo.lockLive(tx, period, role, teamId)
+      if (teamId) assertLead(rosterOf(await this.teams.rosterAt(period, tx)), teamId, who.id)
       if (live?.status !== 'draft') {
         throw conflict('Vai này không có bản nháp chia chỉ tiêu để gửi.')
       }
       if (live.submittedBy !== who.id) {
         throw conflict('Bản nháp do người khác soạn sau cùng nên chỉ người đó gửi được.')
       }
-      await this.assertBalanced(tx, live)
+      await this.assertSendable(tx, live, people)
       const sent = { status: 'submitted' as const, submittedAt: new Date(), ackDays }
       if (!(await this.repo.movePackage(tx, live, sent))) throw stale()
       await this.alerts.submitted(tx, who, live)
@@ -189,17 +329,18 @@ export class KpiAllocationService {
         kpi: 'allocation-submitted',
         period,
         role,
+        team: teamId,
         version: live.version,
         ackDays,
       })
     })
-    return this.read(who, period)
   }
 
   /** Four eyes, refused here with a sentence before the CHECK
    *  `kpi_allocation_decided_by_another` would answer with a bare 500. An
    *  agreement re-checks ADR 0098 §2: a line settled in place since the send
-   *  may have moved the sum. */
+   *  may have moved the sum. One door for both tiers: `teamId` in the body
+   *  picks the package, and the permission is `kpi.set-target` either way. */
   async decide(
     who: Actor,
     period: KpiPeriodKey,
@@ -207,8 +348,9 @@ export class KpiAllocationService {
     body: KpiAllocationDecideBody,
   ): Promise<KpiAllocationResponse> {
     stillOpen(period)
+    const teamId = body.teamId ?? null
     await this.repo.run(async (tx) => {
-      const live = await this.repo.lockLive(tx, period, role)
+      const live = await this.repo.lockLive(tx, period, role, teamId)
       if (live?.status !== 'submitted') {
         throw conflict('Vai này không có gói chỉ tiêu nào đang chờ duyệt.')
       }
@@ -223,14 +365,46 @@ export class KpiAllocationService {
           : { ...decided, status: 'returned' as const, returnReason: body.reason }
       if (!(await this.repo.movePackage(tx, live, set))) throw stale()
       if (body.decision === 'return') await this.alerts.returned(tx, who, live, body.reason)
+      if (body.decision === 'agree' && !teamId) await this.tellTeams(tx, who, live)
       await this.note(tx, who, {
         kpi: body.decision === 'agree' ? 'allocation-agreed' : 'allocation-returned',
         period,
         role,
+        team: teamId,
         version: live.version,
       })
     })
     return this.read(who, period)
+  }
+
+  /** Each team with a share in the agreed room package hears it from its lead's bell. */
+  private async tellTeams(tx: Db, who: Actor, pkg: KpiAllocationRowDb): Promise<void> {
+    const shares = await this.repo.shares([pkg.id], tx)
+    const roster = rosterOf(await this.teams.rosterAt(pkg.period, tx))
+    const told = new Map(shares.map((s) => [s.teamId, s.teamName]))
+    const leads = [...told].flatMap(([id, name]) => {
+      const leadId = roster.leadOf(id)
+      return leadId ? [{ id, name, leadId }] : []
+    })
+    await this.alerts.shareAssigned(tx, who, pkg, leads)
+  }
+
+  /** The shares of every room package in force, with the role each belongs to. */
+  async sharesInForce(period: KpiPeriodKey, handle?: Db): Promise<ShareInForce[]> {
+    const rooms = (await this.repo.lastAgreed(period, handle)).filter((p) => p.teamId === null)
+    const role = new Map(rooms.map((p) => [p.id, p.role]))
+    const rows = await this.repo.shares(
+      rooms.map((p) => p.id),
+      handle,
+    )
+    return rows.map((r) => ({ ...r, role: role.get(r.allocationId)! }))
+  }
+
+  /** The roster of the month and who holds each role, read together. */
+  async tierContext(period: KpiPeriodKey) {
+    const [rows, people] = await Promise.all([this.teams.rosterAt(period), this.readings.people()])
+    const roster: Roster = rosterOf(rows)
+    return { roster, holders: (role: RoleId) => holdersOf(people, role) }
   }
 
   /** Each role's highest agreed target, by `slotsOf`'s own reading. Not cut to
@@ -245,8 +419,8 @@ export class KpiAllocationService {
   }
 
   /** The metrics `role` takes new targets on — the effective catalog's. */
-  async roleDefs(role: RoleId) {
-    return (await this.config.effectiveCatalog())[role]
+  async roleDefs(role: RoleId, handle?: Db) {
+    return (await this.config.effectiveCatalog(handle))[role]
   }
 
   /** One month's figures for `roles`, read the way a scorecard reads them
@@ -276,10 +450,50 @@ export class KpiAllocationService {
     return this.audit.write({ actorId: who.id, action: 'edit', note: JSON.stringify(payload) }, tx)
   }
 
-  /** ADR 0098 §2 on the package's lines as they stand under the lock. */
+  /** The roster and the stored lines, judged again under the roster lock, then
+   *  the balance: what the draft check saw may no longer be true. */
+  private async assertSendable(
+    tx: Db,
+    pkg: KpiAllocationRowDb,
+    people: Parameters<typeof holdersOf>[0],
+  ): Promise<void> {
+    const roster = rosterOf(await this.teams.rosterAt(pkg.period, tx))
+    const holders = (role: RoleId) => holdersOf(people, role)
+    const lines = await this.repo.lines([pkg.id], tx)
+    const shares = await this.repo.shares([pkg.id], tx)
+    const names = new Map(lines.map((l) => [l.actorId, l.name]))
+    const input = {
+      roster,
+      holders: holders(pkg.role),
+      nameOf: (id: string) => names.get(id) ?? id,
+      actorIds: lines.map((l) => l.actorId),
+    }
+    throwFaults(
+      pkg.teamId
+        ? teamFaults({ ...input, teamId: pkg.teamId })
+        : roomFaults({ ...input, teamIds: shares.map((s) => s.teamId) }),
+      'send',
+    )
+    await this.assertBalanced(tx, pkg)
+  }
+
+  /** ADR 0098 §2 on the package's lines as they stand under the lock. On a
+   *  team package the target is the team's share in the room package in force. */
   private async assertBalanced(tx: Db, pkg: KpiAllocationRowDb): Promise<void> {
     const lines = await this.repo.lines([pkg.id], tx)
-    const fault = mismatchOf(pkg.role, lines, await this.roleTargets(pkg.period, tx))
+    if (pkg.teamId) {
+      const share = shareValues(await this.sharesInForce(pkg.period, tx), pkg.role, pkg.teamId)
+      if (share.size === 0) throw conflict('Nhóm chưa được giao phần chỉ tiêu của vai này.')
+      const fault = mismatchOf(pkg.role, teamAmounts(lines, share), shareTargetOf(share), 'team')
+      if (fault) throw conflict(fault)
+      return
+    }
+    const shares = await this.repo.shares([pkg.id], tx)
+    const fault = mismatchOf(
+      pkg.role,
+      [...lines, ...shares],
+      await this.roleTargets(pkg.period, tx),
+    )
     if (fault) throw conflict(fault)
   }
 

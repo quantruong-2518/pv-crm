@@ -25,7 +25,7 @@ import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE } from './home-tiles'
-import { COUNTER_LABEL, actedAt, defOfCounter } from './kpi-allocate-model'
+import { COUNTER_LABEL, actedAt, defOfCounter, teamSuffix } from './kpi-allocate-model'
 import { CounterDetail, ReturnedDetail } from './kpi-proposals-detail'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { MONTH_PARAM, pickFromUrl, printValue } from './kpi-model'
@@ -58,7 +58,11 @@ function queueOf(counters: readonly KpiCounter[], packages: readonly KpiAllocati
     .sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? ''))
   const returned = packages
     .filter((p) => p.status === 'returned')
-    .map((pkg): Item => ({ id: `returned/${pkg.role}`, kind: 'returned', pkg }))
+    .map((pkg): Item => ({
+      id: `returned/${pkg.role}/${pkg.team?.id ?? 'room'}`,
+      kind: 'returned',
+      pkg,
+    }))
   return [...open.map(asItem), ...returned, ...settled.map(asItem)]
 }
 
@@ -86,7 +90,10 @@ function cellsOf(item: Item, picked: boolean) {
     const { decidedBy, decidedAt } = item.pkg
     return [
       <span key="what" className={TWO_LINES}>
-        <Title picked={picked}>Gói {ROLE_LABEL[item.pkg.role]}</Title>
+        <Title picked={picked}>
+          Gói {ROLE_LABEL[item.pkg.role]}
+          {teamSuffix(item.pkg.team)}
+        </Title>
         {decidedAt && (
           <span className={cn(NOTE, 'tnum font-num truncate')}>
             {actedAt(decidedBy, 'trả lại', decidedAt)}
@@ -108,6 +115,7 @@ function cellsOf(item: Item, picked: boolean) {
     <span key="what" className={TWO_LINES}>
       <Title picked={picked}>
         {c.name} · {ROLE_LABEL[c.role]}
+        {teamSuffix(c.team)}
       </Title>
       <span className={cn(NOTE, 'tnum font-num truncate')}>
         {KPI_METRIC_LABEL[c.metricKey]}: {change}
@@ -151,7 +159,11 @@ function ProposalDesk({
     )
   }
 
-  const pkgOf = (c: KpiCounter) => allocations.allocations.find((a) => a.role === c.role)
+  /* A counter sits on one package: its role AND its team (none = the room's). */
+  const pkgOf = (c: KpiCounter) =>
+    allocations.allocations.find(
+      (a) => a.role === c.role && (a.team?.id ?? null) === (c.team?.id ?? null),
+    )
   const lastMonthOf = (c: KpiCounter) =>
     pkgOf(c)?.lines.find((l) => l.actorId === c.actorId && l.metricKey === c.metricKey)
       ?.lastMonth ?? null

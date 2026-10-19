@@ -8,10 +8,12 @@ import {
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
+import { leadsOver, rosterOf } from './kpi-allocation-team'
 import { KpiAllocationRepository, type KpiCounterRow } from './kpi-allocation.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { KpiConfigRepository } from './kpi-config.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamRepository } from './kpi-team.repository'
 
 type Entry = KpiTargetHistoryEntry
 const who = (actorId: string, name: string) => ({ actorId, name })
@@ -30,10 +32,12 @@ export class KpiHistoryService {
     private readonly targets: KpiTargetsRepository,
     private readonly allocations: KpiAllocationRepository,
     private readonly config: KpiConfigRepository,
+    private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
-  /** Someone else's line needs `kpi.view-all` — the allocation read's cut. The
+  /** Someone else's line needs `kpi.view-all` — the allocation read's cut — or
+   *  to lead that person's team in the roster of the month (ADR 0101). The
    *  role target is not: `GET targets` shows it, names included, on `kpi.view`.
    *  A switched-off metric keeps its history readable, so membership is the code catalog's. */
   async history(
@@ -44,7 +48,13 @@ export class KpiHistoryService {
     const { role, metricKey } = query
     const actorId = query.actorId ?? null
     if (actorId && actorId !== caller.id && !this.access.allows(caller, 'kpi.view-all')) {
-      throw denied('permission-denied', 'Bạn chỉ xem được lịch sử chỉ tiêu của chính mình.')
+      const roster = rosterOf(await this.teams.rosterAt(period))
+      if (!leadsOver(roster, caller.id, actorId)) {
+        throw denied(
+          'permission-denied',
+          'Bạn chỉ xem được lịch sử chỉ tiêu của mình và của thành viên nhóm bạn phụ trách.',
+        )
+      }
     }
     if (!catalogDef(role, metricKey)) {
       throw invalid({ metricKey: ['Vai này không có chỉ số này.'] })
@@ -78,17 +88,22 @@ export class KpiHistoryService {
   }
 
   /** A draft was never handed down, so it has no history yet. A superseded
-   *  package is stamped by the creation of the version after it. */
+   *  package is stamped by the creation of the version after it — of the same
+   *  tier, since versions are counted per tier. */
   private async lineHistory(
     period: KpiPeriodKey,
     q: KpiTargetHistoryQuery,
     actorId: string,
   ): Promise<Entry[]> {
-    const packages = (await this.allocations.packages(period)).filter((p) => p.role === q.role)
-    const [lines, counters] = await Promise.all([
-      this.allocations.lines(packages.map((p) => p.id)),
+    const ofRole = (await this.allocations.packages(period)).filter((p) => p.role === q.role)
+    const [roleLines, counters] = await Promise.all([
+      this.allocations.lines(ofRole.map((p) => p.id)),
       this.allocations.counters(period),
     ])
+    const held = new Set(roleLines.filter((l) => l.actorId === actorId).map((l) => l.allocationId))
+    const tiers = new Set(ofRole.filter((p) => held.has(p.id)).map((p) => p.teamId ?? ''))
+    const packages = ofRole.filter((p) => tiers.has(p.teamId ?? ''))
+    const lines = roleLines
     const mine = counters.filter(
       (c) => c.role === q.role && c.actorId === actorId && c.metricKey === q.metricKey,
     )

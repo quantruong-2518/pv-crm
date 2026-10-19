@@ -27,9 +27,14 @@ import { KpiHistoryService } from './kpi-history.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamController } from './kpi-team.controller'
+import { KpiTeamRepository } from './kpi-team.repository'
+import { KpiTeamService } from './kpi-team.service'
+import { KpiTeamViewController } from './kpi-team-view.controller'
+import { KpiTeamViewService } from './kpi-team-view.service'
 
 /** KPI by role — scorecards computed on read, the agreed targets, and their
- *  per-person split (ADR 0098).
+ *  per-person split (ADR 0098), in two tiers through team rosters (ADR 0101).
  *
  *  A repository per thing known: the books' fact tables (read only), the role
  *  targets, and the allocation packages with their lines and counters. The
@@ -51,6 +56,8 @@ import { KpiTargetsRepository } from './kpi-targets.repository'
     KpiConfigController,
     KpiHistoryController,
     KpiContributionsController,
+    KpiTeamController,
+    KpiTeamViewController,
   ],
   providers: [
     KpiService,
@@ -70,6 +77,9 @@ import { KpiTargetsRepository } from './kpi-targets.repository'
     KpiAlertSweeper,
     KpiContributionsService,
     KpiContributionsRepository,
+    KpiTeamRepository,
+    KpiTeamService,
+    KpiTeamViewService,
   ],
 })
 export class KpiModule {}

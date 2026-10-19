@@ -10,6 +10,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import {
+  KpiPeriodKey,
   NOTIFICATION_SUBJECT_PERMISSION,
   type NotificationListQuery,
   type NotificationListResponse,
@@ -247,6 +248,7 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
   'comm-record': (code) => `/comms/${encodeURIComponent(code)}`,
   'kpi-scorecard': (code) => `/sales/kpi/me?month=${encodeURIComponent(code)}`,
   'kpi-allocation': (code) => `/sales/kpi/proposals?month=${encodeURIComponent(code)}`,
+  'kpi-team': (code) => `/sales/kpi/team/${encodeURIComponent(code)}`,
 }
 
 /** An overdue-installment row, read back. `detail` keys are named by the
@@ -299,6 +301,11 @@ export const notificationPath = (
   if (installment) return installment.path
   const reasonNo = overdueReasonNo(row)
   if (reasonNo) return `${SUBJECT_PATH.contract(row.subject.code)}/installments/${reasonNo}`
+  if (row.subject.kind === 'kpi-team') {
+    const month = KpiPeriodKey.safeParse(row.detail?.period)
+    const path = SUBJECT_PATH['kpi-team'](row.subject.code)
+    return month.success ? `${path}?month=${month.data}` : path
+  }
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
     return `${ACCOUNT}#requests`
   /* The book opens on its `active` tab, which hides both batches' leads. */

@@ -6,6 +6,7 @@ import {
   type KpiAcknowledgeBody,
   type KpiAckStatus,
   type KpiAllocationResponse,
+  type KpiCounter,
   type KpiCounterBody,
   type KpiCounterResolveBody,
   type KpiMetricKey,
@@ -16,6 +17,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
 import { KpiAlertService } from './kpi-alert.service'
+import { assertLead, rosterOf, shareTargetOf, shareValues } from './kpi-allocation-team'
 import { KpiAllocationRepository, type LineKey } from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { effectOf, toCounter } from './kpi-allocation.mapper'
@@ -32,6 +34,7 @@ import {
   vietnamToday,
 } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamRepository } from './kpi-team.repository'
 
 const RESOLVED = { accept: 'accepted', keep: 'kept', counter: 'countered' } as const
 const PENDING = { ackStatus: 'pending' as const, ackedAt: null }
@@ -46,7 +49,10 @@ const PENDING = { ackStatus: 'pending' as const, ackedAt: null }
  *  number last cannot agree it. Agreed: it is locked, so the change opens
  *  version + 1 as a DRAFT carrying every line and the other open counters —
  *  the head rebalances it from `compensators` and sends it again, while cards
- *  keep reading the agreed version (`agreedLines`). */
+ *  keep reading the agreed version (`agreedLines`).
+ *
+ *  A team package stays the lead's: `submittedBy` is the lead whoever resolves
+ *  (ADR 0101 default 9). A holder's line is found in whichever tier holds it. */
 @Injectable()
 export class KpiAllocationCounterService {
   constructor(
@@ -55,6 +61,7 @@ export class KpiAllocationCounterService {
     private readonly packages: KpiAllocationService,
     private readonly alerts: KpiAlertService,
     private readonly config: KpiConfigService,
+    private readonly teams: KpiTeamRepository,
   ) {}
 
   async acknowledge(
@@ -90,7 +97,7 @@ export class KpiAllocationCounterService {
     keys: readonly KpiMetricKey[] | null = null,
     strict = false,
   ): Promise<KpiMetricKey[]> {
-    const live = await this.repo.lockLive(tx, period, role)
+    const live = await this.holderPackage(tx, period, role, who.id)
     if (!live || !handedDown(live)) {
       if (strict) throw conflict('Vai này chưa có chỉ tiêu được giao cho bạn.')
       await this.targets.acknowledge(
@@ -134,7 +141,7 @@ export class KpiAllocationCounterService {
     assertTargetValues(await this.packages.roleDefs(role), [proposal], 'proposedValue')
     const already = conflict('Bạn đã có một đề xuất chờ xử lý cho chỉ tiêu này.')
     await this.repo.run(async (tx) => {
-      const live = await this.repo.lockLive(tx, period, role)
+      const live = await this.holderPackage(tx, period, role, who.id)
       if (!live || !handedDown(live)) throw conflict('Vai này chưa có chỉ tiêu được giao cho bạn.')
       const line = (await this.repo.lines([live.id], tx)).find(
         (l) => l.actorId === who.id && l.metricKey === body.metricKey,
@@ -156,23 +163,45 @@ export class KpiAllocationCounterService {
     return this.packages.read(who, period)
   }
 
+  /** The package holding the caller's line, room or team; with none, the room
+   *  package, which answers a holder without lines as before. */
+  private async holderPackage(tx: Db, period: KpiPeriodKey, role: RoleId, actorId: string) {
+    return (
+      (await this.repo.lockHolding(tx, period, role, actorId)) ??
+      (await this.repo.lockLive(tx, period, role, null))
+    )
+  }
+
   async list(period: KpiPeriodKey): Promise<KpiCounterListResponse> {
-    const counters = await this.repo.counters(period)
-    const roles = counters.map((c) => c.role)
-    const [lines, roleTarget, now] = await Promise.all([
+    return KpiCounterListResponse.parse({ period, counters: await this.counterViews(period) })
+  }
+
+  /** Each counter's effect is read against ITS package's target: the role
+   *  target on the room tier, the team's share on a team package. `teamId`
+   *  keeps only that team's counters. */
+  async counterViews(period: KpiPeriodKey, teamId?: string): Promise<KpiCounter[]> {
+    const all = await this.repo.counters(period)
+    const counters = teamId ? all.filter((c) => c.teamId === teamId) : all
+    const [lines, roleTarget, now, inForce, shares] = await Promise.all([
       this.repo.lines([...new Set(counters.map((c) => c.allocationId))]),
       this.packages.roleTargets(period),
-      this.packages.figures(spansOf(period).current, roles),
+      this.packages.figures(
+        spansOf(period).current,
+        counters.map((c) => c.role),
+      ),
+      this.packages.sharesInForce(period),
+      this.repo.shares([...new Set(counters.map((c) => c.allocationId))]),
     ])
     const { elapsed } = monthClock(period)
     const tolerance = await this.config.tolerance()
-    return KpiCounterListResponse.parse({
-      period,
-      counters: counters.map((c) => {
-        const pkgLines = lines.filter((l) => l.allocationId === c.allocationId)
-        const target = roleTarget(c.role, c.metricKey)
-        return toCounter(c, effectOf(c, pkgLines, target, now, elapsed, tolerance))
-      }),
+    return counters.map((c) => {
+      const pkgLines = lines.filter((l) => l.allocationId === c.allocationId)
+      const target = c.teamId ? shareTargetOf(shareValues(inForce, c.role, c.teamId)) : roleTarget
+      const own = shares.filter((s) => s.allocationId === c.allocationId)
+      return toCounter(
+        c,
+        effectOf(c, pkgLines, target(c.role, c.metricKey), now, elapsed, tolerance, own),
+      )
     })
   }
 
@@ -191,11 +220,26 @@ export class KpiAllocationCounterService {
     counterId: string,
     body: KpiCounterResolveBody,
   ): Promise<KpiAllocationResponse> {
+    await this.settleCounter(who, period, counterId, body)
+    return this.packages.read(who, period)
+  }
+
+  /** `leadOf` set: the team's own door, whose permission is `kpi.view`, so the
+   *  roster of the month — read under the same transaction — must name the
+   *  caller as that team's lead, and the counter must sit on that team. */
+  async settleCounter(
+    who: Actor,
+    period: KpiPeriodKey,
+    counterId: string,
+    body: KpiCounterResolveBody,
+    leadOf?: string,
+  ): Promise<void> {
     stillOpen(period)
     await this.repo.run(async (tx) => {
+      if (leadOf) assertLead(rosterOf(await this.teams.rosterAt(period, tx)), leadOf, who.id)
       /* Matched in JS first: the id comes off the URL and need not be a uuid. */
       const c = (await this.repo.counters(period, tx)).find((x) => x.id === counterId)
-      if (!c) throw notFound('đề xuất chỉ tiêu')
+      if (!c || (leadOf && c.teamId !== leadOf)) throw notFound('đề xuất chỉ tiêu')
       const pkg = await this.repo.lockPackage(tx, c.allocationId)
       if ((await this.repo.lockCounter(tx, c.id))?.status !== 'open') {
         throw conflict('Đề xuất này đã được xử lý.')
@@ -204,7 +248,7 @@ export class KpiAllocationCounterService {
       if (c.actorId === who.id) throw conflict('Đề xuất của bạn cần quản lý khác xử lý.')
       if (body.resolution === 'counter') {
         const entry = { metricKey: c.metricKey, value: body.value }
-        assertTargetValues(await this.packages.roleDefs(c.role), [entry], 'value')
+        assertTargetValues(await this.packages.roleDefs(c.role, tx), [entry], 'value')
       }
       const value =
         body.resolution === 'accept'
@@ -220,15 +264,13 @@ export class KpiAllocationCounterService {
       })
       await this.settle(tx, who, pkg, c, value)
       await this.alerts.resolved(tx, who, period, c, body.resolution)
-      const resolution = body.resolution
       await this.packages.note(tx, who, {
         kpi: 'counter-resolved',
         period,
         counter: c.id,
-        resolution,
+        resolution: body.resolution,
       })
     })
-    return this.packages.read(who, period)
   }
 
   /** `value === null` is "keep": only the holder's answer resets. A returned
@@ -244,8 +286,17 @@ export class KpiAllocationCounterService {
     const set = value === null ? PENDING : { ...PENDING, value }
     if ((await this.repo.setLines(tx, pkg, [at], set)) !== 1) throw stale()
     if (value !== null && (pkg.status === 'submitted' || pkg.status === 'draft')) {
-      if (!(await this.repo.movePackage(tx, pkg, { submittedBy: who.id }))) throw stale()
+      const sender = await this.senderOf(tx, who, pkg)
+      if (!(await this.repo.movePackage(tx, pkg, { submittedBy: sender }))) throw stale()
     }
+  }
+
+  /** The room tier's sender is whoever resolved last; a team package's is its
+   *  lead (amendment A2). Without that, the head resolving the lead's own
+   *  counter would become the sender and could no longer agree the package. */
+  private async senderOf(tx: Db, who: Actor, pkg: KpiAllocationRowDb): Promise<string> {
+    if (!pkg.teamId) return who.id
+    return rosterOf(await this.teams.rosterAt(pkg.period, tx)).leadOf(pkg.teamId) ?? who.id
   }
 
   /** An agreed package that must change takes a new version (ADR 0098 §3). */
@@ -263,12 +314,14 @@ export class KpiAllocationCounterService {
     const id = await this.repo.insertPackage(tx, {
       period: pkg.period,
       role: pkg.role,
-      version: await this.repo.nextVersion(tx, pkg.period, pkg.role),
+      teamId: pkg.teamId,
+      version: await this.repo.nextVersion(tx, pkg.period, pkg.role, pkg.teamId),
       status: 'draft',
-      submittedBy: who.id,
+      submittedBy: await this.senderOf(tx, who, pkg),
       ackDays: pkg.ackDays,
     })
     if (!id) throw stale()
+    if (!pkg.teamId) await this.repo.copyShares(tx, pkg.id, id)
     const same = (l: LineKey) => l.actorId === at.actorId && l.metricKey === at.metricKey
     /* A lapsed line is copied answered, at its lapse: the new version's own
        deadline must not reopen a deadline already missed. */

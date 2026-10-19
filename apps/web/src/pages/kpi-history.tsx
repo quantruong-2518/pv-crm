@@ -45,9 +45,11 @@ const EVENT_DOT: Partial<Record<KpiTargetHistoryEvent, TimelineItem['state']>> =
   returned: 'warning',
 }
 
-/** Whose history: the reader's own line, or the role target with a pick among its holders. */
+/** Whose history: the reader's own line, or the role target with a pick among its holders.
+ *  `roleTarget: false` drops the role target from the pick: a team lead reads members' lines only. */
 export type HistorySubject =
-  { actorId: string } | { holders: readonly { actorId: string; name: string }[] }
+  | { actorId: string }
+  | { holders: readonly { actorId: string; name: string }[]; roleTarget?: boolean }
 
 const ROLE_TARGET = ''
 
@@ -90,7 +92,11 @@ function HistoryBody({
   subject: HistorySubject
 }) {
   const [key, setKey] = useState(() => (defs.find((d) => d.primary) ?? defs[0]).key)
-  const [person, setPerson] = useState(ROLE_TARGET)
+  const [person, setPerson] = useState(() =>
+    'holders' in subject && subject.roleTarget === false
+      ? (subject.holders[0]?.actorId ?? ROLE_TARGET)
+      : ROLE_TARGET,
+  )
   const def = defs.find((d) => d.key === key) ?? defs[0]
   const actorId = 'actorId' in subject ? subject.actorId : person || undefined
   const history = useQuery(kpiHistoryQuery(period, { role, metricKey: def.key, actorId }))
@@ -114,7 +120,9 @@ function HistoryBody({
               size="lg"
               value={person}
               options={[
-                { value: ROLE_TARGET, label: 'Cả vai trò' },
+                ...(subject.roleTarget === false
+                  ? []
+                  : [{ value: ROLE_TARGET, label: 'Cả vai trò' }]),
                 ...subject.holders.map((h) => ({ value: h.actorId, label: h.name })),
               ]}
               onChange={setPerson}

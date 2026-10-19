@@ -6,7 +6,6 @@ import {
   primaryKey,
   text,
   timestamp,
-  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core'
@@ -14,6 +13,7 @@ import { sql, type SQL } from 'drizzle-orm'
 import type { KpiMetricKey, RoleId } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
+import { kpiTeam } from './kpi-team.schema'
 
 /** Per-person KPI allocation: one role's monthly package split across the
  *  people who hold it, each line acknowledged or countered by its holder.
@@ -21,7 +21,11 @@ import { sales } from '../sales.schema'
  *  An agreed package is never edited: a change is a new `version`, so a
  *  return reason and an agreed number stay on disk. A sent package that is
  *  not yet agreed may have a line settled in place (ADR 0098 §3). Only one
- *  package per (period, role) is live; `superseded` is the archive.
+ *  package per (period, role, team) is live; `superseded` is the archive.
+ *
+ *  Two tiers (ADR 0101): `team_id` NULL is the room package, whose lines go
+ *  to people in no team and whose `kpi_allocation_share` rows go to teams; a
+ *  team package carries its lead's split of one share across the members.
  *
  *  Every actor column is a real FK, for `kpi_target`'s reason: only a
  *  signed-in person writes here. The role, period and metric lists are hand
@@ -50,6 +54,9 @@ export const kpiAllocation = sales.table(
     period: text('period').notNull(),
     role: text('role').$type<RoleId>().notNull(),
     version: integer('version').notNull(),
+    /** NULL = room tier, which is every row before 0121. A team package is
+     *  the team lead's split of one share. */
+    teamId: uuid('team_id').references(() => kpiTeam.id),
     status: text('status')
       .$type<'draft' | 'submitted' | 'returned' | 'agreed' | 'superseded'>()
       .notNull(),
@@ -73,12 +80,20 @@ export const kpiAllocation = sales.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    /** "Version N of role R in month P", and no two writers both make v2. */
-    unique('kpi_allocation_version_uq').on(t.period, t.role, t.version),
-    /** "The live package of role R in month P" — every screen's first read.
-     *  Also the fence: re-allocating an agreed month supersedes it first. */
-    uniqueIndex('kpi_allocation_one_live_uq')
-      .on(t.period, t.role)
+    /** "Version N of role R in month P, for team T (or the room)", and no two
+     *  writers both make v2. `coalesce`: a plain UNIQUE treats two NULLs as
+     *  different, so the room tier could fork. */
+    uniqueIndex('kpi_allocation_version_tier_uq').on(
+      t.period,
+      t.role,
+      sql`coalesce("team_id"::text, '')`,
+      t.version,
+    ),
+    /** "The live package of role R in month P, for team T (or the room)" — every
+     *  screen's first read. Also the fence: re-allocating an agreed month
+     *  supersedes it first. A room package and a team package live together. */
+    uniqueIndex('kpi_allocation_one_live_tier_uq')
+      .on(t.period, t.role, sql`coalesce("team_id"::text, '')`)
       .where(sql`"status" IN ('draft', 'submitted', 'returned', 'agreed')`),
 
     check('kpi_allocation_period_shape', periodShape()),
@@ -139,7 +154,7 @@ export const kpiAllocationLine = sales.table(
   },
   (t) => [
     /* No index beyond the key: "my lines this month" finds the live package
-       through `kpi_allocation_one_live_uq`, then walks this key's prefix. */
+       through `kpi_allocation_one_live_tier_uq`, then walks this key's prefix. */
     primaryKey({
       name: 'kpi_allocation_line_pk',
       columns: [t.allocationId, t.actorId, t.metricKey],
@@ -154,6 +169,35 @@ export const kpiAllocationLine = sales.table(
       'kpi_allocation_line_acked_stamp',
       sql`("ack_status" = 'pending') = ("acked_at" IS NULL)`,
     ),
+  ],
+)
+
+/** A team's slice of a room package: one number per metric, which the team's
+ *  lead then splits across the members in a team package. Only a room-tier
+ *  package (`team_id` NULL) holds shares; that rule is held at the door, since
+ *  a CHECK cannot read another table. A share is never edited: a change is a
+ *  new room version, so the agreed share stays on disk. */
+export const kpiAllocationShare = sales.table(
+  'kpi_allocation_share',
+  {
+    allocationId: uuid('allocation_id')
+      .notNull()
+      .references(() => kpiAllocation.id),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => kpiTeam.id),
+    metricKey: text('metric_key').$type<KpiMetricKey>().notNull(),
+    /** No scale, for `kpi_target.value`'s reason: dong, ratios, hours, days. */
+    value: numeric('value').notNull(),
+  },
+  (t) => [
+    /* No index beyond the key: "the shares of package A" walks its prefix. */
+    primaryKey({
+      name: 'kpi_allocation_share_pk',
+      columns: [t.allocationId, t.teamId, t.metricKey],
+    }),
+    check('kpi_allocation_share_metric_known', metricKnown()),
+    check('kpi_allocation_share_value_not_negative', sql`"value" >= 0`),
   ],
 )
 
@@ -220,5 +264,7 @@ export type KpiAllocationRowDb = typeof kpiAllocation.$inferSelect
 export type KpiAllocationValues = typeof kpiAllocation.$inferInsert
 export type KpiAllocationLineRowDb = typeof kpiAllocationLine.$inferSelect
 export type KpiAllocationLineValues = typeof kpiAllocationLine.$inferInsert
+export type KpiAllocationShareRowDb = typeof kpiAllocationShare.$inferSelect
+export type KpiAllocationShareValues = typeof kpiAllocationShare.$inferInsert
 export type KpiCounterRowDb = typeof kpiCounter.$inferSelect
 export type KpiCounterValues = typeof kpiCounter.$inferInsert

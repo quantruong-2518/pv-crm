@@ -113,12 +113,15 @@ export function ReceivePackage({
   closed,
   pack,
   me,
+  team,
 }: {
   period: string
   closed: boolean
   pack: MyPackage
   /** The reader: the history panel reads their own line. */
   me: string | undefined
+  /** Name of the team whose package this is; absent on a room package. */
+  team?: string
 }) {
   const live = answerable(pack)
   const [firstOpen, ...moreOpen] = live ? pack.lines.filter((l) => l.ackState === 'pending') : []
@@ -145,7 +148,7 @@ export function ReceivePackage({
           </>
         }
       >
-        {ROLE_LABEL[pack.role]}
+        {team ? `${ROLE_LABEL[pack.role]} · Nhóm ${team}` : ROLE_LABEL[pack.role]}
       </SectionTitle>
 
       {!closed && pack.ackDueOn && firstOpen && (

@@ -26,7 +26,22 @@ function overdueReasonSentence(row: NotificationRow): string | null {
   return `Lý do quá hạn ${what} bị từ chối${note ? `: ${note}` : ''}`
 }
 
+const TEAM_MONTH = /^tháng \d{1,2}\/\d{4}$/
+
+/** `kpi-team-share-assigned` (ADR 0101). The subject label is
+ *  `<team> · <role> · <month text>`; a team name is free text and may hold the
+ *  separator, so it is read from the right. `null` for any other shape. */
+function teamShareSentence(row: NotificationRow): string | null {
+  if (row.kind !== 'kpi-team-share-assigned' || !row.subject.label) return null
+  const parts = row.subject.label.split(' · ')
+  const month = parts.at(-1)
+  const role = parts.at(-2)
+  const team = parts.slice(0, -2).join(' · ')
+  if (!team || !role || !month || !TEAM_MONTH.test(month)) return null
+  return `Nhóm ${team} được giao chỉ tiêu ${role} ${month}. Chia cho thành viên.`
+}
+
 /** The sentence a bell line or popup says for this row, or `null` for the
  *  kind's fixed label. The line and the popup both ask here. */
 export const sentenceOf = (row: NotificationRow): string | null =>
-  overdueReasonSentence(row) ?? notificationSentence(row)
+  overdueReasonSentence(row) ?? teamShareSentence(row) ?? notificationSentence(row)

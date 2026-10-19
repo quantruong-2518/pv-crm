@@ -12,17 +12,20 @@ import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
+import { leadsOver, rosterOf } from './kpi-allocation-team'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiContributionsRepository } from './kpi-contributions.repository'
 import { KpiReadingsRepository, seriesKey, type KpiSeat } from './kpi-readings.repository'
 import { monthClock } from './kpi-rules'
+import { KpiTeamRepository } from './kpi-team.repository'
 
 /** The records counted into one person's KPI figures (ADR 0099 §5).
  *
  *  One door on `kpi.view`; E2 widens it past the caller's own line for
- *  `kpi.view-all`, the cut `KpiAllocationService.read` makes. Only code, a
- *  label of the fact, date and amount leave here — never a debrief's text. */
+ *  `kpi.view-all`, the cut `KpiAllocationService.read` makes, and the roster
+ *  for the lead of the person's team (ADR 0101). Only code, a label of the
+ *  fact, date and amount leave here — never a debrief's text. */
 
 const CAP = 50
 
@@ -63,12 +66,19 @@ export class KpiContributionsService {
     private readonly repo: KpiContributionsRepository,
     private readonly config: KpiConfigService,
     private readonly closes: KpiCloseRepository,
+    private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async of(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiContributionsResponse> {
     if (actorId !== who.id && !this.access.allows(who, 'kpi.view-all')) {
-      throw denied('permission-denied', 'Bạn chỉ xem được bản ghi tính vào KPI của mình.')
+      const roster = rosterOf(await this.teams.rosterAt(period))
+      if (!leadsOver(roster, who.id, actorId)) {
+        throw denied(
+          'permission-denied',
+          'Bạn chỉ xem được bản ghi tính vào KPI của mình và của thành viên nhóm bạn phụ trách.',
+        )
+      }
     }
     const person = (await this.readings.people()).find((p) => p.id === actorId)
     if (!person) throw notFound('người này')

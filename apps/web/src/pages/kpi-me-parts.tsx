@@ -7,6 +7,7 @@ import {
   Icon,
   Target,
   TriangleAlert,
+  Users,
   cn,
   percent,
 } from '@pv/ui'
@@ -25,6 +26,7 @@ import { num, periodLabel } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { MONTH_PARAM, boardOf, printTile, printValue } from './kpi-model'
 import { ReadingTile } from './kpi-parts'
+import { teamPath } from './kpi-team-model'
 import { WeeklyChart } from './kpi-weekly-chart'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the door to
@@ -57,6 +59,27 @@ export function NewTargetsCard({ period, pending }: { period: string; pending: n
         <Icon icon={ArrowRight} size={16} />
       </Button>
     </GlassCard>
+  )
+}
+
+/** The way to the team page, for the reader who leads a team that month (ADR 0101). */
+export function TeamLeadLink({
+  team,
+  period,
+}: {
+  team: { id: string; name: string }
+  period: string
+}) {
+  const navigate = useNavigate()
+  return (
+    <Button
+      variant="secondary"
+      className="pointer-coarse:h-12 self-start"
+      onClick={() => navigate(teamPath(team.id, period))}
+    >
+      <Icon icon={Users} size={16} />
+      Nhóm {team.name} · Trưởng nhóm
+    </Button>
   )
 }
 

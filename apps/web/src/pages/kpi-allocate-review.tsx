@@ -110,7 +110,8 @@ export function AnswersBlock({
 }
 
 /** Agree or return. Shown to a `kpi.set-target` holder only; the sender reads
- *  why they cannot, because the server refuses them anyway. */
+ *  why they cannot, because the server refuses them anyway. Works on either
+ *  tier: a team package carries its own team. */
 export function DecideBlock({
   period,
   role,
@@ -124,6 +125,8 @@ export function DecideBlock({
 }) {
   const decide = useDecideKpiAllocation(period, role)
   const [reason, setReason] = useState('')
+  /* A team package is decided through the same door, told apart by its team. */
+  const tier = pkg.team ? { teamId: pkg.team.id } : {}
 
   if (pkg.submittedBy?.actorId === me) {
     return (
@@ -155,7 +158,7 @@ export function DecideBlock({
           disabled={trimmed === '' || decide.isPending}
           onClick={() =>
             decide.mutate(
-              { decision: 'return', reason: trimmed },
+              { decision: 'return', reason: trimmed, ...tier },
               {
                 onSuccess: () => {
                   setReason('')
@@ -172,7 +175,7 @@ export function DecideBlock({
           disabled={decide.isPending}
           onClick={() =>
             decide.mutate(
-              { decision: 'agree' },
+              { decision: 'agree', ...tier },
               { onSuccess: () => toastDone('Đã duyệt và khoá chỉ tiêu') },
             )
           }

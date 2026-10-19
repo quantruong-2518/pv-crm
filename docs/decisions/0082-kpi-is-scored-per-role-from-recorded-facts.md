@@ -1,6 +1,6 @@
 # 0082 · KPI is scored per role from recorded facts, against an agreed, versioned monthly target
 
-Status: accepted (§1 decision 1 and 3 partially superseded by 0098; §1 decision 3's "no team or manager relation", the snapshot-metric rule and §4's no-margin superseded by 0100; §2's "no poller, no worker, no snapshot table" and two Consequences bullets partially superseded by 0088; §3 and §3a amended by 0088; §3a `debriefs-closed` amended by 0099: does not count a debrief closed as "Không liên lạc được")
+Status: accepted (§1 decision 1 and 3 partially superseded by 0098; §1 decision 3's "no team or manager relation", the snapshot-metric rule and §4's no-margin superseded by 0100, the team part built by 0101; §2's "no poller, no worker, no snapshot table" and two Consequences bullets partially superseded by 0088; §3 and §3a amended by 0088; §3a `debriefs-closed` amended by 0099: does not count a debrief closed as "Không liên lạc được")
 Source: project owner's decisions in chat, 09/10/2026
 
 ## Context
@@ -24,7 +24,7 @@ a contract code.
    commission maths.
 3. Scope is own / whole room (the existing two levels). No team or manager
    relation.
-   > "No team or manager relation" superseded by 0100 §D (decided, not built).
+   > "No team or manager relation" superseded by 0100 §D (decided) and built by 0101.
 4. v1 covers the seven existing roles. Accountant and delivery are documented
    only (§8).
 

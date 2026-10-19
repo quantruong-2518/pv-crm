@@ -474,6 +474,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/kpi-receive'),
   },
   {
+    /* Not in the nav: a team lead holds `kpi.view` only, and the door checks the lead. */
+    path: '/sales/kpi/team/:teamId',
+    name: 'KPI nhóm',
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-team'),
+  },
+  {
     path: '/sales/kpi/person/:actorId',
     name: 'KPI nhân sự',
     branch: 'Sales',

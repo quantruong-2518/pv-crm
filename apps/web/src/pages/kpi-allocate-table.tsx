@@ -5,7 +5,6 @@ import {
   KpiAllocationDraftBody,
   KpiAllocationSubmitBody,
   type KpiAllocation,
-  type KpiAllocationLine,
   type KpiAllocationTotal,
   type KpiMetricDef,
   type KpiMetricKey,
@@ -16,12 +15,14 @@ import { toastDone } from '@/app/toast'
 import { Field } from '@/components/field-bits'
 import { useDraftKpiAllocation, useSubmitKpiAllocation } from '@/data/kpi-allocation'
 import { NEUTRAL_MARK, NOTE } from './home-tiles'
-import { typedOf } from './kpi-allocate-model'
+import { savedShare, teamCellKey, typedOf, type TeamRow } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
-import { DASH, UNIT_WORD, parseTyped, printShort, printValue } from './kpi-model'
+import { TeamNameCell, ValueCell } from './kpi-allocate-teams'
+import { parseTyped, printValue } from './kpi-model'
 
 /** One role's split: a person per row, a metric per column, and under it how
- *  each metric adds up against the role target.
+ *  each metric adds up against the role target. Teams come first, one row each
+ *  with its share of the role target per metric (ADR 0101).
  *
  *  The sums and the role target are the server's `totals`, read from the SAVED
  *  draft — the screen never adds the fields up, so a figure typed but not
@@ -34,24 +35,34 @@ export type Recipient = { actorId: string; name: string }
 
 const cellKey = (actorId: string, metric: KpiMetricKey) => `${actorId}|${metric}`
 const NOTE_NUM = cn(NOTE, 'tnum font-num')
-const STACK = 'flex min-w-0 flex-col items-end gap-1'
 
 /** Every filled field as the draft body; null while one is not a number or none is filled. */
 function bodyOf(
   role: RoleId,
   defs: readonly KpiMetricDef[],
   holders: readonly Recipient[],
-  textOf: (key: string, def: KpiMetricDef) => string,
+  teams: readonly TeamRow[],
+  textOf: (key: string, def: KpiMetricDef, teamId?: string) => string,
 ): KpiAllocationDraftBody | null {
   let broken = false
+  const read = (def: KpiMetricDef, text: string) => {
+    const value = parseTyped(def.unit, text)
+    if (value === null) broken = true
+    return value
+  }
   const lines = holders.flatMap(({ actorId }) =>
     defs.flatMap((def) => {
-      const value = parseTyped(def.unit, textOf(cellKey(actorId, def.key), def))
-      if (value === null) broken = true
+      const value = read(def, textOf(cellKey(actorId, def.key), def))
       return typeof value === 'number' ? [{ actorId, metricKey: def.key, value }] : []
     }),
   )
-  const body = KpiAllocationDraftBody.safeParse({ role, lines })
+  const shares = teams.flatMap(({ id: teamId }) =>
+    defs.flatMap((def) => {
+      const value = read(def, textOf(teamCellKey(teamId, def.key), def, teamId))
+      return typeof value === 'number' ? [{ teamId, metricKey: def.key, value }] : []
+    }),
+  )
+  const body = KpiAllocationDraftBody.safeParse({ role, lines, shares })
   return broken || !body.success ? null : body.data
 }
 
@@ -90,15 +101,15 @@ function TotalLine({
   def,
   check,
   total,
-  lines,
+  parts,
 }: {
   def: KpiMetricDef
   check: Check
   total: KpiAllocationTotal | undefined
-  lines: readonly KpiAllocationLine[]
+  /** What the bar is cut into: each person's line and each team's share. */
+  parts: readonly { id: string; value: number }[]
 }) {
-  const shares =
-    total && total.allocated !== null ? lines.filter((l) => l.metricKey === def.key) : []
+  const shares = total && total.allocated !== null ? parts : []
   const missing = total?.delta && total.delta < 0 ? -total.delta : 0
 
   return (
@@ -113,7 +124,7 @@ function TotalLine({
         <span aria-hidden className="flex h-2 gap-1">
           {shares.map((l) => (
             <span
-              key={l.actorId}
+              key={l.id}
               className="bg-primary h-full basis-0 rounded-sm"
               style={{ flexGrow: l.value }}
             />
@@ -129,6 +140,16 @@ function TotalLine({
     </li>
   )
 }
+
+/** The slices of one metric's bar: every line and every team share. */
+const partsOf = (pkg: KpiAllocation | undefined, metric: KpiMetricKey) => [
+  ...(pkg?.lines ?? [])
+    .filter((l) => l.metricKey === metric)
+    .map((l) => ({ id: l.actorId, value: l.value })),
+  ...(pkg?.shares ?? [])
+    .filter((s) => s.metricKey === metric)
+    .map((s) => ({ id: teamCellKey(s.team.id, metric), value: s.value })),
+]
 
 const ACK_DAYS = KpiAllocationSubmitBody.shape.ackDays
 
@@ -218,24 +239,28 @@ function SaveBar({
   )
 }
 
-export function AllocationTable({
-  period,
-  role,
-  defs,
-  holders,
-  pkg,
-  roleTargetOf,
-  hasTotal,
-  editable,
-  canSend,
-  me,
-}: {
+const columnsOf = (defs: readonly KpiMetricDef[]): TableColumn[] => [
+  { header: 'Người nhận', width: 'minmax(160px,1.2fr)' },
+  ...defs.map((def) => ({
+    header: KPI_METRIC_LABEL[def.key],
+    width: 'minmax(168px,1fr)',
+    align: 'right' as const,
+  })),
+]
+
+type AllocationTableProps = {
   period: string
   role: RoleId
   /** The role's metrics in force, in catalog order: one column each. */
   defs: readonly KpiMetricDef[]
+  /** People in no team: the only ones with a row of their own. */
   holders: readonly Recipient[]
+  /** Teams with a share of this role, each a row above the people. */
+  teams: readonly TeamRow[]
+  /** The room package only; the team packages come in `teamPkgs`. */
   pkg: KpiAllocation | undefined
+  /** Each team's own package of this role, read for the status under its row. */
+  teamPkgs: readonly KpiAllocation[]
   /** The role target from the targets read; asked only while no package carries its own. */
   roleTargetOf: (key: KpiMetricKey) => number | null
   /** The role has at least one agreed role target this month. */
@@ -245,7 +270,22 @@ export function AllocationTable({
   /** `kpi.set-target` on an open month: the saved draft may be sent. */
   canSend: boolean
   me: string | undefined
-}) {
+}
+
+export function AllocationTable({
+  period,
+  role,
+  defs,
+  holders,
+  teams,
+  pkg,
+  teamPkgs,
+  roleTargetOf,
+  hasTotal,
+  editable,
+  canSend,
+  me,
+}: AllocationTableProps) {
   const draft = useDraftKpiAllocation(period)
   const submit = useSubmitKpiAllocation(period)
   const [edits, setEdits] = useState<Record<string, string>>({})
@@ -255,9 +295,14 @@ export function AllocationTable({
     const line = saved.get(key)
     return line ? typedOf(def.unit, line.value) : ''
   }
-  const textOf = (key: string, def: KpiMetricDef) => edits[key] ?? savedText(key, def)
+  const savedShareText = (def: KpiMetricDef, teamId: string) => {
+    const share = savedShare(pkg, teamId, def.key)
+    return share ? typedOf(def.unit, share.value) : ''
+  }
+  const textOf = (key: string, def: KpiMetricDef, teamId?: string) =>
+    edits[key] ?? (teamId ? savedShareText(def, teamId) : savedText(key, def))
   const dirty = Object.keys(edits).length > 0
-  const body = editable ? bodyOf(role, defs, holders, textOf) : null
+  const body = editable ? bodyOf(role, defs, holders, teams, textOf) : null
   const busy = draft.isPending || submit.isPending
   /* The server lets only whoever set the numbers last send the draft. */
   const author = pkg?.status === 'draft' ? pkg.submittedBy : null
@@ -273,46 +318,37 @@ export function AllocationTable({
     return check ? [{ def, total, check }] : []
   })
 
+  /* A person's line or a team's share: the same box, told apart by `teamId`. */
+  const figure = (
+    key: string,
+    def: KpiMetricDef,
+    label: string,
+    saved: { value: number; lastMonth: number | null } | undefined,
+    teamId?: string,
+  ) => (
+    <ValueCell
+      key={def.key}
+      def={def}
+      label={`${KPI_METRIC_LABEL[def.key]} ${label}`}
+      editable={editable}
+      text={textOf(key, def, teamId)}
+      saved={saved?.value ?? null}
+      last={saved?.lastMonth ?? null}
+      onChange={(text) => setEdits({ ...edits, [key]: text })}
+    />
+  )
   const cell = (holder: Recipient, def: KpiMetricDef) => {
     const key = cellKey(holder.actorId, def.key)
-    const line = saved.get(key)
-    const last = line?.lastMonth ?? null
-    const unit = UNIT_WORD[def.unit]
-    return (
-      <span key={def.key} className={STACK}>
-        {editable ? (
-          /* The unit beside the box, not `suffix`: the suffix shell is fixed at 40px, under law 13's 48. */
-          <span className="flex w-full items-center gap-2">
-            <Input
-              inputMode="decimal"
-              aria-label={`${KPI_METRIC_LABEL[def.key]} của ${holder.name}`}
-              className="pointer-coarse:h-12 tnum font-num min-w-0 text-right"
-              value={textOf(key, def)}
-              invalid={parseTyped(def.unit, textOf(key, def)) === null}
-              onChange={(e) => setEdits({ ...edits, [key]: e.target.value })}
-            />
-            {unit && <span className={cn(NOTE, 'shrink-0')}>{unit}</span>}
-          </span>
-        ) : (
-          <span className="tnum font-num font-semibold">
-            {line ? printValue(def.unit, line.value) : DASH}
-          </span>
-        )}
-        {last !== null && (
-          <span className={NOTE_NUM}>Tháng trước đạt {printShort(def.unit, last)}</span>
-        )}
-      </span>
-    )
+    return figure(key, def, `của ${holder.name}`, saved.get(key))
   }
-
-  const columns: TableColumn[] = [
-    { header: 'Người nhận', width: 'minmax(160px,1.2fr)' },
-    ...defs.map((def) => ({
-      header: KPI_METRIC_LABEL[def.key],
-      width: 'minmax(168px,1fr)',
-      align: 'right' as const,
-    })),
-  ]
+  const teamCell = (team: TeamRow, def: KpiMetricDef) =>
+    figure(
+      teamCellKey(team.id, def.key),
+      def,
+      `của nhóm ${team.name}`,
+      savedShare(pkg, team.id, def.key),
+      team.id,
+    )
 
   const save = () => {
     if (!body) return
@@ -331,7 +367,7 @@ export function AllocationTable({
 
   return (
     <GlassCard variant="b" className="flex flex-col gap-4 py-4">
-      {holders.length === 0 ? (
+      {holders.length === 0 && teams.length === 0 ? (
         <p className={cn(NOTE, 'px-5')}>Chưa có ai giữ vai trò này.</p>
       ) : (
         <div className="overflow-x-auto">
@@ -339,16 +375,29 @@ export function AllocationTable({
             flush
             rowHeight="min-h-16 py-2"
             className={defs.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
-            columns={columns}
-            rows={holders.map((h) => ({
-              id: h.actorId,
-              cells: [
-                <span key="who" className="truncate font-semibold">
-                  {h.name}
-                </span>,
-                ...defs.map((def) => cell(h, def)),
-              ],
-            }))}
+            columns={columnsOf(defs)}
+            rows={[
+              ...teams.map((t) => ({
+                id: teamCellKey(t.id, 'row'),
+                cells: [
+                  <TeamNameCell
+                    key="who"
+                    team={t}
+                    pkg={teamPkgs.find((p) => p.team?.id === t.id)}
+                  />,
+                  ...defs.map((def) => teamCell(t, def)),
+                ],
+              })),
+              ...holders.map((h) => ({
+                id: h.actorId,
+                cells: [
+                  <span key="who" className="truncate font-semibold">
+                    {h.name}
+                  </span>,
+                  ...defs.map((def) => cell(h, def)),
+                ],
+              })),
+            ]}
           />
         </div>
       )}
@@ -361,7 +410,7 @@ export function AllocationTable({
               def={def}
               check={check}
               total={total}
-              lines={pkg?.lines ?? []}
+              parts={partsOf(pkg, def.key)}
             />
           ))}
         </ul>

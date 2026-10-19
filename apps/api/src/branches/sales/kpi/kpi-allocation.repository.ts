@@ -11,6 +11,7 @@ import {
   ne,
   or,
   sql,
+  type SQL,
 } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
@@ -20,6 +21,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import {
   kpiAllocation,
   kpiAllocationLine,
+  kpiAllocationShare,
   kpiCounter,
   type KpiAllocationLineRowDb,
   type KpiAllocationLineValues,
@@ -28,13 +30,26 @@ import {
   type KpiCounterRowDb,
   type KpiCounterValues,
 } from './kpi-allocation.schema'
+import { kpiTeam } from './kpi-team.schema'
 
-/** A package with the names the screen prints beside its two stamps. */
-export type KpiPackageRow = KpiAllocationRowDb & { submitter: string; decider: string | null }
+/** A package with the names the screen prints beside its two stamps, and the
+ *  team's name when it is a team package (`teamId` is on the row itself). */
+export type KpiPackageRow = KpiAllocationRowDb & {
+  submitter: string
+  decider: string | null
+  teamName: string | null
+}
 export type KpiLineRow = KpiAllocationLineRowDb & { name: string }
-/** A counter with what it is filed against: the package's role and the line. */
+/** A team's slice of a room package, with the team's name. */
+export type KpiShareRow = { allocationId: string; teamId: string; teamName: string } & Pick<
+  typeof kpiAllocationShare.$inferSelect,
+  'metricKey' | 'value'
+>
+/** A counter with what it is filed against: the package's role, tier and the line. */
 export type KpiCounterRow = KpiCounterRowDb & {
   role: RoleId
+  teamId: string | null
+  teamName: string | null
   name: string
   assigned: string
 }
@@ -55,6 +70,10 @@ type PackageSet = Partial<
     | 'ackDays'
   >
 >
+
+/** The room tier has no team: `IS NULL`, not `= NULL`. */
+const tierIs = (teamId: string | null): SQL | undefined =>
+  teamId === null ? isNull(kpiAllocation.teamId) : eq(kpiAllocation.teamId, teamId)
 
 const lineIs = (k: LineKey) =>
   and(
@@ -88,6 +107,7 @@ export class KpiAllocationRepository {
         period: kpiAllocation.period,
         role: kpiAllocation.role,
         version: kpiAllocation.version,
+        teamId: kpiAllocation.teamId,
         status: kpiAllocation.status,
         submittedBy: kpiAllocation.submittedBy,
         submittedAt: kpiAllocation.submittedAt,
@@ -98,16 +118,57 @@ export class KpiAllocationRepository {
         createdAt: kpiAllocation.createdAt,
         submitter: submitter.name,
         decider: decider.name,
+        teamName: kpiTeam.name,
       })
       .from(kpiAllocation)
       .innerJoin(submitter, eq(submitter.id, kpiAllocation.submittedBy))
       .leftJoin(decider, eq(decider.id, kpiAllocation.decidedBy))
+      .leftJoin(kpiTeam, eq(kpiTeam.id, kpiAllocation.teamId))
       .where(eq(kpiAllocation.period, period))
       .orderBy(asc(kpiAllocation.version))
   }
 
-  /** The live package of (period, role), locked until the transaction ends. */
-  async lockLive(tx: Db, period: string, role: RoleId): Promise<KpiAllocationRowDb | undefined> {
+  /** The live package of (period, role, tier), locked until the transaction
+   *  ends. `teamId` null is the room tier. */
+  async lockLive(
+    tx: Db,
+    period: string,
+    role: RoleId,
+    teamId: string | null,
+  ): Promise<KpiAllocationRowDb | undefined> {
+    const [row] = await tx
+      .select()
+      .from(kpiAllocation)
+      .where(
+        and(
+          eq(kpiAllocation.period, period),
+          eq(kpiAllocation.role, role),
+          tierIs(teamId),
+          ne(kpiAllocation.status, 'superseded'),
+        ),
+      )
+      .for('update')
+    return row
+  }
+
+  /** The live package that holds one of `actorId`'s lines, in whichever tier —
+   *  a person has lines in one tier per month. A package already handed down
+   *  wins over a draft carrying a stale line, so the holder answers the former. */
+  async lockHolding(
+    tx: Db,
+    period: string,
+    role: RoleId,
+    actorId: string,
+  ): Promise<KpiAllocationRowDb | undefined> {
+    const has = tx
+      .select({ one: sql`1` })
+      .from(kpiAllocationLine)
+      .where(
+        and(
+          eq(kpiAllocationLine.allocationId, kpiAllocation.id),
+          eq(kpiAllocationLine.actorId, actorId),
+        ),
+      )
     const [row] = await tx
       .select()
       .from(kpiAllocation)
@@ -116,8 +177,11 @@ export class KpiAllocationRepository {
           eq(kpiAllocation.period, period),
           eq(kpiAllocation.role, role),
           ne(kpiAllocation.status, 'superseded'),
+          exists(has),
         ),
       )
+      .orderBy(sql`("status" IN ('submitted', 'agreed')) DESC`, sql`("team_id" IS NULL) ASC`)
+      .limit(1)
       .for('update')
     return row
   }
@@ -149,13 +213,14 @@ export class KpiAllocationRepository {
       .orderBy(asc(actor.name), asc(kpiAllocationLine.metricKey))
   }
 
-  /** Per role, the highest version that was ever agreed: `agreed`, or
+  /** Per (role, tier), the highest version that was ever agreed: `agreed`, or
    *  `superseded` after it — a decision with no return reason is an agreement
    *  (`kpi_allocation_reason_only_when_returned`). The ONE reading of "the
-   *  package in force", for the scorecard and the holder's allocation view. */
-  lastAgreed(period: string): Promise<KpiAllocationRowDb[]> {
-    return this.db
-      .selectDistinctOn([kpiAllocation.role])
+   *  package in force", for the scorecard and the holder's allocation view.
+   *  DISTINCT ON treats the room tier's NULL team as one group. */
+  lastAgreed(period: string, handle: Db = this.db): Promise<KpiAllocationRowDb[]> {
+    return handle
+      .selectDistinctOn([kpiAllocation.role, kpiAllocation.teamId])
       .from(kpiAllocation)
       .where(
         and(
@@ -164,7 +229,7 @@ export class KpiAllocationRepository {
           isNull(kpiAllocation.returnReason),
         ),
       )
-      .orderBy(kpiAllocation.role, desc(kpiAllocation.version))
+      .orderBy(kpiAllocation.role, kpiAllocation.teamId, desc(kpiAllocation.version))
   }
 
   /** The lines of `lastAgreed` — the scorecard's input. */
@@ -200,11 +265,14 @@ export class KpiAllocationRepository {
         counterValue: kpiCounter.counterValue,
         createdAt: kpiCounter.createdAt,
         role: kpiAllocation.role,
+        teamId: kpiAllocation.teamId,
+        teamName: kpiTeam.name,
         name: actor.name,
         assigned: kpiAllocationLine.value,
       })
       .from(kpiCounter)
       .innerJoin(kpiAllocation, eq(kpiAllocation.id, kpiCounter.allocationId))
+      .leftJoin(kpiTeam, eq(kpiTeam.id, kpiAllocation.teamId))
       .innerJoin(actor, eq(actor.id, kpiCounter.actorId))
       .innerJoin(
         kpiAllocationLine,
@@ -218,16 +286,17 @@ export class KpiAllocationRepository {
       .orderBy(desc(kpiCounter.createdAt))
   }
 
-  async nextVersion(tx: Db, period: string, role: RoleId): Promise<number> {
+  /** Versions count per tier: a team's v2 does not wait for the room's. */
+  async nextVersion(tx: Db, period: string, role: RoleId, teamId: string | null): Promise<number> {
     const [row] = await tx
       .select({ top: max(kpiAllocation.version) })
       .from(kpiAllocation)
-      .where(and(eq(kpiAllocation.period, period), eq(kpiAllocation.role, role)))
+      .where(and(eq(kpiAllocation.period, period), eq(kpiAllocation.role, role), tierIs(teamId)))
     return (row?.top ?? 0) + 1
   }
 
   /** `null` when another live package or the same version landed first —
-   *  `kpi_allocation_one_live_uq` and `kpi_allocation_version_uq` answer it. */
+   *  `kpi_allocation_one_live_tier_uq` and `kpi_allocation_version_tier_uq` answer it. */
   async insertPackage(tx: Db, row: KpiAllocationValues): Promise<string | null> {
     const [made] = await tx
       .insert(kpiAllocation)
@@ -249,6 +318,7 @@ export class KpiAllocationRepository {
   /** Upserts a draft's lines. A changed value drops a stale "acknowledged"
    *  back to `pending`; a `countered` line keeps its state for its open counter. */
   async saveDraftLines(tx: Db, rows: KpiAllocationLineValues[]): Promise<void> {
+    if (rows.length === 0) return
     const kept = sql`${kpiAllocationLine.value} = excluded.value OR ${kpiAllocationLine.ackStatus} = 'countered'`
     await tx
       .insert(kpiAllocationLine)
@@ -285,6 +355,7 @@ export class KpiAllocationRepository {
   }
 
   async insertLines(tx: Db, rows: KpiAllocationLineValues[]): Promise<void> {
+    if (rows.length === 0) return
     await tx.insert(kpiAllocationLine).values(rows)
   }
 
@@ -307,6 +378,50 @@ export class KpiAllocationRepository {
       .where(and(exists(still), or(...keys.map((k) => lineIs({ ...k, allocationId: pkg.id })))))
       .returning({ actorId: kpiAllocationLine.actorId })
     return moved.length
+  }
+
+  /** The shares of room packages, with the team's name. */
+  shares(allocationIds: readonly string[], handle: Db = this.db): Promise<KpiShareRow[]> {
+    if (allocationIds.length === 0) return Promise.resolve([])
+    return handle
+      .select({
+        allocationId: kpiAllocationShare.allocationId,
+        teamId: kpiAllocationShare.teamId,
+        teamName: kpiTeam.name,
+        metricKey: kpiAllocationShare.metricKey,
+        value: kpiAllocationShare.value,
+      })
+      .from(kpiAllocationShare)
+      .innerJoin(kpiTeam, eq(kpiTeam.id, kpiAllocationShare.teamId))
+      .where(inArray(kpiAllocationShare.allocationId, [...allocationIds]))
+      .orderBy(asc(kpiTeam.name), asc(kpiAllocationShare.metricKey))
+  }
+
+  /** A draft's shares are replaced whole: nothing points at a share, so unlike
+   *  lines there is no stale answer to keep. */
+  async replaceShares(
+    tx: Db,
+    allocationId: string,
+    rows: readonly Pick<KpiShareRow, 'teamId' | 'metricKey' | 'value'>[],
+  ): Promise<void> {
+    await tx.delete(kpiAllocationShare).where(eq(kpiAllocationShare.allocationId, allocationId))
+    if (rows.length === 0) return
+    await tx.insert(kpiAllocationShare).values(rows.map((r) => ({ ...r, allocationId })))
+  }
+
+  /** The next version of a room package carries the same shares. */
+  async copyShares(tx: Db, from: string, to: string): Promise<void> {
+    const rows = await this.shares([from], tx)
+    await this.replaceShares(tx, to, rows)
+  }
+
+  /** The name a bell prints for a team package. */
+  async teamName(tx: Db, teamId: string): Promise<string | null> {
+    const [row] = await tx
+      .select({ name: kpiTeam.name })
+      .from(kpiTeam)
+      .where(eq(kpiTeam.id, teamId))
+    return row?.name ?? null
   }
 
   /** `null` when an open counter already sits on the line (`kpi_counter_one_open_uq`). */
