@@ -3,6 +3,7 @@ import {
   type OpportunityProfileResponse,
   type OpportunityStageSpan,
 } from '@pv/contracts'
+import { PenLine, UsersRound } from '@pv/ui'
 import { dm } from '@/lib/date'
 import { OVERDUE_WORD, refusalOf } from '@/data/opportunities'
 import { QUOTE_LABEL } from '@/components/deal-money/money'
@@ -147,7 +148,7 @@ export { QUOTE_LABEL }
  *  quote's share it. */
 export const SIGN_LABEL = { win: 'Chốt thắng', again: 'Ký thêm hợp đồng' } as const
 
-/** The floating bar's more menu: the activity record, the owners' drawer, the
+/** The floating bar's other moves: the activity record, the owners' drawer, the
  *  hold and the stop. Quoting and signing are the header's, and the seller swap
  *  is the rail's door, so neither repeats here. A stop is final, so a lost deal
  *  offers nothing. */
@@ -166,6 +167,7 @@ export function dealMoreChoices(
     choices.push({
       key: 'activity',
       label: 'Ghi hoạt động',
+      icon: PenLine,
       onSelect: doors.onRecord,
     })
   }
@@ -173,6 +175,7 @@ export function dealMoreChoices(
     choices.push({
       key: 'owners',
       label: 'Sửa người chịu trách nhiệm',
+      icon: UsersRound,
       onSelect: doors.onEditOwners,
     })
   }

@@ -188,7 +188,7 @@ export function mailBlockedOf(lead: LeadProfile, canSendEmail: boolean): string 
 /** States with a holder still being worked — where parking and a hold start. */
 const WORKED: ReadonlySet<string> = new Set(['assigned', 'verifying', 'working'])
 
-/** The bar's more menu: the state moves the header does not hold, the
+/** The bar's other moves: the state moves the header does not hold, the
  *  hand-over and the pin. Same gates as the old toolbar's `…` menu; a door
  *  this reader cannot use is left out rather than shown shut. */
 export function leadMoreChoices(

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BrandMark, Button, Contact, Icon, cn } from '@pv/ui'
+import { BrandMark, Button, Contact, Ellipsis, Icon, cn } from '@pv/ui'
 import type { CommActionChannel } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { phoneText } from '@/lib/phone'
@@ -18,8 +18,10 @@ import { MenuButton, type MenuChoice } from './menu-button'
  *  the rarer doors (ADR 0078 §1). A record's primary moves live in its
  *  header, never here.
  *
- *  The record's other moves (hand over, pin, stop…) sit on the bar as buttons
- *  rather than behind a "more" menu, so none is hidden one click deep.
+ *  The record's other moves split by kind, the same rule on every screen: an
+ *  everyday move with an icon (hand over, pin) sits on the bar; state changes
+ *  and destructive ones go behind "⋯", the destructive last, one click away
+ *  from a thumb, and the bar keeps one shape whatever the record's state.
  *
  *  Every channel asks which contact, primary first, then goes through the
  *  comm confirm, which records first and opens the channel second (ADR 0075).
@@ -91,6 +93,10 @@ export function ActionBar({
     setAsking({ channel, contact }),
   )
   if (people === null && more.length === 0 && !extra && !top) return null
+  const tools = more.filter((c) => c.icon)
+  const rare = more
+    .filter((c) => !c.icon)
+    .sort((a, b) => Number(a.tone === 'danger') - Number(b.tone === 'danger'))
 
   /* Above the bottom nav under `lg`; clear of the assistant button above it.
      `data-action-bar` tells the shell a bar drew, so it keeps the room. */
@@ -149,7 +155,7 @@ export function ActionBar({
                     key={channel}
                     up
                     size="md"
-                    className="pointer-coarse:size-12 hover:bg-surface-ink/9 size-10 bg-transparent px-0 shadow-none"
+                    className={ICON_ONLY}
                     label={null}
                     title={shut ? `${verb}: chưa có số điện thoại` : verb}
                     mark={
@@ -171,28 +177,35 @@ export function ActionBar({
           </>
         )}
         {extra}
-        {more.map((choice) => {
-          const name = typeof choice.label === 'string' ? choice.label : undefined
-          return (
-            <Button
-              key={choice.key}
-              variant="ghost"
-              className={cn(
-                'pointer-coarse:h-12',
-                choice.icon &&
-                  'pointer-coarse:size-12 hover:bg-surface-ink/9 size-10 bg-transparent px-0 shadow-none',
-                choice.active && 'text-accent-foreground',
-                choice.tone === 'danger' && 'text-destructive-foreground',
-              )}
-              disabled={choice.blocked !== undefined}
-              title={choice.blocked ?? (choice.icon ? name : undefined)}
-              aria-label={choice.icon ? name : undefined}
-              onClick={choice.onSelect}
-            >
-              {choice.icon ? <Icon icon={choice.icon} size={20} /> : choice.label}
-            </Button>
-          )
-        })}
+        {tools.map((choice) => (
+          <Button
+            key={choice.key}
+            variant="ghost"
+            className={cn(ICON_ONLY, choice.active && 'text-accent-foreground')}
+            disabled={choice.blocked !== undefined}
+            title={choice.blocked ?? nameOf(choice)}
+            aria-label={nameOf(choice)}
+            onClick={choice.onSelect}
+          >
+            <Icon icon={choice.icon!} size={20} />
+          </Button>
+        ))}
+        {rare.length > 0 && (
+          <>
+            <span aria-hidden="true" className="bg-surface-ink/16 h-6 w-px" />
+            <MenuButton
+              up
+              align="right"
+              size="md"
+              className={ICON_ONLY}
+              label={null}
+              mark={<Icon icon={Ellipsis} size={20} />}
+              title="Thao tác khác"
+              ariaLabel="Thao tác khác"
+              choices={rare}
+            />
+          </>
+        )}
       </div>
 
       {subject && (
@@ -207,6 +220,12 @@ export function ActionBar({
     </div>
   )
 }
+
+/** A borderless square for a logo or icon with no words: 40px, 48px on touch. */
+const ICON_ONLY =
+  'pointer-coarse:size-12 hover:bg-surface-ink/9 size-10 bg-transparent px-0 shadow-none'
+
+const nameOf = (c: MenuChoice) => (typeof c.label === 'string' ? c.label : undefined)
 
 /** One menu row per contact, primary first; a row a channel cannot reach
  *  stays listed and says why. */
