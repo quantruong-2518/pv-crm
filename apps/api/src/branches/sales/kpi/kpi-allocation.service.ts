@@ -236,8 +236,7 @@ export class KpiAllocationService {
       const lineKeys = body.lines.map((l) => l.metricKey)
       throwFaults(teamFaults({ ...input, teamId, share, lineKeys }), 'draft')
     } else {
-      const teamIds = body.shares.map((s) => s.teamId)
-      throwFaults(roomFaults({ ...input, teamIds, complete: false }), 'draft')
+      throwFaults(roomFaults({ ...input, shares: body.shares, complete: false }), 'draft')
     }
 
     await this.repo.run(async (tx) => {
@@ -498,9 +497,11 @@ export class KpiAllocationService {
       nameOf: (id: string) => names.get(id) ?? id,
       actorIds: lines.map((l) => l.actorId),
     }
-    const teamIds = shares.map((s) => s.teamId)
     if (!pkg.teamId) {
-      throwFaults(roomFaults({ ...input, teamIds, complete: true }), 'send')
+      const target = await this.roleTargets(pkg.period, tx)
+      const defs = await this.roleDefs(pkg.role, tx)
+      const required = defs.map((d) => d.key).filter((key) => target(pkg.role, key) !== null)
+      throwFaults(roomFaults({ ...input, shares, complete: true, required }), 'send')
     } else {
       const share = shareValues(await this.sharesInForce(pkg.period, tx), pkg.role, pkg.teamId)
       const lineKeys = lines.map((l) => l.metricKey)

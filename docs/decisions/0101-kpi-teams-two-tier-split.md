@@ -143,9 +143,11 @@ Taken by the implementer; change them by amending this ADR.
     otherwise fall back to the whole room's role target.
 14. Team names are not unique, and a name may not start with "Nhóm": every
     screen and bell prints "Nhóm {tên}".
-15. A room package cannot be sent while a team with a holder of the role gets
-    no share, so a team package never stays in force with nothing behind it.
-    A team line on a metric the team has no share for is refused.
+15. A room package cannot be sent while a team with a holder of the role lacks
+    a share of any metric the role has an agreed target for (0 is a share), so
+    a team package never stays in force with nothing behind it and no member
+    falls back to the whole room's target. A team line on a metric the team has
+    no share of is refused.
 16. When the team's lead (in the roster of the month) is a disabled account, a
     `kpi.set-target` holder may draft, send and resolve counters for that team,
     since the month's roster is frozen; the two-person rule still applies. The
@@ -167,10 +169,7 @@ Taken by the implementer; change them by amending this ADR.
   head changes the team's share instead.
 - Known limit: one lead per team, so a lead's own counters always go to the
   head.
-- Known limit, from 0098 and not new here: a holder with no line for a metric
-  is judged against the whole role target. For a team member that is the
-  room's figure, not the team's. Default 13 closes it for ratio, hours and
-  days metrics; a count or money metric the team has no share of still falls
-  back.
+- From 0098, not new here: a holder with no line for a metric is judged
+  against the whole role target. Defaults 13 and 15 close it for team members.
 - A locked lead holds no line: the stand-in (default 16) splits the share among
   the active members.

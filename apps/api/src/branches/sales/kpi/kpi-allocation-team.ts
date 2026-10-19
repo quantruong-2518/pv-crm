@@ -59,13 +59,18 @@ const strangersOf = ({ holders, actorIds }: FaultInput): string[] => {
 }
 
 /** Room package: lines go to holders in no team, shares to teams that have a
- *  holder of the role. `complete` (a send, not a draft) also wants a share for
- *  every such team, or its agreed package would stay in force with nothing
- *  behind it. */
+ *  holder of the role. `complete` (a send, not a draft) also wants every such
+ *  team to get a share of every `required` metric (0 allowed): a member with no
+ *  line would otherwise be judged against the whole room's target. */
 export function roomFaults(
-  input: FaultInput & { teamIds: readonly string[]; complete: boolean },
+  input: FaultInput & {
+    shares: readonly Pick<KpiShareRow, 'teamId' | 'metricKey'>[]
+    complete: boolean
+    required?: readonly KpiMetricKey[]
+  },
 ): Faults {
-  const { roster, holders, nameOf, actorIds, teamIds, complete } = input
+  const { roster, holders, nameOf, actorIds, shares, complete, required = [] } = input
+  const teamIds = shares.map((x) => x.teamId)
   const inTeam = [...new Set(actorIds)].flatMap((id) => {
     const team = roster.teamOf(id)
     return team && holders.has(id)
@@ -85,12 +90,18 @@ export function roomFaults(
       team ? `Nhóm ${team.name} chưa có ai giữ vai này.` : 'Có nhóm không còn trong tháng này.',
     ]
   })
-  const given = new Set(teamIds)
+  const given = new Set(shares.map((x) => `${x.teamId}|${x.metricKey}`))
   const unshared = complete
     ? roster
         .teams()
-        .filter((t) => eligible.has(t.id) && !given.has(t.id))
-        .map((t) => `Nhóm ${t.name} chưa được giao phần.`)
+        .filter((t) => eligible.has(t.id))
+        .flatMap((t) => {
+          const missing = required.filter((key) => !given.has(`${t.id}|${key}`))
+          if (missing.length === 0) return []
+          if (missing.length === required.length) return [`Nhóm ${t.name} chưa được giao phần.`]
+          const names = missing.map((key) => KPI_METRIC_LABEL[key]).join(', ')
+          return [`Nhóm ${t.name} chưa được giao ${names}.`]
+        })
     : []
   return { lines: [...strangersOf(input), ...inTeam], shares: [...noHolder, ...unshared] }
 }

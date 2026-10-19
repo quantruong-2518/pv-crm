@@ -20,6 +20,7 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
+import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { Field } from '@/components/field-bits'
 import { useDraftTeamAllocation, useSubmitTeamAllocation } from '@/data/kpi-team-view'
@@ -310,6 +311,7 @@ export function TeamSplit({
   /** The reader leads the team and the month is open. */
   canEdit: boolean
 }) {
+  const me = useSession((s) => s.actor?.id)
   const draft = useDraftTeamAllocation(period, teamId)
   const submit = useSubmitTeamAllocation(period, teamId)
   const [edits, setEdits] = useState<Record<string, string>>({})
@@ -332,9 +334,12 @@ export function TeamSplit({
   const busy = draft.isPending || submit.isPending
 
   const body = editable ? draftBodyOf(role, teamId, columns, holders, textOf) : null
+  /* A draft someone else saved last (the head settling a counter) is sent only
+     by its last saver, so the lead re-saves it as is before sending. */
+  const foreign = status === 'draft' && pkg?.submittedBy?.actorId !== me
   /* A returned or agreed package re-saves unchanged to open its next version. */
-  const saveable = body !== null && (dirty || status !== 'draft') && !busy
-  const sendable = canEdit && status === 'draft' && !dirty && !busy
+  const saveable = body !== null && (dirty || status !== 'draft' || foreign) && !busy
+  const sendable = canEdit && status === 'draft' && !dirty && !foreign && !busy
 
   const save = () => {
     if (!body) return
@@ -398,6 +403,11 @@ export function TeamSplit({
           />
         )}
         <TotalsList columns={columns} shares={shares} pkg={pkg} />
+        {editable && foreign && pkg?.submittedBy && (
+          <p className={cn(NOTE, 'px-5')}>
+            {pkg.submittedBy.name} sửa bản nháp sau cùng. Lưu nháp rồi gửi duyệt.
+          </p>
+        )}
         {editable && holders.length > 0 && (
           <SaveBar
             dirty={dirty}
