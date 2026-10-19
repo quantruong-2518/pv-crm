@@ -9,6 +9,7 @@ import {
   type ContactListResponse,
   type TouchKind,
 } from '@pv/contracts'
+import { Pin, UserSwitch } from '@pv/ui'
 import { dm, dmy } from '@/lib/date'
 import { leadContactOf } from '@/data/comm-records'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
@@ -233,10 +234,21 @@ export function leadMoreChoices(
     choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
   }
   if (!assign.shut) {
-    choices.push({ key: 'assign', label: assign.label, onSelect: doors.onAssign })
+    choices.push({
+      key: 'assign',
+      label: assign.label,
+      icon: UserSwitch,
+      onSelect: doors.onAssign,
+    })
   }
   if (lead.disabledAt === undefined && !dealReach) {
-    choices.push({ key: 'pin', label: pinned ? 'Bỏ ghim' : 'Ghim lead', onSelect: doors.onPin })
+    choices.push({
+      key: 'pin',
+      label: pinned ? 'Bỏ ghim' : 'Ghim lead',
+      icon: Pin,
+      active: pinned,
+      onSelect: doors.onPin,
+    })
   }
   if (can.disqualify && lead.state === 'disqualified') {
     choices.push({ key: 'reopen', label: 'Mở lại lead', onSelect: doors.onReopen })

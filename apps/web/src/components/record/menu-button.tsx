@@ -18,6 +18,10 @@ export type MenuChoice = {
   /** Set = the row is shut, and this is printed as its hint. */
   blocked?: string
   tone?: 'danger'
+  /** Set = drawn as an icon-only button where the choice sits on a bar. */
+  icon?: IconGlyph
+  /** An icon-only toggle that is on (a pinned lead). */
+  active?: boolean
   onSelect: () => void
 }
 

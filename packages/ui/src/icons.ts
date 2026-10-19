@@ -133,5 +133,6 @@ export {
   UnavailableIcon as Ban,
   UserAdd01Icon as UserRoundPlus,
   UserGroupIcon as UsersRound,
+  UserSwitchIcon as UserSwitch,
   WhatsappIcon as Whatsapp,
 } from '@hugeicons/core-free-icons'

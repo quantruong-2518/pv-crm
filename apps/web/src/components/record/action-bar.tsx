@@ -171,21 +171,28 @@ export function ActionBar({
           </>
         )}
         {extra}
-        {more.map((choice) => (
-          <Button
-            key={choice.key}
-            variant="ghost"
-            className={cn(
-              'pointer-coarse:h-12',
-              choice.tone === 'danger' && 'text-destructive-foreground',
-            )}
-            disabled={choice.blocked !== undefined}
-            title={choice.blocked}
-            onClick={choice.onSelect}
-          >
-            {choice.label}
-          </Button>
-        ))}
+        {more.map((choice) => {
+          const name = typeof choice.label === 'string' ? choice.label : undefined
+          return (
+            <Button
+              key={choice.key}
+              variant="ghost"
+              className={cn(
+                'pointer-coarse:h-12',
+                choice.icon &&
+                  'pointer-coarse:size-12 hover:bg-surface-ink/9 size-10 bg-transparent px-0 shadow-none',
+                choice.active && 'text-accent-foreground',
+                choice.tone === 'danger' && 'text-destructive-foreground',
+              )}
+              disabled={choice.blocked !== undefined}
+              title={choice.blocked ?? (choice.icon ? name : undefined)}
+              aria-label={choice.icon ? name : undefined}
+              onClick={choice.onSelect}
+            >
+              {choice.icon ? <Icon icon={choice.icon} size={20} /> : choice.label}
+            </Button>
+          )
+        })}
       </div>
 
       {subject && (
