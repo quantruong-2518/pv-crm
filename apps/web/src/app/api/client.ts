@@ -114,11 +114,15 @@ let traceSeq = 0
 /** Số hiệu yêu cầu — để nối một dòng log ở màn với một dòng log ở máy chủ.
  *
  *  Đếm lên chứ không random: trong một phiên, thứ tự số cũng chính là thứ tự
- *  thời gian, và khi đọc log thì đó là thứ hay cần nhất. */
-const stampTrace: BeforeSend = (req) => ({
-  ...req,
-  headers: { ...req.headers, [TRACE_HEADER]: `${++traceSeq}` },
-})
+ *  thời gian, và khi đọc log thì đó là thứ hay cần nhất.
+ *
+ *  Not on GET: a custom header turns a cross-origin read into a preflighted
+ *  one, and the browser caches a preflight per URL, so every page, filter and
+ *  record code paid a second round trip. The server numbers reads itself. */
+const stampTrace: BeforeSend = (req) =>
+  req.method === 'GET'
+    ? req
+    : { ...req, headers: { ...req.headers, [TRACE_HEADER]: `${++traceSeq}` } }
 
 /** Phiên chết thì KHÔNG bắn request.
  *

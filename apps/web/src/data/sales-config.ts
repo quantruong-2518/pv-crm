@@ -28,6 +28,7 @@ import {
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { cacheTier } from '@/app/query-client'
 import { contractKindsQuery } from '@/data/quotations-write'
 
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
@@ -114,9 +115,9 @@ export const ADDRESSED_CHANNELS: WaveChannel[] = ['email', 'zalo-oa', 'telegram'
  *  quan trọng khi nối, vì bốn danh mục còn khoá theo chuỗi cũ chứ chưa theo
  *  `id` cấu hình (nợ §6).
  *
- *  Not the app-wide `staleTime: Infinity`: an approval in another tab changes
- *  the catalog, so it expires after a minute and re-reads on focus — the same
- *  pair `data/search.ts` and `data/notifications.ts` use. */
+ *  Aggregate tier, not reference: the payload carries `usage` counts that move
+ *  with every lead write, and an approval in another tab changes the catalog,
+ *  so it expires after a minute. */
 export const salesCatalogQuery = queryOptions({
   queryKey: ['sales', 'config', 'catalog'] as const,
   queryFn: ({ signal }) =>
@@ -124,8 +125,7 @@ export const salesCatalogQuery = queryOptions({
       need: { branch: 'Sales', permission: 'config.view' },
       signal,
     }),
-  staleTime: 60_000,
-  refetchOnWindowFocus: true,
+  ...cacheTier.aggregate,
 })
 
 /** The label behind a stored stop key — a config id, or the virtual `'other'`
@@ -568,6 +568,7 @@ export const activityFreshnessQuery = queryOptions({
       schema: ActivityFreshnessResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 /** Proposes the PAIR, so `alertDays > warnDays` is judged on one body. */
@@ -589,7 +590,7 @@ export function useProposeActivityFreshness() {
  *  can say so. Keyed UNDER the inbox key on purpose: every propose door
  *  (this file, motions, the journey frame) and every decision already
  *  refreshes `['platform', 'approvals', 'pending']`, and the prefix carries
- *  this read along. Expires like `salesCatalogQuery`. */
+ *  this read along. */
 export const myConfigProposalsQuery = queryOptions({
   queryKey: ['platform', 'approvals', 'pending', 'config-mine'] as const,
   queryFn: ({ signal }) =>
@@ -598,8 +599,6 @@ export const myConfigProposalsQuery = queryOptions({
       schema: ConfigProposalsResponse,
       signal,
     }),
-  staleTime: 60_000,
-  refetchOnWindowFocus: true,
 })
 
 export function useMyConfigProposals(): ConfigProposal[] {

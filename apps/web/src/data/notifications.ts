@@ -25,7 +25,8 @@ import {
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { toast } from '@/app/toast'
 import { bookQueryParams } from '@/app/book-query'
-import { access, useSession } from '@/app/auth'
+import { access, sessionIsLive, useSession } from '@/app/auth'
+import { whileLive } from '@/app/query-client'
 import { isParked } from '@/app/parked'
 import { overdueReasonNo } from './notification-sentence'
 import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './notification-stream'
@@ -44,8 +45,7 @@ import { snapshotNotifications, toastNewNotifications } from './notification-toa
  *  Live, not polled: `useNotificationStream` holds the SSE stream; a signal
  *  re-reads the bell's first page and the count, and the full page only while
  *  it is on screen. Polling every minute is only the fallback while the stream
- *  is not live; window focus always re-asks. Neither inherits the app-wide
- *  `staleTime: Infinity`. */
+ *  is not live; window focus re-asks once the answer is stale. */
 const NEED: ApiNeed = {}
 
 const KEY = ['platform', 'notifications'] as const
@@ -60,9 +60,8 @@ const POLL_MS = 60_000
 const fallbackPoll = () => (streamIsLive() ? false : POLL_MS)
 
 const FRESH = {
-  staleTime: 60_000,
-  refetchInterval: fallbackPoll,
-  refetchOnWindowFocus: true,
+  staleTime: POLL_MS,
+  refetchInterval: whileLive(fallbackPoll),
 } as const
 
 export const NOTIFICATION_PAGE_SIZE = 20
@@ -185,9 +184,11 @@ export const notificationPageQuery = (filter: ListFilter) =>
     },
     select: flatten,
     placeholderData: keepPreviousData,
-    staleTime: 60_000,
-    refetchInterval: (q) => ((q.state.data?.pages.length ?? 0) > 1 ? false : fallbackPoll()),
-    refetchOnWindowFocus: (q) => (q.state.data?.pages.length ?? 0) <= 1,
+    staleTime: POLL_MS,
+    refetchInterval: whileLive((q: { state: { data?: InfiniteData<NotificationListResponse> } }) =>
+      (q.state.data?.pages.length ?? 0) > 1 ? false : fallbackPoll(),
+    ),
+    refetchOnWindowFocus: (q) => sessionIsLive() && (q.state.data?.pages.length ?? 0) <= 1,
   })
 
 /** One row or everything. Invalidation and the failure toast sit on the hook,

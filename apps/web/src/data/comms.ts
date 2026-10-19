@@ -1,10 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { Phone, Users, Whatsapp, type IconGlyph } from '@pv/ui'
-import {
-  type ThreadChannel,
-  type ThreadListResponse,
-  type ThreadMessagesResponse,
-} from '@pv/contracts'
+import { type ThreadChannel, type ThreadMessagesResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 
@@ -40,22 +36,6 @@ export const COMM_VIEW_NEED: ApiNeed = { permission: 'comm.view' }
 /** Key prefix for the whole module, so one write can drop exactly its part. */
 export const COMMS_KEY = ['comms'] as const
 
-/** The threads hanging on ONE object, each carrying its own `messageCount`.
- *
- *  `objectCode` is IN the `queryKey` — the trap `leadProfileQuery` documents:
- *  a key that forgets the code paints the conversation of the customer just
- *  viewed onto the next customer's profile. Here that is not a refresh glitch,
- *  it is content leaking between two real companies. */
-export const objectThreadsQuery = (objectCode: string) =>
-  queryOptions({
-    queryKey: [...COMMS_KEY, 'threads', objectCode] as const,
-    queryFn: ({ signal }) =>
-      api.read<ThreadListResponse>(`/comms/threads?objectCode=${encodeURIComponent(objectCode)}`, {
-        need: COMM_VIEW_NEED,
-        signal,
-      }),
-  })
-
 /** The turns inside one thread. `null` means no thread is open, and `enabled`
  *  keeps the read from firing until somebody actually opens one.
  *
@@ -65,6 +45,9 @@ export const objectThreadsQuery = (objectCode: string) =>
 export const threadMessagesQuery = (threadId: string | null) =>
   queryOptions({
     queryKey: [...COMMS_KEY, 'messages', threadId] as const,
+    /* Each read files an audit line (who read this content), so it is re-read
+       only when a write drops it — not on a clock or a tab switch. */
+    staleTime: Infinity,
     queryFn: ({ signal }) =>
       api.read<ThreadMessagesResponse>(
         `/comms/threads/${encodeURIComponent(threadId ?? '')}/messages`,

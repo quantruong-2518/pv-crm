@@ -1,4 +1,5 @@
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
+import { keepPageUnderSameFilters } from '@/app/book-query'
 import {
   WORKSTREAM_JOURNEY_STEPS,
   WorkstreamBoardResponse,
@@ -11,6 +12,7 @@ import {
   type WorkstreamStatus,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** Workstream book — `/sales/workstreams`. One row per customer journey run.
  *
@@ -72,6 +74,7 @@ export function parseWorkstreamBookQuery(params: URLSearchParams): WorkstreamBoo
 
 export function workstreamBookQuery(q: WorkstreamBookQuery) {
   return queryOptions({
+    placeholderData: keepPageUnderSameFilters(q),
     queryKey: [...WORKSTREAM_BOOK_KEY, 'page', q] as const,
     queryFn: ({ signal }) =>
       api.read<WorkstreamBookResponse>(`${BOOK_PATH}?${workstreamBookQueryToParams(q)}`, {
@@ -88,8 +91,8 @@ export function workstreamBookQuery(q: WorkstreamBookQuery) {
  *  The key nests under `WORKSTREAM_BOOK_KEY` on purpose: every writer already
  *  invalidates that prefix, so the cards follow the book with no list to keep
  *  in step (a sibling `workstream-scorecard` key would need adding to four).
- *  `staleTime` one minute, as the lead scorecard: the strip remounts on every
- *  return from a run. */
+ *  Aggregate tier, as the lead scorecard: the strip remounts on every return
+ *  from a run. */
 export const workstreamScorecardQuery = queryOptions({
   queryKey: [...WORKSTREAM_BOOK_KEY, 'scorecard'] as const,
   queryFn: ({ signal }) =>
@@ -98,7 +101,7 @@ export const workstreamScorecardQuery = queryOptions({
       schema: WorkstreamScorecard,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.aggregate,
 })
 
 // ---------------------------------------------------------------------------

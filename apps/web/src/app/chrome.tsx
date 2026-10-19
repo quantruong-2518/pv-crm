@@ -33,6 +33,7 @@ import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/u
 import type { Permission } from '@pv/engines'
 import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
 import { isParked } from './parked'
+import { cacheTier } from './query-client'
 import { pendingApprovalsQuery } from '@/data/approvals'
 import { meetingTodayQuery } from '@/data/meeting-today'
 import {
@@ -428,13 +429,11 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const { pathname } = useLocation()
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
-  /* A badge is a claim: re-ask every minute and on focus instead of inheriting
-     the app-wide `staleTime: Infinity`, or someone else's request never shows. */
+  /* A badge is a claim: re-ask every minute, or someone else's request shows
+     only when the reader happens to remount the shell. */
   const { data: pendingApprovals } = useQuery({
     ...pendingApprovalsQuery(),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    ...cacheTier.live(60_000),
   })
   const { data: unreadNotifications } = useQuery(unreadNotificationsQuery())
   /* Preload the dropdown's rows with the header; the stream refreshes them. */

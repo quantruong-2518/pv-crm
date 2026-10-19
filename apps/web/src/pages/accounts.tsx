@@ -19,7 +19,13 @@ import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import { accountBookQuery, accountFacetsQuery, CATEGORY_LABEL } from '@/data/accounts'
+import {
+  accountBookQuery,
+  accountFacetsQuery,
+  accountProfileQuery,
+  CATEGORY_LABEL,
+} from '@/data/accounts'
+import { useRowIntent } from '@/components/row-intent'
 import { BookCount, BookPage } from '@/components/book-page'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { AccountCardGrid } from '@/components/account-cards'
@@ -116,6 +122,7 @@ const ACCOUNT_SORTS = [
 export default function AccountsPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
+  const intent = useRowIntent(accountProfileQuery, () => import('@/pages/account-detail'))
   const canWrite = useCan('account.edit')
   const [creating, setCreating] = useState(false)
 
@@ -371,6 +378,7 @@ export default function AccountsPage() {
                   rows: rows.map((a) => ({
                     id: a.code,
                     onOpen: () => navigate(`/sales/accounts/${a.code}`),
+                    ...intent(a.code),
                     cells: [
                       <span key="n" className="flex min-w-0 flex-col gap-1">
                         <span className="truncate font-semibold" title={a.legalName ?? a.name}>

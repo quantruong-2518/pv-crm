@@ -35,8 +35,8 @@ const RECENT_KEY = ['sales', 'search', 'recent'] as const
 const SEARCH_DELAY_MS = 200
 const MIN_CHARS = 2
 
-/* The app default is `staleTime: Infinity`; here a record just disabled or
-   reassigned must not linger in results, so they expire after a minute. */
+/* A record just disabled or reassigned must not linger in results for long,
+   so they expire after a minute. */
 export const searchQuery = (q: string, kind: SearchKind | null) =>
   queryOptions({
     queryKey: ['sales', 'search', q, kind ?? ''] as const,
@@ -46,9 +46,7 @@ export const searchQuery = (q: string, kind: SearchKind | null) =>
         { need: SEARCH_NEED, schema: SearchResult, signal },
       ),
     staleTime: 60_000,
-    gcTime: 5 * 60_000,
     placeholderData: keepPreviousData,
-    retry: false,
   })
 
 /** Refreshed at most once a minute, and at once after a pick (see `useHeaderSearch`). */
@@ -61,7 +59,6 @@ export const searchRecentQuery = queryOptions({
       signal,
     }),
   staleTime: 60_000,
-  retry: false,
 })
 
 /** Mirrors a value after it stops changing — see `useSettled` in

@@ -48,7 +48,6 @@ export const myApprovalsQuery = () =>
     queryFn: ({ signal }) => api.read<MyApprovalsResponse>('/approvals/mine', { need: {}, signal }),
     select: (d: MyApprovalsResponse) => d.rows,
     staleTime: 0,
-    refetchOnWindowFocus: true,
   })
 
 /** Yes or no on one request.

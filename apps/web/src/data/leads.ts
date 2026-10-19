@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
+import { keepPageUnderSameFilters } from '@/app/book-query'
 import {
   ArrowRight,
   CalendarClock,
@@ -40,6 +41,7 @@ import {
 } from '@pv/contracts'
 import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadRow } from '@pv/contracts'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { APPROVER_ROLE_LABEL } from '@/data/directory'
 
@@ -94,6 +96,7 @@ const BOOK_NEED = { branch: 'Sales', permission: 'lead.view', scoped: true } as 
  *  đang bay bị huỷ thay vì về sau và ghi đè trang mới. */
 export const leadBookQuery = (query: LeadBookQuery) =>
   queryOptions({
+    placeholderData: keepPageUnderSameFilters(query),
     queryKey: ['sales', 'lead-book', 'page', query] as const,
     queryFn: ({ signal }) =>
       api.read<LeadBookResponse>(`/sales/leads?${leadBookQueryToParams(query)}`, {
@@ -127,8 +130,9 @@ export const leadBookQuery = (query: LeadBookQuery) =>
  *  đang giữ thì mỗi người mở màn thấy một con số khác nhau dưới cùng một dòng
  *  chữ "Thẻ điểm 10/08 → 28/08".
  *
- *  `staleTime` một phút: bốn con số của cả kỳ không đổi giữa hai cú bấm, và
- *  màn này gắn/gỡ mỗi lần người dùng đi ra rồi quay lại từ hồ sơ lead. */
+ *  Aggregate tier (one minute): the four figures of the whole period do not
+ *  change between two clicks, and this screen remounts on every return from
+ *  a lead profile. */
 export const leadScorecardQuery = queryOptions({
   queryKey: ['sales', 'lead-scorecard'] as const,
   queryFn: ({ signal }) =>
@@ -137,7 +141,7 @@ export const leadScorecardQuery = queryOptions({
       schema: LeadScorecard,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.aggregate,
 })
 
 /** The `EXIT_REASON` catalogue, for anyone who stops a lead or reads its
@@ -162,13 +166,14 @@ export const leadStopReasonsQuery = queryOptions({
       schema: LeadStopReasonResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 /** `GET /sales/leads/industry-tags` — every industry tag already written on a
  *  lead, offered while a rep types so one industry keeps one spelling.
  *
- *  One minute, the scorecard's own number, rather than the app's `Infinity`:
- *  a colleague's new tag has no invalidation to ride on. This tab's own saves do invalidate it
+ *  Reference tier: a colleague's new tag has no invalidation to ride on and
+ *  shows after the tier expires. This tab's own saves do invalidate it
  *  (`lead-patch.ts`, `lead-create.ts`). */
 export const leadIndustryTagsQuery = queryOptions({
   queryKey: ['sales', 'lead-industry-tags'] as const,
@@ -178,7 +183,7 @@ export const leadIndustryTagsQuery = queryOptions({
       schema: LeadIndustryTagsResponse,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.reference,
 })
 
 /** Trần `size` của hợp đồng (`PageQuery.size.max(200)`). Đây là con số làm cho

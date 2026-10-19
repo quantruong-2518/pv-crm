@@ -14,12 +14,14 @@ import {
   bdOwnersOf,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   opportunityBookQuery,
+  opportunityProfileQuery,
 } from '@/data/opportunities'
 import { OP_SPEC } from '@/data/intake'
 import { usePins } from '@/data/pins'
 import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
+import { useRowIntent } from '@/components/row-intent'
 import { BookPage } from '@/components/book-page'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
@@ -83,6 +85,7 @@ export function OpportunitiesPage() {
   const recipients = useMemo(() => [...mailable.values()], [mailable])
 
   const open = (code: string) => navigate(`/sales/opportunities/${code}`)
+  const intent = useRowIntent(opportunityProfileQuery, () => import('@/pages/opportunity-detail'))
 
   /* The default order (`createdAt`) is no column, so no arrow lights then. */
   const tableSort: TableSort | undefined =
@@ -162,7 +165,7 @@ export function OpportunitiesPage() {
               id: o.code,
               state: selectedCodes.has(o.code) ? ('selected' as const) : undefined,
               onOpen: () => open(o.code),
-              onPointerEnter: (event) => selection.paintSelection(o.code, event),
+              ...intent(o.code, (event) => selection.paintSelection(o.code, event)),
               cells: [
                 <SelectionCell
                   key="select"

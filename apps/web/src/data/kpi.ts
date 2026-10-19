@@ -9,14 +9,17 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `/sales/kpi/:period/…` — scorecards per role and the agreed monthly targets.
  *  Every read is live (no `load:`), and `period` is a month key only.
  *
- *  Always stale: a reading is computed on read from other books, and no write
- *  to those books invalidates these keys. The three writes answer with the
- *  refreshed read, so it goes straight into the cache; the month's other keys
- *  are then invalidated, because an agreed target moves every verdict. */
+ *  Readings are computed on read from other books, and no write to those books
+ *  invalidates these keys, so they take the aggregate tier: up to a minute
+ *  behind. The agreed targets are edited on the same screen as their write,
+ *  which puts the answer straight into the cache, so they keep the default.
+ *  The month's other keys are then invalidated, because an agreed target
+ *  moves every verdict. */
 
 const need = (permission: NonNullable<ApiNeed['permission']>): ApiNeed => ({
   branch: 'Sales',
@@ -29,7 +32,7 @@ const monthKey = (period: string) => ['sales', 'kpi', period] as const
 export const kpiMeQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'me'] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiMeResponse>(`/sales/kpi/${period}/me`, {
         need: need('kpi.view'),
@@ -42,7 +45,7 @@ export const kpiMeQuery = (period: string) =>
 export const kpiCompanyQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'company'] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiCompanyResponse>(`/sales/kpi/${period}/company`, {
         need: need('performance.view'),
@@ -55,7 +58,7 @@ export const kpiCompanyQuery = (period: string) =>
 export const kpiPeopleQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'people'] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiPeopleResponse>(`/sales/kpi/${period}/people`, {
         need: need('kpi.view-all'),
@@ -68,7 +71,6 @@ export const kpiPeopleQuery = (period: string) =>
 export const kpiTargetsQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'targets'] as const,
-    staleTime: 0,
     queryFn: ({ signal }) =>
       api.read<KpiTargetsResponse>(`/sales/kpi/${period}/targets`, {
         need: need('kpi.view'),

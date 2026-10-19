@@ -24,6 +24,7 @@ import {
   type StepTemplateOption,
 } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
 import { nextStepKey, rereadOptionsOnRefusal, stepOptionsMoved } from '@/data/next-step'
 import { chainPath } from '@/data/opportunities'
@@ -46,7 +47,7 @@ export const COMM_RECORDS_KEY = ['comm-records'] as const
 const QUEUE_SIZE = 200
 
 /** The queue moves behind the reader's back (a meeting ends, a colleague's
- *  button press) — so it re-asks, unlike the app-wide `staleTime: Infinity`. */
+ *  button press) — so it re-asks on a clock, not only on remount. */
 const QUEUE_FRESH_MS = 60_000
 
 /** My open records; `workstreamCode` narrows to one sales run (mobile step 2). */
@@ -62,9 +63,7 @@ export const pendingCommsQuery = (workstreamCode: string | null = null) =>
         signal,
       })
     },
-    staleTime: QUEUE_FRESH_MS,
-    refetchInterval: QUEUE_FRESH_MS,
-    refetchOnWindowFocus: true,
+    ...cacheTier.live(QUEUE_FRESH_MS),
   })
 
 /** Pending per owner. An `ownOnly` seat gets its own row back, so "more than
@@ -77,14 +76,15 @@ export const commCountsQuery = queryOptions({
       schema: DebriefCountsResponse,
       signal,
     }),
-  staleTime: QUEUE_FRESH_MS,
-  refetchInterval: QUEUE_FRESH_MS,
-  refetchOnWindowFocus: true,
+  ...cacheTier.live(QUEUE_FRESH_MS),
 })
 
 export const commRecordQuery = (id: string) =>
   queryOptions({
     queryKey: [...COMM_RECORDS_KEY, 'record', id] as const,
+    /* Each read files an audit line (who read this content), so it is re-read
+       only when a write drops it — not on a clock or a tab switch. */
+    staleTime: Infinity,
     queryFn: ({ signal }) =>
       api.read(`/comms/debriefs/${encodeURIComponent(id)}`, {
         need: COMM_VIEW_NEED,
@@ -94,8 +94,10 @@ export const commRecordQuery = (id: string) =>
   })
 
 /** Presigned GETs die within minutes, and every read of a content-bearing
- *  list writes an audit line — so no timer: the list is read when a screen
- *  opens it, and re-read on the next open once the URLs may have died. */
+ *  list writes an audit line — so no timer and no focus refetch: the list is
+ *  read when a screen opens it, and re-read on the next open once the URLs may
+ *  have died. `gcTime` matches, so a list left closed longer than that is
+ *  dropped, not shown again. */
 const FILE_URL_SAFE_MS = 2 * 60_000
 
 export const commFilesQuery = (id: string) =>
@@ -108,6 +110,7 @@ export const commFilesQuery = (id: string) =>
         signal,
       }),
     staleTime: FILE_URL_SAFE_MS,
+    gcTime: FILE_URL_SAFE_MS,
     refetchOnWindowFocus: false,
   })
 
@@ -161,7 +164,6 @@ export function commClosed(client: QueryClient, view: DebriefView) {
   /* A first real touch can move the lead's state, and with it the frame on offer. */
   stepOptionsMoved(client)
   void client.invalidateQueries({ queryKey: ['sales', 'lead-touches'] })
-  void client.invalidateQueries({ queryKey: ['sales', 'ops-touches'] })
   void client.invalidateQueries({ queryKey: COMMS_KEY })
 }
 

@@ -153,9 +153,9 @@ export function ServerDown() {
     }
     if (!wasDown.current) return
     wasDown.current = false
-    /* Nothing here heals on its own: `queryClient` runs with `retry: false` and
-       `refetchOnReconnect: false`, so every panel that failed during the outage
-       is holding an error until someone asks again. This is that ask — without
+    /* Nothing here heals on its own: `queryClient` runs with `retry: false`, and
+       reconnect refetch watches the browser's network, not this server, so every
+       panel that failed during the outage is holding an error until asked again. This is that ask — without
        it the card's promise that they can carry on where they left off is a lie
        the user discovers one blank panel at a time. */
     void queryClient.refetchQueries({ type: 'active' })

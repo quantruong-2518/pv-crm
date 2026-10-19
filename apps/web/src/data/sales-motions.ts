@@ -14,6 +14,7 @@ import {
   type MotionPolicyResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { useCan } from '@/app/auth'
 
 /** What each of the six lead motions declares — the flow-setup section.
@@ -55,6 +56,7 @@ export const salesMotionsQuery = () =>
     queryFn: ({ signal }) =>
       api.read<MotionPolicyResponse>('/sales/config/motions', { need: VIEW_NEED, signal }),
     select: (d: MotionPolicyResponse) => d.rows,
+    ...cacheTier.reference,
   })
 
 export function useProposeMotion(motion: LeadMotion) {
@@ -98,6 +100,7 @@ export const leadMotionsQuery = () =>
         signal,
       }),
     select: (d: LeadMotionOptionResponse) => d.rows,
+    ...cacheTier.reference,
   })
 
 export const motionLabelOf = (policy: Pick<MotionPolicy, 'motion' | 'label'>): string =>

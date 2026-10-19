@@ -25,11 +25,13 @@ export class ProblemFilter implements ExceptionFilter {
     const res = ctx.getResponse<FastifyReply>()
 
     const error = this.normalise(raw, req)
+    /* Reads carry no trace header (it would cost a CORS preflight per URL),
+       so they fall back to Fastify's own per-process request id. */
     const traceId = req.headers['x-pv-request-id']
 
     const body = toProblem(error, {
       instance: req.url,
-      traceId: typeof traceId === 'string' ? traceId : undefined,
+      traceId: typeof traceId === 'string' ? traceId : req.id,
     })
 
     void res.status(body.status).type('application/problem+json').send(body)

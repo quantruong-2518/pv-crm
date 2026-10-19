@@ -2,6 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { Permission, RoleId } from '@pv/contracts'
 import type { RoleGrants, RoleGrantsPatch, RoleMatrixView } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** One Core · Admin · Roles — the two doors of `platform.role_permission`.
  *
@@ -37,6 +38,7 @@ export const ROLES_KEY = ['platform', 'roles'] as const
 export const roleMatrixQuery = queryOptions({
   queryKey: ROLES_KEY,
   queryFn: ({ signal }) => api.read<RoleMatrixView>('/roles', { need: ROLES_NEED, signal }),
+  ...cacheTier.reference,
 })
 
 /** Rewrite one role's whole grant set. `PATCH /roles/:roleId`.

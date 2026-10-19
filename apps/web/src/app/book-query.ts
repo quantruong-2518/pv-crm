@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { hashKey } from '@tanstack/react-query'
 import { pageIndexFromQueryPage, queryPageFromPageIndex } from './url'
 
 /** Address-backed filter state for any server-paged book whose query schema
@@ -140,4 +141,16 @@ export function useBookPageClamp(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fires on the stale edge only
   }, [stale])
   return { pageCount, pageIndex: Math.min(index, pageCount - 1) }
+}
+
+/** `placeholderData` for a book page: the previous page stays on screen only
+ *  while paging under the SAME filters. Under other filters its rows would sit
+ *  below the new chips, and its `total` would make `useBookPageClamp` bounce a
+ *  valid `?page=` reached by Back/Forward. The query is the key's last item. */
+export function keepPageUnderSameFilters<Q extends { page: number }>(query: Q) {
+  const filters = hashKey([{ ...query, page: 0 }])
+  return <T>(previous: T | undefined, before?: { queryKey: readonly unknown[] }) =>
+    before && hashKey([{ ...(before.queryKey.at(-1) as Q), page: 0 }]) === filters
+      ? previous
+      : undefined
 }

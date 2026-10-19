@@ -16,6 +16,7 @@ import type {
   MasSendResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Module 5 · MAS mail — the five doors the compose panel and the lead
@@ -71,10 +72,6 @@ const CAMPAIGN_SEND_NEED: ApiNeed = {
   scoped: true,
 }
 
-/** Prefix of every mail-timeline key, so one send can invalidate all of them
- *  without knowing which leads it just wrote to. */
-export const LEAD_MAIL_KEY = ['sales', 'lead-mail'] as const
-
 /** Prefix of every letter-activity key (`data/mail-letters.ts`). Lives here,
  *  not there, because `data/mas.ts` is the lower layer of both it and
  *  `data/mail-runs.ts` and must not import upward into either. */
@@ -82,7 +79,7 @@ export const LETTERS_KEY = ['sales', 'letters'] as const
 
 /** The picker's catalogue. `GET /sales/mail/templates`.
  *
- *  Long `staleTime`: a template list is a handful of rows a human edits by
+ *  Reference tier: a template list is a handful of rows a human edits by
  *  hand, months apart, and the panel opens and closes many times in one
  *  session. Refetching it on every open would be a request per click for an
  *  answer that has not changed since the deployment.
@@ -97,7 +94,7 @@ export const masTemplatesQuery = queryOptions({
       need: TEMPLATES_NEED,
       signal,
     }),
-  staleTime: 10 * 60 * 1000,
+  ...cacheTier.reference,
 })
 
 /** One door's picker (G4): `GET /sales/mail/templates?door=…`. A sub-key of
@@ -110,7 +107,7 @@ export const doorTemplatesQuery = (door: MailDoor) =>
         need: TEMPLATES_NEED,
         signal,
       }),
-    staleTime: 10 * 60 * 1000,
+    ...cacheTier.reference,
   })
 
 /** The template a composer opens pre-filled with at `door` — one per door,
@@ -383,9 +380,9 @@ export function useMailPreview(draft: MasPreviewRequest, enabled: boolean) {
  *  ------------------------------------------------------------------
  *  Every lead in the batch now has one more entry on its mail timeline, and
  *  this mutation does not know which lead's card is on screen. Invalidating the
- *  whole `['sales','lead-mail']` prefix costs one refetch of the one timeline
- *  actually mounted, and gets it right without threading the audience through
- *  to a cache key. The run list is not touched here — no screen reads it yet.
+ *  whole `LETTERS_KEY` prefix costs one refetch of the one timeline actually
+ *  mounted, and gets it right without threading the audience through to a
+ *  cache key. The run list is not touched here — no screen reads it yet.
  *
  *  No retry, and none should be added: `mayReplay` already refuses to replay a
  *  POST that reached the wire. That refusal is what the run id exists to make
@@ -413,7 +410,6 @@ export function useMasSend() {
         need: body.campaignCode === undefined ? SEND_NEED : CAMPAIGN_SEND_NEED,
       }),
     onSuccess: () => {
-      void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
       void client.invalidateQueries({ queryKey: LETTERS_KEY })
       /* Một lô gắn chiến dịch đổi `waveCount` của dòng đó trong Sổ chiến dịch
          và thêm một dòng vào Sổ lô gửi. Dọn theo TIỀN TỐ chuỗi, không import

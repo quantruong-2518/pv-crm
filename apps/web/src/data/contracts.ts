@@ -14,7 +14,8 @@ import {
 } from '@pv/contracts'
 import { daysUntil, dueLevelOf, needsAttention, type DueLevel } from '@pv/engines'
 import { api, type ApiNeed } from '@/app/api'
-import { bookQueryParams } from '@/app/book-query'
+import { cacheTier } from '@/app/query-client'
+import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 import { vnToday } from '@/data/opportunities'
 
 /** Read side of the contract book — on the server, no fixture left.
@@ -168,6 +169,7 @@ export const contractBookQuery = (
   query: PageQuery & Partial<ContractBookQuery> = DEFAULT_CONTRACT_PAGE,
 ) =>
   queryOptions({
+    placeholderData: keepPageUnderSameFilters(query),
     queryKey: [...CONTRACT_BOOK_KEY, 'page', query] as const,
     queryFn: ({ signal }) => {
       const params = bookQueryParams(query)
@@ -208,7 +210,7 @@ export const contractSummaryQuery = queryOptions({
       schema: ContractSummary,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.aggregate,
 })
 
 // ---------------------------------------------------------------------------

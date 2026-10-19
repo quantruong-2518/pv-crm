@@ -5,6 +5,7 @@ import {
   type LeadLabelsResponse,
 } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { invalidateLeadState } from './lead-exit'
 
 /** Waiting labels — the `WAITING_LABEL` list (ADR 0097 §5).
@@ -24,6 +25,7 @@ export const leadLabelOptionsQuery = queryOptions({
       schema: LeadLabelOptionsResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 /** Replaces the lead's whole label set; `[]` clears it. The book's rows and

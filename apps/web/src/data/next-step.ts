@@ -50,7 +50,8 @@ const DOOR: Record<
     base: string
     read: ApiNeed
     write: ApiNeed
-    touches: readonly string[]
+    /** Only a lead has a timeline query; no screen reads a deal's touches. */
+    touches?: readonly string[]
     profile: readonly string[]
   }
 > = {
@@ -65,7 +66,6 @@ const DOOR: Record<
     base: '/sales/opportunities',
     read: { branch: 'Sales', permission: 'opportunity.view', scoped: true },
     write: { branch: 'Sales', permission: 'opportunity.edit', scoped: true },
-    touches: ['sales', 'ops-touches'],
     profile: ['sales', 'ops'],
   },
 }
@@ -124,7 +124,7 @@ const FRAME_FIELDS = ['templateId', 'text', 'kindId']
 
 /** A step refused on one of them — bare, or nested as `next.` / `step.` — may
  *  mean the frame moved under the form: re-read what is on offer, since the
- *  cache never goes stale by itself and the same chip would be resent forever. */
+ *  cached options would keep offering the same chip to be resent forever. */
 export function rereadOptionsOnRefusal(client: QueryClient) {
   return (error: ApiError) => {
     const fields = error.kind === 'invalid-data' ? Object.keys(error.errors ?? {}) : []
@@ -200,7 +200,8 @@ export function useFinishNextStep(subject: NextStepSubject, code: string) {
     onError: rereadOnRefusal(client, code),
     onSuccess: (answer) => {
       stepSaved(client, subject, code)(answer)
-      void client.invalidateQueries({ queryKey: [...DOOR[subject].touches, code] })
+      const { touches } = DOOR[subject]
+      if (touches) void client.invalidateQueries({ queryKey: [...touches, code] })
     },
   })
 }

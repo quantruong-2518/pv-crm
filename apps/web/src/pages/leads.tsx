@@ -22,6 +22,7 @@ import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetsQuery, leadSearchQuery, leadsByCodesQuery } from '@/data/leads'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
+import { leadProfileQuery } from '@/data/lead-profile'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory, useSalesPeople } from '@/data/directory'
@@ -35,6 +36,7 @@ import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { BookQueueButton } from '@/components/book-queue-button'
 import { useBookSelection } from '@/components/book-selection'
+import { useRowIntent } from '@/components/row-intent'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import { HoldUntilCell } from '@/components/hold-strip'
 import { CompanyCell } from '@/components/lead-cells'
@@ -156,6 +158,7 @@ export function LeadsPage() {
   const pinCount = usePins('lead').codes.length
 
   const open = (code: string) => navigate(`/sales/leads/${code}`)
+  const intent = useRowIntent(leadProfileQuery, () => import('@/pages/lead-detail'))
 
   const { pageIndex } = useBookPageClamp(book, bookPage?.total)
 
@@ -400,7 +403,7 @@ export function LeadsPage() {
       id: l.code,
       state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
       onOpen: () => open(l.code),
-      onPointerEnter: (event) => paintSelection(l.code, event),
+      ...intent(l.code, (event) => paintSelection(l.code, event)),
       cells: [
         <SelectionCell
           key="select"

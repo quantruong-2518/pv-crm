@@ -11,7 +11,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { bookQueryParams } from '@/app/book-query'
+import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 
 /** Contacts — TWO path shapes, and both are real.
  *
@@ -51,6 +51,7 @@ export const DEFAULT_CONTACT_BOOK_QUERY: ContactBookQuery = ContactBookQuery.par
 
 export function contactBookQuery(q: ContactBookQuery) {
   return queryOptions({
+    placeholderData: keepPageUnderSameFilters(q),
     queryKey: [...CONTACT_BOOK_KEY, 'page', q] as const,
     queryFn: ({ signal }) =>
       api.read<ContactBookResponse>(`${BOOK_PATH}?${bookQueryParams(q)}`, {

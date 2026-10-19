@@ -10,7 +10,7 @@ import {
 import { api, userMessage, type ApiError } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { COMM_RECORDS_KEY, clearCommDraft, commClosed } from '@/data/comm-record-detail'
-import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
+import { COMM_VIEW_NEED } from '@/data/comms'
 import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Comm records on one subject or one workstream run (ADR 0075) — doors listed
@@ -25,6 +25,9 @@ import { invalidateLeadState } from '@/data/lead-exit'
 export const workstreamCommRecordsQuery = (workstreamCode: string) =>
   queryOptions({
     queryKey: [...COMM_RECORDS_KEY, 'workstream', workstreamCode] as const,
+    /* Each read files an audit line (who read this content), so it is re-read
+       only when a write drops it — not on a clock or a tab switch. */
+    staleTime: Infinity,
     queryFn: ({ signal }) =>
       api.read(`/comms/debriefs?workstreamCode=${encodeURIComponent(workstreamCode)}`, {
         need: COMM_VIEW_NEED,
@@ -65,9 +68,8 @@ export function useCreateCommRecord() {
         need: COMM_VIEW_NEED,
         schema: CommRecordCreateResponse,
       }),
-    onSuccess: (_written, body) => {
+    onSuccess: () => {
       void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY })
-      void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'threads', body.subjectCode] })
       /* The record opens a turn on the subject, and a logged turn may move a
          lead to `working` (ADR 0063) — the server decides, the cache follows. */
       invalidateLeadState(client)

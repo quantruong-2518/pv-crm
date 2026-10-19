@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Chip, MapPin, MetaPill, cn } from '@pv/ui'
 import type { AccountRow } from '@pv/contracts'
-import { CATEGORY_LABEL } from '@/data/accounts'
+import { CATEGORY_LABEL, accountProfileQuery } from '@/data/accounts'
+import { useRowIntent } from './row-intent'
 import { BOOK_CARD } from './book-cards'
 
 /** The company book as a grid of cards — the same rows as the table, laid out
@@ -49,6 +50,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 export function AccountCard({ account: a }: { account: AccountRow }) {
+  const intent = useRowIntent(accountProfileQuery, () => import('@/pages/account-detail'))
   const facts = [
     a.category ? CATEGORY_LABEL[a.category] : undefined,
     a.taxCode && `MST ${a.taxCode}`,
@@ -56,6 +58,7 @@ export function AccountCard({ account: a }: { account: AccountRow }) {
   return (
     <Link
       to={`/sales/accounts/${a.code}`}
+      {...intent(a.code)}
       className={cn(
         BOOK_CARD,
         'focus-visible:ring-ring no-underline outline-none focus-visible:ring-2',

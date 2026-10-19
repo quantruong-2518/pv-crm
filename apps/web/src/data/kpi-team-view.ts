@@ -7,6 +7,7 @@ import {
   type KpiCounterResolveBody,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** The team page's reads and writes (ADR 0101). All live, no `load:`.
  *
@@ -27,7 +28,7 @@ const base = (period: string) => `/sales/kpi/${period}`
 export const kpiTeamViewQuery = (period: string, teamId: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'team', teamId] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiTeamViewResponse>(`${base(period)}/teams/${encodeURIComponent(teamId)}`, {
         need,

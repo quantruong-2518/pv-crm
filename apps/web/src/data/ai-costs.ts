@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { AiCostReport, AiPrice, AiPriceList, type AiPriceSet, type AiCostLine } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** One Core · Admin · AI cost — AI spend per month and the unit prices behind it
  *  (ADR 0102). Live only: no `load:`, no scenario.
@@ -22,11 +23,13 @@ export const aiCostsQuery = (month: string) =>
         schema: AiCostReport,
         signal,
       }),
+    ...cacheTier.aggregate,
   })
 
 export const aiPricesQuery = queryOptions({
   queryKey: PRICES_KEY,
   queryFn: ({ signal }) => api.read('/ai/prices', { need: COST_NEED, schema: AiPriceList, signal }),
+  ...cacheTier.reference,
 })
 
 export function useSetAiPrice() {

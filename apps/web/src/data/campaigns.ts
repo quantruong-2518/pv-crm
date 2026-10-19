@@ -18,6 +18,7 @@ import {
 } from '@pv/engines/fixtures/das-vina'
 import { bandText, costBreakdown, costOf, type CostBreakdown } from '@/data/source-cost'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** Nguồn lead — module 1 · Chiến dịch & Sự kiện. ĐỌC TỪ MÁY CHỦ.
  *
@@ -527,6 +528,7 @@ export const sourcesQuery = queryOptions({
         signal,
       })
       .then((r) => r.rows.filter((s) => s.kind !== 'organic').map((s) => rowOf(s, r.period))),
+  ...cacheTier.aggregate,
 })
 
 /** Hàng score card. Trả nguyên hình của hợp đồng — mọi tỉ lệ của hàng này tính
@@ -535,6 +537,7 @@ export const campaignTotalsQuery = queryOptions({
   queryKey: ['sales', 'campaign-totals'] as const,
   queryFn: ({ signal }) =>
     api.read<CampaignTotals>('/sales/campaigns/totals', { need: CAMPAIGN_ACCESS, signal }),
+  ...cacheTier.aggregate,
 })
 
 export type SourceSort = {

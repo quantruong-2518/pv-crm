@@ -14,6 +14,7 @@ import {
   isCumulative,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { kpiAllocationsQuery } from './kpi-allocation'
 import { primaryOf, type KpiCatalog } from './kpi-catalog'
 
@@ -34,7 +35,7 @@ const monthKey = (period: string) => ['sales', 'kpi', period] as const
 export const kpiForecastMeQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'forecast', 'me'] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiForecastResponse>(`/sales/kpi/${period}/forecast/me`, {
         need,
@@ -47,7 +48,7 @@ export const kpiForecastMeQuery = (period: string) =>
 export const kpiWeeklyQuery = (period: string, role: RoleId, metricKey: KpiMetricKey) =>
   queryOptions({
     queryKey: [...monthKey(period), 'weekly', role, metricKey] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiWeeklyResponse>(
         `/sales/kpi/${period}/weekly/${encodeURIComponent(role)}?metricKey=${encodeURIComponent(metricKey)}`,

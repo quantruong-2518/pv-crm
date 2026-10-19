@@ -10,6 +10,7 @@ import type {
   UserRow,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { DIRECTORY_KEY } from './directory'
 
 /** Quản trị · Người dùng — the four doors of `platform.actor`.
  *
@@ -94,6 +95,7 @@ export function useCreateUser() {
     mutationFn: (body) => api.write<UserRow>('/users', { method: 'POST', body, need: USERS_NEED }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: USERS_KEY })
+      void client.invalidateQueries({ queryKey: DIRECTORY_KEY })
     },
   })
 }
@@ -122,6 +124,7 @@ export function useSaveUser() {
       }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: USERS_KEY })
+      void client.invalidateQueries({ queryKey: DIRECTORY_KEY })
     },
   })
 }
@@ -149,6 +152,7 @@ export function useLockUser() {
       }),
     onSuccess: (_row, { handoverTo }) => {
       void client.invalidateQueries({ queryKey: USERS_KEY })
+      void client.invalidateQueries({ queryKey: DIRECTORY_KEY })
       /* A handover moved leads, deals and next steps to someone else. */
       if (handoverTo) void client.invalidateQueries({ queryKey: ['sales'] })
     },
@@ -227,6 +231,7 @@ export function useResetUserPassword() {
       api.write<UserRow>(`/users/${encodeURIComponent(id)}/reset-password`, { need: USERS_NEED }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: USERS_KEY })
+      void client.invalidateQueries({ queryKey: DIRECTORY_KEY })
     },
   })
 }

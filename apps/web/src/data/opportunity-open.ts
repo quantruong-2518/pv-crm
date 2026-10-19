@@ -20,8 +20,8 @@ import { OPPORTUNITY_WRITE_NEED } from '@/data/opportunities-write'
 
 /** `GET /sales/opportunities/open-context` — same permission and scope as the
  *  create door it prepares for. Under the book key so a created deal refreshes
- *  it, and `staleTime: 0` because the app default is `Infinity` while this
- *  answer (the lead's running deals above all) changes with every deal opened. */
+ *  it, and `staleTime: 0` because this answer (the lead's running deals above
+ *  all) changes with every deal opened. */
 export const openContextQuery = (leadCode: string, enabled: boolean) =>
   queryOptions({
     queryKey: [...OPPORTUNITY_BOOK_KEY, 'open-context', leadCode] as const,

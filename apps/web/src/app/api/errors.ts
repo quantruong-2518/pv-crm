@@ -85,8 +85,8 @@ export class ApiError extends Error {
   /** Field name → what the server disliked about it. Absent means "this
    *  failure is not about one field", not "this status never carries fields". */
   readonly errors?: FieldErrors
-  /** The `X-PV-Request-Id` this call carried, echoed back by the server. It is
-   *  what ties one line in the browser log to one line in the server log. */
+  /** The server's `traceId`: the `X-PV-Request-Id` a write carried, or the
+   *  server's own request id for a read (reads send no custom header). */
   readonly traceId?: string
   /** The server's own sentence (`problem.title`), absent when the reply had none —
    *  unlike `message`, it never holds the technical fallback line. */

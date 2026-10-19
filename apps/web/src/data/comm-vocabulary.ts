@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { CommVocabularyResponse } from '@pv/contracts'
 import { api } from '@/app/api'
-import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
+import { cacheTier } from '@/app/query-client'
 
 /** The confirm form's two lists — `GET /sales/comm-vocabulary` (ADR 0074).
  *
@@ -10,13 +10,15 @@ import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
  *  switched-off rows and questions with no live answer, so the form draws the
  *  answer as-is and never filters it a second time.
  *
- *  Keyed under `comm-records` so one invalidation of the module refreshes it. */
+ *  Under `['sales']`, not `comm-records`: it changes through a config approval
+ *  (which sweeps `['sales']`), not through a comm or meeting write. */
 export const commVocabularyQuery = queryOptions({
-  queryKey: [...COMM_RECORDS_KEY, 'vocabulary'] as const,
+  queryKey: ['sales', 'comm-vocabulary'] as const,
   queryFn: ({ signal }) =>
     api.read('/sales/comm-vocabulary', {
       need: { branch: 'Sales', permission: 'comm.view' },
       schema: CommVocabularyResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })

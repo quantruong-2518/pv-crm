@@ -55,8 +55,8 @@ export const SUGGEST_EMPTY_TEXT = 'Không thấy địa chỉ. Thử gõ thêm s
 export const SUGGEST_FAILED_TEXT = 'Chưa tra được địa chỉ. Hãy nhập tay.'
 export const SUGGEST_TOO_SHORT_TEXT = `Gõ ít nhất ${ADDRESS_SUGGEST_MIN_CHARS} ký tự để tìm địa chỉ`
 
-/** `keepPreviousData` so the menu does not flash empty between keystrokes; no
- *  retry because a picker that cannot answer must fall silent, not hammer. */
+/** `keepPreviousData` so the menu does not flash empty between keystrokes; the
+ *  app's no-retry default is what a picker needs: fall silent, not hammer. */
 export const addressSuggestQuery = (q: string, focus?: string) =>
   queryOptions({
     queryKey: [...SUGGEST_KEY, q, focus ?? ''] as const,
@@ -68,7 +68,6 @@ export const addressSuggestQuery = (q: string, focus?: string) =>
       }),
     placeholderData: keepPreviousData,
     staleTime: q === '' ? PROBE_STALE_MS : SEARCH_STALE_MS,
-    retry: false,
   })
 
 /** `focus` rides along only when there is one; the server ranks from a default

@@ -21,6 +21,9 @@ import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
 import { isAllowedOrigin } from './platform/http/origin'
 
+/** Threshold for the slow-request log; above a Neon round trip plus a page query. */
+const SLOW_REQUEST_MS = 300
+
 /** Điểm vào HTTP.
  *
  *  Chạy trên `FastifyAdapter` chứ không phải Express mặc định: chuỗi hook của
@@ -127,6 +130,20 @@ async function bootstrap(): Promise<void> {
      `@nestjs/platform-fastify` pulls, or pin it with a pnpm override — which
      is a lockfile change and does not belong in this commit. */
   await adapter.getInstance<FastifyInstance>().register(fastifyCookie)
+
+  /* Measure before caching anything server-side: only calls slower than this
+     reach the log, keyed by route pattern, so Fly logs list the candidates.
+     The SSE stream is skipped — it is open for minutes by design. */
+  const slow = new Logger('slow')
+  adapter.getInstance<FastifyInstance>().addHook('onResponse', (req, reply, done) => {
+    const streaming = (req.headers.accept ?? '').includes('text/event-stream')
+    if (!streaming && reply.elapsedTime >= SLOW_REQUEST_MS) {
+      const route = req.routeOptions.url ?? req.url.split('?')[0]
+      const ms = Math.round(reply.elapsedTime)
+      slow.log(`${req.method} ${route} ${reply.statusCode} ${ms}ms ${req.id}`)
+    }
+    done()
+  })
 
   /* Disk driver only: raw upload bytes on `/storage/local` alone — the limit is set
      per route and the parsers refuse any other path. Not a prefixed plugin: Nest

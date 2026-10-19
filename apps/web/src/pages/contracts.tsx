@@ -27,6 +27,7 @@ import { dm } from '@/lib/date'
 import {
   bookRowsOf,
   contractBookQuery,
+  contractDetailQuery,
   contractSummaryQuery,
   daysPhrase,
   type ContractBookRow,
@@ -36,6 +37,7 @@ import { BookCount, BookPage } from '@/components/book-page'
 import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { MoneySplit } from '@/components/contract-bits'
 import { MoneyCell } from '@/components/money-cell'
+import { useRowIntent } from '@/components/row-intent'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
  *  installment. This screen answers one question and refuses the others: which
@@ -267,10 +269,12 @@ export function ContractsPage() {
   })
   const tabs = STATUS_TABS.map((tab, i) => ({ ...tab, count: tabCounts[i]?.data?.total }))
 
+  const intent = useRowIntent(contractDetailQuery, () => import('@/pages/contract-detail'))
   const tableRows = rows.map((row) => ({
     id: row.contract.code,
     cells: rowCells(row),
     onOpen: () => navigate(`/sales/contracts/${row.contract.code}`),
+    ...intent(row.contract.code),
   }))
 
   return (

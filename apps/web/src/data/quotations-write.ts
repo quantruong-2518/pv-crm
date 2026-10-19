@@ -11,6 +11,7 @@ import {
   type QuotationRecordResponse,
 } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { nextStepKey } from '@/data/next-step'
 import { OPPORTUNITY_BOOK_KEY, vnToday } from '@/data/opportunities'
@@ -44,6 +45,7 @@ export const quotationReasonsQuery = queryOptions({
       schema: QuotationReasonsResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 /** `GET …/contract-kinds` — every `CONTRACT_KIND` entry, retired ones included,
@@ -56,16 +58,16 @@ export const contractKindsQuery = queryOptions({
       schema: ContractKindsResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
-/** A new round moves the deal's column and its timeline, a patch or a close
+/** A new round moves the deal's column, a patch or a close
  *  only the ledger — but all three change what the profile's `money` shows. */
 function useLedgerSettled(code: ObjectCode) {
   const client = useQueryClient()
 
   return (moved: boolean) => {
     void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
-    void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })
     void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     void client.invalidateQueries({ queryKey: WORKSTREAM_BOOK_KEY })
     /* Won rounds carry the contract code the drawers read. */

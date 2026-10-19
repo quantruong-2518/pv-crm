@@ -12,7 +12,7 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { bookQueryParams } from '@/app/book-query'
+import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 
 /** The stored key is English; every account screen prints this name instead. */
 export const CATEGORY_LABEL: Record<LeadCategory, string> = {
@@ -55,6 +55,7 @@ const WRITE_NEED: ApiNeed = { branch: 'Sales', permission: 'account.edit' }
 
 export function accountBookQuery(q: AccountBookQuery) {
   return queryOptions({
+    placeholderData: keepPageUnderSameFilters(q),
     queryKey: [...ACCOUNT_BOOK_KEY, 'page', q] as const,
     queryFn: ({ signal }) =>
       api.read<AccountBookResponse>(`${BOOK_PATH}?${bookQueryParams(q)}`, {

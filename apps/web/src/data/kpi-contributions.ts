@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { KpiContributionsResponse, type KpiContributionKind } from '@pv/contracts'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `GET /sales/kpi/:period/people/:actorId/contributions` — the records each
  *  figure of one person counted (ADR 0099 §5). Live, no `load:`.
@@ -12,7 +13,7 @@ import { api } from '@/app/api'
 export const kpiContributionsQuery = (period: string, actorId: string) =>
   queryOptions({
     queryKey: ['sales', 'kpi', period, 'contributions', actorId] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiContributionsResponse>(
         `/sales/kpi/${period}/people/${encodeURIComponent(actorId)}/contributions`,

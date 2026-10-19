@@ -6,6 +6,7 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { defOf, type KpiCatalog } from './kpi-catalog'
 
 /** `GET /sales/kpi/:period/forecast` — everyone's end-of-month forecast and the
@@ -18,7 +19,7 @@ import { defOf, type KpiCatalog } from './kpi-catalog'
 export const kpiForecastQuery = (period: string) =>
   queryOptions({
     queryKey: ['sales', 'kpi', period, 'forecast'] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiForecastResponse>(`/sales/kpi/${period}/forecast`, {
         need: { branch: 'Sales', permission: 'kpi.view-all' },

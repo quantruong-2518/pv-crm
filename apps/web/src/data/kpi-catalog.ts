@@ -6,21 +6,22 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `GET /sales/kpi/catalog` — the metric catalog with the role overlay applied
  *  (ADR 0099 §1): the ONE list every KPI screen groups, orders and picks the
  *  primary by. A switched-off metric is absent here, so it leaves every card
  *  at once. Live, no `load:`.
  *
- *  Always stale like the month reads: another person's approval changes it,
- *  and nothing on this machine would otherwise refetch it. */
+ *  Reference tier: another person's approval changes it, and a decision made
+ *  on this machine sweeps `['sales']`, which reaches this key. */
 
 /** Per role, the metrics in force, in display order. */
 export type KpiCatalog = KpiEffectiveCatalogResponse['roles']
 
 export const kpiCatalogQuery = queryOptions({
   queryKey: ['sales', 'kpi', 'catalog'] as const,
-  staleTime: 0,
+  ...cacheTier.reference,
   queryFn: ({ signal }) =>
     api
       .read<KpiEffectiveCatalogResponse>('/sales/kpi/catalog', {

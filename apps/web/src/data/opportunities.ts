@@ -1,4 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
+import { keepPageUnderSameFilters } from '@/app/book-query'
 import {
   OPPORTUNITY_STAGE_LABEL,
   OPPORTUNITY_STATE_LABEL,
@@ -24,6 +25,7 @@ import {
 import { toMoneyVnd, type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import type { RailObject } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** Sổ cơ hội — module 3. Đọc từ máy chủ.
  *
@@ -138,6 +140,7 @@ export function opportunityBookQueryToParams(query: OpportunityBookQuery): URLSe
  *  đang bay bị huỷ, thay vì về sau và ghi đè trang mới. */
 export const opportunityBookQuery = (query: OpportunityBookQuery) =>
   queryOptions({
+    placeholderData: keepPageUnderSameFilters(query),
     queryKey: [...OPPORTUNITY_BOOK_KEY, 'page', query] as const,
     queryFn: ({ signal }) =>
       api.read<OpportunityBookResponse>(
@@ -166,8 +169,9 @@ export const opportunityBookQuery = (query: OpportunityBookQuery) =>
  *  Đứng riêng thì thẻ điểm treo số cũ cho tới lần gắn màn sau — đúng món nợ mà
  *  `leadScorecardQuery` đang mang.
  *
- *  `staleTime` một phút: bốn con số của cả sổ không đổi giữa hai cú bấm, còn
- *  màn này thì gắn/gỡ mỗi lần người dùng đi ra rồi quay lại từ hồ sơ cơ hội. */
+ *  Aggregate tier (one minute): the four figures of the whole book do not
+ *  change between two clicks, and this screen remounts on every return from
+ *  a deal profile. */
 export const opportunityScorecardQuery = queryOptions({
   queryKey: [...OPPORTUNITY_BOOK_KEY, 'scorecard'] as const,
   queryFn: ({ signal }) =>
@@ -176,7 +180,7 @@ export const opportunityScorecardQuery = queryOptions({
       schema: OpportunityScorecard,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.aggregate,
 })
 
 /** The same open pipeline as the scorecard, split across the columns it stands in.
@@ -196,7 +200,7 @@ export const opportunityHistogramQuery = queryOptions({
       schema: OpportunityHistogram,
       signal,
     }),
-  staleTime: 60 * 1000,
+  ...cacheTier.aggregate,
 })
 
 /** The book's filters minus `state` and paging — what `/facets` takes. Built

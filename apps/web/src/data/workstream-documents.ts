@@ -8,6 +8,7 @@ import {
   type WorkstreamDocumentStep,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { whileLive } from '@/app/query-client'
 import { fileSizeLabel, sha256Of } from '@/data/comm-record-detail'
 import { putOnceMore } from '@/data/lead-scan-run'
 
@@ -16,7 +17,9 @@ import { putOnceMore } from '@/data/lead-scan-run'
  *  contract screens read the same list, keyed by the run's code. */
 const NEED: ApiNeed = { branch: 'Sales', permission: 'workstream.view', scoped: true }
 
-/** Presigned GETs die within minutes, so the list re-reads itself while open. */
+/** Presigned GETs die within minutes, so the list re-reads itself while open;
+ *  `gcTime` matches `staleTime`, so a list left closed longer than that is
+ *  dropped, not shown again. */
 const URL_SAFE_MS = 2 * 60_000
 const REFRESH_MS = 5 * 60_000
 
@@ -29,7 +32,8 @@ export const workstreamDocumentsQuery = (code: string) =>
     queryFn: ({ signal }) =>
       api.read(baseOf(code), { need: NEED, schema: LeadAttachmentsResponse, signal }),
     staleTime: URL_SAFE_MS,
-    refetchInterval: REFRESH_MS,
+    gcTime: URL_SAFE_MS,
+    refetchInterval: whileLive(REFRESH_MS),
   })
 
 const EXTENSION_MIME: Record<string, WorkstreamDocumentMime> = {

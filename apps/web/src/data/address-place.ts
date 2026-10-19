@@ -36,8 +36,8 @@ export const VIETMAP_MAP_KEY = (
   (import.meta.env.VITE_VIETMAP_MAP_KEY as string | undefined) ?? ''
 ).trim()
 
-/** No retry, like the suggest query: a picker that cannot answer falls silent
- *  and the boxes underneath stay typeable. */
+/** Takes the app's no-retry default, like the suggest query: a picker that
+ *  cannot answer falls silent and the boxes underneath stay typeable. */
 const placeQuery = (refId: string) =>
   queryOptions({
     queryKey: [...PLACE_KEY, refId] as const,
@@ -48,7 +48,6 @@ const placeQuery = (refId: string) =>
         signal,
       }),
     staleTime: PLACE_STALE_MS,
-    retry: false,
   })
 
 const reverseQuery = (point: MapPoint) =>
@@ -61,7 +60,6 @@ const reverseQuery = (point: MapPoint) =>
         signal,
       }),
     staleTime: PLACE_STALE_MS,
-    retry: false,
   })
 
 /** Where a suggestion sits on the map. `null` asks nothing. */

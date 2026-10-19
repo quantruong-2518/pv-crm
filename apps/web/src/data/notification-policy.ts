@@ -12,6 +12,7 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** One Core · Admin · Notifications — the per-role policy of ADR 0093 §1-§2.
  *
@@ -33,6 +34,7 @@ export const notificationPolicyQuery = queryOptions({
       schema: NotificationPolicyResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 /** What the screen edits per kind: `important` is the effective switch, so

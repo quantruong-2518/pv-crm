@@ -2,6 +2,7 @@ import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { Actor, Permission } from '@pv/engines'
 import type { DirectoryResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { toActor } from '@/data/auth'
 
 /** A roster entry is a PERSON, never the caller, so it carries no permission
@@ -62,6 +63,7 @@ export const directoryQuery = queryOptions({
     api
       .read<DirectoryResponse>('/users/directory', { need: DIRECTORY_NEED, signal })
       .then((r) => r.rows.map((row) => toActor(row, NOT_THE_CALLER))),
+  ...cacheTier.reference,
 })
 
 /** Sổ người cho một component. Rỗng trong lúc còn đang tải.

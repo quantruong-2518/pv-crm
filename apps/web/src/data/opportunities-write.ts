@@ -28,6 +28,7 @@ import {
 import type { Actor } from '@pv/engines'
 import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { invalidateLeadState } from '@/data/lead-exit'
 import { meetingsCancelled } from '@/data/meetings'
@@ -404,7 +405,7 @@ export function useSignContract(code: ObjectCode) {
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['sales', 'ops', code], exact: true })
       void client.invalidateQueries({ queryKey: ['platform', 'approvals', 'pending'] })
-      void client.invalidateQueries({ queryKey: ['sales', 'contracts'] })
+      void client.invalidateQueries({ queryKey: CONTRACT_BOOK_KEY })
     },
   })
 }
@@ -526,7 +527,6 @@ function useMoveSettled(code: ObjectCode) {
       prev ? { ...prev, ...row, stages: stagesMovedTo(prev, row.stage) } : prev,
     )
     void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
-    void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })
     void client.invalidateQueries({ queryKey: OPPORTUNITY_BOOK_KEY })
     if (row.state !== 'lost') return
     /* A stop clears the deal's next step, and the last one moves the lead where
@@ -617,6 +617,7 @@ export const opportunityStopReasonsQuery = queryOptions({
       schema: OpportunityStopReasons,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 export function useStopDeal(code: ObjectCode) {

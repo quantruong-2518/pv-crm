@@ -1,6 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { KpiTargetHistoryResponse, type KpiTargetHistoryQuery } from '@pv/contracts'
 import { api } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `GET /sales/kpi/:period/history` — a target's versions, read-only (ADR 0099
  *  §5). No `actorId`: the role target; with one: that person's line. Another
@@ -13,7 +14,7 @@ export const kpiHistoryQuery = (period: string, q: KpiTargetHistoryQuery) => {
   if (q.actorId) params.set('actorId', q.actorId)
   return queryOptions({
     queryKey: ['sales', 'kpi', period, 'history', q.role, q.metricKey, q.actorId ?? null] as const,
-    staleTime: 0,
+    ...cacheTier.aggregate,
     queryFn: ({ signal }) =>
       api.read<KpiTargetHistoryResponse>(`/sales/kpi/${period}/history?${params.toString()}`, {
         need: { branch: 'Sales', permission: 'kpi.view' },

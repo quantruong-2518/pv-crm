@@ -6,6 +6,7 @@ import {
   type KpiTeamRosterResponse as Roster,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `/sales/kpi/teams` — who is in which KPI team, by month (ADR 0101).
  *
@@ -29,7 +30,7 @@ export const kpiTeamRosterKey = (period: string) => ['sales', 'kpi', period, 'te
 export const kpiTeamRosterQuery = (period: string) =>
   queryOptions({
     queryKey: kpiTeamRosterKey(period),
-    staleTime: 0,
+    ...cacheTier.reference,
     queryFn: ({ signal }) =>
       api.read<Roster>(`${PATH}?period=${encodeURIComponent(period)}`, {
         need: need('kpi.view'),

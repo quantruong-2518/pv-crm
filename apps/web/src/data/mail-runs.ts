@@ -11,7 +11,8 @@ import type {
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { bookQueryParams } from '@/app/book-query'
-import { LEAD_MAIL_KEY, LETTERS_KEY } from '@/data/mas'
+import { whileLive } from '@/app/query-client'
+import { LETTERS_KEY } from '@/data/mas'
 
 /** SỔ LÔ GỬI — `platform.mail_run`, mọi lô thư đã rời hoặc sắp rời máy.
  *
@@ -106,8 +107,9 @@ export const mailRunListQuery = (query: MailRunListQuery) =>
         need: READ_NEED,
         signal,
       }),
-    refetchInterval: (q) =>
+    refetchInterval: whileLive((q: { state: { data?: MailRunListResponse } }) =>
       q.state.data?.rows.some((row) => row.state === 'SENDING') ? 5_000 : false,
+    ),
   })
 
 /** WHO GOT THIS BATCH — `GET /sales/mail/runs/:id/recipients`.
@@ -132,8 +134,9 @@ export const mailRunRecipientsQuery = (runId: string) =>
         `/sales/mail/runs/${encodeURIComponent(runId)}/recipients`,
         { need: READ_NEED, signal },
       ),
-    refetchInterval: (q) =>
+    refetchInterval: whileLive((q: { state: { data?: MailRunRecipientsResponse } }) =>
       q.state.data?.rows.some((r) => PENDING_MAIL[r.deliveryState]) ? 5_000 : false,
+    ),
   })
 
 /** ONE BATCH, WITH THE LETTER IN IT — `GET /sales/mail/runs/:id`.
@@ -203,9 +206,9 @@ const PENDING_MAIL: Record<string, true | undefined> = {
 
 /** Huỷ một lô — `PATCH /sales/mail/runs/:id`, cửa MỘT CHIỀU.
  *
- *  Dọn cả `MAIL_RUN_KEY` lẫn `LEAD_MAIL_KEY`: những lá thư vừa bị giữ lại đang
- *  hiện trên dòng thời gian của từng lead trong lô, và bỏ quên khoá thứ hai là
- *  hồ sơ lead còn nói "đang chờ gửi" về một lá thư sẽ không bao giờ đi. */
+ *  Sweeps `MAIL_RUN_KEY` and `LETTERS_KEY`: the letters just held show on each
+ *  lead's timeline, and missing the second key leaves a profile saying
+ *  "waiting to send" about a letter that will never go. */
 export function useMailRunCancel() {
   const client = useQueryClient()
 
@@ -220,7 +223,6 @@ export function useMailRunCancel() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })
-      void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
       void client.invalidateQueries({ queryKey: LETTERS_KEY })
     },
   })
@@ -255,7 +257,6 @@ export function useMailRunEdit() {
     },
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: MAIL_RUN_KEY })
-      void client.invalidateQueries({ queryKey: LEAD_MAIL_KEY })
       void client.invalidateQueries({ queryKey: LETTERS_KEY })
     },
   })

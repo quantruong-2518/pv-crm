@@ -34,7 +34,6 @@ const rolePath = (period: string, role: RoleId) =>
 export const kpiAllocationsQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'allocations'] as const,
-    staleTime: 0,
     queryFn: ({ signal }) =>
       api.read<KpiAllocationResponse>(`${base(period)}/allocations`, {
         need: need('kpi.view'),
@@ -47,7 +46,6 @@ export const kpiAllocationsQuery = (period: string) =>
 export const kpiCountersQuery = (period: string) =>
   queryOptions({
     queryKey: [...monthKey(period), 'counters'] as const,
-    staleTime: 0,
     queryFn: ({ signal }) =>
       api.read<KpiCounterListResponse>(`${base(period)}/counters`, {
         need: need('kpi.view-all'),

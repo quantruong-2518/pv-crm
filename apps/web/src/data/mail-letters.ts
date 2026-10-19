@@ -13,6 +13,7 @@ import type {
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { whileLive } from '@/app/query-client'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { leadProfileQuery } from '@/data/lead-profile'
@@ -59,8 +60,9 @@ export const subjectLettersQuery = (door: MailSubjectKind, code: string) =>
         `/sales/${TIMELINE[door].path}/${encodeURIComponent(code)}/letters`,
         { need: TIMELINE[door].need, signal },
       ),
-    refetchInterval: (query) =>
+    refetchInterval: whileLive((query: { state: { data?: MailSubjectTimelineResponse } }) =>
       query.state.data?.rows.some((row) => row.state === 'SENDING') ? 5_000 : false,
+    ),
   })
 
 /** A contact the To line may name — the fields both source books share. */

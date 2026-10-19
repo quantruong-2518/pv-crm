@@ -14,6 +14,7 @@ import {
   type StepTemplatePatch,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** The journey frame — per-state next-step templates and the free-entry flag
  *  (ADR 0080), as the configuration screen reads and proposes them.
@@ -39,6 +40,7 @@ export const stepFrameQuery = queryOptions({
   queryKey: FRAME_KEY,
   queryFn: ({ signal }) =>
     api.read<StepFrameResponse>(BASE, { need: VIEW_NEED, schema: StepFrameResponse, signal }),
+  ...cacheTier.reference,
 })
 
 /** Every state of one phase, in the order the contract declares them. */

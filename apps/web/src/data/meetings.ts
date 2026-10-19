@@ -61,17 +61,16 @@ export const meetingsQuery = (subject: MeetingSubject) =>
   })
 
 /** Everything one meeting write can move: its list, the comm record behind it
- *  (state, `meeting.at`), the thread map of `meetings-card`, and the countdown. */
+ *  (state, `meeting.at`), and the countdown. */
 export function meetingsMoved(client: QueryClient, code: string) {
   void client.invalidateQueries({ queryKey: [...MEETING_KEY, code] })
   void client.invalidateQueries({ queryKey: MEETING_TODAY_KEY })
   void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY })
-  void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'threads', code] })
 }
 
 /** A subject closing (deal stopped, lead out or switched off) cancels its future
  *  meetings server-side, for the lead and its deals alike — so the whole meeting
- *  prefix, the records behind it and the thread map go stale, not one code. */
+ *  prefix, the records behind it and the thread messages go stale, not one code. */
 export function meetingsCancelled(client: QueryClient) {
   for (const key of [MEETING_KEY, COMM_RECORDS_KEY, COMMS_KEY]) {
     void client.invalidateQueries({ queryKey: key })

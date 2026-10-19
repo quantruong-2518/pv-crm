@@ -13,6 +13,7 @@ import {
   type ScanBatchState,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
+import { whileLive } from '@/app/query-client'
 
 /** Module 2 · the SCAN door of the lead book — card photos and profile PDFs.
  *
@@ -47,8 +48,9 @@ export const scanBatchQuery = (code: string) =>
     queryKey: scanBatchKey(code),
     queryFn: ({ signal }) =>
       api.read(scanPath(code), { need: SCAN_NEED, schema: LeadScanResponse, signal }),
-    refetchInterval: (query) =>
+    refetchInterval: whileLive((query: { state: { data?: LeadScanResponse } }) =>
       query.state.data && MOVING.has(query.state.data.state) ? POLL_MS : false,
+    ),
   })
 
 /** The batch, polled while it moves; refreshes the lead book once it is DONE. */
@@ -100,7 +102,9 @@ export function useCommitScan(code: string) {
 }
 
 /** The URLs inside are presigned GETs that die in about ten minutes, so the
- *  list goes stale well before them and re-reads itself while the card is open. */
+ *  list goes stale well before them and re-reads itself while the card is open.
+ *  `gcTime` matches `staleTime`, so a list left closed longer than that is
+ *  dropped, not shown again. */
 const ATTACHMENT_URL_SAFE_MS = 2 * 60_000
 const ATTACHMENT_REFRESH_MS = 5 * 60_000
 
@@ -114,5 +118,6 @@ export const leadAttachmentsQuery = (code: string) =>
         signal,
       }),
     staleTime: ATTACHMENT_URL_SAFE_MS,
-    refetchInterval: ATTACHMENT_REFRESH_MS,
+    gcTime: ATTACHMENT_URL_SAFE_MS,
+    refetchInterval: whileLive(ATTACHMENT_REFRESH_MS),
   })

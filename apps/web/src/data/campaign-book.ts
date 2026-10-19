@@ -20,7 +20,8 @@ import type {
   CampaignWaveAddResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
-import { bookQueryParams } from '@/app/book-query'
+import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
+import { cacheTier, whileLive } from '@/app/query-client'
 
 /** SỔ CHIẾN DỊCH THẬT — `sales.campaign`, mã `CP-nnnn`. ĐỌC TỪ MÁY CHỦ.
  *
@@ -115,9 +116,9 @@ export const FACET_SIZE = 200
  *  scorecard`), đúng thứ sổ cơ hội đã có; dựng nó khi sổ này chạm ngưỡng đó,
  *  đừng dựng trước.
  *
- *  `staleTime` một phút: ba con số ở đầu màn không cần đúng tới từng giây, và
- *  mỗi lần đổi bộ lọc mà kéo lại 200 dòng là trả tiền cho một câu hỏi không
- *  đổi. Cửa ghi vẫn dọn nó qua `CAMPAIGN_BOOK_KEY`. */
+ *  Aggregate tier (one minute): the three figures at the top need not be exact
+ *  to the second, and re-pulling 200 rows on every filter change pays for an
+ *  unchanged answer. Writes still sweep it through `CAMPAIGN_BOOK_KEY`. */
 export const campaignFacetQuery = queryOptions({
   queryKey: [...CAMPAIGN_BOOK_KEY, 'facets'] as const,
   queryFn: ({ signal }) =>
@@ -125,7 +126,7 @@ export const campaignFacetQuery = queryOptions({
       need: READ_NEED,
       signal,
     }),
-  staleTime: 60_000,
+  ...cacheTier.aggregate,
 })
 
 /** Một trang của sổ.
@@ -137,6 +138,7 @@ export const campaignFacetQuery = queryOptions({
  *  dòng. */
 export const campaignBookQuery = (query: CampaignBookQuery) =>
   queryOptions({
+    placeholderData: keepPageUnderSameFilters(query),
     queryKey: [...CAMPAIGN_BOOK_KEY, 'page', query] as const,
     queryFn: ({ signal }) =>
       api.read<CampaignBookResponse>(`/sales/campaigns?${bookQueryParams(query)}`, {
@@ -159,8 +161,9 @@ export const campaignProfileQuery = (code: string) =>
         need: READ_NEED,
         signal,
       }),
-    refetchInterval: (query) =>
+    refetchInterval: whileLive((query: { state: { data?: CampaignProfile } }) =>
       query.state.data?.waves.some((w) => w.run.state === 'SENDING') ? 5_000 : false,
+    ),
   })
 
 /** One page holds a whole audience: a wave cannot go to more than

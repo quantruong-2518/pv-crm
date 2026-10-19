@@ -18,6 +18,7 @@ import {
   type LeadSourceStatsQuery,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** Level 2 of a lead's origin — the catalog, the campaign picker beside it on
  *  the create form, and the funnel counted by motion → origin → campaign.
@@ -53,7 +54,9 @@ export function paramsOf(query: Record<string, string | boolean | undefined>): s
   return text === '' ? '' : `?${text}`
 }
 
-/** `keepPreviousData` so a picker does not flash empty between keystrokes. */
+/** `keepPreviousData` so a picker does not flash empty between keystrokes.
+ *  Only the read with no search text is the catalog; a typed `q` would mint a
+ *  30-minute entry per keystroke, so it keeps the default. */
 export const leadOriginsQuery = (query: LeadOriginListQuery) =>
   queryOptions({
     queryKey: [...LEAD_ORIGINS_KEY, query] as const,
@@ -64,6 +67,7 @@ export const leadOriginsQuery = (query: LeadOriginListQuery) =>
         signal,
       }),
     placeholderData: keepPreviousData,
+    ...(query.q ? {} : cacheTier.reference),
   })
 
 export const pickableCampaignsQuery = (q: string | undefined) =>
@@ -94,6 +98,7 @@ export const leadSourceStatsQuery = (query: LeadSourceStatsQuery) =>
         schema: LeadSourceStatsResponse,
         signal,
       }),
+    ...cacheTier.aggregate,
   })
 
 export function useCreateLeadOrigin() {

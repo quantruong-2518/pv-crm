@@ -33,7 +33,7 @@ const STEP_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit', scoped: t
  *  the scorecard, the profile, the timeline, the company card's lead list, and
  *  the journey run. The server also moves the state inside OTHER doors (a
  *  scheduled meeting or mail run, a logged exchange, a deal), and the cache
- *  never goes stale on its own (`staleTime: Infinity`) — so those call this. */
+ *  would only notice after `staleTime` — so those call this. */
 export const LEAD_STATE_KEYS = [
   ['sales', 'lead-book'],
   ['sales', 'lead-scorecard'],

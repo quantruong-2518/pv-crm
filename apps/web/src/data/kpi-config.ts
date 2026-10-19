@@ -7,6 +7,7 @@ import {
   type KpiRoleMetricsPatch,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { cacheTier } from '@/app/query-client'
 
 /** `/sales/config/kpi-metrics | kpi-alert` — KPI configuration (ADR 0099 §1–3).
  *  Read on `config.view`, written on `config.propose`; a write answers 202 with
@@ -26,6 +27,7 @@ export const kpiRoleMetricsQuery = queryOptions({
       schema: KpiRoleMetricsResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 export const kpiAlertQuery = queryOptions({
@@ -36,6 +38,7 @@ export const kpiAlertQuery = queryOptions({
       schema: KpiAlertSettingResponse,
       signal,
     }),
+  ...cacheTier.reference,
 })
 
 function useInboxRefetch() {
