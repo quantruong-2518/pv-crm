@@ -222,7 +222,9 @@ export class ApprovalService {
        row mentioning this person further down a chain comes back from SQL and
        is dropped here, because a chain is walked in order — see `isPendingFor`,
        the same function the browser calls. */
-    const rows = (await this.repo.waitingFor(who.name)).filter((r) => isPendingFor(r, who))
+    const rows = (await this.repo.waitingFor({ id: who.id, name: who.name })).filter((r) =>
+      isPendingFor(r, who),
+    )
     const links = await this.repo.linksOf(rows.map((r) => r.id))
 
     return PendingApprovalsResponse.parse({

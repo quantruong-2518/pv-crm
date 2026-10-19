@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
-import type { JobWithMetadata } from 'pg-boss'
+import type { JobResult, JobWithMetadata } from 'pg-boss'
 import { ENV, type Env } from '../config/env'
 import { DB, type Db } from '../db/db.module'
 import { MailBell } from '../mail/mail-bell'
@@ -96,10 +96,25 @@ export class MailConsumer {
     private readonly bell: MailBell,
   ) {}
 
-  /** pg-boss hands the handler a BATCH, always — one job here, because
-   *  `batchSize` is 1 and pacing is per-message anyway. */
-  async handle(jobs: JobWithMetadata<EmailJob>[]): Promise<void> {
-    for (const job of jobs) await this.runOne(job)
+  /** pg-boss hands the handler a BATCH of up to `batchSize` letters (see
+   *  worker.ts). They run one after another, because pacing is per letter, and
+   *  each gets its own result: `perJobResults` settles them one by one, so a
+   *  failed letter must not take its batch sibling down with it. */
+  async handle(jobs: JobWithMetadata<EmailJob>[]): Promise<JobResult[]> {
+    const results: JobResult[] = []
+    for (const job of jobs) {
+      try {
+        await this.runOne(job)
+        results.push({ id: job.id, status: 'completed' })
+      } catch (error) {
+        results.push({
+          id: job.id,
+          status: 'failed',
+          output: { message: error instanceof Error ? error.message : String(error) },
+        })
+      }
+    }
+    return results
   }
 
   private async runOne(job: JobWithMetadata<EmailJob>): Promise<void> {

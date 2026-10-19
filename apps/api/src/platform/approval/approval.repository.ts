@@ -87,17 +87,18 @@ export class ApprovalRepository {
    *  teaching this query about ordering, would put half of E3's turn rule in
    *  SQL where the other half cannot see it.
    *
-   *  Matched on NAME so links stored before `personId` still arrive. Two people
-   *  sharing a name both get the row back; `isPendingFor` then keeps it only
-   *  for the one whose id sits on the link (`seatedIn`). */
-  async waitingFor(personName: string): Promise<ApprovalRowDb[]> {
+   *  Matched on ID, so a rename hides nothing. NAME is kept only for links
+   *  stored before `personId` existed. Name twins both get the row back;
+   *  `isPendingFor` keeps it only for the id on the link (`seatedIn`). */
+  async waitingFor(who: { id: string; name: string }): Promise<ApprovalRowDb[]> {
     return this.db
       .select()
       .from(approval)
       .where(
         and(
           eq(approval.state, 'waiting'),
-          sql`${approval.chain} @> ${JSON.stringify([{ person: personName, state: 'waiting' }])}::jsonb`,
+          sql`(${approval.chain} @> ${JSON.stringify([{ personId: who.id, state: 'waiting' }])}::jsonb
+            OR ${approval.chain} @> ${JSON.stringify([{ person: who.name, state: 'waiting' }])}::jsonb)`,
           /* A request on a switched-off object leaves the inbox until the
              object is back: deciding it would only answer "not found". */
           sql`NOT EXISTS (

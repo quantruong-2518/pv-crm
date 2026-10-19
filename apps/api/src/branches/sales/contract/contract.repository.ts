@@ -143,6 +143,11 @@ const UNPAID = sql`ci.paid_at IS NULL`
 /** Date of the earliest unpaid installment; NULL once everything is collected. */
 const NEXT_DUE = sql`(SELECT min(ci.due) FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code} AND ci.paid_at IS NULL)`
 
+/** Start of today on the Vietnam calendar. "Overdue" is a due before it — due
+ *  today is not yet late, the rule KPI and the overdue-reason door count by — and
+ *  comparing the raw column keeps `due` indexable. */
+const VN_TODAY_START = sql`((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
+
 const listOf = (csv: string) => csv.split(',').filter(Boolean)
 
 /** Chỗ DUY NHẤT có SQL của module hợp đồng — cả đường ghi lẫn đường đọc.
@@ -440,12 +445,12 @@ export class ContractRepository {
     const due = contractInstallment.due
     const money = contractInstallment.amount
     const unpaid = sql`${contractInstallment.paidAt} IS NULL`
-    const overdue = sql`${unpaid} AND ${due} < now()`
+    const overdue = sql`${unpaid} AND ${due} < ${VN_TODAY_START}`
     /* Bounded on BOTH sides so an installment already late is counted as late
        and not a second time as near. `DUE_NEAR_DAYS` comes from the same
-       `@pv/engines` ladder the contract book paints urgency with. */
-    const dueSoon = sql`${unpaid} AND ${due} >= now()
-      AND ${due} < now() + ${sql.raw(String(DUE_NEAR_DAYS))} * interval '1 day'`
+       `@pv/engines` ladder (left 0 is 'due', 1..14 'due-soon'). */
+    const dueSoon = sql`${unpaid} AND ${due} >= ${VN_TODAY_START}
+      AND ${due} < ${VN_TODAY_START} + ${sql.raw(String(DUE_NEAR_DAYS + 1))} * interval '1 day'`
 
     const [signed, schedule, late, byMonth] = await Promise.all([
       this.db
@@ -491,7 +496,11 @@ export class ContractRepository {
         .innerJoin(contract, eq(contract.code, contractCondition.contractCode))
         .innerJoin(lead, ON_LEAD)
         .where(
-          and(isNull(contractCondition.doneAt), sql`${contractCondition.due} < now()`, leadLive),
+          and(
+            isNull(contractCondition.doneAt),
+            sql`${contractCondition.due} < ${VN_TODAY_START}`,
+            leadLive,
+          ),
         ),
       this.trend(),
     ])
@@ -563,9 +572,9 @@ export class ContractRepository {
     return by
   }
 
-  /** Overdue installments — `summary()`'s predicate, unpaid and `due < now()` —
-   *  whose contract owner holds no bell line for them yet, on live leads and
-   *  unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
+  /** Overdue installments — `summary()`'s predicate, unpaid and due before
+   *  `VN_TODAY_START` — whose contract owner holds no bell line for them yet,
+   *  on live leads and unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
    *  (recipient, event key) is what refuses a duplicate. The key is spelled
    *  as E4's `plan` builds it (`<kind>/<code>/<occurrence>`): move both together.
    *  The occurrence carries the due day (ADR 0093 §5's anchor date), so a due
@@ -591,7 +600,7 @@ export class ContractRepository {
       .where(
         and(
           isNull(ci.paidAt),
-          sql`${ci.due} < now()`,
+          sql`${ci.due} < ${VN_TODAY_START}`,
           leadLive,
           notExists(
             tx
@@ -618,7 +627,9 @@ export class ContractRepository {
   /** Every book filter, ANDed. Independent of the scope axis. */
   private filtersOf(q: ContractBookQuery): (SQL | undefined)[] {
     return [
-      q.status === 'overdue' ? installmentExists(sql`${UNPAID} AND ci.due < now()`) : undefined,
+      q.status === 'overdue'
+        ? installmentExists(sql`${UNPAID} AND ci.due < ${VN_TODAY_START}`)
+        : undefined,
       q.status === 'collected'
         ? and(installmentExists(), sql`NOT ${installmentExists(UNPAID)}`)
         : undefined,

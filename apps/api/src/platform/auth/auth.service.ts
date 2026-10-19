@@ -17,7 +17,13 @@ import { toActor, toSessionView, toWindow } from './auth.mapper'
 import { RolePermissionRepository } from '../roles/role-permission.repository'
 import { SettingService } from '../setting/setting.service'
 import { AuthRepository } from './auth.repository'
-import { DEFAULT_PASSWORD, dummyPasswordHash, hashPassword, verifyPassword } from './password'
+import {
+  DEFAULT_PASSWORD,
+  TEMPORARY_PASSWORD_TTL_MS,
+  dummyPasswordHash,
+  hashPassword,
+  verifyPassword,
+} from './password'
 import { RESET_MAILER, resetLink, type ResetMailer } from './reset-mailer'
 import { hashToken, newToken } from './token'
 import type { Caller } from '../session/caller'
@@ -160,6 +166,15 @@ export class AuthService {
     const matches = await verifyPassword(password, stored)
 
     if (!row || !matches || row.disabledAt) {
+      this.throttle.fail(key)
+      throw denied('unauthenticated', SIGN_IN_REFUSAL)
+    }
+    /* An expired temporary password answers exactly like a wrong one: the
+       default is printed in this repo, so a distinct reply would list mailboxes. */
+    if (
+      row.mustChangePasswordAt &&
+      Date.now() - row.mustChangePasswordAt.getTime() > TEMPORARY_PASSWORD_TTL_MS
+    ) {
       this.throttle.fail(key)
       throw denied('unauthenticated', SIGN_IN_REFUSAL)
     }

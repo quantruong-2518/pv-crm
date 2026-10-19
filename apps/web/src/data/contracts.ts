@@ -12,9 +12,10 @@ import {
   type InstallmentSummaryRow,
   type RecordChannel,
 } from '@pv/contracts'
-import { daysUntil, dueLevelOf, needsAttention, systemClock, type DueLevel } from '@pv/engines'
+import { daysUntil, dueLevelOf, needsAttention, type DueLevel } from '@pv/engines'
 import { api, type ApiNeed } from '@/app/api'
 import { bookQueryParams } from '@/app/book-query'
+import { vnToday } from '@/data/opportunities'
 
 /** Read side of the contract book — on the server, no fixture left.
  *
@@ -30,11 +31,12 @@ import { bookQueryParams } from '@/app/book-query'
  *  server's receipt for rows it dropped by owner, so no screen filters rows it
  *  never held. */
 
-/** Today, ISO date. The scenario is no longer frozen, so the ladder is read
+/** Today as a Vietnam calendar day — the server's day boundary, so a due today
+ *  is not yet late. The scenario is no longer frozen, so the ladder is read
  *  against the real clock — and the read happens HERE: `@pv/engines` takes
  *  `today` from its caller precisely so the browser and the server sweep can be
  *  told apart. */
-export const today = () => systemClock().slice(0, 10)
+export const today = vnToday
 
 const OVERDUE = new Set<DueLevel>(['overdue', 'long-overdue'])
 export const overdue = (level: DueLevel | null | undefined): level is DueLevel =>
@@ -81,7 +83,7 @@ export function viewInstallment<T extends InstallmentLike>(
 ): InstallmentView<T> {
   const conditions = installment.conditions ?? []
   const late = conditions
-    .filter((c) => !c.doneAt && daysUntil(c.due, now) <= 0)
+    .filter((c) => !c.doneAt && daysUntil(c.due, now) < 0)
     .sort((a, b) => daysUntil(a.due, now) - daysUntil(b.due, now))
 
   return {
@@ -101,7 +103,7 @@ export type ContractBookRow = {
   collected: number
   /** Signed value minus what has already landed. */
   remaining: number
-  /** Unpaid and already at or past its date — the money someone must chase. */
+  /** Unpaid and already past its date — the money someone must chase. */
   overdue: number
   /** The next installment that is not yet paid, in date order. */
   next: InstallmentView<InstallmentSummaryRow> | null
@@ -119,7 +121,7 @@ export function rowOf(contract: ContractRow, now = today()): ContractBookRow {
   const unpaid = installments.filter((d) => !d.paidAt).sort((a, b) => a.due.localeCompare(b.due))
 
   const next = unpaid[0] ? viewInstallment(unpaid[0], now) : null
-  const overdue = unpaid.filter((d) => daysUntil(d.due, now) <= 0).reduce((n, d) => n + d.amount, 0)
+  const overdue = unpaid.filter((d) => daysUntil(d.due, now) < 0).reduce((n, d) => n + d.amount, 0)
 
   return {
     contract,

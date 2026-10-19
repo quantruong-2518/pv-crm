@@ -5,7 +5,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common'
-import { CONTRACT_INSTALLMENT_OVERDUE, dueLevelOf } from '@pv/engines'
+import { CONTRACT_INSTALLMENT_OVERDUE } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository } from './contract.repository'
@@ -52,15 +52,7 @@ export class ContractOverdueSweeper implements OnApplicationBootstrap, OnApplica
     try {
       /* `announce` writes inside its caller's transaction: one for the sweep. */
       const announced = await this.schedule.run(async (tx) => {
-        const today = new Date().toISOString()
-        const candidates = await this.repo.overdueUntold(tx)
-        /* The repository's SQL is a cheap superset (`due < now()`); whether a
-           day actually counts as overdue (not merely due today) is `dueLevelOf`'s
-           call, the same ladder the screen paints from — see `contract-due.ts`. */
-        const overdue = candidates.filter((item) => {
-          const level = dueLevelOf(item.due.toISOString(), today)
-          return level === 'overdue' || level === 'long-overdue'
-        })
+        const overdue = await this.repo.overdueUntold(tx)
         for (const item of overdue) {
           await this.hub.announce(tx, {
             event: {

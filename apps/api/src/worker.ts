@@ -149,6 +149,9 @@ async function bootstrap(): Promise<void> {
          from `platform.mail_gate`, which is the number Resend counts. This
          only decides how long a worker idles between letters it already owes. */
       batchSize: 2,
+      /* Settle each letter on its own: a throw fails the whole batch in pg-boss,
+         so one letter's failure would otherwise fail its batch sibling too. */
+      perJobResults: true,
       /* Keep fetching with no delay while batches come back full; the first
          short fetch drops back to the poll interval. This is what drains a
          200-letter run at the gate's pace instead of the clock's. */

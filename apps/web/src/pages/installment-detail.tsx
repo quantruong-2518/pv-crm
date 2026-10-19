@@ -224,7 +224,7 @@ function InstallmentScreen({
 /** One rung per checklist line, in contract order: the blocking line is the
  *  current one, any other late line waits. */
 function conditionRung(c: InstallmentCondition, blocking: boolean, now: string): TodoRung {
-  const late = !c.doneAt && daysUntil(c.due, now) <= 0
+  const late = !c.doneAt && daysUntil(c.due, now) < 0
   const mark: RungMark = c.doneAt ? 'done' : blocking ? 'current' : late ? 'waiting' : 'future'
   return {
     key: c.id,

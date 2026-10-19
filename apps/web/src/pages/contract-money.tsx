@@ -35,7 +35,7 @@ import { RecordCard } from '@/components/record/record-card'
 function moneyOf(contract: Contract, now: string) {
   const collected = contract.installments.filter((d) => d.paidAt).reduce((n, d) => n + d.amount, 0)
   const overdue = contract.installments
-    .filter((d) => !d.paidAt && daysUntil(d.due, now) <= 0)
+    .filter((d) => !d.paidAt && daysUntil(d.due, now) < 0)
     .reduce((n, d) => n + d.amount, 0)
   /* `amount` is nullable on the wire — a contract can be signed before anyone
      has typed the number. Zero keeps the bar drawable; the tile above prints
@@ -216,7 +216,7 @@ function InstallmentRow({
   const lateIds = useMemo(
     () =>
       new Set(
-        d.conditions.filter((c) => !c.doneAt && daysUntil(c.due, today()) <= 0).map((c) => c.id),
+        d.conditions.filter((c) => !c.doneAt && daysUntil(c.due, today()) < 0).map((c) => c.id),
       ),
     [d.conditions],
   )

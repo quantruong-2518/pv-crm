@@ -21,6 +21,11 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto'
  *  ever set. */
 export const DEFAULT_PASSWORD = 'Pebblevina@2026'
 
+/** How long a password handed out with `must_change_password_at` stays usable.
+ *  Owner decision 19/10/2026: shrinks the window in which a colleague who knows
+ *  the shared default can take over a freshly reset account. */
+export const TEMPORARY_PASSWORD_TTL_MS = 24 * 60 * 60 * 1000
+
 /** PASSWORD HASHING — `scrypt` out of Node's own `node:crypto`, nothing added.
  *
  *  ------------------------------------------------------------------

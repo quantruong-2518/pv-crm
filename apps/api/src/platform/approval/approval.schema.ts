@@ -93,7 +93,8 @@ export const approval = platform.table(
     index('approval_waiting_idx')
       .on(t.raisedAt.desc())
       .where(sql`"state" = 'waiting'`),
-    /** "Waiting on ME" is `chain @> '[{"person":…,"state":"waiting"}]'`. */
+    /** "Waiting on ME" is `chain @> '[{"personId":…,"state":"waiting"}]'`, or
+     *  `"person"` for links stored before `personId` existed. */
     index('approval_chain_idx').using('gin', t.chain),
     /** "Is a sign request already waiting on this deal?" — at most one may be.
      *  A second would let two approvers sign the same contract twice; decided
