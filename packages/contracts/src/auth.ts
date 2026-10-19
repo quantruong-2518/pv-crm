@@ -132,6 +132,15 @@ export const RoleIds = z
   .refine((r) => new Set(r).size === r.length, { message: 'Vai trò bị trùng.' })
 
 export type Permission = z.infer<typeof Permission>
+
+/** The caller's own grants as the browser reads them: a key this build does not
+ *  know yet is dropped, not fatal. The API ships before the web build that
+ *  learns its new keys, and a strict array then refused the whole session. Read
+ *  only — the role matrix stays strict, since a stale screen saving a whole row
+ *  would silently revoke the keys it dropped. */
+const KnownPermissions = z
+  .array(z.string())
+  .transform((keys) => keys.filter((k): k is Permission => Permission.safeParse(k).success))
 export type RoleId = z.infer<typeof RoleId>
 
 /** Who counts as the deal's seller on the SALE lane — the person a sign
@@ -227,7 +236,7 @@ export const SessionView = z.object({
    *  Only as good as the screen it paints: the server re-checks every call
    *  against the same table, so a tampered array buys a prettier button and a
    *  403. */
-  permissions: z.array(Permission),
+  permissions: KnownPermissions,
   session: SessionWindow,
   /** This person is holding a password they did not choose, and can do nothing
    *  until they do.
