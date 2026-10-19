@@ -70,7 +70,8 @@ against the team's share in the last agreed room package.
 - Members acknowledge or counter through the same doors; the door finds the
   package holding their line, room or team tier.
 - A counter on a team package is resolved by the lead, never by the proposer;
-  the head resolves the lead's own counters through the existing door. A
+  the head resolves the lead's own counters, and may resolve any other,
+  through the existing door. A
   reissue of an agreed team package opens a team draft for the lead to
   rebalance. A re-split of the room tier is blocked only by that tier's open
   counters.
@@ -166,3 +167,10 @@ Taken by the implementer; change them by amending this ADR.
   head changes the team's share instead.
 - Known limit: one lead per team, so a lead's own counters always go to the
   head.
+- Known limit, from 0098 and not new here: a holder with no line for a metric
+  is judged against the whole role target. For a team member that is the
+  room's figure, not the team's. Default 13 closes it for ratio, hours and
+  days metrics; a count or money metric the team has no share of still falls
+  back.
+- A locked lead holds no line: the stand-in (default 16) splits the share among
+  the active members.
