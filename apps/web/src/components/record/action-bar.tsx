@@ -187,7 +187,13 @@ export function ActionBar({
             aria-label={nameOf(choice)}
             onClick={choice.onSelect}
           >
-            <Icon icon={choice.icon!} size={20} />
+            {/* The one filled glyph (law 11 waived by the owner, 19/10): an on
+                toggle reads as filled, its off state as the plain stroke. */}
+            <Icon
+              icon={choice.icon!}
+              size={20}
+              className={choice.active ? '[&_path]:fill-current' : undefined}
+            />
           </Button>
         ))}
         {rare.length > 0 && (

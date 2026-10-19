@@ -121,8 +121,8 @@ function RunScreen({ journey }: { journey: Journey }) {
       rail={
         <>
           <RunOwners workstreamCode={journey.code} doors={doors.owners} />
-          <CommJourney workstreamCode={journey.code} />
           <RunContacts subject={lead} />
+          <CommJourney workstreamCode={journey.code} />
         </>
       }
     >

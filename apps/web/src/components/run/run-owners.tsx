@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, Avatar, Button, Icon, MetaPill, Skeleton, UserRoundPlus } from '@pv/ui'
+import { ArrowLeftRight, Skeleton, UserRoundPlus } from '@pv/ui'
 import type { OpportunityOwner, WorkstreamHolder } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { useDirectory } from '@/data/directory'
 import { SALE_PRIMARY_LABEL, marksPrimary } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { RunBlock } from './run-block'
+import { PersonList, PersonRow } from './run-person'
 
 /** Who answers for the object on screen. `focus` is its code: the card then
  *  names only that object's people, never a sibling deal's PIC just because
@@ -14,9 +15,6 @@ import { RunBlock } from './run-block'
  *  A deal has two lanes, so `lanes` swaps its single holder for "BD PIC" and
  *  "Sale PIC" rows. A door sits beside the object it changes, only where the
  *  page can open one; a code shows only when its kind has several objects. */
-
-export const SEAT = 'text-muted-foreground m-0 text-[11.5px] italic leading-[1.5]'
-const NOTE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
 
 type Row = {
   key: string
@@ -159,49 +157,28 @@ export function RunOwners({
 
   return (
     <RunBlock title="Người phụ trách">
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {rows.map((row) => (
-          <li key={row.key} className="flex min-w-0 items-center gap-3">
-            {row.who ? (
-              <Avatar name={row.who} size="md" />
-            ) : (
-              <span
-                aria-hidden
-                className="bg-surface-ink/10 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-full"
-              >
-                <Icon icon={UserRoundPlus} size={16} />
-              </span>
-            )}
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span
-                className={row.who ? 'truncate text-[14px] font-medium leading-[1.5]' : NOTE}
-                title={row.who ?? undefined}
-              >
-                {row.who ?? row.hint}
-              </span>
-              <span className={SEAT}>
-                {people.find((a) => a.id === row.id)?.role ?? row.seat}
-                {focus === undefined && several(row.step) && (
-                  <span className="font-mono"> {row.code}</span>
-                )}
-              </span>
-            </span>
-            {row.primary && <MetaPill className="shrink-0">{SALE_PRIMARY_LABEL}</MetaPill>}
-            {doors[row.key] && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="pointer-coarse:h-12 pointer-coarse:w-12 w-8 shrink-0 px-0"
-                title={doors[row.key]?.label}
-                aria-label={`${doors[row.key]?.label} · ${row.step}`}
-                onClick={doors[row.key]?.onClick}
-              >
-                <Icon icon={row.who ? ArrowLeftRight : UserRoundPlus} size={16} />
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <PersonList>
+        {rows.map((row) => {
+          const door = doors[row.key]
+          const seat = people.find((a) => a.id === row.id)?.role ?? row.seat
+          return (
+            <PersonRow
+              key={row.key}
+              name={row.who}
+              empty={row.hint}
+              tag={row.primary && SALE_PRIMARY_LABEL}
+              lines={[focus === undefined && several(row.step) ? `${seat} · ${row.code}` : seat]}
+              door={
+                door && {
+                  label: `${door.label} · ${row.step}`,
+                  icon: row.who ? ArrowLeftRight : UserRoundPlus,
+                  onClick: door.onClick,
+                }
+              }
+            />
+          )
+        })}
+      </PersonList>
     </RunBlock>
   )
 }

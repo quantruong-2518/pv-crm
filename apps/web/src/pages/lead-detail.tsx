@@ -181,6 +181,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             focus={lead.code}
             doors={leadDoors(lead.code, assignDoor, off, () => setAssigning(true))}
           />
+          <RunContacts subject={{ kind: 'lead', code: lead.code }} />
           {/* Off: the comms layer treats the lead as absent, so the card could
               only print "not found" — nothing is better than two errors. */}
           {!off && (
@@ -189,7 +190,6 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
               subject={{ kind: 'lead', code: lead.code }}
             />
           )}
-          <RunContacts subject={{ kind: 'lead', code: lead.code }} />
           <RunDocuments workstreamCode={lead.workstreamCode} />
         </>
       }

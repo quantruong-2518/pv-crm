@@ -47,6 +47,7 @@ export function DealRail({
             : {}
         }
       />
+      <RunContacts subject={subject} />
       <CommJourney workstreamCode={run} subject={subject} />
       <QuotationRail
         paper={money.picked}
@@ -54,7 +55,6 @@ export function DealRail({
         workstreamCode={run}
         doors={money.doors}
       />
-      <RunContacts subject={subject} />
       <RunDocuments workstreamCode={run} />
     </>
   )

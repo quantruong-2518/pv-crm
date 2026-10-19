@@ -150,8 +150,8 @@ function ContractScreen({ contract }: { contract: Contract }) {
         <>
           <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
           <RunSigners people={contract.participants} />
-          <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
+          <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunDocuments workstreamCode={run.workstreamCode} />
         </>
       }

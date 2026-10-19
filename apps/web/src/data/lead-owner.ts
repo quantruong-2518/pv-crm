@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   LeadOwnerResponse,
+  LeadProfile,
   LeadOwnerWrite,
   ObjectCode,
   OpportunityBookRow,
@@ -13,6 +14,7 @@ import {
   opportunityBookQuery,
 } from '@/data/opportunities'
 import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
+import { moveLeadRungs } from '@/data/workstream-journey'
 
 /** Đổi người giữ một lead — `PATCH /sales/leads/:code/owner`.
  *
@@ -84,7 +86,21 @@ export function useSetLeadOwner() {
         body,
         need: OWNER_NEED,
       }),
-    onSuccess: () => {
+    onSuccess: (row) => {
+      /* Paint the 200 first; the refetches below then confirm it. */
+      client.setQueryData<LeadProfile>(['sales', 'lead-profile', row.code], (prev) =>
+        prev
+          ? {
+              ...prev,
+              state: row.state,
+              stateSince: row.stateSince,
+              daysHere: row.daysHere,
+              ownerId: row.ownerId,
+              ownerName: row.ownerName,
+            }
+          : prev,
+      )
+      moveLeadRungs(client, row)
       for (const key of TOUCHED_KEYS) void client.invalidateQueries({ queryKey: key })
     },
   })

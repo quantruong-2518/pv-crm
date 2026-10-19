@@ -1,4 +1,4 @@
-import { queryOptions } from '@tanstack/react-query'
+import { queryOptions, type QueryClient } from '@tanstack/react-query'
 import { WorkstreamJourneyResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 
@@ -22,4 +22,28 @@ export function workstreamJourneyQuery(code: string) {
         signal,
       }),
   })
+}
+
+/** Moves a lead's rungs in every cached journey as soon as a write answers
+ *  200, so the progress bar turns at once rather than after the refetch that
+ *  follows it — a round trip to Fly. That refetch still lands and has the last
+ *  word. A rung the lead moved back from returns to `upcoming`. */
+export function moveLeadRungs(
+  client: QueryClient,
+  lead: { code: string; state: string; stateSince: string },
+) {
+  client.setQueriesData<WorkstreamJourneyResponse>(
+    { queryKey: ['sales', 'workstreams', 'journey'] },
+    (journey) => {
+      if (!journey || journey.lead.code !== lead.code) return journey
+      const to = journey.lead.rungs.findIndex((r) => r.key === lead.state)
+      if (to < 0 || journey.lead.rungs[to]!.state === 'current') return journey
+      const rungs = journey.lead.rungs.map((r, i) => {
+        if (i === to) return { ...r, state: 'current' as const, at: lead.stateSince, days: 0 }
+        if (r.state !== 'current') return r
+        return { ...r, state: i < to ? ('done' as const) : ('upcoming' as const) }
+      })
+      return { ...journey, lead: { ...journey.lead, rungs } }
+    },
+  )
 }

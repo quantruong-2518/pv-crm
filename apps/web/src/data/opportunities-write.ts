@@ -502,12 +502,27 @@ export function stopDeal(
  *  `position` and `daysInStage` are computed from the column the move just
  *  changed. The prefix key also covers the column history one card below. The
  *  deal's timeline gains a touch row, and the book's counts have moved. */
+/** The status bar's columns moved to `stage` from a write's 200, so the bar
+ *  turns at once instead of after the profile refetch. The row carries no
+ *  entry moment, so the browser's clock stands in until that refetch lands. */
+function stagesMovedTo(
+  prev: OpportunityProfileResponse,
+  stage: OpportunityProfileResponse['stage'],
+): OpportunityProfileResponse['stages'] {
+  if (stage === prev.stage) return prev.stages
+  const now = new Date().toISOString()
+  return prev.stages.map((s) => {
+    if (s.key === stage) return { ...s, enteredAt: now, leftAt: null, days: 0 }
+    return s.key === prev.stage && s.leftAt === null ? { ...s, leftAt: now } : s
+  })
+}
+
 function useMoveSettled(code: ObjectCode) {
   const client = useQueryClient()
 
   return (row: OpportunityRow) => {
     client.setQueryData<OpportunityProfileResponse>(['sales', 'ops', code], (prev) =>
-      prev ? { ...prev, ...row } : prev,
+      prev ? { ...prev, ...row, stages: stagesMovedTo(prev, row.stage) } : prev,
     )
     void client.invalidateQueries({ queryKey: ['sales', 'ops', code] })
     void client.invalidateQueries({ queryKey: ['sales', 'ops-touches', code] })

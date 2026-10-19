@@ -1,7 +1,6 @@
-import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeftRight, Avatar, Badge, Button, Drawer, Icon, Skeleton, cn } from '@pv/ui'
+import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
 import { OPPORTUNITY_CONTACT_ROLE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -14,6 +13,7 @@ import { leadProfileQuery } from '@/data/lead-profile'
 import { opportunityProfileQuery } from '@/data/opportunities'
 import { ContactsEditDrawer } from './deal-contacts-edit'
 import { RunBlock } from './run-block'
+import { PersonList, PersonRow } from './run-person'
 import type { RunSubject } from './run-subject'
 
 /** The contacts block of a profile's rail (ADR 0078 §1) — one copy for the
@@ -241,57 +241,21 @@ function PeopleBody({
     return <p className={cn(NOTE, required && 'text-warning')}>{empty}</p>
   }
   return (
-    <ul className="m-0 flex list-none flex-col gap-3 p-0">
+    <PersonList>
       {people.map((p, i) => (
-        <li key={p.code} className="flex min-w-0 items-center gap-3">
-          <Avatar name={p.name} size="md" />
-          <span className="flex min-w-0 flex-col gap-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <Name to={p.to}>{p.name}</Name>
-              {p.primary && <Badge tone="running">Chính</Badge>}
-            </span>
-            {[p.line, p.reach].filter(Boolean).map((text) => (
-              <span
-                key={text}
-                className="text-muted-foreground break-words text-[12px] leading-[1.5]"
-              >
-                {text}
-              </span>
-            ))}
-          </span>
-          {i === 0 && onChange && <ChangeButton onClick={onChange} />}
-        </li>
+        <PersonRow
+          key={p.code}
+          name={p.name}
+          to={p.to}
+          tag={p.primary && 'Chính'}
+          lines={[p.line, p.reach]}
+          door={
+            i === 0 && onChange
+              ? { label: 'Đổi người liên hệ', icon: ArrowLeftRight, onClick: onChange }
+              : undefined
+          }
+        />
       ))}
-    </ul>
-  )
-}
-
-/** Beside the first name, icon only; the words live in the label. */
-function ChangeButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      className="pointer-coarse:h-12 pointer-coarse:w-12 ml-auto w-8 shrink-0 px-0"
-      title="Đổi người liên hệ"
-      aria-label="Đổi người liên hệ"
-      onClick={onClick}
-    >
-      <Icon icon={ArrowLeftRight} size={16} />
-    </Button>
-  )
-}
-
-function Name({ to, children }: { to: string | undefined; children: ReactNode }) {
-  const face = 'text-foreground truncate text-[13px] font-semibold'
-  return to ? (
-    <Link
-      to={to}
-      className={cn(face, 'pointer-coarse:min-h-12 inline-flex items-center hover:underline')}
-    >
-      {children}
-    </Link>
-  ) : (
-    <span className={face}>{children}</span>
+    </PersonList>
   )
 }

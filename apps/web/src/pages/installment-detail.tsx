@@ -193,8 +193,8 @@ function InstallmentScreen({
       rail={
         <>
           <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
-          <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunContacts subject={subject} />
+          <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <DocsCard installment={installment} />
           <NotesCard installment={installment} />
         </>
