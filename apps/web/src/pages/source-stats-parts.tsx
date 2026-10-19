@@ -138,6 +138,7 @@ export function SourceStatsBlock() {
           </div>
         ) : error ? (
           <EmptyState
+            tone="danger"
             icon={TriangleAlert}
             message={`Không tải được số liệu hiệu quả theo nguồn lead. ${
               isApiError(error) ? userMessage(error) : 'Thử lại.'

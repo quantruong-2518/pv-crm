@@ -47,7 +47,7 @@ const BODY = 'm-0 text-[12.5px] leading-[1.65]'
 function Retry({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="flex flex-col items-start gap-3">
-      <p role="alert" className={`text-foreground ${BODY}`}>
+      <p role="alert" className={`text-destructive-foreground ${BODY}`}>
         {message}
       </p>
       <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={onRetry}>

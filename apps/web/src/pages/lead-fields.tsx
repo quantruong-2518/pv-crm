@@ -62,7 +62,7 @@ function FieldShell({
     <span className="text-glass-foreground text-[13px] font-semibold leading-[1.4]">
       {field.label}
       {required && (
-        <span className="text-warning" aria-hidden="true">
+        <span className="text-destructive-foreground" aria-hidden="true">
           {' '}
           *
         </span>

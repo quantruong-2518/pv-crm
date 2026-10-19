@@ -120,6 +120,7 @@ export function SourceDetailPage() {
       <ScreenLayout>
         <GlassCard className="p-5 lg:p-6">
           <EmptyState
+            tone="danger"
             icon={TriangleAlert}
             message={`Không có nguồn dẫn mã ${code} trong kỳ này.`}
             action={{

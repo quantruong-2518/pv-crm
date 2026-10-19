@@ -11,6 +11,7 @@ import {
   ScreenHeader,
   ScreenLayout,
   Skeleton,
+  cn,
 } from '@pv/ui'
 import type { Permission, RoleId } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
@@ -66,6 +67,7 @@ import { RoleMatrix, RoleSheet } from './roles-parts'
  *  array every render and costs the `dirty` memo its memo. Same constant, same
  *  reason, as `NO_USERS` on the people book. */
 const NO_ROLES: RoleId[] = []
+const FAILED_INK = 'text-destructive-foreground'
 
 export function RolesPage() {
   const chrome = useAppChrome()
@@ -133,6 +135,7 @@ export function RolesPage() {
     toastDone('Đã lưu bảng phân quyền', 'Quyền mới có hiệu lực từ thao tác tiếp theo.')
   }
 
+  const unread = !isPending && (error || !grants)
   const summary = isPending
     ? 'Đang tải bảng phân quyền…'
     : error || !grants
@@ -145,7 +148,7 @@ export function RolesPage() {
         <ScreenHeader
           kicker="One Core · Quản trị"
           title="Vai trò"
-          description={<span className="tnum">{summary}</span>}
+          description={<span className={cn('tnum', unread && FAILED_INK)}>{summary}</span>}
           /* BOTH, never one instead of the other. A refusal that replaced the
              unsaved list left the reader with a sentence about one role and no
              sign that the others are still pending — the docblock above
@@ -216,6 +219,7 @@ export function RolesPage() {
                  matrix is seeded by the server, so an empty answer is still an
                  answer and only a failed read lands here. */
               <EmptyState
+                tone="danger"
                 icon={TriangleAlert}
                 message={`Không tải được bảng phân quyền. ${
                   isApiError(error) ? userMessage(error) : 'Thử lại.'

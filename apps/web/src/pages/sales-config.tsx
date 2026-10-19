@@ -94,6 +94,7 @@ export function SalesConfigPage() {
                would unmount the areas and drop unsent input. */
             <GlassCard className="p-5 lg:p-6">
               <EmptyState
+                tone="danger"
                 icon={TriangleAlert}
                 message={
                   isApiError(error)

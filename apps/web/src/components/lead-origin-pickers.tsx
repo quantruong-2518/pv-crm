@@ -133,7 +133,7 @@ export function CampaignPicker({
   label: string
   value: CampaignChoice | null
   onChange: (choice: CampaignChoice | null) => void
-  /** Required hides the clear button; the star is the caller's label to draw. */
+  /** Required hides the clear button and prints the star after the label. */
   required?: boolean
   invalid?: boolean
   hideLabel?: boolean
@@ -148,6 +148,7 @@ export function CampaignPicker({
       <Combobox
         label={label}
         hideLabel={hideLabel}
+        required={required}
         size="lg"
         className="flex-1"
         value={value?.code ?? ''}
@@ -192,6 +193,7 @@ export function PartnerPicker({
   value,
   onChange,
   motion,
+  required,
   invalid,
   hideLabel,
 }: {
@@ -200,6 +202,7 @@ export function PartnerPicker({
   onChange: (choice: PartnerChoice | null) => void
   /** The lead's motion — a new referrer is filed under one of ITS origins. */
   motion: LeadMotion | undefined
+  required?: boolean
   invalid?: boolean
   hideLabel?: boolean
 }) {
@@ -232,6 +235,7 @@ export function PartnerPicker({
       <Combobox
         label={label}
         hideLabel={hideLabel}
+        required={required}
         size="lg"
         className="min-w-0"
         value={value?.code ?? ''}

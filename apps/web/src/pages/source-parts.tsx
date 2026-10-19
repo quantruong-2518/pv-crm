@@ -106,7 +106,7 @@ function Field({
         <span className="text-muted-foreground text-[11px]">
           {label}
           {required ? (
-            <span className="text-warning" aria-hidden="true">
+            <span className="text-destructive-foreground" aria-hidden="true">
               {' '}
               *
             </span>
@@ -138,7 +138,7 @@ function GroupLabel({
     <span id={id} className="text-muted-foreground text-[11px]">
       {children}
       {required ? (
-        <span className="text-warning" aria-hidden="true">
+        <span className="text-destructive-foreground" aria-hidden="true">
           {' '}
           *
         </span>

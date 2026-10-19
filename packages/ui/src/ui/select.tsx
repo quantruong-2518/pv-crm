@@ -38,6 +38,8 @@ export type SelectProps = {
   neutralValue?: string
   /** Ẩn nhãn khỏi mắt, giữ cho trình đọc màn hình. */
   hideLabel?: boolean
+  /** Prints the danger-tone star after the label, the app's one required mark. */
+  required?: boolean
   /** A small mark riding just BEFORE THE VALUE inside the trigger — a status
    *  dot, a flag, a currency sign. Different from `label`, which stands before
    *  the whole box and says what it asks.
@@ -83,6 +85,7 @@ export function Select({
   onChange,
   neutralValue,
   hideLabel = false,
+  required = false,
   leading,
   valueContent,
   size = 'md',
@@ -292,6 +295,7 @@ export function Select({
         aria-controls={open ? listboxId : undefined}
         aria-activedescendant={open ? `${uid}-option-${highlighted}` : undefined}
         aria-labelledby={`${labelId} ${valueId}`}
+        aria-required={required || undefined}
         disabled={options.length === 0}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
@@ -315,6 +319,17 @@ export function Select({
           )}
         >
           {label}
+          {/* Filled, the star takes the label's ink: red on the active fill
+              measures under 4.5:1 in the stone theme, and nothing is missing. */}
+          {required && (
+            <span
+              className={active ? 'text-accent-foreground' : 'text-destructive-foreground'}
+              aria-hidden="true"
+            >
+              {' '}
+              *
+            </span>
+          )}
         </span>
         {leading && (
           <span aria-hidden className="flex shrink-0 items-center">

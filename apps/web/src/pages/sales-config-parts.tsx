@@ -46,6 +46,7 @@ export function MotionSection() {
   if (error || !rows) {
     return (
       <EmptyState
+        tone="danger"
         icon={TriangleAlert}
         message={
           isApiError(error)

@@ -324,13 +324,21 @@ function ColumnShell({
  *  (law 13). */
 function ColumnNote({
   icon,
+  failed = false,
   children,
 }: {
   icon?: Parameters<typeof Icon>[0]['icon']
+  /** The column's read broke: error ink instead of the neutral one. */
+  failed?: boolean
   children: ReactNode
 }) {
   return (
-    <span className="text-foreground m-auto flex flex-col items-center gap-3 px-4 text-center text-[11.5px]">
+    <span
+      className={cn(
+        failed ? 'text-destructive-foreground' : 'text-foreground',
+        'm-auto flex flex-col items-center gap-3 px-4 text-center text-[11.5px]',
+      )}
+    >
       {icon && <Icon icon={icon} size={20} className="text-muted-foreground" />}
       {children}
     </span>
@@ -421,7 +429,7 @@ export function BoardColumn({
           {isPending ? (
             <CardSkeletons delay={0} />
           ) : error ? (
-            <ColumnNote>Không lấy được cột này. Thử lại sau.</ColumnNote>
+            <ColumnNote failed>Không lấy được cột này. Thử lại sau.</ColumnNote>
           ) : rows.length === 0 ? (
             <ColumnNote>Cột này trống</ColumnNote>
           ) : (

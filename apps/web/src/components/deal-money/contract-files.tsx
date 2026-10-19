@@ -45,7 +45,7 @@ function Files({ code, contractCode }: { code: string; contractCode: string }) {
       {isPending ? (
         <Skeleton className="h-12 w-full" />
       ) : error ? (
-        <span className="text-muted-foreground text-[12.5px]">
+        <span className="text-destructive-foreground text-[12.5px]">
           Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </span>
       ) : rows.length === 0 ? (

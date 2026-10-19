@@ -353,8 +353,9 @@ const TITLE_SUGGESTIONS = [
 
 function TitleField({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   return (
-    <Field label="Tiêu đề *">
+    <Field label="Tiêu đề" required>
       <Input
+        aria-required
         value={value}
         maxLength={MEETING_TITLE_MAX}
         className="pointer-coarse:h-12"

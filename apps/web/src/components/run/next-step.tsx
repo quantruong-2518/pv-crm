@@ -121,7 +121,7 @@ function StepBody({
   if (isPending) return <Skeleton className={embedded ? 'h-10 w-full' : 'h-16 w-full'} />
   if (!data) {
     return (
-      <p className="text-muted-foreground text-[12.5px] leading-[1.6]">
+      <p className="text-destructive-foreground text-[12.5px] leading-[1.6]">
         Không đọc được việc tiếp theo. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )

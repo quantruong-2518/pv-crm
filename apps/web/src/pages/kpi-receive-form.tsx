@@ -120,7 +120,7 @@ export function AnswerBlock({
             <span className={cn(NOTE, 'w-8 shrink-0')}>{UNIT_WORD[line.def.unit]}</span>
           </span>
           {shownProblem && (
-            <span id={ids.problem} className="text-warning text-[11px] leading-4">
+            <span id={ids.problem} className="text-destructive-foreground text-[11px] leading-4">
               {shownProblem}
             </span>
           )}

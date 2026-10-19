@@ -247,8 +247,9 @@ export function SaveTemplateBlock({ draft, allowed }: { draft: MasMailDraft; all
         {...(allowed ? {} : { hint: 'Cần quyền sửa mẫu email. Thư vẫn gửi bình thường.' })}
       />
       {allowed && draft.saveAsTemplate && (
-        <Field label="Tên mẫu *" hint="Cả đội thấy tên này trong ô 'Bắt đầu từ mẫu'.">
+        <Field label="Tên mẫu" required hint="Cả đội thấy tên này trong ô 'Bắt đầu từ mẫu'.">
           <Input
+            aria-required
             value={draft.templateName}
             maxLength={MAIL_NAME_MAX}
             placeholder="VD: Chào lần đầu, nhà máy thực phẩm"

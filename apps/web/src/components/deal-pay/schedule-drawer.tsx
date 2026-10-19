@@ -122,7 +122,7 @@ export function ScheduleDrawer({
       {isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : error || !data ? (
-        <p role="alert" className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
           Không đọc được hợp đồng. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </p>
       ) : (

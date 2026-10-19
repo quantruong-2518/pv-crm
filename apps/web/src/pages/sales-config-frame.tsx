@@ -100,6 +100,7 @@ function StepFrame({ catalog, draft }: AreaProps) {
     return (
       <>
         <EmptyState
+          tone="danger"
           icon={TriangleAlert}
           message={
             isApiError(error)

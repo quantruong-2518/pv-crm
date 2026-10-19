@@ -118,7 +118,16 @@ export function Toast({ item, onDismiss, defaultTtlMs }: ToastProps) {
       <Icon icon={TONE_ICON[tone]} size={18} className={cn('mt-1', TONE_ICON_CLASS[tone])} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <p className="text-[12.5px] font-semibold leading-[1.5]">{item.title}</p>
+        {/* The danger title reads red like every other error line; the detail
+            stays neutral so a long reason is not a wall of red. */}
+        <p
+          className={cn(
+            'text-[12.5px] font-semibold leading-[1.5]',
+            tone === 'danger' && 'text-destructive-foreground',
+          )}
+        >
+          {item.title}
+        </p>
         {item.detail && (
           <p className="text-glass-foreground text-[11.5px] leading-[1.7]">{item.detail}</p>
         )}

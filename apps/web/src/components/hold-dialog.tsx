@@ -97,7 +97,7 @@ export function HoldDialog({
         <label className="flex flex-col gap-2">
           <span className="text-muted-foreground text-[11px]">
             Ngày hẹn gặp lại
-            <span className="text-warning" aria-hidden="true">
+            <span className="text-destructive-foreground" aria-hidden="true">
               {' '}
               *
             </span>

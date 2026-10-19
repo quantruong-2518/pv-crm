@@ -222,7 +222,10 @@ export function AssignMenu({
           releasing ? (
             <div className="flex flex-col gap-3">
               {setOwner.isError && (
-                <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
+                <p
+                  className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]"
+                  role="alert"
+                >
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
                     : 'Chưa đưa về kho được. Thử lại.'}
@@ -253,7 +256,10 @@ export function AssignMenu({
           ) : pickedPerson ? (
             <div className="flex flex-col gap-3">
               {setOwner.isError && (
-                <p className="text-danger m-0 text-[12.5px] leading-[1.6]" role="alert">
+                <p
+                  className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]"
+                  role="alert"
+                >
                   {isApiError(setOwner.error)
                     ? userMessage(setOwner.error)
                     : 'Không lưu được. Thử lại.'}

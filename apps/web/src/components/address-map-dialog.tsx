@@ -158,7 +158,14 @@ function ResultList({
   const message = messageOf(suggest)
   if (message !== null) {
     return (
-      <p className="glass-b text-muted-foreground m-0 rounded-md p-4 text-[12.5px]">{message}</p>
+      <p
+        className={cn(
+          'glass-b m-0 rounded-md p-4 text-[12.5px]',
+          suggest.failed ? 'text-destructive-foreground' : 'text-muted-foreground',
+        )}
+      >
+        {message}
+      </p>
     )
   }
 
@@ -218,7 +225,10 @@ function ChosenLine({
   return (
     <p
       role={text === null || failed ? 'alert' : undefined}
-      className="text-muted-foreground m-0 mr-auto text-[11.5px]"
+      className={cn(
+        'm-0 mr-auto text-[11.5px]',
+        failed ? 'text-destructive-foreground' : 'text-muted-foreground',
+      )}
     >
       {text ?? NO_ADDRESS_TEXT}
     </p>

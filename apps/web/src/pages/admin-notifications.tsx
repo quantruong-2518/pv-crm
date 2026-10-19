@@ -149,6 +149,7 @@ export function AdminNotificationsPage() {
               </div>
             ) : error || !draft || !index ? (
               <EmptyState
+                tone="danger"
                 icon={TriangleAlert}
                 message={`Không tải được cài đặt thông báo. ${
                   isApiError(error) ? userMessage(error) : 'Thử lại.'

@@ -144,6 +144,7 @@ export function BookPage({
             </div>
           ) : failure ? (
             <EmptyState
+              tone="danger"
               icon={TriangleAlert}
               message={failure.message}
               action={{ label: 'Thử lại', onClick: failure.onRetry }}

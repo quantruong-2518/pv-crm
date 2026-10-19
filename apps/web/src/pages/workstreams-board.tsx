@@ -165,6 +165,7 @@ export function WorkstreamsBoard() {
         {error ? (
           <GlassCard variant="b">
             <EmptyState
+              tone="danger"
               icon={TriangleAlert}
               message={`Không lấy được các cột của sổ hành trình. ${
                 isApiError(error) ? userMessage(error) : 'Thử lại.'

@@ -303,8 +303,8 @@ export function QueryBlock<T>({
     return (
       <>
         {query.isRefetchError && !quiet && (
-          <p className={cn(NOTE, 'flex flex-wrap items-center gap-2')}>
-            <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
+          <p className={cn(NOTE, 'text-destructive-foreground flex flex-wrap items-center gap-2')}>
+            <Icon icon={TriangleAlert} size={16} className="text-destructive-foreground shrink-0" />
             Không tải lại được, đang hiện số lần trước.
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
               Thử lại
@@ -317,7 +317,11 @@ export function QueryBlock<T>({
   }
 
   if (query.error && quiet) {
-    return <p className={NOTE}>Không tải được {what}. Bấm Thử lại ở mục phía trên.</p>
+    return (
+      <p className={cn(NOTE, 'text-destructive-foreground')}>
+        Không tải được {what}. Bấm Thử lại ở mục phía trên.
+      </p>
+    )
   }
 
   if (query.error) {
@@ -325,6 +329,7 @@ export function QueryBlock<T>({
     return (
       <GlassCard variant={variant} className={TILE}>
         <EmptyState
+          tone="danger"
           icon={TriangleAlert}
           message={`Không tải được ${what}. ${detail}`}
           action={{ label: 'Thử lại', onClick: retry }}

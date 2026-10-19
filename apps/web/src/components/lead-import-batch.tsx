@@ -50,7 +50,7 @@ export function useLeadImportBatch() {
       return {
         node: (
           <CampaignPicker
-            label="Chiến dịch cho cả lô *"
+            label="Chiến dịch cho cả lô"
             required
             value={campaign}
             onChange={setCampaign}
@@ -65,7 +65,8 @@ export function useLeadImportBatch() {
         node: (
           <div className="flex flex-col gap-2">
             <PartnerPicker
-              label="Mã giới thiệu cho cả lô *"
+              label="Mã giới thiệu cho cả lô"
+              required
               value={partner}
               onChange={setPartner}
               motion={wire}

@@ -25,6 +25,8 @@ export type ComboboxOption = { value: string; label: string; hint?: string }
 export type ComboboxProps = {
   label: string
   hideLabel?: boolean
+  /** Prints the danger-tone star after the label, the app's one required mark. */
+  required?: boolean
   /** Selected value, or `''` for none. */
   value: string
   /** Label of the selected value — it may not be in the current `options`. */
@@ -55,6 +57,7 @@ const MIN_MENU_HEIGHT = 112
 export function Combobox({
   label,
   hideLabel = false,
+  required = false,
   value,
   valueLabel,
   query,
@@ -134,6 +137,12 @@ export function Combobox({
     <label className={cn('flex min-w-0 flex-col gap-2', className)}>
       <span className={cn('text-muted-foreground text-[11px]', hideLabel && 'sr-only')}>
         {label}
+        {required && (
+          <span className="text-destructive-foreground" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </span>
       <input
         ref={inputRef}
@@ -143,6 +152,7 @@ export function Combobox({
         aria-autocomplete="list"
         aria-activedescendant={open && rows.length ? `${uid}-row-${highlighted}` : undefined}
         aria-invalid={invalid || undefined}
+        aria-required={required || undefined}
         disabled={disabled}
         value={shown}
         placeholder={placeholder}

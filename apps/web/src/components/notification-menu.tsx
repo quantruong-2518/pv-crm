@@ -95,7 +95,7 @@ export function NotificationMenu({
         </div>
       ) : list.error ? (
         <div className="glass-b flex flex-col items-start gap-3 rounded-lg p-4">
-          <p className="text-foreground m-0 text-[12.5px] leading-[1.65]">
+          <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.65]">
             {failed(list.error, 'Không tải được thông báo.')}
           </p>
           <Button

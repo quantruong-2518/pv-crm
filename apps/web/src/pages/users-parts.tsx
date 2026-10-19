@@ -725,7 +725,7 @@ function ResetPasswordButton({
 function InviteLink({ link, onCopy }: { link: string; onCopy: () => void }) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-warning text-[11.5px] leading-[1.6]">
+      <span className="text-destructive-foreground text-[11.5px] leading-[1.6]">
         Chưa gửi thư được. Chép đường dẫn dưới đây và đưa tận tay người nhận. Ai có đường dẫn này là
         đặt được mật khẩu của tài khoản.
       </span>

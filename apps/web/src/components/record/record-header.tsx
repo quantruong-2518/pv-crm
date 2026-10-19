@@ -1,4 +1,5 @@
 import { useId, type ReactNode } from 'react'
+import { cn } from '@pv/ui'
 
 /** The header of every profile: the record's name on the left (its code and
  *  state badge ride in the title, law 16) and its primary moves on the right,
@@ -15,6 +16,7 @@ export function RecordHeader({
   subtitle,
   note,
   noteId,
+  noteFailed = false,
 }: {
   title: ReactNode
   /** The record's primary moves, 48px buttons; omit when there are none. */
@@ -25,6 +27,8 @@ export function RecordHeader({
   note?: string | null
   /** Lets a shut button point at `note` with `aria-describedby`. */
   noteId?: string
+  /** The note reports a failed read, so it takes the error ink. */
+  noteFailed?: boolean
 }) {
   const titleId = useId()
 
@@ -43,7 +47,13 @@ export function RecordHeader({
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">{subtitle}</p>
       )}
       {note && (
-        <p id={noteId} className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        <p
+          id={noteId}
+          className={cn(
+            noteFailed ? 'text-destructive-foreground' : 'text-muted-foreground',
+            'm-0 text-[12.5px] leading-[1.6]',
+          )}
+        >
           {note}
         </p>
       )}

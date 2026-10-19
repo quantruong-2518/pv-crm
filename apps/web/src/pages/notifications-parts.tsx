@@ -166,7 +166,15 @@ export function NotificationFeed({
 
   /* A failed background read keeps the rows on screen; only an empty page is replaced. */
   if (isError && rows.length === 0) {
-    return <EmptyState icon={TriangleAlert} message={failure} action={retry} className="py-12" />
+    return (
+      <EmptyState
+        tone="danger"
+        icon={TriangleAlert}
+        message={failure}
+        action={retry}
+        className="py-12"
+      />
+    )
   }
 
   if (rows.length === 0) {
@@ -194,7 +202,9 @@ export function NotificationFeed({
 
       {isError ? (
         <div className="flex flex-col items-center gap-2">
-          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.65]">{failure}</p>
+          <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.65]" role="alert">
+            {failure}
+          </p>
           <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry.onClick}>
             {retry.label}
           </Button>

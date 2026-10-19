@@ -146,7 +146,7 @@ function RunsCard({
       {isPending ? (
         <Skeleton height={96} />
       ) : isError ? (
-        <p className="text-muted-foreground text-[11.5px] leading-[1.5]">
+        <p className="text-destructive-foreground text-[11.5px] leading-[1.5]">
           Không tải được các lượt.
         </p>
       ) : data.rows.length === 0 ? (

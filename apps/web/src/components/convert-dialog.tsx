@@ -239,6 +239,7 @@ function ContextGate({ error, onRetry }: { error: Error | null; onRetry: () => v
   if (error)
     return (
       <EmptyState
+        tone="danger"
         icon={TriangleAlert}
         message={`Không mở được phiếu. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
         action={{ label: 'Thử lại', onClick: onRetry }}
@@ -279,11 +280,13 @@ function OpenBar({
       <span
         className={cn(
           'flex items-center gap-2 text-[12.5px] leading-[1.5]',
-          error || (!ready && !pending)
-            ? 'text-on-tint-warning'
-            : ready
-              ? 'text-on-tint-success-strong'
-              : '',
+          error
+            ? 'text-destructive-foreground'
+            : !ready && !pending
+              ? 'text-on-tint-warning'
+              : ready
+                ? 'text-on-tint-success-strong'
+                : '',
         )}
         aria-live="polite"
       >

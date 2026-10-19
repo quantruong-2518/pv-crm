@@ -86,8 +86,8 @@ export function TeamLeadLink({
 /** A side read failed: one line with its own retry, the board stays up. */
 export function SideFailure({ what, retry }: { what: string; retry: () => void }) {
   return (
-    <p className={cn(NOTE, 'flex flex-wrap items-center gap-2')}>
-      <Icon icon={TriangleAlert} size={16} className="text-warning shrink-0" />
+    <p className={cn(NOTE, 'text-destructive-foreground flex flex-wrap items-center gap-2')}>
+      <Icon icon={TriangleAlert} size={16} className="text-destructive-foreground shrink-0" />
       Không tải được {what}.
       <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={retry}>
         Thử lại

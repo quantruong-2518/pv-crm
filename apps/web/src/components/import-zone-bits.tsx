@@ -484,7 +484,7 @@ export function StepRun({
           {report.errors.length > 0 && (
             <GlassCard variant="b" className="flex flex-wrap items-center gap-4 p-4">
               <Icon icon={TriangleAlert} size={18} className="text-destructive-foreground" />
-              <p className="text-glass-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
+              <p className="text-destructive-foreground min-w-[200px] flex-1 text-[11.5px] leading-[1.7]">
                 {report.errors.length} dòng không nạp được. Tải tệp lỗi, sửa các dòng đó trong tệp
                 gốc rồi nạp lại. Dòng đã vào sổ không bị nạp hai lần.
               </p>

@@ -148,7 +148,7 @@ export function StopReasonField({
       <div className="flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">
           {label ?? 'Lý do'}
-          <span className="text-warning" aria-hidden="true">
+          <span className="text-destructive-foreground" aria-hidden="true">
             {' '}
             *
           </span>
@@ -173,7 +173,7 @@ export function StopReasonField({
         <span className="text-muted-foreground text-[11px]">
           Ghi rõ thêm
           {noteNeeded && (
-            <span className="text-warning" aria-hidden="true">
+            <span className="text-destructive-foreground" aria-hidden="true">
               {' '}
               *
             </span>

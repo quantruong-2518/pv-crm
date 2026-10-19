@@ -242,7 +242,7 @@ export function OverdueTile({
         <TileHead title="Quá hạn" aside="hiện tại" />
         {failed ? (
           <div className="mt-auto flex flex-col items-start gap-2">
-            <span className={NOTE}>Không tải được.</span>
+            <span className={cn(NOTE, 'text-destructive-foreground')}>Không tải được.</span>
             <Button variant="ghost" size="sm" className="pointer-coarse:h-12" onClick={onRetry}>
               Thử lại
             </Button>
@@ -373,6 +373,7 @@ export function ChartsFailed({
   return (
     <GlassCard className={cn(TILE, className)}>
       <EmptyState
+        tone="danger"
         icon={TriangleAlert}
         message={`Không tải được số liệu biểu đồ. ${detail}`}
         action={{ label: 'Thử lại', onClick: onRetry }}

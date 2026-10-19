@@ -674,7 +674,8 @@ function FieldGrid({
         {fields.map((field) => (
           <Select
             key={field.key}
-            label={field.required ? `${field.label} *` : field.label}
+            label={field.label}
+            required={field.required}
             value={String(mapping[field.key] ?? -1)}
             neutralValue={SKIP}
             options={columnOptions}

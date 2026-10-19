@@ -48,7 +48,7 @@ export function DealHistoryCard({ op }: { op: OpportunityProfileResponse }) {
       {journey.isPending ? (
         <Skeleton className="h-32 w-full" />
       ) : !deal ? (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
           Không tải được tiến trình công việc của cơ hội.{' '}
           {isApiError(journey.error) ? userMessage(journey.error) : 'Thử lại.'}
         </p>

@@ -249,6 +249,7 @@ function Dead({
   return (
     <GlassCard className="flex flex-col items-center gap-4 p-5 py-12">
       <EmptyState
+        tone="danger"
         icon={icon}
         message={message}
         action={{ label: 'Nạp lô mới', onClick: onRestart }}

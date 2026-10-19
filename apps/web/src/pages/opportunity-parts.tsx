@@ -58,16 +58,23 @@ export function DealHeader({
 export function EmptyOp({
   icon,
   note,
+  failed = false,
   onBack,
 }: {
   icon: IconGlyph
   note: ReactNode
+  /** The page failed to open (a read broke or was refused): error ink. */
+  failed?: boolean
   onBack: () => void
 }) {
+  const ink = failed ? 'text-destructive-foreground' : 'text-muted-foreground'
   return (
-    <div className="flex flex-col items-center gap-3 py-12 text-center">
-      <Icon icon={icon} size={26} className="text-muted-foreground" />
-      <p className="text-muted-foreground text-[12.5px] leading-[1.65]">{note}</p>
+    <div
+      role={failed ? 'alert' : undefined}
+      className="flex flex-col items-center gap-3 py-12 text-center"
+    >
+      <Icon icon={icon} size={26} className={ink} />
+      <p className={cn(ink, 'text-[12.5px] leading-[1.65]')}>{note}</p>
       <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={onBack}>
         Về sổ cơ hội
       </Button>

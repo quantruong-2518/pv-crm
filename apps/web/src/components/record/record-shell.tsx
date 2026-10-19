@@ -175,6 +175,7 @@ function RecordFailed({ failure }: { failure: RecordFailure }) {
     <ScreenLayout>
       <GlassCard className="p-5 lg:p-6">
         <EmptyState
+          tone="danger"
           className="py-12"
           icon={missing ? Inbox : denied ? Lock : TriangleAlert}
           message={missing ? failure.notFound : (error && userMessage(error)) || failure.fallback}

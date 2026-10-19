@@ -137,7 +137,7 @@ export function CommJourney({
       )}
 
       {lettersError !== null && (
-        <p className={cn(NOTE, 'text-muted-foreground')}>
+        <p className={cn(NOTE, 'text-destructive-foreground')}>
           Không đọc được các email.{' '}
           {isApiError(lettersError) ? userMessage(lettersError) : 'Thử lại.'}
         </p>
@@ -146,7 +146,7 @@ export function CommJourney({
       {isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
-        <p className={cn(NOTE, 'text-muted-foreground')}>
+        <p className={cn(NOTE, 'text-destructive-foreground')}>
           Không đọc được các lượt liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </p>
       ) : shown.length > 0 ? (

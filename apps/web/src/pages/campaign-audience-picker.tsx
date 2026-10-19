@@ -13,6 +13,7 @@ import {
   SearchField,
   Skeleton,
   type TableColumn,
+  TriangleAlert,
 } from '@pv/ui'
 import {
   OWNER_NONE,
@@ -377,7 +378,8 @@ function PickerTable({
         </div>
       ) : failure ? (
         <EmptyState
-          icon={Inbox}
+          tone="danger"
+          icon={TriangleAlert}
           message={failure}
           action={{ label: 'Tải lại', onClick: onRetry }}
           className="py-8"

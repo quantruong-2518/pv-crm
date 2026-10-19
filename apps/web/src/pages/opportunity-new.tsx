@@ -118,6 +118,7 @@ function NewDealGate({ leadCode }: { leadCode: string }) {
       <ScreenLayout>
         <GlassCard className="p-5 lg:p-6">
           <EmptyOp
+            failed
             icon={missing ? Inbox : denied ? Lock : TriangleAlert}
             note={
               missing ? (

@@ -87,6 +87,7 @@ export function LeadPickList({
 
       {error ? (
         <EmptyState
+          tone="danger"
           icon={TriangleAlert}
           message={`Không lấy được sổ lead. ${isApiError(error) ? userMessage(error) : 'Thử lại.'}`}
           action={{ label: 'Thử lại', onClick: () => void refetch() }}

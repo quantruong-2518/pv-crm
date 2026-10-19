@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { UserPlus } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, Button, Icon, ScreenLayout } from '@pv/ui'
+import { AppShell, Button, Icon, ScreenLayout, cn } from '@pv/ui'
 import type { UserRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useSession } from '@/app/auth'
@@ -133,7 +133,16 @@ export function UsersPage() {
           }
           /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
              số không đều bề rộng làm cả dòng nhảy ngang sau mỗi lần refetch. */
-          count={<span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}
+          count={
+            <span
+              className={cn(
+                'tnum text-[11.5px]',
+                error ? 'text-destructive-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {summary}
+            </span>
+          }
           pending={isPending}
           failure={
             error

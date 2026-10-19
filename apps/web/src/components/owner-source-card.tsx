@@ -71,7 +71,12 @@ function MotionBlock({ draft }: { draft: LeadDraft }) {
   if (!MOTION_BOX) return null
   const value = readField(draft.values, 'motion')
   return (
-    <Block label="Phương án tiếp cận *" hint={MOTION_BOX.hint} error={draft.fieldError('motion')}>
+    <Block
+      label="Phương án tiếp cận"
+      required
+      hint={MOTION_BOX.hint}
+      error={draft.fieldError('motion')}
+    >
       {LeadSide.options.map((side) => {
         const options = draft.motions.filter((m) => m.side === side)
         if (options.length === 0) return null
@@ -100,7 +105,8 @@ function OriginBlock({ draft }: { draft: LeadDraft }) {
   const motion = readField(draft.values, 'motion') as LeadMotion | ''
   return (
     <Block
-      label="Nguồn *"
+      label="Nguồn"
+      required
       hint="Chọn nguồn đã có hoặc nhập tên mới."
       error={draft.fieldError('origin')}
     >
@@ -126,7 +132,8 @@ function CampaignBlock({ draft }: { draft: LeadDraft }) {
   const shown = campaign && campaign.code === raw ? campaign : null
   return (
     <Block
-      label="Chiến dịch *"
+      label="Chiến dịch"
+      required
       hint="Chỉ chiến dịch còn nhận lead. Nguồn lấy theo chiến dịch."
       error={draft.fieldError('campaignCode')}
     >
@@ -153,7 +160,8 @@ function ReferrerBlock({ draft }: { draft: LeadDraft }) {
   const motion = readField(draft.values, 'motion') as LeadMotion | ''
   return (
     <Block
-      label="Mã giới thiệu *"
+      label="Mã giới thiệu"
+      required
       hint={
         shown?.originName
           ? `Nguồn lấy theo mã giới thiệu: ${shown.originName}.`
@@ -186,18 +194,28 @@ function write(draft: LeadDraft, field: FormField, raw: string) {
 /** One labelled block: what it is, why it matters, the value, the complaint. */
 function Block({
   label,
+  required,
   hint,
   error,
   children,
 }: {
   label: string
+  required?: boolean
   hint?: string
   error?: string
   children: ReactNode
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <span className="text-[12.5px] font-semibold">{label}</span>
+      <span className="text-[12.5px] font-semibold">
+        {label}
+        {required && (
+          <span className="text-destructive-foreground" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
+      </span>
       {children}
       {hint && <span className="text-muted-foreground text-[11.5px] leading-[1.5]">{hint}</span>}
       {error && (

@@ -140,6 +140,7 @@ function ConvertStep({
     >
       {error ? (
         <EmptyState
+          tone="danger"
           icon={TriangleAlert}
           message={`Không mở được hồ sơ lead ${lead.code}. ${
             isApiError(error) ? userMessage(error) : 'Thử lại.'

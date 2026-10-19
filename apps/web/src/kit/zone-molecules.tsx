@@ -12,6 +12,7 @@ import {
   MessageCircle,
   SquareCheckBig,
   Target,
+  TriangleAlert,
   UserMinus,
   Users,
 } from '@pv/ui'
@@ -330,6 +331,7 @@ function ComboboxDemo() {
   return (
     <Combobox
       label="Nguồn"
+      required
       value={picked.value}
       valueLabel={picked.label || undefined}
       query={query}
@@ -522,13 +524,19 @@ export function ZoneMolecules() {
         <SpecCard
           code="M-08"
           name="EmptyState"
-          bodyClassName="px-4 py-6"
-          footer="Luôn 1 icon + 1 câu hướng dẫn + 1 nút. Không bao giờ chỉ có chữ “Không có dữ liệu”."
+          bodyClassName="flex flex-col gap-6 px-4 py-6"
+          footer="Luôn 1 icon + 1 câu hướng dẫn + 1 nút. Không bao giờ chỉ có chữ “Không có dữ liệu”. tone danger khi báo lỗi tải."
         >
           <EmptyState
             icon={Inbox}
             message="Chưa có yêu cầu nào chờ anh. Việc mới sẽ hiện tại đây kèm thông báo Zalo."
             action={{ label: 'Xem lịch sử duyệt' }}
+          />
+          <EmptyState
+            icon={TriangleAlert}
+            tone="danger"
+            message="Không tải được danh sách yêu cầu."
+            action={{ label: 'Thử lại' }}
           />
         </SpecCard>
 

@@ -37,7 +37,7 @@ function Documents({ code }: { code: string }) {
       {isPending ? (
         <Skeleton className="h-16 w-full" />
       ) : error ? (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
           Không đọc được tài liệu. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
         </p>
       ) : rows.length === 0 ? (

@@ -399,7 +399,12 @@ const HELD_REASON_ID = 'meeting-held-reason'
 
 /** What a booked meeting adds to the page header: its moves, and the line
  *  saying why one is shut (`noteId` is what the shut button points at). */
-export type CommHeaderSlots = { actions?: ReactNode; note?: string | null; noteId?: string }
+export type CommHeaderSlots = {
+  actions?: ReactNode
+  note?: string | null
+  noteId?: string
+  noteFailed?: boolean
+}
 
 /** A booked meeting's record: the booking, read-only, and for a closer the two
  *  verbs in the header — held (the close-out form) and reschedule (the booking
@@ -474,6 +479,7 @@ export function ScheduledMeeting({
         ),
         note,
         noteId: HELD_REASON_ID,
+        noteFailed: record.closableByMe && started && Boolean(list.error),
       })}
       main={<MeetingFacts record={record} meeting={meeting} pending={list.isLoading} />}
     >

@@ -143,7 +143,7 @@ export function InstallmentModal({
       ) : detail.isPending ? (
         <Skeleton className="h-48 w-full" />
       ) : (
-        <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+        <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
           {refusalText(detail.error)}
         </p>
       )}

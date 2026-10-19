@@ -143,7 +143,10 @@ export function AddressMapCanvas({
       {(!ready || failed) && (
         <p
           role={failed ? 'alert' : undefined}
-          className="text-muted-foreground absolute inset-0 m-0 flex items-center justify-center p-4 text-center text-[12.5px]"
+          className={cn(
+            'absolute inset-0 m-0 flex items-center justify-center p-4 text-center text-[12.5px]',
+            failed ? 'text-destructive-foreground' : 'text-muted-foreground',
+          )}
         >
           {failed ? FAILED_TEXT : LOADING_TEXT}
         </p>

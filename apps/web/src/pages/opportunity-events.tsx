@@ -235,7 +235,7 @@ function StepFollowUp({
   if (isPending) return <Skeleton className="h-16 w-full" />
   if (!data) {
     return (
-      <p role="alert" className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+      <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
         Không đọc được việc tiếp theo. {isApiError(error) ? userMessage(error) : ''}
       </p>
     )

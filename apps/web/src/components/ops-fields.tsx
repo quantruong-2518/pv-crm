@@ -70,7 +70,7 @@ export function Field({
     >
       {label}
       {required && (
-        <span className="text-warning" aria-hidden="true">
+        <span className="text-destructive-foreground" aria-hidden="true">
           *
         </span>
       )}

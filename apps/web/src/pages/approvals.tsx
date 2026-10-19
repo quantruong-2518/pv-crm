@@ -77,6 +77,7 @@ export default function ApprovalInboxScreen() {
           </div>
         ) : error || !rows ? (
           <EmptyState
+            tone="danger"
             icon={TriangleAlert}
             message={`Không tải được danh sách yêu cầu. ${
               isApiError(error) ? userMessage(error) : 'Thử lại.'

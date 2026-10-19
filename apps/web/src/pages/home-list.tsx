@@ -107,6 +107,7 @@ export function PriorityList({
       <div className="overflow-x-auto">
         {error ? (
           <EmptyState
+            tone="danger"
             icon={TriangleAlert}
             message={`Không tải được danh sách hành trình. ${
               isApiError(error) ? userMessage(error) : 'Thử lại.'

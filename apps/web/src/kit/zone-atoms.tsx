@@ -366,10 +366,11 @@ export function ZoneAtoms() {
           note="ô lọc một dòng"
           noteAccent
           bodyClassName="flex flex-wrap items-center gap-3 px-4 py-4"
-          footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên · `leading` gắn một dấu nhỏ trước GIÁ TRỊ, aria-hidden vì chữ ngay cạnh đã nói"
+          footer="ba size: sm 32 · md 40 · lg 48 (sàn chạm tablet, luật 13) · listbox nền kính tối · option cao 48px · mũi tên, Home/End, Enter, Esc và tìm theo chữ cái · khác mặc định thì ô SÁNG lên · `leading` gắn một dấu nhỏ trước GIÁ TRỊ, aria-hidden vì chữ ngay cạnh đã nói · `required` in dấu sao đỏ sau nhãn, ô đã sáng thì sao theo màu nhãn"
         >
           <Select
             label="Cột opp"
+            required
             leading={<StatusDot state="current" />}
             value="quotation"
             onChange={() => {}}
@@ -380,6 +381,7 @@ export function ZoneAtoms() {
           />
           <Select
             label="Bậc"
+            required
             value={tier}
             onChange={setTier}
             options={[

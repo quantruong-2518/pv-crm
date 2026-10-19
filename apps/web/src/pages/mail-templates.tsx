@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from '@pv/ui'
-import { AppShell, Badge, Button, Icon, ScreenLayout } from '@pv/ui'
+import { AppShell, Badge, Button, Icon, ScreenLayout, cn } from '@pv/ui'
 import { MAIL_DOOR_LABEL, type MailTemplateRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
@@ -111,7 +111,16 @@ export function MailTemplatesPage() {
           nav={<ConfigBooks />}
           /* `tnum` because both numbers change whenever a template is added or
              retired, and uneven digit widths make the line jump sideways. */
-          count={<span className="text-muted-foreground tnum text-[11.5px]">{summary}</span>}
+          count={
+            <span
+              className={cn(
+                'tnum text-[11.5px]',
+                error ? 'text-destructive-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {summary}
+            </span>
+          }
           pending={isPending}
           failure={
             error

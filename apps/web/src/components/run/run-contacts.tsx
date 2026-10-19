@@ -232,7 +232,7 @@ function PeopleBody({
   if (loading) return <Skeleton className="h-20 w-full" />
   if (error || !people) {
     return (
-      <p className={NOTE}>
+      <p className={cn(NOTE, 'text-destructive-foreground')}>
         Không đọc được người liên hệ. {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
     )

@@ -223,10 +223,15 @@ export function ThumbnailPreview({
           <Icon
             icon={broken ? CircleAlert : ImageFrame}
             size={24}
-            className={broken ? 'text-warning' : 'text-muted-foreground'}
+            className={broken ? 'text-destructive-foreground' : 'text-muted-foreground'}
           />
           {(broken || empty) && (
-            <p className="text-muted-foreground m-0 text-pretty text-[11.5px] leading-[1.6]">
+            <p
+              className={cn(
+                broken ? 'text-destructive-foreground' : 'text-muted-foreground',
+                'm-0 text-pretty text-[11.5px] leading-[1.6]',
+              )}
+            >
               {broken ? brokenNote : empty}
             </p>
           )}

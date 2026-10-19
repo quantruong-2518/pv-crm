@@ -48,6 +48,7 @@ export function MotionPickerSection({ bare = false }: { bare?: boolean }) {
     <Skeleton className="h-32 w-full" />
   ) : error || !rows ? (
     <EmptyState
+      tone="danger"
       icon={TriangleAlert}
       message={`Không tải được phương án tiếp cận. ${
         isApiError(error) ? userMessage(error) : 'Thử lại.'
