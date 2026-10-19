@@ -4,6 +4,7 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { CONTACT_BOOK_KEY } from './contacts'
 import { CONTRACT_BOOK_KEY } from './contracts'
 import { invalidateLeadState } from './lead-exit'
+import { meetingsCancelled } from './meetings'
 import { OPPORTUNITY_BOOK_KEY } from './opportunities'
 
 /** Switch leads off, or back on — `POST /sales/leads/disabled`, `lead.disable`.
@@ -29,6 +30,7 @@ export function useDisableLeads() {
       }),
     onSuccess: () => {
       invalidateLeadState(client)
+      meetingsCancelled(client)
       for (const key of [OPPORTUNITY_BOOK_KEY, CONTRACT_BOOK_KEY, CONTACT_BOOK_KEY]) {
         void client.invalidateQueries({ queryKey: key })
       }

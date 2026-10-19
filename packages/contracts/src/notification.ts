@@ -30,6 +30,7 @@ export const NotificationKind = z.enum([
   'next-step-assigned',
   'next-step-done',
   'comm-record-late',
+  'meeting-cancelled',
   'hold-due-soon',
   'hold-due',
   'approval-waiting',
@@ -113,6 +114,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'next-step-assigned': 'Bạn được giao việc tiếp theo',
   'next-step-done': 'Việc bạn giao đã xong',
   'comm-record-late': 'Lượt liên hệ quá hạn chưa xác nhận',
+  'meeting-cancelled': 'Lịch họp của bạn đã bị huỷ',
   'hold-due-soon': 'Sắp tới ngày hẹn gặp lại',
   'hold-due': 'Hôm nay là ngày hẹn gặp lại',
   'approval-waiting': 'Có yêu cầu đang chờ bạn duyệt',
@@ -203,6 +205,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'next-step-assigned': 'next-step',
   'next-step-done': 'next-step',
   'comm-record-late': 'next-step',
+  'meeting-cancelled': 'comm',
   'hold-due-soon': 'hold',
   'hold-due': 'hold',
   'approval-waiting': 'approval',
@@ -268,6 +271,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'next-step-assigned': { important: false, locked: false },
   'next-step-done': { important: false, locked: false },
   'comm-record-late': { important: false, locked: false },
+  'meeting-cancelled': { important: false, locked: false },
   'hold-due-soon': { important: false, locked: false },
   'hold-due': { important: false, locked: false },
   'approval-waiting': { important: true, locked: true },
@@ -376,6 +380,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'next-step-assigned': ['lead', 'opportunity'],
     'next-step-done': ['lead', 'opportunity'],
     'comm-record-late': ['comm-record'],
+    'meeting-cancelled': ['lead', 'opportunity'],
     'hold-due-soon': ['lead', 'opportunity'],
     'hold-due': ['lead', 'opportunity'],
     'approval-waiting': ['approval'],
@@ -430,6 +435,8 @@ export const NOTIFICATION_DETAIL_CONTRACT = 'contract'
 export const NOTIFICATION_DETAIL_NO = 'no'
 /** Next steps moved by an account lock; its presence marks the lock's line. */
 export const NOTIFICATION_DETAIL_STEPS = 'steps'
+/** Why a `meeting-cancelled` line's meetings went: a `MEETING_CANCEL_CAUSE_LABEL`. */
+export const NOTIFICATION_DETAIL_REASON = 'reason'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -472,6 +479,11 @@ export function notificationSentence(
     ] as const
     const said = parts.filter(([v]) => v > 0).map(([v, unit]) => `${num(v)} ${unit}`)
     return `Bạn nhận việc của ${name}: ${said.join(', ')}`
+  }
+  const reason = row.detail?.[NOTIFICATION_DETAIL_REASON]
+  if (row.kind === 'meeting-cancelled' && typeof reason === 'string') {
+    const count = num(n(NOTIFICATION_DETAIL_COUNT))
+    return `Đã huỷ ${count} lịch họp sắp tới với ${name} vì ${reason.toLowerCase()}`
   }
   const parked = n(NOTIFICATION_DETAIL_COUNT)
   if (row.kind === 'campaign-finished' && parked > 0) {

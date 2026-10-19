@@ -74,8 +74,16 @@ export const DebriefId = z.uuid('Mã phiên chốt không hợp lệ.')
 /** A comm record's state (ADR 0075 §2), always server-derived: `empty` is an
  *  open debrief whose turn has neither text nor a file, `done` a closed one,
  *  `scheduled` a meeting booked but not yet held, `unreached` a closed one where
- *  the customer never picked up — a fast exit with no summary, answers or step. */
-export const CommRecordState = z.enum(['empty', 'unconfirmed', 'done', 'scheduled', 'unreached'])
+ *  the customer never picked up — a fast exit with no summary, answers or step.
+ *  `cancelled` a booking closed because its lead or deal closed first. */
+export const CommRecordState = z.enum([
+  'empty',
+  'unconfirmed',
+  'done',
+  'scheduled',
+  'unreached',
+  'cancelled',
+])
 export type CommRecordState = z.infer<typeof CommRecordState>
 
 export const COMM_RECORD_STATE_LABEL: Record<CommRecordState, string> = {
@@ -84,6 +92,7 @@ export const COMM_RECORD_STATE_LABEL: Record<CommRecordState, string> = {
   done: 'Đã hoàn thiện',
   scheduled: 'Đã hẹn',
   unreached: 'Không liên lạc được',
+  cancelled: 'Đã huỷ',
 }
 
 /** Past this many hours from creation an unconfirmed record is `late`; the

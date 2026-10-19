@@ -45,7 +45,7 @@ async function main(): Promise<void> {
     const db = app.get<Db>(DB)
     const r = (await db.execute(sql`
       SELECT m."id", m."subject_code", m."at" FROM "sales"."meeting" m
-       WHERE m."held_at" IS NULL
+       WHERE m."held_at" IS NULL AND m."cancelled_at" IS NULL
          AND NOT EXISTS (SELECT 1 FROM "comms"."thread" t
                           WHERE t."channel" = 'meeting' AND t."external_id" = m."id"::text)
        ORDER BY m."at"`)) as { rows: { id: string; subject_code: string; at: string }[] }

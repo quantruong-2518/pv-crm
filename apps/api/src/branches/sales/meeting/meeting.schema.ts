@@ -1,6 +1,6 @@
 import { boolean, check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { MeetingMode, MeetingSide } from '@pv/contracts'
+import type { MeetingCancelCause, MeetingMode, MeetingSide } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { contact } from '../contact/contact.schema'
@@ -99,6 +99,12 @@ export const meeting = sales.table(
     googleEventUrl: text('google_event_url'),
     googleOwnerId: text('google_owner_id').references(() => actor.id, { onDelete: 'set null' }),
 
+    /** Soft cancel: the subject left the funnel, so this future meeting no longer
+     *  happens. A mark pair, not a delete — the calendar and timeline still say
+     *  what was cancelled and why. Both NULL = not cancelled (every row before 0124). */
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    cancelCause: text('cancel_cause').$type<MeetingCancelCause>(),
+
     /** Người GÕ dòng này, chụp lại tên như `touch.by` — hồ sơ một buổi họp là
      *  hồ sơ của lúc ĐÓ, nên join `actor` lúc đọc sẽ khiến buổi cũ mang tên
      *  mới của người ta, và không vẽ được gì cho người đã rời công ty. */
@@ -137,6 +143,15 @@ export const meeting = sales.table(
       'meeting_duration_known',
       sql`"duration_minutes" IS NULL OR "duration_minutes" IN (30, 45, 60, 90, 120)`,
     ),
+    /** Three values of `MeetingCancelCause`, copied out like `meeting_mode_known`. */
+    check(
+      'meeting_cancel_cause_known',
+      sql`"cancel_cause" IS NULL OR "cancel_cause" IN ('opportunity-lost', 'lead-disqualified', 'lead-disabled')`,
+    ),
+    /** The two columns are one fact: a time without a cause, or the reverse, is unreadable. */
+    check('meeting_cancel_pair', sql`("cancelled_at" IS NULL) = ("cancel_cause" IS NULL)`),
+    /** A meeting that was held happened; it cannot be cancelled afterwards. */
+    check('meeting_held_or_cancelled', sql`"held_at" IS NULL OR "cancelled_at" IS NULL`),
   ],
 )
 

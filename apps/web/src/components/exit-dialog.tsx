@@ -7,6 +7,7 @@ import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { useExitLead } from '@/data/lead-exit'
+import { MeetingsCancelNote } from './meetings-cancel-note'
 
 /** Take a lead out of the funnel — a dialog, not a card sitting on the screen.
  *
@@ -102,12 +103,15 @@ export function ExitDialog({
         </div>
       }
     >
-      <StopReasonField
-        reasonKey={reasonKey}
-        onReasonChange={setReasonKey}
-        note={note}
-        onNoteChange={setNote}
-      />
+      <div className="flex flex-col gap-6">
+        <StopReasonField
+          reasonKey={reasonKey}
+          onReasonChange={setReasonKey}
+          note={note}
+          onNoteChange={setNote}
+        />
+        <MeetingsCancelNote enabled={open} subjects={[{ kind: 'lead', code: profile.code }]} />
+      </div>
     </Drawer>
   )
 }

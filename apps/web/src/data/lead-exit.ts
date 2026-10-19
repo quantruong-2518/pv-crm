@@ -8,6 +8,7 @@ import type {
   LeadResumeResponse,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { meetingsCancelled } from './meetings'
 import { WORKSTREAM_BOOK_KEY } from './workstreams'
 
 /** A lead leaving the funnel, and coming back — two doors, no approval.
@@ -62,7 +63,10 @@ export function useExitLead(code: string) {
         body,
         need: EXIT_NEED,
       }),
-    onSuccess: () => invalidateLeadState(client),
+    onSuccess: () => {
+      invalidateLeadState(client)
+      meetingsCancelled(client)
+    },
   })
 }
 

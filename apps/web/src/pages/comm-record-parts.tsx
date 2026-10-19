@@ -19,6 +19,7 @@ import {
 import {
   DEBRIEF_SUMMARY_MAX,
   DEBRIEF_TITLE_MAX,
+  MEETING_CANCEL_CAUSE_LABEL,
   type CommVocabularyResponse,
   type DebriefClose,
   type DebriefView,
@@ -27,7 +28,7 @@ import {
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
-import { dmy } from '@/lib/date'
+import { dmhm, dmy } from '@/lib/date'
 import { MenuButton } from '@/components/record/menu-button'
 import { RecordShell } from '@/components/record/record-shell'
 import { CommEvaluation } from '@/components/comm-evaluation'
@@ -408,7 +409,8 @@ export type CommHeaderSlots = {
 
 /** A booked meeting's record: the booking, read-only, and for a closer the two
  *  verbs in the header — held (the close-out form) and reschedule (the booking
- *  drawer in edit mode). Anybody else gets a line saying whose it is. */
+ *  drawer in edit mode). Anybody else gets a line saying whose it is. A
+ *  cancelled booking keeps the facts and loses both verbs. */
 export function ScheduledMeeting({
   record,
   strip,
@@ -430,7 +432,9 @@ export function ScheduledMeeting({
   const [holding, setHolding] = useState(false)
   const [moving, setMoving] = useState(false)
   /* Rescheduling rewrites the booking, so it needs the booking in hand. */
-  const movable = record.closableByMe && subject !== null && meeting !== undefined && canMove
+  const cancelled = record.state === 'cancelled'
+  const closable = record.closableByMe && !cancelled
+  const movable = closable && subject !== null && meeting !== undefined && canMove
   const now = useMinuteClock()
   const startsAt = record.meeting?.at
   const started = !startsAt || now >= Date.parse(startsAt)
@@ -456,17 +460,21 @@ export function ScheduledMeeting({
       Họp xong
     </Button>
   )
-  const note = !record.closableByMe
-    ? `Chỉ ${record.owner.name} hoặc cấp trên ghi được kết quả buổi họp.`
-    : started
-      ? listMissing
-      : `Nút Họp xong hiện lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`
+  const note = cancelled
+    ? meeting?.cancelCause
+      ? `Huỷ vì ${MEETING_CANCEL_CAUSE_LABEL[meeting.cancelCause].toLowerCase()}.`
+      : null
+    : !record.closableByMe
+      ? `Chỉ ${record.owner.name} hoặc cấp trên ghi được kết quả buổi họp.`
+      : started
+        ? listMissing
+        : `Nút Họp xong hiện lúc ${meetingRowLabel(startsAt ?? '')} (giờ Việt Nam).`
 
   return (
     <RecordShell
       strip={strip}
       header={header({
-        actions: record.closableByMe && (
+        actions: closable && (
           <>
             {held}
             {movable && (
@@ -481,9 +489,16 @@ export function ScheduledMeeting({
         noteId: HELD_REASON_ID,
         noteFailed: record.closableByMe && started && Boolean(list.error),
       })}
-      main={<MeetingFacts record={record} meeting={meeting} pending={list.isLoading} />}
+      main={
+        <MeetingFacts
+          record={record}
+          meeting={meeting}
+          pending={list.isLoading}
+          cancelled={cancelled}
+        />
+      }
     >
-      {record.closableByMe && (
+      {closable && (
         <MeetingHeldForm
           record={record}
           meeting={meeting}
@@ -509,10 +524,12 @@ function MeetingFacts({
   record,
   meeting,
   pending,
+  cancelled,
 }: {
   record: DebriefView
   meeting: MeetingRow | undefined
   pending: boolean
+  cancelled: boolean
 }) {
   const slot = record.meeting
   const when = meeting
@@ -528,7 +545,7 @@ function MeetingFacts({
         <dl className="m-0 grid gap-x-3 gap-y-3 text-[12.5px] leading-[1.6] sm:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
           {when && <Fact label="Thời gian (giờ Việt Nam)">{when}</Fact>}
           {meeting?.mode && <Fact label="Hình thức">{MEETING_MODE_LABEL[meeting.mode]}</Fact>}
-          {meeting?.link && (
+          {!cancelled && meeting?.link && (
             <Fact label="Link họp">
               {/* Pasted by a person: `noreferrer` keeps the target off `window.opener`. */}
               <a
@@ -542,6 +559,7 @@ function MeetingFacts({
               </a>
             </Fact>
           )}
+          {cancelled && record.closedAt && <Fact label="Huỷ lúc">{dmhm(record.closedAt)}</Fact>}
           {meeting?.goal && <Fact label="Mục tiêu">{meeting.goal}</Fact>}
           {meeting && <Fact label="Bên mình">{namesOf(meeting.hosts)}</Fact>}
           {meeting && meeting.guests.length > 0 && (

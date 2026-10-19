@@ -198,7 +198,7 @@ export const PendingDebriefRow = z.object({
   anchorAt: Moment,
   createdAt: Moment,
   turnsCovered: z.number().int().positive(),
-  state: CommRecordState.exclude(['done', 'scheduled', 'unreached']),
+  state: CommRecordState.exclude(['done', 'scheduled', 'unreached', 'cancelled']),
   late: z.boolean(),
   subject: DebriefSubject,
   stepTarget: DebriefStepTarget.nullable(),

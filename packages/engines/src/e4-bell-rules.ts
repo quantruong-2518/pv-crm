@@ -51,6 +51,8 @@ export const KPI_TEAM_SHARE_ASSIGNED = 'sales.kpi.team-share-assigned'
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
 export const COMM_RECORD_LATE = 'platform.comms.record-late'
+/** Future meetings cancelled because their lead or deal closed; one per subject and booker. */
+export const MEETING_CANCELLED = 'sales.meeting.cancelled'
 /** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
 export const HOLD_DUE_SOON = 'sales.hold.due-soon'
 export const HOLD_DUE = 'sales.hold.due'
@@ -140,6 +142,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('next-step-done', NEXT_STEP_DONE, 'setter'),
   bell('contract-installment-overdue', CONTRACT_INSTALLMENT_OVERDUE, 'owner'),
   bell('comm-record-late', COMM_RECORD_LATE, 'owner'),
+  bell('meeting-cancelled', MEETING_CANCELLED, 'owner'),
 
   /* The holder, plus whoever set the hold; `plan` rings one person once. */
   bell('hold-due-soon', HOLD_DUE_SOON, 'holders'),

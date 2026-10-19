@@ -930,6 +930,7 @@ export class MasRepository {
                           = CASE WHEN d."aggregate_type" = 'lead'
                                  THEN d."aggregate_id" ELSE o."lead_code" END
                     AND m."created_at" >= c.at
+                    AND m."cancelled_at" IS NULL
                ) AS met
           FROM "platform"."email_delivery" d
           CROSS JOIN cutoff c

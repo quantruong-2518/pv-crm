@@ -738,7 +738,7 @@ export class LeadRepository {
         (SELECT count(*)::int FROM live)                                         AS leads,
         (SELECT count(DISTINCT m."subject_code")::int FROM "sales"."meeting" m
            JOIN live ON live."code" = m."subject_code"
-          WHERE m."subject_code" LIKE 'LD-%')                                  AS first_meetings,
+          WHERE m."subject_code" LIKE 'LD-%' AND m."cancelled_at" IS NULL)     AS first_meetings,
         (SELECT count(*)::int FROM "sales"."opportunity" o
            JOIN live ON live."code" = o."lead_code")                            AS opportunities,
         (SELECT count(*)::int FROM "sales"."contract" c

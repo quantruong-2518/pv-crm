@@ -13,28 +13,33 @@ import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-
 export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'page' }) {
   const navigate = useNavigate()
   const unreached = row.state === 'unreached'
+  const cancelled = row.state === 'cancelled'
   const body = (
     <>
       {as === 'panel' && row.title && (
         <h4 className="m-0 text-[13px] font-semibold">{row.title}</h4>
       )}
-      <p
-        className={cn(
-          'm-0 whitespace-pre-wrap break-words text-[13px] leading-[1.6]',
-          !unreached && row.summary.state === 'visible'
-            ? 'text-foreground'
-            : 'text-muted-foreground',
-        )}
-      >
-        {unreached ? UNREACHED_LINE : summaryTextOf(row.summary)}
-      </p>
+      {!cancelled && (
+        <p
+          className={cn(
+            'm-0 whitespace-pre-wrap break-words text-[13px] leading-[1.6]',
+            !unreached && row.summary.state === 'visible'
+              ? 'text-foreground'
+              : 'text-muted-foreground',
+          )}
+        >
+          {unreached ? UNREACHED_LINE : summaryTextOf(row.summary)}
+        </p>
+      )}
 
       <dl className="m-0 grid gap-x-3 gap-y-2 text-[12.5px] sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <dt className="text-muted-foreground">Người ghi</dt>
         <dd className="m-0">{row.owner.name}</dd>
         {row.closedAt && (
           <>
-            <dt className="text-muted-foreground">{unreached ? 'Đóng lúc' : 'Xác nhận lúc'}</dt>
+            <dt className="text-muted-foreground">
+              {unreached ? 'Đóng lúc' : cancelled ? 'Huỷ lúc' : 'Xác nhận lúc'}
+            </dt>
             <dd className="m-0 tabular-nums">{dmhm(row.closedAt)}</dd>
           </>
         )}

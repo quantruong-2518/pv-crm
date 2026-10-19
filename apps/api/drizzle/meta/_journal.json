@@ -855,6 +855,13 @@
       "when": 1793862360000,
       "tag": "0123_ai_cost_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1793948760000,
+      "tag": "0124_meeting_cancel",
+      "breakpoints": true
     }
   ]
 }

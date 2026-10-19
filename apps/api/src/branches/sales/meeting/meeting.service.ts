@@ -28,6 +28,7 @@ import { LeadStateWriter } from '../lead/lead-state'
 import { editDetailsVerdict } from '../opportunity/opportunity-acts'
 import { TouchService, byOf } from '../touch/touch.service'
 import { MeetingCalendar } from './meeting-calendar'
+import { refuseCancelled } from './meeting-cancel'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, meetingEndOf, toContract } from './meeting.mapper'
 import type { MeetingAttendeeRowDb, MeetingAttendeeValues, MeetingRowDb } from './meeting.schema'
@@ -199,7 +200,7 @@ export class MeetingService {
   }
 
   /** The row is already gone: a cleanup that fails is logged, never the caller's 500. */
-  private async afterDrop(step: string, id: string, run: () => Promise<void>): Promise<void> {
+  private async afterDrop(step: string, id: string, run: () => Promise<unknown>): Promise<void> {
     try {
       await run()
     } catch (error) {
@@ -217,6 +218,7 @@ export class MeetingService {
       throw new Error(`meeting ${held.meetingId} is not on ${held.subjectCode}`)
     }
     if (row.heldAt) throw conflict('Cuộc họp này đã chốt “Họp xong”.')
+    refuseCancelled(row)
     if (row.at.getTime() > Date.now()) {
       throw conflict('Cuộc họp chưa bắt đầu, chưa chốt “Họp xong” được.')
     }
@@ -284,7 +286,7 @@ export class MeetingService {
    *  close-meeting then closes. Idempotent per (meeting, owner), as `open` is. */
   async fileBooked(id: string): Promise<'opened' | 'skipped'> {
     const row = await this.repo.byId(id)
-    if (!row || row.heldAt || !row.createdBy) return 'skipped'
+    if (!row || row.heldAt || row.cancelledAt || !row.createdBy) return 'skipped'
     const owner = await this.actors.byId(row.createdBy)
     if (!owner) return 'skipped'
     await this.dealEditable(undefined, row.subjectCode)
@@ -299,10 +301,11 @@ export class MeetingService {
 
   /** Minutes logged through comms must name a meeting of THIS subject (ADR
    *  0074 §9). Read on the turn's `tx`: a pool read waits on PGlite's one
-   *  connection. 400 for "unknown" and "another subject's" alike. */
+   *  connection. 400 for "unknown" and "another subject's" alike; 409 for a
+   *  cancelled one (`refuseCancelled`). */
   async assertOnSubject(tx: Db, code: string, id: string): Promise<void> {
     const row = await this.repo.byId(id, tx)
-    if (row?.subjectCode === code) return
+    if (row?.subjectCode === code) return refuseCancelled(row)
     throw invalid(
       { meetingId: [`Chọn một cuộc họp của ${code}.`] },
       `Cuộc họp không thuộc ${code}.`,
@@ -393,6 +396,7 @@ export class MeetingService {
     const row = await this.repo.lock(tx, id)
     if (!row) throw notFound('cuộc họp', id)
     if (row.heldAt) throw conflict(HELD)
+    refuseCancelled(row)
   }
 
   /** Every `contactCode` must name somebody in the subject's own contact book
@@ -432,6 +436,7 @@ export class MeetingService {
     const row = await this.repo.byId(id)
     if (!row || row.subjectCode !== code) throw notFound('cuộc họp', id)
     if (row.heldAt) throw conflict(HELD)
+    refuseCancelled(row)
     await this.dealEditable(undefined, code)
     const owner = row.createdBy ? await this.actors.byId(row.createdBy) : null
     if (owner?.actor.id === who.id) return row

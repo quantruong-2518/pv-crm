@@ -185,6 +185,35 @@ export class CommRecordService {
     return keys
   }
 
+  /** The meetings were cancelled because their subject closed: each open
+   *  booked record closes `cancelled`. Tolerant, unlike `dropBooked` — other
+   *  turns and records on the thread are history and simply stay. One audit
+   *  line per subject, so its trail names the meetings and records it lost. */
+  async cancelBooked(
+    tx: Db,
+    meetings: readonly { id: string; subjectCode: string }[],
+    by: { actorId: string; why: string },
+  ): Promise<void> {
+    const closed = await this.debriefs.cancelBooked(
+      tx,
+      meetings.map((m) => m.id),
+    )
+    for (const code of new Set(meetings.map((m) => m.subjectCode))) {
+      const ids = (rows: readonly { id: string; subjectCode: string }[]) =>
+        rows.filter((r) => r.subjectCode === code).map((r) => r.id)
+      const records = ids(closed)
+      await this.audit.write(
+        {
+          actorId: by.actorId,
+          action: 'edit',
+          code,
+          note: `sales.meeting ${ids(meetings).join(', ')} cancelled (${by.why}) · ${records.length > 0 ? `comms debrief ${records.join(', ')} closed cancelled` : 'no open comm record'}`,
+        },
+        tx,
+      )
+    }
+  }
+
   /** After commit, never inside it (lead-scan's PGlite reason); a storage
    *  failure leaves an orphan object, not a row pointing at nothing. */
   async forgetFiles(keys: readonly string[]): Promise<void> {

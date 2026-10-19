@@ -13,7 +13,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { OpportunityContactRole, StageKey, ThreadChannel, TouchKind } from '@pv/contracts'
-import { link, message, thread } from '@api/platform/comms/comms.schema'
+import { debrief, link, message, thread } from '@api/platform/comms/comms.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { emailDelivery } from '@api/platform/mail/mail.schema'
 import { configEntry } from '../config/config.schema'
@@ -88,7 +88,15 @@ export class OpportunityFactsRepository {
       .from(link)
       .innerJoin(thread, eq(thread.id, link.threadId))
       .innerJoin(message, eq(message.threadId, link.threadId))
-      .where(and(inArray(link.objectCode, list), inArray(thread.channel, [...channels])))
+      .where(
+        and(
+          inArray(link.objectCode, list),
+          inArray(thread.channel, [...channels]),
+          /* A meeting cancelled with its deal never happened: its only records are cancelled. */
+          sql`NOT COALESCE((SELECT bool_and(d.cancelled) FROM ${debrief} d
+                             WHERE d.thread_id = ${thread.id}), false)`,
+        ),
+      )
       .groupBy(link.objectCode)
     const mails = this.db
       .select({ code: emailDelivery.aggregateId, at: latest(emailDelivery.acceptedAt) })

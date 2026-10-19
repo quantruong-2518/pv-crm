@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link as RouteLink } from 'react-router-dom'
 import { CalendarCheck, FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
 import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
-import type { DebriefView, MeetingRow } from '@pv/contracts'
+import { MEETING_CANCEL_CAUSE_LABEL, type DebriefView, type MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
@@ -135,7 +135,9 @@ function MeetingLine({
   const drop = useDropMeeting()
   /* The record's closer fence (owner or an outranking superior) gates delete too;
      a row with no record falls back to the subject's edit right alone. */
-  const droppable = canEdit && (record ? record.closableByMe : true) && Date.parse(row.at) > now
+  const live = row.cancelledAt === null
+  const droppable =
+    canEdit && live && (record ? record.closableByMe : true) && Date.parse(row.at) > now
 
   return (
     <li className={cn('flex flex-col gap-3 rounded-md p-3', COMM_CARD_SURFACE)}>
@@ -152,10 +154,16 @@ function MeetingLine({
           </Badge>
         )}
         {row.heldAt !== null && <Badge tone="success">Đã họp</Badge>}
+        {!live && <Badge tone="draft">Đã huỷ</Badge>}
         {record && <CommOverdueMark overdue={meetingOverdue(record, now)} />}
       </div>
 
       <p className="text-foreground text-[13.5px] font-semibold leading-[1.5]">{row.title}</p>
+      {row.cancelCause && (
+        <p className="text-muted-foreground m-0 text-[12px] leading-[1.55]">
+          Huỷ vì {MEETING_CANCEL_CAUSE_LABEL[row.cancelCause].toLowerCase()}
+        </p>
+      )}
 
       {row.goal && (
         <p className="text-glass-foreground m-0 flex min-w-0 items-start gap-2 text-[12px] leading-[1.55]">
@@ -178,7 +186,7 @@ function MeetingLine({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1">
-        {row.link && (
+        {live && row.link && (
           /* `rel="noreferrer"`: link do người dùng dán vào, và một tab mở bằng
              `target="_blank"` không có thuộc tính này thì trang đích với được
              vào `window.opener`. */
@@ -192,7 +200,7 @@ function MeetingLine({
             Mở link họp
           </a>
         )}
-        {row.eventUrl && (
+        {live && row.eventUrl && (
           <a
             href={row.eventUrl}
             target="_blank"

@@ -23,18 +23,22 @@ import {
   type OpportunityRow,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import type { MeetingSubject } from '@/data/meetings'
 import { toastDone } from '@/app/toast'
 import {
   opportunityStageHistoryQuery,
   opportunityStopReasonsQuery,
   useStopDeal,
 } from '@/data/opportunities-write'
+import { MeetingsCancelNote } from './meetings-cancel-note'
 import { Field } from './ops-fields'
 import { LeadAfterStopField } from './opportunity-stop-lead'
 import {
   LEAD_AFTER_EMPTY,
+  type LeadAfterDraft,
   leadAfterChoiceOf,
   leadAfterMissing,
+  leadAfterTo,
 } from './opportunity-stop-lead-model'
 
 /** Module 3 · stopping a deal, and what a stopped deal remembers (ADR 0069 §1).
@@ -46,6 +50,15 @@ import {
  *  door; a key travels, never a label, and `other` needs a note (the contract's
  *  own refine, mirrored). On the lead's last live deal it also asks where the
  *  lead goes (`opportunity-stop-lead.tsx`). */
+
+/** The lead's own meetings go too when the stopper also stops the lead. */
+function stopSubjects(op: OpportunityProfileResponse, lead: LeadAfterDraft): MeetingSubject[] {
+  const stopsLead = op.leadAfterStop !== null && leadAfterTo(lead, op.leadAfterStop) === 'stop'
+  return [
+    { kind: 'opportunity', code: op.code },
+    ...(stopsLead ? [{ kind: 'lead' as const, code: op.leadCode }] : []),
+  ]
+}
 
 export function StopDrawer({
   op,
@@ -185,6 +198,8 @@ export function StopDrawer({
             {waiting} báo giá đang chờ khách sẽ đóng là {QUOTATION_OUTCOME_LABEL['not-closed']}.
           </p>
         )}
+
+        <MeetingsCancelNote enabled={open} subjects={stopSubjects(op, lead)} />
 
         <Field label="Ghi chú" required={noteNeeded}>
           <Textarea

@@ -1,7 +1,23 @@
-import { and, asc, count, desc, eq, exists, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
+import type { MeetingCancelCause } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity, type OpportunityRowDb } from '../opportunity/opportunity.schema'
@@ -58,6 +74,7 @@ export class MeetingRepository {
       .where(
         and(
           isNull(meeting.heldAt),
+          isNull(meeting.cancelledAt),
           gte(meeting.at, from),
           lt(meeting.at, to),
           /* A pre-0050 row has no duration: it is over the moment it starts. */
@@ -159,6 +176,60 @@ export class MeetingRepository {
         googleOwnerId: event.ownerId,
         ...(meetUrl ? { link: sql`COALESCE(${meeting.link}, ${meetUrl})` } : {}),
       })
+      .where(eq(meeting.id, id))
+  }
+
+  /** Soft-cancel the subjects' meetings still ahead and not closed out. One
+   *  started but not closed out is left: it happened, and still owes its close-meeting. */
+  async cancelUpcoming(
+    tx: Db,
+    codes: readonly string[],
+    cause: MeetingCancelCause,
+  ): Promise<MeetingRowDb[]> {
+    if (codes.length === 0) return []
+    return tx
+      .update(meeting)
+      .set({ cancelledAt: sql`now()`, cancelCause: cause, updatedAt: new Date() })
+      .where(
+        and(
+          inArray(meeting.subjectCode, [...codes]),
+          isNull(meeting.heldAt),
+          isNull(meeting.cancelledAt),
+          gt(meeting.at, sql`now()`),
+        ),
+      )
+      .returning()
+  }
+
+  /** Cancelled rows whose Google event is still to remove, for the sweeper.
+   *  Seven days, then given up: a booker who never reconnects is not retried for ever. */
+  async cancelledWithEvent(): Promise<MeetingRowDb[]> {
+    return this.db
+      .select()
+      .from(meeting)
+      .where(
+        and(
+          isNotNull(meeting.googleEventId),
+          gt(meeting.cancelledAt, sql`now() - interval '7 days'`),
+        ),
+      )
+  }
+
+  /** The mirror's display label per code — a lead's company, a deal's name. */
+  async labelsOf(tx: Db, codes: readonly string[]): Promise<Map<string, string>> {
+    if (codes.length === 0) return new Map()
+    const rows = await tx
+      .select({ code: objectRef.code, label: objectRef.label })
+      .from(objectRef)
+      .where(inArray(objectRef.code, [...codes]))
+    return new Map(rows.map((r) => [r.code, r.label]))
+  }
+
+  /** The event is gone from Google: the mirror columns follow. */
+  async clearEvent(id: string): Promise<void> {
+    await this.db
+      .update(meeting)
+      .set({ googleEventId: null, googleEventUrl: null, googleOwnerId: null })
       .where(eq(meeting.id, id))
   }
 

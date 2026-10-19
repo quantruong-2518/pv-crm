@@ -14,6 +14,8 @@ import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { endHolds } from '../hold/hold.sql'
+import { MeetingCancel } from '../meeting/meeting-cancel'
+import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
@@ -49,6 +51,7 @@ export class LeadExitService {
     private readonly runs: WorkstreamRepository,
     private readonly mailRuns: MailRunRepository,
     private readonly hub: NotificationHub,
+    private readonly meetings: MeetingCancel,
   ) {}
 
   /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
@@ -78,29 +81,32 @@ export class LeadExitService {
   async exit(who: Actor, code: ObjectCode, body: LeadExitBody): Promise<LeadProfile> {
     const label = (await this.inScope(who, code)).row.company
 
-    await this.repo.run(async (tx) => {
+    const gone = await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu.`)
       if (held.openDeal) {
         throw conflict(`Lead ${code} còn cơ hội đang mở. Đóng cơ hội trước.`)
       }
       if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng, không rời phễu được.`)
-      await this.disqualify(tx, who, code, { ...held, label }, body)
+      return this.disqualify(tx, who, code, { ...held, label }, body)
     })
+    await this.meetings.forgetCancelled(gone)
 
     return this.profiles.profile(who, code)
   }
 
   /** The exit door's write on a row the caller locked and judged — the deal
    *  stop runs it too when its stopper picks `disqualified` for the lead of
-   *  its last live deal (owner, 15/10/2026). A lead nobody holds stays so. */
+   *  its last live deal (owner, 15/10/2026). A lead nobody holds stays so.
+   *  Returns the meetings it cancelled, for the caller to `forgetCancelled`
+   *  after its commit. */
   async disqualify(
     tx: Db,
     who: Actor,
     code: ObjectCode,
     held: Pick<LockedLead, 'ownerId' | 'workstreamCode'> & { label: string },
     body: LeadExitBody,
-  ): Promise<void> {
+  ): Promise<MeetingRowDb[]> {
     await this.assertReason(tx, body.reasonKey)
 
     await this.states.move(tx, code, 'disqualified', {
@@ -137,6 +143,7 @@ export class LeadExitService {
     /* Stopping care ends a hold too (ADR 0097 §3); reopen does not restore it. */
     await endHolds(tx, 'lead', [code], 'disqualified', who.id)
     if (held.workstreamCode) await this.runs.syncClosed(tx, [held.workstreamCode])
+    return this.meetings.cancelFor(tx, who, [code], 'lead-disqualified')
   }
 
   /** `POST /sales/leads/:code/reopen` — the state is recomputed from facts

@@ -15,6 +15,8 @@ import { endHolds, shiftDealClock } from '../hold/hold.sql'
 import { syncLeadRuns } from '../workstream/workstream-sync'
 import { LeadExitService } from '../lead/lead-exit.service'
 import { LeadStateWriter } from '../lead/lead-state'
+import { MeetingCancel } from '../meeting/meeting-cancel'
+import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { announceOpened } from './opportunity-bell'
 import { OpportunityFacts } from './opportunity-facts'
 import { dealAtOf, OpportunityLifecycle, type DealAt } from './opportunity-lifecycle'
@@ -45,6 +47,7 @@ export class OpportunityMoves {
     private readonly leadExits: LeadExitService,
     private readonly leadRule: LeadAfterStopRule,
     private readonly facts: OpportunityFacts,
+    private readonly meetings: MeetingCancel,
   ) {}
 
   /** `POST /sales/opportunities/:code/milestones` — a care activity was
@@ -76,7 +79,9 @@ export class OpportunityMoves {
    *  15/10/2026), the LEAD's run re-synced — the deal's own run code may be an
    *  older journey of the lead.
    *  The lead is locked BEFORE the deal — the order the lead hand-over takes.
-   *  Stopping a held deal is allowed and ends its hold (ADR 0097 §3). */
+   *  Stopping a held deal is allowed and ends its hold (ADR 0097 §3). The
+   *  deal's future meetings (and the lead's, when the lead stops too) are
+   *  cancelled in it; their Google events go after the commit. */
   async stop(
     who: Actor,
     code: ObjectCode,
@@ -84,6 +89,7 @@ export class OpportunityMoves {
   ): Promise<OpportunityStopResponse> {
     const found = await this.inScope(who, code)
     const at = new Date()
+    const gone: MeetingRowDb[] = []
 
     const row = await this.deals.run(async (tx) => {
       /* A lead switched off meanwhile: `locked` re-reads the deal and 404s. */
@@ -93,6 +99,7 @@ export class OpportunityMoves {
       const [ended] = await endHolds(tx, 'opportunity', [code], 'stopped', who.id)
       if (ended) fresh.row = { ...fresh.row, stageSince: await shiftDealClock(tx, code, ended) }
       const written = await this.lifecycle.stop(tx, fresh, mover(who), body, at)
+      gone.push(...(await this.meetings.cancelFor(tx, who, [code], 'opportunity-lost')))
       const accepted = written.acceptedById !== null
       const dead = { code, name: written.name, actorId: who.id, accepted }
       const holders = [...fresh.ownerIds, written.acceptedById]
@@ -114,10 +121,11 @@ export class OpportunityMoves {
           : undefined
       const moved =
         last !== undefined &&
-        (await this.leadAfter(tx, who, written, last, fresh.owners, body.lead))
+        (await this.leadAfter(tx, who, written, last, fresh.owners, body.lead, gone))
       if (!moved) await syncLeadRuns(tx, [written.leadCode])
       return written
     })
+    await this.meetings.forgetCancelled(gone)
 
     return OpportunityStopResponse.parse(await this.answer(found, row, at))
   }
@@ -134,18 +142,16 @@ export class OpportunityMoves {
     lead: LockedLead,
     owners: OpportunityRead['owners'],
     choice: LeadAfterStopChoice | undefined,
+    gone: MeetingRowDb[],
   ): Promise<boolean> {
     if (!choice) throw conflict('Đây là cơ hội cuối của lead. Chọn lead này đi đâu.')
     const may = await this.leadRule.options(tx, who, lead.ownerId, owners)
     if (choice.to === 'stop') {
       if (!may.canStop) throw conflict('Bạn không được ngừng chăm sóc lead này.')
       const held = { ownerId: lead.ownerId, workstreamCode: lead.workstreamCode }
-      await this.leadExits.disqualify(
-        tx,
-        who,
-        deal.leadCode,
-        { ...held, label: lead.company },
-        choice,
+      const label = lead.company
+      gone.push(
+        ...(await this.leadExits.disqualify(tx, who, deal.leadCode, { ...held, label }, choice)),
       )
       return true
     }

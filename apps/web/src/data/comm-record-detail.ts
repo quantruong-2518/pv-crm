@@ -289,13 +289,14 @@ export const COMM_FOCUS =
 /** The dot of a comm state — one map, so the rail card and the axis agree
  *  with the pill's tone (`empty` is the furthest from done, hence `bad`; a
  *  booked meeting is still ahead, hence `next`; `unreached` borrows `next`
- *  only because `StatusDot` has no neutral closed state). */
+ *  only because `StatusDot` has no neutral closed state, nor does `cancelled`). */
 export const COMM_STATE_DOT = {
   empty: 'bad',
   unconfirmed: 'warning',
   done: 'ok',
   scheduled: 'next',
   unreached: 'next',
+  cancelled: 'next',
 } as const satisfies Record<CommRecordState, string>
 
 /** A booked meeting past its end and not closed out. Judged at render against
@@ -349,6 +350,7 @@ export function summaryTextOf(summary: DebriefSummary): string {
  *  title (the meeting's own) stands in; every other row prints the summary. */
 export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
   if (row.state === 'scheduled' && row.title) return { title: row.title, titleMuted: false }
+  if (row.state === 'cancelled' && row.title) return { title: row.title, titleMuted: true }
   if (row.state === 'unreached') return { title: UNREACHED_LINE, titleMuted: true }
   return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
 }

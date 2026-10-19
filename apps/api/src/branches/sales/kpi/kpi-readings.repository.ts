@@ -197,13 +197,14 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
     basis: onLane('SALE', sql`k.closed_at`, flag(WON, 'won', 'lost'), sql`(${WON} OR ${LOST})`),
     total: SHARE,
   },
-  /* A comm closed as "unreached" talked to nobody (owner's call 15/10/2026). */
+  /* A comm closed as "unreached" talked to nobody (owner's call 15/10/2026);
+     one closed "cancelled" was a meeting that never happened. */
   'debriefs-closed': {
     basis: (only) => sql`
       SELECT d.owner_id AS actor_id, ${DEBRIEF_SUBJECT} AS kind, d.subject_code AS code,
              d.closed_at AS at, ${tally('closed')}
       FROM comms.debrief d
-      WHERE NOT d.unreached AND ${subjectLive(sql`d.subject_code`)}
+      WHERE NOT d.unreached AND NOT d.cancelled AND ${subjectLive(sql`d.subject_code`)}
         AND ${within(sql`d.closed_at`)}${only(sql`d.owner_id`)}`,
     total: COUNT,
   },

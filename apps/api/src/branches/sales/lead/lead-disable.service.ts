@@ -6,6 +6,8 @@ import type { Db } from '@api/platform/db/db.module'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
+import { MeetingCancel } from '../meeting/meeting-cancel'
+import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { LeadDisableRepository } from './lead-disable.repository'
 
 /** Why a switched-off lead's unsent mail is held — on the lead's own letters
@@ -24,7 +26,9 @@ const LEAD_DISABLED_WITHHOLD = {
  *  it stood, and the audit row is the record.
  *
  *  Switching back on does NOT release the withheld letters, as reopen does not
- *  (ADR 0068 §5): mail held weeks ago must not leave unannounced. */
+ *  (ADR 0068 §5): mail held weeks ago must not leave unannounced. Switching
+ *  off cancels the future meetings of the leads and their deals in the same
+ *  transaction; switching on books none back, by the same rule. */
 @Injectable()
 export class LeadDisableService {
   constructor(
@@ -32,11 +36,13 @@ export class LeadDisableService {
     private readonly mirror: ObjectMirror,
     private readonly mailRuns: MailRunRepository,
     private readonly audit: AuditRepository,
+    private readonly meetings: MeetingCancel,
   ) {}
 
   async set(who: Actor, body: LeadDisableBody): Promise<LeadDisableResponse> {
     const codes = [...new Set(body.codes)]
 
+    const gone: MeetingRowDb[] = []
     const changed = await this.repo.run(async (tx) => {
       const rows = await this.repo.lock(tx, codes)
       const known = new Set(rows.map((r) => r.code))
@@ -57,7 +63,12 @@ export class LeadDisableService {
       const { contacts, deals, contracts } = await this.repo.hangingOff(tx, moving)
       await this.mirror.setDisabled(tx, [...moving, ...contacts, ...deals, ...contracts], at)
 
-      if (body.disabled) await this.withhold(tx, moving, deals)
+      if (body.disabled) {
+        await this.withhold(tx, moving, deals)
+        /* No bell: the booker can no longer open a switched-off lead or its deals. */
+        const subjects = [...moving, ...deals]
+        gone.push(...(await this.meetings.cancelFor(tx, who, subjects, 'lead-disabled', false)))
+      }
 
       for (const code of moving) {
         await this.audit.write(
@@ -73,7 +84,9 @@ export class LeadDisableService {
       return moving
     })
 
-    return LeadDisableResponse.parse({ changed })
+    await this.meetings.forgetCancelled(gone)
+
+    return LeadDisableResponse.parse({ changed, cancelledMeetings: gone.length })
   }
 
   /** Queued letters to the lead (`'lead'`) and from its deal book

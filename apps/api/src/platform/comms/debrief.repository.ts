@@ -43,6 +43,7 @@ export type LateRecord = { id: string; ownerId: string; subjectLabel: string }
  *  debrief opened — the same window `turnsCovered` counts. A booked meeting
  *  stays `scheduled` until close-meeting, whatever lands on it meanwhile. */
 const STATE = sql<CommRecordState>`CASE
+  WHEN ${debrief.cancelled} THEN 'cancelled'
   WHEN ${debrief.closedAt} IS NOT NULL AND ${debrief.unreached} THEN 'unreached'
   WHEN ${debrief.closedAt} IS NOT NULL THEN 'done'
   WHEN ${debrief.booked} THEN 'scheduled'
@@ -247,6 +248,32 @@ export class DebriefRepository {
       .where(and(eq(debrief.id, id), isNull(debrief.closedAt)))
       .returning({ id: debrief.id })
     return closed.length > 0
+  }
+
+  /** Closes the open booked records of these meetings as `cancelled`, both
+   *  marks in one write (`debrief_cancelled_is_booked_closed`). Any other
+   *  record on the thread is history and stays as it is. */
+  async cancelBooked(
+    tx: Db,
+    meetingIds: readonly string[],
+  ): Promise<{ id: string; subjectCode: string }[]> {
+    if (meetingIds.length === 0) return []
+    const threads = tx
+      .select({ id: thread.id })
+      .from(thread)
+      .where(and(eq(thread.channel, 'meeting'), inArray(thread.externalId, [...meetingIds])))
+    return tx
+      .update(debrief)
+      .set({ closedAt: sql`now()`, cancelled: true })
+      .where(
+        and(
+          inArray(debrief.threadId, threads),
+          eq(debrief.booked, true),
+          eq(debrief.unreached, false),
+          isNull(debrief.closedAt),
+        ),
+      )
+      .returning({ id: debrief.id, subjectCode: debrief.subjectCode })
   }
 
   /** Records that turned late within the last confirm window, of a live subject

@@ -458,3 +458,9 @@ owner the same day (ADR 0097 §8).
       once); the day-of reminder rings again for the new date.
       _(see ADR 0097 §4)_
       **Answered 15/10/2026: yes, the default stands.**
+101.  **Should a future booked meeting count as contact in the workstream
+      footprint?** Default: cancelled meetings are excluded; a booked, still
+      future one counts as before. _(see ADR 0103 §6)_
+102.  **Should the confirm line count only the meetings that will mail guests?**
+      Default: it counts every meeting that will be cancelled, mailed or not.
+      _(see ADR 0103 §7)_

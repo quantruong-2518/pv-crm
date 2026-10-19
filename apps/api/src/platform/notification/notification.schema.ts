@@ -74,7 +74,7 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The fifty-five `NotificationKind` values, copied out for
+    /** The fifty-six `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
@@ -97,7 +97,7 @@ export const notification = platform.table(
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
                      'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided',
-                     'kpi-team-share-assigned')`,
+                     'kpi-team-share-assigned', 'meeting-cancelled')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -168,7 +168,7 @@ export const notificationKindPolicy = platform.table(
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
                      'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided',
-                     'kpi-team-share-assigned')`,
+                     'kpi-team-share-assigned', 'meeting-cancelled')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

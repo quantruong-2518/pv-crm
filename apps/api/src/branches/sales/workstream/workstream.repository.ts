@@ -818,11 +818,14 @@ function FOOTPRINT(codes: readonly string[]): SQL {
       JOIN comms.link k ON k.object_code = o.code
       JOIN comms.thread t ON t.id = k.thread_id
       JOIN comms.message m ON m.thread_id = t.id
+     WHERE NOT COALESCE((SELECT bool_and(d.cancelled) FROM comms.debrief d
+                          WHERE d.thread_id = t.id), false)
      GROUP BY o.ws, t.channel
     UNION ALL
     SELECT o.ws AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at
       FROM sales.meeting mt
       JOIN obj o ON o.code = mt.subject_code
+     WHERE mt.cancelled_at IS NULL
      GROUP BY o.ws
     UNION ALL
     SELECT l.ws AS ws, 'mail' AS channel, count(*)::int AS n,

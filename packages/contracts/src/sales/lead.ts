@@ -438,7 +438,12 @@ export const LeadDisableBody = z.object({
 export type LeadDisableBody = z.infer<typeof LeadDisableBody>
 
 /** Codes actually switched; one already in the asked state is left out. */
-export const LeadDisableResponse = z.object({ changed: z.array(ObjectCode) })
+export const LeadDisableResponse = z.object({
+  changed: z.array(ObjectCode),
+  /** Future meetings of these leads and their deals cancelled by this switch-off.
+   *  Defaulted so a web deployed before its API still reads the older answer. */
+  cancelledMeetings: z.number().int().nonnegative().default(0),
+})
 export type LeadDisableResponse = z.infer<typeof LeadDisableResponse>
 
 /** The profile of ONE lead. `GET /sales/leads/:code`.

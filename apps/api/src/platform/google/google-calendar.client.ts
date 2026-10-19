@@ -83,17 +83,20 @@ export class GoogleCalendar {
     }
   }
 
-  /** Best effort, cancellation mailed to the guests; an event already gone is fine. */
-  async remove(ownerId: string, eventId: string): Promise<void> {
+  /** Cancellation mailed to the guests. True = the event is gone, an event
+   *  already gone (404/410) included; false = not connected or Google refused,
+   *  so a sweeper may try again. */
+  async remove(ownerId: string, eventId: string): Promise<boolean> {
     const signal = AbortSignal.timeout(GOOGLE_TIMEOUT_MS)
     const access = await this.access.tokenFor(ownerId, signal)
-    if (access.state !== 'ok') return
-    await this.call(
+    if (access.state !== 'ok') return false
+    const response = await this.call(
       `${EVENTS_URL}/${encodeURIComponent(eventId)}?sendUpdates=all`,
       'DELETE',
       access.token,
       signal,
     )
+    return !!response && (response.ok || response.status === 404 || response.status === 410)
   }
 
   private async call(

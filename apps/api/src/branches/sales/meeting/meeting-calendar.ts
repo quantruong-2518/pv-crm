@@ -29,6 +29,8 @@ export class MeetingCalendar {
   async push(id: string): Promise<MeetingCalendarState> {
     try {
       const row = await this.repo.byId(id)
+      /* An amend racing a cancel must not re-create the event and re-invite. */
+      if (row?.cancelledAt) return 'off'
       const owner = row?.googleEventId ? row.googleOwnerId : row?.createdBy
       if (!row || !owner) return 'not_connected'
 
@@ -64,13 +66,17 @@ export class MeetingCalendar {
     }
   }
 
-  /** Best effort, after the meeting row is gone; nothing to report back. */
-  async forget(row: MeetingRowDb): Promise<void> {
-    if (!row.googleEventId || !row.googleOwnerId) return
+  /** Best effort, after the row is dropped or cancelled. True = no event left
+   *  on Google (none ever, or removed); a cancelled row then clears its mirror. */
+  async forget(row: MeetingRowDb): Promise<boolean> {
+    if (!row.googleEventId) return true
+    /* Owner gone (SET NULL): no token can reach the event, so nothing to retry. */
+    if (!row.googleOwnerId) return true
     try {
-      await this.google.remove(row.googleOwnerId, row.googleEventId)
+      return await this.google.remove(row.googleOwnerId, row.googleEventId)
     } catch (error) {
       this.log.warn(`forget ${row.id} failed — ${(error as Error).message}`)
+      return false
     }
   }
 

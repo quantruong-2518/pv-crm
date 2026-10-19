@@ -30,6 +30,7 @@ import { type OpportunityDraft } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import { CONTRACT_BOOK_KEY } from '@/data/contracts'
 import { invalidateLeadState } from '@/data/lead-exit'
+import { meetingsCancelled } from '@/data/meetings'
 import { nextStepKey } from '@/data/next-step'
 import { idsOf, OPPORTUNITY_BOOK_KEY, saleOwnersOf, bdOwnersOf } from '@/data/opportunities'
 import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
@@ -532,6 +533,7 @@ function useMoveSettled(code: ObjectCode) {
        its stopper chose and closes the journey (ADR 0069 §3) — both read elsewhere. */
     void client.invalidateQueries({ queryKey: nextStepKey(code) })
     invalidateLeadState(client)
+    meetingsCancelled(client)
   }
 }
 

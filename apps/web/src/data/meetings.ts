@@ -69,6 +69,15 @@ export function meetingsMoved(client: QueryClient, code: string) {
   void client.invalidateQueries({ queryKey: [...COMMS_KEY, 'threads', code] })
 }
 
+/** A subject closing (deal stopped, lead out or switched off) cancels its future
+ *  meetings server-side, for the lead and its deals alike — so the whole meeting
+ *  prefix, the records behind it and the thread map go stale, not one code. */
+export function meetingsCancelled(client: QueryClient) {
+  for (const key of [MEETING_KEY, COMM_RECORDS_KEY, COMMS_KEY]) {
+    void client.invalidateQueries({ queryKey: key })
+  }
+}
+
 type AddInput = { subject: MeetingSubject; body: MeetingCreate }
 type EditInput = { subject: MeetingSubject; id: string; body: MeetingPatch }
 type DropInput = { subject: MeetingSubject; id: string }

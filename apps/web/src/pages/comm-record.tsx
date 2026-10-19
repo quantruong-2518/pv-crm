@@ -95,7 +95,7 @@ function RecordBody({ record }: { record: DebriefView }) {
   const header = headerOf()
   const turns = <Turns threadId={record.threadId} textOnly={unreached} />
 
-  if (record.state === 'scheduled') {
+  if (record.state === 'scheduled' || record.state === 'cancelled') {
     return <ScheduledMeeting key={record.id} record={record} strip={strip} header={headerOf} />
   }
   if (open && mine) {

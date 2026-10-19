@@ -17,6 +17,7 @@ import { LEAD_CONSTRAINTS } from './lead/lead.constraints'
 import { LeadModule } from './lead/lead.module'
 import { LeadOriginModule } from './lead-origin/lead-origin.module'
 import { MEETING_CONSTRAINTS } from './meeting/meeting.constraints'
+import { MeetingCancelSweepModule } from './meeting/meeting-cancel.sweeper'
 import { NEXT_STEP_CONSTRAINTS } from './next-step/next-step.constraints'
 import { NextStepModule } from './next-step/next-step.module'
 import { OPPORTUNITY_CONSTRAINTS } from './opportunity/opportunity.constraints'
@@ -95,6 +96,9 @@ registerConstraints(HOLD_CONSTRAINTS)
     SearchModule,
     /* Holds over leads and deals: it imports both books, none imports it. */
     HoldModule,
+    /* The hourly Google retry for cancelled meetings — here, not in
+       `MeetingModule`, so the one-off scripts never start it. */
+    MeetingCancelSweepModule,
   ],
   exports: [
     LeadModule,

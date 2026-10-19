@@ -133,12 +133,25 @@ export const MeetingSubjectCode = ObjectCode.regex(
   'Cuộc họp chỉ gắn với lead hoặc cơ hội.',
 )
 
+/** Why the server cancelled a booking: its subject closed. Copied into the
+ *  `meeting_cancel_cause_known` CHECK. A person never cancels — they drop. */
+export const MeetingCancelCause = z.enum(['opportunity-lost', 'lead-disqualified', 'lead-disabled'])
+
+export const MEETING_CANCEL_CAUSE_LABEL: Record<MeetingCancelCause, string> = {
+  'opportunity-lost': 'Cơ hội đã dừng',
+  'lead-disqualified': 'Lead đã ngừng chăm sóc',
+  'lead-disabled': 'Lead đã bị vô hiệu hoá',
+}
+
 export const MeetingRow = z.object({
   id: z.string().min(1),
   subjectCode: MeetingSubjectCode,
   /** When the meeting was closed out as held; null while still scheduled. The
    *  single fact: clients derive scheduled/held from it. */
   heldAt: Moment.nullable(),
+  /** Set when its subject closed before the meeting came; never with `heldAt`. */
+  cancelledAt: Moment.nullable(),
+  cancelCause: MeetingCancelCause.nullable(),
 
   /** When the meeting HAPPENED, not when the row was typed. The two differ
    *  every time somebody writes up yesterday's call, and the scorecard counts
@@ -245,6 +258,7 @@ export type MeetingSide = z.infer<typeof MeetingSide>
 export type MeetingMode = z.infer<typeof MeetingMode>
 export type MeetingDurationMinutes = z.infer<typeof MeetingDurationMinutes>
 export type MeetingCalendarState = z.infer<typeof MeetingCalendarState>
+export type MeetingCancelCause = z.infer<typeof MeetingCancelCause>
 export type MeetingAttendee = z.infer<typeof MeetingAttendee>
 export type MeetingRow = z.infer<typeof MeetingRow>
 export type MeetingListResponse = z.infer<typeof MeetingListResponse>

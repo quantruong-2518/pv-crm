@@ -485,6 +485,11 @@ export const debrief = comms.table(
      *  column: it closes the record and is the one exemption from the summary
      *  rule — no summary, no answers, no next step (`debrief_unreached_is_bare`). */
     unreached: boolean('unreached').notNull().default(false),
+
+    /** true = the booked meeting was soft-cancelled (0124) and the server closed
+     *  this record on the owner's behalf. A marker like `unreached`: closed with
+     *  no summary, so it is the second exemption from `debrief_closed_has_summary`. */
+    cancelled: boolean('cancelled').notNull().default(false),
   },
   (t) => [
     /** The fence "at most one OPEN debrief per (thread, owner)", and the lookup
@@ -508,11 +513,12 @@ export const debrief = comms.table(
       .where(sql`"closed_at" IS NULL`),
     /** `IS NOT NULL` spelled out: `btrim(NULL) <> ''` is NULL, and a CHECK
      *  passes on NULL, so without it a closed debrief could carry no summary.
-     *  2000 is `DEBRIEF_SUMMARY_MAX`; `unreached` is the only way out (0106). */
+     *  2000 is `DEBRIEF_SUMMARY_MAX`; `unreached` and `cancelled` are the ways out. */
     check(
       'debrief_closed_has_summary',
       sql`"closed_at" IS NULL
           OR "unreached"
+          OR "cancelled"
           OR ("summary" IS NOT NULL AND btrim("summary") <> '' AND char_length("summary") <= 2000)`,
     ),
     /** Nothing happened, so nothing may be recorded as said: closed, no summary,
@@ -523,6 +529,12 @@ export const debrief = comms.table(
       sql`NOT "unreached"
           OR ("closed_at" IS NOT NULL AND "summary" IS NULL
            AND "next_kind_id" IS NULL AND NOT "booked")`,
+    ),
+    /** A cancelled record is a booked meeting's, already closed, and never also
+     *  `unreached` — two different reasons for a bare close. One-way, like the above. */
+    check(
+      'debrief_cancelled_is_booked_closed',
+      sql`NOT "cancelled" OR ("booked" AND "closed_at" IS NOT NULL AND NOT "unreached")`,
     ),
     check(
       'debrief_title_bounded',

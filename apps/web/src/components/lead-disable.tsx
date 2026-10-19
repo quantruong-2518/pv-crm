@@ -58,8 +58,13 @@ export function DisableLeadsDialog({
                 write.mutate(
                   { codes, disabled: true },
                   {
-                    onSuccess: ({ changed }) => {
-                      toastDone(appliedMessage('vô hiệu hoá', changed.length, codes.length))
+                    onSuccess: ({ changed, cancelledMeetings }) => {
+                      toastDone(
+                        appliedMessage('vô hiệu hoá', changed.length, codes.length),
+                        cancelledMeetings > 0
+                          ? `Đã huỷ ${cancelledMeetings} lịch họp sắp tới.`
+                          : undefined,
+                      )
                       onClose()
                       onDone?.()
                     },
@@ -75,7 +80,7 @@ export function DisableLeadsDialog({
     >
       <p className="m-0 text-[13px] leading-[1.6]">
         Lead, cơ hội và hợp đồng đi kèm sẽ ẩn với mọi người. Thư đang chờ gửi bị giữ lại. Khôi phục
-        ở mục Đã vô hiệu, thư đã giữ không tự gửi lại.
+        ở mục Đã vô hiệu, thư đã giữ không tự gửi lại. Lịch họp sắp tới sẽ huỷ.
       </p>
     </Modal>
   )

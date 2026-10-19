@@ -47,6 +47,8 @@ export function toContract(
     id: row.id,
     subjectCode: row.subjectCode,
     heldAt: row.heldAt ? row.heldAt.toISOString() : null,
+    cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
+    cancelCause: row.cancelCause,
     at: row.at.toISOString(),
     title: row.title,
     ...(row.link ? { link: row.link } : {}),
@@ -77,6 +79,8 @@ export function firstMeetingId(rows: readonly MeetingRowDb[]): string | null {
   let best: MeetingRowDb | null = null
 
   for (const row of rows) {
+    /* A cancelled meeting never happened, so it holds no first-meeting place. */
+    if (row.cancelledAt) continue
     if (best === null || isEarlier(row, best)) best = row
   }
 
