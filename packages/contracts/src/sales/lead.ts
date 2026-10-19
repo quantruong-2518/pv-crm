@@ -846,6 +846,9 @@ const clearableText = (max: number) =>
 export const LeadPatch = z
   .object({
     // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
+    /** The lead's own name in the book, NOT NULL like `contactName` below. The
+     *  linked account keeps its name: one company may hold several leads. */
+    company: textInput(LEAD_MAX.company).optional(),
     legalName: clearableText(LEAD_MAX.legalName),
     /** Shape-checked like the create door, and `null` still clears it: one rule
      *  for a value, both doors — a tax code the form refuses must not be
