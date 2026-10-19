@@ -58,7 +58,8 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
         </div>
       </Frame>
     ) : null
-  if (!overdue && !latest) return null
+  /* `canWrite` too: the page's badge reads UTC days, the server Vietnam days. */
+  if (!overdue && !latest && !data.canWrite) return null
 
   return (
     <Frame>
