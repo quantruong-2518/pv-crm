@@ -219,6 +219,10 @@ export const PERMISSIONS = [
    *  things quietly. */
   'setting.manage',
   'audit-log.view',
+  /** What the product spends on vendors (AI tokens first) — Admin · Costs —
+   *  and the unit prices behind it. One key for both: the owner put the whole
+   *  view in one person's hands (ADR 0102), so there is no reader to split off. */
+  'cost.view',
   /** Open an account, assign a role, lock somebody out — Admin · People.
    *
    *  One of the two WIDEST keys here, and wide in a way no other key is: whoever

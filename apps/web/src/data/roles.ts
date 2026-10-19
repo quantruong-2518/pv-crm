@@ -97,6 +97,7 @@ export const RESOURCE_LABEL = {
   'lead-origin': 'Nguồn lead',
   comm: 'Sổ giao tiếp',
   setting: 'Thiết lập chung',
+  cost: 'Chi phí',
   'audit-log': 'Nhật ký thao tác',
   user: 'Tài khoản người dùng',
   role: 'Vai trò & quyền',
@@ -153,6 +154,7 @@ export const PERMISSION_LABEL = {
   'comm.view-content': 'Đọc nội dung thư, tin nhắn, bản ghi',
   'comm.capture-manage': 'Gắn email, chat, số điện thoại với đúng người',
   'setting.manage': 'Chỉnh ngưỡng, thời hạn và thông báo theo vai trò',
+  'cost.view': 'Xem chi phí',
   'data.export': 'Tải dữ liệu về máy',
 } as const satisfies Record<Permission, string>
 

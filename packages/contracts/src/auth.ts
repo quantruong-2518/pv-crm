@@ -116,6 +116,8 @@ export const Permission = z.enum([
    *  `platform.setting`, one permission for read and write both. */
   'setting.manage',
   'audit-log.view',
+  /** AI spend screen and unit prices — admin only, `director` by default. */
+  'cost.view',
   'user.manage',
   'role.manage',
   'approval.decide',

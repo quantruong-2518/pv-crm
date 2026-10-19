@@ -28,6 +28,7 @@ import { NotificationModule } from './platform/notification/notification.module'
 import { CrossSiteGuard } from './platform/http/cross-site.guard'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
+import { AiModule } from './platform/ai/ai.module'
 import { SettingModule } from './platform/setting/setting.module'
 import { SessionModule } from './platform/session/session.module'
 import { StorageModule } from './platform/storage/storage.module'
@@ -91,6 +92,9 @@ import { RolesModule } from './platform/roles/roles.module'
        those two doors — and it EXPORTS `SettingService`, the one way any other
        module asks what a threshold is worth today. */
     SettingModule,
+    /* Carries `/ai/costs` and `/ai/prices` (ADR 0102); `LeadModule` imports it
+       again for the scan reader and the ledger. */
+    AiModule,
     HealthModule,
     GeoModule,
     /* Carries `/me/google`; listed here so the list shows every door. */

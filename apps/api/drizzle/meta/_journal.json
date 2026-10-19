@@ -848,6 +848,13 @@
       "when": 1793689560000,
       "tag": "0121_kpi_allocation_team_tier",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1793775960000,
+      "tag": "0122_ai_cost_ledger",
+      "breakpoints": true
     }
   ]
 }

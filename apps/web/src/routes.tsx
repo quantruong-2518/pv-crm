@@ -147,6 +147,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/admin-notifications'),
   },
   {
+    /** One Core · AI cost per month and the unit prices it is costed at
+     *  (ADR 0102). No `branch`: AI spend is not Sales-only. */
+    path: '/admin/costs',
+    name: 'Chi phí',
+    permission: 'cost.view',
+    load: () => import('@/pages/admin-costs'),
+  },
+  {
     /** Admin · lead origins — the origin catalogue behind every lead, plus
      *  the per-motion policy. Sales data, so it carries the Sales licence. */
     path: '/admin/lead-origins',

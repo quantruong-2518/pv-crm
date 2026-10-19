@@ -27,6 +27,7 @@ import {
   ScanReaderDisabledError,
   type ScanReader,
 } from '@api/platform/ai/scan-reader'
+import { AiLedger, type AiCallRecord } from '@api/platform/ai/ai-ledger'
 import { SCAN_ENQUEUE, type ScanAttempt, type ScanEnqueue } from '@api/platform/queue/scan-jobs'
 import type { Db } from '@api/platform/db/db.module'
 import type { ScanBatchRowDb } from './lead-scan.schema'
@@ -59,6 +60,9 @@ const PREVIEWED = ['READY', 'COMMITTING', 'DONE'] as const
 /** Before the commit press, a batch's file set may still change or be dropped. */
 const OPEN: readonly ScanBatchState[] = ['UPLOADING', 'READING', 'READY']
 const closed = (code: string) => conflict(`Lô ${code} đã đóng.`)
+/** One model call, as the read job learns it; the batch fills in who and what for. */
+type ScanCall = Pick<AiCallRecord, 'model' | 'tokensIn' | 'tokensOut' | 'outcome'>
+
 const EXT: Record<ScanUploadMime, string> = {
   'image/webp': 'webp',
   'image/jpeg': 'jpg',
@@ -80,6 +84,7 @@ export class LeadScanService {
     @Inject(SCAN_ENQUEUE) private readonly queue: ScanEnqueue,
     @Inject(ENV) private readonly env: Env,
     private readonly hub: NotificationHub,
+    private readonly ledger: AiLedger,
   ) {}
 
   /** The uploader hears what the worker or the sweeper did to their batch
@@ -315,9 +320,14 @@ export class LeadScanService {
     const file = claimed && (await this.repo.file(fileId))
     if (!claimed || !file) return
     let values: Parameters<LeadScanRepository['finishFile']>[2]
+    let call: ScanCall | null = null
     try {
       const bytes = await this.storage.read(file.storageKey)
-      const { extraction, tokensIn, tokensOut } = await this.reader.read({ bytes, mime: file.mime })
+      const { extraction, model, tokensIn, tokensOut } = await this.reader.read({
+        bytes,
+        mime: file.mime,
+      })
+      call = { model, tokensIn, tokensOut, outcome: 'ok' }
       values = {
         state: isEmpty(extraction) ? 'EMPTY' : 'READ',
         kind: extraction.kind,
@@ -335,6 +345,11 @@ export class LeadScanService {
       }
       /* An unusable answer was still billed; the budget must see it. */
       const spent = error instanceof ScanOutputError ? error : null
+      /* Only this error says the model was reached; the others never called it or carry no model. */
+      if (spent) {
+        const { model, tokensIn = 0, tokensOut = 0 } = spent
+        call = { model, tokensIn, tokensOut, outcome: 'error' }
+      }
       values = {
         state: 'FAILED',
         error: FILE_FAILED,
@@ -344,8 +359,20 @@ export class LeadScanService {
     }
     await this.repo.run(async (tx) => {
       await this.repo.finishFile(tx, fileId, values)
+      if (call) await this.record(tx, claimed.batchCode, call)
       const uploader = await this.repo.readyIfDone(tx, claimed.batchCode)
       if (uploader) await this.tell(tx, LEAD_SCAN_READY, claimed.batchCode, uploader)
+    })
+  }
+
+  /** The ledger row for one read, beside the file row that holds its result (ADR 0102). */
+  private async record(tx: Db, code: string, call: ScanCall): Promise<void> {
+    const batch = await this.repo.batch(code, tx)
+    await this.ledger.record(tx, {
+      ...call,
+      task: 'lead-scan',
+      actorId: batch?.createdBy ?? null,
+      subjectCode: code,
     })
   }
 

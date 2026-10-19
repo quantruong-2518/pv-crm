@@ -68,9 +68,10 @@ export class GeminiScanReader implements ScanReader {
     if (!this.client) throw new ScanReaderDisabledError()
 
     const body = mime === 'application/pdf' ? await trimPdf(bytes) : bytes
+    const model = this.env.SCAN_GEMINI_MODEL
     const response = await this.client.models
       .generateContent({
-        model: this.env.SCAN_GEMINI_MODEL,
+        model,
         contents: [
           {
             role: 'user',
@@ -94,12 +95,14 @@ export class GeminiScanReader implements ScanReader {
           ? /* The vendor's reason names the request fault, never file content. */
             new ScanOutputError(
               `scan reader: vendor refused (${error.status}): ${error.message.slice(0, 200)}`,
+              model,
             )
           : error
       })
 
     const usage = response.usageMetadata
     const tokens: Tokens = {
+      model,
       tokensIn: usage?.promptTokenCount ?? 0,
       /* Thinking is billed at the output rate, so it counts as output here. */
       tokensOut: (usage?.candidatesTokenCount ?? 0) + (usage?.thoughtsTokenCount ?? 0),
@@ -122,7 +125,7 @@ function refused(error: unknown): error is ApiError {
   )
 }
 
-type Tokens = Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>
+type Tokens = Pick<ScanReadResult, 'model' | 'tokensIn' | 'tokensOut'>
 
 function parse(
   text: string | undefined,
@@ -130,7 +133,11 @@ function parse(
   tokens: Tokens,
 ): ScanExtraction {
   if (!text) {
-    throw new ScanOutputError(`scan reader: no answer (finish ${finish ?? 'unknown'})`, tokens)
+    throw new ScanOutputError(
+      `scan reader: no answer (finish ${finish ?? 'unknown'})`,
+      tokens.model,
+      tokens,
+    )
   }
   let raw: unknown
   try {
@@ -138,6 +145,7 @@ function parse(
   } catch {
     throw new ScanOutputError(
       `scan reader: answer is not JSON (finish ${finish ?? 'unknown'})`,
+      tokens.model,
       tokens,
     )
   }
@@ -145,6 +153,7 @@ function parse(
   if (!parsed.success) {
     throw new ScanOutputError(
       `scan reader: answer off-schema at ${parsed.error.issues[0]?.path.join('.')}`,
+      tokens.model,
       tokens,
     )
   }

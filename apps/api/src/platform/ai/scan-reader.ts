@@ -8,7 +8,13 @@ import type { ScanExtraction, ScanUploadMime } from '@pv/contracts'
 export const SCAN_READER = Symbol('pv.ai.scan-reader')
 
 export type ScanReadInput = { bytes: Buffer; mime: ScanUploadMime }
-export type ScanReadResult = { extraction: ScanExtraction; tokensIn: number; tokensOut: number }
+/** `model` is the vendor id actually sent: the cost ledger prices by it (ADR 0102). */
+export type ScanReadResult = {
+  extraction: ScanExtraction
+  model: string
+  tokensIn: number
+  tokensOut: number
+}
 
 export interface ScanReader {
   /** False without `GEMINI_API_KEY`: the screen can say "not configured"
@@ -34,7 +40,11 @@ export class ScanOutputError extends Error {
   readonly tokensIn?: number
   readonly tokensOut?: number
 
-  constructor(message: string, usage?: Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>) {
+  constructor(
+    message: string,
+    readonly model: string,
+    usage?: Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>,
+  ) {
     super(message)
     this.name = 'ScanOutputError'
     this.tokensIn = usage?.tokensIn

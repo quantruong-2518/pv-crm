@@ -8,6 +8,7 @@ import {
   ChartColumn,
   CircleCheck,
   ClipboardList,
+  Coins,
   Contact,
   FileCheck,
   Gauge,
@@ -151,6 +152,13 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
     path: '/admin/lead-origins',
     permission: 'lead-origin.manage',
+  },
+  {
+    icon: Coins,
+    label: 'Chi phí',
+    description: 'Chi phí dùng AI theo tháng và bảng giá',
+    path: '/admin/costs',
+    permission: 'cost.view',
   },
 ]
 
