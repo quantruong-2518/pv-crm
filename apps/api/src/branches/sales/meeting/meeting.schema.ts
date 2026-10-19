@@ -118,6 +118,11 @@ export const meeting = sales.table(
     /** "The meetings on lead or deal X, newest first" — the read needs no sort,
      *  and the same index serves the `MIN(at)` of the first-meeting rule. */
     index('meeting_subject_idx').on(t.subjectCode, t.at.desc()),
+    /** "Meetings still ahead, soonest first" — `upcomingOf`, polled every 60 s per
+     *  open tab by /meetings/today. Partial: held and cancelled rows never qualify. */
+    index('meeting_upcoming_idx')
+      .on(t.at)
+      .where(sql`"held_at" IS NULL AND "cancelled_at" IS NULL`),
     check('meeting_no_blank', sql`"title" <> '' AND "by" <> '' AND "subject_code" <> ''`),
     /** Only leads and deals carry meetings. Copied from `next_step_subject_known`
      *  by hand; `{4,}` because `%04d` pads, never truncates. */

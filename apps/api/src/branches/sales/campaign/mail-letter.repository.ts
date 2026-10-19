@@ -176,6 +176,9 @@ export class MailLetterRepository {
                 JOIN "platform"."mail_run" r ON r."id" = d."mail_run_id"
                WHERE r."transport" = 'gmail'
                  AND r."created_by" = ${actorId}
+                 AND COALESCE(r."scheduled_at", r."created_at")
+                     BETWEEN ${at.toISOString()}::timestamptz - make_interval(hours => ${MAIL_PERSONAL_WINDOW_HOURS})
+                         AND ${at.toISOString()}::timestamptz + make_interval(hours => ${MAIL_PERSONAL_WINDOW_HOURS})
                  AND (r."state" <> 'CANCELLED' OR d."accepted_at" IS NOT NULL)) w
     `)) as { rows: { used: number }[] }
     return r.rows[0]?.used ?? 0

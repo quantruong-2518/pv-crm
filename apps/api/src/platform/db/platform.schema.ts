@@ -161,9 +161,9 @@ export const edge = platform.table(
   },
   (t) => [
     primaryKey({ columns: [t.fromCode, t.toCode, t.kind] }),
-    /* Hai chỉ mục vì đồ thị được đi theo CẢ HAI chiều: `children` đi xuôi,
-       `parents` đi ngược, và `story()` dùng cả hai. */
-    index('edge_from_idx').on(t.fromCode),
+    /* The graph is walked both ways (`children` forward, `parents` backward, `story()`
+       both). Forward is served by the PK's leading column; a separate from-index
+       duplicated it and was dropped in 0125. */
     index('edge_to_idx').on(t.toCode),
   ],
 )

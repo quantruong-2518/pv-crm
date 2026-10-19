@@ -184,6 +184,11 @@ export const mailRun = platform.table(
     /** The relay's question is always "which scheduled batches are due", so
      *  the index leads with state and carries the clock. */
     index('mail_run_due_idx').on(t.state, t.scheduledAt),
+    /** "Which Gmail addresses did this sender use in the window" — `gmailAddressesUsed`
+     *  filters on transport and sender, then on the send time. Partial: Gmail runs only. */
+    index('mail_run_gmail_send_idx')
+      .on(t.createdBy, sql`COALESCE("scheduled_at", "created_at")`)
+      .where(sql`"transport" = 'gmail'`),
     check('mail_run_state_valid', sql`${t.state} IN (${MAIL_RUN_STATE_LIST})`),
     check('mail_run_cta_pair', sql`(${t.ctaLabel} IS NULL) = (${t.ctaUrl} IS NULL)`),
     /** 0064 rewrote every `.co` row to `.com` before tightening this, so the

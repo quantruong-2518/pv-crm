@@ -19,6 +19,8 @@ coverage
 **/.env
 **/.env.*
 !**/.env.example
+# Local PGlite data dirs: ~160 MB of dev rows, password hashes included.
+**/.pglite*
 
 # Không cần cho máy chủ.
 #

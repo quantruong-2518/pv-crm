@@ -498,6 +498,10 @@ export const debrief = comms.table(
     uniqueIndex('debrief_open_unique')
       .on(t.threadId, t.ownerId)
       .where(sql`"closed_at" IS NULL`),
+    /** "Are all debriefs on this thread cancelled" — the correlated `bool_and(cancelled)`
+     *  in the opportunity facts and the workstream footprint; the unique above is
+     *  partial (open rows only), so it cannot serve closed ones. */
+    index('debrief_thread_idx').on(t.threadId),
     /** "My pending queue" and "pending per owner" — the badge, the queue page
      *  and the managers' counts. Partial, because closed rows never queue. */
     index('debrief_pending_owner_idx')

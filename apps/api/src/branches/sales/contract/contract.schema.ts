@@ -87,6 +87,10 @@ export const contract = sales.table(
     }),
     /** Chỉ mục của câu hỏi hay nhất: "lead này đã ký chưa". */
     index('contract_lead_idx').on(t.leadCode),
+    /** "Is there a contract on deal X" — `dealOpen`/`dealWon`/`dealLost` and `lockDeal`. */
+    index('contract_opportunity_idx').on(t.opportunityCode),
+    /** "My contracts" — the contract book's own-only scopes filter on the owner. */
+    index('contract_owner_idx').on(t.ownerId),
     /** "Did this run end in a signature, and when" — the book screen groups
      *  by run, and this is the join that answers it without a scan. */
     index('contract_workstream_idx').on(t.workstreamCode),

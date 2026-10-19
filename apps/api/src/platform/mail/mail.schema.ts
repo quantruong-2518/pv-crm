@@ -378,7 +378,7 @@ export const mailEvent = platform.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index('mail_event_delivery_idx').on(t.deliveryId),
+    /* No delivery-only index: `mail_event_once` below leads with `delivery_id` (0125). */
     index('mail_event_kind_idx').on(t.kind),
     /** Second line of replay defence. `email_webhook_event.svix_id` already
      *  stops a repeated envelope, but two DIFFERENT envelopes can still report

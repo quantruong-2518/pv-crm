@@ -377,6 +377,9 @@ export const lead = sales.table(
   },
   (t) => [
     index('lead_owner_idx').on(t.ownerId),
+    /** "Which leads does account X hold" — the admission gate, the account book's
+     *  per-account counts and the account profile all filter on it. */
+    index('lead_account_idx').on(t.accountCode),
     /** Only the disabled-leads tab looks FOR disabled leads; everyone else
      *  filters them out, which on a mostly-live table needs no index. */
     index('lead_disabled_idx')
