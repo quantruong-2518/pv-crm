@@ -6,17 +6,15 @@ import { isApiError, userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { dmhm } from '@/lib/date'
-import { ChannelPill, CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
+import { CommStateBadge } from '@/components/comm-bits'
 import { CommFileList } from '@/components/comm-files'
 import { threadMessagesQuery } from '@/data/comms'
 import {
   COMM_CARD_SURFACE,
   commFilesQuery,
   commRecordQuery,
-  meetingOverdue,
   subjectPath,
 } from '@/data/comm-record-detail'
-import { useMinuteClock } from '@/data/minute-clock'
 import { CommRecordRead } from '@/components/comm-record-bits'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
@@ -63,7 +61,6 @@ export default CommRecordPage
 function RecordBody({ record }: { record: DebriefView }) {
   const navigate = useNavigate()
   const me = useSession((s) => s.actor)
-  const now = useMinuteClock()
   const mine = me?.id === record.owner.id
   const open = record.closedAt === null
   const unreached = record.state === 'unreached'
@@ -93,15 +90,6 @@ function RecordBody({ record }: { record: DebriefView }) {
         </>
       }
       {...slots}
-      meta={[
-        record.late && open && <CommLateMark key="late" late />,
-        meetingOverdue(record, now) && <CommOverdueMark key="overdue" overdue />,
-        <ChannelPill key="channel" channel={record.channel} />,
-        <span key="at" className="tnum">
-          Tạo {dmhm(record.createdAt)}
-        </span>,
-        `${record.owner.name}${mine ? ' · bạn' : ''}`,
-      ]}
     />
   )
   const header = headerOf()
@@ -165,7 +153,7 @@ function Turns({ threadId, textOnly = false }: { threadId: string; textOnly?: bo
       {isPending ? (
         <Skeleton className="h-16 w-full" />
       ) : error ? (
-        <p className="text-warning text-[12.5px]">
+        <p className="text-destructive-foreground text-[12.5px]">
           Không tải được các lượt trao đổi. {isApiError(error) ? userMessage(error) : ''}
         </p>
       ) : rows.length === 0 ? (

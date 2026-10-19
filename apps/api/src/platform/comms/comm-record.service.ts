@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import type { CommsChannel, ThreadChannel } from '@pv/contracts'
+import { normalisePhone, type CommsChannel, type ThreadChannel } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
@@ -254,7 +254,9 @@ const CHAT_ON_PHONE = new Set<ThreadChannel>(['zalo-oa', 'telegram', 'whatsapp']
  *  the mailbox for mail, either for a meeting. Refuses when the person has none. */
 function mintFor(channel: ThreadChannel, contact: CommContact): Mint {
   const byMail = channel === 'email' || (channel === 'meeting' && !contact.phone)
-  const raw = byMail ? contact.email : contact.phone
+  /* A book phone is one of ours, typed on a Vietnamese form or imported before
+     the write doors folded it ('+84 395 928 069'): fold it the book's way first. */
+  const raw = byMail ? contact.email : contact.phone && normalisePhone(contact.phone)
   const on: CommsChannel = byMail ? 'email' : 'phone'
   if (raw) return { channel: on, address: normaliseAddress(on, raw) }
   const missing =

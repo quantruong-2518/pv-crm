@@ -5,7 +5,6 @@ import { AiAction, AppShell } from '@pv/ui'
 import { daysUntil } from '@pv/engines'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { dmy } from '@/lib/date'
 import {
   contractDetailQuery,
   daysPhrase,
@@ -15,7 +14,6 @@ import {
   type Installment,
   type InstallmentView,
 } from '@/data/contracts'
-import { useContractKindLabel } from '@/data/sales-config'
 import { CommActionConfirm } from '@/components/comm-action-confirm'
 import { ContractInside } from '@/components/contract-inside'
 import { MAIL_BLOCKED, contractChain, hasInside, useContractRun } from '@/components/contract-run'
@@ -78,13 +76,11 @@ export default ContractDetailPage
 function ContractScreen({ contract }: { contract: Contract }) {
   const navigate = useNavigate()
   const run = useContractRun(contract)
-  const kindLabel = useContractKindLabel()
   const [composing, setComposing] = useState(false)
   /* The assistant's letter asks the same question the bar's mail button asks. */
   const [mailing, setMailing] = useState<BarContact | null>(null)
   const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
   const canRecord = useCan('comm.view')
-  const kind = contract.kind && kindLabel(contract.kind)
 
   /* One clock read for the whole screen. Two reads either side of midnight give
      two levels for one contract, on one render. */
@@ -118,12 +114,6 @@ function ContractScreen({ contract }: { contract: Contract }) {
               <ContractStanding views={views} className="ml-3 align-middle tracking-normal" />
             </>
           }
-          meta={[
-            /* Unless the title already fell back to it. */
-            kind && kind !== run.title && `loại ${kind}`,
-            contract.ownerName && `phụ trách ${contract.ownerName}`,
-            <span className="tnum">ký {dmy(contract.signedAt)}</span>,
-          ]}
         />
       }
       main={

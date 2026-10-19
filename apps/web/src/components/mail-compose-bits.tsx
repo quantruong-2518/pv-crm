@@ -208,7 +208,7 @@ export function MailPreviewCard({
       </div>
 
       {error ? (
-        <p className="text-warning bg-surface-ink/5 m-0 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
+        <p className="text-destructive-foreground bg-surface-ink/5 m-0 rounded-sm px-3 py-2 text-[11.5px] leading-[1.6]">
           <Icon icon={TriangleAlert} size={14} className="mr-2 inline align-middle" />
           {error}
         </p>

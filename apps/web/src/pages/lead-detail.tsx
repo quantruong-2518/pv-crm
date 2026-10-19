@@ -164,7 +164,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           <LeadHoldStrip lead={lead} canWrite={canWrite} />
         </>
       }
-      header={<LeadHeader lead={lead} readOnly={dealReach} onConvert={convert} />}
+      header={<LeadHeader lead={lead} onConvert={convert} />}
       main={
         <>
           {off && <MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={false} />}

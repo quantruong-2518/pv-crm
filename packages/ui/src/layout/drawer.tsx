@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from '../icons'
 import { Icon } from '../ui/icon'
 import { cn } from '../lib/cn'
+import { useOuterScrollLock, useSheetFrame } from './drawer-sheet'
 import { useOverlayLayer } from './overlay-stack'
 
 /** T-04 · Drawer — panel phải đè lên màn, có tấm che phía sau.
@@ -30,8 +31,13 @@ export type DrawerProps = {
   meta?: ReactNode
   /** dải dính đáy panel */
   footer?: ReactNode
-  /** md = 560px · lg = 760px (chi tiết có bảng bên trong) */
+  /** md = 560px (680px as a bottom sheet) · lg = 760px (a detail with a table inside) */
   width?: 'md' | 'lg'
+  /** `bottom` rises from the bottom edge, for a short form opened from a bar
+   *  docked at the foot of the screen — the panel comes from where the press was. */
+  side?: 'right' | 'bottom'
+  /** With `side="bottom"`: the bar the sheet rises out of, from its top edge. */
+  anchor?: HTMLElement | null
   closeLabel?: string
   children: ReactNode
   className?: string
@@ -69,6 +75,8 @@ export function Drawer({
   meta,
   footer,
   width = 'md',
+  side = 'right',
+  anchor,
   closeLabel = 'Đóng',
   children,
   className,
@@ -159,35 +167,82 @@ export function Drawer({
     if (back?.isConnected) back.focus({ preventScroll: true })
   }, [mounted])
 
-  /* Drawer phải là lớp tương tác duy nhất khi đang mở. Khóa cuộn nền để bánh
-     xe/trackpad không làm trang phía sau trôi khỏi vị trí trong lúc người dùng
-     đang đọc một phiếu dài. Trả lại đúng giá trị cũ khi panel được gỡ.
-
-     ĐANG LÀ DÒNG CHẾT, và chưa sửa ở đây vì cách sửa còn phải chốt. Trình
-     duyệt chỉ mượn overflow của `body` cho viewport khi overflow của thẻ `html`
-     là `visible`; globals.css đặt `:root { overflow-y: scroll }` (giữ chỗ rãnh
-     cuộn — xem chú ở đó) nên điều kiện ấy không bao giờ đúng: dòng dưới chỉ xén
-     chính hộp body, mà hộp body cao đúng bằng nội dung nên không xén gì. Nền
-     vẫn cuộn tự do sau lưng panel.
-
-     Chuyển khoá sang `documentElement` thì cuộn đứng yên thật, nhưng rãnh cuộn
-     biến mất: đo trên Chrome 1920px, `html.clientWidth` nhảy 1903 → 1920 và
-     khối `main` (căn giữa) trôi ngang 9px — tức đổi một cú giật dọc lấy một cú
-     giật ngang. Bù bằng `padding-right`/`margin-right` đều KHÔNG cứu được vì
-     `* { box-sizing: border-box }` ăn phần bù đó vào lại content box; cả ba
-     cách đo đều còn nguyên 9px. Muốn hết hẳn thì phải đụng vào chiến lược
-     `scrollbar-gutter` ở `:root`, mà đó là quyết định của hệ nền chứ không phải
-     của riêng Drawer. */
-  useEffect(() => {
-    if (!mounted) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = previous
-    }
-  }, [mounted])
+  useOuterScrollLock(mounted)
+  const sheet = side === 'bottom'
+  const frame = useSheetFrame(mounted && sheet, anchor, width === 'lg')
 
   if (!mounted || typeof document === 'undefined') return null
+
+  const body = (
+    <div
+      ref={panel}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
+      /* Chỉ nghe hoạt cảnh của CHÍNH panel: `animationend` nổi bọt, nên một
+         shimmer của Skeleton bên trong cũng sẽ gỡ mất panel giữa chừng. */
+      onAnimationEnd={(e) => {
+        if (e.target === e.currentTarget && leaving) setMounted(false)
+      }}
+      className={cn(
+        /* `glass-overlay`, KHÔNG `glass-b`: panel này đè lên trang, mà
+           `glass-b` để lọt 16% nền — dưới nó lại là tấm scrim tối 52%, nên
+           chữ trong panel đọc trên một lớp bùn và cả drawer trông như bị
+           làm mờ. Thứ nổi lên trên thì phải che được thứ ở dưới. */
+        'glass-overlay relative flex w-full flex-col outline-none',
+        /* A sheet hugs its content up to its frame, so the page it was
+           opened from still shows above it. */
+        sheet
+          ? cn(
+              'pointer-events-auto max-h-full',
+              anchor ? 'rounded-lg' : 'rounded-t-lg',
+              leaving ? 'animate-sheet-out' : 'animate-sheet-in',
+            )
+          : cn(
+              'h-dvh',
+              width === 'lg' ? 'sm:w-[760px]' : 'sm:w-[560px]',
+              leaving ? 'animate-drawer-out' : 'animate-drawer-in',
+            ),
+        className,
+      )}
+    >
+      <header
+        className={cn('flex gap-3 px-5 pb-4 pt-5 lg:px-6', sheet ? 'items-center' : 'items-start')}
+      >
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display m-0 text-[16px] font-semibold">{view.title}</h2>
+          {view.subtitle && (
+            <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">
+              {view.subtitle}
+            </p>
+          )}
+        </div>
+        {view.meta}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={closeLabel}
+          className={cn(
+            'motion-std hover:bg-surface-ink/16 bg-surface-ink/9 pointer-coarse:size-12 -mr-1 flex size-8 shrink-0 items-center justify-center rounded-md',
+            !sheet && '-mt-1',
+          )}
+        >
+          <Icon icon={X} size={16} />
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 lg:px-6">{view.children}</div>
+
+      {/* Theme-aware ink, not a flat `black/20`: this strip carries the line
+          saying why the main button is off, and a hard black over the LIGHT
+          glass sank `--muted-foreground` to 3.65:1, under law 13. */}
+      {view.footer && (
+        <div className="bg-surface-ink/9 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 lg:px-6">
+          {view.footer}
+        </div>
+      )}
+    </div>
+  )
 
   return createPortal(
     /* z-50 — PHẢI cao hơn nav (z-40 ở AppShell). Drawer từng là z-20 vì hồi
@@ -205,58 +260,18 @@ export function Drawer({
         )}
       />
 
-      <div
-        ref={panel}
-        role="dialog"
-        aria-modal="true"
-        tabIndex={-1}
-        /* Chỉ nghe hoạt cảnh của CHÍNH panel: `animationend` nổi bọt, nên một
-           shimmer của Skeleton bên trong cũng sẽ gỡ mất panel giữa chừng. */
-        onAnimationEnd={(e) => {
-          if (e.target === e.currentTarget && leaving) setMounted(false)
-        }}
-        className={cn(
-          /* `glass-overlay`, KHÔNG `glass-b`: panel này đè lên trang, mà
-             `glass-b` để lọt 16% nền — dưới nó lại là tấm scrim tối 52%, nên
-             chữ trong panel đọc trên một lớp bùn và cả drawer trông như bị
-             làm mờ. Thứ nổi lên trên thì phải che được thứ ở dưới. */
-          'glass-overlay relative flex h-dvh w-full flex-col outline-none',
-          width === 'lg' ? 'sm:w-[760px]' : 'sm:w-[560px]',
-          leaving ? 'animate-drawer-out' : 'animate-drawer-in',
-          className,
-        )}
-      >
-        <header className="flex items-start gap-3 px-5 pb-4 pt-5 lg:px-6">
-          <div className="min-w-0 flex-1">
-            <h2 className="font-display m-0 text-[16px] font-semibold">{view.title}</h2>
-            {view.subtitle && (
-              <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">
-                {view.subtitle}
-              </p>
-            )}
-          </div>
-          {view.meta}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={closeLabel}
-            className="motion-std hover:bg-surface-ink/16 bg-surface-ink/9 pointer-coarse:size-12 -mr-1 -mt-1 flex size-8 shrink-0 items-center justify-center rounded-md"
-          >
-            <Icon icon={X} size={16} />
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 lg:px-6">{view.children}</div>
-
-        {/* Theme-aware ink, not a flat `black/20`: this strip carries the line
-            saying why the main button is off, and a hard black over the LIGHT
-            glass sank `--muted-foreground` to 3.65:1, under law 13. */}
-        {view.footer && (
-          <div className="bg-surface-ink/9 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 lg:px-6">
-            {view.footer}
-          </div>
-        )}
-      </div>
+      {sheet ? (
+        /* Clips only vertically: the sheet slides out from under this frame's
+           bottom edge, so it appears to rise out of the bar below it. */
+        <div
+          className="pointer-events-none absolute flex items-end overflow-y-clip"
+          style={frame ?? { visibility: 'hidden' }}
+        >
+          {body}
+        </div>
+      ) : (
+        body
+      )}
     </div>,
     document.body,
   )

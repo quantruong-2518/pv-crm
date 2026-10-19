@@ -220,7 +220,7 @@ export function PersonTokenField({
       )}
 
       {refusal ? (
-        <p className="text-warning m-0 text-[11px] leading-[1.5]">{refusal}</p>
+        <p className="text-destructive-foreground m-0 text-[11px] leading-[1.5]">{refusal}</p>
       ) : (
         hint && <p className="text-muted-foreground m-0 text-[11px] leading-[1.5]">{hint}</p>
       )}

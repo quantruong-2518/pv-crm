@@ -212,6 +212,7 @@ export function ConfirmWorkspace({
       },
     )
   }
+  const noteTone = confirm.error ? 'text-destructive-foreground' : 'text-warning'
 
   return (
     <RecordShell
@@ -240,7 +241,7 @@ export function ConfirmWorkspace({
               />
             </Field>
             {(confirm.error || blocker) && (
-              <p role={confirm.error ? 'alert' : undefined} className="text-warning text-[12px]">
+              <p role={confirm.error ? 'alert' : undefined} className={`${noteTone} text-[12px]`}>
                 {confirm.error ? userMessage(confirm.error) : blocker}
               </p>
             )}

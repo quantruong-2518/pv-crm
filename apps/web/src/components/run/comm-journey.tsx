@@ -83,7 +83,7 @@ export function CommJourney({
               {unconfirmed} chưa xác nhận
             </span>
           )}
-          {canComms && workstreamCode !== null && (
+          {canComms && workstreamCode !== null && rows.length > 0 && (
             <button
               type="button"
               aria-label="Xem cả luồng liên hệ"

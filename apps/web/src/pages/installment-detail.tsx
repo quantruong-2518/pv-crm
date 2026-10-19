@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
@@ -175,18 +175,6 @@ function InstallmentScreen({
               </Button>
             )
           }
-          meta={[
-            `${installment.share}% giá trị hợp đồng`,
-            <>
-              thuộc hợp đồng{' '}
-              <Link
-                to={`/sales/contracts/${contract.code}`}
-                className="text-foreground underline underline-offset-2"
-              >
-                {run.title}
-              </Link>
-            </>,
-          ]}
         />
       }
       main={

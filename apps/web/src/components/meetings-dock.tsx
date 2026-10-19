@@ -19,6 +19,9 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
   const now = useMinuteClock()
   const [listing, setListing] = useState(false)
   const [booking, setBooking] = useState(false)
+  /* The booking sheet rises out of the floating bar this row sits in. */
+  const [row, setRow] = useState<HTMLDivElement | null>(null)
+  const dock = row?.closest<HTMLElement>('[data-action-bar-dock]') ?? row
   const rows = data?.rows ?? []
   const next = upcomingOf(rows, now)
 
@@ -26,6 +29,7 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
 
   return (
     <div
+      ref={setRow}
       role="group"
       aria-label="Lịch gặp"
       className="bg-surface-ink/9 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-md py-1 pl-3 pr-1"
@@ -78,7 +82,12 @@ export function MeetingsDock({ subject, canEdit }: { subject: MeetingSubject; ca
         <MeetingsPanel subject={subject} canEdit={canEdit} all />
       </Drawer>
       {canEdit && (
-        <MeetingScheduleDrawer subject={subject} open={booking} onClose={() => setBooking(false)} />
+        <MeetingScheduleDrawer
+          subject={subject}
+          open={booking}
+          anchor={dock}
+          onClose={() => setBooking(false)}
+        />
       )}
     </div>
   )

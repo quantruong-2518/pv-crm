@@ -253,7 +253,12 @@ function SaveStep({
       )}
       {target.isPending && <Skeleton className="h-24 w-full" />}
       {(failure || blocker) && (
-        <p role={failure ? 'alert' : undefined} className="text-warning m-0 text-[12px]">
+        <p
+          role={failure ? 'alert' : undefined}
+          className={
+            failure ? 'text-destructive-foreground m-0 text-[12px]' : 'text-warning m-0 text-[12px]'
+          }
+        >
           {failure ?? blocker}
         </p>
       )}

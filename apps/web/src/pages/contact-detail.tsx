@@ -98,7 +98,6 @@ export default function ContactDetailPage() {
                 </Button>
               )
             }
-            meta={[contact.title, contact.isPrimary && 'Người liên hệ chính', contact.channel]}
           />
         }
         main={

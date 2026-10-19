@@ -69,7 +69,7 @@ export function WaveRecipients({ runId, template }: { runId: string; template: s
 
   if (error) {
     return (
-      <p className="text-warning px-3 py-4 text-[12px]">
+      <p className="text-destructive-foreground px-3 py-4 text-[12px]">
         Không đọc được danh sách người nhận của đợt này.{' '}
         {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>

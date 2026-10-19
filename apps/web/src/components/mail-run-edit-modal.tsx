@@ -165,7 +165,7 @@ export function MailRunEditModal({
      letter on screen is the one being typed, and the read already succeeded. */
   const body = !base ? (
     detail.error ? (
-      <p className="text-warning m-0 text-[12.5px] leading-[1.6]">
+      <p className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
         {isApiError(detail.error) ? userMessage(detail.error) : 'Không đọc được lô này.'}
       </p>
     ) : (
@@ -188,7 +188,7 @@ export function MailRunEditModal({
           <EditFooter
             ready={Boolean(base) && !locked}
             blocker={failure || blocker}
-            warn={Boolean(failure || blocker)}
+            tone={failure ? 'danger' : blocker ? 'warning' : 'muted'}
             note={refused ? '' : footerNote(Boolean(locked), changed)}
             saveBlocked={changed === 0 || Boolean(blocker)}
             saving={save.isPending}
@@ -353,7 +353,7 @@ const scheduledSlot = (form: ComposerState) =>
 function EditFooter({
   ready,
   blocker,
-  warn,
+  tone,
   note,
   saveBlocked,
   saving,
@@ -363,7 +363,8 @@ function EditFooter({
 }: {
   ready: boolean
   blocker: string | null
-  warn: boolean
+  /** A failed save is danger red; a blocker stays warning yellow. */
+  tone: 'muted' | 'warning' | 'danger'
   note: string
   saveBlocked: boolean
   saving: boolean
@@ -379,9 +380,11 @@ function EditFooter({
       <span
         aria-live="polite"
         className={
-          warn
-            ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
-            : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+          tone === 'danger'
+            ? 'text-destructive-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+            : tone === 'warning'
+              ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+              : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
         }
       >
         {blocker || note}

@@ -138,6 +138,7 @@ export function LetterComposer({
           <LetterFooter
             message={message}
             warn={Boolean(fault) || (!preflight.checking && Boolean(blocker))}
+            failed={Boolean(fault)}
             form={form}
             setTiming={(timing, at) => setForm((f) => ({ ...f, timing, at }))}
             sendDisabled={Boolean(blocker) || !report || !transport || send.isPending}
@@ -151,7 +152,7 @@ export function LetterComposer({
       >
         <div className="flex min-w-0 flex-col gap-5">
           {people.contacts.failed && (
-            <p className="text-warning m-0 text-[12px] leading-5">
+            <p className="text-destructive-foreground m-0 text-[12px] leading-5">
               Không đọc được danh sách người liên hệ. Chưa thêm người nhận được.
             </p>
           )}

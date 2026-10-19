@@ -14,8 +14,8 @@ import {
 } from './lead-origin-pickers'
 
 /** The holder-and-origin card of the create door — who will hold the lead and
- *  how it got here. The profile prints both in its header meta line and
- *  changes the holder from the bar's more menu (ADR 0078).
+ *  how it got here. The profile no longer prints either (its header meta row
+ *  went on 19/10); it changes the holder from the bar's more menu (ADR 0078).
  *
  *  Three fields, three different write doors: the holder is a hand-over of its
  *  own, the motion is settled here at intake, and the origin is asked once. */

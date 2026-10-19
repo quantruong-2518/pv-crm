@@ -1,10 +1,9 @@
 import { useId, type ReactNode } from 'react'
-import { MetaPill } from '@pv/ui'
 
 /** The header of every profile: the record's name on the left (its code and
  *  state badge ride in the title, law 16) and its primary moves on the right,
- *  then one muted line for why a move is shut, then ONE row of meta pills for
- *  what the screen supplies (people, source, date).
+ *  then one muted line for why a move is shut. No row of meta pills under the
+ *  title: the user had them all removed on 19/10, holder and source included.
  *
  *  No kicker naming the object type (ADR 0078 §1). Moves moved up here on
  *  14/10 so the first thing a reader finds is what they can do; the title
@@ -12,15 +11,12 @@ import { MetaPill } from '@pv/ui'
  *  action box hides itself when its children draw nothing. */
 export function RecordHeader({
   title,
-  meta = [],
   actions,
   subtitle,
   note,
   noteId,
 }: {
   title: ReactNode
-  /** One fact per entry; `null`/`false` entries are dropped, not separated. */
-  meta?: ReactNode[]
   /** The record's primary moves, 48px buttons; omit when there are none. */
   actions?: ReactNode
   /** What the record is, in one muted line right under the title row. */
@@ -31,9 +27,6 @@ export function RecordHeader({
   noteId?: string
 }) {
   const titleId = useId()
-  const facts = meta.filter(
-    (fact) => fact !== null && fact !== undefined && fact !== false && fact !== '',
-  )
 
   return (
     <header className="flex min-w-0 flex-col gap-2" aria-labelledby={titleId}>
@@ -53,15 +46,6 @@ export function RecordHeader({
         <p id={noteId} className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
           {note}
         </p>
-      )}
-      {facts.length > 0 && (
-        <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-          {facts.map((fact, i) => (
-            <li key={i} className="min-w-0">
-              <MetaPill>{fact}</MetaPill>
-            </li>
-          ))}
-        </ul>
       )}
     </header>
   )

@@ -5,6 +5,7 @@ import { Info } from '@pv/ui'
 import { Button, Icon, Modal } from '@pv/ui'
 import {
   COMM_RECORD_STATE_LABEL,
+  normalisePhone,
   type CommActionChannel,
   type MailSubjectKind,
 } from '@pv/contracts'
@@ -115,8 +116,9 @@ export function CommActionConfirm({
       {
         onSuccess: (written) => {
           onClose()
-          launch(channel, contact, tab, mail)
-          toast(`Đã ghi lượt liên hệ ${COMMS_CHANNEL_LABEL[channel]}`, {
+          const copied = launch(channel, contact, tab, mail)
+          const label = `Đã ghi lượt liên hệ ${COMMS_CHANNEL_LABEL[channel]}`
+          toast(copied ? `${label} · đã chép số ${copied}` : label, {
             tone: 'success',
             action: {
               label: 'Thêm nội dung',
@@ -139,7 +141,7 @@ export function CommActionConfirm({
       footer={
         <div className="flex flex-col gap-3">
           {problem && (
-            <p role="alert" className="text-warning m-0 text-[12.5px] leading-[1.5]">
+            <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.5]">
               {problem}
             </p>
           )}
@@ -172,44 +174,46 @@ export function CommActionConfirm({
   )
 }
 
-/** The action itself, only ever after 201. */
+/** The action itself, only ever after 201. Returns the number it copied, if any. */
 function launch(
   channel: CommActionChannel,
   contact: CommContact,
   tab: Window | null,
   mail: CommMail | undefined,
-) {
+): string | null {
   if (channel === 'email') {
     mail?.onCompose()
-    return
+    return null
   }
-  if (!contact.phone) return
+  /* Older rows hold the number as typed ('0395 928 069'); every link below
+     needs the E.164 one, the same fold the server applies before recording. */
+  const phone = contact.phone ? normalisePhone(contact.phone) : ''
+  if (!phone) return null
   if (channel === 'phone') {
-    window.location.href = `tel:${contact.phone}`
-    return
+    window.location.href = `tel:${phone}`
+    return null
   }
   const url =
     channel === 'zalo-oa'
-      ? `https://zalo.me/${zaloNumber(contact.phone)}`
+      ? `https://zalo.me/${zaloNumber(phone)}`
       : channel === 'telegram'
-        ? `https://t.me/+${phoneDigits(contact.phone)}`
-        : `https://wa.me/${phoneDigits(contact.phone)}`
-  if (!tab) {
+        ? `https://t.me/${phone}`
+        : `https://wa.me/${phone.slice(1)}`
+  if (tab) {
+    tab.opener = null
+    tab.location.href = url
+  } else {
     window.open(url, '_blank', 'noopener')
-    return
   }
-  tab.opener = null
-  tab.location.href = url
+  /* t.me opens a chat only when the person lets strangers find them by number;
+     the copied number lets the sale paste it into Telegram's search instead. */
+  if (channel !== 'telegram') return null
+  void navigator.clipboard?.writeText(phone).catch(() => undefined)
+  return phoneText(phone)
 }
 
-/** zalo.me takes the national spelling: `+84912…` → `0912…`. */
+/** zalo.me takes the national spelling for a Vietnamese number (`+84912…` →
+ *  `0912…`); t.me takes `+` and digits, wa.me the digits alone. */
 function zaloNumber(phone: string): string {
-  const digits = phone.replace(/[^\d+]/g, '')
-  return digits.startsWith('+84') ? `0${digits.slice('+84'.length)}` : digits.replace('+', '')
-}
-
-/** wa.me and t.me take the international spelling bare: `+84 912…` → `84912…`.
- *  The books hold E.164, so the country code is already there. */
-function phoneDigits(phone: string): string {
-  return phone.replace(/\D/g, '')
+  return phone.startsWith('+84') ? `0${phone.slice('+84'.length)}` : phone.slice(1)
 }

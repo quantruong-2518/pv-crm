@@ -25,7 +25,10 @@ export function EmptyFrameNote({ address }: { address: StateAddress }) {
 export function FrameUnread({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p role="alert" className="text-warning m-0 min-w-0 text-[12.5px] leading-[1.6]">
+      <p
+        role="alert"
+        className="text-destructive-foreground m-0 min-w-0 text-[12.5px] leading-[1.6]"
+      >
         Không đọc được danh sách bước tiếp theo.{' '}
         {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>

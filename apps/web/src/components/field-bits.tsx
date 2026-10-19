@@ -15,7 +15,7 @@ export type FieldProps = {
   /** Right of the label too, sharing the counter's slot — a small control. */
   action?: ReactNode
   hint?: ReactNode
-  /** One sentence in `--warning` under the control: what is wrong with what is
+  /** One sentence in `--destructive-foreground` under the control: what is wrong with what is
    *  typed, said where it is typed rather than only at the footer. */
   problem?: string
   children: ReactNode
@@ -32,7 +32,7 @@ export function Field({ label, note, action, hint, problem, children, className 
       </div>
       {children}
       {problem ? (
-        <span className="text-warning text-[11px] leading-[1.5]">{problem}</span>
+        <span className="text-destructive-foreground text-[11px] leading-[1.5]">{problem}</span>
       ) : (
         hint && <span className="text-muted-foreground text-[11px] leading-[1.5]">{hint}</span>
       )}

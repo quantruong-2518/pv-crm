@@ -23,7 +23,7 @@ export function consumeGoogleReturn() {
   window.history.replaceState(window.history.state, '', url)
 
   if (result === 'failed') {
-    toast('Không kết nối được tài khoản Google. Thử lại.', { tone: 'warning' })
+    toast('Không kết nối được tài khoản Google. Thử lại.', { tone: 'danger' })
     void queryClient.invalidateQueries({ queryKey: GOOGLE_KEY })
     return
   }

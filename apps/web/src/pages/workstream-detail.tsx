@@ -1,21 +1,15 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, ArrowRight, Badge, Button, Icon, type RailObject } from '@pv/ui'
-import {
-  JOURNEY_BORN_BY_LABEL,
-  JOURNEY_STATUS_LABEL,
-  type WorkstreamJourneyResponse,
-} from '@pv/contracts'
+import { JOURNEY_STATUS_LABEL, type WorkstreamJourneyResponse } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { dmy } from '@/lib/date'
 import { useLeadDealReach } from '@/data/deal-sale'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
 import { isOpenState } from '@/data/lead-state'
 import { chainPath } from '@/data/opportunities'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
-import { runDays } from '@/data/workstreams'
 import { assignDoorOf } from '@/components/assign-door'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
@@ -197,12 +191,9 @@ function railOf(j: Journey, go: Go): RailObject[] {
   ]
 }
 
-/** The customer with the run's status in the title, then one meta line: dates
- *  and the journey it grew from (its one door, the strip has none). The ordinal
- *  shows only from the second journey on; the holder is the rail's. The code is
- *  the strip's, not repeated here. Its one move, to open a deal, sits right. */
+/** The customer with the run's status in the title; the holder is the rail's,
+ *  the code the strip's. Its one move, to open a deal, sits right. */
 function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: () => void }) {
-  const previous = j.previous && chainPath('WS', j.previous.code)
   return (
     <RecordHeader
       title={
@@ -219,18 +210,6 @@ function RunHeader({ journey: j, onOpenDeal }: { journey: Journey; onOpenDeal?: 
           </Button>
         )
       }
-      meta={[
-        j.ordinal > 1 && `Hành trình ${j.ordinal}`,
-        <span className="tnum">
-          mở {dmy(j.openedAt)}
-          {j.closedAt !== null && ` · đóng ${dmy(j.closedAt)}`} · {runDays(j, Date.now())} ngày
-        </span>,
-        j.previous && previous && (
-          <Link to={previous} className="text-foreground underline underline-offset-2">
-            nối từ hành trình {j.previous.ordinal} ({JOURNEY_BORN_BY_LABEL[j.previous.bornBy]})
-          </Link>
-        ),
-      ]}
     />
   )
 }

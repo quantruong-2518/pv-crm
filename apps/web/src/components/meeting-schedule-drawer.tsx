@@ -1,16 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, Timer } from '@pv/ui'
-import {
-  Button,
-  Drawer,
-  Icon,
-  Input,
-  SectionTitle,
-  SegmentedControl,
-  Select,
-  Textarea,
-} from '@pv/ui'
+import { Building, CalendarClock, Check } from '@pv/ui'
+import { Button, Drawer, Icon, Input, MetaPill, SegmentedControl, Select, Textarea } from '@pv/ui'
 import {
   MEETING_DURATION_MINUTES,
   MEETING_GOAL_MAX,
@@ -25,11 +16,12 @@ import {
 import type { Actor } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
 import { Field } from '@/components/field-bits'
-import { GoogleLinkLine } from '@/components/google-link-line'
+import { GoogleCalendarChip } from '@/components/google-calendar-chip'
 import { toastSaved } from '@/components/meeting-saved-toast'
 import { PersonTokenField, type TokenPerson } from '@/components/person-token-field'
 import { leadContactsQuery } from '@/data/contacts'
 import { useDirectory } from '@/data/directory'
+import { googleLinkQuery } from '@/data/google'
 import { isHttpUrl } from '@/data/http-url'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { opportunityProfileQuery } from '@/data/opportunities'
@@ -45,10 +37,11 @@ import {
 } from '@/data/meeting-labels'
 import { useAddMeeting, useEditMeeting, type MeetingSubject } from '@/data/meetings'
 
-/** Booking a meeting that has NOT happened yet — three groups, one panel.
+/** Booking a meeting that has NOT happened yet — one sheet, no section headings.
  *
  *  Day, hour and length are three separate decisions and read as three (not one
- *  `datetime-local`); attendees are a list of people and look like one.
+ *  `datetime-local`); attendees are a list of people and look like one. The
+ *  slot is read back once, in the footer beside the button that books it.
  *
  *  Two books, and the asymmetry is the server's rather than a shortcut: a host
  *  must name an `actorId` from `platform.actor`, a guest may carry a
@@ -64,11 +57,14 @@ export function MeetingScheduleDrawer({
   open,
   onClose,
   editing,
+  anchor,
 }: {
   subject: MeetingSubject
   open: boolean
   onClose: () => void
   editing?: MeetingRow
+  /** The bar the sheet rises out of; without one it rises from the screen's foot. */
+  anchor?: HTMLElement | null
 }) {
   const people = useDirectory()
   const { company, contacts } = useSubjectBook(subject, open)
@@ -131,16 +127,20 @@ export function MeetingScheduleDrawer({
       title={editing ? 'Dời lịch họp' : 'Đặt lịch họp'}
       subtitle={
         <span className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="truncate">{company}</span>
-          <span aria-hidden="true">·</span>
-          <span className="font-mono">{subject.code}</span>
+          <MetaPill icon={Building} className="max-w-full">
+            {company}
+          </MetaPill>
+          <MetaPill mono>{subject.code}</MetaPill>
         </span>
       }
-      width="md"
+      side="bottom"
+      anchor={anchor}
+      meta={<GoogleCalendarChip />}
       footer={
         <ScheduleFooter
-          message={failure || blocker || readback}
-          warning={Boolean(failure || blocker)}
+          failure={failure}
+          blocker={blocker}
+          readback={readback}
           blocked={Boolean(blocker)}
           pending={pending}
           verb={editing ? 'Lưu lịch mới' : past ? 'Ghi lại buổi họp' : 'Đặt lịch'}
@@ -148,11 +148,10 @@ export function MeetingScheduleDrawer({
         />
       }
     >
-      <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
-        <BasicsGroup form={form} readback={readback} linkBroken={linkBroken} />
-        <AttendeesGroup form={form} people={people} company={company} contacts={contacts} />
-        <PrepareGroup form={form} />
-        <GoogleLinkLine />
+      <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-6">
+        <BasicsGroup form={form} linkBroken={linkBroken} />
+        <AttendeesGroup form={form} people={people} contacts={contacts} />
+        <GoalField form={form} />
       </form>
     </Drawer>
   )
@@ -239,15 +238,17 @@ function toMeetingBody(
 }
 
 function ScheduleFooter({
-  message,
-  warning,
+  failure,
+  blocker,
+  readback,
   blocked,
   pending,
   verb,
   onClose,
 }: {
-  message: string
-  warning: boolean
+  failure: string
+  blocker: string | null
+  readback: string
   blocked: boolean
   pending: boolean
   /** What the press does. A slot already behind us is a note of a meeting held
@@ -257,21 +258,31 @@ function ScheduleFooter({
 }) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-3">
-      <span
-        aria-live="polite"
-        className={
-          warning
-            ? 'text-warning min-w-0 text-[11.5px] leading-[1.5]'
-            : 'text-muted-foreground min-w-0 text-[11.5px] leading-[1.5]'
-        }
-      >
-        {message}
+      {/* A refused save is an error and reads red; a field still empty is only
+          what is left to fill; a complete slot is read back as the booking. */}
+      <span aria-live="polite" className="min-w-0 text-[11.5px] leading-[1.5]">
+        {failure ? (
+          <span className="text-destructive-foreground">{failure}</span>
+        ) : blocker ? (
+          <span className="text-muted-foreground">{blocker}</span>
+        ) : (
+          readback && (
+            <MetaPill icon={CalendarClock} tone="accent" className="text-[11.5px]">
+              {readback}
+            </MetaPill>
+          )
+        )}
       </span>
       <div className="flex shrink-0 gap-2">
-        <Button size="lg" variant="ghost" type="button" onClick={onClose}>
+        <Button variant="ghost" type="button" className="pointer-coarse:h-12" onClick={onClose}>
           Huỷ
         </Button>
-        <Button size="lg" type="submit" form={FORM_ID} disabled={blocked || pending}>
+        <Button
+          type="submit"
+          form={FORM_ID}
+          className="pointer-coarse:h-12"
+          disabled={blocked || pending}
+        >
           <Icon icon={Check} size={16} />
           {/* The button is read BEFORE the press, so of the three places that
               name this write it is the one that must not say "booking" over a
@@ -283,44 +294,49 @@ function ScheduleFooter({
   )
 }
 
-function BasicsGroup({
-  form,
-  readback,
-  linkBroken,
-}: {
-  form: MeetingDraft
-  readback: string
-  linkBroken: boolean
-}) {
+function BasicsGroup({ form, linkBroken }: { form: MeetingDraft; linkBroken: boolean }) {
+  const { data: google } = useQuery(googleLinkQuery())
+  /* A link only means something online; one already typed stays visible so
+     switching mode never hides what will still be sent. */
+  const showLink = form.mode === 'online' || form.link !== ''
+
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle size="md">Buổi họp</SectionTitle>
       <TitleField value={form.title} onChange={form.setTitle} />
-      <WhenRow form={form} readback={readback} />
-      <Field label="Hình thức">
-        <SegmentedControl
-          label="Hình thức"
-          hideLabel
-          value={form.mode}
-          onChange={(value) => form.setMode(value as MeetingMode)}
-          options={MEETING_MODE_ORDER.map((value) => ({
-            value,
-            label: MEETING_MODE_LABEL[value],
-          }))}
-        />
-      </Field>
-      <Field
-        label="Link họp"
-        problem={linkBroken ? 'Link họp phải bắt đầu bằng http:// hoặc https://.' : undefined}
-      >
-        <Input
-          value={form.link}
-          invalid={linkBroken}
-          className="pointer-coarse:h-12"
-          placeholder="https://meet.google.com/…"
-          onChange={(event) => form.setLink(event.target.value)}
-        />
-      </Field>
+      <WhenRow form={form} />
+      <div className="grid min-w-0 gap-4 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-end">
+        <Field label="Hình thức">
+          <SegmentedControl
+            label="Hình thức"
+            hideLabel
+            value={form.mode}
+            onChange={(value) => form.setMode(value as MeetingMode)}
+            options={MEETING_MODE_ORDER.map((value) => ({
+              value,
+              label: MEETING_MODE_LABEL[value],
+            }))}
+          />
+        </Field>
+        {showLink && (
+          <Field
+            label="Link họp"
+            className="min-w-0"
+            problem={linkBroken ? 'Link họp phải bắt đầu bằng http:// hoặc https://.' : undefined}
+          >
+            <Input
+              value={form.link}
+              invalid={linkBroken}
+              className="pointer-coarse:h-12"
+              /* The server asks Google for a Meet room only for an online
+                 meeting with no link of its own (`meeting-calendar.ts`). */
+              placeholder={
+                google?.connected ? 'Để trống để tạo link Google Meet' : 'https://meet.google.com/…'
+              }
+              onChange={(event) => form.setLink(event.target.value)}
+            />
+          </Field>
+        )}
+      </div>
     </section>
   )
 }
@@ -361,51 +377,43 @@ function TitleField({ value, onChange }: { value: string; onChange: (next: strin
   )
 }
 
-/** Day · start · length, then one line reading the three of them back.
+/** Day · start · length.
  *
  *  Every column carries `min-w-0`: a three-column grid whose children keep
- *  their intrinsic width pushes a 560px panel wider than it is, and the panel
+ *  their intrinsic width pushes the panel wider than it is, and the panel
  *  grows a horizontal scrollbar instead of the columns shrinking. */
-function WhenRow({ form, readback }: { form: MeetingDraft; readback: string }) {
+function WhenRow({ form }: { form: MeetingDraft }) {
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <div className="grid min-w-0 grid-cols-3 gap-3">
-        <Field label="Ngày" className="min-w-0">
-          <Input
-            type="date"
-            className="pointer-coarse:h-12"
-            value={form.date}
-            onChange={(event) => form.setDate(event.target.value)}
-          />
-        </Field>
-        <Field label="Bắt đầu" className="min-w-0">
-          <Input
-            type="time"
-            className="pointer-coarse:h-12"
-            value={form.time}
-            onChange={(event) => form.setTime(event.target.value)}
-          />
-        </Field>
-        <Field label="Thời lượng" className="min-w-0">
-          <Select
-            label="Thời lượng"
-            hideLabel
-            className="pointer-coarse:[&>button]:h-12 w-full"
-            value={String(form.durationMinutes)}
-            onChange={(value) => form.setDuration(Number(value) as MeetingDurationMinutes)}
-            options={MEETING_DURATION_MINUTES.map((minutes) => ({
-              value: String(minutes),
-              label: MEETING_DURATION_LABEL[minutes],
-            }))}
-          />
-        </Field>
-      </div>
-      {readback && (
-        <p className="text-foreground bg-surface-ink/5 m-0 flex min-w-0 items-center gap-2 rounded-sm px-3 py-2 text-[12px] leading-[1.5]">
-          <Icon icon={Timer} size={16} className="text-muted-foreground shrink-0" />
-          <span className="min-w-0">{readback}</span>
-        </p>
-      )}
+    <div className="grid min-w-0 grid-cols-3 gap-3">
+      <Field label="Ngày" className="min-w-0">
+        <Input
+          type="date"
+          className="pointer-coarse:h-12"
+          value={form.date}
+          onChange={(event) => form.setDate(event.target.value)}
+        />
+      </Field>
+      <Field label="Bắt đầu" className="min-w-0">
+        <Input
+          type="time"
+          className="pointer-coarse:h-12"
+          value={form.time}
+          onChange={(event) => form.setTime(event.target.value)}
+        />
+      </Field>
+      <Field label="Thời lượng" className="min-w-0">
+        <Select
+          label="Thời lượng"
+          hideLabel
+          className="pointer-coarse:[&>button]:h-12 w-full"
+          value={String(form.durationMinutes)}
+          onChange={(value) => form.setDuration(Number(value) as MeetingDurationMinutes)}
+          options={MEETING_DURATION_MINUTES.map((minutes) => ({
+            value: String(minutes),
+            label: MEETING_DURATION_LABEL[minutes],
+          }))}
+        />
+      </Field>
     </div>
   )
 }
@@ -419,12 +427,10 @@ const LOOKS_LIKE_EMAIL = /^\S+@\S+$/
 function AttendeesGroup({
   form,
   people,
-  company,
   contacts,
 }: {
   form: MeetingDraft
   people: readonly Actor[]
-  company: string
   contacts: readonly LeadContact[]
 }) {
   const staff = useMemo<TokenPerson[]>(
@@ -461,10 +467,8 @@ function AttendeesGroup({
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle size="md">Người tham dự</SectionTitle>
-
-      <Field label="Bên mình">
+    <section className="grid min-w-0 gap-4 sm:grid-cols-2">
+      <Field label="Người bên mình" className="min-w-0">
         <PersonTokenField
           label="Thêm người bên mình"
           placeholder="Thêm người…"
@@ -477,10 +481,10 @@ function AttendeesGroup({
         />
       </Field>
 
-      <Field label="Khách">
+      <Field label="Khách mời" className="min-w-0">
         <PersonTokenField
           label="Thêm khách"
-          placeholder="Tìm khách hoặc gõ tên khách mới…"
+          placeholder="Tìm hoặc gõ tên khách…"
           tokens={form.guests.map((guest) => ({
             id: guest.id,
             name: guest.name,
@@ -496,7 +500,7 @@ function AttendeesGroup({
           onPick={pickContact}
           onRemove={form.dropGuest}
           onFreeText={addTypedGuest}
-          hint={`Chọn từ người liên hệ của ${company}, hoặc gõ tên rồi nhấn Enter.`}
+          hint="Khách mới: gõ tên rồi nhấn Enter."
           emptyNote="Chưa có người liên hệ. Gõ tên khách rồi nhấn Enter."
         />
       </Field>
@@ -504,23 +508,17 @@ function AttendeesGroup({
   )
 }
 
-function PrepareGroup({ form }: { form: MeetingDraft }) {
+function GoalField({ form }: { form: MeetingDraft }) {
   return (
-    <section className="flex min-w-0 flex-col gap-4">
-      <SectionTitle size="md">Chuẩn bị</SectionTitle>
-      <Field label="Mục tiêu buổi họp (không bắt buộc)">
-        <Textarea
-          rows={3}
-          value={form.goal}
-          maxLength={MEETING_GOAL_MAX}
-          placeholder="VD: Hiểu quy trình báo cáo sản xuất hiện tại, hẹn ngày khảo sát."
-          onChange={(event) => form.setGoal(event.target.value)}
-        />
-      </Field>
-      <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.5]">
-        Sau buổi họp, bấm Họp xong để ghi biên bản, người dự và tệp.
-      </p>
-    </section>
+    <Field label="Mục tiêu (không bắt buộc)">
+      <Textarea
+        rows={2}
+        value={form.goal}
+        maxLength={MEETING_GOAL_MAX}
+        placeholder="VD: Hiểu quy trình báo cáo sản xuất, hẹn ngày khảo sát."
+        onChange={(event) => form.setGoal(event.target.value)}
+      />
+    </Field>
   )
 }
 

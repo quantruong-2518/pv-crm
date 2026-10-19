@@ -155,7 +155,7 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
       {isPending ? (
         <Skeleton className="h-24 w-full" />
       ) : error ? (
-        <p role="alert" className="text-warning m-0 text-[12px]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[12px]">
           {isApiError(error) ? userMessage(error) : 'Không tải được sổ lượt bán.'}
         </p>
       ) : data.rows.length === 0 ? (
@@ -321,7 +321,7 @@ export function ContentFields({
         Đính kèm ghi âm, biên bản, ảnh chat
       </Button>
       {problem && (
-        <p role="alert" className="text-warning m-0 text-[12px] leading-[1.6]">
+        <p role="alert" className="text-destructive-foreground m-0 text-[12px] leading-[1.6]">
           {problem}
         </p>
       )}

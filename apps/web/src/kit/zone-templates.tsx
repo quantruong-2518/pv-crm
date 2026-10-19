@@ -172,7 +172,7 @@ export function ZoneTemplates() {
           className="col-span-3"
           code="T-04"
           name="Drawer"
-          note="panel phải · md 560 / lg 760"
+          note="panel phải · md 560 / lg 760 · side=bottom: sheet trượt lên từ cạnh trên của anchor, md 680"
           bodyClassName="flex flex-wrap items-center gap-4 px-4 py-5"
           footer={
             <>

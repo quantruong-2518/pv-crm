@@ -52,9 +52,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled}
       className={cn(
         buttonVariants({ variant, size }),
-        /* bg-none: the default variant paints a gradient image that sits above
-           bg-color, so without it the disabled label lands on blue (law 13). */
-        disabled && 'text-muted-foreground bg-muted cursor-not-allowed bg-none shadow-none',
+        /* bg-none: the default variant's gradient sits above bg-color. A faded
+           flat ink, not `bg-muted`: on stone `--muted` is near-white, so an off
+           button read as a raised, live one. */
+        disabled &&
+          'bg-surface-ink/5 text-muted-foreground cursor-not-allowed bg-none opacity-60 shadow-none',
         className,
       )}
       {...props}

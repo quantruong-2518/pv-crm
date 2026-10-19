@@ -26,7 +26,7 @@ export function CommEvaluation({
       {vocab.isPending ? (
         <Skeleton className="h-24 w-full" />
       ) : vocab.error ? (
-        <p role="alert" className="text-warning text-[12px]">
+        <p role="alert" className="text-destructive-foreground text-[12px]">
           Không tải được bộ câu hỏi.{' '}
           {isApiError(vocab.error) ? userMessage(vocab.error) : 'Tải lại trang.'}
         </p>

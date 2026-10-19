@@ -93,7 +93,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
   if (isPending) return <Skeleton className="h-24 w-full" />
   if (error) {
     return (
-      <p className="text-warning text-[12.5px] leading-[1.6]">
+      <p className="text-destructive-foreground text-[12.5px] leading-[1.6]">
         Không đọc được tệp. {isApiError(error) ? userMessage(error) : ''}
       </p>
     )
@@ -114,7 +114,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
           />
         ))}
         {remove.error && (
-          <li role="alert" className="text-warning text-[12px]">
+          <li role="alert" className="text-destructive-foreground text-[12px]">
             {userMessage(remove.error)}
           </li>
         )}

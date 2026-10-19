@@ -20,6 +20,7 @@ import type {
   ScanPreview,
   WorkstreamDocumentStep,
 } from '@pv/contracts'
+import { normalisePhone as toE164 } from '@pv/contracts'
 import type { AttachmentRowDb } from '@api/platform/storage/attachment.schema'
 import type { DocumentStepRowDb } from '../workstream/workstream-document.schema'
 import type { ScanBatchRowDb } from './lead-scan.schema'
@@ -198,12 +199,19 @@ export function companyValuesOf(g: ScanPlanGroup): Partial<LeadValues> {
  *  one, and stores `UNKNOWN_NAME` itself. */
 export type ScanContact = { name: string | null; title?: string; email?: string; phone?: string }
 
+/** Every typed door stores E.164 (`phoneOptional`); a scan reads the number as
+ *  printed ('+84 395 928 069'), and a stored spelling with spaces is what the
+ *  comm log then refused as a malformed phone. */
+const storedPhone = (p: ScanPlanPerson): string | undefined =>
+  (p.phones[0] && toE164(p.phones[0])) || undefined
+
 export function contactOf(p: ScanPlanPerson): ScanContact {
+  const phone = storedPhone(p)
   return {
     name: p.name,
     ...(p.title ? { title: p.title } : {}),
     ...(p.email ? { email: p.email } : {}),
-    ...(p.phones[0] ? { phone: p.phones[0] } : {}),
+    ...(phone ? { phone } : {}),
   }
 }
 
@@ -227,7 +235,7 @@ export function leadWriteOf(
         contactName: primary.name ?? UNKNOWN_NAME,
         contactTitle: primary.title,
         email: primary.email!,
-        phone: primary.phones[0] ?? null,
+        phone: storedPhone(primary) ?? null,
         ownerId: owner.id,
         state: stateAtBirth(owner.id),
         sourceKind: 'SCAN',

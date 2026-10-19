@@ -72,7 +72,11 @@ export function AccountCreateDialog({
           <span
             className={cn(
               'text-[11.5px] leading-[1.5]',
-              ready ? 'text-muted-foreground' : 'text-warning',
+              create.error
+                ? 'text-destructive-foreground'
+                : ready
+                  ? 'text-muted-foreground'
+                  : 'text-warning',
             )}
             aria-live="polite"
           >

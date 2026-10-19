@@ -23,7 +23,6 @@ import {
   accountBodyOf,
   accountDraftOf,
   accountProfileQuery,
-  CATEGORY_LABEL,
   changedAccountFields,
   useSaveAccount,
   type AccountDraft,
@@ -79,19 +78,7 @@ export default function AccountDetailPage() {
     <AppShell {...chrome.shell}>
       <RecordShell
         strip={<ContextStrip objects={[{ code: account.code, source: true }]} />}
-        header={
-          <RecordHeader
-            title={account.name}
-            meta={[
-              account.legalName,
-              /* Bought or not is the split the whole product thinks in; said
-                 here so the reader need not infer it from the scores. */
-              account.signedDeals > 0 ? 'Đã mua' : 'Chưa mua',
-              account.province,
-              account.category !== null && CATEGORY_LABEL[account.category],
-            ]}
-          />
-        }
+        header={<RecordHeader title={account.name} />}
         main={
           <>
             <div className="grid gap-6 sm:grid-cols-4">

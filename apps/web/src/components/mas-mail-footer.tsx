@@ -71,9 +71,11 @@ export function MailFooter({
       <span
         aria-live="polite"
         className={
-          failure || stepBlocker
-            ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
-            : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+          failure
+            ? 'text-destructive-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+            : stepBlocker
+              ? 'text-warning min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
+              : 'text-muted-foreground min-w-0 max-w-[560px] text-[11.5px] leading-[1.5]'
         }
       >
         {message}

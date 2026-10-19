@@ -257,7 +257,7 @@ export function NextStepForm(props: FormProps) {
   if (options.isPending) return <Skeleton className="h-16 w-full" />
   return (
     <div className="flex flex-col gap-3">
-      <p role="alert" className="text-warning m-0 text-[12.5px] leading-[1.6]">
+      <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
         Không đọc được danh sách bước tiếp theo.{' '}
         {isApiError(options.error) ? userMessage(options.error) : 'Thử lại.'}
       </p>
@@ -395,7 +395,7 @@ function StepForm({
       )}
 
       {failure && (
-        <p role="alert" className="text-warning text-[12.5px] leading-[1.6]">
+        <p role="alert" className="text-destructive-foreground text-[12.5px] leading-[1.6]">
           {userMessage(failure)}
         </p>
       )}

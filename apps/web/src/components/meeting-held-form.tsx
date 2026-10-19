@@ -119,7 +119,11 @@ export function MeetingHeldForm({
         <div className="flex min-w-0 items-center justify-between gap-3">
           <span
             aria-live="polite"
-            className="text-warning min-w-0 text-[11.5px] leading-[1.5]"
+            className={
+              close.error
+                ? 'text-destructive-foreground min-w-0 text-[11.5px] leading-[1.5]'
+                : 'text-warning min-w-0 text-[11.5px] leading-[1.5]'
+            }
             role={close.error ? 'alert' : undefined}
           >
             {message}

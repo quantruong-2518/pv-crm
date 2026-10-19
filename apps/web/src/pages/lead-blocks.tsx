@@ -1,13 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, Badge, CircleAlert } from '@pv/ui'
 import { Button, Icon, Skeleton, cn } from '@pv/ui'
-import { campaignLabel, sourceKindLabel, type LeadProfile } from '@pv/contracts'
+import type { LeadProfile } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { dmy } from '@/lib/date'
 import { leadStopReasonsQuery } from '@/data/leads'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
-import { sourcePartnerLabel } from '@/data/partners'
-import { useMotionLabel } from '@/data/sales-motions'
 import { leadTouchesQuery, leadVectorQuery } from '@/data/touches'
 import { workstreamJourneyQuery } from '@/data/workstream-journey'
 import { useRestoreLeads } from '@/components/lead-restore'
@@ -21,21 +18,15 @@ import { leadRungsOf, leadStepSubject, momentText } from './lead-model'
  *
  *  The header names the lead's state in a badge (law 16) and carries no code
  *  or run chip: the run strip says those (ADR 0078 §1). Its one move, to open
- *  a deal, sits on the right. Holder and origin live only in its meta line; the bar's more menu
- *  changes the holder. */
+ *  a deal, sits on the right. The bar's more menu changes the holder. */
 export function LeadHeader({
   lead,
-  readOnly,
   onConvert,
 }: {
   lead: LeadProfile
-  readOnly: boolean
   /** Set when this reader may open a deal from the lead; omit to draw no button. */
   onConvert?: () => void
 }) {
-  const partner = sourcePartnerLabel(lead.source)
-  const motionLabel = useMotionLabel()
-
   return (
     <RecordHeader
       title={
@@ -60,17 +51,6 @@ export function LeadHeader({
           </Button>
         )
       }
-      meta={[
-        lead.ownerName ? `PIC ${lead.ownerName}` : 'Chưa ai nhận',
-        lead.motion && `phương án tiếp cận ${motionLabel(lead.motion)}`,
-        `nguồn ${lead.source.origin?.name ?? sourceKindLabel(lead.source)}`,
-        partner && `giới thiệu ${partner}`,
-        lead.source.campaignId && `chiến dịch ${campaignLabel(lead.source)}`,
-        <span className="tnum">tạo {dmy(lead.createdAt)}</span>,
-        /* `lead.canEdit` is false for a reader who reaches the lead only
-           through one of its live deals (ADR 0071). */
-        readOnly && 'Bạn tham gia một cơ hội của lead này nên chỉ xem được',
-      ]}
     />
   )
 }

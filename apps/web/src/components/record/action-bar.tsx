@@ -97,6 +97,7 @@ export function ActionBar({
       className="pointer-events-none fixed inset-x-4 bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 flex justify-center lg:bottom-6 lg:right-24"
     >
       <div
+        data-action-bar-dock
         role="group"
         aria-label={label}
         className="glass-dock pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg p-2"

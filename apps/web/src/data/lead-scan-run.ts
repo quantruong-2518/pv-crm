@@ -224,7 +224,7 @@ async function runScan(
   } catch (error) {
     const reason = failureOf(error, 'Không mở được lô mới.')
     useScanRun.setState({ run: null, held: { picked, campaign, reason } })
-    return toastWarn('Chưa mở được lô mới', reason)
+    return toastFail('Chưa mở được lô mới', reason)
   }
   patchRun({ code: created.code })
 

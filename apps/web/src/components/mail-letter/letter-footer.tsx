@@ -11,6 +11,7 @@ import { sendLabel, type LetterForm } from './letter-model'
 export function LetterFooter({
   message,
   warn,
+  failed,
   form,
   setTiming,
   sendDisabled,
@@ -22,6 +23,8 @@ export function LetterFooter({
 }: {
   message: string
   warn: boolean
+  /** A failed send or check — drawn in danger red, unlike a blocker. */
+  failed: boolean
   form: LetterForm
   setTiming: (timing: LetterForm['timing'], at: string) => void
   sendDisabled: boolean
@@ -49,7 +52,11 @@ export function LetterFooter({
           aria-live="polite"
           className={cn(
             'min-w-0 max-w-[460px] text-[12px] leading-5',
-            warn ? 'text-warning' : 'text-muted-foreground',
+            failed
+              ? 'text-destructive-foreground'
+              : warn
+                ? 'text-warning'
+                : 'text-muted-foreground',
           )}
         >
           {message}

@@ -218,6 +218,8 @@
      from JS; the last frame has to be held by `forwards`. */
   --animate-drawer-in: drawer-in var(--motion-duration) var(--motion-ease);
   --animate-drawer-out: drawer-out var(--motion-duration) var(--motion-ease) forwards;
+  --animate-sheet-in: sheet-in var(--motion-duration) var(--motion-ease);
+  --animate-sheet-out: sheet-out var(--motion-duration) var(--motion-ease) forwards;
   --animate-scrim-in: scrim-in var(--motion-duration) var(--motion-ease);
   --animate-scrim-out: scrim-out var(--motion-duration) var(--motion-ease) forwards;
 
@@ -451,6 +453,25 @@
   }
   to {
     transform: translateX(100%);
+  }
+}
+
+/* The bottom sheet: same rule as the drawer, slides without fading. */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
   }
 }
 
