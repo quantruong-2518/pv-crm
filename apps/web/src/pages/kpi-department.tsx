@@ -14,6 +14,7 @@ import { AttentionBlock } from './kpi-company-people'
 import { openCounters, roomForecast, roomPeople } from './kpi-department-model'
 import { RankedHeatmap, RoomStrip } from './kpi-department-parts'
 import { MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
+import { MonthCloseBar } from './kpi-month-close'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 
 /** The head of sales' view of the room: who needs coaching this month. Read
@@ -56,6 +57,8 @@ export function KpiDepartmentPage() {
             />
           }
         />
+
+        <MonthCloseBar period={period} monthClose={people.data?.monthClose} />
 
         <QueryBlock query={people} what="KPI của phòng">
           {(data) => <RoomStrip people={roomPeople(data.people)} />}

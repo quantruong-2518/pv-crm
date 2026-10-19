@@ -26,6 +26,7 @@ import { toast } from '@/app/toast'
 import { bookQueryParams } from '@/app/book-query'
 import { access, useSession } from '@/app/auth'
 import { isParked } from '@/app/parked'
+import { overdueReasonNo } from './notification-sentence'
 import { holdNotificationStream, streamIsLive, subscribeStreamLive } from './notification-stream'
 import { snapshotNotifications, toastNewNotifications } from './notification-toasts'
 
@@ -296,6 +297,8 @@ export const notificationPath = (
   if (need && !may(need)) return null
   const installment = overdueInstallment(row)
   if (installment) return installment.path
+  const reasonNo = overdueReasonNo(row)
+  if (reasonNo) return `${SUBJECT_PATH.contract(row.subject.code)}/installments/${reasonNo}`
   if (row.subject.kind === 'approval' && row.kind !== 'approval-waiting')
     return `${ACCOUNT}#requests`
   /* The book opens on its `active` tab, which hides both batches' leads. */

@@ -24,9 +24,10 @@ import {
   type FigureOf,
   type RoleTargetOf,
 } from './kpi-allocation.mapper'
+import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
-import { assertTargetValues, monthClock, stillOpen } from './kpi-rules'
+import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { agreedIn, slotsOf, toReadings } from './kpi.mapper'
 
@@ -58,6 +59,7 @@ export class KpiAllocationService {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly config: KpiConfigService,
     private readonly alerts: KpiAlertService,
+    private readonly closes: KpiCloseRepository,
   ) {}
 
   /** Without `kpi.view-all`: only packages handed down — or, while the next
@@ -65,9 +67,11 @@ export class KpiAllocationService {
    *  caller's lines, and no totals: a sum would give away others' shares. */
   async read(who: Actor, period: KpiPeriodKey): Promise<KpiAllocationResponse> {
     const all = this.access.allows(who, 'kpi.view-all')
-    const [packages, inForce] = await Promise.all([
+    const today = vietnamToday()
+    const [packages, inForce, monthClose] = await Promise.all([
       this.repo.packages(period),
       all ? [] : this.repo.lastAgreed(period),
+      this.closes.of(period),
     ])
     const live = packages.filter((p) => p.status !== 'superseded')
     /* While a role's next version is a draft or returned, its holder keeps
@@ -89,13 +93,15 @@ export class KpiAllocationService {
       const mine = lines.filter((l) => l.allocationId === p.id)
       if (!all) {
         const own = mine.filter((l) => l.actorId === who.id)
-        return own.length > 0 ? [toAllocation(p, own, [], roleTarget, lastMonth)] : []
+        return own.length > 0 ? [toAllocation(p, own, [], roleTarget, lastMonth, today)] : []
       }
-      return [toAllocation(p, mine, totalsOf(p.role, mine, roleTarget), roleTarget, lastMonth)]
+      const totals = totalsOf(p.role, mine, roleTarget)
+      return [toAllocation(p, mine, totals, roleTarget, lastMonth, today)]
     })
     return KpiAllocationResponse.parse({
       period,
       closed: monthClock(period).phase === 'closed',
+      monthClose,
       allocations,
     })
   }
@@ -158,8 +164,14 @@ export class KpiAllocationService {
   }
 
   /** Only the draft's last author sends it: a second manager sending someone
-   *  else's numbers would leave the author free to agree them. */
-  async submit(who: Actor, period: KpiPeriodKey, role: RoleId): Promise<KpiAllocationResponse> {
+   *  else's numbers would leave the author free to agree them. `ackDays` is
+   *  the sender's, and starts counting once the package is agreed. */
+  async submit(
+    who: Actor,
+    period: KpiPeriodKey,
+    role: RoleId,
+    ackDays: number,
+  ): Promise<KpiAllocationResponse> {
     stillOpen(period)
     await this.repo.run(async (tx) => {
       const live = await this.repo.lockLive(tx, period, role)
@@ -170,13 +182,16 @@ export class KpiAllocationService {
         throw conflict('Bản nháp do người khác soạn sau cùng nên chỉ người đó gửi được.')
       }
       await this.assertBalanced(tx, live)
-      if (
-        !(await this.repo.movePackage(tx, live, { status: 'submitted', submittedAt: new Date() }))
-      ) {
-        throw stale()
-      }
+      const sent = { status: 'submitted' as const, submittedAt: new Date(), ackDays }
+      if (!(await this.repo.movePackage(tx, live, sent))) throw stale()
       await this.alerts.submitted(tx, who, live)
-      await this.note(tx, who, { kpi: 'allocation-submitted', period, role, version: live.version })
+      await this.note(tx, who, {
+        kpi: 'allocation-submitted',
+        period,
+        role,
+        version: live.version,
+        ackDays,
+      })
     })
     return this.read(who, period)
   }
@@ -235,18 +250,22 @@ export class KpiAllocationService {
   }
 
   /** One month's figures for `roles`, read the way a scorecard reads them
-   *  (`toReadings`), so "absent tally = 0, snapshot only today" is not copied. */
+   *  (`toReadings`), so "absent tally = 0, snapshot as of the month's end" is not copied. */
   async figures(span: PeriodSpan, roles: readonly RoleId[], only?: string): Promise<FigureOf> {
     const wanted = [...new Set(roles)]
     const catalog = await this.config.effectiveCatalog()
     const seats = wanted.flatMap((role) => catalog[role].map((def) => ({ role, def })))
-    const values = await this.readings.values(seats, span, only)
+    const values = await this.readings.monthValues(seats, span, only)
+    /* Only `.value` is read, so the verdict's tolerance is moot. The real
+       clock, so a month not begun keeps `toReadings`' no-data snapshot. */
+    const { elapsed, phase } = monthClock(span.key)
     const ctx = {
       catalog,
       values,
       slots: new Map(),
-      elapsed: 1,
-      running: monthClock(span.key).phase === 'running',
+      elapsed,
+      running: phase === 'running',
+      tolerance: 0,
     }
     return (role, actorId, key) =>
       toReadings(role, actorId, ctx).find((r) => r.key === key)?.value ?? null

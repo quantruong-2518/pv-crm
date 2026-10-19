@@ -4,13 +4,13 @@ import { Badge, Button, DataTable, GlassCard, Textarea, cn, type TableColumn } f
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDecideBody,
-  type KpiAckStatus,
+  type KpiAckState,
   type KpiAllocation,
   type RoleId,
 } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
 import { useDecideKpiAllocation } from '@/data/kpi-allocation'
-import { dmhm } from '@/lib/date'
+import { dm, dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
 import { ACK_LABEL, PROPOSALS_PATH, monthQuery } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
@@ -20,7 +20,8 @@ import type { Recipient } from './kpi-allocate-table'
  *  manager's decision, and a returned package's reason.
  *
  *  A holder's answer is read across all their lines in the role: one counter
- *  outweighs any confirmation, and "received" needs every line confirmed. */
+ *  outweighs any confirmation, and "received" needs every line confirmed or
+ *  lapsed (the head's level applies once the deadline passes). */
 
 const COLUMNS: TableColumn[] = [
   { header: 'Người nhận', width: 'minmax(0,1.2fr)' },
@@ -31,16 +32,21 @@ const COLUMNS: TableColumn[] = [
 /** `KpiAllocationDecideBody`'s ceiling on a return reason. */
 const REASON_MAX = KpiAllocationDecideBody.options[1].shape.reason.maxLength ?? undefined
 
-type Answer = { status: KpiAckStatus; detail: string }
+type Answer = { status: KpiAckState; detail: string }
 
-function answerOf(lines: KpiAllocation['lines']): Answer {
-  const countered = lines.filter((l) => l.ackStatus === 'countered')
+function answerOf(lines: KpiAllocation['lines'], dueOn: KpiAllocation['ackDueOn']): Answer {
+  const countered = lines.filter((l) => l.ackState === 'countered')
   if (countered.length > 0) {
     const names = countered.map((l) => KPI_METRIC_LABEL[l.metricKey]).join(', ')
     return { status: 'countered', detail: names }
   }
   const stamps = lines.flatMap((l) => (l.ackedAt ? [l.ackedAt] : [])).sort()
-  if (lines.length > 0 && lines.every((l) => l.ackStatus === 'acknowledged')) {
+  const settled = (l: KpiAllocation['lines'][number]) =>
+    l.ackState === 'acknowledged' || l.ackState === 'lapsed'
+  if (lines.length > 0 && lines.every(settled)) {
+    if (lines.some((l) => l.ackState === 'lapsed')) {
+      return { status: 'lapsed', detail: dueOn ? `Hạn trả lời: ${dm(dueOn)}` : '' }
+    }
     const last = stamps[stamps.length - 1]
     return { status: 'acknowledged', detail: last ? `Lúc ${dmhm(last)}` : '' }
   }
@@ -59,7 +65,7 @@ export function AnswersBlock({
   const navigate = useNavigate()
   const rows = holders.flatMap((h) => {
     const lines = pkg.lines.filter((l) => l.actorId === h.actorId)
-    return lines.length > 0 ? [{ holder: h, answer: answerOf(lines) }] : []
+    return lines.length > 0 ? [{ holder: h, answer: answerOf(lines, pkg.ackDueOn) }] : []
   })
   const open = rows.filter((r) => r.answer.status === 'countered').length
 

@@ -1,5 +1,6 @@
-import { NOTIFICATION_KIND_LABEL, notificationSentence, type NotificationRow } from '@pv/contracts'
+import { NOTIFICATION_KIND_LABEL, type NotificationRow } from '@pv/contracts'
 import { toast } from '@/app/toast'
+import { sentenceOf } from './notification-sentence'
 
 /** Important notifications pop up as toasts (ADR 0093 §3).
  *
@@ -56,7 +57,7 @@ export function toastNewNotifications(
 }
 
 function show(row: NotificationRow, onOpen: (() => void) | null) {
-  const sentence = notificationSentence(row)
+  const sentence = sentenceOf(row)
   toast(sentence ?? NOTIFICATION_KIND_LABEL[row.kind], {
     tone: 'info',
     detail: sentence ? undefined : (row.subject.label ?? undefined),

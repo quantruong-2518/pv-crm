@@ -1,4 +1,4 @@
-import { and, arrayContains, asc, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, arrayContains, asc, eq, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiMetricDef, KpiMetricKey, KpiScope, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -7,9 +7,10 @@ import { toVndSql } from '../money'
 import { dealLost, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { realExchanges } from '../performance/real-exchange'
+import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
 
-/** Every KPI figure, computed on read from the books' own tables — there is
- *  no snapshot to drift (`kpi.schema.ts`).
+/** Every KPI figure, computed on read from the books' own tables, except a
+ *  closed month's, which `monthValues` reads from its frozen copy (ADR 0100).
  *
  *  Each metric is a BASIS — one row per record it counts, `(actor_id, kind,
  *  code, at, value, tag)` — and a TOTAL folding those rows into the figure. The
@@ -55,9 +56,18 @@ const flag = (yes: SQL, on: string, off: string): SQL =>
   sql`CASE WHEN ${yes} THEN 1 ELSE 0 END::float8 AS value,
       CASE WHEN ${yes} THEN ${on}::text ELSE ${off}::text END AS tag`
 
+/** Overdue AS OF the span's `as_of` day (`spanned`): due on a Vietnam day
+ *  strictly before it (`dueLevelOf`: due today is not overdue), and not paid by
+ *  the end of it. An approved reason for THIS due date lifts the installment. */
 const OVERDUE = sql`FROM sales.contract_installment i
   JOIN sales.contract k ON k.code = i.contract_code ${LIVE}
-  WHERE i.paid_at IS NULL AND i.due < now()`
+  WHERE (i.due AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < (SELECT as_of FROM span)
+    AND (i.paid_at IS NULL
+         OR i.paid_at >= (((SELECT as_of FROM span) + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'))
+    AND NOT EXISTS (
+      SELECT 1 FROM sales.installment_overdue_reason r
+       WHERE r.contract_code = i.contract_code AND r.installment_no = i.no
+         AND r.state = 'approved' AND r.due = i.due)`
 
 /** An installment has no code of its own; `contract/no` is its page's address. */
 const INSTALLMENT = sql`'installment' AS kind, k.code || '/' || i.no AS code`
@@ -296,11 +306,14 @@ export const onlyFor =
   (column) =>
     actorId ? sql` AND ${column} = ${actorId}` : sql``
 
-/** `body` under the month's Vietnam-day edges, the `span` every basis reads. */
+/** `body` under the month's Vietnam-day edges, the `span` every basis reads.
+ *  `as_of` is the last Vietnam day a snapshot figure is read at: today for the
+ *  running month, the month's last day once it ended. */
 export const spanned = (span: PeriodSpan, body: SQL): SQL => sql`
   WITH span AS (
     SELECT (${span.from}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS lo,
-           (${span.to}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS hi
+           (${span.to}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh' AS hi,
+           LEAST((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date, ${span.to}::date - 1) AS as_of
   )
   ${body}`
 
@@ -333,6 +346,43 @@ export class KpiReadingsRepository {
 
     return new Map(
       r.rows.map((row) => [address(row.series, row.scope, row.actor_id ?? ''), row.value]),
+    )
+  }
+
+  /** `values`, except that a closed month answers from its frozen copy, which
+   *  is why every reader of a month's cards uses this one. A seat with no
+   *  stored row is absent, as an actor with no row is in the live read.
+   *  The weekly series and the close itself call `values`: they need live data. */
+  async monthValues(
+    seats: readonly KpiSeat[],
+    span: PeriodSpan,
+    actorId?: string,
+  ): Promise<KpiValues> {
+    const [closed] = await this.db
+      .select({ period: kpiMonthClose.period })
+      .from(kpiMonthClose)
+      .where(eq(kpiMonthClose.period, span.key))
+    if (!closed) return this.values(seats, span, actorId)
+
+    const rows = await this.db
+      .select()
+      .from(kpiMonthValue)
+      .where(
+        and(
+          eq(kpiMonthValue.period, span.key),
+          actorId
+            ? or(eq(kpiMonthValue.actorId, actorId), isNull(kpiMonthValue.actorId))
+            : undefined,
+        ),
+      )
+    const bySeat = new Map(seats.map((s) => [`${s.role}|${s.def.key}`, s]))
+    return new Map(
+      rows.flatMap((r) => {
+        const seat = bySeat.get(`${r.role}|${r.metricKey}`)
+        return seat
+          ? [[valueKey(seat, r.actorId ?? ''), r.value === null ? null : Number(r.value)]]
+          : []
+      }),
     )
   }
 

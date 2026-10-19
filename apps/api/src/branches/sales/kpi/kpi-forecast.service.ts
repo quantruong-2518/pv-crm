@@ -16,6 +16,7 @@ import { SettingService } from '@api/platform/setting/setting.service'
 import { spansOf } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
+import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository, valueKey, type KpiSeat } from './kpi-readings.repository'
 import { monthClock, vietnamToday } from './kpi-rules'
@@ -78,6 +79,7 @@ export class KpiForecastService {
     private readonly allocations: KpiAllocationRepository,
     private readonly settings: SettingService,
     private readonly config: KpiConfigService,
+    private readonly closes: KpiCloseRepository,
   ) {}
 
   async everyone(period: KpiPeriodKey): Promise<KpiForecastResponse> {
@@ -114,6 +116,7 @@ export class KpiForecastService {
     const today = vietnamToday()
     const seat: KpiSeat = { role, def }
     const target = await this.targetOf(period, who.id, role, metricKey)
+    const frozen = (await this.closes.of(period)) !== null
     const points = await Promise.all(
       this.weeksOf(from, to).map(async (weekStart) => {
         const end = addDays(weekStart, 7) < to ? addDays(weekStart, 7) : to
@@ -130,7 +133,7 @@ export class KpiForecastService {
         }
       }),
     )
-    return KpiWeeklyResponse.parse({ period, role, metricKey, points })
+    return KpiWeeklyResponse.parse({ period, frozen, role, metricKey, points })
   }
 
   /** Every Monday whose week touches the month; the first may fall in the
@@ -165,11 +168,12 @@ export class KpiForecastService {
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
     const { from, to } = spansOf(period).current
-    const [values, rows, lines, thresholds] = await Promise.all([
-      this.readings.values(seats, { key: period, from, to }, only),
+    const [values, rows, lines, thresholds, monthClose] = await Promise.all([
+      this.readings.monthValues(seats, { key: period, from, to }, only),
       this.targets.ofPeriod(period),
       this.allocations.agreedLines(period, only),
       this.thresholds(),
+      this.closes.of(period),
     ])
     const { elapsed, phase } = monthClock(period)
     const running = phase === 'running'
@@ -178,9 +182,17 @@ export class KpiForecastService {
     const items = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => {
         const defs = new Map(catalog[role].map((d) => [d.key, d]))
-        const ctx = { catalog, values, slots: sources.slotsFor(h.id), elapsed, running }
+        /* Only value and target are read, so the verdict's tolerance is moot. */
+        const ctx = {
+          catalog,
+          values,
+          slots: sources.slotsFor(h.id),
+          elapsed,
+          running,
+          tolerance: 0,
+        }
         /* `toReadings` is the card's own value and target rule: zero for an
-           empty tally, nothing for a snapshot outside the running month. */
+           empty tally, nothing for a snapshot of a month not begun. */
         return toReadings(role, h.id, ctx).flatMap((r) => {
           const def = defs.get(r.key)
           if (!def?.paced) return []
@@ -202,7 +214,7 @@ export class KpiForecastService {
         })
       }),
     )
-    return KpiForecastResponse.parse({ period, thresholds, items })
+    return KpiForecastResponse.parse({ period, monthClose, thresholds, items })
   }
 
   /** Read once per request, above the loop (`SettingService.value`'s rule). */

@@ -58,7 +58,7 @@ export class KpiAllocationController {
     @Param(zod(KpiPeriodParams)) params: KpiPeriodParams,
     @Body(zod(KpiAllocationSubmitBody)) body: KpiAllocationSubmitBody,
   ) {
-    return this.packages.submit(who, params.period, body.role)
+    return this.packages.submit(who, params.period, body.role, body.ackDays)
   }
 
   @Post(':period/allocations/:role/decide')

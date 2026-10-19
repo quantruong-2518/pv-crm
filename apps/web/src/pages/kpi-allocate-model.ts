@@ -2,7 +2,7 @@ import type { BadgeProps } from '@pv/ui'
 import {
   KPI_CATALOG,
   KPI_COUNTER_STATUS_LABEL,
-  type KpiAckStatus,
+  type KpiAckState,
   type KpiAllocationStatus,
   type KpiCounter,
   type KpiCounterStatus,
@@ -31,11 +31,13 @@ export const PACKAGE_LABEL: Record<KpiAllocationStatus, { text: string; tone: To
   superseded: { text: 'Đang áp dụng', tone: 'success' },
 }
 
-/** A holder's answer to a line, one wording for the holder and the manager alike. */
-export const ACK_LABEL: Record<KpiAckStatus, { text: string; tone: Tone }> = {
+/** A holder's answer to a line, one wording for the holder and the manager alike.
+ *  `lapsed`: the deadline passed unanswered, so the head's level applies. */
+export const ACK_LABEL: Record<KpiAckState, { text: string; tone: Tone }> = {
   pending: { text: 'Chưa xác nhận', tone: 'warning' },
   countered: { text: 'Xin đổi mức', tone: 'running' },
   acknowledged: { text: 'Đã xác nhận', tone: 'success' },
+  lapsed: { text: 'Đã áp dụng vì quá hạn', tone: 'draft' },
 }
 
 export const COUNTER_LABEL: Record<KpiCounterStatus, { text: string; tone: Tone }> = {

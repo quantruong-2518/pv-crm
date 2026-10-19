@@ -46,7 +46,13 @@ export type LineKey = { allocationId: string; actorId: string; metricKey: KpiMet
 type PackageSet = Partial<
   Pick<
     KpiAllocationValues,
-    'status' | 'submittedBy' | 'submittedAt' | 'decidedBy' | 'decidedAt' | 'returnReason'
+    | 'status'
+    | 'submittedBy'
+    | 'submittedAt'
+    | 'decidedBy'
+    | 'decidedAt'
+    | 'returnReason'
+    | 'ackDays'
   >
 >
 
@@ -88,6 +94,7 @@ export class KpiAllocationRepository {
         decidedBy: kpiAllocation.decidedBy,
         decidedAt: kpiAllocation.decidedAt,
         returnReason: kpiAllocation.returnReason,
+        ackDays: kpiAllocation.ackDays,
         createdAt: kpiAllocation.createdAt,
         submitter: submitter.name,
         decider: decider.name,

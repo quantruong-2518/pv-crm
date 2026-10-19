@@ -25,7 +25,7 @@ import { ROLE_LABEL } from '@/data/users'
 import { dmy } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import { DASH, printCell } from './kpi-model'
+import { DASH, FROZEN_NOTE, printCell } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
 
 /** The records each KPI figure of one person counted — shared by the person
@@ -191,7 +191,12 @@ export function ContributionsPanel({
         <p className="text-[12.5px] leading-5">Bạn không có quyền xem các bản ghi này.</p>
       ) : (
         <QueryBlock query={query} what="bản ghi tính vào chỉ số" variant="b">
-          {(data) => <Blocks blocks={blocksOf(catalog, data)} openTo={openTo} />}
+          {(data) => (
+            <>
+              {data.frozen && <p className={NOTE}>{FROZEN_NOTE}</p>}
+              <Blocks blocks={blocksOf(catalog, data)} openTo={openTo} />
+            </>
+          )}
         </QueryBlock>
       )}
     </section>

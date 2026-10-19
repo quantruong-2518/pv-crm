@@ -24,8 +24,8 @@ export const isKpiConfigChange = <T extends { kind: string }>(
 /** The sentence the approver reads instead of the payload. */
 export function kpiConsequenceOf(change: KpiConfigChange): string {
   if (change.kind === 'kpi-alert') {
-    const { slipPercent, hitPercent } = change.value
-    return `Đổi ngưỡng cảnh báo KPI: sắp trượt khi dự báo dưới ${slipPercent}%, sắp đạt khi đã đạt từ ${hitPercent}%`
+    const { slipPercent, hitPercent, tolerancePercent } = change.value
+    return `Đổi ngưỡng cảnh báo KPI: sắp trượt khi dự báo dưới ${slipPercent}%, sắp đạt khi đã đạt từ ${hitPercent}%, thiếu đến ${tolerancePercent}% so với số cần có vẫn tính Đúng tiến độ`
   }
   const { role, metrics } = change.value
   const primary = metrics.find((m) => m.primary)
@@ -38,7 +38,7 @@ export function kpiConsequenceOf(change: KpiConfigChange): string {
 /** Short subject for the gate's log line. */
 export const kpiSubjectOf = (change: KpiConfigChange): string =>
   change.kind === 'kpi-alert'
-    ? `${change.value.slipPercent}/${change.value.hitPercent}`
+    ? `${change.value.slipPercent}/${change.value.hitPercent}/${change.value.tolerancePercent}`
     : change.value.role
 
 /** Applied on the approval's `tx`. The body is parsed again: the catalog is
@@ -54,10 +54,11 @@ export async function applyKpiConfig(
     if (!pair.success) {
       throw conflict('Giới hạn ngưỡng cảnh báo đã đổi từ lúc gửi đề nghị. Gửi lại đề nghị mới.')
     }
-    /* Both keys in one tx, so slip < hit never half-applies. */
+    /* All three keys in one tx, so slip < hit never half-applies. */
     await settings.setIn(tx, proposerId, [
       { key: 'kpi.alert.slip-percent', value: pair.data.slipPercent },
       { key: 'kpi.alert.hit-percent', value: pair.data.hitPercent },
+      { key: 'kpi.pace.tolerance-percent', value: pair.data.tolerancePercent },
     ])
     return
   }

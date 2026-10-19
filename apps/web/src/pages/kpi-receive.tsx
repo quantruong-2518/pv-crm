@@ -17,7 +17,7 @@ import { ReceivePackage } from './kpi-receive-parts'
  *  Read live from `GET /sales/kpi/:period/allocations`; no fixture.
  *
  *  The month lives in the address, so the personal KPI screen's card can open the
- *  month it counted. No deadline is printed: the contract carries none.
+ *  month it counted. A package's answer deadline is printed on it (ADR 0100).
  *
  *  No ContextRail (law 10 debt, as on the personal KPI screen): a target line is not a
  *  record of any book, so there is no object a chain could be anchored on. */

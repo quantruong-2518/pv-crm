@@ -32,6 +32,7 @@ import {
   contractDetailQuery,
   daysPhrase,
   installmentOf,
+  overdue,
   today,
   viewInstallment,
   type Contract,
@@ -54,6 +55,7 @@ import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunBlock } from '@/components/run/run-block'
 import { RunContacts } from '@/components/run/run-contacts'
+import { OverdueReasonCard } from './installment-overdue-reason'
 
 /** Level 2 of the drill — inside one installment, on the record shell (ADR
  *  0078): the run strip stands on its contract, which the header names as the
@@ -191,6 +193,11 @@ function InstallmentScreen({
         <>
           <ConditionsTodo installment={installment} view={view} now={now} />
           <InstallmentStats installment={installment} view={view} />
+          <OverdueReasonCard
+            contract={contract}
+            installment={installment}
+            overdue={overdue(view.level)}
+          />
           <RecordsCard installment={installment} />
         </>
       }

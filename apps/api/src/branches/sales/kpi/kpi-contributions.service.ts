@@ -12,6 +12,7 @@ import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
+import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiContributionsRepository } from './kpi-contributions.repository'
 import { KpiReadingsRepository, seriesKey, type KpiSeat } from './kpi-readings.repository'
@@ -61,6 +62,7 @@ export class KpiContributionsService {
     private readonly readings: KpiReadingsRepository,
     private readonly repo: KpiContributionsRepository,
     private readonly config: KpiConfigService,
+    private readonly closes: KpiCloseRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -71,20 +73,21 @@ export class KpiContributionsService {
     const person = (await this.readings.people()).find((p) => p.id === actorId)
     if (!person) throw notFound('người này')
 
-    /* `toReadings`' rule: a snapshot is today's figure, so another month has no records. */
-    const running = monthClock(period).phase === 'running'
+    /* `toReadings`' rule: a snapshot of a month not begun has no records. */
+    const begun = monthClock(period).phase !== 'future'
     const catalog = await this.config.effectiveCatalog()
     const seats: KpiSeat[] = person.roleIds
       .map(toContractRole)
       .flatMap((role) =>
         catalog[role]
-          .filter((def) => !UNLISTED.has(def.key) && (running || !def.snapshot))
+          .filter((def) => !UNLISTED.has(def.key) && (begun || !def.snapshot))
           .map((def) => ({ role, def })),
       )
     const rows = await this.repo.rows(seats, spansOf(period).current, actorId, CAP)
 
     return KpiContributionsResponse.parse({
       period,
+      frozen: (await this.closes.of(period)) !== null,
       actorId,
       groups: seats.map((seat) => {
         const mine = rows.filter((r) => r.series === seriesKey(seat))

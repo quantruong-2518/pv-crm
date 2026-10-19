@@ -54,18 +54,25 @@ export class KpiConfigService {
     return this.config.propose(who, { kind: 'kpi-metrics', value: body })
   }
 
-  /** `isDefault` = neither key has a row; otherwise the later of the two writes. */
+  /** The pace tolerance as the ratio `verdictOf` takes. Read once per request. */
+  async tolerance(): Promise<number> {
+    return (await this.settings.value('kpi.pace.tolerance-percent')).value / 100
+  }
+
+  /** `isDefault` = no key has a row; otherwise the latest of the writes. */
   async alert(): Promise<KpiAlertSettingResponse> {
     const { rows } = await this.settings.list()
     const slip = rows.find((r) => r.key === 'kpi.alert.slip-percent')
     const hit = rows.find((r) => r.key === 'kpi.alert.hit-percent')
-    const written = [slip, hit].filter((r) => r && !r.isDefault)
+    const tolerance = rows.find((r) => r.key === 'kpi.pace.tolerance-percent')
+    const written = [slip, hit, tolerance].filter((r) => r && !r.isDefault)
     const last = written.sort((a, b) => (b?.updatedAt ?? '').localeCompare(a?.updatedAt ?? ''))[0]
     const names = await this.repo.names(last?.updatedBy ? [last.updatedBy] : [])
     const by = last?.updatedBy
     return KpiAlertSettingResponse.parse({
       slipPercent: slip?.value,
       hitPercent: hit?.value,
+      tolerancePercent: tolerance?.value,
       isDefault: !last,
       updatedBy: by ? { actorId: by, name: names.get(by) ?? by } : null,
       updatedAt: last?.updatedAt ?? null,

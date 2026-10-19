@@ -22,10 +22,11 @@ import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { targetSources } from './kpi-allocation.mapper'
 import type { KpiCatalog } from './kpi-config.overlay'
+import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
-import { assertTargetValues, monthClock, stillOpen } from './kpi-rules'
+import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
 
 type Holder = { id: string; roleIds: readonly RoleId[] }
@@ -34,7 +35,8 @@ type Holder = { id: string; roleIds: readonly RoleId[] }
  *
  *  A scorecard belongs to a ROLE, so a person holding two roles carries two.
  *  Nothing here is stored but what a person decided — a target and an
- *  acknowledgement; no worker, no snapshot. The clock is `kpi-rules.ts`'s. */
+ *  acknowledgement, plus a closed month's frozen figures (`kpi-close.service.ts`);
+ *  no worker. The clock is `kpi-rules.ts`'s. */
 @Injectable()
 export class KpiService {
   constructor(
@@ -45,6 +47,7 @@ export class KpiService {
     private readonly allocations: KpiAllocationRepository,
     private readonly lines: KpiAllocationCounterService,
     private readonly config: KpiConfigService,
+    private readonly closes: KpiCloseRepository,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -53,6 +56,7 @@ export class KpiService {
     return KpiMeResponse.parse({
       period,
       closed: monthClock(period).phase === 'closed',
+      monthClose: await this.closes.of(period),
       scorecards: cards.get(who.id),
     })
   }
@@ -62,13 +66,16 @@ export class KpiService {
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
     const catalog = await this.config.effectiveCatalog()
     const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
-    const [values, rows] = await Promise.all([
-      this.readings.values(seats, spansOf(period).current),
+    const [values, rows, tolerance, monthClose] = await Promise.all([
+      this.readings.monthValues(seats, spansOf(period).current),
       this.targets.ofPeriod(period),
+      this.config.tolerance(),
+      this.closes.of(period),
     ])
-    const ctx = this.context(period, catalog, values, rows)
+    const ctx = this.context(period, catalog, values, rows, tolerance)
     return KpiCompanyResponse.parse({
       period,
+      monthClose,
       scorecard: { role: 'director', readings: toReadings('director', '', ctx) },
     })
   }
@@ -81,6 +88,7 @@ export class KpiService {
     const cards = await this.scorecards(period, people)
     return KpiPeopleResponse.parse({
       period,
+      monthClose: await this.closes.of(period),
       people: people.map((p) => ({
         actorId: p.id,
         name: p.name,
@@ -206,13 +214,15 @@ export class KpiService {
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
-    const [values, rows, acks, lines] = await Promise.all([
-      this.readings.values(seats, spansOf(period).current, only),
+    const [values, rows, acks, lines, tolerance] = await Promise.all([
+      this.readings.monthValues(seats, spansOf(period).current, only),
       this.targets.ofPeriod(period),
       this.targets.acknowledgements(period),
       this.allocations.agreedLines(period),
+      this.config.tolerance(),
     ])
-    const base = this.context(period, catalog, values, rows)
+    const base = this.context(period, catalog, values, rows, tolerance)
+    const today = vietnamToday()
     const sources = targetSources(rows, lines)
     const ackAt = new Map(acks.map((a) => [`${a.actorId}|${a.role}`, a.acknowledgedAt]))
 
@@ -225,7 +235,7 @@ export class KpiService {
             h.id,
             ctx,
             ackAt.get(`${h.id}|${role}`) ?? null,
-            sources.acksFor(h.id, role),
+            sources.acksFor(h.id, role, today),
           )
         return [h.id, h.roleIds.map(card)]
       }),
@@ -237,9 +247,17 @@ export class KpiService {
     catalog: KpiCatalog,
     values: ScoreContext['values'],
     rows: Parameters<typeof slotsOf>[0],
+    tolerance: number,
   ): ScoreContext {
     const { elapsed, phase } = monthClock(period)
-    return { catalog, values, slots: slotsOf(rows), elapsed, running: phase === 'running' }
+    return {
+      catalog,
+      values,
+      slots: slotsOf(rows),
+      elapsed,
+      running: phase === 'running',
+      tolerance,
+    }
   }
 
   /** One role's month on the bell, in the target write's own transaction. `at`

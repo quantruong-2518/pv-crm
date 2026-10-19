@@ -11,6 +11,8 @@ import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationController } from './kpi-allocation.controller'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAllocationService } from './kpi-allocation.service'
+import { KpiCloseRepository } from './kpi-close.repository'
+import { KpiCloseService } from './kpi-close.service'
 import { KpiConfigController } from './kpi-config.controller'
 import { KpiConfigRepository } from './kpi-config.repository'
 import { KpiConfigService } from './kpi-config.service'
@@ -53,6 +55,8 @@ import { KpiTargetsRepository } from './kpi-targets.repository'
   providers: [
     KpiService,
     KpiReadingsRepository,
+    KpiCloseRepository,
+    KpiCloseService,
     KpiTargetsRepository,
     KpiAllocationRepository,
     KpiAllocationService,

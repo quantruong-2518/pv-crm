@@ -1,5 +1,7 @@
 import {
   KPI_METRIC_LABEL,
+  type KpiAckState,
+  type KpiAckStatus,
   type KpiMetricDef,
   type KpiMetricKey,
   type KpiPeriodKey,
@@ -16,6 +18,41 @@ import { elapsedOf, phaseOf } from './kpi-verdict'
 /** Vietnam is UTC+7 all year, so its calendar day is a fixed shift. */
 export const vietnamToday = (): string =>
   new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
+
+const DAY_MS = 86_400_000
+const VIETNAM_MS = 7 * 3_600_000
+
+/** The acknowledgement deadline of an AGREED package (`lastAgreed`'s own test:
+ *  decided and not returned): its decision day in Vietnam plus `ackDays`.
+ *  `null` = no deadline, either not agreed yet or agreed before it existed. */
+export function ackDueOn(pkg: {
+  decidedAt: Date | null
+  returnReason: string | null
+  ackDays: number | null
+}): string | null {
+  if (!pkg.decidedAt || pkg.returnReason !== null || pkg.ackDays === null) return null
+  const decided = Date.parse(
+    new Date(pkg.decidedAt.getTime() + VIETNAM_MS).toISOString().slice(0, 10),
+  )
+  return new Date(decided + pkg.ackDays * DAY_MS).toISOString().slice(0, 10)
+}
+
+/** A line nobody answered by the end of `dueOn` counts as acknowledged at the
+ *  deadline: derived on every read, so there is no sweep to fail. A countered
+ *  line never lapses; its counter is in the manager's hands. */
+export function ackStateOf(status: KpiAckStatus, dueOn: string | null, today: string): KpiAckState {
+  return status === 'pending' && dueOn !== null && today > dueOn ? 'lapsed' : status
+}
+
+/** The instant a deadline ran out: the next Vietnam midnight after `dueOn`. */
+export const lapsedAt = (dueOn: string): Date => new Date(Date.parse(dueOn) + DAY_MS - VIETNAM_MS)
+
+/** A holder cannot answer a line whose deadline has gone. */
+export function assertNotLapsed(states: readonly KpiAckState[]): void {
+  if (states.includes('lapsed')) {
+    throw conflict('Đã quá hạn nhận chỉ tiêu, mức đã giao được áp dụng.')
+  }
+}
 
 /** Where a month stands today; shared with the allocation doors so both read one clock. */
 export function monthClock(period: KpiPeriodKey): {

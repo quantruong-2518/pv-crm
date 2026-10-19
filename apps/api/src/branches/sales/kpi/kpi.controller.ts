@@ -4,11 +4,12 @@ import { KpiAgreeBody, KpiPeriodParams, KpiProposeBody, KpiRoleParams } from '@p
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { KpiCloseService } from './kpi-close.service'
 import { KpiService } from './kpi.service'
 
 /** `/sales/kpi/:period/…` — scorecards per role and the agreed monthly targets.
  *
- *  Seven doors, one permission each (ADR 0004): reading your own card, the
+ *  Eight doors, one permission each (ADR 0004): reading your own card, the
  *  company card and everyone's cards are three different permissions, so they
  *  are three routes rather than one route that reads a query flag.
  *
@@ -17,7 +18,10 @@ import { KpiService } from './kpi.service'
  *  the params schema refuses a quarter. */
 @Controller('sales/kpi')
 export class KpiController {
-  constructor(private readonly kpi: KpiService) {}
+  constructor(
+    private readonly kpi: KpiService,
+    private readonly month: KpiCloseService,
+  ) {}
 
   @Get(':period/me')
   @Need({ branch: 'Sales', permission: 'kpi.view' })
@@ -75,5 +79,12 @@ export class KpiController {
   @Need({ branch: 'Sales', permission: 'kpi.view' })
   acknowledge(@CurrentActor() who: Actor, @Param(zod(KpiRoleParams)) params: KpiRoleParams) {
     return this.kpi.acknowledge(who, params.period, params.role)
+  }
+
+  /** 201: it files the close. No body — the month is the whole input. */
+  @Post(':period/close')
+  @Need({ branch: 'Sales', permission: 'kpi.set-target' })
+  close(@CurrentActor() who: Actor, @Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
+    return this.month.close(who, params.period)
   }
 }

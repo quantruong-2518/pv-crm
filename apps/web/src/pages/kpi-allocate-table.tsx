@@ -3,6 +3,7 @@ import { Badge, Button, DataTable, GlassCard, Input, cn, type TableColumn } from
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDraftBody,
+  KpiAllocationSubmitBody,
   type KpiAllocation,
   type KpiAllocationLine,
   type KpiAllocationTotal,
@@ -12,6 +13,7 @@ import {
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
 import { toastDone } from '@/app/toast'
+import { Field } from '@/components/field-bits'
 import { useDraftKpiAllocation, useSubmitKpiAllocation } from '@/data/kpi-allocation'
 import { NEUTRAL_MARK, NOTE } from './home-tiles'
 import { typedOf } from './kpi-allocate-model'
@@ -128,11 +130,18 @@ function TotalLine({
   )
 }
 
-/** The two writes under the table, and what holds them back, said beside them. */
+const ACK_DAYS = KpiAllocationSubmitBody.shape.ackDays
+
+/** Whole days only; anything else is NaN, which the contract refuses. */
+const toDays = (text: string) => (/^\d+$/.test(text.trim()) ? Number(text) : Number.NaN)
+
+/** The two writes under the table, and what holds them back, said beside them.
+ *  Sending also needs the answer deadline in days, typed here. */
 function SaveBar({
   dirty,
   holder,
   errors,
+  initialDays,
   onSave,
   onSend,
 }: {
@@ -140,10 +149,19 @@ function SaveBar({
   /** Someone else set the numbers last, so only they may send. */
   holder: { name: string } | null
   errors: readonly (ApiError | null)[]
+  /** Days the sent package carried before, if any. */
+  initialDays: number | null
   /** Absent: the button is disabled. */
   onSave?: () => void
-  onSend?: () => void
+  /** Absent: the button is disabled. */
+  onSend?: (ackDays: number) => void
 }) {
+  const [daysText, setDaysText] = useState(initialDays === null ? '' : String(initialDays))
+  const days = ACK_DAYS.safeParse(toDays(daysText))
+  const problem =
+    daysText !== '' && !days.success
+      ? `Nhập số ngày từ ${ACK_DAYS.minValue} đến ${ACK_DAYS.maxValue}.`
+      : undefined
   return (
     <div className="flex flex-wrap items-center justify-end gap-3 px-5">
       <div className="mr-auto flex min-w-0 flex-col gap-1">
@@ -156,6 +174,25 @@ function SaveBar({
             {holder.name} đang giữ bản nháp này.
           </p>
         )}
+        <Field
+          label="Số ngày để nhận chỉ tiêu"
+          hint="Quá hạn mà người nhận chưa trả lời thì áp dụng mức này."
+          problem={problem}
+          className="mt-1 w-72 max-w-full"
+        >
+          {/* The unit beside the box, not `suffix`: the suffix shell is fixed at 40px, under law 13's 48. */}
+          <span className="flex items-center gap-2">
+            <Input
+              inputMode="numeric"
+              aria-label="Số ngày để nhận chỉ tiêu"
+              className="pointer-coarse:h-12 tnum font-num w-24 text-right"
+              value={daysText}
+              invalid={problem !== undefined}
+              onChange={(e) => setDaysText(e.target.value)}
+            />
+            <span className={NOTE}>ngày</span>
+          </span>
+        </Field>
         {errors.map((error, i) => (
           <FailLine key={i} error={error} />
         ))}
@@ -168,7 +205,11 @@ function SaveBar({
       >
         Lưu nháp
       </Button>
-      <Button className="pointer-coarse:h-12" disabled={!onSend} onClick={onSend}>
+      <Button
+        className="pointer-coarse:h-12"
+        disabled={!onSend || !days.success}
+        onClick={() => days.success && onSend?.(days.data)}
+      >
         Gửi duyệt
       </Button>
     </div>
@@ -281,9 +322,9 @@ export function AllocationTable({
       },
     })
   }
-  const send = () => {
+  const send = (ackDays: number) => {
     draft.reset()
-    submit.mutate(role, { onSuccess: () => toastDone('Đã gửi duyệt') })
+    submit.mutate({ role, ackDays }, { onSuccess: () => toastDone('Đã gửi duyệt') })
   }
 
   return (
@@ -329,6 +370,7 @@ export function AllocationTable({
           dirty={dirty}
           holder={othersDraft ? author : null}
           errors={[draft.error, submit.error]}
+          initialDays={pkg?.ackDays ?? null}
           onSave={saveable ? save : undefined}
           onSend={sendable ? send : undefined}
         />

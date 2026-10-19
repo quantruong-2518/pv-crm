@@ -10,10 +10,10 @@ import {
   cn,
   type TableColumn,
 } from '@pv/ui'
-import { KPI_METRIC_LABEL, type KpiAckStatus } from '@pv/contracts'
+import { KPI_METRIC_LABEL, type KpiAckState } from '@pv/contracts'
 import { answerable, type MyLine, type MyPackage } from '@/data/kpi-personal'
 import { ROLE_LABEL } from '@/data/users'
-import { dmhm } from '@/lib/date'
+import { dm, dmhm } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { ACK_LABEL, PACKAGE_LABEL } from './kpi-allocate-model'
@@ -72,7 +72,7 @@ const ACK_COLUMN: TableColumn = { header: 'Trạng thái', width: 'minmax(0,1.2f
 const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 
 function cellsOf(line: MyLine, live: boolean) {
-  const { def, value, lastMonth, ackStatus, ackedAt } = line
+  const { def, value, lastMonth, ackState, ackedAt } = line
   const cells = [
     <span key="metric" className={TWO_LINES}>
       <span className="font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
@@ -90,10 +90,10 @@ function cellsOf(line: MyLine, live: boolean) {
   return [
     ...cells,
     <span key="ack" className={cn(TWO_LINES, 'items-start')}>
-      <Badge tone={ACK_LABEL[ackStatus].tone}>{ACK_LABEL[ackStatus].text}</Badge>
+      <Badge tone={ACK_LABEL[ackState].tone}>{ACK_LABEL[ackState].text}</Badge>
       {ackedAt && (
         <span className={cn(NOTE, 'tnum font-num')}>
-          {ackStatus === 'countered' ? 'Đề xuất gửi lúc' : 'Lúc'} {dmhm(ackedAt)}
+          {ackState === 'countered' ? 'Đề xuất gửi lúc' : 'Lúc'} {dmhm(ackedAt)}
         </span>
       )}
     </span>,
@@ -101,9 +101,10 @@ function cellsOf(line: MyLine, live: boolean) {
 }
 
 /** The package's state, worded for the holder: their own move first. */
-function packageAck(lines: readonly MyLine[]): KpiAckStatus {
-  if (lines.some((l) => l.ackStatus === 'pending')) return 'pending'
-  return lines.some((l) => l.ackStatus === 'countered') ? 'countered' : 'acknowledged'
+function packageAck(lines: readonly MyLine[]): KpiAckState {
+  if (lines.some((l) => l.ackState === 'pending')) return 'pending'
+  if (lines.some((l) => l.ackState === 'countered')) return 'countered'
+  return lines.some((l) => l.ackState === 'lapsed') ? 'lapsed' : 'acknowledged'
 }
 
 export function ReceivePackage({
@@ -119,7 +120,7 @@ export function ReceivePackage({
   me: string | undefined
 }) {
   const live = answerable(pack)
-  const [firstOpen, ...moreOpen] = live ? pack.lines.filter((l) => l.ackStatus === 'pending') : []
+  const [firstOpen, ...moreOpen] = live ? pack.lines.filter((l) => l.ackState === 'pending') : []
   const state = live ? ACK_LABEL[packageAck(pack.lines)] : PACKAGE_LABEL[pack.status]
 
   return (
@@ -145,6 +146,10 @@ export function ReceivePackage({
       >
         {ROLE_LABEL[pack.role]}
       </SectionTitle>
+
+      {!closed && pack.ackDueOn && firstOpen && (
+        <p className={cn(NOTE, 'tnum font-num')}>Hạn trả lời: {dm(pack.ackDueOn)}</p>
+      )}
 
       <GlassCard variant="b" className="flex flex-col py-4">
         <div className="overflow-x-auto">

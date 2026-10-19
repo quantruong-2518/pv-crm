@@ -1,6 +1,6 @@
 import {
   RoleId,
-  type KpiAckStatus,
+  type KpiAckState,
   type KpiMetricKey,
   type KpiReading,
   type KpiRoleTargets,
@@ -28,8 +28,9 @@ export const agreedIn = (
   key: KpiMetricKey,
 ): KpiTargetRow | null => slots.get(slotKey(role, key))?.agreed ?? null
 
-/** A holder's answer on one personal line (ADR 0098 §3). */
-export type LineAck = { metricKey: KpiMetricKey; ackStatus: KpiAckStatus }
+/** A holder's answer on one personal line (ADR 0098 §3). `lapsedAt` is set
+ *  exactly when `ackState` is `lapsed`: the deadline counts as the answer. */
+export type LineAck = { metricKey: KpiMetricKey; ackState: KpiAckState; lapsedAt: Date | null }
 
 /** `rows` come oldest first, so the last agreed row seen is the highest agreed
  *  version — the effective target. At most one row is pending: propose
@@ -83,13 +84,15 @@ export type ScoreContext = {
   elapsed: number
   /** The month is the running one — `phaseOf`. */
   running: boolean
+  /** Ratio 0–0.99 of the pace a figure may fall short of and still be on track. */
+  tolerance: number
 }
 
 /** A tally nobody appears in is a real zero; a ratio or a median over nothing
- *  is not a number at all (`no-data`). A snapshot is today's figure, so it
- *  says nothing about any month but the running one. */
+ *  is not a number at all (`no-data`). A snapshot is read as of the month's
+ *  end or today, so a month that has not begun has none (`elapsed` 0, not running). */
 function valueOf(seat: KpiSeat, actorId: string, ctx: ScoreContext): number | null {
-  if (seat.def.snapshot && !ctx.running) return null
+  if (seat.def.snapshot && !ctx.running && ctx.elapsed === 0) return null
   const hit = ctx.values.get(valueKey(seat, actorId))
   if (hit !== undefined) return hit
   return seat.def.unit === 'count' || seat.def.unit === 'money' ? 0 : null
@@ -106,7 +109,7 @@ export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): Kp
       target,
       targetVersion: agreed?.version ?? null,
       expected: expectedOf(target, def, ctx.elapsed),
-      verdict: verdictOf(value, target, def, ctx.elapsed),
+      verdict: verdictOf(value, target, def, ctx.elapsed, ctx.tolerance),
     }
   })
 }
@@ -115,7 +118,8 @@ export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): Kp
  *
  *  A slot with a personal line is answered on the line itself (`own`), so it
  *  is left out of "stale" and instead holds the card unacknowledged until
- *  every line reads `acknowledged`. A slot without one keeps the role rule:
+ *  every line reads `acknowledged` or `lapsed` (a missed deadline is an answer,
+ *  stamped at the instant it ran out). A slot without one keeps the role rule:
  *  stale = its agreed target was agreed after the stamp. */
 export function toScorecard(
   role: RoleId,
@@ -125,8 +129,10 @@ export function toScorecard(
   own: readonly LineAck[] = [],
 ): KpiScorecard {
   const personal = new Set(own.map((l) => l.metricKey))
-  const answered = own.every((l) => l.ackStatus === 'acknowledged')
-  const at = answered ? acknowledgedAt : null
+  const answered = own.every((l) => l.ackState === 'acknowledged' || l.ackState === 'lapsed')
+  const lapses = own.flatMap((l) => (l.lapsedAt ? [l.lapsedAt] : []))
+  const stamps = [acknowledgedAt, ...lapses].filter((d): d is Date => d !== null)
+  const at = answered && stamps.length > 0 ? new Date(Math.max(...stamps.map((d) => +d))) : null
   const stale =
     at !== null &&
     ctx.catalog[role].some((def) => {

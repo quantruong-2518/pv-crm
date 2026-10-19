@@ -3,6 +3,9 @@ import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { ContractController } from './contract.controller'
+import { ContractOverdueReasonController } from './contract-overdue-reason.controller'
+import { ContractOverdueReasonRepository } from './contract-overdue-reason.repository'
+import { ContractOverdueReasonService } from './contract-overdue-reason.service'
 import { ContractOverdueSweeper } from './contract-overdue.sweeper'
 import { ContractRepository } from './contract.repository'
 import { ContractService } from './contract.service'
@@ -28,13 +31,15 @@ import { ContractScheduleService } from './contract-schedule.service'
  *  person's contract book"; it does not get to reach into the table. */
 @Module({
   imports: [AuditModule, EnginesModule, NotificationModule],
-  controllers: [ContractController],
+  controllers: [ContractController, ContractOverdueReasonController],
   providers: [
     ContractService,
     ContractRepository,
     ContractScheduleService,
     ContractScheduleRepository,
     ContractOverdueSweeper,
+    ContractOverdueReasonService,
+    ContractOverdueReasonRepository,
   ],
   exports: [ContractService],
 })

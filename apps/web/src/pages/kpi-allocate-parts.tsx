@@ -43,7 +43,7 @@ const STEPS = [
 function stepOf(pkg: KpiAllocation | undefined, hasTotal: boolean): number {
   if (!pkg) return hasTotal ? 1 : 0
   if (pkg.status === 'draft' || pkg.status === 'returned') return 1
-  return pkg.lines.every((l) => l.ackStatus === 'acknowledged') ? 3 : 2
+  return pkg.lines.every((l) => l.ackState === 'acknowledged' || l.ackState === 'lapsed') ? 3 : 2
 }
 
 /** Who moved the package last and when. */

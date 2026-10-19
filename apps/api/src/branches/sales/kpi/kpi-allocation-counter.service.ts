@@ -4,6 +4,7 @@ import {
   KPI_METRIC_LABEL,
   KpiCounterListResponse,
   type KpiAcknowledgeBody,
+  type KpiAckStatus,
   type KpiAllocationResponse,
   type KpiCounterBody,
   type KpiCounterResolveBody,
@@ -19,7 +20,16 @@ import { KpiAllocationRepository, type LineKey } from './kpi-allocation.reposito
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { effectOf, toCounter } from './kpi-allocation.mapper'
 import { handedDown, KpiAllocationService, stale } from './kpi-allocation.service'
-import { assertTargetValues, monthClock, stillOpen } from './kpi-rules'
+import { KpiConfigService } from './kpi-config.service'
+import {
+  ackDueOn,
+  ackStateOf,
+  assertNotLapsed,
+  assertTargetValues,
+  monthClock,
+  stillOpen,
+  vietnamToday,
+} from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 
 const RESOLVED = { accept: 'accepted', keep: 'kept', counter: 'countered' } as const
@@ -43,6 +53,7 @@ export class KpiAllocationCounterService {
     private readonly targets: KpiTargetsRepository,
     private readonly packages: KpiAllocationService,
     private readonly alerts: KpiAlertService,
+    private readonly config: KpiConfigService,
   ) {}
 
   async acknowledge(
@@ -94,6 +105,7 @@ export class KpiAllocationCounterService {
     if (keys && wanted.length !== keys.length) {
       throw conflict('Có chỉ tiêu không được giao cho bạn trong gói này.')
     }
+    assertNotLapsed(this.statesOf(live, wanted))
     const open = wanted.filter((l) => l.ackStatus === 'countered')
     if (open.length > 0) {
       const names = open.map((l) => KPI_METRIC_LABEL[l.metricKey]).join(', ')
@@ -127,6 +139,7 @@ export class KpiAllocationCounterService {
         (l) => l.actorId === who.id && l.metricKey === body.metricKey,
       )
       if (!line) throw conflict('Chỉ tiêu này không được giao cho bạn trong gói này.')
+      assertNotLapsed(this.statesOf(live, [line]))
       if (line.ackStatus === 'countered') throw already
       const id = await this.repo.insertCounter(tx, {
         allocationId: live.id,
@@ -151,14 +164,21 @@ export class KpiAllocationCounterService {
       this.packages.figures(spansOf(period).current, roles),
     ])
     const { elapsed } = monthClock(period)
+    const tolerance = await this.config.tolerance()
     return KpiCounterListResponse.parse({
       period,
       counters: counters.map((c) => {
         const pkgLines = lines.filter((l) => l.allocationId === c.allocationId)
         const target = roleTarget(c.role, c.metricKey)
-        return toCounter(c, effectOf(c, pkgLines, target, now, elapsed))
+        return toCounter(c, effectOf(c, pkgLines, target, now, elapsed, tolerance))
       }),
     })
+  }
+
+  /** The states of `lines` under `pkg`'s deadline, as of today in Vietnam. */
+  private statesOf(pkg: KpiAllocationRowDb, lines: readonly { ackStatus: KpiAckStatus }[]) {
+    const dueOn = ackDueOn(pkg)
+    return lines.map((l) => ackStateOf(l.ackStatus, dueOn, vietnamToday()))
   }
 
   /** The holder never settles their own counter: refused here with a
@@ -245,6 +265,7 @@ export class KpiAllocationCounterService {
       version: await this.repo.nextVersion(tx, pkg.period, pkg.role),
       status: 'draft',
       submittedBy: who.id,
+      ackDays: pkg.ackDays,
     })
     if (!id) throw stale()
     const same = (l: LineKey) => l.actorId === at.actorId && l.metricKey === at.metricKey

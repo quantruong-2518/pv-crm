@@ -3,8 +3,9 @@ import type { KpiMetricDef, KpiVerdict } from '@pv/contracts'
 /** Pace and verdict of one reading — pure, so it can move to `@pv/engines`
  *  unchanged: no clock, no database, no Nest.
  *
- *  There is no tolerance margin on purpose: "close enough" would be a
- *  threshold nobody agreed, sitting beside a target two managers did. */
+ *  The tolerance margin (ADR 0100 §A) is the owner's and defaults to 0: it only
+ *  widens "on track" against the pace so far, never `met`, `missed` or the
+ *  lower-is-better rule, so a target two managers agreed is never moved. */
 
 /** Share of the month's days already GONE, today excluded, so an open month
  *  stays below 1 until its last day ends and `1` can mean "closed".
@@ -39,6 +40,7 @@ export function verdictOf(
   target: number | null,
   def: Pick<KpiMetricDef, 'higherIsBetter' | 'paced'>,
   elapsed: number,
+  tolerance: number,
 ): KpiVerdict {
   if (value === null) return 'no-data'
   if (target === null) return 'unset'
@@ -47,5 +49,5 @@ export function verdictOf(
   /* A lower-is-better figure has no pace to be ahead of: over is behind. */
   if (!def.higherIsBetter) return 'behind'
   const expected = expectedOf(target, def, elapsed)
-  return expected !== null && value >= expected ? 'on-track' : 'behind'
+  return expected !== null && value >= expected * (1 - tolerance) ? 'on-track' : 'behind'
 }

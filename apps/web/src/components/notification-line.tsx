@@ -7,12 +7,12 @@ import {
   NOTIFICATION_DETAIL_NO,
   NOTIFICATION_DETAIL_STAGE,
   NOTIFICATION_KIND_LABEL,
-  notificationSentence,
   type NotificationRow,
   type NotificationSubject,
 } from '@pv/contracts'
 import { dm, dmhm } from '@/lib/date'
 import { overdueInstallment, useNotificationPath } from '@/data/notifications'
+import { sentenceOf } from '@/data/notification-sentence'
 
 /** One notification, as the `/notifications` screen draws it. The caller owns
  *  what a press does; the line only says whether there is a place to go.
@@ -30,7 +30,7 @@ export function NotificationLine({
   const path = useNotificationPath()(row)
   const unread = row.readAt === null
   const installment = overdueInstallment(row)
-  const sentence = notificationSentence(row)
+  const sentence = sentenceOf(row)
   /* An overdue installment adds which one, how much and since when. A built
      sentence already says the name and the counts. */
   const extra = sentence

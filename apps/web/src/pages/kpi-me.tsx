@@ -106,7 +106,7 @@ export function KpiMePage() {
   const pending = packs
     .filter(answerable)
     .flatMap((p) => p.lines)
-    .filter((l) => l.ackStatus === 'pending').length
+    .filter((l) => l.ackState === 'pending').length
   const allocatedRoles = new Set(packs.map((p) => p.role))
   const seen = forecast.data
 

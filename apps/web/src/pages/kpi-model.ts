@@ -49,6 +49,12 @@ const monthAfter = (key: string) => {
   return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`
 }
 
+/** The month is over in Vietnam time: only then may a head close it. */
+export const monthEnded = (period: string, today = new Date()) => period < currentPick(today).month
+
+/** Under a closed month's contributions and weekly series: they stay live data. */
+export const FROZEN_NOTE = 'Danh sách theo dữ liệu hiện tại, có thể khác số đã chốt.'
+
 /** Day of month over days in month, for the running month only: in any other
  *  month today is not inside it, so the line is left out. */
 export function dayOfMonth(period: string, today = new Date()): string | null {

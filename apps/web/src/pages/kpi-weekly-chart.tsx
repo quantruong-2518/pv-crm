@@ -9,7 +9,7 @@ import {
 import { kpiWeeklyQuery } from '@/data/kpi-personal'
 import { dm } from '@/lib/date'
 import { GROW_HEIGHT, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
-import { printTile } from './kpi-model'
+import { FROZEN_NOTE, printTile } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
 
 /** The primary metric's running total, one column per week of the month,
@@ -144,7 +144,7 @@ export function WeeklyChart({
 
   return (
     <QueryBlock query={weekly} what="số theo tuần">
-      {({ points }) => {
+      {({ points, frozen }) => {
         const figures = points.flatMap((p) => [p.cumulative ?? 0, p.expected ?? 0])
         const top = Math.max(1, ...figures)
         /* Started weeks are a prefix of the series, so this is the latest one. */
@@ -186,6 +186,7 @@ export function WeeklyChart({
                 </ol>
               </div>
             )}
+            {frozen && <p className={NOTE}>{FROZEN_NOTE}</p>}
           </GlassCard>
         )
       }}

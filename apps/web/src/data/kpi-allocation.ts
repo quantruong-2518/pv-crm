@@ -4,6 +4,7 @@ import {
   KpiCounterListResponse,
   type KpiAllocationDecideBody,
   type KpiAllocationDraftBody,
+  type KpiAllocationSubmitBody,
   type KpiCounterResolveBody,
   type RoleId,
 } from '@pv/contracts'
@@ -109,11 +110,12 @@ export const useDraftKpiAllocation = (period: string) =>
     body,
   }))
 
-/** Sends the saved draft; refused with a sentence while an additive sum is off. */
+/** Sends the saved draft; refused with a sentence while an additive sum is off.
+ *  `ackDays` is how long holders get to answer once the package is agreed. */
 export const useSubmitKpiAllocation = (period: string) =>
-  useAllocationWrite<RoleId>(period, 'kpi.set-target', (role) => ({
+  useAllocationWrite<KpiAllocationSubmitBody>(period, 'kpi.set-target', (body) => ({
     path: `${base(period)}/allocations/submit`,
-    body: { role },
+    body,
   }))
 
 /** Agree or return a sent package; the server refuses its sender. */

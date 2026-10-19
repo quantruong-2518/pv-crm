@@ -15,6 +15,7 @@ import type {
   KpiPackageRow,
 } from './kpi-allocation.repository'
 import { catalogDef } from './kpi-config.overlay'
+import { ackDueOn, ackStateOf, lapsedAt } from './kpi-rules'
 import type { KpiTargetRow } from './kpi-targets.repository'
 import { verdictOf } from './kpi-verdict'
 import { slotsOf, type LineAck, type TargetSlots } from './kpi.mapper'
@@ -92,7 +93,9 @@ export function toAllocation(
   totals: KpiAllocationTotal[],
   roleTarget: RoleTargetOf,
   lastMonth: FigureOf,
+  today: string,
 ): KpiAllocation {
+  const dueOn = ackDueOn(pkg)
   return {
     period: pkg.period,
     role: pkg.role,
@@ -104,12 +107,15 @@ export function toAllocation(
     decidedBy: pkg.decidedBy && pkg.decider ? { actorId: pkg.decidedBy, name: pkg.decider } : null,
     decidedAt: pkg.decidedAt?.toISOString() ?? null,
     returnReason: pkg.returnReason,
+    ackDays: pkg.ackDays,
+    ackDueOn: dueOn,
     lines: lines.map((l) => ({
       actorId: l.actorId,
       name: l.name,
       metricKey: l.metricKey,
       value: Number(l.value),
       ackStatus: l.ackStatus,
+      ackState: ackStateOf(l.ackStatus, dueOn, today),
       ackedAt: l.ackedAt?.toISOString() ?? null,
       roleValue: roleTarget(pkg.role, l.metricKey),
       lastMonth: lastMonth(pkg.role, l.actorId, l.metricKey),
@@ -131,6 +137,7 @@ export function effectOf(
   roleTarget: number | null,
   now: FigureOf,
   elapsed: number,
+  tolerance: number,
 ): KpiCounterEffect {
   const def = defOf(counter.role, counter.metricKey)
   if (!def || !additive(def)) {
@@ -142,7 +149,13 @@ export function effectOf(
   const shortfall = roleTarget === null ? null : Math.max(0, roleTarget - allocatedAfter)
 
   const ahead = others.filter((l) => {
-    const v = verdictOf(now(counter.role, l.actorId, l.metricKey), Number(l.value), def, elapsed)
+    const v = verdictOf(
+      now(counter.role, l.actorId, l.metricKey),
+      Number(l.value),
+      def,
+      elapsed,
+      tolerance,
+    )
     return v === 'met' || v === 'on-track'
   })
   const base = ahead.reduce((n, l) => n + Number(l.value), 0)
@@ -217,7 +230,17 @@ export function targetSources(rows: readonly KpiTargetRow[], lines: readonly Kpi
       const extra = own.get(actorId)
       return extra ? slotsOf([...rows, ...extra]) : base
     },
-    acksFor: (actorId: string, role: RoleId): LineAck[] =>
-      lines.filter((l) => l.actorId === actorId && l.package.role === role),
+    acksFor: (actorId: string, role: RoleId, today: string): LineAck[] =>
+      lines
+        .filter((l) => l.actorId === actorId && l.package.role === role)
+        .map((l) => {
+          const dueOn = ackDueOn(l.package)
+          const ackState = ackStateOf(l.ackStatus, dueOn, today)
+          return {
+            metricKey: l.metricKey,
+            ackState,
+            lapsedAt: ackState === 'lapsed' && dueOn ? lapsedAt(dueOn) : null,
+          }
+        }),
   }
 }

@@ -135,6 +135,7 @@ export const PERMISSION_LABEL = {
   'contract.view': 'Xem hợp đồng',
   'contract.edit': 'Sửa hợp đồng và đợt thanh toán',
   'contract.record-payment': 'Ghi nhận khách đã thanh toán',
+  'contract.approve-overdue-reason': 'Duyệt lý do quá hạn',
   'performance.view': 'Xem hiệu suất cả phòng',
   'kpi.view': 'Xem KPI của mình',
   'kpi.view-all': 'Xem KPI của mọi người',

@@ -57,7 +57,7 @@ export function useProposeKpiRoleMetrics() {
   })
 }
 
-/** Both thresholds in one body, so slip < hit is judged on the pair. */
+/** All three values in one body, so slip < hit is judged on the pair. */
 export function useProposeKpiAlert() {
   return useMutation<ConfigProposalReceipt, ApiError, KpiAlertPatch>({
     mutationFn: (body) =>

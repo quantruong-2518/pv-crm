@@ -3,6 +3,7 @@ import {
   KpiAllocationResponse,
   KpiForecastResponse,
   KpiWeeklyResponse,
+  type Day,
   type KpiAcknowledgeBody,
   type KpiAllocationLine,
   type KpiAllocationStatus,
@@ -61,7 +62,13 @@ export function weeklyMetricOf(catalog: KpiCatalog, role: RoleId): KpiMetricDef 
 }
 
 export type MyLine = KpiAllocationLine & { def: KpiMetricDef }
-export type MyPackage = { role: RoleId; status: KpiAllocationStatus; lines: MyLine[] }
+export type MyPackage = {
+  role: RoleId
+  status: KpiAllocationStatus
+  /** Last day holders may answer; `null` until the package is agreed. */
+  ackDueOn: Day | null
+  lines: MyLine[]
+}
 
 /* A draft or returned package has not been handed down yet: a manager who
    also holds the role would otherwise read their own draft as received.
@@ -87,7 +94,9 @@ export function myPackages(
           .filter((l) => l.actorId === me && l.metricKey === def.key)
           .map((l) => ({ ...l, def })),
       )
-      return lines.length > 0 ? [{ role: p.role, status: p.status, lines }] : []
+      return lines.length > 0
+        ? [{ role: p.role, status: p.status, ackDueOn: p.ackDueOn, lines }]
+        : []
     })
 }
 

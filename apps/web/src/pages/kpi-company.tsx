@@ -25,6 +25,7 @@ import { TARGETS_PATH, monthQuery } from './kpi-allocate-model'
 import { KpiForecastBlock } from './kpi-company-forecast'
 import { AttentionBlock, PeopleHeatmap } from './kpi-company-people'
 import { RolesBlock } from './kpi-company-roles'
+import { MonthCloseBar } from './kpi-month-close'
 import { dayOfMonth, monthPick } from './kpi-model'
 import { CompanyStrip, MonthPicker, QueryBlock } from './kpi-parts'
 import { queueOf } from './kpi-targets-model'
@@ -122,6 +123,8 @@ export function KpiCompanyPage() {
           description={day && <span className="tnum font-num">{day}</span>}
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+
+        <MonthCloseBar period={period} monthClose={company.data?.monthClose} />
 
         <section className="flex flex-col gap-3">
           <SectionTitle size="lg">Chỉ số phòng Kinh doanh</SectionTitle>
