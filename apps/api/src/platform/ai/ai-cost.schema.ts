@@ -43,7 +43,7 @@ export const aiCall = platform.table(
     /** What the call was for (a scan batch code), for tracing. No FK, for
      *  `notification.subject_code`'s reason: it names several kinds of thing. */
     subjectCode: text('subject_code'),
-    /** `'scan_file:' || id`, written by 0122's backfill only, so re-running it
+    /** `'scan_file:' || id`, written by 0123's backfill only, so re-running it
      *  adds nothing. NULL on every live write; NULLs never collide in a UNIQUE. */
     sourceKey: text('source_key'),
   },

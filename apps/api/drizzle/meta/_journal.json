@@ -808,52 +808,52 @@
       "breakpoints": true
     },
     {
-      "idx": 116,
-      "version": "7",
-      "when": 1793257560000,
-      "tag": "0116_kpi_pace_tolerance",
-      "breakpoints": true
-    },
-    {
       "idx": 117,
       "version": "7",
       "when": 1793343960000,
-      "tag": "0117_kpi_allocation_ack_days",
+      "tag": "0117_kpi_pace_tolerance",
       "breakpoints": true
     },
     {
       "idx": 118,
       "version": "7",
       "when": 1793430360000,
-      "tag": "0118_installment_overdue_reason",
+      "tag": "0118_kpi_allocation_ack_days",
       "breakpoints": true
     },
     {
       "idx": 119,
       "version": "7",
       "when": 1793516760000,
-      "tag": "0119_kpi_month_close",
+      "tag": "0119_installment_overdue_reason",
       "breakpoints": true
     },
     {
       "idx": 120,
       "version": "7",
       "when": 1793603160000,
-      "tag": "0120_kpi_team_roster",
+      "tag": "0120_kpi_month_close",
       "breakpoints": true
     },
     {
       "idx": 121,
       "version": "7",
       "when": 1793689560000,
-      "tag": "0121_kpi_allocation_team_tier",
+      "tag": "0121_kpi_team_roster",
       "breakpoints": true
     },
     {
       "idx": 122,
       "version": "7",
       "when": 1793775960000,
-      "tag": "0122_ai_cost_ledger",
+      "tag": "0122_kpi_allocation_team_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1793862360000,
+      "tag": "0123_ai_cost_ledger",
       "breakpoints": true
     }
   ]

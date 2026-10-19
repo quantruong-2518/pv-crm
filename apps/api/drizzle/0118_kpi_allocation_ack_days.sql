@@ -1,4 +1,4 @@
--- 0117 - the acknowledgement deadline of a KPI package: `ack_days`, the whole
+-- 0118 - the acknowledgement deadline of a KPI package: `ack_days`, the whole
 -- days the holders have to answer, counted from the day the package was agreed
 -- (ADR 0099 §6). The due date is derived on read, never stored or swept.
 --

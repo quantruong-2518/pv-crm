@@ -157,8 +157,8 @@ Taken by the implementer; change them by amending this ADR.
 
 ## Consequences
 
-- Migration 0120 adds the team, the roster header and the roster members.
-  Migration 0121 adds the team column to `sales.kpi_allocation` and replaces its
+- Migration 0121 adds the team, the roster header and the roster members.
+  Migration 0122 adds the team column to `sales.kpi_allocation` and replaces its
   two uniqueness rules with ones per team, adds the shares table, and widens
   the notification checks with the kind `kpi-team-share-assigned` and the
   subject kind `kpi-team`.

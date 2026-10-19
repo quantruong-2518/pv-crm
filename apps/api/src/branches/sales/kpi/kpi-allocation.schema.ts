@@ -54,7 +54,7 @@ export const kpiAllocation = sales.table(
     period: text('period').notNull(),
     role: text('role').$type<RoleId>().notNull(),
     version: integer('version').notNull(),
-    /** NULL = room tier, which is every row before 0121. A team package is
+    /** NULL = room tier, which is every row before 0122. A team package is
      *  the team lead's split of one share. */
     teamId: uuid('team_id').references(() => kpiTeam.id),
     status: text('status')
@@ -75,7 +75,7 @@ export const kpiAllocation = sales.table(
     returnReason: text('return_reason'),
     /** Whole days the holders have to answer, counted from `decided_at` once
      *  agreed (ADR 0099 §6). NULL = no deadline: every package agreed before
-     *  0117. The due date is derived on read, so there is no sweep to fail. */
+     *  0118. The due date is derived on read, so there is no sweep to fail. */
     ackDays: integer('ack_days'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

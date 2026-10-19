@@ -1,4 +1,4 @@
--- 0119 - month close: `sales.kpi_month_close` (one row per closed month, who
+-- 0120 - month close: `sales.kpi_month_close` (one row per closed month, who
 -- and when) and `sales.kpi_month_value` (every reading the cards showed that
 -- month, frozen). A month with no close row is still live (ADR 0100).
 --

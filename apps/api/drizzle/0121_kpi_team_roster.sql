@@ -1,4 +1,4 @@
--- 0120 - KPI teams: `sales.kpi_team` (a named group), `sales.kpi_team_roster`
+-- 0121 - KPI teams: `sales.kpi_team` (a named group), `sales.kpi_team_roster`
 -- (one header row per month the membership changed) and
 -- `sales.kpi_team_member` (who is in which team under that header, ADR 0101).
 --

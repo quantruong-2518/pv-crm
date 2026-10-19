@@ -1,4 +1,4 @@
--- 0122 - the AI cost ledger (ADR 0102): `platform.ai_call`, one row per model
+-- 0123 - the AI cost ledger (ADR 0102): `platform.ai_call`, one row per model
 -- call with token counts only, and `platform.ai_price`, USD per 1M tokens per
 -- model with an `effective_from` date. Cost is computed on read; no price is
 -- seeded. Every CHECK list is copied by hand from `ai-cost.schema.ts` and the

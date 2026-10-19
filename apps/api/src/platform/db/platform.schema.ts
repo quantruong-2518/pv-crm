@@ -274,13 +274,13 @@ export const setting = platform.table(
 
     /** The twelve members of `SettingKey`, copied out by hand rather than
      *  generated, character for character from the contract's enum
-     *  (the three `kpi.*` keys joined in 0113 and 0116). */
+     *  (the three `kpi.*` keys joined in 0113 and 0117). */
     check(
       'setting_key_known',
       sql`"key" IN ('comms.reply.silence-days', 'comms.unmatched.retention-days', 'comms.blob.retention-days', 'sequence.step.default-wait-days', 'sequence.max-steps', 'content.share.expires-days', 'sales.activity.warn-days', 'sales.activity.alert-days', 'auth.session.remembered-days', 'kpi.alert.slip-percent', 'kpi.alert.hit-percent', 'kpi.pace.tolerance-percent')`,
     ),
     /** A non-positive constant is one the reading code cannot act on; the pace
-     *  tolerance is the exception (0116): 0 % is its default, so an override
+     *  tolerance is the exception (0117): 0 % is its default, so an override
      *  put back to 0 is legitimate. Per-key bounds are zod's. */
     check('setting_value_positive', sql`"value" > 0 OR "key" = 'kpi.pace.tolerance-percent'`),
   ],

@@ -1,4 +1,4 @@
--- 0118 - overdue reasons: `sales.installment_overdue_reason`, the reason a
+-- 0119 - overdue reasons: `sales.installment_overdue_reason`, the reason a
 -- contract's Sale owner gives for an overdue installment and the head's or
 -- director's decision on it (ADR 0100). Overdue money with no approved
 -- reason counts in full in the KPI reading.

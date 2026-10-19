@@ -1,4 +1,4 @@
--- 0121 - KPI allocation team tier: `sales.kpi_allocation.team_id` and
+-- 0122 - KPI allocation team tier: `sales.kpi_allocation.team_id` and
 -- `sales.kpi_allocation_share` (ADR 0101). `team_id` NULL is the room tier, so
 -- every row written before this migration keeps its meaning.
 --
@@ -10,7 +10,7 @@
 -- a team package of one (period, role) can now be live together. A share
 -- belongs to a room-tier package only: a CHECK cannot read another table, so
 -- that is held at the door. Also one bell kind, `kpi-team-share-assigned`, and
--- one subject kind, `kpi-team`: the kind CHECKs are 0118's fifty-four plus the
+-- one subject kind, `kpi-team`: the kind CHECKs are 0119's fifty-four plus the
 -- new one, the subject CHECK is 0115's list plus the new one.
 --
 -- A new nullable column, a new empty table and widened lists, so the old api

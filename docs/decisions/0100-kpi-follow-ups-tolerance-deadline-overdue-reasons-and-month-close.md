@@ -97,10 +97,10 @@ Taken by the implementer; change them by amending this ADR.
 
 ## Consequences
 
-- Migration 0116 adds the tolerance setting key. Migration 0117 adds the
-  acknowledgement days to `sales.kpi_allocation`. Migration 0118 adds
+- Migration 0117 adds the tolerance setting key. Migration 0118 adds the
+  acknowledgement days to `sales.kpi_allocation`. Migration 0119 adds
   `sales.installment_overdue_reason` and the two bell kinds
-  `overdue-reason-waiting` and `overdue-reason-decided`. Migration 0119 adds
+  `overdue-reason-waiting` and `overdue-reason-decided`. Migration 0120 adds
   `sales.kpi_month_close` and `sales.kpi_month_value`.
 - New permission `contract.approve-overdue-reason`. "Chốt tháng" reuses
   `kpi.set-target`.

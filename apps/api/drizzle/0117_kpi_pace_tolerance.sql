@@ -1,4 +1,4 @@
--- 0116 - the pace tolerance setting: `kpi.pace.tolerance-percent`, a whole
+-- 0117 - the pace tolerance setting: `kpi.pace.tolerance-percent`, a whole
 -- percent (0-99) a metric may sit below the pace line and still read "on
 -- track". `setting_key_known` is restated with 0113's eleven keys plus this one.
 --

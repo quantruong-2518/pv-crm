@@ -45,7 +45,7 @@ costs. Editing a price rides the same permission and writes an audit line.
 
 ### 4 · Backfill from `sales.scan_file`
 
-Migration 0122 turns every `sales.scan_file` row still stored that spent tokens
+Migration 0123 turns every `sales.scan_file` row still stored that spent tokens
 into one `ai_call` (task `lead-scan`), idempotent through `source_key`. Files
 already dropped or swept and cached re-reads (0 tokens) leave no row, so history
 before the migration is a floor, not a full count. The model is
@@ -64,10 +64,10 @@ The owner decided on 19/10 to build the cost view first and set no cap.
 - Adding a task kind widens the `task` CHECK by migration.
 - Reconciliation with the real Google bill (the BigQuery export) is a later
   column beside the computed cost, not a replacement.
-- Ship order: 0122 must be on Neon before the API that writes the ledger, or
-  every scan read rolls back and is retried (and billed) again. 0116–0121 are
-  held by the unmerged `kpi-followups`/`kpi-teams` branches; whichever reaches
-  Neon second needs a `when` above the latest applied one, or drizzle skips it.
+- Ship order: 0123 must be on Neon before the API that writes the ledger, or
+  every scan read rolls back and is retried (and billed) again. It shipped
+  together with the KPI branches, renumbered from 0122 when the other machine's
+  0116 (account logo) landed first; the KPI migrations are 0117–0122.
 - `sales.scan_file.tokens_*` still feeds the 24-hour scan limit; the ledger is
   the source for cost. Moving the limit onto the ledger is a later step.
 - Infra cost (Fly, Neon, Vercel, Resend, VietMap) is a later slice; this one
