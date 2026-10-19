@@ -3,8 +3,8 @@ import { ModuleRef } from '@nestjs/core'
 import { MAIL_FAILED, MAIL_REPLIED } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
-import { MAIL_LEDGER, type MailLedger } from './mail.contract'
 import { MailRunRepository } from './mail-run.repository'
+import { MailSignalRepository } from './mail-signal.repository'
 import {
   MAIL_SENT_HOOK,
   type MailSent,
@@ -32,7 +32,7 @@ export class MailBell {
     /* The registry is bound by the composition root (`QueueModule.forWorker`),
        a module this one may not import — so it is reached by token at call time. */
     private readonly modules: ModuleRef,
-    @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly signals: MailSignalRepository,
     @Inject(DB) private readonly db: Db,
     private readonly runs: MailRunRepository,
   ) {}
@@ -64,7 +64,7 @@ export class MailBell {
    *  the bell's UNIQUE key makes a repeat harmless. Never raises. */
   async bounced(deliveryId: string): Promise<void> {
     try {
-      const letter = await this.ledger.lostGroupLetter(deliveryId)
+      const letter = await this.signals.lostGroupLetter(deliveryId)
       if (!letter) return
       const hooks = this.modules.get<symbol, MailSentHook[]>(MAIL_SENT_HOOK, { strict: false })
       for (const hook of hooks) {

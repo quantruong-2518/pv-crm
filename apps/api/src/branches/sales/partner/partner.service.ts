@@ -46,8 +46,10 @@ export class PartnerService {
    *  for those who tidy the book; anyone else asking for them gets live ones. */
   async list(who: Actor, q: PartnerListQuery): Promise<PartnerListResponse> {
     const includeInactive = !!q.includeInactive && this.access.allows(who, 'lead-origin.manage')
-    const rows = await this.repo.list({ ...(q.q ? { q: q.q } : {}), includeInactive })
-    const tallies = await this.repo.tallies()
+    const [rows, tallies] = await Promise.all([
+      this.repo.list({ ...(q.q ? { q: q.q } : {}), includeInactive }),
+      this.repo.tallies(),
+    ])
     const none = { leads: 0, opportunities: 0, contracts: 0 }
     return PartnerListResponse.parse({
       rows: rows.map((r) => ({ ...toContract(r), ...(tallies.get(r.code) ?? none) })),

@@ -237,9 +237,4 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
     await boss.createQueue(name, { policy: 'exclusive', ...scan })
     await boss.updateQueue(name, scan)
   }
-
-  /* RETIRED `meeting.end`: a booked meeting now opens its comm record at
-     booking. Drops the old queue and its pending jobs once; remove this
-     block next release, when no database still carries it. */
-  if (await boss.getQueue('meeting.end')) await boss.deleteQueue('meeting.end')
 }

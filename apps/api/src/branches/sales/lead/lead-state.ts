@@ -353,6 +353,40 @@ export class LeadStateWriter {
     })
   }
 
+  /** `parked(…, ring = false)` for many leads in one pass — a campaign's close
+   *  (C5) rings its own counted line. Same writes, same rows, as `parked` per
+   *  lead, but one statement each for the move, mirror, run sync, `nurtured`
+   *  rows and holds. Only `withholdSubject` takes a single subject, so it stays
+   *  one call per lead. `nurturing` is open: no next step to drop. */
+  async parkedMany(tx: Db, codes: readonly string[], park: Park): Promise<void> {
+    if (codes.length === 0) return
+    await tx
+      .update(lead)
+      .set({ state: 'nurturing', stateSince: sql`now()` })
+      .where(and(inArray(lead.code, [...codes]), leadLive))
+    await this.refresh(tx, codes)
+    await syncLeadRuns(tx, codes)
+    await this.touch.record(
+      tx,
+      codes.map((code) => ({
+        subjectCode: code,
+        subjectKind: 'lead' as const,
+        kind: 'nurtured' as const,
+        ...byOf(park.by),
+        note: park.note,
+        ...(park.reasonId ? { reasonId: park.reasonId } : {}),
+      })),
+    )
+    for (const code of codes) {
+      await this.mailRuns.withholdSubject(
+        tx,
+        { aggregateType: 'lead', aggregateId: code },
+        LEAD_NURTURED_WITHHOLD,
+      )
+    }
+    await endHolds(tx, 'lead', codes, 'to-waiting', park.by?.id ?? null)
+  }
+
   /** What every park owes beside the move: the dated `nurtured` row carrying the
    *  reason (ADR 0070), unsent mail withheld (ADR 0068 §6), and an open hold
    *  ended — a parked lead sits in the waiting group, not in the hold list.

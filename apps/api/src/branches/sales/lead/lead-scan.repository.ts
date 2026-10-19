@@ -12,6 +12,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { attachment } from '@api/platform/storage/attachment.schema'
 import { scanBatch, scanFile, type ScanBatchRowDb } from './lead-scan.schema'
+import { seqCodes } from '../code-seq'
 
 /** SQL of the scan door. Decides nothing.
  *
@@ -19,8 +20,12 @@ import { scanBatch, scanFile, type ScanBatchRowDb } from './lead-scan.schema'
  *  reads default to the pool but accept a handle, because on PGlite a pool
  *  read inside an open transaction waits on itself forever. */
 
-const NEXT_CODE = sql`SELECT 'SCN-' || to_char(now() AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYMM')
-  || '-' || lpad(nextval('sales.scan_batch_code_seq')::text, 2, '0') AS code`
+const NEXT_CODE = seqCodes(
+  sql`'SCN-' || to_char(now() AT TIME ZONE 'Asia/Ho_Chi_Minh', 'YYMM') || '-'`,
+  'sales.scan_batch_code_seq',
+  1,
+  2,
+)
 
 const TERMINAL = ['READ', 'EMPTY', 'FAILED'] as const
 /** The quota window, on the database clock so every API machine agrees. */

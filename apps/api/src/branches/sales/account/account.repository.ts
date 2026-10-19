@@ -1,12 +1,7 @@
 import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import {
-  CURRENCIES,
-  type AccountBookQuery,
-  type AccountFacetsQuery,
-  type LeadCategory,
-} from '@pv/contracts'
+import type { AccountBookQuery, AccountFacetsQuery, LeadCategory } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
@@ -15,13 +10,15 @@ import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contact } from '../contact/contact.schema'
+import { toVndSql } from '../money'
 import { account, type AccountRowDb } from './account.schema'
 import type { AccountValues } from './account.mapper'
+import { seqCodes } from '../code-seq'
 
 /** `AC-0001`. Drizzle has no expression node for `nextval`, so the sequence name
  *  is written out once here — the same trade `opportunity.repository.ts` and
  *  `lead.repository.ts` already made. */
-const NEXT_CODE = sql`SELECT 'AC-' || lpad(nextval('sales.account_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('AC-', 'sales.account_code_seq')
 
 /** The four numbers that turn a name into a customer.
  *
@@ -102,12 +99,7 @@ const SIGNED_DEALS = sql<number>`(
  *  an unknown — unlike a single deal with no amount, where NULL is the honest
  *  answer and the deal book keeps it. */
 const SIGNED_AMOUNT_VND = sql<number>`(
-  SELECT COALESCE(SUM(CASE ${at(contract.currency)} ${sql.join(
-    CURRENCIES.map(
-      (c) => sql`WHEN ${c.code} THEN ${at(contract.amount)} * ${sql.raw(String(c.rate))}`,
-    ),
-    sql` `,
-  )} END), 0)::bigint
+  SELECT COALESCE(SUM(${toVndSql(at(contract.amount), at(contract.currency))}), 0)::bigint
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
@@ -203,21 +195,22 @@ export class AccountRepository {
   async book(q: AccountBookQuery): Promise<AccountBookPage> {
     const where = this.filtersOf(q)
 
-    const rows = await this.db
-      .select({
-        row: account,
-        leads: LEAD_COUNT,
-        openDeals: OPEN_DEALS,
-        signedDeals: SIGNED_DEALS,
-        signedAmountVnd: SIGNED_AMOUNT_VND,
-      })
-      .from(account)
-      .where(where)
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
-
-    const [tally] = await this.db.select({ n: count() }).from(account).where(where)
+    const [rows, [tally]] = await Promise.all([
+      this.db
+        .select({
+          row: account,
+          leads: LEAD_COUNT,
+          openDeals: OPEN_DEALS,
+          signedDeals: SIGNED_DEALS,
+          signedAmountVnd: SIGNED_AMOUNT_VND,
+        })
+        .from(account)
+        .where(where)
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size),
+      this.db.select({ n: count() }).from(account).where(where),
+    ])
 
     return {
       rows: rows.map((r) => ({
@@ -279,12 +272,7 @@ export class AccountRepository {
         code: opportunity.code,
         name: opportunity.name,
         state: opportunity.state,
-        amountVnd: sql<number | null>`CASE ${opportunity.currency} ${sql.join(
-          CURRENCIES.map(
-            (c) => sql`WHEN ${c.code} THEN ${opportunity.amount} * ${sql.raw(String(c.rate))}`,
-          ),
-          sql` `,
-        )} END`,
+        amountVnd: toVndSql(opportunity.amount, opportunity.currency),
         contractCode: contract.code,
         createdAt: opportunity.createdAt,
       })

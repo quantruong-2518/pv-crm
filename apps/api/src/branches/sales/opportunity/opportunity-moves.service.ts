@@ -26,11 +26,11 @@ import { OpportunityRepository, type OpportunityRead } from './opportunity.repos
 
 /** The two doors that MOVE a deal (ADR 0064 §3, 0069 §1): record a care activity,
  *  stop it for good. One shape for both, and it is the lead
- *  exit door's shape: read for the two refusals (404 / out of scope), open the
- *  transaction, lock the row, re-read it UNDER the lock, hand the move to
- *  `OpportunityLifecycle`, answer with the whole book row.
+ *  exit door's shape: open the transaction, lock the row, read it UNDER the lock
+ *  (the one read that refuses with 404 / out of scope), hand the move to
+ *  `OpportunityLifecycle`, answer with the whole book row from that same read.
  *
- *  Re-reading inside the transaction is what makes the guards honest: the stage
+ *  Reading inside the transaction is what makes the guards honest: the stage
  *  they judge is the stage the UPDATE will find, not the one a screen was
  *  looking at while somebody else recorded a quotation.
  *
@@ -59,17 +59,16 @@ export class OpportunityMoves {
     code: ObjectCode,
     body: OpportunityMilestoneBody,
   ): Promise<OpportunityMilestoneResponse> {
-    const found = await this.inScope(who, code)
-
-    const row = await this.deals.run(async (tx) => {
+    const { row, read } = await this.deals.run(async (tx) => {
       const fresh = await this.locked(tx, who, code)
-      return this.lifecycle.milestone(tx, fresh, body.kind, mover(who), {
+      const moved = await this.lifecycle.milestone(tx, fresh, body.kind, mover(who), {
         at: body.at === undefined ? undefined : new Date(body.at),
         note: body.note,
       })
+      return { row: moved, read: fresh.read }
     })
 
-    return OpportunityMilestoneResponse.parse(await this.answer(found, row, new Date()))
+    return OpportunityMilestoneResponse.parse(await this.answer(read, row, new Date()))
   }
 
   /** `POST /sales/opportunities/:code/stop` — the deal is lost, with a reason.
@@ -87,13 +86,14 @@ export class OpportunityMoves {
     code: ObjectCode,
     body: OpportunityStopBody,
   ): Promise<OpportunityStopResponse> {
-    const found = await this.inScope(who, code)
+    const leadCode = await this.deals.scopedLeadCode(who, code)
+    if (leadCode === null) throw notFound('cơ hội', code)
     const at = new Date()
     const gone: MeetingRowDb[] = []
 
-    const row = await this.deals.run(async (tx) => {
+    const { row, read } = await this.deals.run(async (tx) => {
       /* A lead switched off meanwhile: `locked` re-reads the deal and 404s. */
-      const [lead] = await this.deals.lockLeads(tx, [found.row.leadCode])
+      const [lead] = await this.deals.lockLeads(tx, [leadCode])
       const fresh = await this.locked(tx, who, code)
       /* The held time leaves the column clock first, so `days_in_from` excludes it. */
       const [ended] = await endHolds(tx, 'opportunity', [code], 'stopped', who.id)
@@ -123,11 +123,11 @@ export class OpportunityMoves {
         last !== undefined &&
         (await this.leadAfter(tx, who, written, last, fresh.owners, body.lead, gone))
       if (!moved) await syncLeadRuns(tx, [written.leadCode])
-      return written
+      return { row: written, read: fresh.read }
     })
     await this.meetings.forgetCancelled(gone)
 
-    return OpportunityStopResponse.parse(await this.answer(found, row, at))
+    return OpportunityStopResponse.parse(await this.answer(read, row, at))
   }
 
   /** The stopper's answer to "where does the lead go" (owner, 15/10/2026),
@@ -161,36 +161,30 @@ export class OpportunityMoves {
     return this.leadStates.dealsLost(tx, deal.leadCode, mover(who), NOTE.lastLost.nurturing)
   }
 
-  /** The same two refusals every read door of this module makes, in the same
-   *  words — see `OpportunityService.profile` for why both are a 404. */
-  async inScope(who: Actor, code: ObjectCode): Promise<OpportunityRead> {
-    const found = await this.deals.byCode(who, code)
-    if (!found || !found.inScope) throw notFound('cơ hội', code)
-    return found
-  }
-
   /** The deal under `FOR UPDATE`, read back through the same handle — scope
-   *  included, so an owners edit that landed while this waited is judged too.
-   *  `pendingSign` comes from the LOCK read: it is the fact a move must never
-   *  race with the sign door's own apply step. */
+   *  included, so an owners edit that landed while this waited is judged too:
+   *  missing, switched-off lead and out of scope are ONE 404 (see
+   *  `OpportunityService.profile`). `pendingSign` is the fact a move must never
+   *  race with the sign door's own apply step. `read` is the whole row for the answer. */
   async locked(
     tx: Db,
     who: Actor,
     code: ObjectCode,
-  ): Promise<DealAt & { ownerIds: string[]; owners: OpportunityRead['owners'] }> {
-    const lock = await this.deals.lockDeal(tx, code)
-    if (!lock) throw notFound('cơ hội', code)
-    const fresh = await this.deals.byCode(who, code, tx)
-    if (!fresh || !fresh.inScope) throw notFound('cơ hội', code)
+  ): Promise<
+    DealAt & { ownerIds: string[]; owners: OpportunityRead['owners']; read: OpportunityRead }
+  > {
+    const read = await this.deals.lockedByCode(who, code, tx)
+    if (!read || !read.inScope) throw notFound('cơ hội', code)
     return {
-      ...dealAtOf(fresh, lock.pendingSign),
-      ownerIds: fresh.owners.map((o) => o.id),
-      owners: fresh.owners,
+      ...dealAtOf(read, read.pendingSign),
+      ownerIds: read.owners.map((o) => o.id),
+      owners: read.owners,
+      read,
     }
   }
 
   /** The book row, built from the row the move returned plus the labels the read
-   *  before the transaction already carried. */
+   *  under the lock carried. */
   private answer(found: OpportunityRead, row: OpportunityRead['row'], at: Date) {
     return this.facts.row({
       ...found,

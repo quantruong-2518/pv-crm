@@ -284,8 +284,8 @@ export class ApprovalService {
    *  The order matters and is not arrangeable any other way: load, ask the
    *  engine, then settle and apply INSIDE one transaction. The guarded UPDATE
    *  is what makes two approvers pressing at once safe — the second one finds
-   *  the row no longer `waiting` and is told so, instead of overwriting the
-   *  first decision. */
+   *  the row no longer `waiting` (or its chain changed) and is told so, instead
+   *  of overwriting the first decision — see `ApprovalRepository.settle`. */
   async decide(who: Actor, id: string, body: ApprovalDecisionBody): Promise<ApprovalRequestView> {
     const row = await this.repo.byId(id)
     if (!row) throw notFound('yêu cầu duyệt', id)
@@ -325,13 +325,18 @@ export class ApprovalService {
     }
 
     const moved = await this.repo.run(async (tx) => {
-      const won = await this.repo.settle(tx, id, {
-        state: after.state,
-        chain: after.chain,
-        decidedAt: after.decidedAt,
-        decidedBy: after.decidedBy,
-        decidedReason: after.decidedReason,
-      })
+      const won = await this.repo.settle(
+        tx,
+        id,
+        {
+          state: after.state,
+          chain: after.chain,
+          decidedAt: after.decidedAt,
+          decidedBy: after.decidedBy,
+          decidedReason: after.decidedReason,
+        },
+        row.chain,
+      )
       if (!won) return false
 
       /* Applied in the same transaction that settled it, so a failure here

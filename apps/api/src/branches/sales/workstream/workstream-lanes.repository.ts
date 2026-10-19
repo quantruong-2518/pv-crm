@@ -1,14 +1,6 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type {
-  ApprovalState,
-  ContractKind,
-  CurrencyCode,
-  OpportunityOwnerRole,
-  StageKey,
-  TouchKind,
-} from '@pv/contracts'
-import type { RoleId } from '@pv/engines'
+import type { ApprovalState, ContractKind, CurrencyCode, StageKey, TouchKind } from '@pv/contracts'
 import { approval } from '@api/platform/approval/approval.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -18,11 +10,7 @@ import { lead } from '../lead/lead.schema'
 import { leadDealsAllLost } from '../open-deal'
 import { openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
-import {
-  opportunity,
-  opportunityOwner,
-  opportunityStageEvent,
-} from '../opportunity/opportunity.schema'
+import { opportunityStageEvent } from '../opportunity/opportunity.schema'
 import { quotation } from '../quotation/quotation.schema'
 import { touch } from '../touch/touch.schema'
 
@@ -53,8 +41,9 @@ export class WorkstreamLanesRepository {
       reasons,
       dealTouches,
       signs,
-      owners,
       lost,
+      leadHolds,
+      dealHolds,
     ] = await Promise.all([
       this.db
         .select({
@@ -146,28 +135,12 @@ export class WorkstreamLanesRepository {
             .where(and(inArray(touch.subjectCode, deals), inArray(touch.kind, DEAL_STEP_KINDS)))
             .orderBy(asc(touch.at)),
       deals.length === 0 ? none : this.signApprovalsOf(deals),
-      deals.length === 0
-        ? none
-        : this.db
-            .select({
-              deal: opportunityOwner.opportunityCode,
-              id: opportunityOwner.actorId,
-              name: actor.name,
-              role: opportunityOwner.role,
-              primary: opportunityOwner.isPrimary,
-              roleIds: actor.roleIds,
-            })
-            .from(opportunityOwner)
-            .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
-            .where(inArray(opportunityOwner.opportunityCode, deals))
-            .orderBy(asc(actor.name), asc(actor.id)),
       this.db
         .select({ allLost: sql<boolean>`${leadDealsAllLost(lead.code)}` })
         .from(lead)
         .where(eq(lead.code, leadCode)),
-    ])
-    const [acceptors, leadHolds, dealHolds] = await Promise.all([
-      this.acceptorsOf(deals),
+      /* The holds need only the codes already in hand, so they ride the
+         same wave as the reads above instead of a second round. */
       openHoldsOf(this.db, 'lead', [leadCode]),
       openHoldsOf(this.db, 'opportunity', deals),
     ])
@@ -182,21 +155,9 @@ export class WorkstreamLanesRepository {
       ),
       dealTouches,
       signApprovals: signs,
-      dealOwners: owners,
-      dealAcceptors: new Map(acceptors.map((a) => [a.deal, { id: a.id, name: a.name }])),
       allLost: lost[0]?.allLost ?? false,
       holds: new Map([...leadHolds, ...dealHolds]),
     }
-  }
-
-  /** Who accepted each deal (ADR 0071) — the holder's fallback after a Sale. */
-  private acceptorsOf(deals: string[]): Promise<{ deal: string; id: string; name: string }[]> {
-    if (deals.length === 0) return Promise.resolve([])
-    return this.db
-      .select({ deal: opportunity.code, id: actor.id, name: actor.name })
-      .from(opportunity)
-      .innerJoin(actor, eq(actor.id, opportunity.acceptedById))
-      .where(inArray(opportunity.code, deals))
   }
 
   /** Read off `platform.approval` by the same payload key as
@@ -321,15 +282,6 @@ export type SignApprovalRow = {
   decidedReason: string | null
 }
 
-export type DealOwnerRow = {
-  deal: string
-  id: string
-  name: string
-  role: OpportunityOwnerRole
-  primary: boolean
-  roleIds: RoleId[]
-}
-
 /** `doNotContact` is the catalogue's own flag, `false` on every pre-0068 row. */
 export type StopReasonRow = { name: string; doNotContact: boolean }
 
@@ -347,10 +299,6 @@ export type LaneRows = {
   dealTouches: DealTouchRow[]
   /** Every `contract-sign` request of the visible deals, oldest first. */
   signApprovals: SignApprovalRow[]
-  /** Owners of the visible deals by actor name then id — `holderOf`'s "first". */
-  dealOwners: DealOwnerRow[]
-  /** Deal code → who accepted it (ADR 0071), the holder's second fallback. */
-  dealAcceptors: Map<string, { id: string; name: string }>
   /** `leadDealsAllLost` over EVERY deal of the lead, hidden ones included. */
   allLost: boolean
   /** Open holds of the lead and the visible deals, by code (codes never collide). */

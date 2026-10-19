@@ -3,6 +3,7 @@ import { Public } from '@api/platform/access/need.decorator'
 import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { MAIL_LEDGER, type MailLedger } from './mail.contract'
+import { MailSignalRepository } from './mail-signal.repository'
 import { verify } from './unsubscribe-token'
 
 /** THE UNSUBSCRIBE DOOR — the third inbound door of the mail path, and the only
@@ -81,6 +82,7 @@ export class UnsubscribeController {
   constructor(
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly signals: MailSignalRepository,
   ) {}
 
   /** One-click unsubscribe (RFC 8058). No body is read and none is required:
@@ -156,7 +158,7 @@ export class UnsubscribeController {
       return false
     }
 
-    const recipient = await this.ledger.recipientOf(deliveryId)
+    const recipient = await this.signals.recipientOf(deliveryId)
     /* A correctly signed token for a row that is gone. Nothing to suppress —
        the address is only knowable through that row — so this is honestly a
        failure, and the page says so rather than claiming success. */
@@ -166,7 +168,7 @@ export class UnsubscribeController {
     }
 
     await this.ledger.suppress(recipient, 'unsubscribe', 'operator')
-    const recorded = await this.ledger.recordEngagement({
+    const recorded = await this.signals.recordEngagement({
       svixId: null,
       kind: 'UNSUBSCRIBE',
       deliveryId,

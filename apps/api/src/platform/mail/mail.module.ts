@@ -11,6 +11,7 @@ import { MailBell } from './mail-bell'
 import { MAIL_ENQUEUE, MAIL_LEDGER, MAIL_PORT, type MailPort } from './mail.contract'
 import { MailHealthController, MailWebhookController } from './mail-webhook.controller'
 import { MailRepository } from './mail.repository'
+import { MailSignalRepository } from './mail-signal.repository'
 import { MailRunRepository } from './mail-run.repository'
 import { MailDomainCheck } from './mail-domain-check'
 import { MailRunSweeper } from './mail-run.sweeper'
@@ -74,6 +75,7 @@ import { UnsubscribeController } from './unsubscribe.controller'
   controllers: [MailWebhookController, MailHealthController, UnsubscribeController],
   providers: [
     MailRepository,
+    MailSignalRepository,
     MailRunRepository,
     MailRunSweeper,
     MailDomainCheck,

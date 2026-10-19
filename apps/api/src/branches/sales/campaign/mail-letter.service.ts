@@ -347,7 +347,9 @@ export class MailLetterService {
 
   /** The verdict per To pick, in the order picked. A code outside the
    *  subject's company is refused outright — a code is not an address the
-   *  client may choose freely. Reason order as `MasService.decide`. */
+   *  client may choose freely. Shares `decide`'s case-blind address key and its
+   *  NO_EMAIL → SUPPRESSED → UNDELIVERABLE → DUPLICATE order; `decide` also has
+   *  EXITED, which a letter to a picked contact does not. */
   private async judge(
     handle: Db,
     subject: LetterSubject,
@@ -364,19 +366,22 @@ export class MailLetterService {
       )
     }
 
+    /* Lower-cased as `MasService.decide` does: `An@x.vn` and `an@x.vn` are one
+       mailbox, and a case-blind miss would send it two letters in one batch. */
     const spokenFor = new Set<string>([SALES_INBOX])
     return codes.map((code) => {
       const contact = byCode.get(code) as LetterContact
-      const block: MailGroupBlock | undefined = !contact.email
+      const address = contact.email?.toLowerCase()
+      const block: MailGroupBlock | undefined = !address
         ? 'NO_EMAIL'
         : contact.suppressedReason
           ? 'SUPPRESSED'
-          : dead.has(mailKey(contact.email))
+          : dead.has(mailKey(address))
             ? 'UNDELIVERABLE'
-            : spokenFor.has(contact.email)
+            : spokenFor.has(address)
               ? 'DUPLICATE'
               : undefined
-      if (!block && contact.email) spokenFor.add(contact.email)
+      if (!block && address) spokenFor.add(address)
       return { contact, block }
     })
   }

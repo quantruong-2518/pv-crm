@@ -59,51 +59,66 @@ export class CampaignSweeper {
     private readonly states: LeadStateWriter,
   ) {}
 
-  /** Một lượt. Trả về mã những chiến dịch vừa đóng, cho người gọi muốn khẳng
-   *  định trên nó.
+  /** One tick. Returns the codes of the campaigns it closed, so a caller can
+   *  assert on them.
    *
-   *  Không bọc try/catch: vòng lặp của worker đã nuốt một lượt hỏng
-   *  (`void … .catch`), và một lượt chết không để lại gì dở dang — câu UPDATE
-   *  hoặc chạy trọn hoặc không chạy — nên nhịp sau làm lại từ đầu. */
+   *  One transaction per campaign: a campaign that fails is logged, the others
+   *  still commit, and the next tick retries that one alone. An error while
+   *  listing candidates is not caught here; it reaches the worker loop
+   *  (`void … .catch`), which swallows it. */
   async sweep(): Promise<string[]> {
-    /* Close, the owner's bell and C5 in ONE transaction (ADR 0093, 0097 §6): a
-       campaign is never DONE while its silent leads stay in `working`, and a
-       failed park retries all three. No actor, so even the owner hears it. */
-    const { closed, parked } = await this.repo.run(async (tx) => {
-      const rows = await this.repo.closeFinished(tx)
-      const closed = rows.map((row) => row.code)
-      const silent = await this.parks.silentMembers(tx, closed)
-      /* The owner's one line counts every lead this close parks (owner, 15/10/2026). */
-      for (const row of rows) {
-        const n = silent.filter((m) => m.campaignCode === row.code).length
-        await this.hub.announce(tx, {
-          event: {
-            name: CAMPAIGN_FINISHED,
-            ref: { code: row.code },
-            audiences: { owner: row.ownerId ? [row.ownerId] : [] },
-            occurrence: String(row.updatedAt.getTime()),
-          },
-          subject: { kind: 'campaign', code: row.code, label: row.name },
-          detail: n > 0 ? { [NOTIFICATION_DETAIL_COUNT]: n } : null,
-        })
+    const closed: string[] = []
+    for (const code of await this.repo.finishableCodes()) {
+      try {
+        if (await this.close(code)) closed.push(code)
+      } catch (err) {
+        this.log.error(`Campaign ${code} not closed; retrying next tick`, err)
       }
-      const note = LEAD_NOTE.nurtured(CAMPAIGN_SILENT_REASON, undefined)
-      for (const { code } of silent) {
-        const park = { by: null, reasonId: CAMPAIGN_SILENT_REASON, note }
-        await this.states.parked(tx, code, park, false)
-      }
-      await this.ringParks(tx, rows, silent)
-      return { closed, parked: silent.map((m) => m.code) }
-    })
+    }
 
     if (closed.length > 0) {
       this.log.log(`Chiến dịch đã chạy xong mọi đợt, chuyển XONG: ${closed.join(' · ')}`)
     }
-    if (parked.length > 0) {
-      this.log.log(`Campaign close parked ${parked.length} silent lead(s): ${parked.join(' · ')}`)
-    }
-
     return closed
+  }
+
+  /** Close, the owner's bell and C5 in ONE transaction (ADR 0093, 0097 §6): a
+   *  campaign is never DONE while its silent leads stay in `working`, and a
+   *  failed park retries all three. No actor, so even the owner hears it.
+   *  `false` when another tick closed it between the listing and here. */
+  private async close(code: string): Promise<boolean> {
+    const { row, parked } = await this.repo.run(async (tx) => {
+      const [row] = await this.repo.closeFinished(tx, code)
+      if (!row) return { row: undefined, parked: [] }
+      const silent = await this.parks.silentMembers(tx, [code])
+      /* The owner's one line counts every lead this close parks (owner, 15/10/2026). */
+      await this.hub.announce(tx, {
+        event: {
+          name: CAMPAIGN_FINISHED,
+          ref: { code },
+          audiences: { owner: row.ownerId ? [row.ownerId] : [] },
+          occurrence: String(row.updatedAt.getTime()),
+        },
+        subject: { kind: 'campaign', code, label: row.name },
+        detail: silent.length > 0 ? { [NOTIFICATION_DETAIL_COUNT]: silent.length } : null,
+      })
+      const note = LEAD_NOTE.nurtured(CAMPAIGN_SILENT_REASON, undefined)
+      const park = { by: null, reasonId: CAMPAIGN_SILENT_REASON, note }
+      await this.states.parkedMany(
+        tx,
+        silent.map((m) => m.code),
+        park,
+      )
+      await this.ringParks(tx, row, silent)
+      return { row, parked: silent.map((m) => m.code) }
+    })
+
+    if (parked.length > 0) {
+      this.log.log(
+        `Campaign ${code} close parked ${parked.length} silent lead(s): ${parked.join(' · ')}`,
+      )
+    }
+    return row !== undefined
   }
 
   /** C5's bell (ADR 0093): ONE `lead-nurtured` line per holder per campaign,
@@ -112,24 +127,21 @@ export class CampaignSweeper {
    *  campaign's owner is skipped: their `campaign-finished` line counts them. */
   private async ringParks(
     tx: Db,
-    campaigns: readonly { code: string; name: string; updatedAt: Date; ownerId: string | null }[],
+    c: { code: string; name: string; updatedAt: Date; ownerId: string | null },
     silent: readonly SilentMember[],
   ): Promise<void> {
-    for (const c of campaigns) {
-      const mine = silent.filter((m) => m.campaignCode === c.code)
-      for (const holder of new Set(mine.map((m) => m.ownerId))) {
-        if (holder === c.ownerId) continue
-        await this.hub.announce(tx, {
-          event: {
-            name: LEAD_NURTURED,
-            ref: { code: c.code },
-            audiences: { holder: [holder] },
-            occurrence: String(c.updatedAt.getTime()),
-          },
-          subject: { kind: 'lead-batch', code: c.code, label: c.name },
-          detail: { [NOTIFICATION_DETAIL_COUNT]: mine.filter((m) => m.ownerId === holder).length },
-        })
-      }
+    for (const holder of new Set(silent.map((m) => m.ownerId))) {
+      if (holder === c.ownerId) continue
+      await this.hub.announce(tx, {
+        event: {
+          name: LEAD_NURTURED,
+          ref: { code: c.code },
+          audiences: { holder: [holder] },
+          occurrence: String(c.updatedAt.getTime()),
+        },
+        subject: { kind: 'lead-batch', code: c.code, label: c.name },
+        detail: { [NOTIFICATION_DETAIL_COUNT]: silent.filter((m) => m.ownerId === holder).length },
+      })
     }
   }
 }

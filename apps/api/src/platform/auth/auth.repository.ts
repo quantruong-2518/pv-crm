@@ -1,7 +1,9 @@
 import { and, eq, isNull, lt, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '../db/db.module'
+import type { Permission } from '@pv/engines'
 import { actor, type ActorRow } from '../db/platform.schema'
+import { rolePermission } from '../roles/role.schema'
 import { passwordReset, session, type PasswordResetRow, type SessionRow } from './auth.schema'
 
 /** SQL for the sign-in flow. Decides NOTHING.
@@ -119,12 +121,20 @@ export class AuthRepository {
    *
    *  INNER join, not LEFT: `session.actor_id` has a foreign key, so a session
    *  without an actor cannot exist, and a LEFT join would only add a nullable
-   *  branch that no code path can reach. */
+   *  branch that no code path can reach. `permissions` is `grantsFor`'s result
+   *  folded in as a sub-select. */
   async sessionByTokenHash(
     tokenHash: string,
-  ): Promise<{ session: SessionRow; actor: ActorRow } | null> {
+  ): Promise<{ session: SessionRow; actor: ActorRow; permissions: Permission[] } | null> {
     const [row] = await this.db
-      .select({ session, actor })
+      .select({
+        session,
+        actor,
+        permissions: sql<Permission[]>`array(
+          select distinct ${rolePermission.permission} from ${rolePermission}
+          where ${rolePermission.roleId} = any(${actor.roleIds})
+          order by 1)`,
+      })
       .from(session)
       .innerJoin(actor, eq(actor.id, session.actorId))
       .where(eq(session.tokenHash, tokenHash))

@@ -15,7 +15,6 @@ import { invalid, notFound } from '@api/platform/http/problem'
 import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationService, notLead } from './kpi-allocation.service'
 import { additive, defOf } from './kpi-allocation.mapper'
-import { KpiConfigService } from './kpi-config.service'
 import { monthClock } from './kpi-rules'
 import { teamsOf } from './kpi-team.mapper'
 import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
@@ -36,12 +35,12 @@ export class KpiTeamViewService {
     private readonly packages: KpiAllocationService,
     private readonly counters: KpiAllocationCounterService,
     private readonly kpi: KpiService,
-    private readonly config: KpiConfigService,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async view(who: Actor, period: KpiPeriodKey, teamId: string): Promise<KpiTeamViewResponse> {
-    const { roster, entries } = await this.packages.tierContext(period)
+    const ctx = await this.packages.periodContext(period)
+    const { roster, entries } = ctx.tier
     const all = this.access.allows(who, 'kpi.view-all')
     /* A stand-in for a locked lead edits too, so `iLead` is "acts for the lead". */
     const iLead = await this.packages.actsFor(who, roster, teamId)
@@ -49,15 +48,14 @@ export class KpiTeamViewService {
     if (!roster.team(teamId)) throw notFound('nhóm')
 
     const members = new Set(roster.membersOf(teamId))
-    const [cards, team, shares, allocations, counters, tolerance] = await Promise.all([
-      this.kpi.people(period, members),
+    const [cards, team, allocations, counters] = await Promise.all([
+      this.kpi.people(period, members, ctx),
       this.teamOf(entries, teamId),
-      this.packages.sharesInForce(period),
-      this.packages.teamPackages(period, teamId),
-      this.counters.counterViews(period, teamId),
-      this.config.tolerance(),
+      this.packages.teamPackages(period, teamId, ctx),
+      this.counters.counterViews(period, teamId, ctx),
     ])
-    const mine = shares.filter((s) => s.teamId === teamId)
+    const { tolerance } = ctx
+    const mine = ctx.shares.filter((s) => s.teamId === teamId)
     const { elapsed } = monthClock(period)
     const readings = mine.flatMap((s): KpiTeamReading[] => {
       const def = defOf(s.role, s.metricKey)

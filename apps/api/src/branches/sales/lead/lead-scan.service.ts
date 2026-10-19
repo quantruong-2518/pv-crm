@@ -56,7 +56,9 @@ import { LeadWriteService } from './lead-write.service'
 
 export const FILE_FAILED = 'Không đọc được tệp này'
 const CANCELLED = 'Bạn đã huỷ lô này.'
-const PREVIEWED = ['READY', 'COMMITTING', 'DONE'] as const
+/** Not COMMITTING: the web polls that state every 2 s, and its result view
+ *  reads neither the preview nor a file link — each poll would replan and presign. */
+const PREVIEWED = ['READY', 'DONE'] as const
 /** Before the commit press, a batch's file set may still change or be dropped. */
 const OPEN: readonly ScanBatchState[] = ['UPLOADING', 'READING', 'READY']
 const closed = (code: string) => conflict(`Lô ${code} đã đóng.`)

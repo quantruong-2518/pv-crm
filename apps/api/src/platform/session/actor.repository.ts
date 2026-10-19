@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
+import { toActor } from '../auth/auth.mapper'
 import { RolePermissionRepository } from '../roles/role-permission.repository'
 import type { Caller } from './caller'
 
@@ -24,16 +25,7 @@ export class ActorRepository {
        do what for as long as the cache lives. */
     const permissions = await this.grants.grantsFor(row.roleIds)
     return {
-      actor: {
-        id: row.id,
-        name: row.name,
-        email: row.email,
-        role: row.role,
-        roleIds: row.roleIds,
-        permissions,
-        branches: row.branches,
-        ownOnly: row.ownOnly,
-      },
+      actor: toActor(row, permissions),
       /* The header back door reads the same column as the cookie path. It is a
          development tool that `env.ts` refuses to boot with in production, but
          a tool that skips ONE gate is easier to reason about than one that

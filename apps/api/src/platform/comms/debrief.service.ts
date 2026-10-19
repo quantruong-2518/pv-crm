@@ -348,10 +348,14 @@ export class DebriefService {
         !mine(r) &&
         closesMeetingFor(who, { id: r.row.ownerId, roleIds: r.ownerRoleIds }, true),
     )
-    const confirmable = new Map<string, boolean>()
-    for (const code of new Set(asked.map((r) => r.row.subjectCode))) {
-      confirmable.set(code, this.hook ? (await this.hook.slot(who, code)).confirmable : false)
-    }
+    /* Read-only slot asks with no shared tx handle: safe to run side by side. */
+    const verdicts = await Promise.all(
+      [...new Set(asked.map((r) => r.row.subjectCode))].map(async (code) => {
+        const verdict = this.hook ? (await this.hook.slot(who, code)).confirmable : false
+        return [code, verdict] as const
+      }),
+    )
+    const confirmable = new Map(verdicts)
     return (r: DebriefRead): boolean =>
       !r.row.closedAt && (mine(r) || (asked.includes(r) && !!confirmable.get(r.row.subjectCode)))
   }
@@ -378,10 +382,14 @@ export class DebriefService {
   private async runInReach(who: Actor, workstreamCode: string): Promise<string[]> {
     const codes = (await this.hook?.subjectsOfRun(workstreamCode)) ?? []
     if (codes.length === 0) throw notFound('hành trình', workstreamCode)
-    const rows = await Promise.all(codes.map((c) => this.threads.objectByCode(c)))
-    return rows.flatMap((row) =>
-      row && this.access.check(who, { ref: toObjectRef(row), action: 'view' }).ok ? [row.code] : [],
-    )
+    /* One query for the run; the codes keep the run's order, not the query's. */
+    const byCode = new Map((await this.threads.objectsByCodes(codes)).map((row) => [row.code, row]))
+    return codes.flatMap((code) => {
+      const row = byCode.get(code)
+      return row && this.access.check(who, { ref: toObjectRef(row), action: 'view' }).ok
+        ? [row.code]
+        : []
+    })
   }
 
   /** E2 `view` on one object code; 404 and 403 apart, as `ThreadService` keeps

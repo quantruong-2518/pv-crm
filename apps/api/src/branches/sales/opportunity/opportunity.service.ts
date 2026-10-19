@@ -62,18 +62,20 @@ import { editTrail } from './opportunity-trail'
 import { announceOpened, announceOwners, announcePrimary } from './opportunity-bell'
 import { foreignLead, leadGone, opens, OpportunityOpening } from './opportunity-opening.service'
 import {
-  actorRoles,
+  actorsByIds,
   assertHeld,
   assertOwnSaleLane,
   assertSaleLaneKept,
-  assertSellers,
+  assertSellersIn,
   holderOfIds,
+  labelsOf,
   ownersOfIds,
   primaryOf,
   recordSaleLane,
   saleLaneChange,
   saleLaneOf,
   salePrimaryOf,
+  type ActorRow,
 } from './opportunity-owners'
 import {
   fromCreate,
@@ -307,11 +309,21 @@ export class OpportunityService {
         this.facts.contacts(found),
         this.repo.stageEventsOf(code),
         found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
-        this.repo.openHold(code),
+        found.held ? this.repo.openHold(code) : null,
       ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
-    const verdicts = await this.acts.of(who, found, sign !== undefined)
+    /* `money` waits on no verdict; only `leadAfter` does, so it chains on `acts`. */
+    const [{ verdicts, leadAfterStop }, money] = await Promise.all([
+      this.acts.of(who, found, sign !== undefined).then(async (verdicts) => ({
+        verdicts,
+        /* Asked only of a reader who may stop: holder names stay with them. */
+        leadAfterStop: verdicts.acts.stop.ok
+          ? await this.leadAfter.of(this.repo.readonlyHandle, who, found)
+          : null,
+      })),
+      this.quotes.money(who, found.row, signedRows),
+    ])
     return OpportunityProfileResponse.parse({
       ...row,
       position: positionOf(found.row, stageRows, approvals),
@@ -321,13 +333,10 @@ export class OpportunityService {
       ...verdicts,
       stages: stageSpansOf(found.row, events, stageRows, new Date()),
       contracts: profileContractsOf(signedRows),
-      money: await this.quotes.money(who, found.row, signedRows),
+      money,
       chain: story.chain.map(toChainLink),
       hold: hold ? toHold(hold, vnDay(new Date())) : null,
-      /* Asked only of a reader who may stop: holder names stay with them. */
-      leadAfterStop: verdicts.acts.stop.ok
-        ? await this.leadAfter.of(this.repo.readonlyHandle, who, found)
-        : null,
+      leadAfterStop,
     })
   }
 
@@ -362,11 +371,11 @@ export class OpportunityService {
 
     const pic = [...body.saleOwners, ...body.bdOwners]
     const acceptor = this.acceptorAtCreate(who)
-    const [lead, names, roles] = await Promise.all([
+    const [lead, actors] = await Promise.all([
       this.repo.leadCompany(handle, body.leadCode),
-      this.repo.actorNames(handle, pic),
-      actorRoles(handle, pic),
+      actorsByIds(handle, pic),
     ])
+    const { names, roles } = labelsOf(actors)
     if (lead === null) throw notFound('lead', body.leadCode)
     if (!opens(who, lead.ownerId)) throw foreignLead(body.leadCode)
     if (lead.exited) throw leadGone()
@@ -385,7 +394,7 @@ export class OpportunityService {
       body.salePrimary,
     )
     const owner = holderOfIds(body, names, roles, acceptor, salePrimary)
-    await assertSellers(handle, body.saleOwners)
+    assertSellersIn(actors, body.saleOwners)
     assertHeld(owner)
     const code = await this.repo.nextCode()
 
@@ -522,7 +531,7 @@ export class OpportunityService {
     if (!found || !found.inScope) throw notFound('cơ hội', code)
     const details = editDetailsVerdict(found.row)
     if (!details.ok) throw conflict(details.reason)
-    const pendingSign = await this.pendingSign(code)
+    const pendingSign = found.pendingSign
     const terms = editTermsVerdict(dealAtOf(found, pendingSign))
     if (!terms.ok && touchesTerms(found, body)) throw conflict(terms.reason)
     /* SALE people are the sign request's commission holders: frozen while it
@@ -538,16 +547,18 @@ export class OpportunityService {
     }
 
     const pic = [...body.saleOwners, ...body.bdOwners]
-    const [names, roles, signedContracts] = await Promise.all([
-      this.repo.actorNames(this.repo.readonlyHandle, pic),
-      actorRoles(this.repo.readonlyHandle, pic),
+    const [actors, signedContracts] = await Promise.all([
+      actorsByIds(this.repo.readonlyHandle, pic),
       found.signed ? this.contracts.byOpportunity(code, found.row.leadCode) : [],
     ])
+    const { names, roles } = labelsOf(actors)
 
     const write = fromUpdate(body)
-    const { row, owner, acceptedBy, salePrimary } = await this.repo.run(async (tx) => {
-      await this.assertLockedAsRead(tx, code, found, pendingSign)
-      const { now, owner, salePrimary } = await this.ownersUnderLock(tx, code, body, names, roles)
+    const { row, owner, acceptedBy, salePrimary, products } = await this.repo.run(async (tx) => {
+      const now = await this.repo.lockedByCode(who, code, tx)
+      if (!now || !now.inScope) throw notFound('cơ hội', code)
+      assertLockedAsRead(now, found, pendingSign)
+      const { owner, salePrimary } = ownersUnderLock(now, body, actors)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write, salePrimary))
       const deps = { touch: this.touch, hub: this.hub }
@@ -573,11 +584,8 @@ export class OpportunityService {
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
          sửa, và không có gì đỏ để chỉ ra điều đó. */
       await this.mirror.put(tx, toRef(written, owner))
-      return { row: written, owner, acceptedBy: now.acceptedBy, salePrimary }
+      return { row: written, owner, acceptedBy: now.acceptedBy, salePrimary, products }
     })
-
-    const productNames =
-      (await this.repo.productsOf(this.repo.readonlyHandle, [code])).get(code) ?? []
 
     return OpportunityUpdateResponse.parse(
       await this.facts.row({
@@ -592,7 +600,7 @@ export class OpportunityService {
         acceptedBy,
         hasSeller: sellerAmong(body.saleOwners, roles),
         daysInStage: daysInStageOf(row, new Date()),
-        products: productNames,
+        products,
       }),
     )
   }
@@ -669,57 +677,6 @@ export class OpportunityService {
     return free ? null : who.id
   }
 
-  /** The owner rules on the deal as it stands UNDER the row lock — an accept
-   *  or an assign landing after the pre-read is judged, not overwritten. */
-  private async ownersUnderLock(
-    tx: Db,
-    code: string,
-    body: OpportunityUpdate,
-    names: ReadonlyMap<string, string>,
-    roles: ReadonlyMap<string, RoleId[]>,
-  ): Promise<{ now: OpportunityRead; owner: RefOwner | null; salePrimary: string | null }> {
-    const now = await this.repo.byCode(null, code, tx)
-    if (!now) throw notFound('cơ hội', code)
-    assertSaleLaneKept(now, body.saleOwners, body.salePrimary)
-    const onSale = new Set(now.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
-    await assertSellers(
-      tx,
-      body.saleOwners.filter((id) => !onSale.has(id)),
-    )
-    const salePrimary = salePrimaryOf(
-      saleLaneOf(body.saleOwners, names, roles),
-      primaryOf(now.owners),
-      body.salePrimary,
-    )
-    const owner = holderOfIds(body, names, roles, now.acceptedBy, salePrimary)
-    assertHeld(owner)
-    return { now, owner, salePrimary }
-  }
-
-  private async pendingSign(code: string): Promise<boolean> {
-    return (await this.approvals.pendingOn(code)).some((a) => a.kind === 'contract-sign')
-  }
-
-  /** Inside the write's transaction: lock the deal, and refuse if signing, a
-   *  sign request or a stop landed between the pre-transaction checks and the lock. */
-  private async assertLockedAsRead(
-    tx: Db,
-    code: string,
-    found: OpportunityRead,
-    pendingSign: boolean,
-  ): Promise<void> {
-    const locked = await this.repo.lockDeal(tx, code)
-    if (!locked) throw notFound('cơ hội', code)
-    const lost = found.row.state === 'lost'
-    if (
-      locked.signed !== found.signed ||
-      locked.pendingSign !== pendingSign ||
-      locked.lost !== lost
-    ) {
-      throw conflict(`Cơ hội ${code} vừa được ký, gửi duyệt ký hoặc dừng. Tải lại rồi thử lại.`)
-    }
-  }
-
   /** A signed deal's edit carries its commission holder onto each contract, in
    *  the edit's transaction (ADR 0057 §1). The holder moves only when they are
    *  no longer a SALE owner — one hand-picked in the sign drawer survives — and
@@ -745,6 +702,48 @@ export class OpportunityService {
       ...(holder ? { owner: holder.name, ownerId: holder.id } : {}),
       ...(row.amount === null ? {} : { amount: row.amount }),
     })
+  }
+}
+
+/** The owner rules on the deal as it stands UNDER the row lock — an accept or
+ *  an assign landing after the pre-read is judged, not overwritten. */
+function ownersUnderLock(
+  now: OpportunityRead,
+  body: OpportunityUpdate,
+  actors: readonly ActorRow[],
+): { owner: RefOwner | null; salePrimary: string | null } {
+  assertSaleLaneKept(now, body.saleOwners, body.salePrimary)
+  const onSale = new Set(now.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
+  assertSellersIn(
+    actors,
+    body.saleOwners.filter((id) => !onSale.has(id)),
+  )
+  const { names, roles } = labelsOf(actors)
+  const salePrimary = salePrimaryOf(
+    saleLaneOf(body.saleOwners, names, roles),
+    primaryOf(now.owners),
+    body.salePrimary,
+  )
+  const owner = holderOfIds(body, names, roles, now.acceptedBy, salePrimary)
+  assertHeld(owner)
+  return { owner, salePrimary }
+}
+
+/** Refuse if signing, a sign request or a stop landed between the pre-transaction
+ *  checks and the lock — `now` is the read taken under it. */
+function assertLockedAsRead(
+  now: OpportunityRead & { pendingSign: boolean },
+  found: OpportunityRead,
+  pendingSign: boolean,
+): void {
+  if (
+    now.signed !== found.signed ||
+    now.pendingSign !== pendingSign ||
+    (now.row.state === 'lost') !== (found.row.state === 'lost')
+  ) {
+    throw conflict(
+      `Cơ hội ${now.row.code} vừa được ký, gửi duyệt ký hoặc dừng. Tải lại rồi thử lại.`,
+    )
   }
 }
 

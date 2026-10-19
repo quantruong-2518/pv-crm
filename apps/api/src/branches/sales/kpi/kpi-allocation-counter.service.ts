@@ -21,7 +21,12 @@ import { rosterOf, shareTargetOf, shareValues } from './kpi-allocation-team'
 import { KpiAllocationRepository, type LineKey } from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { effectOf, toCounter } from './kpi-allocation.mapper'
-import { handedDown, KpiAllocationService, stale } from './kpi-allocation.service'
+import {
+  handedDown,
+  KpiAllocationService,
+  stale,
+  type KpiPeriodContext,
+} from './kpi-allocation.service'
 import { KpiConfigService } from './kpi-config.service'
 import {
   ackDueOn,
@@ -178,22 +183,32 @@ export class KpiAllocationCounterService {
 
   /** Each counter's effect is read against ITS package's target: the role
    *  target on the room tier, the team's share on a team package. `teamId`
-   *  keeps only that team's counters. */
-  async counterViews(period: KpiPeriodKey, teamId?: string): Promise<KpiCounter[]> {
+   *  keeps only that team's counters. `loaded` is what the caller has already
+   *  read; the month's figures are asked for the people on the counters'
+   *  packages, the only ones `effectOf` looks up. */
+  async counterViews(
+    period: KpiPeriodKey,
+    teamId?: string,
+    loaded?: KpiPeriodContext,
+  ): Promise<KpiCounter[]> {
     const all = await this.repo.counters(period)
     const counters = teamId ? all.filter((c) => c.teamId === teamId) : all
-    const [lines, roleTarget, now, inForce, shares] = await Promise.all([
-      this.repo.lines([...new Set(counters.map((c) => c.allocationId))]),
-      this.packages.roleTargets(period),
-      this.packages.figures(
-        spansOf(period).current,
-        counters.map((c) => c.role),
-      ),
-      this.packages.sharesInForce(period),
-      this.repo.shares([...new Set(counters.map((c) => c.allocationId))]),
+    const allocationIds = [...new Set(counters.map((c) => c.allocationId))]
+    const [lines, roleTarget, inForce, shares, tolerance] = await Promise.all([
+      this.repo.lines(allocationIds),
+      this.packages.roleTargets(period, undefined, loaded?.targetRows),
+      loaded?.shares ?? this.packages.sharesInForce(period),
+      this.repo.shares(allocationIds),
+      loaded?.tolerance ?? this.config.tolerance(),
     ])
+    const now = await this.packages.figures(
+      spansOf(period).current,
+      counters.map((c) => c.role),
+      [...new Set(lines.map((l) => l.actorId))],
+      loaded?.catalog,
+      loaded && { closed: loaded.monthClose !== null },
+    )
     const { elapsed } = monthClock(period)
-    const tolerance = await this.config.tolerance()
     return counters.map((c) => {
       const pkgLines = lines.filter((l) => l.allocationId === c.allocationId)
       const target = c.teamId ? shareTargetOf(shareValues(inForce, c.role, c.teamId)) : roleTarget

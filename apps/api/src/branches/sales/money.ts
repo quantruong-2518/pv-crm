@@ -7,8 +7,7 @@ import { CURRENCIES } from '@pv/contracts'
  *
  *  A function rather than a constant because three tables need it on their own
  *  columns (`contract`, `contract` by month, `opportunity` under the
- *  leaderboard). `opportunity.repository.ts` keeps its own copy of this
- *  expression, written before this file existed; both read the one table.
+ *  leaderboard).
  *
  *  NULL, never 0, for a row with no amount or an unknown currency: "this row
  *  carries no money" is reported as its own count, and a zero would bury it

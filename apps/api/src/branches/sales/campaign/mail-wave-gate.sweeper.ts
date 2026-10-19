@@ -52,7 +52,7 @@ export class MailWaveGateSweeper {
         await this.repo.writeRunNote(tx, {
           actorId: GATE_ACTOR,
           runId: due.runId,
-          note: `mở cổng đợt sau · giữ lại ${released.withheld}/${due.pending.length} thư (đã trả lời hoặc đã gặp)`,
+          note: `mở cổng đợt sau · giữ lại ${released.withheld}/${due.pendingCount} thư (đã trả lời hoặc đã gặp)`,
         })
       }
       return released

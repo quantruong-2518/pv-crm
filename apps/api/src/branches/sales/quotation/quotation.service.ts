@@ -37,7 +37,7 @@ import type { QuotationRowDb, QuotationValues } from './quotation.schema'
  *  under the deal's row lock, which every caller already holds.
  *
  *  The three write doors take the milestone door's shape (`OpportunityMoves`):
- *  refuse out of scope as a 404, lock, re-read under the lock, write, audit. */
+ *  lock, read under the lock (out of scope is a 404 there), write, audit. */
 
 type By = { id: string; name: string }
 
@@ -70,7 +70,6 @@ export class QuotationService {
 
   /** `POST /sales/opportunities/:code/quotations`. */
   async create(who: Actor, code: ObjectCode, body: QuotationRecordBody): Promise<QuotationRow> {
-    await this.moves.inScope(who, code)
     return this.deals.run(async (tx) => {
       const deal = await this.moves.locked(tx, who, code)
       const by = { id: who.id, name: who.name }
@@ -89,7 +88,6 @@ export class QuotationService {
     id: string,
     body: QuotationPatchBody,
   ): Promise<QuotationRow> {
-    await this.moves.inScope(who, code)
     return this.deals.run(async (tx) => {
       await this.moves.locked(tx, who, code)
       const rows = await this.repo.byDeal(tx, code)
@@ -115,7 +113,6 @@ export class QuotationService {
     id: string,
     body: QuotationReason,
   ): Promise<QuotationRow> {
-    await this.moves.inScope(who, code)
     return this.deals.run(async (tx) => {
       await this.moves.locked(tx, who, code)
       const round = pendingOf(await this.repo.byDeal(tx, code), id)

@@ -38,7 +38,7 @@ export class SourceService {
   ) {}
 
   async sources(): Promise<CampaignSourceResponse> {
-    const [catalogue, followers, leads, ops, costs, events, waves] = await Promise.all([
+    const [catalogue, followers, leads, ops, costs, events, waves, period] = await Promise.all([
       this.repo.catalogue(),
       this.repo.followers(),
       this.repo.leadTallies(),
@@ -46,6 +46,7 @@ export class SourceService {
       this.repo.costs(),
       this.repo.events(),
       this.repo.waves(),
+      this.period(),
     ])
 
     /* Số đếm của mọi lô trong MỘT lượt, không phải một lượt mỗi đợt: hai mươi
@@ -133,13 +134,15 @@ export class SourceService {
     /* Kiểm hình TRƯỚC khi gửi, cùng lý do `UsersService.list` nêu: một cột đổi
        kiểu và một mapper trôi theo nó đều biên dịch được, và không cái nào sống
        sót qua dòng này. */
-    return CampaignSourceResponse.parse({ rows, period: await this.period() })
+    return CampaignSourceResponse.parse({ rows, period })
   }
 
   async totals(): Promise<CampaignTotals> {
-    const [book, costWindow, catalogue, leads, ops, waves] = await Promise.all([
+    const [book, costWindow, wave, latest, catalogue, leads, ops, waves] = await Promise.all([
       this.repo.book(),
       this.repo.costWindow(),
+      this.repo.waveWindow(),
+      this.repo.latestRunAt(),
       this.repo.catalogue(),
       this.repo.leadTallies(),
       this.repo.opsTallies(),
@@ -191,7 +194,7 @@ export class SourceService {
       opsBook: book.opsBook,
 
       cost: costWindow.total,
-      period: await this.period(),
+      period: periodOf({ book, cost: costWindow, wave, latest }),
     })
   }
 
@@ -200,30 +203,44 @@ export class SourceService {
    *  Sổ trắng thì cả ba rỗng và kỳ rút về "bây giờ → bây giờ". Đó là câu trả
    *  lời thật cho một sổ chưa có gì, và màn vẽ được nó thành một trục rỗng —
    *  khác hẳn một khoảng bịa ra để trục trông có nội dung. */
-  private async period(): Promise<{ fromISO: string; toISO: string }> {
+  private async period(): Promise<Period> {
     const [book, cost, wave, latest] = await Promise.all([
       this.repo.book(),
       this.repo.costWindow(),
       this.repo.waveWindow(),
       this.repo.latestRunAt(),
     ])
-
-    const marks = [
-      book.firstAt,
-      book.lastAt,
-      cost.firstAt ? new Date(cost.firstAt) : null,
-      cost.lastAt ? new Date(cost.lastAt) : null,
-      wave.firstAt,
-      wave.lastAt,
-      latest,
-    ].filter((d): d is Date => d instanceof Date && !Number.isNaN(d.getTime()))
-
-    if (marks.length === 0) {
-      const now = new Date().toISOString()
-      return { fromISO: now, toISO: now }
-    }
-    return { fromISO: isoOf(min(marks)), toISO: isoOf(max(marks)) }
+    return periodOf({ book, cost, wave, latest })
   }
+}
+
+type Period = { fromISO: string; toISO: string }
+
+/** The four reads the period is cut from. Pure, so `totals()` hands over the
+ *  reads it already made instead of asking the same questions a second time. */
+type PeriodReads = {
+  book: { firstAt: Date | null; lastAt: Date | null }
+  cost: { firstAt: string | null; lastAt: string | null }
+  wave: { firstAt: Date | null; lastAt: Date | null }
+  latest: Date | null
+}
+
+function periodOf({ book, cost, wave, latest }: PeriodReads): Period {
+  const marks = [
+    book.firstAt,
+    book.lastAt,
+    cost.firstAt ? new Date(cost.firstAt) : null,
+    cost.lastAt ? new Date(cost.lastAt) : null,
+    wave.firstAt,
+    wave.lastAt,
+    latest,
+  ].filter((d): d is Date => d instanceof Date && !Number.isNaN(d.getTime()))
+
+  if (marks.length === 0) {
+    const now = new Date().toISOString()
+    return { fromISO: now, toISO: now }
+  }
+  return { fromISO: isoOf(min(marks)), toISO: isoOf(max(marks)) }
 }
 
 const min = (ds: readonly Date[]): Date => ds.reduce((a, b) => (b < a ? b : a))

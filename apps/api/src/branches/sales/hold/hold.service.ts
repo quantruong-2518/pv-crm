@@ -69,10 +69,10 @@ export class HoldService {
 
   /** `POST /sales/leads/:code/hold`. */
   async setLead(who: Actor, code: ObjectCode, body: HoldSetBody): Promise<LeadProfile> {
-    await this.leadDoors.inScope(who, code)
-    assertLater(body.until)
     await this.repo.run(async (tx) => {
       const found = await this.leadDoors.lockRow(tx, who, code)
+      /* After the lock, so a missing or foreign lead still answers 404/403 first. */
+      assertLater(body.until)
       if (!LEAD_HOLDABLE.includes(found.state)) {
         throw conflict(
           `Lead ${code} đang ở “${LEAD_STATE_LABEL[found.state]}” nên không tạm hoãn được.`,
@@ -94,10 +94,9 @@ export class HoldService {
 
   /** `PATCH /sales/leads/:code/hold`. */
   async patchLead(who: Actor, code: ObjectCode, body: HoldPatchBody): Promise<LeadProfile> {
-    await this.leadDoors.inScope(who, code)
-    if (body.until !== undefined) assertLater(body.until)
     await this.repo.run(async (tx) => {
       await this.leadDoors.lockRow(tx, who, code)
+      if (body.until !== undefined) assertLater(body.until)
       await this.patched(tx, 'lead', code, body)
     })
     return this.leads.profile(who, code)
@@ -106,7 +105,6 @@ export class HoldService {
   /** `POST /sales/leads/:code/hold/end`. The "to waiting" end runs the
    *  nurture door's own verdict and write, which ends the hold `to-waiting`. */
   async endLead(who: Actor, code: ObjectCode, body: LeadHoldEndBody): Promise<LeadProfile> {
-    await this.leadDoors.inScope(who, code)
     await this.repo.run(async (tx) => {
       const found = await this.leadDoors.lockRow(tx, who, code)
       if (!found.held) throw notHeld('Lead', code)

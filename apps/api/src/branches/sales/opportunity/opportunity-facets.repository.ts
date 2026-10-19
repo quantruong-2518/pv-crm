@@ -26,7 +26,9 @@ export class OpportunityFacetsRepository {
     const filtered = and(...(await this.deals.filtersOf(q, who.id)), scope)
     const where = and(filtered, this.deals.onBoard(q))
     const signed = this.deals.signed()
-    const [saleOwners, bdOwners, accounts, [states], [held]] = await Promise.all([
+    /* The state counts run on the book's deals, `held` on every filtered one: one scan. */
+    const board = this.deals.onBoard(q) ?? sql`true`
+    const [saleOwners, bdOwners, accounts, [counts]] = await Promise.all([
       this.lane(where, 'SALE'),
       this.lane(where, 'BD'),
       this.db
@@ -37,25 +39,21 @@ export class OpportunityFacetsRepository {
         .orderBy(asc(lead.company)),
       this.db
         .select({
-          open: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'open' AND NOT ${signed})::int`,
-          lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'lost' AND NOT ${signed})::int`,
-          won: sql<number>`count(*) FILTER (WHERE ${signed})::int`,
+          open: sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'open' AND NOT ${signed})::int`,
+          lost: sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'lost' AND NOT ${signed})::int`,
+          won: sql<number>`count(*) FILTER (WHERE ${board} AND ${signed})::int`,
+          held: sql<number>`count(*) FILTER (WHERE ${dealHeld(opportunity.code)})::int`,
         })
         .from(opportunity)
         .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-        .where(where),
-      this.db
-        .select({ n: sql<number>`count(*)::int` })
-        .from(opportunity)
-        .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-        .where(and(filtered, dealHeld(opportunity.code))),
+        .where(filtered),
     ])
     return {
       saleOwners,
       bdOwners,
       accounts: accounts.map((a) => a.name),
-      byState: states ?? { open: 0, lost: 0, won: 0 },
-      held: held?.n ?? 0,
+      byState: { open: counts?.open ?? 0, lost: counts?.lost ?? 0, won: counts?.won ?? 0 },
+      held: counts?.held ?? 0,
     }
   }
 

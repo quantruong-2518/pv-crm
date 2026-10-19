@@ -34,8 +34,7 @@ export class OpportunityContacts {
     body: OpportunityContactsBody,
   ): Promise<OpportunityContactsResponse> {
     await this.deals.run(async (tx) => {
-      const lock = await this.deals.lockDeal(tx, code)
-      const found = lock ? await this.deals.byCode(who, code, tx) : null
+      const found = await this.deals.lockedByCode(who, code, tx)
       if (!found || !found.inScope) throw notFound('cơ hội', code)
       const verdict = editDetailsVerdict(found.row)
       if (!verdict.ok) throw conflict(verdict.reason)

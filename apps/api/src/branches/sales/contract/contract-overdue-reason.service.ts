@@ -86,10 +86,9 @@ export class ContractOverdueReasonService {
 
   async list(who: Actor, code: ContractCode, no: number): Promise<OverdueReasonListResponse> {
     await this.fence(who, code)
-    return this.schedule.run(async (tx) => {
-      const owner = await this.repo.ownerOf(tx, code)
-      return this.read(tx, who, code, no, owner?.ownerId ?? null)
-    })
+    const handle = this.schedule.readonlyHandle
+    const owner = await this.repo.ownerOf(handle, code)
+    return this.read(handle, who, code, no, owner?.ownerId ?? null)
   }
 
   /** The contract's owner only: the desk may see the reason, not speak for the Sale. */
@@ -201,7 +200,7 @@ export class ContractOverdueReasonService {
   async waiting(q: OverdueReasonWaitingQuery): Promise<OverdueReasonWaitingResponse> {
     const dayEnd = monthEnd(q.period)
     const lastDayStart = new Date(dayEnd.getTime() - DAY_MS)
-    const reasons = await this.schedule.run((tx) => this.repo.waitingAsOf(tx, lastDayStart, dayEnd))
+    const reasons = await this.repo.waitingAsOf(this.schedule.readonlyHandle, lastDayStart, dayEnd)
     return OverdueReasonWaitingResponse.parse({ period: q.period, reasons })
   }
 

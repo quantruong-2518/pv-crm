@@ -4,7 +4,6 @@ import type { MailComposer } from '@api/platform/queue/mail-composer'
 import { MAS_GROUP_TEMPLATE, type DeliveryToSend, type MailMessage } from './mail.contract'
 import type { MailRunRow } from './mail-run.schema'
 import { renderMasLetter, senderOf } from './mas-letter'
-import { MailRunRepository } from './mail-run.repository'
 import { sign } from './unsubscribe-token'
 
 /** The one template this composer answers for. A version in the name because
@@ -57,10 +56,7 @@ const RUN_COPY_PREFIX = '[Bản lưu lô] '
 export class MasMailComposer implements MailComposer {
   private readonly log = new Logger('mail.composer.mas')
 
-  constructor(
-    private readonly runs: MailRunRepository,
-    @Inject(ENV) private readonly env: Env,
-  ) {}
+  constructor(@Inject(ENV) private readonly env: Env) {}
 
   supports(template: string): boolean {
     return template === TEMPLATE || template === MAS_GROUP_TEMPLATE
@@ -78,7 +74,7 @@ export class MasMailComposer implements MailComposer {
       )
     }
 
-    const run = await this.runs.byId(delivery.mailRunId)
+    const run = delivery.run
     if (!run) {
       throw new Error(`Không tìm thấy mail_run ${delivery.mailRunId} của delivery ${delivery.id}.`)
     }

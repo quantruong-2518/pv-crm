@@ -207,21 +207,28 @@ export class ApprovalRepository {
 
   /** Write back a request the engine has just decided.
    *
-   *  Guarded on `state = 'waiting'`: two people pressing approve on the same
-   *  request within the same second both loaded a waiting row, and without the
-   *  guard the second write silently overwrites the first decision with its
-   *  own. `returning` says which of them actually moved the row — zero rows
+   *  Guarded on `state = 'waiting'` AND the chain that was read: on a multi-step
+   *  chain the first approval leaves the row waiting, so the state alone let a
+   *  concurrent second decision overwrite it and ring the next bell twice.
+   *  `returning` says which of them actually moved the row — zero rows
    *  back means somebody else got there first, and the caller turns that into a
    *  refusal rather than a lie. */
   async settle(
     tx: Db,
     id: string,
     patch: Pick<ApprovalValues, 'state' | 'chain' | 'decidedAt' | 'decidedBy' | 'decidedReason'>,
+    chainRead: ApprovalValues['chain'],
   ): Promise<boolean> {
     const rows = await tx
       .update(approval)
       .set(patch)
-      .where(and(eq(approval.id, id), eq(approval.state, 'waiting')))
+      .where(
+        and(
+          eq(approval.id, id),
+          eq(approval.state, 'waiting'),
+          sql`${approval.chain} = ${JSON.stringify(chainRead)}::jsonb`,
+        ),
+      )
       .returning({ id: approval.id })
 
     return rows.length > 0

@@ -1,19 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { LEAD_HANDED_OVER, type AccessControl, type Actor, type Edge } from '@pv/engines'
+import { LEAD_HANDED_OVER, type AccessControl, type Actor } from '@pv/engines'
 import {
   NOTIFICATION_DETAIL_DEALS,
   LeadCreateResponse,
-  LeadImportCommitResponse,
-  LeadImportPreviewResponse,
   LeadOwnerResponse,
   LeadTier,
-  originKey,
   type LeadMotion,
-  type LeadOriginPick,
   type LeadPatchResponse,
   type MotionAsks,
   type LeadCreate,
-  type LeadImportBody,
   type LeadOwnerWrite,
   type LeadPatch,
   type LeadState,
@@ -26,14 +21,10 @@ import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { AccountService } from '../account/account.service'
-import { identityOfLead } from '../account/account.mapper'
 import type { Db } from '@api/platform/db/db.module'
-import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
+import { byOf, TouchService } from '../touch/touch.service'
 import { ContactService } from '../contact/contact.service'
 import type { LeadContactMirror } from '../contact/contact.repository'
-import { checkBatch, type ImportCheck } from './lead-import.check'
-import { ringImport, type ImportLine } from './lead-import.bell'
-import { incomingOfImport, planImport, type ImportPlan } from './lead-admission.import'
 import {
   fromCreate,
   fromPatch,
@@ -51,7 +42,7 @@ import { LeadWriteRepository } from './lead-write.repository'
 import { LeadAdmissionService } from './lead-admission.service'
 import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
-import { LeadOriginService, type OriginIndex } from '../lead-origin/lead-origin.service'
+import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
 import { PartnerService } from '../partner/partner.service'
 import { referrerOf, refuseByAsks } from './lead-motion-asks'
@@ -66,9 +57,9 @@ const headRole = (who: { roleIds: readonly RoleId[] }): { role?: RoleId } =>
 
 /** The five columns every lead write already carries, in the shape
  *  `ContactService.seedPrimary` asks for — see its docblock for why this call
- *  exists at all. Pulled out once because both `create()` and `commit()`
- *  build it off the row they are about to insert. */
-function mirrorOf(values: {
+ *  exists at all. Pulled out once because both `create()` and the file import
+ *  (`LeadImportService`) build it off the row they are about to insert. */
+export function mirrorOf(values: {
   contactName: string
   contactTitle?: string | null
   email: string
@@ -84,7 +75,9 @@ function mirrorOf(values: {
   }
 }
 
-/** THE THREE DOORS A LEAD CAN COME IN THROUGH. One of them writes nothing.
+/** THE LEAD WRITE DOORS HELD HERE: `create()`, the shared `bear()`, the owner
+ *  change and the patch. The scan commit and landing intake call `bear()`; file
+ *  import (`LeadImportService`) lives apart and obeys the same invariants below.
  *
  *  ------------------------------------------------------------------
  *  THE INVARIANT EVERY DOOR OBEYS: MIRROR ROW FIRST
@@ -654,240 +647,6 @@ export class LeadWriteService {
     return this.profiles.profile(who, code)
   }
 
-  // ── door 2 · the dry run ─────────────────────────────────────────────────
-
-  /** `POST /sales/leads/import/preview` — READS ONLY.
-   *
-   *  Not one byte: no lead, no mirror row, no batch record, and above all no
-   *  `nextval`. Minting a code is spending a real one, and a person who
-   *  presses "xem trước" three times before committing would punch three holes
-   *  in the code series for nothing. The preview exists to answer "what would
-   *  happen", and a question that changes the thing it asks about is not that
-   *  question. */
-  async preview(who: Actor, body: LeadImportBody): Promise<LeadImportPreviewResponse> {
-    const handle = this.repo.readonlyHandle
-    const { report } = await this.admitted(handle, who, await this.check(handle, body, who), false)
-    return LeadImportPreviewResponse.parse(report)
-  }
-
-  // ── door 3 · the real load ───────────────────────────────────────────────
-
-  /** `POST /sales/leads/import` — the whole batch, or none of it.
-   *
-   *  Half a file loaded and then a crash is the state nobody can unwind by
-   *  hand: the rows that landed look exactly like rows somebody meant to load,
-   *  so the only way back is to know which ones, which is the thing that was
-   *  lost. One transaction removes the question.
-   *
-   *  The batch record is written inside that same transaction, and it is
-   *  written even when the batch accepted nothing: the load HAPPENED, somebody
-   *  pressed the button on a file, and "that file produced zero rows" is one
-   *  of the more useful things a log can say six months later. */
-  async commit(who: Actor, body: LeadImportBody): Promise<LeadImportCommitResponse> {
-    const handle = this.repo.readonlyHandle
-    const checked = await this.check(handle, body, who)
-    /* Unlocked, so only a count: how many codes to mint before the transaction. */
-    const minted = (await this.admitted(handle, who, checked, false)).writes.length
-
-    /* One code per accepted row, all of them before the transaction opens —
-       see the note at the top of this class.
-
-       Minted in parallel and then SORTED before being handed out. The sort is
-       not cosmetics: `Promise.all` keeps the results in call order, but the
-       numbers themselves come back in whatever order the sequence served
-       them, so row 1 of the file ends up holding `LD-0201` and row 3 holding
-       `LD-0212`. Every number in the list is already ours, so putting them in
-       order costs nothing and buys the one thing a person opening the book
-       right after a load expects — the file's order is the code's order.
-
-       Known cost, said out loud rather than hidden: this is one round trip per
-       row. A 5.000-row file spends 5.000 of them here. The fix is a single
-       `nextval(seq, n)` call minting a block at once, which belongs in
-       `lead.repository.ts` next to the sequence it reads. */
-    const minting = Array.from({ length: minted }, () => this.leads.nextCode())
-    const codes = (await Promise.all(minting)).sort(
-      (a, b) => Number(a.slice(3)) - Number(b.slice(3)),
-    )
-    const runs = await this.runs.nextCodes(minted)
-    const openedAt = new Date()
-
-    const done = await this.repo.run(async (tx) => {
-      /* The decision that is written on: every key of the file locked in one
-         sorted statement, then the whole file assessed again on this `tx`. */
-      const plan = await this.admitted(tx, who, checked, true)
-      if (plan.writes.length > minted) {
-        throw conflict('Sổ lead vừa thay đổi. Nạp lại tệp này.')
-      }
-      /* Row and mirror row are built together, from the same draft and the same
-         code, so the two can never drift apart by an index. */
-      const ready = plan.writes.map((write, i) => ({
-        row: { ...write.values, code: codes[i]!, workstreamCode: runs[i]! },
-        ref: refOf(codes[i]!, write),
-        origin: write.origin,
-        extras: write.extras,
-        accountCode: write.accountCode,
-        company: write.company,
-      }))
-      /* Batch-wide: drafts the gate grouped as one new company share its account. */
-      const seen = new Map<string, string>()
-      /* Rung once, after the receipt exists — see `ringImport`. */
-      const bell: { received: ImportLine[]; reentered: ImportLine[] } = {
-        received: [],
-        reentered: [],
-      }
-      /* Each distinct origin resolved ONCE per batch, before any row needs it. */
-      const originIds = new Map<string, string>()
-      for (const { origin } of ready) {
-        if (!origin || originIds.has(pickKey(origin))) continue
-        const found = await this.origins.resolveOrigin(tx, origin, body.motion, who.id)
-        originIds.set(pickKey(origin), found.id)
-      }
-
-      /* Chunked, and still atomic — every statement below runs in this one
-         transaction. The chunking is about a protocol limit, not about
-         durability: Postgres accepts at most 65.535 bind parameters per
-         statement, and a lead row carries around twenty columns, so a single
-         5.000-row INSERT would be refused by the driver before it ever reached
-         the server.
-
-         Mirror rows first inside every chunk, for the reason this whole class
-         exists: the foreign key on `lead.code` refuses the lead otherwise. */
-      for (let i = 0; i < ready.length; i += CHUNK) {
-        const slice = ready.slice(i, i + CHUNK)
-        await this.mirror.putMany(
-          tx,
-          slice.map((p) => p.ref),
-        )
-
-        /* One company per row, SEQUENTIALLY and with a memo for the batch.
-           Sequential because `resolveForLead` is a read-then-write on one
-           transaction: `Promise.all` over a single connection only queues them,
-           and here it is worse — two rows of the same company both read "not
-           there" and both insert, and the second dies on
-           `account_identity_uniq`.
-           Memoised because a five thousand row import file is usually thirty
-           companies: without `seen`, every row is a read that returns a code
-           this loop already knew. */
-        const rows: (typeof slice)[number]['row'][] = []
-        /* Same edge the single-lead door writes, collected HERE rather than
-           re-read off `rows`: the row type comes from `$inferInsert`, where the
-           company code is still optional, while in this loop it is the string
-           `resolveForLead` just returned. */
-        const links: Edge[] = []
-        const opened: { code: string; accountCode: string; openedAt: Date }[] = []
-        for (const p of slice) {
-          const key = p.company === null ? identityOfLead(p.row) : `group:${p.company}`
-          const known = p.accountCode ?? seen.get(key)
-          const accountCode = known ?? (await this.accounts.resolveForLead(tx, p.row, who.id))
-          if (!known) seen.set(key, accountCode)
-          rows.push({
-            ...p.row,
-            marketingOwnerId: marketingCredit(who, p.row.marketingOwnerId),
-            accountCode,
-            originId: p.origin
-              ? (originIds.get(pickKey(p.origin)) ?? null)
-              : (p.row.originId ?? null),
-            originRaw: p.origin && 'name' in p.origin ? p.origin.name : null,
-          })
-          links.push({ from: p.row.code, to: accountCode, kind: 'belongs-to' })
-          opened.push({ code: p.row.workstreamCode, accountCode, openedAt })
-        }
-
-        await this.mirror.linkMany(tx, links)
-        await this.runs.insertOpened(tx, opened)
-        await this.repo.insertLeads(tx, rows, who.id)
-        if (body.campaignCode) {
-          await this.campaigns.enrol(
-            tx,
-            body.campaignCode,
-            rows.map((r) => r.code),
-          )
-        }
-        /* Sequential, one `nextCode()` round trip per row — same accepted
-           cost as `codes` above, bounded by `CHUNK` per pass. */
-        for (const row of rows) {
-          await this.contacts.seedPrimary(tx, row.code, mirrorOf(row), who)
-        }
-        /* A grouped lead's other people, after its primary so they stay extra. */
-        for (const p of slice) {
-          if (p.extras.length > 0) await this.contacts.attach(tx, p.row.code, p.extras, who)
-        }
-        /* One timeline row per lead, in the same chunk as the lead itself. The
-           file name goes into the sentence rather than into a column, because
-           the batch receipt in `platform.audit` already holds the authoritative
-           link and a second copy that can disagree with it is worse than a
-           sentence that cannot. */
-        const touchIds = await this.touch.record(
-          tx,
-          slice.map((p): TouchEntry => ({
-            subjectCode: p.row.code,
-            subjectKind: 'lead',
-            kind: 'created',
-            /* An imported file may already say who owns each row, so the same
-               `to` the manual door writes belongs here — see `create()`. Read
-               off the ref rather than looked up again: `refOf` already resolved
-               the id into the display name for the mirror row.
-               NO `role` here, unlike the other two doors, and the absence is
-               deliberate rather than forgotten: the import path resolves owners
-               through `ActorLite` (`{ id, name }`), so the role would cost a
-               widened type across the whole check module for a label on one
-               step. Absent reads as "not recorded" everywhere it surfaces —
-               `stepsOf` prints no role — which is the truth about these rows. */
-            ...(p.row.ownerId && p.ref.owner
-              ? { to: { actorId: p.row.ownerId, name: p.ref.owner } }
-              : {}),
-            ...byOf(who),
-            note: LEAD_NOTE.imported(body.fileName),
-          })),
-        )
-        for (const [j, { row }] of slice.entries()) {
-          if (!row.ownerId) continue
-          bell.received.push({
-            to: row.ownerId,
-            code: row.code,
-            label: row.company,
-            occurrence: touchIds[j],
-          })
-        }
-      }
-
-      /* People the file adds to leads already in the book: no new lead. */
-      for (const [leadCode, people] of plan.joins) {
-        const held = await this.gate.reenter(tx, leadCode, people, who, 'IMPORT', { quiet: true })
-        const line = { code: leadCode, label: held.company, occurrence: held.occurrence }
-        if (held.holderId) bell.reentered.push({ ...line, to: held.holderId })
-      }
-      const used = codes.slice(0, ready.length)
-      const batch = await this.repo.writeBatchNote(tx, {
-        actorId: who.id,
-        note: noteOf(body, used),
-      })
-      await ringImport(
-        tx,
-        this.hub,
-        { id: batch.id, fileName: body.fileName, actorId: who.id },
-        bell,
-      )
-      /* ONE pool line for the file, keyed by its receipt — not one per lead. */
-      const count = ready.filter((p) => !p.row.ownerId).length
-      if (count > 0) {
-        const subject = { kind: 'lead-pool' as const, code: batch.id, label: body.fileName }
-        await this.states.pooled(tx, { subject, actorId: who.id, count })
-      }
-      return { batch, report: plan.report, codes: used }
-    })
-
-    return LeadImportCommitResponse.parse({
-      ...done.report,
-      batchId: done.batch.id,
-      at: done.batch.at.toISOString(),
-      intake: 'IMPORT',
-      motion: body.motion,
-      accepted: done.codes.length,
-      codes: done.codes,
-    })
-  }
-
   // ── the shared half ──────────────────────────────────────────────────────
 
   /** The motion's own create rules (0057, `asks` 0059), then the campaign
@@ -907,9 +666,7 @@ export class LeadWriteService {
   }
 
   /** Same rule at both doors: DRAFT/RUNNING and not past `ends_on`. */
-  private async pickable(
-    code: string,
-  ): Promise<{ sourceId: string | null; originId: string | null }> {
+  async pickable(code: string): Promise<{ sourceId: string | null; originId: string | null }> {
     const picked = await this.campaigns.pickableOne(code)
     if (!picked) {
       throw invalid({
@@ -921,7 +678,7 @@ export class LeadWriteService {
 
   /** Refuses a switched-off motion. A missing policy row is a broken install
    *  (0036 plants all six), so it fails loudly instead of guessing an answer. */
-  private async asksOf(handle: Db, motion: LeadMotion): Promise<MotionAsks> {
+  async asksOf(handle: Db, motion: LeadMotion): Promise<MotionAsks> {
     const rule = await this.repo.motionRule(handle, motion)
     if (!rule) throw new Error(`sales.motion_policy has no row for ${motion}`)
     if (!rule.active) throw invalid({ motion: ['Phương án tiếp cận này đang tắt.'] })
@@ -956,97 +713,7 @@ export class LeadWriteService {
     if (name === null) throw invalid({ campaignId: ['Không tìm thấy chiến dịch.'] })
     return name
   }
-
-  /** Load what the check needs, then run THE check.
-   *
-   *  Both import doors come through here, which is the whole reason "the
-   *  preview said it was clean" and "the commit reported errors" cannot become
-   *  two different sentences about one file. The reads are identical too: the
-   *  same staff book, the same live mailboxes, the same lookup. */
-  private async check(
-    handle: Db,
-    body: LeadImportBody,
-    who: Actor,
-  ): Promise<ImportCheck & { origins: OriginIndex }> {
-    /* The create door's motion rules, asked here so preview and commit agree.
-       Batch-wide: one file is one motion, so one answer for every row. */
-    const asks = await this.asksOf(handle, body.motion)
-    refuseByAsks(asks, {
-      origin: body.origin !== undefined,
-      campaign: body.campaignCode !== undefined,
-      refCode: body.refCode !== undefined,
-      originRequired: false,
-    })
-    const referrer = body.refCode ? await referrerOf(this.partners, handle, body.refCode) : null
-    const picked = body.campaignCode ? await this.pickable(body.campaignCode) : null
-    /* Partner first, then campaign — the same order `create()` derives in. */
-    const derived = await this.derivedOrigin(handle, referrer?.originId ?? picked?.originId ?? null)
-    /* Manual create's rule: the batch `source` if given, else the picked campaign's. */
-    const source = body.source ?? picked?.sourceId ?? undefined
-
-    /* Every campaign code the batch could land on: the one chosen for the
-       whole file, plus whatever the source column carries per row. Asked in ONE
-       query rather than per row — 5.000 rows is 5.000 round trips otherwise,
-       and the answer is the same small set every time. */
-    const campaigns = [
-      ...new Set(
-        [source, ...body.rows.map((r) => r.values.source)].filter(
-          (c): c is string => c !== undefined && c.trim() !== '',
-        ),
-      ),
-    ]
-
-    const [staff, live, origins] = await Promise.all([
-      this.repo.staff(handle),
-      this.repo.campaignCodes(handle, campaigns),
-      this.origins.index(),
-    ])
-    if (body.origin && 'id' in body.origin && !origins.byId.get(body.origin.id)?.active) {
-      throw invalid({ origin: ['Không tìm thấy nguồn này, hoặc nguồn đang tắt. Chọn lại.'] })
-    }
-
-    const mayAssign = this.access.allows(who, 'lead.assign')
-    const checked = checkBatch({
-      rows: body.rows,
-      motion: body.motion,
-      ...(source === undefined ? {} : { source }),
-      ...(body.origin === undefined ? {} : { origin: body.origin }),
-      ...(asks === 'ORIGIN'
-        ? {}
-        : { derived: { originId: derived.id, partnerCode: referrer?.code ?? null } }),
-      origins,
-      staff,
-      ...(mayAssign ? {} : { onlyOwner: who.id }),
-      ...(mayAssign || !who.ownOnly ? {} : { blankOwner: { id: who.id, name: who.name } }),
-      campaigns: live,
-    })
-    return { ...checked, origins }
-  }
-
-  /** The checked file against the book: the gate asked once for the whole
-   *  file, its verdicts applied by `planImport`. `lock` is the commit's, on
-   *  its own transaction; the preview and the code count go unlocked. */
-  private async admitted(
-    handle: Db,
-    who: Actor,
-    checked: ImportCheck & { origins: OriginIndex },
-    lock: boolean,
-  ): Promise<ImportPlan> {
-    const items = incomingOfImport(checked.writes)
-    const assessed = lock
-      ? await this.gate.admitAll(handle, who, items)
-      : await this.gate.assess(handle, who, items)
-    return planImport(checked, assessed, checked.origins)
-  }
 }
-
-/** One memo key per distinct origin pick — an id, or the typed name's key. */
-const pickKey = (p: LeadOriginPick): string =>
-  'id' in p ? `id:${p.id}` : `key:${originKey(p.name)}`
-
-/** Rows per statement. See the note at the call site — this is the bind
- *  parameter ceiling, not a durability boundary. */
-const CHUNK = 500
 
 /** Tier is a plain optional field now (ADR 0063 §3): patchable in every state
  *  but the two a lead has left the book by. */
@@ -1056,22 +723,3 @@ const TIER_EDITABLE = (state: LeadState): boolean =>
 /** Rung index on the tier ladder; no tier sits below the first rung. */
 const rungOf = (tier: LeadTier | null): number =>
   tier === null ? -1 : LeadTier.options.indexOf(tier)
-
-/** The batch record's note.
- *
- *  JSON rather than prose because something will have to read it back: the
- *  contract promises that a batch id makes a wrong load undoable, and with no
- *  `batch_id` column on `sales.lead` this line is the only place the batch →
- *  rows link exists at all. Who and when are already columns of
- *  `platform.audit`; this carries the rest. */
-function noteOf(body: LeadImportBody, codes: readonly string[]): string {
-  return JSON.stringify({
-    kind: 'lead-import',
-    file: body.fileName,
-    intake: 'IMPORT',
-    motion: body.motion,
-    ...(body.source === undefined ? {} : { source: body.source }),
-    accepted: codes.length,
-    codes,
-  })
-}

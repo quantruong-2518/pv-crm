@@ -16,8 +16,7 @@ import { ActorRepository } from '@api/platform/session/actor.repository'
 import type { WorkHandover } from '@api/platform/users/work-handover'
 import { LeadStateWriter } from '../lead/lead-state'
 import { LEAD_NOTE } from '../lead/lead-write.mapper'
-import { handStepOver } from '../next-step/next-step.handover'
-import { handDealsOver } from '../opportunity/opportunity-handover'
+import { handDealsOverMany, peopleOf } from '../opportunity/opportunity-handover'
 import { acceptorOf, holderOf, toRef } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import { byOf, TouchService } from '../touch/touch.service'
@@ -25,9 +24,9 @@ import { HandoverRepository } from './handover.repository'
 
 /** Sales' answer to `WorkHandover` (ADR 0088 §14, 0097 §7): a leaver's open
  *  leads, deals and next steps move to one receiver inside the lock's
- *  transaction, each through the door a person's hand-over already uses —
- *  `ownerSet` for the lead, `handDealsOver` for the SALE lane (ADR 0086
- *  primary rules), `handStepOver` for steps. A BD seat, or a deal held only
+ *  transaction, each through the rule a person's hand-over already uses —
+ *  one owner write for the leads, `handDealsOverMany` for the SALE lane (ADR
+ *  0086 primary rules), one UPDATE for steps. A BD seat, or a deal held only
  *  through the leaver's acceptance, has no such door: `seatsOver` writes it.
  *  Same timeline rows as a hand-over by hand; ONE bell line for the whole
  *  lock (ADR 0093). Switched-off leads move too, uncounted. A hold rides with
@@ -76,16 +75,15 @@ export class SalesWorkHandover implements WorkHandover {
     const note = `${LEAD_NOTE.handedTo} ${to.name}`
     const deps = { mirror: this.mirror, touch: this.touch }
 
-    const handed = new Set<string>()
-    for (const found of leads) {
-      if (found.ownedByLeaver) {
-        await this.states.ownerSet(tx, found, to.id)
-        await handStepOver(tx, found.code, from.id, to.id)
-      }
-      /* Vetted before the transaction, so the receiver may hold these deals. */
-      const step = { leadCode: found.code, from: giver, to: taker, toSeesDeals: true, by, note }
-      for (const code of (await handDealsOver(tx, deps, step)).moved) handed.add(code)
+    if (owned.length > 0) {
+      const codes = owned.map((l) => l.code)
+      await this.repo.giveLeads(tx, codes, to.id)
+      await this.states.refresh(tx, codes)
     }
+    /* Vetted before the transaction, so the receiver may hold these deals. */
+    const step = { leadCodes: leads.map((l) => l.code), from: giver, to: taker, by, note }
+    const moved = await handDealsOverMany(tx, deps, { ...step, toSeesDeals: true })
+    const handed = new Set(moved.moved)
 
     const bd = await this.repo.lockBdDeals(tx, from.id)
     const accepted = await this.repo.lockAcceptedDeals(tx, from.id)
@@ -161,7 +159,7 @@ export class SalesWorkHandover implements WorkHandover {
   ): Promise<void> {
     if (deals.length === 0) return
     const codes = codesOf(deals)
-    const after = await this.repo.people(tx, codes)
+    const after = await peopleOf(tx, codes)
     const on = (code: string) => after.filter((p) => p.code === code)
     await this.mirror.putMany(
       tx,

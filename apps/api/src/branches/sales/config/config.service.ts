@@ -492,15 +492,18 @@ export class SalesConfigService implements ApprovalApplier {
     if (clash) throw conflict(`Danh mục này đã có mục tên "${clash.name}" (${clash.id}).`)
   }
 
-  /** Moving an answer to another question can clash as much as a rename can. */
+  /** Moving an answer to another question can clash as much as a rename can.
+   *  Reviving a retired row re-enters `config_name_live` under its old name,
+   *  so `active: true` on an inactive row is checked like a rename. */
   private assertPatchNameFree(
     rows: ConfigRowDb[],
     id: string,
-    patch: Pick<ConfigPatchDb, 'name' | 'criterionId'>,
+    patch: Pick<ConfigPatchDb, 'name' | 'criterionId' | 'active'>,
   ): void {
-    if (patch.name === undefined && patch.criterionId === undefined) return
     const row = rows.find((r) => r.id === id)
     if (!row) return
+    const revives = patch.active === true && !row.active
+    if (patch.name === undefined && patch.criterionId === undefined && !revives) return
     this.assertNameFree(rows, patch.name ?? row.name, id, patch.criterionId ?? row.criterionId)
   }
 

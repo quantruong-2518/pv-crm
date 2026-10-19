@@ -15,7 +15,6 @@ import {
   type JourneyLead,
   type JourneyRungState,
   type LeadState,
-  type OpportunityOwner,
   type WorkstreamHolder,
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
@@ -25,7 +24,13 @@ import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
 import type { NextStepBatchRead } from '../next-step/next-step.repository'
-import { ACTIVITY_OF_TOUCH, holderOf, milestoneNoteOf } from '../opportunity/opportunity.mapper'
+import {
+  ACTIVITY_OF_TOUCH,
+  holderOf,
+  milestoneNoteOf,
+  type OwnerRow,
+  type RefOwner,
+} from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
 import type { PhaseConfig } from '../ladder'
 import type {
@@ -134,7 +139,10 @@ export type JourneyInput = {
   /** Only the deals this reader may open. */
   deals: readonly OpportunityRowDb[]
   hidden: number
-  owners: Map<string, OpportunityOwner[]>
+  /** Owners of every deal of the run, read once by the service; `holderOf` sorts them itself. */
+  owners: Map<string, OwnerRow[]>
+  /** Deal code → who accepted it (ADR 0071), the holder's fallback. */
+  acceptors: Map<string, RefOwner>
   rows: LaneRows
   steps: Map<string, NextStepBatchRead>
   stage: Map<StageKey, PhaseConfig>
@@ -386,11 +394,8 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
     }
   })
 
-  const acceptedBy = rows.dealAcceptors.get(deal.code) ?? null
-  const holder = holderOf(
-    rows.dealOwners.filter((o) => o.deal === deal.code),
-    acceptedBy,
-  )
+  const acceptedBy = input.acceptors.get(deal.code) ?? null
+  const holder = holderOf(input.owners.get(deal.code) ?? [], acceptedBy)
   const step = input.steps.get(deal.code)
 
   return {

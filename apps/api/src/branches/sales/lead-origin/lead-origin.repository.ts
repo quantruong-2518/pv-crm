@@ -1,4 +1,4 @@
-import { and, asc, eq, notInArray, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { LeadMotion } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -13,13 +13,14 @@ import {
   type LeadOriginRowDb,
 } from './lead-origin.schema'
 import type { LeadOriginLinks, LeadOriginRead } from './lead-origin.mapper'
+import { seqCodes } from '../code-seq'
 
 /** SQL for `sales.lead_origin` and its two side tables. Decides nothing: which
  *  key collides, what a merge moves and in what order is the service's call.
  *  Every write takes `tx` — a merge is five statements that land together. */
 
 /** `LO-%04d` off `lead_origin_code_seq`, the `NEXT_CODE` shape of `lead.repository.ts`. */
-const NEXT_ID = sql`SELECT 'LO-' || lpad(nextval('sales.lead_origin_code_seq')::text, 4, '0') AS id`
+const NEXT_ID = seqCodes('LO-', 'sales.lead_origin_code_seq')
 
 export type LeadOriginSet = Partial<Pick<LeadOriginRowDb, 'name' | 'key' | 'active' | 'mergedInto'>>
 
@@ -50,25 +51,50 @@ export class LeadOriginRepository {
   }
 
   /** `ownerId` set = count only that holder's leads (the book's scope axis).
-   *  `disabled_at IS NULL` is `leadLive` on the alias, here and in `sourceStats`. */
-  origins(db: Db, ownerId?: string): Promise<LeadOriginRead[]> {
-    const own = ownerId ? sql` AND l."owner_id" = ${ownerId}` : sql``
-    const leadCount = sql<number>`(
+   *  `disabled_at IS NULL` is `leadLive` on the alias, here and in `sourceStats`.
+   *  `id` reads one row; `counted: false` skips the per-origin count, for the
+   *  readers that never print it. */
+  origins(
+    db: Db,
+    opts: { ownerId?: string; id?: string; counted?: boolean } = {},
+  ): Promise<LeadOriginRead[]> {
+    const own = opts.ownerId ? sql` AND l."owner_id" = ${opts.ownerId}` : sql``
+    const leadCount =
+      opts.counted === false
+        ? sql<number>`0`
+        : sql<number>`(
       SELECT count(*)::int FROM "sales"."lead" l WHERE l."origin_id" = ${leadOrigin.id} AND l."disabled_at" IS NULL${own}
     )`
-    return db.select({ row: leadOrigin, leadCount }).from(leadOrigin).orderBy(asc(leadOrigin.id))
+    return db
+      .select({ row: leadOrigin, leadCount })
+      .from(leadOrigin)
+      .where(opts.id ? eq(leadOrigin.id, opts.id) : undefined)
+      .orderBy(asc(leadOrigin.id))
   }
 
-  async links(db: Db): Promise<LeadOriginLinks> {
+  async links(db: Db, id?: string): Promise<LeadOriginLinks> {
     const [aliases, motions] = await Promise.all([
       db
         .select({ key: leadOriginAlias.key, originId: leadOriginAlias.originId })
-        .from(leadOriginAlias),
+        .from(leadOriginAlias)
+        .where(id ? eq(leadOriginAlias.originId, id) : undefined),
       db
         .select({ originId: leadOriginMotion.originId, motion: leadOriginMotion.motion })
-        .from(leadOriginMotion),
+        .from(leadOriginMotion)
+        .where(id ? eq(leadOriginMotion.originId, id) : undefined),
     ])
     return { aliases, motions }
+  }
+
+  /** Both rows of a merge, locked in id order so two opposite merges queue
+   *  instead of each reading the other's origin as still unmerged. */
+  lockPair(tx: Db, a: string, b: string): Promise<LeadOriginRowDb[]> {
+    return tx
+      .select()
+      .from(leadOrigin)
+      .where(inArray(leadOrigin.id, [a, b]))
+      .orderBy(asc(leadOrigin.id))
+      .for('update')
   }
 
   async byId(db: Db, id: string): Promise<LeadOriginRowDb | null> {
@@ -92,8 +118,8 @@ export class LeadOriginRepository {
   }
 
   async nextId(db: Db): Promise<string> {
-    const r = (await db.execute(NEXT_ID)) as { rows: { id: string }[] }
-    const id = r.rows[0]?.id
+    const r = (await db.execute(NEXT_ID)) as { rows: { code: string }[] }
+    const id = r.rows[0]?.code
     if (!id) throw new Error('sales.lead_origin_code_seq returned nothing — has 0057 run?')
     return id
   }

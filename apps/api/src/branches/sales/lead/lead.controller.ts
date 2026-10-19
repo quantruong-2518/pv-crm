@@ -39,6 +39,7 @@ import { LeadDisableService } from './lead-disable.service'
 import { LeadService } from './lead.service'
 import { LeadExitService } from './lead-exit.service'
 import { LeadLabelService } from './lead-label.service'
+import { LeadImportService } from './lead-import.service'
 import { LeadWriteService } from './lead-write.service'
 
 /** `/sales/leads` — sổ lead, module 2 của nhánh Sales.
@@ -71,6 +72,7 @@ export class LeadController {
   constructor(
     private readonly leads: LeadService,
     private readonly write: LeadWriteService,
+    private readonly imports: LeadImportService,
     private readonly exits: LeadExitService,
     private readonly disabling: LeadDisableService,
     private readonly admission: LeadAdmissionService,
@@ -444,13 +446,13 @@ export class LeadController {
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit' })
   preview(@CurrentActor() who: Actor, @Body(zod(LeadImportBody)) body: LeadImportBody) {
-    return this.write.preview(who, body)
+    return this.imports.preview(who, body)
   }
 
   /** Nạp thật. Cả lô vào hết hoặc không dòng nào vào. */
   @Post('import')
   @Need({ branch: 'Sales', permission: 'lead.edit' })
   import(@CurrentActor() who: Actor, @Body(zod(LeadImportBody)) body: LeadImportBody) {
-    return this.write.commit(who, body)
+    return this.imports.commit(who, body)
   }
 }

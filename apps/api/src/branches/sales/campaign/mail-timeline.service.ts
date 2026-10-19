@@ -18,7 +18,8 @@ import { isoOf } from './mas.service'
 
 /** The letters on one subject's activity line (G8) — three routes, one query.
  *
- *  Each door is scoped through its OWN book's `byCode`: a deal is held through
+ *  Each door is scoped through its OWN book (`accessOf` for the lead, `byCode`
+ *  for the rest): a deal is held through
  *  `opportunity_owner`, a contract through its owner, a lead through
  *  `owner_id` — one axis per book, never borrowed from the lead. 404 and 403
  *  stay apart, as `LeadService.mailTimeline` argues. The lead line shows only
@@ -35,7 +36,7 @@ export class MailTimelineService {
   async of(who: Actor, kind: MailSubjectKind, code: string): Promise<MailSubjectTimelineResponse> {
     const found =
       kind === 'lead'
-        ? await this.leads.byCode(who, code)
+        ? await this.leads.accessOf(who, code)
         : kind === 'opportunity'
           ? await this.deals.byCode(who, code)
           : await this.contracts.byCode(who, code)

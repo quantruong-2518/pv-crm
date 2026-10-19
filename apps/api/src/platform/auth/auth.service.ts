@@ -6,6 +6,7 @@ import {
   SessionWindow,
   type ResetTicketView,
 } from '@pv/contracts'
+import type { Permission } from '@pv/engines'
 import { ENV, type Env } from '../config/env'
 import { isDbConstraint } from '../http/db-error'
 import { denied, invalid, notFound, rateLimited } from '../http/problem'
@@ -245,7 +246,7 @@ export class AuthService {
     }
 
     return {
-      actor: toActor(found.actor, await this.grants.grantsFor(found.actor.roleIds)),
+      actor: toActor(found.actor, found.permissions),
       /* Read off the row `living()` already loaded, so `PasswordChangeGuard`
          costs no query of its own. */
       owesPasswordChange: found.actor.mustChangePasswordAt !== null,
@@ -258,8 +259,7 @@ export class AuthService {
   async view(token: string): Promise<SessionView> {
     const found = await this.living(token)
     if (!found) throw denied('unauthenticated')
-    const permissions = await this.grants.grantsFor(found.actor.roleIds)
-    return SessionView.parse(toSessionView(found.actor, found.session, permissions))
+    return SessionView.parse(toSessionView(found.actor, found.session, found.permissions))
   }
 
   /** Push the sitting-still mark out. CANNOT move `expires_at`.
@@ -629,7 +629,9 @@ export class AuthService {
    *                           effect at the lock-holder's next sign-in, i.e.
    *                           never, and the button on the admin screen would
    *                           be decorative. */
-  private async living(token: string): Promise<{ session: SessionRow; actor: ActorRow } | null> {
+  private async living(
+    token: string,
+  ): Promise<{ session: SessionRow; actor: ActorRow; permissions: Permission[] } | null> {
     if (!token) return null
     const found = await this.repo.sessionByTokenHash(hashToken(token))
     if (!found) return null

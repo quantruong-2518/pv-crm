@@ -5,7 +5,7 @@ import { GoogleGmail, type GmailMailbox } from '../google/google-gmail.client'
 import { addressOf, classifyThreadMessage } from './gmail-thread.classifier'
 import { GmailSweepRepository, type GmailWatch } from './gmail-sweep.repository'
 import { MailBell } from './mail-bell'
-import { MAIL_LEDGER, type MailLedger } from './mail.contract'
+import { MailSignalRepository } from './mail-signal.repository'
 
 /** READS WHAT CAME BACK ON LETTERS SENT FROM A PERSON'S OWN GMAIL.
  *
@@ -40,7 +40,7 @@ export class GmailThreadSweeper {
   constructor(
     private readonly watch: GmailSweepRepository,
     private readonly gmail: GoogleGmail,
-    @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly signals: MailSignalRepository,
     private readonly bell: MailBell,
     @Inject(ENV) private readonly env: Env,
   ) {}
@@ -104,7 +104,7 @@ export class GmailThreadSweeper {
       if (verdict.kind === 'reply') {
         /* A reply that cannot be recorded is retried next pass; it must not
            stop this loop, or a bounce later in the same thread is never read. */
-        const outcome = await this.ledger
+        const outcome = await this.signals
           .recordReply(
             {
               svixId: null,
@@ -125,7 +125,7 @@ export class GmailThreadSweeper {
           this.log.log(`delivery ${item.deliveryId} kind=reply`)
         }
       } else if (verdict.kind === 'bounce' && verdict.hard) {
-        const moved = await this.ledger.applyAddressBounce(item.deliveryId, {
+        const moved = await this.signals.applyAddressBounce(item.deliveryId, {
           addresses: verdict.failed,
           reason: BOUNCE_REASON,
           at: message.at,

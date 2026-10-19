@@ -55,9 +55,8 @@ export class OpportunityMailSentHook implements MailSentHook {
     try {
       /* Own savepoint: a refusal must leave no half-written row behind the catch. */
       await tx.transaction(async (sp) => {
-        const lock = await this.deals.lockDeal(sp, code)
-        const read = lock ? await this.deals.byCode(null, code, sp) : null
-        if (!lock || !read) throw notFound('cơ hội', code)
+        const read = await this.deals.lockedByCode(null, code, sp)
+        if (!read) throw notFound('cơ hội', code)
         const ref = scopeRefOf(read.row, read.owners, who)
         const verdict = found.creator.disabledAt
           ? { ok: false, reason: 'disabled' }
@@ -68,7 +67,7 @@ export class OpportunityMailSentHook implements MailSentHook {
           )
           return
         }
-        const deal = dealAtOf(read, lock.pendingSign)
+        const deal = dealAtOf(read, read.pendingSign)
         const note = `Thư: ${found.subject}`
         if (found.milestone === 'quotation') {
           await this.quotes.record(sp, deal, who, { source: 'mail', note })

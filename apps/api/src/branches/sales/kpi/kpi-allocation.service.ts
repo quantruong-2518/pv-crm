@@ -7,6 +7,7 @@ import {
   type KpiAllocationDecideBody,
   type KpiAllocationDraftBody,
   type KpiAllocationSubmitBody,
+  type KpiMonthClose,
   type KpiPeriodKey,
   type RoleId,
 } from '@pv/contracts'
@@ -44,11 +45,17 @@ import {
   type RoleTargetOf,
 } from './kpi-allocation.mapper'
 import { KpiCloseRepository } from './kpi-close.repository'
+import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiConfigService } from './kpi-config.service'
-import { KpiReadingsRepository } from './kpi-readings.repository'
+import {
+  KpiReadingsRepository,
+  type Actors,
+  type KpiKnown,
+  type KpiPerson,
+} from './kpi-readings.repository'
 import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
-import { KpiTargetsRepository } from './kpi-targets.repository'
-import { KpiTeamRepository } from './kpi-team.repository'
+import { KpiTargetsRepository, type KpiTargetRow } from './kpi-targets.repository'
+import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
 import { agreedIn, slotsOf, toReadings } from './kpi.mapper'
 
 export const stale = () =>
@@ -73,6 +80,32 @@ const holdersOf = (
   role: RoleId,
 ): Set<string> =>
   new Set(people.filter((p) => p.roleIds.map(toContractRole).includes(role)).map((p) => p.id))
+
+/** The roster of the month and who holds each role, read together. */
+export type KpiTier = {
+  entries: RosterEntry[]
+  roster: Roster
+  holders: (role: RoleId) => Set<string>
+  people: KpiPerson[]
+}
+
+/** What one request that fans out to several readers (the team page) loads
+ *  once and hands to each of them, so none re-reads it. */
+export type KpiPeriodContext = {
+  tier: KpiTier
+  catalog: KpiCatalog
+  targetRows: KpiTargetRow[]
+  shares: ShareInForce[]
+  tolerance: number
+  monthClose: KpiMonthClose
+}
+
+export const tierOf = (entries: RosterEntry[], people: KpiPerson[]): KpiTier => ({
+  entries,
+  roster: rosterOf(entries),
+  holders: (role) => holdersOf(people, role),
+  people,
+})
 
 /** A role's monthly package: drafted by one manager and sent by that same
  *  author, agreed or returned by another (ADR 0098 §1, 0082 §5). Whoever set
@@ -104,7 +137,11 @@ export class KpiAllocationService {
   /** Without `kpi.view-all`: only packages handed down — or, while the next
    *  version is unsent, the one still in force (`lastAgreed`) — only the
    *  caller's lines, and no totals: a sum would give away others' shares. */
-  async read(who: Actor, period: KpiPeriodKey): Promise<KpiAllocationResponse> {
+  async read(
+    who: Actor,
+    period: KpiPeriodKey,
+    loaded?: Partial<KpiPeriodContext>,
+  ): Promise<KpiAllocationResponse> {
     const all = this.access.allows(who, 'kpi.view-all')
     const [packages, inForce, monthClose] = await Promise.all([
       this.repo.packages(period),
@@ -121,7 +158,7 @@ export class KpiAllocationService {
       period,
       closed: monthClock(period).phase === 'closed',
       monthClose,
-      allocations: await this.present(period, shown, all ? null : who.id),
+      allocations: await this.present(period, shown, all ? null : who.id, loaded),
     })
   }
 
@@ -137,32 +174,55 @@ export class KpiAllocationService {
   }
 
   /** The live packages of one team. */
-  async teamPackages(period: KpiPeriodKey, teamId: string): Promise<KpiAllocation[]> {
+  async teamPackages(
+    period: KpiPeriodKey,
+    teamId: string,
+    loaded?: KpiPeriodContext,
+  ): Promise<KpiAllocation[]> {
     const packages = await this.repo.packages(period)
     const live = packages.filter((p) => p.teamId === teamId && p.status !== 'superseded')
-    return this.present(period, live, null)
+    return this.present(period, live, null, loaded)
   }
 
   /** `only` null is the full view (every line, totals, shares): a reader with
-   *  `kpi.view-all`, or a team's own lead reading their team's packages. */
+   *  `kpi.view-all`, or a team's own lead reading their team's packages.
+   *  `loaded` is what the caller has already read. Last month is read for the
+   *  people on the lines (and a share's team members) and nobody else. */
   async present(
     period: KpiPeriodKey,
     shown: readonly KpiPackageRow[],
     only: string | null,
+    loaded?: Partial<KpiPeriodContext>,
   ): Promise<KpiAllocation[]> {
     const today = vietnamToday()
-    const [lines, roleTarget, inForce, ownShares, lastMonth, ctx] = await Promise.all([
-      this.repo.lines(shown.map((p) => p.id)),
-      this.roleTargets(period),
-      this.sharesInForce(period),
-      this.repo.shares(shown.map((p) => p.id)),
-      this.figures(
-        spansOf(period).previous,
-        shown.map((p) => p.role),
-        only ?? undefined,
-      ),
-      only === null ? this.tierContext(period) : null,
+    const ids = shown.map((p) => p.id)
+    const [lines, roleTarget, inForce, ownShares, tier] = await Promise.all([
+      this.repo.lines(ids),
+      this.roleTargets(period, undefined, loaded?.targetRows),
+      loaded?.shares ?? this.sharesInForce(period),
+      this.repo.shares(ids),
+      only === null ? (loaded?.tier ?? this.tierContext(period)) : null,
     ])
+    const members = (teamId: string, role: RoleId) =>
+      tier!.roster.membersOf(teamId).filter((m) => tier!.holders(role).has(m))
+    const asked: Actors =
+      only ??
+      Array.from(
+        new Set(
+          shown.flatMap((p) => [
+            ...lines.filter((l) => l.allocationId === p.id).map((l) => l.actorId),
+            ...ownShares
+              .filter((s) => s.allocationId === p.id)
+              .flatMap((s) => members(s.teamId, p.role)),
+          ]),
+        ),
+      )
+    const lastMonth = await this.figures(
+      spansOf(period).previous,
+      shown.map((p) => p.role),
+      asked,
+      loaded?.catalog,
+    )
     return shown.flatMap((p) => {
       const mine = lines.filter((l) => l.allocationId === p.id)
       const share = p.teamId ? shareValues(inForce, p.role, p.teamId) : null
@@ -175,13 +235,17 @@ export class KpiAllocationService {
       }
       const shares = ownShares.filter((s) => s.allocationId === p.id)
       const totals = totalsOf(p.role, share ? mine : [...mine, ...shares], target)
-      const members = (teamId: string) =>
-        ctx!.roster.membersOf(teamId).filter((m) => ctx!.holders(p.role).has(m))
       const changed =
         share && p.status !== 'draft'
           ? mismatchOf(p.role, teamAmounts(mine, share), target, 'team') !== null
           : false
-      const shareLines = toShareLines(shares, p.role, members, roleTarget, lastMonth)
+      const shareLines = toShareLines(
+        shares,
+        p.role,
+        (teamId) => members(teamId, p.role),
+        roleTarget,
+        lastMonth,
+      )
       return [
         toAllocation(p, mine, totals, target, lastMonth, today, {
           shares: shareLines,
@@ -202,8 +266,8 @@ export class KpiAllocationService {
   ): Promise<KpiAllocationResponse> {
     if (body.teamId)
       throw invalid({ teamId: ['Gói của nhóm do trưởng nhóm chia, không qua cửa này.'] })
-    await this.saveDraft(who, period, body, null)
-    return this.read(who, period)
+    const tier = await this.saveDraft(who, period, body, null)
+    return this.read(who, period, { tier })
   }
 
   async saveDraft(
@@ -211,14 +275,15 @@ export class KpiAllocationService {
     period: KpiPeriodKey,
     body: KpiAllocationDraftBody,
     teamId: string | null,
-  ): Promise<void> {
+  ): Promise<KpiTier> {
     stillOpen(period)
     const { role } = body
     const [people, rosterRows] = await Promise.all([
       this.readings.people(),
       this.teams.rosterAt(period),
     ])
-    const roster = rosterOf(rosterRows)
+    const tier = tierOf(rosterRows, people)
+    const { roster } = tier
     if (teamId) await this.assertActsFor(who, roster, teamId)
     const defs = await this.roleDefs(role)
     assertTargetValues(defs, body.lines, 'lines')
@@ -283,6 +348,7 @@ export class KpiAllocationService {
         shares: body.shares,
       })
     })
+    return tier
   }
 
   /** Room door: `kpi.set-target`. A body naming a team is refused, as for `draft`. */
@@ -406,14 +472,25 @@ export class KpiAllocationService {
     return rows.map((r) => ({ ...r, role: role.get(r.allocationId)! }))
   }
 
-  /** The roster of the month and who holds each role, read together. */
-  async tierContext(period: KpiPeriodKey) {
+  async tierContext(period: KpiPeriodKey): Promise<KpiTier> {
     const [entries, people] = await Promise.all([
       this.teams.rosterAt(period),
       this.readings.people(),
     ])
-    const roster: Roster = rosterOf(entries)
-    return { entries, roster, holders: (role: RoleId) => holdersOf(people, role) }
+    return tierOf(entries, people)
+  }
+
+  /** Everything the team page's readers share, read in one round. */
+  async periodContext(period: KpiPeriodKey): Promise<KpiPeriodContext> {
+    const [tier, catalog, targetRows, shares, tolerance, monthClose] = await Promise.all([
+      this.tierContext(period),
+      this.config.effectiveCatalog(),
+      this.targets.ofPeriod(period),
+      this.sharesInForce(period),
+      this.config.tolerance(),
+      this.closes.of(period),
+    ])
+    return { tier, catalog, targetRows, shares, tolerance, monthClose }
   }
 
   /** The team's lead, judged by the roster of the month and not by a
@@ -436,8 +513,12 @@ export class KpiAllocationService {
   /** Each role's highest agreed target, by `slotsOf`'s own reading. Not cut to
    *  the effective catalog: an old package of a switched-off metric still
    *  balances against the target it was split from. */
-  async roleTargets(period: KpiPeriodKey, handle?: Db): Promise<RoleTargetOf> {
-    const slots = slotsOf(await this.targets.ofPeriod(period, handle))
+  async roleTargets(
+    period: KpiPeriodKey,
+    handle?: Db,
+    rows?: readonly KpiTargetRow[],
+  ): Promise<RoleTargetOf> {
+    const slots = slotsOf(rows ?? (await this.targets.ofPeriod(period, handle)))
     return (role, key) => {
       const agreed = agreedIn(slots, role, key)
       return agreed ? Number(agreed.value) : null
@@ -450,12 +531,19 @@ export class KpiAllocationService {
   }
 
   /** One month's figures for `roles`, read the way a scorecard reads them
-   *  (`toReadings`), so "absent tally = 0, snapshot as of the month's end" is not copied. */
-  async figures(span: PeriodSpan, roles: readonly RoleId[], only?: string): Promise<FigureOf> {
+   *  (`toReadings`), so "absent tally = 0, snapshot as of the month's end" is not copied.
+   *  Ask `only` for every actor the lookup will be called with: one left out reads as 0. */
+  async figures(
+    span: PeriodSpan,
+    roles: readonly RoleId[],
+    only?: Actors,
+    loaded?: KpiCatalog,
+    known?: KpiKnown,
+  ): Promise<FigureOf> {
     const wanted = [...new Set(roles)]
-    const catalog = await this.config.effectiveCatalog()
+    const catalog = loaded ?? (await this.config.effectiveCatalog())
     const seats = wanted.flatMap((role) => catalog[role].map((def) => ({ role, def })))
-    const values = await this.readings.monthValues(seats, span, only)
+    const values = await this.readings.monthValues(seats, span, only, known)
     /* Only `.value` is read, so the verdict's tolerance is moot. The real
        clock, so a month not begun keeps `toReadings`' no-data snapshot. */
     const { elapsed, phase } = monthClock(span.key)

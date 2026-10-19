@@ -26,6 +26,7 @@ import {
   refOf,
   stageEventOf,
 } from './opportunity.mapper'
+import { OpportunityImportRepository } from './opportunity-import.repository'
 import { OpportunityRepository } from './opportunity.repository'
 import { acceptTouches, OpportunityService } from './opportunity.service'
 
@@ -52,6 +53,7 @@ const CHUNK = 500
 export class OpportunityImport {
   constructor(
     private readonly repo: OpportunityRepository,
+    private readonly importRepo: OpportunityImportRepository,
     private readonly openRepo: OpportunityOpenRepository,
     private readonly opening: OpportunityOpening,
     private readonly ops: OpportunityService,
@@ -77,7 +79,7 @@ export class OpportunityImport {
 
     /* Codes before the transaction, one statement for the batch (`nextCodes`);
        they come back ascending, so file order is code order. */
-    const codes = await this.repo.nextCodes(writes.length)
+    const codes = await this.importRepo.nextCodes(writes.length)
     const now = new Date()
     const acceptor = this.ops.acceptorAtCreate(who)
 
@@ -155,7 +157,7 @@ export class OpportunityImport {
           tx,
           slice.map((p) => ({ from: p.row.leadCode, to: p.code, kind: 'spawned' as const })),
         )
-        await this.repo.insertMany(
+        await this.importRepo.insertMany(
           tx,
           slice.map((p) => ({ ...p.row, accountCode: accounts.get(p.row.leadCode) ?? null })),
         )
@@ -171,7 +173,7 @@ export class OpportunityImport {
           tx,
           slice.flatMap((p) => p.contacts),
         )
-        await this.repo.insertStageEvents(
+        await this.importRepo.insertStageEvents(
           tx,
           slice.map((p) => p.stageEvent),
         )
@@ -193,7 +195,7 @@ export class OpportunityImport {
       ])
       /* The receipt is written even when no row went in: a batch of errors is
          still something that happened, and this row is how anyone can tell. */
-      const note = await this.repo.writeBatchNote(tx, {
+      const note = await this.importRepo.writeBatchNote(tx, {
         actorId: who.id,
         note: JSON.stringify({
           kind: 'opportunity-import',
@@ -239,8 +241,8 @@ export class OpportunityImport {
    *  check's own `fold` — is what the running deals and contacts are asked of. */
   private async check(handle: Db, who: Actor, body: OpportunityImportBody): Promise<Checked> {
     const [staff, leads, products] = await Promise.all([
-      this.repo.staff(handle),
-      this.repo.leadsByCompany(handle),
+      this.importRepo.staff(handle),
+      this.importRepo.leadsByCompany(handle),
       this.openRepo.liveProducts(handle),
     ])
     const liveLeads = new Set(leads.workstreamByLead.keys())

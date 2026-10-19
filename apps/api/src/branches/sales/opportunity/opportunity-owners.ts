@@ -1,4 +1,4 @@
-import { and, inArray, isNull } from 'drizzle-orm'
+import { inArray } from 'drizzle-orm'
 import { isSellerRole, type OpportunityOwner } from '@pv/contracts'
 import type { RoleId } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
@@ -65,6 +65,31 @@ export function salePrimaryOf(
 export const primaryOf = (owners: readonly { id: string; primary: boolean }[]): string | null =>
   owners.find((o) => o.primary)?.id ?? null
 
+/** One actor row as the owner rules read it: label, roles, and whether locked. */
+export type ActorRow = { id: string; name: string; roleIds: RoleId[]; disabledAt: Date | null }
+
+/** The actors behind a set of ids in ONE read: a door that needs names, roles and
+ *  the seller rule derives all three from it instead of reading the book three times. */
+export async function actorsByIds(tx: Db, ids: readonly string[]): Promise<ActorRow[]> {
+  if (ids.length === 0) return []
+  return tx
+    .select({
+      id: actor.id,
+      name: actor.name,
+      roleIds: actor.roleIds,
+      disabledAt: actor.disabledAt,
+    })
+    .from(actor)
+    .where(inArray(actor.id, [...ids]))
+}
+
+/** The label and the roles of each actor, keyed by id — what `saleLaneOf`,
+ *  `holderOfIds` and `ownersOfIds` take. */
+export const labelsOf = (actors: readonly ActorRow[]) => ({
+  names: new Map(actors.map((a) => [a.id, a.name])),
+  roles: new Map(actors.map((a) => [a.id, a.roleIds])),
+})
+
 /** A SALE lane's people by id, for `salePrimaryOf` — ids the actor book does
  *  not know are skipped (their insert dies on the owner foreign key). */
 export async function lanePeople(tx: Db, ids: readonly string[]): Promise<LanePerson[]> {
@@ -88,12 +113,14 @@ export async function actorRoles(tx: Db, ids: readonly string[]): Promise<Map<st
 
 /** Refuses with 400 on `saleOwners` when any id is not an active seller. */
 export async function assertSellers(tx: Db, added: readonly string[]): Promise<void> {
-  if (added.length === 0) return
-  const rows = await tx
-    .select({ id: actor.id, roleIds: actor.roleIds })
-    .from(actor)
-    .where(and(inArray(actor.id, [...added]), isNull(actor.disabledAt)))
-  const sellers = new Set(rows.filter((r) => isSellerRole(r.roleIds)).map((r) => r.id))
+  assertSellersIn(await actorsByIds(tx, added), added)
+}
+
+/** `assertSellers` over rows already read — an id with no row is not a seller. */
+export function assertSellersIn(actors: readonly ActorRow[], added: readonly string[]): void {
+  const sellers = new Set(
+    actors.filter((a) => a.disabledAt === null && isSellerRole(a.roleIds)).map((a) => a.id),
+  )
   if (added.some((id) => !sellers.has(id))) throw invalid({ saleOwners: [NOT_SELLER] }, NOT_SELLER)
 }
 

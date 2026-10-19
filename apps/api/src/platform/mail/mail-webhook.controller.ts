@@ -16,6 +16,7 @@ import { MachineDoor } from '@api/platform/http/cross-site.guard'
 import { ENV, type Env } from '@api/platform/config/env'
 import { PvError } from '@api/platform/http/problem'
 import { MailBell } from './mail-bell'
+import { MailSignalRepository } from './mail-signal.repository'
 import {
   MAIL_LEDGER,
   MAIL_QUEUE_STUCK_SECONDS,
@@ -148,6 +149,7 @@ export class MailWebhookController {
   constructor(
     @Inject(ENV) private readonly env: Env,
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
+    private readonly signals: MailSignalRepository,
     private readonly bell: MailBell,
   ) {}
 
@@ -164,7 +166,7 @@ export class MailWebhookController {
        both run for one envelope. */
     const engagement = this.engagement(event)
     if (engagement) {
-      const recorded = await this.ledger.recordEngagement({ svixId, ...engagement })
+      const recorded = await this.signals.recordEngagement({ svixId, ...engagement })
       this.log.log(`resend ${event.type} · ${engagement.providerEmailId ?? '—'} · ${recorded}`)
       return { ok: true }
     }
@@ -182,7 +184,7 @@ export class MailWebhookController {
        ledger, keyed by `svixId` and compared by state rank. Re-deciding either
        of them here would be a second implementation of the same rule, and the
        two would drift. */
-    const { outcome, attributed, deliveryId } = await this.ledger.applyWebhook({
+    const { outcome, attributed, deliveryId } = await this.signals.applyWebhook({
       svixId,
       type: event.type,
       providerEmailId: signal.data.email_id || null,
@@ -242,7 +244,7 @@ export class MailWebhookController {
       return { ok: true }
     }
 
-    const outcome = await this.ledger.recordReply(
+    const outcome = await this.signals.recordReply(
       {
         svixId,
         deliveryId,

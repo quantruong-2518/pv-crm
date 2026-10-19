@@ -45,7 +45,7 @@ export class LeadOriginService {
 
   /** `leadCount` follows the book's scope axis: an `ownOnly` caller counts own leads. */
   async list(who: Actor, q: LeadOriginListQuery): Promise<LeadOriginListResponse> {
-    const all = await this.catalog(this.repo.handle, who.ownOnly ? who.id : undefined)
+    const all = await this.catalog(this.repo.handle, { ownerId: who.ownOnly ? who.id : undefined })
     const key = q.q ? originKey(q.q) : ''
     const needle = q.q?.toLowerCase() ?? ''
 
@@ -105,7 +105,9 @@ export class LeadOriginService {
     if (id === into) throw conflict('Không gộp một nguồn vào chính nó.')
 
     const movedLeads = await this.repo.run(async (tx) => {
-      const [from, to] = await Promise.all([this.repo.byId(tx, id), this.repo.byId(tx, into)])
+      const locked = await this.repo.lockPair(tx, id, into)
+      const from = locked.find((o) => o.id === id)
+      const to = locked.find((o) => o.id === into)
       if (!from) throw notFound('nguồn', id)
       if (!to) throw notFound('nguồn', into)
       if (from.mergedInto) throw conflict(`Nguồn ${id} đã gộp vào ${from.mergedInto}.`)
@@ -172,7 +174,7 @@ export class LeadOriginService {
 
   /** The whole catalog as lookups, merged rows already followed to survivors. */
   async index(): Promise<OriginIndex> {
-    const all = await this.catalog(this.repo.handle)
+    const all = await this.catalog(this.repo.handle, { counted: false })
     const live = (o: LeadOrigin) => {
       const s = o.mergedInto ? (all.find((x) => x.id === o.mergedInto) ?? o) : o
       return { id: s.id, active: s.active }
@@ -292,13 +294,19 @@ export class LeadOriginService {
     await this.note(tx, who.id, { kind: 'lead-origin-rename', id: row.id, from: row.key, to: key })
   }
 
-  private async catalog(db: Db, ownerId?: string): Promise<LeadOrigin[]> {
-    const [reads, links] = await Promise.all([this.repo.origins(db, ownerId), this.repo.links(db)])
+  private async catalog(
+    db: Db,
+    opts: { ownerId?: string; id?: string; counted?: boolean } = {},
+  ): Promise<LeadOrigin[]> {
+    const [reads, links] = await Promise.all([
+      this.repo.origins(db, opts),
+      this.repo.links(db, opts.id),
+    ])
     return reads.map((r) => toContract(r, links))
   }
 
   private async one(id: string): Promise<LeadOrigin> {
-    const found = (await this.catalog(this.repo.handle)).find((o) => o.id === id)
+    const [found] = await this.catalog(this.repo.handle, { id })
     if (!found) throw notFound('nguồn', id)
     return found
   }

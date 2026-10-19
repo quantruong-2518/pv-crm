@@ -18,7 +18,7 @@ import { BOSS } from './boss.provider'
 export class MailQueue {
   constructor(@Inject(BOSS) private readonly boss: PgBoss) {}
 
-  /** Ask for a delivery to be sent.
+  /** Ask for deliveries to be sent.
    *
    *  Enqueuing twice is not a bug to be prevented here. `eventKey` is UNIQUE
    *  in the ledger and `claim()` hands the row to exactly one runner, so a
@@ -28,9 +28,17 @@ export class MailQueue {
    *  crashed worker recoverable.
    *
    *  `singletonKey` is still set, because `findJobs({ key })` is how the
-   *  runbook goes from "this lead got no mail" to the job row. */
-  async enqueue(job: EmailJob, opts: { singletonSeconds?: number } = {}): Promise<void> {
-    await this.boss.send(EMAIL_QUEUE, job, { singletonKey: job.eventKey, ...opts })
+   *  runbook goes from "this lead got no mail" to the job row.
+   *
+   *  One `insert` per batch, not one `send` per row: a round trip each is what
+   *  capped the relay's throughput. `insert` is `ON CONFLICT DO NOTHING` like
+   *  `send`, so a singleton hit skips that row and the rest still land. */
+  async enqueueMany(jobs: EmailJob[], opts: { singletonSeconds?: number } = {}): Promise<void> {
+    if (jobs.length === 0) return
+    await this.boss.insert(
+      EMAIL_QUEUE,
+      jobs.map((job) => ({ data: job, singletonKey: job.eventKey, ...opts })),
+    )
   }
 
   /** Park a delivery where a person will see it. Called by the consumer once

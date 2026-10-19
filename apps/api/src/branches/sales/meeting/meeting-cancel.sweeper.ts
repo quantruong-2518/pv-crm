@@ -15,9 +15,9 @@ const SWEEP_EVERY_MS = 60 * 60_000
 /** Retries the Google removal a cancel could not finish after its commit
  *  (booker's link down, Google refusing), for seven days (`cancelledWithEvent`).
  *
- *  Self-timed exactly like `CommLateSweeper`: hourly and once at boot, off
- *  under `NODE_ENV=test`, and safe to overlap with another process — a second
- *  DELETE of a gone event is a 404, which counts as removed. */
+ *  Self-timed: hourly and once at boot, off under `NODE_ENV=test`. Safe to
+ *  overlap with another process — a second DELETE of a gone event is a 404,
+ *  which counts as removed. */
 @Injectable()
 export class MeetingCancelSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly log = new Logger('meeting.cancel')

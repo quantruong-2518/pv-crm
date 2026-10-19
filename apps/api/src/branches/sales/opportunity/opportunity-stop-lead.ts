@@ -70,9 +70,11 @@ export class LeadAfterStopRule {
       .from(actor)
       .where(and(inArray(actor.id, chain), isNull(actor.disabledAt)))
     const eligible: Actor[] = []
+    /* Grants on `db`, not the pool: inside the stop the tx holds PGlite's one connection. */
+    const matrix = await this.grants.allGrants(db)
     for (const row of chain.flatMap((id) => rows.filter((r) => r.id === id))) {
-      /* Grants on `db`, not the pool: inside the stop the tx holds PGlite's one connection. */
-      const them = toActor(row, await this.grants.grantsFor(row.roleIds, db))
+      const granted = [...new Set(row.roleIds.flatMap((roleId) => matrix.get(roleId) ?? []))].sort()
+      const them = toActor(row, granted)
       if (this.may(them, 'lead.edit')) eligible.push(them)
     }
     const first = eligible.find((h) => head.includes(h.id))

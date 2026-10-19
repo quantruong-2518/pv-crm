@@ -27,8 +27,6 @@ export class LeadLabelService {
   ) {}
 
   async put(who: Actor, code: ObjectCode, body: LeadLabelsBody): Promise<LeadProfile> {
-    await this.doors.inScope(who, code)
-
     await this.repo.run(async (tx) => {
       const held = await this.doors.lockRow(tx, who, code)
       if (!(LEAD_OPEN_STATES as readonly LeadState[]).includes(held.state)) {

@@ -163,21 +163,22 @@ export class SourceRepository {
    *  chênh giữa chúng và tổng cộng của các nguồn LÀ nội dung — nó đo phần
    *  khách tự tìm tới, thứ không nguồn nào được ghi công. */
   async book() {
-    const [row] = await this.db
-      .select({
-        leadsAll: sql<number>`count(*)::int`,
-        goodAll: sql<number>`count(*) FILTER (WHERE ${lead.requiredFilled} >= ${REQUIRED_SLOTS})::int`,
-        firstAt: sql<Date | null>`min(${lead.createdAt})`,
-        lastAt: sql<Date | null>`max(${lead.createdAt})`,
-      })
-      .from(lead)
-      .where(leadLive)
-
-    const [ops] = await this.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(opportunity)
-      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(leadLive)
+    const [[row], [ops]] = await Promise.all([
+      this.db
+        .select({
+          leadsAll: sql<number>`count(*)::int`,
+          goodAll: sql<number>`count(*) FILTER (WHERE ${lead.requiredFilled} >= ${REQUIRED_SLOTS})::int`,
+          firstAt: sql<Date | null>`min(${lead.createdAt})`,
+          lastAt: sql<Date | null>`max(${lead.createdAt})`,
+        })
+        .from(lead)
+        .where(leadLive),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(opportunity)
+        .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+        .where(leadLive),
+    ])
 
     return {
       leadsAll: row?.leadsAll ?? 0,

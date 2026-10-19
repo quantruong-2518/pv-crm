@@ -91,9 +91,10 @@ import {
        `composers` là ĐĂNG BẠ, và đây là file duy nhất được biết cả hai vế của
        nó: Nest không có `multi: true` nên không có gì gộp hai provider cùng
        token ở hai module, còn `QueueModule` thì không được nhắc tên nhánh. Thứ
-       tự có nghĩa — `supports()` khớp đầu tiên thắng — và hai template hiện có
-       (`mas-v1`, `lead-intake-internal`) không giao nhau, nên thứ tự này chỉ
-       là thói quen: nền trước, nhánh sau. */
+       tự có nghĩa — `supports()` khớp đầu tiên thắng — và template của ba bộ
+       dựng (`mas-v1`, `opportunity-*`, và `lead-intake-internal` đã nghỉ hưu
+       theo ADR 0085, chỉ còn để rút dòng cũ) không giao nhau, nên thứ tự này
+       chỉ là thói quen: nền trước, nhánh sau. */
     QueueModule.forWorker({
       imports: [MailModule, LeadModule, OpportunityModule],
       composers: [MasMailComposer, LeadMailComposer, OpportunityMailComposer],
@@ -222,34 +223,42 @@ async function bootstrap(): Promise<void> {
      được kéo theo lượt kia — dòng vẫn `pending`, lô vẫn `SENDING`, chiến dịch
      vẫn `RUNNING`, vòng sau nhặt lại. Đó là toàn bộ lý do sổ gửi là nguồn sự
      thật chứ không phải hàng đợi. */
-  const sweep = setInterval(() => {
+  /* One flag per pass, so a pass that outlives the tick is skipped, not
+     stacked. */
+  const pass = (failed: string, run: () => Promise<unknown>) => {
+    let running = false
+    return (): void => {
+      if (running) return
+      running = true
+      run()
+        .catch((error: unknown) => {
+          log.error(`${failed}: ${error instanceof Error ? error.message : String(error)}`)
+        })
+        .finally(() => {
+          running = false
+        })
+    }
+  }
+  const sweepRelay = pass('Relay lỗi', async () => {
     // Gate first so a due later wave is released (or withheld) before the relay looks;
     // the gate fails closed, so a slow gate only delays that wave by one poll.
-    void gates
-      .sweep()
-      .catch((error: unknown) => {
-        log.error(`Wave gate failed: ${error instanceof Error ? error.message : String(error)}`)
-      })
-      .then(() => relay.sweep())
-      .catch((error: unknown) => {
-        log.error(`Relay lỗi: ${error instanceof Error ? error.message : String(error)}`)
-      })
-    void runs.sweep().catch((error: unknown) => {
-      log.error(`Quét lô mail lỗi: ${error instanceof Error ? error.message : String(error)}`)
+    await gates.sweep().catch((error: unknown) => {
+      log.error(`Wave gate failed: ${error instanceof Error ? error.message : String(error)}`)
     })
-    // Ticked here and nowhere else; it throttles itself to PV_GMAIL_POLL_MINUTES.
-    void gmailThreads.sweep().catch((error: unknown) => {
-      log.error(
-        `Gmail thread sweep failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    })
-    void campaigns.sweep().catch((error: unknown) => {
-      log.error(`Quét chiến dịch lỗi: ${error instanceof Error ? error.message : String(error)}`)
-    })
-    // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
-    void holds.sweep().catch((error: unknown) => {
-      log.error(`Hold reminders failed: ${error instanceof Error ? error.message : String(error)}`)
-    })
+    await relay.sweep()
+  })
+  const sweepRuns = pass('Quét lô mail lỗi', () => runs.sweep())
+  // Ticked here and nowhere else; it throttles itself to PV_GMAIL_POLL_MINUTES.
+  const sweepGmail = pass('Gmail thread sweep failed', () => gmailThreads.sweep())
+  const sweepCampaigns = pass('Quét chiến dịch lỗi', () => campaigns.sweep())
+  // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
+  const sweepHolds = pass('Hold reminders failed', () => holds.sweep())
+  const sweep = setInterval(() => {
+    sweepRelay()
+    sweepRuns()
+    sweepGmail()
+    sweepCampaigns()
+    sweepHolds()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
   sweep.unref()

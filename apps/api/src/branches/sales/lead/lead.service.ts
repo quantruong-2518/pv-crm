@@ -192,7 +192,7 @@ export class LeadService {
    *  ------------------------------------------------------------------
    *  THE SAME TWO REFUSALS AS THE PROFILE, AND FOR THE SAME REASONS
    *  ------------------------------------------------------------------
-   *  This reads `byCode()` first and lets 404/403 happen there, rather than
+   *  This runs `guard()` first and lets 404/403 happen there, rather than
    *  running the timeline query and letting an empty list stand in for both.
    *  An empty timeline is a REAL answer — most leads have never been mailed —
    *  so it cannot also mean "no such lead" or "not yours" without becoming the
@@ -215,12 +215,7 @@ export class LeadService {
    *  person — which is the one question a timeline exists to answer before
    *  somebody writes to them again. */
   async mailTimeline(who: Actor, code: ObjectCode): Promise<LeadMailTimelineResponse> {
-    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
-    if (!found) throw notFound('lead', code)
-
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    }
+    await this.guard(who, code)
 
     const rows = await this.repo.mailTimeline(code)
 
@@ -237,12 +232,7 @@ export class LeadService {
     code: ObjectCode,
     runId: MailRunId,
   ): Promise<LeadMailEventsResponse> {
-    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
-    if (!found) throw notFound('lead', code)
-
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    }
+    await this.guard(who, code)
 
     const rows = await this.repo.mailEvents(code, runId)
     return LeadMailEventsResponse.parse({ rows: rows.map(toMailEvent) })
@@ -269,12 +259,7 @@ export class LeadService {
    *  have exactly one row — so it cannot also mean "no such lead" or "not
    *  yours" without answering three questions at once. */
   async touches(who: Actor, code: ObjectCode): Promise<TouchTimelineResponse> {
-    const found = await this.repo.byCode(who, code, this.seesDisabled(who))
-    if (!found) throw notFound('lead', code)
-
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    }
+    await this.guard(who, code)
 
     return this.touch.timeline(code)
   }
@@ -382,17 +367,15 @@ export class LeadService {
     return LeadIndustryTagsResponse.parse({ tags: await this.repo.industryTags() })
   }
 
-  /** Lead có thật, và người này được đọc nó. Hai câu, một chỗ.
+  /** The lead exists and this caller may read it (or, with `edit`, hold it).
    *
-   *  Rút ra thành hàm sau khi cửa thứ tư lặp lại đúng sáu dòng này — bốn bản
-   *  sao của một câu 403 là bốn chỗ để câu đó trôi khỏi nhau. `profile`,
-   *  `mailTimeline` và `touches` giữ nguyên bản của chúng: đổi cả ba trong
-   *  cùng lượt này là trộn một đợt dựng tính năng với một đợt dọn dẹp, và
-   *  người review sẽ phải đọc cả hai cùng lúc. */
+   *  One copy of the 404/403 pair for every door that needs only the verdict;
+   *  `profile` alone reads `byCode`, because it needs the whole row. `accessOf`
+   *  returns the two verdict columns without the profile's joins. */
   async guard(who: Actor, code: ObjectCode, edit = false): Promise<void> {
     /* A disabled lead opens read-only for a `lead.disable` holder; an edit
        never asks for it, so every write door answers 404. */
-    const found = await this.repo.byCode(who, code, !edit && this.seesDisabled(who))
+    const found = await this.repo.accessOf(who, code, !edit && this.seesDisabled(who))
     if (!found) throw notFound('lead', code)
 
     if (!(edit ? found.holds : found.inScope)) {
@@ -430,7 +413,7 @@ export class LeadService {
     const leadCode = await this.contacts.leadOf(code)
     if (leadCode === null) throw notFound('người liên hệ', code)
 
-    const found = await this.repo.byCode(who, leadCode)
+    const found = await this.repo.accessOf(who, leadCode)
     if (!found || !found.holds) throw notFound('người liên hệ', code)
 
     return leadCode

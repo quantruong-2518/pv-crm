@@ -31,6 +31,7 @@ import {
   type KpiCounterValues,
 } from './kpi-allocation.schema'
 import { kpiTeam } from './kpi-team.schema'
+import type { Actors } from './kpi-readings.repository'
 
 /** A package with the names the screen prints beside its two stamps, and the
  *  team's name when it is a team package (`teamId` is on the row itself). */
@@ -233,17 +234,18 @@ export class KpiAllocationRepository {
   }
 
   /** The lines of `lastAgreed` — the scorecard's input. */
-  async agreedLines(period: string, actorId?: string): Promise<KpiAgreedLine[]> {
+  async agreedLines(period: string, actors?: Actors): Promise<KpiAgreedLine[]> {
     const top = await this.lastAgreed(period)
     if (top.length === 0) return []
     const byId = new Map(top.map((p) => [p.id, p]))
+    const who = typeof actors === 'string' ? (actors ? [actors] : undefined) : actors
     const rows = await this.db
       .select()
       .from(kpiAllocationLine)
       .where(
         and(
           inArray(kpiAllocationLine.allocationId, [...byId.keys()]),
-          actorId ? eq(kpiAllocationLine.actorId, actorId) : undefined,
+          who ? inArray(kpiAllocationLine.actorId, [...who]) : undefined,
         ),
       )
     return rows.map((r) => ({ ...r, package: byId.get(r.allocationId)! }))

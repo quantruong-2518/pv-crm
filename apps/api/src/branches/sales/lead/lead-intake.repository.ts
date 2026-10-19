@@ -1,9 +1,9 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, lt, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { LeadIntakeQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { lead } from './lead.schema'
-import { leadIntake, type LeadIntakeStatus } from './lead-intake.schema'
+import { leadIntake, leadIntakeRate, type LeadIntakeStatus } from './lead-intake.schema'
 
 export type IntakeClient = {
   ipHash: string
@@ -45,6 +45,10 @@ type RatePolicy = {
   day: number
   blockMinutes: number
 }
+
+/** Longer than the longest limiter window (the one-day count, against the
+ *  15-minute block), so no row is purged while its window still holds. */
+const RATE_ROW_RETENTION = '2 days'
 
 @Injectable()
 export class LeadIntakeRepository {
@@ -100,6 +104,16 @@ export class LeadIntakeRepository {
     const blocked = result.rows[0]?.blocked_until
     if (!blocked) return 0
     return Math.max(1, Math.ceil((new Date(blocked).getTime() - Date.now()) / 1_000))
+  }
+
+  /** Counters nobody touched for `RATE_ROW_RETENTION`: a returning key starts
+   *  fresh either way. */
+  async purgeStale(): Promise<number> {
+    const gone = await this.db
+      .delete(leadIntakeRate)
+      .where(lt(leadIntakeRate.updatedAt, sql`now() - ${RATE_ROW_RETENTION}::interval`))
+      .returning({ key: leadIntakeRate.keyHash })
+    return gone.length
   }
 
   async writeAttempt(tx: Db, attempt: IntakeAttempt): Promise<void> {

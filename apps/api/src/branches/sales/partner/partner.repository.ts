@@ -9,12 +9,13 @@ import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contract } from '../contract/contract.schema'
 import { partner, type PartnerRowDb } from './partner.schema'
+import { seqCodes } from '../code-seq'
 
 /** SQL for `sales.partner`. Decides nothing: which origin a partner may hang
  *  under is the service's call; this only answers the question it is asked. */
 
 /** `REF-%04d` off `partner_code_seq`, the `NEXT_ID` shape of `lead-origin.repository.ts`. */
-const NEXT_CODE = sql`SELECT 'REF-' || lpad(nextval('sales.partner_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('REF-', 'sales.partner_code_seq')
 
 /** No 0/1/I/O: the ref is read aloud and typed back. */
 const REF_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'

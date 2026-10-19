@@ -128,10 +128,11 @@ export class MeetingService {
     const at = body.at === undefined ? current.at : new Date(body.at)
 
     /* Read BEFORE the transaction: a pool read inside it would be a read
-       outside the transaction dressed as one inside. */
+       outside the transaction dressed as one inside. Only this meeting's own
+       attendees are needed, not the whole subject timeline. */
     const before =
       body.hosts === undefined || body.guests === undefined
-        ? (await this.timeline(code)).rows.find((r) => r.id === id)
+        ? toContract(current, await this.repo.attendeesOf([id]), false)
         : undefined
 
     await this.repo.run(async (tx) => {
@@ -323,9 +324,13 @@ export class MeetingService {
     also?: (tx: Db) => Promise<void>,
   ): Promise<void> {
     const hook = this.modules.get<CommDebriefHook>(COMM_DEBRIEF_HOOK, { strict: false })
-    if (!(await hook.slot(owner, m.subjectCode)).confirmable) throw unconfirmable(m.subjectCode)
     const guestCode = guests.find((g) => g.contactCode !== undefined)?.contactCode
-    const person = await hook.contactOf(m.subjectCode, guestCode)
+    /* Two pool reads that never wait on each other; `contactOf` only returns a row or null. */
+    const [slot, person] = await Promise.all([
+      hook.slot(owner, m.subjectCode),
+      hook.contactOf(m.subjectCode, guestCode),
+    ])
+    if (!slot.confirmable) throw unconfirmable(m.subjectCode)
     try {
       await this.records.open(
         {

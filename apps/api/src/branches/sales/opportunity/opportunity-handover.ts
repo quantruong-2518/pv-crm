@@ -5,13 +5,13 @@ import type { Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import type { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { invalid } from '@api/platform/http/problem'
-import { handStepOver } from '../next-step/next-step.handover'
+import { nextStep } from '../next-step/next-step.schema'
 import { dealOpen, dealSignWaiting } from '../open-deal'
 import type { TouchService } from '../touch/touch.service'
 import { acceptorOf, holderOf, NOTE, toRef } from './opportunity.mapper'
 import { primaryOf, salePrimaryOf } from './opportunity-owners'
 import { ACCEPTOR_NAME } from './opportunity.repository'
-import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportunity.schema'
+import { opportunity, opportunityOwner } from './opportunity.schema'
 
 /** What a lead hand-over does to that lead's deals (ADR 0069 §10), inside the
  *  hand-over's own transaction.
@@ -23,13 +23,13 @@ import { opportunity, opportunityOwner, type OpportunityRowDb } from './opportun
  *  is a 400 on `dealCodes`. A chosen deal is left behind — with a timeline row
  *  saying why — when a sign request waits on it (the approver read those
  *  owners). A target who cannot hold a deal refuses the whole hand-over.
- *
  *  A plain function over `tx`: the lead module calls it, and an
  *  `OpportunityModule` provider there would be a module cycle. The deals are
  *  locked AFTER the lead — the order the stop door takes. It rings nothing:
- *  the lead's own line counts the deals that moved. */
+ *  the lead's own line counts the deals that moved. `handDealsOverMany` is the
+ *  same act for many leads (a leaver's), one statement per step. */
 
-type Person = {
+export type Person = {
   code: string
   id: string
   name: string
@@ -38,22 +38,32 @@ type Person = {
   roleIds: RoleId[]
 }
 
-export async function handDealsOver(
+type HandMove = {
+  from: TouchHolder
+  to: TouchHolder
+  /** The target passes `opportunity.view` through E2 — asked by the caller
+   *  before the tx, since the actor book reads on the pool. */
+  toSeesDeals: boolean
+  by: { by: string; actorId?: string }
+  note: string
+  /** The user's choice; absent = every eligible deal. */
+  dealCodes?: readonly string[]
+}
+
+export function handDealsOver(
   tx: Db,
   deps: { mirror: ObjectMirror; touch: TouchService },
-  move: {
-    leadCode: string
-    from: TouchHolder
-    to: TouchHolder
-    /** The target passes `opportunity.view` through E2 — asked by the caller
-     *  before the tx, since the actor book reads on the pool. */
-    toSeesDeals: boolean
-    by: { by: string; actorId?: string }
-    note: string
-    /** The user's choice; absent = every eligible deal. */
-    dealCodes?: readonly string[]
-  },
+  { leadCode, ...move }: HandMove & { leadCode: string },
 ): Promise<{ moved: string[] }> {
+  return handDealsOverMany(tx, deps, { ...move, leadCodes: [leadCode] })
+}
+
+export async function handDealsOverMany(
+  tx: Db,
+  deps: { mirror: ObjectMirror; touch: TouchService },
+  move: HandMove & { leadCodes: readonly string[] },
+): Promise<{ moved: string[] }> {
+  if (move.leadCodes.length === 0) return { moved: [] }
   const rows = await tx
     .select({
       row: opportunity,
@@ -63,7 +73,7 @@ export async function handDealsOver(
     .from(opportunity)
     .where(
       and(
-        eq(opportunity.leadCode, move.leadCode),
+        inArray(opportunity.leadCode, [...move.leadCodes]),
         dealOpen(opportunity.code, opportunity.state),
         exists(
           tx
@@ -79,7 +89,7 @@ export async function handDealsOver(
         ),
       ),
     )
-    .orderBy(opportunity.code)
+    .orderBy(opportunity.leadCode, opportunity.code)
     .for('update')
   const strays = (move.dealCodes ?? []).filter((c) => !rows.some((r) => r.row.code === c))
   if (strays.length > 0) {
@@ -112,26 +122,22 @@ export async function handDealsOver(
   const moving = chosen.filter((r) => !skipped.has(r.row.code))
   await swapSale(
     tx,
-    moving.map((r) => r.row),
+    moving.map((r) => r.row.code),
     move,
   )
 
-  const after = await peopleOf(
-    tx,
-    moving.map((r) => r.row.code),
+  const after = groupByCode(
+    await peopleOf(
+      tx,
+      moving.map((r) => r.row.code),
+    ),
   )
   /* The mirror row names the holder AFTER the swap — `holderOf`, not the new
      holder blindly: a deal may keep another Sale ahead of them. */
   await deps.mirror.putMany(
     tx,
     moving.map(({ row, acceptorName }) =>
-      toRef(
-        row,
-        holderOf(
-          after.filter((p) => p.code === row.code),
-          acceptorOf(row, acceptorName),
-        ),
-      ),
+      toRef(row, holderOf(after.get(row.code) ?? [], acceptorOf(row, acceptorName))),
     ),
   )
   await deps.touch.record(tx, [
@@ -159,16 +165,15 @@ export async function handDealsOver(
 
 async function swapSale(
   tx: Db,
-  deals: readonly OpportunityRowDb[],
+  codes: readonly string[],
   move: { from: TouchHolder; to: TouchHolder },
 ): Promise<void> {
-  if (deals.length === 0) return
-  const codes = deals.map((r) => r.code)
+  if (codes.length === 0) return
   const gone = await tx
     .delete(opportunityOwner)
     .where(
       and(
-        inArray(opportunityOwner.opportunityCode, codes),
+        inArray(opportunityOwner.opportunityCode, [...codes]),
         eq(opportunityOwner.actorId, move.from.actorId),
         eq(opportunityOwner.role, 'SALE'),
       ),
@@ -189,25 +194,51 @@ async function swapSale(
   /* The taker inherits the giver's primary seat when fit for it, and a lane
      left without a primary gets one — `salePrimaryOf` judges both. Clear, then
      set: the one-primary index is checked per row. */
-  const after = await peopleOf(tx, codes)
-  for (const code of codes) {
-    const lane = after.filter((p) => p.code === code && p.role === 'SALE')
+  const after = groupByCode(await peopleOf(tx, codes))
+  const fixes = codes.flatMap((code) => {
+    const lane = (after.get(code) ?? []).filter((p) => p.role === 'SALE')
     const stored = primaryOf(lane)
     const next = salePrimaryOf(lane, wasPrimary.has(code) ? move.to.actorId : stored)
-    if (next === stored || next === null) continue
-    const onDeal = eq(opportunityOwner.opportunityCode, code)
-    await tx.update(opportunityOwner).set({ isPrimary: false }).where(onDeal)
+    return next === stored || next === null ? [] : [{ code, next }]
+  })
+  if (fixes.length > 0) {
     await tx
       .update(opportunityOwner)
-      .set({ isPrimary: true })
-      .where(and(onDeal, eq(opportunityOwner.actorId, next), eq(opportunityOwner.role, 'SALE')))
+      .set({ isPrimary: false })
+      .where(
+        inArray(
+          opportunityOwner.opportunityCode,
+          fixes.map((f) => f.code),
+        ),
+      )
+    await tx.execute(sql`
+      UPDATE ${opportunityOwner} SET "is_primary" = true
+        FROM (VALUES ${sql.join(
+          fixes.map((f) => sql`(${f.code}, ${f.next})`),
+          sql`, `,
+        )}) AS fix("code", "actor_id")
+       WHERE ${opportunityOwner.opportunityCode} = fix."code"
+         AND ${opportunityOwner.actorId} = fix."actor_id"
+         AND ${opportunityOwner.role} = 'SALE'`)
   }
-  for (const { code } of deals) {
-    await handStepOver(tx, code, move.from.actorId, move.to.actorId)
-  }
+  /* Same rule as `handStepOver`, one UPDATE for every deal. */
+  await tx
+    .update(nextStep)
+    .set({ doerId: move.to.actorId, updatedAt: sql`now()` })
+    .where(and(inArray(nextStep.subjectCode, [...codes]), eq(nextStep.doerId, move.from.actorId)))
 }
 
-async function peopleOf(tx: Db, codes: readonly string[]): Promise<Person[]> {
+const groupByCode = (people: readonly Person[]): Map<string, Person[]> => {
+  const byCode = new Map<string, Person[]>()
+  for (const p of people) {
+    const lane = byCode.get(p.code)
+    if (lane) lane.push(p)
+    else byCode.set(p.code, [p])
+  }
+  return byCode
+}
+
+export async function peopleOf(tx: Db, codes: readonly string[]): Promise<Person[]> {
   if (codes.length === 0) return []
   return tx
     .select({

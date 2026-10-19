@@ -19,13 +19,13 @@ import {
 import { announceAccepted, announceOwners } from './opportunity-bell'
 import {
   actorRoles,
-  assertSellers,
-  lanePeople,
+  actorsByIds,
+  assertSellersIn,
   primaryOf,
   recordSaleLane,
   salePrimaryOf,
 } from './opportunity-owners'
-import { holderOf, type RefOwner } from './opportunity.mapper'
+import { daysInStageOf, holderOf, type RefOwner } from './opportunity.mapper'
 import { OpportunityFacts } from './opportunity-facts'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -64,34 +64,27 @@ export class OpportunityAccept {
     /* Who opened the deal: the `by` of its entry stage event, the oldest row.
        Read before the tx on the pool — it never changes. Bell-only, so a
        failure skips the opener's line, never the accept. */
-    const opener = await this.deals.stageEventsOf(code).then(
-      (rows) => rows.at(-1)?.byId,
-      (error: unknown) => {
-        this.log.error(`Opener of ${code} was not read: ${String(error)}`)
-        return undefined
-      },
-    )
+    const opener = await this.deals.openerOf(code).catch((error: unknown) => {
+      this.log.error(`Opener of ${code} was not read: ${String(error)}`)
+      return null
+    })
 
-    await this.deals.run(async (tx) => {
-      const lock = await this.deals.lockDeal(tx, code)
-      const found = lock ? await this.deals.byCode(null, code, tx) : null
-      if (!lock || !found) throw notFound('cơ hội', code)
-      const verdict = acceptVerdict(found, lock.pendingSign)
+    const answered = await this.deals.run(async (tx) => {
+      const found = await this.deals.lockedByCode(null, code, tx)
+      if (!found) throw notFound('cơ hội', code)
+      const verdict = acceptVerdict(found, found.pendingSign)
       if (!verdict.ok) throw conflict(verdict.reason)
 
       /* Union, never replace: accepting must not drop someone already on the
          deal. Only ids new to the SALE lane are judged as sellers. */
       const onSale = new Set(found.owners.filter((o) => o.role === 'SALE').map((o) => o.id))
       const addedIds = (body.saleOwners ?? []).filter((id) => !onSale.has(id))
-      await assertSellers(tx, addedIds)
+      const actors = await actorsByIds(tx, [...onSale, ...addedIds])
+      assertSellersIn(actors, addedIds)
       /* The primary is judged on the MERGED lane: the body may name someone
          already standing on it (ADR 0086). */
       const before = primaryOf(found.owners)
-      const salePrimary = salePrimaryOf(
-        await lanePeople(tx, [...onSale, ...addedIds]),
-        before,
-        body.salePrimary,
-      )
+      const salePrimary = salePrimaryOf(actors, before, body.salePrimary)
       await this.deals.addOwners(
         tx,
         (body.saleOwners ?? []).map((actorId) => ({
@@ -101,7 +94,9 @@ export class OpportunityAccept {
         })),
       )
       if (salePrimary !== before) await this.deals.setSalePrimary(tx, code, salePrimary)
-      const fresh = (await this.deals.byCode(null, code, tx)) ?? found
+      /* The people are re-read only when this door wrote some. */
+      const wrote = (body.saleOwners?.length ?? 0) > 0 || salePrimary !== before
+      const fresh = wrote ? ((await this.deals.byCode(null, code, tx)) ?? found) : found
       const owner = await this.holderAfter(tx, fresh, by)
       const moved = await this.lifecycle.assigned(
         tx,
@@ -136,11 +131,17 @@ export class OpportunityAccept {
       if (opener && !after.includes(opener)) {
         await this.tellOpener(tx, { code, label, actorId: who.id }, opener, fresh.row.leadCode)
       }
+      /* The move changed only the row, the acceptor, and so the holder. */
+      return {
+        ...fresh,
+        row: moved,
+        acceptedBy: by,
+        holder: owner,
+        daysInStage: daysInStageOf(moved, at),
+      }
     })
 
-    const read = await this.deals.byCode(null, code)
-    if (!read) throw notFound('cơ hội', code)
-    return OpportunityAcceptResponse.parse(await this.facts.row(read))
+    return OpportunityAcceptResponse.parse(await this.facts.row(answered))
   }
 
   /** An opener off the deal may not open it: they hear it on the lead (ADR

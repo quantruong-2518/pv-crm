@@ -1,4 +1,4 @@
-import { and, arrayContains, asc, eq, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, arrayContains, asc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiMetricDef, KpiMetricKey, KpiScope, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -24,8 +24,10 @@ import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
  *  switched off takes its deals and contracts with it (`leadLive`), spelled
  *  `LIVE` here because the builder's `lead` cannot carry an alias. */
 
-/** Appends "and only this actor" on `me`; nothing when the whole room is read. */
+/** Appends "and only these actors"; nothing when the whole room is read. */
 export type Only = (column: SQL) => SQL
+/** One actor (`me`), a set (a team), or `undefined` for the whole room. */
+export type Actors = string | readonly string[]
 type Basis = (only: Only) => SQL
 /** `total` folds the basis rows, aliased `b`, into the one figure. */
 export type KpiMetricSql = { basis: Basis; total: SQL }
@@ -72,12 +74,13 @@ const OVERDUE = sql`FROM sales.contract_installment i
 /** An installment has no code of its own; `contract/no` is its page's address. */
 const INSTALLMENT = sql`'installment' AS kind, k.code || '/' || i.no AS code`
 
-/** A meeting or debrief hangs off a lead (`LD-`) or a deal (`OP-`); either
- *  way it is off when that lead is switched off. */
+/** A meeting or debrief hangs off a lead (`LD-`), a deal (`OP-`) or, for a
+ *  debrief, a contract; either way it is off when that lead is switched off. */
 const subjectLive = (subject: SQL): SQL => sql`NOT EXISTS (
   SELECT 1 FROM sales.lead sl
    WHERE sl.disabled_at IS NOT NULL AND sl.code = COALESCE(
-     (SELECT so.lead_code FROM sales.opportunity so WHERE so.code = ${subject}), ${subject}))`
+     (SELECT so.lead_code FROM sales.opportunity so WHERE so.code = ${subject}),
+     (SELECT sk.lead_code FROM sales.contract sk WHERE sk.code = ${subject}), ${subject}))`
 
 /** The marketing cohort: leads created in the period, by who sourced them. */
 const sourced =
@@ -302,10 +305,23 @@ export function metricSql(seat: KpiSeat): KpiMetricSql {
   return found
 }
 
+const idsOf = (actors?: Actors): readonly string[] | undefined =>
+  typeof actors === 'string' ? (actors ? [actors] : undefined) : actors
+
+/** `IN (...)` over bound parameters: drizzle cannot bind an array to `= ANY`. A
+ *  single actor keeps the plain `=` it always had. */
 export const onlyFor =
-  (actorId?: string): Only =>
-  (column) =>
-    actorId ? sql` AND ${column} = ${actorId}` : sql``
+  (actors?: Actors): Only =>
+  (column) => {
+    const ids = idsOf(actors)
+    if (!ids) return sql``
+    if (ids.length === 1) return sql` AND ${column} = ${ids[0]}`
+    if (ids.length === 0) return sql` AND false`
+    return sql` AND ${column} IN (${sql.join(
+      ids.map((id) => sql`${id}`),
+      sql`, `,
+    )})`
+  }
 
 /** `body` under the month's Vietnam-day edges, the `span` every basis reads.
  *  `as_of` is the last Vietnam day a snapshot figure is read at: today for the
@@ -320,14 +336,22 @@ export const spanned = (span: PeriodSpan, body: SQL): SQL => sql`
 
 export type KpiValues = ReadonlyMap<string, number | null>
 
+/** What a caller already read, so `monthValues` need not read it again. */
+export type KpiKnown = { closed?: boolean; people?: readonly { id: string }[] }
+
+export type KpiPerson = Pick<typeof actor.$inferSelect, 'id' | 'name' | 'roleIds'>
+
+/** Enabled and licensed for the branch. */
+const salesPeople = and(isNull(actor.disabledAt), arrayContains(actor.branches, ['Sales']))
+
 @Injectable()
 export class KpiReadingsRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   /** The figures behind `defs` for one month, in one statement. An actor with
    *  no row is absent from the map — what absence means is the mapper's call. */
-  async values(seats: readonly KpiSeat[], span: PeriodSpan, actorId?: string): Promise<KpiValues> {
-    const only = onlyFor(actorId)
+  async values(seats: readonly KpiSeat[], span: PeriodSpan, actors?: Actors): Promise<KpiValues> {
+    const only = onlyFor(actors)
     const wanted = new Map(seats.map((s) => [seriesKey(s), s]))
     const parts = [...wanted.values()].map((s) => {
       const { basis, total } = metricSql(s)
@@ -357,27 +381,41 @@ export class KpiReadingsRepository {
   async monthValues(
     seats: readonly KpiSeat[],
     span: PeriodSpan,
-    actorId?: string,
+    actors?: Actors,
+    known: KpiKnown = {},
   ): Promise<KpiValues> {
-    const [closed] = await this.db
-      .select({ period: kpiMonthClose.period })
-      .from(kpiMonthClose)
-      .where(eq(kpiMonthClose.period, span.key))
-    if (!closed) return this.values(seats, span, actorId)
+    if (seats.length === 0) return new Map()
+    const closed =
+      known.closed ??
+      (
+        await this.db
+          .select({ period: kpiMonthClose.period })
+          .from(kpiMonthClose)
+          .where(eq(kpiMonthClose.period, span.key))
+      ).length > 0
+    if (!closed) return this.values(seats, span, actors)
 
+    const ids = idsOf(actors)
     const rows = await this.db
       .select()
       .from(kpiMonthValue)
       .where(
         and(
           eq(kpiMonthValue.period, span.key),
-          actorId
-            ? or(eq(kpiMonthValue.actorId, actorId), isNull(kpiMonthValue.actorId))
+          ids
+            ? or(inArray(kpiMonthValue.actorId, [...ids]), isNull(kpiMonthValue.actorId))
             : undefined,
         ),
       )
-    /* Explicit nulls first: the mapper reads an absent key as a live zero. */
-    const actorIds = actorId ? [actorId] : (await this.people()).map((p) => p.id)
+    /* Explicit nulls first: the mapper reads an absent key as a live zero. A
+       list gets them only for those still on the roster, as the whole room did. */
+    const roster = async () => (known.people ?? (await this.people())).map((p) => p.id)
+    const actorIds =
+      typeof actors === 'string' && actors
+        ? [actors]
+        : seats.some((s) => s.def.scope !== 'room')
+          ? (await roster()).filter((id) => !ids || ids.includes(id))
+          : []
     const values = new Map<string, number | null>(
       seats.flatMap((seat) =>
         (seat.def.scope === 'room' ? [''] : actorIds).map((id): [string, null] => [
@@ -396,11 +434,20 @@ export class KpiReadingsRepository {
   }
 
   /** Everyone a Sales scorecard can belong to: enabled and licensed for the branch. */
-  people(): Promise<Pick<typeof actor.$inferSelect, 'id' | 'name' | 'roleIds'>[]> {
+  people(): Promise<KpiPerson[]> {
     return this.db
       .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
       .from(actor)
-      .where(and(isNull(actor.disabledAt), arrayContains(actor.branches, ['Sales'])))
+      .where(salesPeople)
       .orderBy(asc(actor.name))
+  }
+
+  /** One of `people()`, by id. */
+  async person(id: string): Promise<KpiPerson | undefined> {
+    const [row] = await this.db
+      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
+      .from(actor)
+      .where(and(eq(actor.id, id), salesPeople))
+    return row
   }
 }

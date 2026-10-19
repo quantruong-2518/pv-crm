@@ -7,6 +7,7 @@ import {
   KpiPeopleResponse,
   KpiTargetsResponse,
   type KpiAgreeBody,
+  type KpiMonthClose,
   type KpiPeriodKey,
   type KpiProposeBody,
   type KpiScorecard,
@@ -20,11 +21,12 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
 import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
+import type { KpiPeriodContext } from './kpi-allocation.service'
 import { targetSources } from './kpi-allocation.mapper'
 import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
-import { KpiReadingsRepository } from './kpi-readings.repository'
+import { KpiReadingsRepository, type Actors } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
@@ -52,11 +54,11 @@ export class KpiService {
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
     const holder = { id: who.id, roleIds: who.roleIds.map(toContractRole) }
-    const cards = await this.scorecards(period, [holder], who.id)
+    const { cards, monthClose } = await this.scorecards(period, [holder], who.id)
     return KpiMeResponse.parse({
       period,
       closed: monthClock(period).phase === 'closed',
-      monthClose: await this.closes.of(period),
+      monthClose,
       scorecards: cards.get(who.id),
     })
   }
@@ -66,11 +68,13 @@ export class KpiService {
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
     const catalog = await this.config.effectiveCatalog()
     const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
-    const [values, rows, tolerance, monthClose] = await Promise.all([
-      this.readings.monthValues(seats, spansOf(period).current),
+    const monthClose = await this.closes.of(period)
+    const [values, rows, tolerance] = await Promise.all([
+      this.readings.monthValues(seats, spansOf(period).current, undefined, {
+        closed: monthClose !== null,
+      }),
       this.targets.ofPeriod(period),
       this.config.tolerance(),
-      this.closes.of(period),
     ])
     const ctx = this.context(period, catalog, values, rows, tolerance)
     return KpiCompanyResponse.parse({
@@ -81,15 +85,25 @@ export class KpiService {
   }
 
   /** `only` keeps those people's cards: a team's lead reads their members
-   *  through this same code, so a member's card cannot differ from the room's. */
-  async people(period: KpiPeriodKey, only?: ReadonlySet<string>): Promise<KpiPeopleResponse> {
-    const people = (await this.readings.people())
+   *  through this same code, so a member's card cannot differ from the room's.
+   *  `loaded` is what the caller has already read for this request. */
+  async people(
+    period: KpiPeriodKey,
+    only?: ReadonlySet<string>,
+    loaded?: KpiPeriodContext,
+  ): Promise<KpiPeopleResponse> {
+    const people = (loaded?.tier.people ?? (await this.readings.people()))
       .filter((p) => !only || only.has(p.id))
       .map((p) => ({ ...p, roleIds: p.roleIds.map(toContractRole) }))
-    const cards = await this.scorecards(period, people)
+    const { cards, monthClose } = await this.scorecards(
+      period,
+      people,
+      only && people.map((p) => p.id),
+      loaded,
+    )
     return KpiPeopleResponse.parse({
       period,
-      monthClose: await this.closes.of(period),
+      monthClose,
       people: people.map((p) => ({
         actorId: p.id,
         name: p.name,
@@ -209,25 +223,31 @@ export class KpiService {
   private async scorecards(
     period: KpiPeriodKey,
     holders: readonly Holder[],
-    only?: string,
-  ): Promise<Map<string, KpiScorecard[]>> {
-    const catalog = await this.config.effectiveCatalog()
+    only?: Actors,
+    loaded?: KpiPeriodContext,
+  ): Promise<{ cards: Map<string, KpiScorecard[]>; monthClose: KpiMonthClose }> {
+    const [catalog, monthClose] = loaded
+      ? [loaded.catalog, loaded.monthClose]
+      : await Promise.all([this.config.effectiveCatalog(), this.closes.of(period)])
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
     const [values, rows, acks, lines, tolerance] = await Promise.all([
-      this.readings.monthValues(seats, spansOf(period).current, only),
-      this.targets.ofPeriod(period),
+      this.readings.monthValues(seats, spansOf(period).current, only, {
+        closed: monthClose !== null,
+        people: holders,
+      }),
+      loaded?.targetRows ?? this.targets.ofPeriod(period),
       this.targets.acknowledgements(period),
-      this.allocations.agreedLines(period),
-      this.config.tolerance(),
+      this.allocations.agreedLines(period, only),
+      loaded?.tolerance ?? this.config.tolerance(),
     ])
     const base = this.context(period, catalog, values, rows, tolerance)
     const today = vietnamToday()
     const sources = targetSources(rows, lines)
     const ackAt = new Map(acks.map((a) => [`${a.actorId}|${a.role}`, a.acknowledgedAt]))
 
-    return new Map(
+    const cards = new Map(
       holders.map((h) => {
         const ctx = { ...base, slots: sources.slotsFor(h.id) }
         const card = (role: RoleId) =>
@@ -241,6 +261,7 @@ export class KpiService {
         return [h.id, h.roleIds.map(card)]
       }),
     )
+    return { cards, monthClose }
   }
 
   private context(

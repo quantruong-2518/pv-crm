@@ -62,12 +62,12 @@ export type MailRunListRow = Omit<MailRunListRowWire, 'createdBy' | 'mine'> & {
 
 export type MailRunPage = { total: number; hidden: number; rows: MailRunListRow[] }
 
-/** One held later wave whose hour has come, and the letters the gate will
- *  judge — recipients only; the run copy follows them in `release()`. */
+/** One held later wave whose hour has come, and how many recipients the gate
+ *  will judge — a count, because `release()` reads the letters itself. */
 export type DueGatedRun = {
   runId: string
   scheduledAt: Date
-  pending: Array<{ deliveryId: string; aggregateType: string; aggregateId: string }>
+  pendingCount: number
 }
 
 /** What may still be changed on a batch that has not gone out.
@@ -583,40 +583,21 @@ export class MailRunRepository {
     const r = (await this.db.execute(sql`
       SELECT r."id" AS run_id,
              COALESCE(r."scheduled_at", r."created_at") AS scheduled_at,
-             d."id" AS delivery_id, d."aggregate_type", d."aggregate_id"
+             (SELECT count(*) FROM "platform"."email_delivery" d
+               WHERE d."mail_run_id" = r."id" AND d."role" = 'recipient'
+                 AND d."state" = 'pending')::int AS pending_count
         FROM "platform"."mail_run" r
-        LEFT JOIN "platform"."email_delivery" d
-               ON d."mail_run_id" = r."id" AND d."role" = 'recipient' AND d."state" = 'pending'
        WHERE r."awaits_release" AND r."released_at" IS NULL
          AND r."state" IN ('SCHEDULED', 'SENDING')
          AND COALESCE(r."scheduled_at", r."created_at") <= ${now.toISOString()}::timestamptz
-       ORDER BY 2, r."id", d."created_at"
-    `)) as {
-      rows: {
-        run_id: string
-        scheduled_at: Date | string
-        delivery_id: string | null
-        aggregate_type: string | null
-        aggregate_id: string | null
-      }[]
-    }
+       ORDER BY 2, r."id"
+    `)) as { rows: { run_id: string; scheduled_at: Date | string; pending_count: number }[] }
 
-    const runs = new Map<string, DueGatedRun>()
-    for (const row of r.rows) {
-      let run = runs.get(row.run_id)
-      if (!run) {
-        run = { runId: row.run_id, scheduledAt: new Date(row.scheduled_at), pending: [] }
-        runs.set(row.run_id, run)
-      }
-      if (row.delivery_id && row.aggregate_type && row.aggregate_id) {
-        run.pending.push({
-          deliveryId: row.delivery_id,
-          aggregateType: row.aggregate_type,
-          aggregateId: row.aggregate_id,
-        })
-      }
-    }
-    return [...runs.values()]
+    return r.rows.map((row) => ({
+      runId: row.run_id,
+      scheduledAt: new Date(row.scheduled_at),
+      pendingCount: Number(row.pending_count),
+    }))
   }
 
   /** OPEN ONE GATE, AS ONE STATEMENT — the only writer of `released_at`.
@@ -808,6 +789,8 @@ export class MailRunRepository {
    *  suppressed one always are — and summing the passes would report two runs
    *  where there is one. */
   async sweepStates(finished?: (tx: Db, runs: RunClosed[]) => Promise<void>): Promise<number> {
+    if (!(await this.anyRunIn(['SCHEDULED', 'SENDING']))) return 0
+
     const started = (await this.db.execute(sql`
       UPDATE "platform"."mail_run" AS r
          SET "state" = 'SENDING',
@@ -920,11 +903,25 @@ export class MailRunRepository {
     opts: { ceilingPercent: number; minSample: number },
     tripped?: (tx: Db, trips: BounceTrip[]) => Promise<void>,
   ): Promise<BounceTrip[]> {
+    if (!(await this.anyRunIn(['SENDING']))) return []
+
     return this.db.transaction(async (tx) => {
       const trips = await this.trip(tx, opts)
       if (trips.length > 0) await tripped?.(tx, trips)
       return trips
     })
+  }
+
+  /** The idle-tick guard: the sweeps below touch only runs in these states, and
+   *  an `EXISTS` costs one read where opening a transaction costs a round trip
+   *  or more on a worker that is mostly idle. */
+  private async anyRunIn(states: Array<'SCHEDULED' | 'SENDING'>): Promise<boolean> {
+    const r = (await this.db.execute(sql`
+      SELECT EXISTS (
+        SELECT 1 FROM "platform"."mail_run" WHERE "state" IN (${params(states)})
+      ) AS found
+    `)) as { rows: { found: boolean }[] }
+    return r.rows[0]?.found === true
   }
 
   private async trip(

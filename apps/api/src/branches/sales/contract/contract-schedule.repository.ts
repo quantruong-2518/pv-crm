@@ -26,6 +26,12 @@ const ofInstallment = (code: string, no: number) =>
 export class ContractScheduleRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
+  /** The pool, for reads that need no transaction (READ COMMITTED gives a
+   *  transaction's statements no shared snapshot anyway). */
+  get readonlyHandle(): Db {
+    return this.db
+  }
+
   run<T>(work: (tx: Db) => Promise<T>): Promise<T> {
     return this.db.transaction((tx) => work(tx))
   }

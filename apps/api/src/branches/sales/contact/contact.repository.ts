@@ -22,6 +22,7 @@ import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
 import { contact, type ContactRowDb } from './contact.schema'
 import type { ContactValues } from './contact.mapper'
+import { seqCodes } from '../code-seq'
 
 /** A book row loaded with enough context to show its face: the person, the
  *  lead's company, and the real account if the lead has been attached. */
@@ -37,7 +38,12 @@ export type ContactBookRead = {
 const presence = (column: typeof contact.email | typeof contact.phone, flag: '1' | '0') =>
   flag === '1' ? isNotNull(column) : isNull(column)
 
-const NEXT_CODE = sql`SELECT 'CT-' || lpad(nextval('sales.contact_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('CT-', 'sales.contact_code_seq')
+
+const NEXT_CODES = (n: number) => seqCodes('CT-', 'sales.contact_code_seq', n)
+
+/** Rows per INSERT: thirteen-odd columns each, far under the 65,535 bind ceiling. */
+const INSERT_CHUNK = 1000
 
 /** The five columns of `sales.lead` a primary contact mirrors into.
  *
@@ -66,6 +72,15 @@ export class ContactRepository {
     const code = r.rows[0]?.code
     if (!code) throw new Error('sales.contact_code_seq trả về rỗng — migration đã chạy chưa?')
     return code
+  }
+
+  /** `n` codes in one statement on the caller's `tx` (one connection on PGlite). */
+  async nextCodes(db: Db, n: number): Promise<string[]> {
+    const r = (await db.execute(NEXT_CODES(n))) as { rows: { code: string }[] }
+    if (r.rows.length !== n) {
+      throw new Error(`sales.contact_code_seq issued ${r.rows.length}/${n} codes`)
+    }
+    return r.rows.map((x) => x.code)
   }
 
   // ── read ─────────────────────────────────────────────────────────────────
@@ -148,29 +163,30 @@ export class ContactRepository {
     const scope = scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
     const where = and(...this.filtersOf(q), leadLive, scope)
 
-    const rows = await this.db
-      .select({
-        row: contact,
-        company: lead.company,
-        accountCode: lead.accountCode,
-        accountName: account.name,
-        ownerName: actor.name,
-        ownerEmail: actor.email,
-      })
-      .from(contact)
-      .innerJoin(lead, eq(lead.code, contact.leadCode))
-      .leftJoin(account, eq(account.code, lead.accountCode))
-      .leftJoin(actor, eq(actor.id, lead.ownerId))
-      .where(where)
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
-
-    const [tally] = await this.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(contact)
-      .innerJoin(lead, eq(lead.code, contact.leadCode))
-      .where(where)
+    const [rows, [tally]] = await Promise.all([
+      this.db
+        .select({
+          row: contact,
+          company: lead.company,
+          accountCode: lead.accountCode,
+          accountName: account.name,
+          ownerName: actor.name,
+          ownerEmail: actor.email,
+        })
+        .from(contact)
+        .innerJoin(lead, eq(lead.code, contact.leadCode))
+        .leftJoin(account, eq(account.code, lead.accountCode))
+        .leftJoin(actor, eq(actor.id, lead.ownerId))
+        .where(where)
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size),
+      this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(contact)
+        .innerJoin(lead, eq(lead.code, contact.leadCode))
+        .where(where),
+    ])
 
     return { rows, total: tally?.n ?? 0 }
   }
@@ -288,6 +304,12 @@ export class ContactRepository {
     const [written] = await tx.insert(contact).values(row).returning()
     if (!written) throw new Error(`sales.contact: INSERT ${row.code} không trả về dòng nào`)
     return written
+  }
+
+  async insertMany(tx: Db, rows: readonly (ContactValues & { code: string })[]): Promise<void> {
+    for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+      await tx.insert(contact).values(rows.slice(i, i + INSERT_CHUNK))
+    }
   }
 
   async patch(tx: Db, code: string, values: Partial<ContactValues>): Promise<ContactRowDb | null> {

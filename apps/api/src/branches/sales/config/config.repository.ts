@@ -101,7 +101,7 @@ export class SalesConfigRepository {
    *  builder is three times as long and nobody can read what it counts. Same
    *  reason `graph.repository.ts` writes its recursive CTE by hand.
    *
-   *  The six `slots` branches copy the six summands of the generated column
+   *  The six `slots` counts copy the six summands of the generated column
    *  `sales.lead.required_filled` (`lead.schema.ts`) EXACTLY — not for
    *  resemblance, but because that column IS the definition of "this slot was
    *  filled". Change one side and forget the other and these six numbers stop
@@ -205,35 +205,28 @@ export class SalesConfigRepository {
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL
-      SELECT 'slots', '1', count(*)::int FROM sales.lead
-       WHERE (legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL)
-         AND disabled_at IS NULL
-      UNION ALL
-      SELECT 'slots', '2', count(*)::int FROM sales.lead
-       WHERE main_product IS NOT NULL AND disabled_at IS NULL
-      UNION ALL
-      SELECT 'slots', '3', count(*)::int FROM sales.lead
-       WHERE (headcount IS NOT NULL OR plants IS NOT NULL) AND disabled_at IS NULL
-      UNION ALL
-      SELECT 'slots', '4', count(*)::int FROM sales.lead
-       WHERE contact_title IS NOT NULL AND disabled_at IS NULL
-      UNION ALL
-      SELECT 'slots', '5', count(*)::int FROM sales.lead
-       WHERE (phone IS NOT NULL OR contact_channel IS NOT NULL) AND disabled_at IS NULL
-      UNION ALL
-      SELECT 'slots', '6', count(*)::int FROM sales.lead
-       WHERE pain IS NOT NULL AND disabled_at IS NULL
+      /* Six slots and early-stage leads: one pass over sales.lead, each count a
+         FILTER copied verbatim, unpivoted into the seven rows (zeros too). Early =
+         the five open states (ADR 0058) and every tier but 'sql'. */
+      SELECT v.bucket, v.key, v.n FROM (
+        SELECT
+          (count(*) FILTER (WHERE (legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL)))::int AS slot1,
+          (count(*) FILTER (WHERE main_product IS NOT NULL))::int AS slot2,
+          (count(*) FILTER (WHERE (headcount IS NOT NULL OR plants IS NOT NULL)))::int AS slot3,
+          (count(*) FILTER (WHERE contact_title IS NOT NULL))::int AS slot4,
+          (count(*) FILTER (WHERE (phone IS NOT NULL OR contact_channel IS NOT NULL)))::int AS slot5,
+          (count(*) FILTER (WHERE pain IS NOT NULL))::int AS slot6,
+          (count(*) FILTER (WHERE state IN (${OPEN_STATES}) AND tier IS DISTINCT FROM 'sql'))::int AS early
+          FROM sales.lead WHERE disabled_at IS NULL
+      ) c
+      CROSS JOIN LATERAL (VALUES
+        ('slots', '1', c.slot1), ('slots', '2', c.slot2), ('slots', '3', c.slot3),
+        ('slots', '4', c.slot4), ('slots', '5', c.slot5), ('slots', '6', c.slot6),
+        ('earlyStageLeads', '', c.early)
+      ) AS v(bucket, key, n)
       UNION ALL
       SELECT 'signedDeals', '', count(DISTINCT c.lead_code)::int FROM sales.contract c
         JOIN sales.lead l ON l.code = c.lead_code AND l.disabled_at IS NULL
-      UNION ALL
-      /* Still open = the five open states of ADR 0058, the book's default tab.
-         Early tiers = every tier but 'sql'.
-         No backticks inside this block: one would close the template literal. */
-      SELECT 'earlyStageLeads', '', count(*)::int FROM sales.lead l
-       WHERE l.state IN (${OPEN_STATES})
-         AND l.tier IS DISTINCT FROM 'sql'
-         AND l.disabled_at IS NULL
     `)) as unknown as { rows: UsageTally[] }
 
     return result.rows

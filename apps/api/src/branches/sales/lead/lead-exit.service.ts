@@ -19,7 +19,6 @@ import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LEAD_NOTE } from './lead-write.mapper'
-import { LeadRepository } from './lead.repository'
 import { LeadService } from './lead.service'
 import { LEAD_GONE_WORDS, LeadStateWriter, stateByWork, stateOnReopen } from './lead-state'
 import { LeadWriteRepository } from './lead-write.repository'
@@ -44,7 +43,6 @@ export const movesLead = (who: Pick<Actor, 'id' | 'ownOnly'>, ownerId: string | 
 export class LeadExitService {
   constructor(
     private readonly repo: LeadWriteRepository,
-    private readonly leads: LeadRepository,
     private readonly profiles: LeadService,
     private readonly touch: TouchService,
     private readonly states: LeadStateWriter,
@@ -59,8 +57,6 @@ export class LeadExitService {
    *  for this short second press. It records every valid call and, being a real
    *  exchange, moves `assigned|verifying|nurturing` → `working` (ADR 0068). */
   async contacted(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    await this.inScope(who, code)
-
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') {
@@ -79,8 +75,6 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/exit` — from any open state, or from `converted`
    *  once its deals are lost (how a run closes LOST). */
   async exit(who: Actor, code: ObjectCode, body: LeadExitBody): Promise<LeadProfile> {
-    const label = (await this.inScope(who, code)).row.company
-
     const gone = await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       if (held.state === 'disqualified') throw conflict(`Lead ${code} đã rời phễu.`)
@@ -88,7 +82,7 @@ export class LeadExitService {
         throw conflict(`Lead ${code} còn cơ hội đang mở. Đóng cơ hội trước.`)
       }
       if (held.signed) throw conflict(`Lead ${code} đã ký hợp đồng, không rời phễu được.`)
-      return this.disqualify(tx, who, code, { ...held, label }, body)
+      return this.disqualify(tx, who, code, { ...held, label: held.company }, body)
     })
     await this.meetings.forgetCancelled(gone)
 
@@ -149,10 +143,9 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/reopen` — the state is recomputed from facts
    *  (`stateOnReopen`), not restored. */
   async reopen(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    const label = (await this.inScope(who, code)).row.company
-
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
+      const label = held.company
       if (held.state !== 'disqualified') {
         throw conflict(`Lead ${code} chưa rời phễu.`)
       }
@@ -174,8 +167,6 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/nurture` — `assigned|verifying|working`, or
    *  `converted` with no open deal and nothing signed, → `nurturing` (ADR 0097 §1). */
   async nurture(who: Actor, code: ObjectCode, body: LeadNurtureBody): Promise<LeadProfile> {
-    await this.inScope(who, code)
-
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
       await this.park(tx, who, code, held, body)
@@ -232,10 +223,9 @@ export class LeadExitService {
    *  was ever logged, else back to `verifying`. Nurture is only reachable from
    *  those two, so `verifying` is the floor. */
   async resume(who: Actor, code: ObjectCode): Promise<LeadProfile> {
-    const label = (await this.inScope(who, code)).row.company
-
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)
+      const label = held.company
       if (held.state !== 'nurturing') {
         throw conflict(
           `Lead ${code} không ở “${LEAD_STATE_LABEL.nurturing}” nên không chăm lại được.`,
@@ -304,26 +294,15 @@ export class LeadExitService {
     }
   }
 
-  /** The same two refusals, in the same words, as `LeadWriteService.patch`.
-   *  Public: the hold doors are scoped exactly like this door. */
-  async inScope(who: Actor, code: ObjectCode) {
-    const found = await this.leads.byCode(who, code)
-    if (!found) throw notFound('lead', code)
-    if (!found.holds) {
-      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    }
-    return found
-  }
-
-  /** The row under lock, with scope re-checked ON it: `inScope` read the pool
-   *  before the tx, and a lead handed away since then must not be moved by an
-   *  `ownOnly` actor who no longer holds it. Public for the hold doors. */
+  /** The row under lock, judged ON it: the same two refusals, in the same words,
+   *  as `LeadWriteService.patch` — 404 for no live lead, 403 for an `ownOnly`
+   *  actor who does not hold it. The only scope check these doors make, so a
+   *  lead handed away meanwhile is refused. Public for the hold and label doors.
+   *  Only a lead the caller moves is locked; the 404/403 split is read after. */
   async lockRow(tx: Db, who: Actor, code: ObjectCode): Promise<LockedLead> {
-    const row = await this.repo.lockForMove(tx, code)
-    if (!row) throw notFound('lead', code)
-    if (!movesLead(who, row.ownerId)) {
-      throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    }
-    return row
+    const row = await this.repo.lockForMove(tx, code, who)
+    if (row) return row
+    if (!(await this.repo.isLive(tx, code))) throw notFound('lead', code)
+    throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
   }
 }

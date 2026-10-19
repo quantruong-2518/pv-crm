@@ -31,6 +31,7 @@ import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunityMailSentHook } from './opportunity-mail-sent.hook'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { LeadAfterStopRule } from './opportunity-stop-lead'
+import { OpportunityImportRepository } from './opportunity-import.repository'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
 import { OpportunityOpening } from './opportunity-opening.service'
 import { OpportunitySign } from './opportunity-sign.service'
@@ -119,6 +120,7 @@ import { OpportunityService } from './opportunity.service'
     OpportunityAccept,
     OpportunityAssign,
     OpportunityOpening,
+    OpportunityImportRepository,
     OpportunityOpenRepository,
     OpportunityFacts,
     OpportunityFactsRepository,

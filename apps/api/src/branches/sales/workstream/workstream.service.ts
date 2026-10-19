@@ -146,10 +146,11 @@ export class WorkstreamService {
     const dealCodes = deals.map((d) => d.code)
     const stopKeys = deals.flatMap((d) => (d.stopReason === null ? [] : [d.stopReason]))
 
-    const [rows, steps, today] = await Promise.all([
+    const [rows, steps, today, acceptors] = await Promise.all([
       this.lanes.lanesOf(found.lead.code, dealCodes, stopKeys),
       this.steps.stepsOf(dealCodes),
       this.steps.today(),
+      this.repo.dealAcceptorsOf(dealCodes),
     ])
 
     return WorkstreamJourneyResponse.parse(
@@ -160,6 +161,7 @@ export class WorkstreamService {
         deals,
         hidden,
         owners,
+        acceptors,
         rows,
         steps,
         stage: stageConfigOf(ladders.stage),

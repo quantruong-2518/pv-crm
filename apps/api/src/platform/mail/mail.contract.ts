@@ -1,5 +1,6 @@
 import type { MailEngagementKind } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
+import type { MailRunRow } from './mail-run.schema'
 import type { MailSent } from './mail-sent.hook'
 
 /** THE SHARED VOCABULARY OF THE MAIL PATH.
@@ -320,6 +321,9 @@ export type DeliveryToSend = {
   /** The latest moment known to precede the first send (delivery, schedule
    *  or release): the idempotency window is measured from here. */
   sendableFrom: Date
+  /** The whole `mail_run` row, read by `claim()` anyway; the MAS composer
+   *  renders from it instead of reading the run a second time. */
+  run: MailRunRow | null
   /** Who pressed send on the run (`mail_run.created_by`); `null` for a one-off. */
   sender: string | null
   /** `mail_run.kind`; `null` for a one-off. A `bulk` letter rings no bell of
@@ -418,42 +422,10 @@ export type MailReply = {
  *  delivery this system sent. */
 export type ReplyOutcome = 'recorded' | 'ignored-duplicate' | 'unknown-delivery'
 
-export interface MailLedger extends MailEnqueue {
-  /** Move `pending`/`delayed` → `sending` and bump the attempt counter.
-   *  Returns null when the row is gone or already past sending, which is what
-   *  makes a redelivered job harmless. */
-  claim(deliveryId: string): Promise<DeliveryToSend | null>
-  /** `then.run` rides the accept's transaction, up to `then.attempts` times,
-   *  each under a fresh savepoint: a failure rolls back only its own writes,
-   *  and the last one comes back as the result (else null). A `threadId` means
-   *  Gmail accepted it: `provider` and the thread id are written together. */
-  markAccepted(
-    deliveryId: string,
-    providerEmailId: string,
-    then?: { run: (tx: Db) => Promise<void>; attempts: number },
-    threadId?: string,
-  ): Promise<unknown>
-  /** `dead` parks the row for a human; everything else keeps it retryable.
-   *  `refund` gives back the attempt `claim()` counted — a queue-wide stop. */
-  markFailure(
-    deliveryId: string,
-    failure: MailFailure,
-    opts: { dead: boolean; nextAttemptAt: Date | null; refund?: boolean },
-  ): Promise<void>
-  markSuppressed(deliveryId: string, reason: SuppressionReason): Promise<void>
-  isSuppressed(recipient: string): Promise<boolean>
-  /** Which of `addresses` are blocked right now — one read for a whole group
-   *  letter instead of one `isSuppressed` per address. Normalised form out. */
-  suppressedAmong(addresses: string[]): Promise<string[]>
-  /** Freeze a group letter's surviving set: `dropped` → `dropped_suppressed`,
-   *  the rest stamped, so `addressesFrozen` holds for every later claim. */
-  settleAddresses(deliveryId: string, dropped: string[]): Promise<void>
-  suppress(
-    recipient: string,
-    reason: SuppressionReason,
-    source: 'resend' | 'operator' | 'gmail',
-  ): Promise<void>
-
+/** What comes back after a letter left — webhooks, bounces, opens, replies.
+ *  Its own interface and repository (`MailSignalRepository`), apart from the
+ *  outbox half in `MailLedger`. */
+export interface MailSignals {
   /** A bounce that NAMES its addresses (a Gmail DSN), through the same
    *  per-address step a pinned webhook bounce takes: each named address on
    *  the letter still `queued` is marked `bounced`. An address is suppressed
@@ -511,6 +483,43 @@ export interface MailLedger extends MailEnqueue {
    *  address. A read with no decision in it, so it belongs on the ledger
    *  rather than in the controller. */
   recipientOf(deliveryId: string): Promise<string | null>
+}
+
+export interface MailLedger extends MailEnqueue {
+  /** Move `pending`/`delayed` → `sending` and bump the attempt counter.
+   *  Returns null when the row is gone or already past sending, which is what
+   *  makes a redelivered job harmless. */
+  claim(deliveryId: string): Promise<DeliveryToSend | null>
+  /** `then.run` rides the accept's transaction, up to `then.attempts` times,
+   *  each under a fresh savepoint: a failure rolls back only its own writes,
+   *  and the last one comes back as the result (else null). A `threadId` means
+   *  Gmail accepted it: `provider` and the thread id are written together. */
+  markAccepted(
+    deliveryId: string,
+    providerEmailId: string,
+    then?: { run: (tx: Db) => Promise<void>; attempts: number },
+    threadId?: string,
+  ): Promise<unknown>
+  /** `dead` parks the row for a human; everything else keeps it retryable.
+   *  `refund` gives back the attempt `claim()` counted — a queue-wide stop. */
+  markFailure(
+    deliveryId: string,
+    failure: MailFailure,
+    opts: { dead: boolean; nextAttemptAt: Date | null; refund?: boolean },
+  ): Promise<void>
+  markSuppressed(deliveryId: string, reason: SuppressionReason): Promise<void>
+  isSuppressed(recipient: string): Promise<boolean>
+  /** Which of `addresses` are blocked right now — one read for a whole group
+   *  letter instead of one `isSuppressed` per address. Normalised form out. */
+  suppressedAmong(addresses: string[]): Promise<string[]>
+  /** Freeze a group letter's surviving set: `dropped` → `dropped_suppressed`,
+   *  the rest stamped, so `addressesFrozen` holds for every later claim. */
+  settleAddresses(deliveryId: string, dropped: string[]): Promise<void>
+  suppress(
+    recipient: string,
+    reason: SuppressionReason,
+    source: 'resend' | 'operator' | 'gmail',
+  ): Promise<void>
 
   /** RESCUE ROWS THAT DIED IN A WORKER'S HANDS — the one state nothing else
    *  in this system ever revisits.
@@ -576,8 +585,9 @@ export interface MailLedger extends MailEnqueue {
    *
    *  Enqueuing the same delivery twice is safe by construction — `claim()`
    *  hands a row to exactly one runner — so the sweep does not need to track
-   *  what it has already sent. */
-  pendingBatch(limit: number): Promise<EmailJob[]>
+   *  what it has already sent. `after` is the last delivery id of the previous
+   *  page: it lets one pass walk past rows still waiting in the queue. */
+  pendingBatch(limit: number, after?: string): Promise<EmailJob[]>
 
   /** For `/healthz/email` and the runbook. */
   queueHealth(): Promise<QueueHealth>

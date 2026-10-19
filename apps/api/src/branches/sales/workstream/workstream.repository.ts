@@ -44,6 +44,7 @@ import {
 import type { OwnerRow, RefOwner } from '../opportunity/opportunity.mapper'
 import { workstream, type WorkstreamRowDb } from './workstream.schema'
 import { syncClosed } from './workstream-sync'
+import { seqCodes } from '../code-seq'
 
 /** The only SQL of the workstream module. It decides nothing about permission
  *  — it only ENFORCES the axis the endpoint declared with `@Need`.
@@ -143,15 +144,14 @@ export class WorkstreamRepository {
     const stand = this.standPair(who, scoped)
     const filters = this.filtersOf(q, stand)
 
-    /* Count a SECOND time only while the scope axis is actually cutting: for a
-       reader who sees the whole book `hidden` is always 0, and a full count to
-       print a zero is paying for a question nobody asked. */
-    const [scopedTotal, all] = await Promise.all([
+    /* Count a SECOND time only while the scope axis cuts: for a reader who sees
+       the whole book `hidden` is always 0, so a full count would pay for a
+       question nobody asked. The page reads the same filters and rides the wave. */
+    const [scopedTotal, all, rows] = await Promise.all([
       this.count(and(...filters, scope)),
       scope ? this.count(and(...filters)) : Promise.resolve(null),
+      this.page(and(...filters, scope), q, stand),
     ])
-
-    const rows = await this.page(and(...filters, scope), q, stand)
 
     return { rows, total: scopedTotal, hidden: all === null ? 0 : all - scopedTotal }
   }
@@ -629,10 +629,8 @@ export type LadderRow = { name: string; limitDays: number | null }
  *
  *  The sequence is declared in `workstream.schema.ts` so `drizzle-kit` owns it;
  *  Drizzle has no expression node for `nextval`, so the name is written out
- *  once here — the same formula migration 0045 used for its backfill. */
-const NEXT_CODES = (n: number): SQL =>
-  sql`SELECT 'WS-' || lpad(nextval('sales.workstream_code_seq')::text, 4, '0') AS code
-      FROM generate_series(1, ${n})`
+ *  once here; `seqCodes` pads like migration 0045's backfill, without truncating. */
+const NEXT_CODES = (n: number): SQL => seqCodes('WS-', 'sales.workstream_code_seq', n)
 
 const SALE_ACTOR = alias(actor, 'sale_actor')
 const BD_ACTOR = alias(actor, 'bd_actor')

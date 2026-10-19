@@ -24,6 +24,7 @@ import {
   fromPatch,
   refOf,
   toContract,
+  type ContactValues,
 } from './contact.mapper'
 import type { ContactRowDb } from './contact.schema'
 
@@ -123,7 +124,8 @@ export class ContactService {
    *  caller's transaction.
    *
    *  Two kinds of caller: the birth doors (`LeadWriteService.bear` for typed
-   *  create, scan and landing intake, plus the file import), where the lead is
+   *  create, scan and landing intake, and `seedPrimaryMany` for the file
+   *  import), where the lead is
    *  minted in that same `tx` and this is certainly its first contact; and
    *  `editPrimary`, for a lead whose last contact was deleted. Never opens its
    *  own transaction: `contact.lead_code` is a foreign key into a lead row the
@@ -216,13 +218,53 @@ export class ContactService {
     people: readonly ContactSeed[],
     who: { id: string; name: string } | null,
   ): Promise<void> {
-    for (const person of people) {
-      const code = await this.repo.nextCode(tx)
-      const values = fromCreate(leadCode, { ...person, isPrimary: false }, who, false)
-      await this.mirror.put(tx, refOf(code, leadCode, values))
-      await this.mirror.link(tx, { from: code, to: leadCode, kind: 'belongs-to' })
-      await this.repo.insert(tx, { ...values, code })
-    }
+    await this.attachMany(tx, [{ leadCode, people }], who)
+  }
+
+  /** `seedPrimary` for a whole chunk of new leads: codes, mirror rows, edges
+   *  and rows in four statements instead of four per lead. Codes follow the
+   *  order of `leads`. */
+  async seedPrimaryMany(
+    tx: Db,
+    leads: readonly { leadCode: string; mirror: LeadContactMirror }[],
+    who: { id: string; name: string } | null,
+  ): Promise<void> {
+    await this.writeMany(
+      tx,
+      leads.map((l) => fromLeadBirth(l.leadCode, l.mirror, who)),
+    )
+  }
+
+  /** `attach` for many leads at once; codes follow group order, then people order. */
+  async attachMany(
+    tx: Db,
+    groups: readonly { leadCode: string; people: readonly ContactSeed[] }[],
+    who: { id: string; name: string } | null,
+  ): Promise<void> {
+    await this.writeMany(
+      tx,
+      groups.flatMap((g) =>
+        g.people.map((person) =>
+          fromCreate(g.leadCode, { ...person, isPrimary: false }, who, false),
+        ),
+      ),
+    )
+  }
+
+  /** One mirror upsert, one edge insert and one row insert for all of `values`. */
+  private async writeMany(tx: Db, values: readonly ContactValues[]): Promise<void> {
+    if (values.length === 0) return
+    const codes = await this.repo.nextCodes(tx, values.length)
+    const rows = values.map((v, i) => ({ ...v, code: codes[i]! }))
+    await this.mirror.putMany(
+      tx,
+      rows.map((r) => refOf(r.code, r.leadCode, r)),
+    )
+    await this.mirror.linkMany(
+      tx,
+      rows.map((r) => ({ from: r.code, to: r.leadCode, kind: 'belongs-to' as const })),
+    )
+    await this.repo.insertMany(tx, rows)
   }
 
   /** Write a new person into a lead's book.

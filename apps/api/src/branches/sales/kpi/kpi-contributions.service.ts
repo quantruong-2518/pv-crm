@@ -80,7 +80,7 @@ export class KpiContributionsService {
         )
       }
     }
-    const person = (await this.readings.people()).find((p) => p.id === actorId)
+    const person = await this.readings.person(actorId)
     if (!person) throw notFound('người này')
 
     /* `toReadings`' rule: a snapshot of a month not begun has no records. */

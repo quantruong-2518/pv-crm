@@ -3,34 +3,18 @@ import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import {
   type EmailJob,
-  advances,
   type DeliveryToSend,
-  type EngagementOutcome,
-  type GroupLetter,
-  type MailEngagement,
   type MailFailure,
   type MailAddressIntent,
   type MailIntent,
   type MailLedger,
   MAIL_QUEUE_STUCK_SECONDS,
-  type MailReply,
   type MailState,
   type QueueHealth,
-  type ReplyOutcome,
   type SuppressionReason,
-  type WebhookApplied,
-  type WebhookOutcome,
 } from './mail.contract'
-import { letterAddresses, normalAddress, pinBlame } from './mail-address'
-import type { MailSent } from './mail-sent.hook'
-import {
-  emailDelivery,
-  emailDeliveryAddress,
-  emailSuppression,
-  emailWebhookEvent,
-  mailEvent,
-  mailReply,
-} from './mail.schema'
+import { letterAddresses, normalAddress } from './mail-address'
+import { emailDelivery, emailDeliveryAddress, emailSuppression } from './mail.schema'
 import { mailRun } from './mail-run.schema'
 
 /** SQL only, per `apps/api/CLAUDE.md` — every branch below is a mechanical
@@ -149,7 +133,7 @@ export class MailRepository implements MailLedger {
    *  `next_attempt_at` is the retry clock the consumer writes on a failure;
    *  a row waiting out its backoff is not due yet, and sweeping it early would
    *  turn a paced retry into a hot loop. */
-  async pendingBatch(limit: number): Promise<EmailJob[]> {
+  async pendingBatch(limit: number, after?: string): Promise<EmailJob[]> {
     return this.db
       .select({ deliveryId: emailDelivery.id, eventKey: emailDelivery.eventKey })
       .from(emailDelivery)
@@ -158,9 +142,15 @@ export class MailRepository implements MailLedger {
           eq(emailDelivery.state, 'pending'),
           or(isNull(emailDelivery.nextAttemptAt), lte(emailDelivery.nextAttemptAt, new Date())),
           notHeld,
+          /* Keyset past the last row of the previous page; `id` breaks created_at ties. */
+          after
+            ? sql`(${emailDelivery.createdAt}, ${emailDelivery.id}) > (
+                SELECT p."created_at", p."id" FROM "platform"."email_delivery" p
+                 WHERE p."id" = ${after}::uuid)`
+            : undefined,
         ),
       )
-      .orderBy(asc(emailDelivery.createdAt))
+      .orderBy(asc(emailDelivery.createdAt), asc(emailDelivery.id))
       .limit(limit)
   }
 
@@ -187,33 +177,28 @@ export class MailRepository implements MailLedger {
       .returning()
     if (!row) return null
 
-    const rows = await this.db
-      .select({
-        role: emailDeliveryAddress.role,
-        address: emailDeliveryAddress.address,
-        displayName: emailDeliveryAddress.displayName,
-        ref: emailDeliveryAddress.ref,
-        outcomeAt: emailDeliveryAddress.outcomeAt,
-      })
-      .from(emailDeliveryAddress)
-      .where(
-        and(
-          eq(emailDeliveryAddress.deliveryId, row.id),
-          ne(emailDeliveryAddress.outcome, 'dropped_suppressed'),
-        ),
-      )
-      .orderBy(asc(emailDeliveryAddress.position))
-    const [run] = row.mailRunId
-      ? await this.db
-          .select({
-            scheduledAt: mailRun.scheduledAt,
-            releasedAt: mailRun.releasedAt,
-            createdBy: mailRun.createdBy,
-            kind: mailRun.kind,
-          })
-          .from(mailRun)
-          .where(eq(mailRun.id, row.mailRunId))
-      : []
+    /* Independent reads on the pool, not in one transaction, so they overlap. */
+    const [rows, [run]] = await Promise.all([
+      this.db
+        .select({
+          role: emailDeliveryAddress.role,
+          address: emailDeliveryAddress.address,
+          displayName: emailDeliveryAddress.displayName,
+          ref: emailDeliveryAddress.ref,
+          outcomeAt: emailDeliveryAddress.outcomeAt,
+        })
+        .from(emailDeliveryAddress)
+        .where(
+          and(
+            eq(emailDeliveryAddress.deliveryId, row.id),
+            ne(emailDeliveryAddress.outcome, 'dropped_suppressed'),
+          ),
+        )
+        .orderBy(asc(emailDeliveryAddress.position)),
+      row.mailRunId
+        ? this.db.select().from(mailRun).where(eq(mailRun.id, row.mailRunId))
+        : Promise.resolve([]),
+    ])
 
     return {
       ...this.toDeliveryToSend(
@@ -221,6 +206,7 @@ export class MailRepository implements MailLedger {
         rows.map(({ outcomeAt: _, ...a }) => a),
       ),
       addressesFrozen: rows.some((a) => a.outcomeAt !== null),
+      run: run ?? null,
       sender: run?.createdBy ?? null,
       runKind: run?.kind ?? null,
       /* Each of these precedes any send, so the latest is a safe lower bound. */
@@ -380,389 +366,6 @@ export class MailRepository implements MailLedger {
       })
   }
 
-  /** Three steps, each one a possible early exit — order matters.
-   *
-   *  (1) The dedupe insert runs FIRST and unconditionally: a replayed
-   *  `svix_id` must be recognised before anything is written, or a retried
-   *  webhook could be applied twice. It is still READ (`attributed`), which
-   *  writes nothing — see `MailLedger.applyWebhook`.
-   *  (2) `provider_email_id` is how a delivery is found; no id, no delivery.
-   *  (3) `advances()` — imported, not re-derived — is the single source for
-   *  "does this move the row forward." A `null` incoming state cannot advance
-   *  anything by definition, so it lands in the same `ignored-stale` bucket as
-   *  a state that fails the rank check. */
-  async applyWebhook(event: {
-    svixId: string
-    type: string
-    providerEmailId: string | null
-    state: MailState | null
-    reason?: string
-    at: Date
-    to: string[]
-  }): Promise<WebhookApplied> {
-    const inserted = await this.db
-      .insert(emailWebhookEvent)
-      .values({ svixId: event.svixId, type: event.type, emailId: event.providerEmailId })
-      .onConflictDoNothing({ target: emailWebhookEvent.svixId })
-      .returning({ svixId: emailWebhookEvent.svixId })
-
-    const [delivery] = event.providerEmailId
-      ? await this.db
-          .select({
-            id: emailDelivery.id,
-            state: emailDelivery.state,
-            recipient: emailDelivery.recipient,
-            role: emailDelivery.role,
-          })
-          .from(emailDelivery)
-          .where(eq(emailDelivery.providerEmailId, event.providerEmailId))
-          .limit(1)
-      : []
-
-    /* The locked sales@ copy (`role='run_copy'`) is never blamed and never
-       suppressed — an archive line, not a recipient the counterparty can
-       complain about; `MailConsumer` never suppression-checks it either. */
-    const runCopy = delivery?.role === 'run_copy'
-    const blames = !runCopy && (event.state === 'bounced' || event.state === 'complained')
-    const rows = delivery && blames ? await this.sentAddressesOf(delivery.id) : []
-    /* A letter with no address rows (bulk, copy, one-off) blames its one
-       recipient, which stands in as the sole To; a delivery we never sent can
-       only be read off `data.to`, which Resend documents as To-only. */
-    const candidates = delivery
-      ? rows.length > 0
-        ? rows
-        : [{ address: delivery.recipient, role: 'to' as const }]
-      : event.to.map((address) => ({ address, role: 'to' as const }))
-    const attributed = blames ? pinBlame(candidates, event.reason) : []
-
-    const deliveryId = delivery?.id ?? null
-    if (inserted.length === 0) return { outcome: 'ignored-duplicate', attributed, deliveryId }
-    if (!delivery) return { outcome: 'unknown-delivery', attributed, deliveryId }
-
-    const outcome =
-      rows.length > 0
-        ? await this.blameInGroup(delivery, event, attributed)
-        : await this.advance(delivery, event)
-    return { outcome, attributed, deliveryId }
-  }
-
-  /** A bounce/complaint on a group letter lands on the pinned address row;
-   *  the letter moves only once no To is left standing (re-read AFTER the
-   *  write, so two webhooks racing on two To cannot both miss the last one).
-   *  Unpinned: nothing is suppressed, the reason is noted, the state stays. */
-  private async blameInGroup(
-    delivery: { id: string; state: MailState },
-    event: { type: string; reason?: string; at: Date; state: MailState | null },
-    attributed: string[],
-  ): Promise<WebhookOutcome> {
-    if (attributed.length === 0) {
-      await this.db
-        .update(emailDelivery)
-        .set({
-          lastErrorCode: event.type,
-          lastErrorSummary: `chưa rõ địa chỉ nào: ${event.reason ?? event.type}`.slice(0, 500),
-          updatedAt: sql`now()`,
-        })
-        .where(eq(emailDelivery.id, delivery.id))
-      return 'applied'
-    }
-
-    await this.db
-      .update(emailDeliveryAddress)
-      .set({
-        outcome: event.state === 'complained' ? 'complained' : 'bounced',
-        outcomeReason: event.reason?.slice(0, 500) ?? null,
-        outcomeAt: event.at,
-      })
-      .where(
-        and(
-          eq(emailDeliveryAddress.deliveryId, delivery.id),
-          inArray(emailDeliveryAddress.address, attributed),
-          eq(emailDeliveryAddress.outcome, 'queued'),
-        ),
-      )
-
-    const [standing] = await this.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(emailDeliveryAddress)
-      .where(
-        and(
-          eq(emailDeliveryAddress.deliveryId, delivery.id),
-          eq(emailDeliveryAddress.role, 'to'),
-          eq(emailDeliveryAddress.outcome, 'queued'),
-        ),
-      )
-    if ((standing?.n ?? 0) > 0) return 'applied'
-    return this.advance(delivery, event)
-  }
-
-  /** See `MailLedger.applyAddressBounce`. The marking is `blameInGroup`, the
-   *  webhook's own step; the strike count runs AFTER it and on every call, so
-   *  a crash between the two is healed by the next read of the same thread. */
-  async applyAddressBounce(
-    deliveryId: string,
-    bounce: { addresses: string[]; reason: string; at: Date },
-  ): Promise<number> {
-    const [delivery] = await this.db
-      .select({ id: emailDelivery.id, state: emailDelivery.state })
-      .from(emailDelivery)
-      .where(eq(emailDelivery.id, deliveryId))
-      .limit(1)
-    const named = [...new Set(bounce.addresses.map(normalAddress))]
-    if (!delivery || named.length === 0) return 0
-
-    const standing = await this.db
-      .select({ address: emailDeliveryAddress.address })
-      .from(emailDeliveryAddress)
-      .where(
-        and(
-          eq(emailDeliveryAddress.deliveryId, deliveryId),
-          inArray(emailDeliveryAddress.address, named),
-          eq(emailDeliveryAddress.outcome, 'queued'),
-        ),
-      )
-    const attributed = standing.map((row) => row.address)
-    if (attributed.length > 0) {
-      const event = { type: 'gmail.bounced', state: 'bounced' as const, ...bounce }
-      await this.blameInGroup(delivery, event, attributed)
-    }
-
-    /* Strikes are DISTINCT letters, so re-reading this letter's DSN never adds
-       one. A letter without address rows (bulk, Resend) counts by its recipient.
-       DO NOTHING: an existing block keeps its own reason and its release. */
-    await this.db.execute(sql`
-      INSERT INTO "platform"."email_suppression" ("recipient", "reason", "source")
-      SELECT a."address", 'hard_bounce', 'gmail'
-        FROM "platform"."email_delivery_address" a
-       WHERE a."delivery_id" = ${deliveryId}::uuid
-         AND a."outcome" = 'bounced'
-         AND a."address" IN (${sql.join(named, sql`, `)})
-         AND (SELECT count(*) FROM (
-                SELECT b."delivery_id" AS id
-                  FROM "platform"."email_delivery_address" b
-                 WHERE b."address" = a."address" AND b."outcome" = 'bounced'
-                UNION
-                SELECT d."id"
-                  FROM "platform"."email_delivery" d
-                 WHERE d."recipient" = a."address"
-                   AND d."state" = 'bounced'
-                   AND d."role" = 'recipient'
-                   AND NOT EXISTS (SELECT 1 FROM "platform"."email_delivery_address" x
-                                    WHERE x."delivery_id" = d."id")
-              ) strikes) >= ${GMAIL_BOUNCE_STRIKES}::int
-      ON CONFLICT ("recipient") DO NOTHING
-    `)
-    return attributed.length
-  }
-
-  async lostGroupLetter(deliveryId: string): Promise<GroupLetter | null> {
-    const [row] = await this.db
-      .select({
-        id: emailDelivery.id,
-        aggregateType: emailDelivery.aggregateType,
-        aggregateId: emailDelivery.aggregateId,
-        mailRunId: emailDelivery.mailRunId,
-        role: emailDelivery.role,
-        sender: mailRun.createdBy,
-      })
-      .from(emailDelivery)
-      .innerJoin(mailRun, eq(mailRun.id, emailDelivery.mailRunId))
-      .where(
-        and(
-          eq(emailDelivery.id, deliveryId),
-          eq(mailRun.kind, 'group'),
-          inArray(emailDelivery.state, ['bounced', 'failed_permanent']),
-        ),
-      )
-      .limit(1)
-    return row ?? null
-  }
-
-  /** The ladder step itself — `advances()`, imported, never re-derived. */
-  private async advance(
-    delivery: { id: string; state: MailState },
-    event: { type: string; state: MailState | null; reason?: string; at: Date },
-  ): Promise<WebhookOutcome> {
-    if (!event.state || !advances(delivery.state, event.state)) return 'ignored-stale'
-
-    await this.db
-      .update(emailDelivery)
-      .set({
-        state: event.state,
-        deliveredAt: event.state === 'delivered' ? event.at : undefined,
-        /* THE PROVIDER'S OWN SENTENCE, KEPT — it used to be accepted as a
-           parameter and then thrown away here.
-           `mail-webhook.controller.ts` builds it carefully ("Permanent/General:
-           mailbox does not exist"), and it is the only thing in the system that
-           can tell "mailbox full" from "domain does not exist" — two words that
-           call for opposite actions. Without this line `email_delivery` held a
-           `bounced` row with a NULL summary, so `LeadMailTimelineRow.failReason`
-           had nothing to print on precisely the rows it exists for, and the
-           screen could only say "hỏng" to someone who needed to know why.
-           Written only when the event carries a reason, so a `delivered`
-           webhook cannot blank a summary a bounce left behind — and it never
-           happens the other way round anyway, since `advances()` refuses any
-           transition back down the ladder. */
-        ...(event.reason
-          ? { lastErrorCode: event.type, lastErrorSummary: event.reason.slice(0, 500) }
-          : {}),
-        updatedAt: sql`now()`,
-      })
-      .where(eq(emailDelivery.id, delivery.id))
-
-    return 'applied'
-  }
-
-  /** The addresses a group letter actually went to — a row the first attempt
-   *  dropped as suppressed was never sent, so no bounce can be about it. */
-  private async sentAddressesOf(
-    deliveryId: string,
-  ): Promise<Array<{ address: string; role: 'to' | 'cc' }>> {
-    return this.db
-      .select({ address: emailDeliveryAddress.address, role: emailDeliveryAddress.role })
-      .from(emailDeliveryAddress)
-      .where(
-        and(
-          eq(emailDeliveryAddress.deliveryId, deliveryId),
-          ne(emailDeliveryAddress.outcome, 'dropped_suppressed'),
-        ),
-      )
-  }
-
-  /** THE OTHER DOOR INTO THE LEDGER, AND IT WRITES A DIFFERENT TABLE.
-   *
-   *  Deliberately NOT a branch of `applyWebhook`, even though the first step is
-   *  the same insert. That method exists to move `email_delivery.state` and
-   *  every line in it is about `advances()`; this one must never reach that
-   *  column, and the cheapest way to guarantee "never" is that the statement
-   *  which could do it is not in this method. `mail_event` only ever grows.
-   *
-   *  Three exits, in order, and the order is the design:
-   *
-   *  (1) The envelope shield goes in FIRST and unconditionally, exactly as in
-   *      `applyWebhook` — a replayed `svix_id` has to be recognised before a
-   *      lookup, or a webhook redelivered after its effect landed gets
-   *      evaluated twice. It also means a row that fails BELOW this point is
-   *      not retried by Resend into a second attempt; that is the same trade
-   *      `applyWebhook` already makes, and the failure it protects against
-   *      (double counting) is the worse one here.
-   *  (2) The delivery is found by row id when the caller has one — our own
-   *      unsubscribe route does, out of a signed token — and otherwise by the
-   *      provider's mail id, which is all a webhook carries.
-   *  (3) `mail_event_once` is the second shield: two DIFFERENT envelopes can
-   *      still describe the same open. `onConflictDoNothing` on that exact
-   *      triple turns it into an answer instead of a thrown constraint, while
-   *      leaving `mail_event_url_matches_kind` free to throw — a CLICK with no
-   *      destination is a bug in the caller, not an ordinary input. */
-  async recordEngagement(engagement: MailEngagement): Promise<EngagementOutcome> {
-    if (engagement.svixId) {
-      const seen = await this.db
-        .insert(emailWebhookEvent)
-        .values({
-          svixId: engagement.svixId,
-          /* The KIND, not a Resend event name. This column is a diagnostic
-             beside a replay guard, and spelling `email.opened` here would be
-             this file inventing provider vocabulary for a row that may not
-             have come from a provider at all. */
-          type: engagement.kind,
-          emailId: engagement.providerEmailId ?? null,
-        })
-        .onConflictDoNothing({ target: emailWebhookEvent.svixId })
-        .returning({ svixId: emailWebhookEvent.svixId })
-
-      if (seen.length === 0) return 'ignored-duplicate'
-    }
-
-    const target = await this.deliveryIdFor(engagement)
-    if (!target) return 'unknown-delivery'
-
-    /* The batch said no watching, so the row is never written — a counter that
-       moves while no event row exists would be two ledgers disagreeing. Only
-       these two kinds: delivery events and UNSUBSCRIBE are other axes. */
-    if (!target.trackEngagement && (engagement.kind === 'OPEN' || engagement.kind === 'CLICK')) {
-      return 'ignored-untracked'
-    }
-
-    const written = await this.db
-      .insert(mailEvent)
-      .values({
-        deliveryId: target.id,
-        kind: engagement.kind,
-        at: engagement.at,
-        url: engagement.url ?? null,
-        svixId: engagement.svixId,
-      })
-      /* No `target`, deliberately. `mail_event` now carries TWO uniqueness
-         rules — `mail_event_once` on (delivery, kind, at) for provider events,
-         and the partial `mail_event_unsub_once` on (delivery) for unsubscribes,
-         which have no provider timestamp to dedupe on. Naming one of them here
-         would make a conflict on the OTHER throw instead of reporting
-         `ignored-duplicate`, turning the ordinary one-click-then-click-the-link
-         sequence into a 500. Any unique conflict on this table means the same
-         thing: this engagement is already recorded. */
-      .onConflictDoNothing()
-      .returning({ id: mailEvent.id })
-
-    return written.length === 0 ? 'ignored-duplicate' : 'recorded'
-  }
-
-  /** A THIRD DOOR, WRITING A THIRD TABLE — see `mail_reply` in `mail.schema.ts`
-   *  for why this is not a branch of `recordEngagement`.
-   *
-   *  No envelope shield here: `mail_reply.provider_email_id` is unique and
-   *  named the INBOUND message, one row per reply by construction, so the
-   *  `onConflictDoNothing` below is the only replay guard this needs — a
-   *  second `email_webhook_event` insert keyed by the SAME `svixId` column
-   *  used for outbound events would conflate two different envelope streams
-   *  under one guard for no benefit. */
-  async recordReply(
-    reply: MailReply,
-    then?: (tx: Db, sent: MailSent, replyId: string) => Promise<void>,
-  ): Promise<ReplyOutcome> {
-    return this.db.transaction(async (tx) => {
-      const [delivery] = await tx
-        .select({
-          aggregateType: emailDelivery.aggregateType,
-          aggregateId: emailDelivery.aggregateId,
-          mailRunId: emailDelivery.mailRunId,
-          role: emailDelivery.role,
-        })
-        .from(emailDelivery)
-        .where(eq(emailDelivery.id, reply.deliveryId))
-        .limit(1)
-      if (!delivery) return 'unknown-delivery'
-
-      const [written] = await tx
-        .insert(mailReply)
-        .values({
-          deliveryId: reply.deliveryId,
-          fromAddress: reply.fromAddress,
-          subject: reply.subject,
-          receivedAt: reply.at,
-          providerEmailId: reply.providerEmailId,
-          svixId: reply.svixId,
-        })
-        .onConflictDoNothing({ target: mailReply.providerEmailId })
-        .returning({ id: mailReply.id })
-      if (!written) return 'ignored-duplicate'
-
-      /* Only a NEW row reaches here, so a redelivered signal tells nobody twice. */
-      await then?.(tx, delivery, written.id)
-      return 'recorded'
-    })
-  }
-
-  /** Recipient letters only: a run copy's footer link would otherwise let a
-   *  colleague reading the archive unsubscribe the shared sales inbox. */
-  async recipientOf(deliveryId: string): Promise<string | null> {
-    const [row] = await this.db
-      .select({ recipient: emailDelivery.recipient })
-      .from(emailDelivery)
-      .where(and(eq(emailDelivery.id, deliveryId), eq(emailDelivery.role, 'recipient')))
-      .limit(1)
-    return row?.recipient ?? null
-  }
-
   /** The whole decision is in `MailLedger.reapStuckSending` — this is its SQL.
    *
    *  ONE statement, two branches of the same `CASE`, for the reason
@@ -811,43 +414,14 @@ export class MailRepository implements MailLedger {
     return r.rows[0] ?? { requeued: 0, parked: 0 }
   }
 
-  /** Row id by either road, plus the batch's recording flag, or `null`.
-   *  `deliveryId` is trusted only as far as "a row with this id exists" — it is
-   *  still read back rather than used blind, so an id whose delivery was
-   *  deleted cannot leave a `mail_event` pointing at nothing.
-   *
-   *  The flag rides the SAME query as a LEFT JOIN rather than a second lookup:
-   *  the door already pays for this round trip, and a separate read would
-   *  double the DB cost of every open a campaign generates. The join is left
-   *  because `mail_run_id` is NULL for a one-off (lead-intake notification),
-   *  which has no batch to read a flag off and keeps the recorded behaviour. */
-  private async deliveryIdFor(
-    engagement: MailEngagement,
-  ): Promise<{ id: string; trackEngagement: boolean } | null> {
-    const where = engagement.deliveryId
-      ? eq(emailDelivery.id, engagement.deliveryId)
-      : engagement.providerEmailId
-        ? eq(emailDelivery.providerEmailId, engagement.providerEmailId)
-        : null
-
-    if (!where) return null
-
-    const [row] = await this.db
-      .select({ id: emailDelivery.id, trackEngagement: mailRun.trackEngagement })
-      .from(emailDelivery)
-      .leftJoin(mailRun, eq(mailRun.id, emailDelivery.mailRunId))
-      .where(where)
-      .limit(1)
-    if (!row) return null
-    return { id: row.id, trackEngagement: row.trackEngagement ?? true }
-  }
-
   /** One round trip, not three: `/healthz/email` and the runbook both want
    *  all three numbers together, and `FILTER` lets Postgres compute them off
    *  a single scan instead of the app issuing three separate counts.
    *  `oldest_pending_seconds` is measured from `created_at`, i.e. when the row
    *  first entered the queue — a row `markFailure()` sends back to `pending`
-   *  keeps its original age rather than resetting the clock on every retry. */
+   *  keeps its original age rather than resetting the clock on every retry.
+   *  The WHERE names the two states reported, so the settled bulk of the ledger
+   *  is never read. */
   async queueHealth(): Promise<QueueHealth> {
     const r = (await this.db.execute(sql`
       SELECT
@@ -861,6 +435,7 @@ export class MailRepository implements MailLedger {
             AND COALESCE(r."scheduled_at", r."created_at")
                 < now() - make_interval(secs => ${MAIL_QUEUE_STUCK_SECONDS}::int)) AS gated_overdue
       FROM "platform"."email_delivery"
+      WHERE "state" IN ('pending', 'dead')
     `)) as {
       rows: {
         pending: number
@@ -882,7 +457,7 @@ export class MailRepository implements MailLedger {
   private toDeliveryToSend(
     row: typeof emailDelivery.$inferSelect,
     addresses: MailAddressIntent[],
-  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom' | 'sender' | 'runKind'> {
+  ): Omit<DeliveryToSend, 'addressesFrozen' | 'sendableFrom' | 'sender' | 'runKind' | 'run'> {
     return {
       id: row.id,
       eventKey: row.eventKey,
@@ -937,11 +512,6 @@ const notHeld = sql`NOT EXISTS (
      AND gate."awaits_release"
      AND gate."released_at" IS NULL
 )`
-
-/** Under `gmail.metadata` a Failure DSN cannot say WHY: a dead address, a full
- *  mailbox and a spam rejection read the same. One may be the letter's fault;
- *  the same address failing on a second letter is the address's. */
-const GMAIL_BOUNCE_STRIKES = 2
 
 /** Rows per INSERT. See `enqueueBatch`. */
 const INSERT_CHUNK = 1_000

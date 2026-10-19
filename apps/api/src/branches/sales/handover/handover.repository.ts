@@ -190,6 +190,16 @@ export class HandoverRepository {
       .for('update')
   }
 
+  /** The leaver's leads change holder in one UPDATE. Their state stays: an open
+   *  lead always has a holder (`lead_open_owner_matches`), so `ownerSet`'s
+   *  state-follows-owner branch cannot fire. The caller re-puts the mirror. */
+  async giveLeads(tx: Db, codes: readonly string[], toId: string): Promise<void> {
+    await tx
+      .update(lead)
+      .set({ ownerId: toId })
+      .where(inArray(lead.code, [...codes]))
+  }
+
   /** The receiver takes the empty SALE lane as its primary: alone on the lane,
    *  `salePrimaryOf` could name nobody else. `accepted_by_id` stays: it is history. */
   async seatSale(tx: Db, codes: readonly string[], toId: string): Promise<void> {
@@ -220,24 +230,9 @@ export class HandoverRepository {
       .onConflictDoNothing()
   }
 
-  /** The people on these deals as `holderOf` reads them. */
-  people(tx: Db, codes: readonly string[]) {
-    return tx
-      .select({
-        code: opportunityOwner.opportunityCode,
-        id: opportunityOwner.actorId,
-        name: actor.name,
-        role: opportunityOwner.role,
-        primary: opportunityOwner.isPrimary,
-        roleIds: actor.roleIds,
-      })
-      .from(opportunityOwner)
-      .innerJoin(actor, eq(actor.id, opportunityOwner.actorId))
-      .where(inArray(opportunityOwner.opportunityCode, [...codes]))
-  }
-
-  /** Steps still on the leaver once their leads and deals moved: steps they
-   *  do on somebody else's subject. One UPDATE; `holdings` counted them. */
+  /** Every step still on the leaver: the ones on the leads and deals that just
+   *  moved, and those they do on somebody else's subject. One UPDATE; `holdings`
+   *  counted them all. */
   async moveSteps(tx: Db, fromId: string, toId: string): Promise<void> {
     await tx
       .update(nextStep)

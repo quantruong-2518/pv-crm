@@ -32,10 +32,11 @@ export class AccountFacetsRepository {
         .where(and(without('category'), isNotNull(account.category)))
         .groupBy(account.category)
         .orderBy(asc(account.category)),
+      /* One EXISTS per account: `unsigned` is the rest of the same count, not a second scan. */
       this.db
         .select({
+          total: sql<number>`count(*)::int`,
           signed: sql<number>`count(*) FILTER (WHERE ${HAS_SIGNED})::int`,
-          unsigned: sql<number>`count(*) FILTER (WHERE NOT ${HAS_SIGNED})::int`,
         })
         .from(account)
         .where(without('customer')),
@@ -46,7 +47,10 @@ export class AccountFacetsRepository {
       categories: categories.flatMap((c) =>
         c.value === null ? [] : [{ ...c, value: c.value as LeadCategory }],
       ),
-      byCustomer: tally ?? { signed: 0, unsigned: 0 },
+      byCustomer: {
+        signed: tally?.signed ?? 0,
+        unsigned: (tally?.total ?? 0) - (tally?.signed ?? 0),
+      },
     }
   }
 }

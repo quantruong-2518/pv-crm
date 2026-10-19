@@ -35,6 +35,7 @@ import { contains } from '@api/platform/db/like'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
+import { hold } from '../hold/hold.schema'
 import { leadHeld, openHoldsOf } from '../hold/hold.sql'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
@@ -50,6 +51,7 @@ import type {
   LeadProfileRead,
   LeadRead,
 } from './lead.mapper'
+import { seqCodes } from '../code-seq'
 
 export type LeadBookPage = {
   rows: LeadRead[]
@@ -114,16 +116,16 @@ const DAYS_HERE = sql<number>`GREATEST(0, FLOOR(
   EXTRACT(epoch FROM now() - ${lead.stateSince}) / 86400
 ))::int`
 
-/** One number from `sales.lead_code_seq`, printed as `LD-%04d`.
+/** `n` numbers from `sales.lead_code_seq`, printed as `LD-%04d`, in ascending order
+ *  (the outer ORDER BY: `nextval` evaluation order is not a promise).
  *
  *  The sequence is declared in `lead.schema.ts` (`leadCodeSeq`) so
  *  `drizzle-kit` owns it, but Drizzle has no expression node for `nextval`, so
  *  the name is written out once more here. Two spellings of one name is a
  *  small risk; the alternative is a code format nobody can read.
  *
- *  `lpad(…, 4, '0')` pads, it does not truncate — lead 10 000 gets `LD-10000`.
  *  See the long note on `leadCodeSeq` for the rest. */
-const NEXT_CODE = sql`SELECT 'LD-' || lpad(nextval('sales.lead_code_seq')::text, 4, '0') AS code`
+const NEXT_CODES = (n: number) => seqCodes('LD-', 'sales.lead_code_seq', n)
 
 /** Chỗ DUY NHẤT trong module lead có SQL.
  *
@@ -156,12 +158,23 @@ export class LeadRepository {
    *  `Results`. Both carry `.rows` — same hand-written cast
    *  `graph.repository.ts` explains at length. */
   async nextCode(): Promise<string> {
-    const r = (await this.db.execute(NEXT_CODE)) as { rows: { code: string }[] }
-    const code = r.rows[0]?.code
+    const [code] = await this.nextCodes(1)
     /* An empty result here means the sequence is gone, not that a lead is
        missing. Failing loudly beats returning a code nobody generated. */
     if (!code) throw new Error('sales.lead_code_seq trả về rỗng — migration đã chạy chưa?')
     return code
+  }
+
+  /** `n` codes in ONE round trip for a batch import, ascending so the file's
+   *  order is the code order. Same pool-not-`tx` and burned-gaps rules as
+   *  `nextCode`. */
+  async nextCodes(n: number): Promise<string[]> {
+    if (n <= 0) return []
+    const r = (await this.db.execute(NEXT_CODES(n))) as { rows: { code: string }[] }
+    if (r.rows.length !== n) {
+      throw new Error(`sales.lead_code_seq issued ${r.rows.length}/${n} codes`)
+    }
+    return r.rows.map((x) => x.code)
   }
 
   async book(
@@ -188,15 +201,7 @@ export class LeadRepository {
 
     const scope = this.scopeOf(who, scoped)
 
-    /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt. Với một actor nhìn
-       được cả sổ, `hidden` luôn bằng 0 — chạy thêm một COUNT toàn bảng mỗi
-       lần mở sổ chỉ để in ra số 0 là trả phí cho một câu không ai hỏi. */
-    const [scoped_, all] = await Promise.all([
-      this.count(and(...filters, scope)),
-      scope ? this.count(and(...filters)) : Promise.resolve(null),
-    ])
-
-    const rows = await this.db
+    const rowsQuery = this.db
       .select({
         row: lead,
         ownerName: actor.name,
@@ -219,6 +224,14 @@ export class LeadRepository {
       .orderBy(...this.orderBy(q))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
+
+    /* The second count only runs when scope really cuts (else `hidden` is 0).
+       Three independent pool reads, so they run side by side. */
+    const [scoped_, all, rows] = await Promise.all([
+      this.count(and(...filters, scope)),
+      scope ? this.count(and(...filters)) : Promise.resolve(null),
+      rowsQuery,
+    ])
 
     const codes = rows.map((r) => r.row.code)
     const [labels, holds] = await Promise.all([
@@ -290,14 +303,19 @@ export class LeadRepository {
     who: Actor,
     q: LeadFacetsQuery,
   ): Promise<{ byState: Record<LeadState, number>; held: number }> {
-    const held = leadHeld(lead.code)
+    /* One open hold per subject (`hold_open_subject_uq`), so the LEFT JOIN
+       keeps one row per lead and the hold is looked up once, not per FILTER. */
     const rows = await this.db
       .select({
         state: lead.state,
-        n: sql<number>`count(*) FILTER (WHERE NOT ${held})::int`,
-        held: sql<number>`count(*) FILTER (WHERE ${held})::int`,
+        n: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NULL)::int`,
+        held: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NOT NULL)::int`,
       })
       .from(lead)
+      .leftJoin(
+        hold,
+        and(eq(hold.subjectType, 'lead'), eq(hold.subjectCode, lead.code), isNull(hold.endedAt)),
+      )
       .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
       .groupBy(lead.state)
     const byState = Object.fromEntries(LeadState.options.map((s) => [s, 0])) as Record<
@@ -371,9 +389,6 @@ export class LeadRepository {
    *  A disabled lead is absent (`null`) unless the caller asks `withDisabled`;
    *  even then `holds` is false, so no edit door built on this read opens. */
   async byCode(who: Actor, code: string, withDisabled = false): Promise<LeadProfileFound | null> {
-    const scope = this.scopeOf(who, true)
-    const reads = this.readScopeOf(who)
-
     const [row] = await this.db
       .select({
         row: lead,
@@ -390,8 +405,7 @@ export class LeadRepository {
         daysHere: DAYS_HERE,
         signed: this.signedValue(),
         duplicateOf: this.duplicatesOf(who, true),
-        inScope: reads ? sql<boolean>`COALESCE(${reads}, false)` : sql<boolean>`true`,
-        holds: sql<boolean>`COALESCE(${and(scope, leadLive)}, false)`,
+        ...this.accessValues(who),
       })
       .from(lead)
       .leftJoin(actor, eq(actor.id, lead.ownerId))
@@ -410,6 +424,30 @@ export class LeadRepository {
       openHoldsOf(this.db, 'lead', [code]),
     ])
     return { ...row, labels: labels.get(code) ?? [], hold: holds.get(code) ?? null }
+  }
+
+  /** The two verdicts of `byCode` and nothing else — what a 404/403 fence
+   *  needs, without the profile's joins, twin subquery and label/hold reads.
+   *  Same `withDisabled` rule, same `inScope`/`holds` as `byCode` by construction. */
+  async accessOf(
+    who: Actor,
+    code: string,
+    withDisabled = false,
+  ): Promise<{ inScope: boolean; holds: boolean } | null> {
+    const [row] = await this.db
+      .select(this.accessValues(who))
+      .from(lead)
+      .where(and(eq(lead.code, code), withDisabled ? undefined : leadLive))
+      .limit(1)
+    return row ?? null
+  }
+
+  private accessValues(who: Actor) {
+    const reads = this.readScopeOf(who)
+    return {
+      inScope: reads ? sql<boolean>`COALESCE(${reads}, false)` : sql<boolean>`true`,
+      holds: sql<boolean>`COALESCE(${and(this.scopeOf(who, true), leadLive)}, false)`,
+    }
   }
 
   /** Trục 3 · phạm vi. MỘT biểu thức, hai chỗ dùng.

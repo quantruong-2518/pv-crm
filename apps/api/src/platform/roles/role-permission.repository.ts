@@ -14,16 +14,8 @@ export class RolePermissionRepository {
   /** What a person holding these roles may do: the UNION of the roles' grants,
    *  each permission once, in a stable order.
    *
-   *  On the authentication path, so it runs on every request that carries a
-   *  session — a second round trip next to the one that loads the actor. That
-   *  cost is deliberate and it buys freshness: an administrator's change takes
-   *  effect on the next request, with no cache to invalidate and no window in
-   *  which two server instances disagree about who may do what.
-   *
-   *  The cheaper shape is a correlated `array()` sub-select folded into the
-   *  actor query. It is worth doing the day this shows up in a trace; it is not
-   *  worth doing before, because it has to be repeated in every query that
-   *  builds an `Actor` and each copy is a place to forget it. */
+   *  The per-request auth path reads the same union through a sub-select in
+   *  `AuthRepository.sessionByTokenHash` — keep the two in step. */
   async grantsFor(roleIds: readonly RoleId[], tx: Db = this.db): Promise<Permission[]> {
     if (roleIds.length === 0) return []
     const rows = await tx

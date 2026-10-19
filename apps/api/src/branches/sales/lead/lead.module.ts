@@ -31,6 +31,7 @@ import { LeadExitService } from './lead-exit.service'
 import { LeadLabelRepository } from './lead-label.repository'
 import { LeadLabelService } from './lead-label.service'
 import { LeadWriteService } from './lead-write.service'
+import { LeadImportService } from './lead-import.service'
 import { LeadIntakeController } from './lead-intake.controller'
 import { LeadIntakeGuard } from './lead-intake.guard'
 import { LeadIntakeRepository } from './lead-intake.repository'
@@ -115,6 +116,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadService,
     LeadRepository,
     LeadWriteService,
+    LeadImportService,
     LeadWriteRepository,
     LeadAdmissionService,
     LeadAdmissionRepository,

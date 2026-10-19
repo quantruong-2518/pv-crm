@@ -115,8 +115,11 @@ export class KpiForecastService {
     const { from, to } = spansOf(period).current
     const today = vietnamToday()
     const seat: KpiSeat = { role, def }
-    const target = await this.targetOf(period, who.id, role, metricKey)
-    const frozen = (await this.closes.of(period)) !== null
+    const [target, close] = await Promise.all([
+      this.targetOf(period, who.id, role, metricKey),
+      this.closes.of(period),
+    ])
+    const frozen = close !== null
     const points = await Promise.all(
       this.weeksOf(from, to).map(async (weekStart) => {
         const end = addDays(weekStart, 7) < to ? addDays(weekStart, 7) : to
@@ -168,12 +171,14 @@ export class KpiForecastService {
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
     const { from, to } = spansOf(period).current
-    const [values, rows, lines, thresholds, monthClose] = await Promise.all([
-      this.readings.monthValues(seats, { key: period, from, to }, only),
+    const monthClose = await this.closes.of(period)
+    const [values, rows, lines, thresholds] = await Promise.all([
+      this.readings.monthValues(seats, { key: period, from, to }, only, {
+        closed: monthClose !== null,
+      }),
       this.targets.ofPeriod(period),
       this.allocations.agreedLines(period, only),
       this.thresholds(),
-      this.closes.of(period),
     ])
     const { elapsed, phase } = monthClock(period)
     const running = phase === 'running'

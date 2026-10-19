@@ -46,6 +46,7 @@ import {
   type ContractRecordRowDb,
   type ContractRowDb,
 } from './contract.schema'
+import { seqCodes } from '../code-seq'
 
 /** Một dòng hợp đồng kèm tên người ăn hoa hồng. */
 export type ContractRead = {
@@ -119,7 +120,7 @@ export type ContractDetailRead = ContractRead & {
  *  UTF-8 hai đầu và chuỗi này là hằng số trong mã nguồn, không ghép từ dữ liệu
  *  người dùng — nhưng nó cũng chính là lý do `ContractCode` phải là một primitive
  *  riêng thay vì `ObjectCode`, và lý do đó đã ghi ở hợp đồng. */
-const NEXT_CODE = sql`SELECT 'HĐ-' || lpad(nextval('sales.contract_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('HĐ-', 'sales.contract_code_seq')
 
 /** The signed value of a contract in dong. Shared expression, one rate table —
  *  see `../money.ts`. */
@@ -529,8 +530,8 @@ export class ContractRepository {
    *
    *  The months come out of `generate_series` and the contracts LEFT JOIN onto
    *  them, rather than being filled in afterwards: a month with no signature is
-   *  a gap the sparkline has to draw, and a list built in Node would bucket by
-   *  Node's clock while `date_trunc` buckets by the database session's. */
+   *  a gap the sparkline has to draw. Both sides are cut on Vietnam time, the
+   *  zone the book's date filters use, not on the session's (UTC). */
   private async trend(): Promise<ContractMonthPoint[]> {
     const back = sql.raw(String(TREND_MONTHS - 1))
 
@@ -538,11 +539,12 @@ export class ContractRepository {
       SELECT to_char(m.at, 'YYYY-MM')                      AS month,
              count(${contract.code})::int                  AS signed_count,
              COALESCE(SUM(${CONTRACT_VND}), 0)::bigint     AS signed_amount_vnd
-        FROM generate_series(date_trunc('month', now()) - ${back} * interval '1 month',
-                             date_trunc('month', now()),
-                             interval '1 month') AS m(at)
+        FROM generate_series(
+               date_trunc('month', now() AT TIME ZONE 'Asia/Ho_Chi_Minh') - ${back} * interval '1 month',
+               date_trunc('month', now() AT TIME ZONE 'Asia/Ho_Chi_Minh'),
+               interval '1 month') AS m(at)
         LEFT JOIN (${contract} JOIN ${lead} ON ${ON_LEAD} AND ${leadLive})
-               ON date_trunc('month', ${contract.signedAt}) = m.at
+               ON date_trunc('month', ${contract.signedAt} AT TIME ZONE 'Asia/Ho_Chi_Minh') = m.at
        GROUP BY m.at
        ORDER BY m.at
     `)) as { rows: { month: string; signed_count: number; signed_amount_vnd: number | string }[] }

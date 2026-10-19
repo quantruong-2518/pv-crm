@@ -19,10 +19,9 @@ const SWEEP_EVERY_MS = 60 * 60_000
  *  `<kind>/<contract>/<no>/<day>` and the ledger's UNIQUE keeps it to one line
  *  per owner per due date.
  *
- *  Self-timed exactly like `CommLateSweeper`, and for its reasons: hourly and
- *  once at boot, off under `NODE_ENV=test`, and left to overlap with the
- *  worker process — the second writer's row is dropped by that UNIQUE. No
- *  `actorId`: the system speaks. */
+ *  Self-timed: hourly and once at boot, off under `NODE_ENV=test`. It may
+ *  overlap with the worker process — the second writer's row is dropped by
+ *  that UNIQUE. No `actorId`: the system speaks. */
 @Injectable()
 export class ContractOverdueSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly log = new Logger('sales.contract')

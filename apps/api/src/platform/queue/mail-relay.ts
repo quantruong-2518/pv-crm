@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ENV, type Env } from '../config/env'
-import { MAIL_LEDGER, type MailLedger } from '../mail/mail.contract'
+import { EMAIL_QUEUE, MAIL_LEDGER, type MailLedger } from '../mail/mail.contract'
 import { MailQueue } from './mail-queue'
+import { MailRateGate } from './mail-rate'
 
 /** THE ONE STEP BETWEEN "A MAIL IS OWED" AND "A JOB EXISTS".
  *
@@ -44,6 +45,7 @@ export class MailRelay {
   constructor(
     @Inject(MAIL_LEDGER) private readonly ledger: MailLedger,
     private readonly queue: MailQueue,
+    private readonly gate: MailRateGate,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -71,15 +73,31 @@ export class MailRelay {
       )
     }
 
-    const due = await this.ledger.pendingBatch(BATCH)
-    if (due.length === 0) return 0
+    /* A parked gate turns every job into an immediate `queue-parked` retry, so
+       handing rows over now only churns the queue; the ledger keeps them. */
+    if ((await this.gate.parkedFor(EMAIL_QUEUE)) > 0) return 0
 
-    for (const job of due) {
-      await this.queue.enqueue(job, { singletonSeconds: this.env.PV_QUEUE_POLL_SECONDS * 4 })
+    const singletonSeconds = this.env.PV_QUEUE_POLL_SECONDS * 4
+    const deadline = Date.now() + DRAIN_BUDGET_MS
+    /* What the gate can send before the next pass; rows beyond it would only
+       become one more job per singleton slot. Never below one page. */
+    const cap = Math.max(
+      BATCH,
+      Math.ceil(this.env.PV_EMAIL_RATE_PER_SECOND * this.env.PV_QUEUE_POLL_SECONDS),
+    )
+    let handed = 0
+    let after: string | undefined
+    for (;;) {
+      const limit = Math.min(BATCH, cap - handed)
+      const due = await this.ledger.pendingBatch(limit, after)
+      await this.queue.enqueueMany(due, { singletonSeconds })
+      handed += due.length
+      after = due.at(-1)?.deliveryId
+      if (due.length < limit || handed >= cap || Date.now() >= deadline) break
     }
 
-    this.log.log(`Relay: ${due.length} thư vào hàng đợi.`)
-    return due.length
+    if (handed > 0) this.log.log(`Relay: ${handed} thư vào hàng đợi.`)
+    return handed
   }
 }
 
@@ -101,7 +119,10 @@ export class MailRelay {
  *  to 10 seconds is a deployment free to send everything twice. */
 const STUCK_SENDING_SECONDS = 300
 
-/** Bounded so one sweep cannot become a thousand `send` round trips while the
- *  worker holds everything else. A backlog is drained over several passes, in
- *  age order — which is also the order the ledger returns them. */
+/** One round trip per batch. A backlog is drained within one pass, in age
+ *  order, by paging past the last row handed over. */
 const BATCH = 100
+
+/** Far under the tick (`PV_QUEUE_POLL_SECONDS` is 30 in production), so a long
+ *  drain never overlaps the next pass; what is left waits in the ledger. */
+const DRAIN_BUDGET_MS = 10_000

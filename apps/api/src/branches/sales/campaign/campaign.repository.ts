@@ -32,6 +32,7 @@ import { mailRun } from '@api/platform/mail/mail-run.schema'
 import { mailSequenceRun } from '../mail-sequence.schema'
 import { campaign, campaignMember, type CampaignRowDb } from './campaign.schema'
 import type { CampaignMemberRead, CampaignRead, CampaignWaveRunRead } from './campaign.mapper'
+import { seqCodes } from '../code-seq'
 
 export type CampaignBookPage = {
   rows: CampaignRead[]
@@ -70,7 +71,7 @@ const WAVE_COUNT = sql<number>`(
  *  `NEXT_CODE` ở `lead.repository.ts`. Không cần dựng trước trong một giao
  *  dịch ghi `platform.object`: `campaign.code` chưa là khoá ngoại vào đó (nợ
  *  B4, xem docblock bảng), nên không có thứ tự ghi nào phải giữ. */
-const NEXT_CODE = sql`SELECT 'CP-' || lpad(nextval('sales.campaign_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('CP-', 'sales.campaign_code_seq')
 
 const SELECT_READ = {
   row: campaign,
@@ -80,6 +81,21 @@ const SELECT_READ = {
   audienceCount: AUDIENCE_COUNT,
   waveCount: WAVE_COUNT,
 }
+
+/** "Every wave of this RUNNING campaign is SENT or CANCELLED, and it has at
+ *  least one" — the one rule `finishableCodes` and `closeFinished` share. */
+const FINISHED = sql`c."state" = 'RUNNING'
+  AND EXISTS (
+        SELECT 1 FROM "sales"."mail_sequence_run" cr
+         WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
+      )
+  AND NOT EXISTS (
+        SELECT 1
+          FROM "sales"."mail_sequence_run" cr
+          JOIN "platform"."mail_run" r ON r."id" = cr."mail_run_id"
+         WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
+           AND r."state" NOT IN ('SENT', 'CANCELLED')
+      )`
 
 /** A campaign `closeFinished()` just moved to `DONE` — what its bell needs. */
 export type FinishedCampaign = {
@@ -201,6 +217,15 @@ export class CampaignRepository {
     return updatedAt
   }
 
+  /** Codes of campaigns ready to close, in code order — the sweeper closes
+   *  each in its own transaction, so one bad campaign cannot block the rest. */
+  async finishableCodes(): Promise<string[]> {
+    const r = (await this.db.execute(
+      sql`SELECT c."code" FROM "sales"."campaign" c WHERE ${FINISHED} ORDER BY c."code"`,
+    )) as { rows: { code: string }[] }
+    return r.rows.map((row) => row.code)
+  }
+
   /** ĐANG CHẠY → XONG, cho chiến dịch mà mọi đợt của nó đã ngã ngũ.
    *
    *  ------------------------------------------------------------------
@@ -233,23 +258,12 @@ export class CampaignRepository {
    *  Terminal của một đợt là `SENT` hoặc `CANCELLED`. `DRAFT` không nằm trong
    *  đó dù `MasService` không bao giờ tạo ra nó: một đợt nháp là một đợt còn
    *  chờ người, và chờ người thì chiến dịch chưa xong. */
-  async closeFinished(db: Db = this.db): Promise<FinishedCampaign[]> {
+  async closeFinished(db: Db = this.db, only?: string): Promise<FinishedCampaign[]> {
     const r = (await db.execute(sql`
       UPDATE "sales"."campaign" c
          SET "state" = 'DONE',
              "updated_at" = now()
-       WHERE c."state" = 'RUNNING'
-         AND EXISTS (
-               SELECT 1 FROM "sales"."mail_sequence_run" cr
-                WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
-             )
-         AND NOT EXISTS (
-               SELECT 1
-                 FROM "sales"."mail_sequence_run" cr
-                 JOIN "platform"."mail_run" r ON r."id" = cr."mail_run_id"
-                WHERE cr."subject_type" = 'campaign' AND cr."subject_code" = c."code"
-                  AND r."state" NOT IN ('SENT', 'CANCELLED')
-             )
+       WHERE ${FINISHED} ${only === undefined ? sql`` : sql`AND c."code" = ${only}`}
       RETURNING c."code", c."name", c."owner_id", c."updated_at"
     `)) as {
       rows: { code: string; name: string; owner_id: string | null; updated_at: Date | string }[]
@@ -270,20 +284,19 @@ export class CampaignRepository {
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — cùng lý do ở
        `lead.repository.ts#book`. */
-    const [scoped_, all] = await Promise.all([
+    const [scoped_, all, rows] = await Promise.all([
       this.count(and(...filters, scope)),
       scope ? this.count(and(...filters)) : Promise.resolve(null),
+      this.db
+        .select(SELECT_READ)
+        .from(campaign)
+        .leftJoin(actor, eq(actor.id, campaign.ownerId))
+        .leftJoin(configEntry, SOURCE_ON)
+        .where(and(...filters, scope))
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size),
     ])
-
-    const rows = await this.db
-      .select(SELECT_READ)
-      .from(campaign)
-      .leftJoin(actor, eq(actor.id, campaign.ownerId))
-      .leftJoin(configEntry, SOURCE_ON)
-      .where(and(...filters, scope))
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
 
     return { rows, total: scoped_, hidden: all === null ? 0 : all - scoped_ }
   }

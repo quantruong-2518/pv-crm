@@ -92,6 +92,20 @@ export class CampaignService {
     return reads.map((r) => ({ ...r, waveTotals: totals.get(r.row.code) }))
   }
 
+  /** The scoped read every door on one campaign starts with: 404 when it is
+   *  missing, 403 when the caller's scope cuts it. Same errors at all eight doors. */
+  private async ownedCampaign(
+    who: Actor,
+    code: string,
+  ): Promise<CampaignRead & { inScope: boolean }> {
+    const found = await this.repo.byCode(who, code, true)
+    if (!found) throw notFound('chiến dịch', code)
+    if (!found.inScope) {
+      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
+    }
+    return found
+  }
+
   /** The two environment limits the profile carries, in one place so the
    *  screen never has to guess either of them again. */
   private limits(): {
@@ -107,14 +121,14 @@ export class CampaignService {
   }
 
   async profile(who: Actor, code: string): Promise<CampaignProfile> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    const found = await this.ownedCampaign(who, code)
 
-    const waves = await this.wavesOf(who, code)
-    const [read] = await this.withWaveTotals([found])
+    /* Independent reads: the wave chain and the totals both hang off the same
+       run ids but touch no shared state, so they overlap instead of queueing. */
+    const [waves, [read]] = await Promise.all([
+      this.wavesOf(who, code),
+      this.withWaveTotals([found]),
+    ])
     return CampaignProfile.parse(toProfile(read ?? found, waves, this.limits()))
   }
 
@@ -148,11 +162,7 @@ export class CampaignService {
   }
 
   async patch(who: Actor, code: string, body: CampaignPatch): Promise<CampaignPatchResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    await this.ownedCampaign(who, code)
 
     const originId = body.originId ? await this.liveOrigin(body.originId) : body.originId
     await this.repo.patch(code, {
@@ -210,11 +220,7 @@ export class CampaignService {
     code: string,
     body: CampaignMemberPatch,
   ): Promise<CampaignMemberPatchResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    await this.ownedCampaign(who, code)
 
     const [added, removed] = await this.repo.run(async (tx) => {
       /* A switched-off lead answers as one that is not there, to everyone. */
@@ -242,11 +248,7 @@ export class CampaignService {
     code: string,
     q: CampaignMemberQuery,
   ): Promise<CampaignMemberListResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    await this.ownedCampaign(who, code)
 
     const page = await this.repo.members(code, q)
     return CampaignMemberListResponse.parse({
@@ -266,11 +268,7 @@ export class CampaignService {
    *  không phải gọi lại `/start` (guard `state !== 'DRAFT'` chặn đúng điều
    *  đó, tức chặn gửi trùng đợt đã thành công khi ai đó bấm `/start` lần hai). */
   async start(who: Actor, code: string, body: CampaignStart): Promise<CampaignStartResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    const found = await this.ownedCampaign(who, code)
     if (found.row.state !== 'DRAFT') {
       throw conflict(`Chỉ chiến dịch nháp mới bắt đầu chạy được.`)
     }
@@ -327,11 +325,7 @@ export class CampaignService {
    *  refuses it. This door is what a person opens to find out why nothing can
    *  be fired yet, and "nobody is in the list" is exactly that finding. */
   async preflight(who: Actor, code: string): Promise<CampaignPreflightResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    await this.ownedCampaign(who, code)
 
     const leadCodes = await this.repo.activeMemberCodes(code)
     const [judged, alsoRunning] = await Promise.all([
@@ -360,11 +354,7 @@ export class CampaignService {
    *  breaker, `PV_MAS_BATCH_MAX`, and the `mail_sequence_run` row with the next
    *  `waveNo`. */
   async addWave(who: Actor, code: string, body: CampaignWaveAdd): Promise<CampaignWaveAddResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    const found = await this.ownedCampaign(who, code)
     /* DONE gets through because RUNNING is a passing state, not a resting one:
        `CampaignSweeper` runs `closeFinished()` on a timer and drops a campaign
        to DONE the moment its every batch settles, so a one-wave campaign is
@@ -410,20 +400,15 @@ export class CampaignService {
    *  `MasService.cancel()` của A6 cho từng lô thay vì viết lại quy tắc huỷ —
    *  cùng lý do docblock đầu file. */
   async stop(who: Actor, code: string): Promise<CampaignStopResponse> {
-    const found = await this.repo.byCode(who, code, true)
-    if (!found) throw notFound('chiến dịch', code)
-    if (!found.inScope) {
-      throw denied('out-of-scope', `Chiến dịch ${code} không do bạn phụ trách.`)
-    }
+    const found = await this.ownedCampaign(who, code)
     if (found.row.state !== 'RUNNING') {
       throw conflict(`Chỉ chiến dịch đang chạy mới dừng được.`)
     }
 
     const cancelled: MailRunPatchResponse[] = []
-    /* One read for the whole chain, through the same `wavesOf` the profile
-       uses — the old loop asked `runs.byId` once per wave, two lanes for one
-       question with the N+1 on the lane nobody looked at. */
-    for (const { run } of await this.wavesOf(who, code)) {
+    /* One read for the whole chain. `waveRuns` carries the id and state a cancel
+       needs; `wavesOf` would also join counters and creator names this loop never reads. */
+    for (const run of await this.repo.waveRuns([code])) {
       if (run.state === 'SENT' || run.state === 'CANCELLED') continue
 
       /* Một lô do người KHÁC đứng tên (`created_by`) có thể bị `MasService.cancel`
@@ -431,7 +416,7 @@ export class CampaignService {
          hỏng cả lượt dừng. Lô đó vẫn huỷ được riêng, qua Sổ lô gửi, bởi đúng
          người đã bắn nó. */
       try {
-        cancelled.push(await this.mas.cancel(who, run.id, { state: 'CANCELLED' }))
+        cancelled.push(await this.mas.cancel(who, run.mailRunId, { state: 'CANCELLED' }))
       } catch (e) {
         /* Only THAT refusal is skippable. A bare `catch` also swallowed DB and
            network failures and then filed the campaign STOPPED anyway — the

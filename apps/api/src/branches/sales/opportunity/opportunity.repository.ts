@@ -8,7 +8,6 @@ import {
   ilike,
   inArray,
   isNotNull,
-  isNull,
   ne,
   not,
   or,
@@ -18,7 +17,6 @@ import {
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
-  CURRENCIES,
   StageKey,
   type OpportunityBookQuery,
   type OpportunityFacetsQuery,
@@ -30,13 +28,14 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { csvOf } from '@api/platform/db/book-filter'
 import { contains } from '@api/platform/db/like'
-import { actor, audit } from '@api/platform/db/platform.schema'
+import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
+import { toVndSql } from '../money'
 import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
 import { dealHeld, openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import {
@@ -50,13 +49,13 @@ import {
 import { stageConfigOf } from '../ladder'
 import { DAYS_IN_STAGE, dealScope, overdueIn } from './opportunity-book.sql'
 import { ownerFilter, stagesOf } from './opportunity-filter.sql'
-import type { ActorLite } from './opportunity-import.check'
 import {
   peopleOf,
   type OpportunityValues,
   type OwnerRow,
   type RefOwner,
 } from './opportunity.mapper'
+import { seqCodes } from '../code-seq'
 
 const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
@@ -110,38 +109,12 @@ const CONTRACT_CODES = sql<string[]>`ARRAY(
    WHERE k.opportunity_code = ${opportunity.code} AND k.lead_code = ${opportunity.leadCode}
    ORDER BY k.signed_at, k.code)`
 
-/** Giá trị đơn QUY RA ĐỒNG, tính trong SQL.
- *
- *  ------------------------------------------------------------------
- *  VÌ SAO PHÉP QUY ĐỔI PHẢI Ở TRONG CÂU TRUY VẤN
- *  ------------------------------------------------------------------
- *  Hai chỗ cần nó và cả hai đều nằm dưới `LIMIT`: sắp sổ theo tiền, và cộng
- *  tổng cho thẻ điểm. Sắp theo số THÔ là để một đơn 5.000 USD nằm dưới một đơn
- *  10.000.000 VND — sai ngay ở trang một, và không có chỗ nào trên màn nói ra.
- *  Quy ở Node thì chỉ quy được những dòng đã về, tức quy sau khi đã sắp và đã
- *  cắt trang, tức không quy gì cả.
- *
- *  Bảng tỉ giá đọc từ `CURRENCIES` của `@pv/contracts` — CHÍNH bảng màn dùng để
- *  in ra. Đó là lý do bảng đó rời khỏi fixture DAS Vina (xem
- *  `packages/contracts/src/sales/currency.ts`): thêm một đồng tiền ở đó là câu
- *  `CASE` này biết luôn, không có bản chép tay thứ hai để quên.
- *
- *  `sql.raw` cho `rate` chứ không tham số ràng buộc: `"amount" * $1` để Postgres
- *  không suy được kiểu của `$1` trong một nhánh `CASE`, và mấy con số này là
- *  hằng của chính chúng ta, không phải thứ người dùng gõ vào. `code` thì ngược
- *  lại — nó so với một cột `text` nên tham số ràng buộc suy kiểu được, và đó là
- *  chỗ đúng để dùng nó.
- *
- *  Đồng tiền lạ hoặc đơn chưa có tiền rơi vào nhánh ELSE ngầm và ra NULL —
- *  không phải 0. `opportunity_money_pair` đã ép `amount` và `currency` cùng có
- *  hoặc cùng vắng, nên NULL ở đây đọc đúng một câu: "đơn này chưa moi được
- *  tiền", câu mà thẻ điểm đếm riêng thành `openBlank`. */
-const AMOUNT_VND = sql<number | null>`CASE ${opportunity.currency} ${sql.join(
-  CURRENCIES.map(
-    (c) => sql`WHEN ${c.code} THEN ${opportunity.amount} * ${sql.raw(String(c.rate))}`,
-  ),
-  sql` `,
-)} END`
+/** The deal's value in dong, converted in SQL: ordering by money and the scorecard
+ *  sums both sit under `LIMIT`, so converting in Node would sort raw amounts (5,000
+ *  USD under 10,000,000 VND). An unknown currency or a blank amount is NULL, not 0;
+ *  `opportunity_money_pair` keeps the two columns together, and the scorecard
+ *  counts NULL apart as `openBlank`. */
+const AMOUNT_VND = toVndSql(opportunity.amount, opportunity.currency)
 
 /** The book's filters without paging — what the book and its facets share. */
 export type BookFilters = OpportunityFacetsQuery & Pick<OpportunityBookQuery, 'state' | 'pinned'>
@@ -170,7 +143,7 @@ export type OpportunityScorecardRow = {
  *  Dãy khai ở `opportunity.schema.ts` để `drizzle-kit` sở hữu nó; Drizzle không
  *  có node biểu thức cho `nextval` nên tên phải viết lại đúng một lần ở đây —
  *  cùng đánh đổi mà `lead.repository.ts` đã ghi. */
-const NEXT_CODE = sql`SELECT 'OP-' || lpad(nextval('sales.opportunity_code_seq')::text, 4, '0') AS code`
+const NEXT_CODE = seqCodes('OP-', 'sales.opportunity_code_seq')
 
 /** Chỗ DUY NHẤT của module cơ hội có SQL. Không quyết định gì về quyền — nó chỉ
  *  THI HÀNH trục phạm vi mà endpoint đã khai bằng `@Need({ scoped: true })`. */
@@ -278,7 +251,7 @@ export class OpportunityRepository {
     who: Actor | null,
     code: string,
     handle: Db = this.db,
-  ): Promise<(OpportunityRead & { inScope: boolean }) | null> {
+  ): Promise<(OpportunityRead & { inScope: boolean; pendingSign: boolean }) | null> {
     const [found] = await handle
       .select({
         row: opportunity,
@@ -288,6 +261,7 @@ export class OpportunityRepository {
         daysInStage: DAYS_IN_STAGE,
         acceptorName: ACCEPTOR_NAME,
         inScope: who ? this.inScopeValue(who) : sql<boolean>`true`,
+        pendingSign: sql<boolean>`${dealSignWaiting(opportunity.code)}`,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -307,6 +281,44 @@ export class OpportunityRepository {
       ...peopleOf(found.row, acceptorName, owners.get(code)),
       products: products.get(code) ?? [],
     }
+  }
+
+  /** The deal's lead code when the deal is on a live lead AND in `who`'s scope —
+   *  the stop door needs it to lock the lead before the deal. */
+  async scopedLeadCode(who: Actor, code: string): Promise<string | null> {
+    const [found] = await this.db
+      .select({ leadCode: opportunity.leadCode, inScope: this.inScopeValue(who) })
+      .from(opportunity)
+      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+      .where(and(eq(opportunity.code, code), leadLive))
+      .limit(1)
+    return found?.inScope ? found.leadCode : null
+  }
+
+  /** Lock the deal `FOR UPDATE`, then read it back on the same handle. The read is
+   *  a LATER statement, so under READ COMMITTED it sees whatever committed while
+   *  the lock was awaited — `signed`, `pendingSign` and `inScope` included.
+   *  Scope and `leadLive` sit in the locking WHERE so a caller who cannot see the
+   *  deal never holds its lock; that and "no deal" are both `null`. */
+  async lockedByCode(who: Actor | null, code: string, tx: Db) {
+    /* `EXISTS`, not a join: a joined lead would be locked too (and `OF` is
+       rendered schema-qualified, which Postgres refuses). Only the deal is locked. */
+    const liveLead = tx
+      .select({ one: sql`1` })
+      .from(lead)
+      .where(and(eq(lead.code, opportunity.leadCode), leadLive))
+    const [locked] = await tx
+      .select({ code: opportunity.code })
+      .from(opportunity)
+      .where(
+        and(
+          eq(opportunity.code, code),
+          exists(liveLead),
+          who ? this.scopeOf(who, true) : undefined,
+        ),
+      )
+      .for('update')
+    return locked ? this.byCode(who, code, tx) : null
   }
 
   /** The deal's open hold, for the profile. */
@@ -447,77 +459,6 @@ export class OpportunityRepository {
     return row?.name ?? null
   }
 
-  /** Cả sổ nhân sự, một lượt đọc. Lô nạp dịch TÊN sang id, và nó dịch cho tới
-   *  hai nghìn dòng — hỏi từng dòng là hai nghìn vòng tới Neon cho một bảng
-   *  bảy người. Cùng phép mà `LeadWriteRepository.staff` dùng. */
-  async staff(tx: Db): Promise<ActorLite[]> {
-    return tx
-      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
-      .from(actor)
-      .where(isNull(actor.disabledAt))
-  }
-
-  /** Tên công ty → mã lead, cho cột "Account" của tệp.
-   *
-   *  ------------------------------------------------------------------
-   *  GẤP TÊN Ở POSTGRES, KHÔNG PHẢI Ở NODE
-   *  ------------------------------------------------------------------
-   *  `lower(company)` chạy trong câu truy vấn nên phép gấp của hai đầu khớp
-   *  nhau ở nửa quan trọng nhất — chữ hoa. Nửa còn lại (gộp khoảng trắng) làm ở
-   *  Node, vì `regexp_replace` cho một sổ trăm dòng là trả phí cho thứ vòng lặp
-   *  đã đi qua rồi.
-   *
-   *  Only leads not `disqualified` enter `byCompany` — the same
-   *  condition `lead_email_live_idx` carries; the rest go to `exited` (name →
-   *  one such lead's code) so their row is refused with its own sentence.
-   *  `ownerByLead` holds exited leads too: scope is judged before liveness.
-   *
-   *  Trả về CẢ tập tên nhập nhằng, không lặng lẽ chọn dòng đầu. Hai lead cùng
-   *  tên công ty là chuyện có thật (hai chi nhánh, một lần nhập trùng), và đoán
-   *  ở đây là gán một đơn cho nhầm hồ sơ — đúng loại lỗi không lộ ra cho tới
-   *  lúc ai đó gọi điện cho sai người. */
-  async leadsByCompany(tx: Db): Promise<{
-    byCompany: Map<string, string>
-    ambiguous: Set<string>
-    workstreamByLead: Map<string, string | null>
-    exited: Map<string, string>
-    exitedCodes: Set<string>
-    ownerByLead: Map<string, string | null>
-  }> {
-    const rows = await tx
-      .select({
-        code: lead.code,
-        folded: sql<string>`lower(${lead.company})`,
-        workstreamCode: lead.workstreamCode,
-        state: lead.state,
-        ownerId: lead.ownerId,
-      })
-      .from(lead)
-      .where(leadLive)
-
-    const byCompany = new Map<string, string>()
-    const ambiguous = new Set<string>()
-    const workstreamByLead = new Map<string, string | null>()
-    const exited = new Map<string, string>()
-    const exitedCodes = new Set<string>()
-    const ownerByLead = new Map<string, string | null>()
-
-    for (const r of rows) {
-      const key = r.folded.trim().replace(/\s+/g, ' ')
-      ownerByLead.set(r.code, r.ownerId)
-      if (GONE.has(r.state)) {
-        if (!exited.has(key)) exited.set(key, r.code)
-        exitedCodes.add(r.code)
-        continue
-      }
-      workstreamByLead.set(r.code, r.workstreamCode)
-      if (byCompany.has(key)) ambiguous.add(key)
-      else byCompany.set(key, r.code)
-    }
-
-    return { byCompany, ambiguous, workstreamByLead, exited, exitedCodes, ownerByLead }
-  }
-
   /** The open deals of ONE lead with their owners, oldest first, in one
    *  statement — what the live-deal door needs to build an E2 ref per deal.
    *  Owners keep `ownersOf`'s order (role, primary first, then name). */
@@ -569,50 +510,6 @@ export class OpportunityRepository {
   ): Promise<OpportunityRowDb> {
     const [written] = await tx.insert(opportunity).values(row).returning()
     if (!written) throw new Error(`sales.opportunity: INSERT ${row.code} không trả về dòng nào`)
-    return written
-  }
-
-  /** `n` mã một lượt, cho lô nạp.
-   *
-   *  MỘT câu truy vấn chứ không `n` lần `nextCode()`: hai nghìn dòng là hai
-   *  nghìn vòng tới Neon trước khi transaction kịp mở, và `generate_series` gọi
-   *  `nextval` đúng `n` lần trong một lượt — cùng bảo đảm về tính duy nhất, một
-   *  phần nghìn số vòng mạng.
-   *
-   *  Ngoài transaction, cùng lý do `nextCode()` ghi ở trên. Số bị đốt khi lô bị
-   *  rollback; dãy mã thủng là bình thường, hai đơn trùng mã thì không. */
-  async nextCodes(n: number): Promise<string[]> {
-    if (n <= 0) return []
-    const r = (await this.db.execute(
-      sql`SELECT 'OP-' || lpad(nextval('sales.opportunity_code_seq')::text, 4, '0') AS code
-          FROM generate_series(1, ${n})`,
-    )) as { rows: { code: string }[] }
-
-    if (r.rows.length !== n) {
-      throw new Error(`sales.opportunity_code_seq cấp ${r.rows.length}/${n} mã`)
-    }
-    return r.rows.map((x) => x.code)
-  }
-
-  /** Ghi cả lô đơn, cắt khúc.
-   *
-   *  `CHUNK` là trần 65.535 tham số ràng buộc của Postgres chia cho số cột, làm
-   *  tròn xuống cho dễ đọc — KHÔNG phải một ranh giới bền vững. Cả lô vẫn nằm
-   *  trong một transaction; cắt khúc chỉ để một câu INSERT không vượt trần tham
-   *  số, không phải để commit từng phần. Cùng con số mà lô nạp lead dùng. */
-  async insertMany(
-    tx: Db,
-    rows: readonly (OpportunityValues & { code: string })[],
-  ): Promise<OpportunityRowDb[]> {
-    const CHUNK = 500
-    const written: OpportunityRowDb[] = []
-
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const slice = rows.slice(i, i + CHUNK)
-      if (slice.length === 0) continue
-      written.push(...(await tx.insert(opportunity).values(slice).returning()))
-    }
-
     return written
   }
 
@@ -728,29 +625,6 @@ export class OpportunityRepository {
     return written
   }
 
-  /** Một dòng `platform.audit` làm BIÊN LAI của lô nạp.
-   *
-   *  Không gọi `AuditRepository.write` vì hai lý do đã ghi ở bản của lô nạp
-   *  lead và vẫn đúng ở đây: hàm đó ghi qua pool nên không vào được transaction
-   *  này, và nó không trả về gì — mà `batchId` CHÍNH LÀ id của dòng vừa ghi.
-   *
-   *  Đây là chỗ duy nhất nối một lô với những mã nó đã cấp: `sales.opportunity`
-   *  không có cột `batch_id`. Cùng khoản nợ mà lô nạp lead đang mang, và cùng
-   *  cách trả — một cột `batch_id` thật, ngày ai đó cần hỏi "lô hôm qua nạp
-   *  những đơn nào" bằng SQL thay vì bằng cách đọc JSON trong một dòng audit. */
-  async writeBatchNote(
-    tx: Db,
-    entry: { actorId: string; note: string },
-  ): Promise<{ id: string; at: Date }> {
-    const [row] = await tx
-      .insert(audit)
-      .values({ actorId: entry.actorId, action: 'edit', note: entry.note })
-      .returning({ id: audit.id, at: audit.at })
-
-    if (!row) throw new Error('platform.audit: INSERT không trả về dòng nào')
-    return row
-  }
-
   /** Thay TOÀN BỘ danh sách người đứng đơn: xoá hết rồi ghi lại.
    *
    *  ------------------------------------------------------------------
@@ -798,17 +672,6 @@ export class OpportunityRepository {
     await tx.insert(opportunityStageEvent).values(row)
   }
 
-  /** Same rows, one statement per import chunk.
-   *
-   *  The caller already slices at 500 to stay under Postgres' bind-parameter
-   *  ceiling, so this one does not slice again — it inserts exactly what it is
-   *  handed. Empty is a real case (a batch whose every row was refused) and
-   *  returns without a statement. */
-  async insertStageEvents(tx: Db, rows: readonly OpportunityStageEventInsert[]): Promise<void> {
-    if (rows.length === 0) return
-    await tx.insert(opportunityStageEvent).values([...rows])
-  }
-
   /** One deal's column history, newest first.
    *
    *  NOT paged — see `OpportunityStageHistory` in the contract. `at` descending
@@ -821,6 +684,18 @@ export class OpportunityRepository {
       .from(opportunityStageEvent)
       .where(eq(opportunityStageEvent.opportunityCode, code))
       .orderBy(desc(opportunityStageEvent.at), desc(opportunityStageEvent.id))
+  }
+
+  /** Who made the deal's oldest column move (its entry), or `null`. The `id`
+   *  tiebreak mirrors `stageEventsOf`, so this is that list's last row. */
+  async openerOf(code: string): Promise<string | null> {
+    const [first] = await this.db
+      .select({ byId: opportunityStageEvent.byId })
+      .from(opportunityStageEvent)
+      .where(eq(opportunityStageEvent.opportunityCode, code))
+      .orderBy(asc(opportunityStageEvent.at), asc(opportunityStageEvent.id))
+      .limit(1)
+    return first?.byId ?? null
   }
 
   /** The products of a set of deals, ONE query for the whole page.

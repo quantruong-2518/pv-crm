@@ -17,10 +17,11 @@ const SWEEP_EVERY_MS = 60 * 60_000
  *  while it has been late for less than one more window (`late` in the
  *  repository): one line per record, and no backlog rung on a deploy.
  *
- *  Self-timed exactly like `NotificationSweeper`, and for its reasons: hourly
- *  and once at boot, off under `NODE_ENV=test`, and left to overlap with the
- *  worker process — the event key is the record id, so the ledger's UNIQUE
- *  drops the second writer's row. No `actorId`: the system speaks. */
+ *  Self-timed like `NotificationSweeper`: hourly and once at boot, off under
+ *  `NODE_ENV=test`, and only in the worker (`PV_ROLE`), so each API machine
+ *  does not repeat the same scan. The event key is the record id, so the
+ *  ledger's UNIQUE would drop a second writer's row anyway. No `actorId`: the
+ *  system speaks. */
 @Injectable()
 export class CommLateSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly log = new Logger('comms')
@@ -33,7 +34,7 @@ export class CommLateSweeper implements OnApplicationBootstrap, OnApplicationShu
   ) {}
 
   onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
+    if (this.env.NODE_ENV === 'test' || process.env.PV_ROLE !== 'worker') return
     this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
     this.timer.unref()
     void this.sweep()

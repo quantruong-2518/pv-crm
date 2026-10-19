@@ -13,8 +13,8 @@ import { TouchService } from '../touch/touch.service'
 import { boardVerdict, dealAtOf, type DealAt } from './opportunity-lifecycle'
 import { announceOwners, announcePrimary } from './opportunity-bell'
 import {
-  assertSellers,
-  lanePeople,
+  actorsByIds,
+  assertSellersIn,
   NO_OWNER,
   PRIMARY_REASON_NEEDED,
   primaryOf,
@@ -58,31 +58,27 @@ export class OpportunityAssign {
     const by = { id: who.id, name: who.name }
     const at = new Date()
 
-    await this.deals.run(async (tx) => {
-      const lock = await this.deals.lockDeal(tx, code)
-      const found = lock ? await this.deals.byCode(who, code, tx) : null
-      if (!lock || !found || !found.inScope) throw notFound('cơ hội', code)
+    const read = await this.deals.run(async (tx) => {
+      const found = await this.deals.lockedByCode(who, code, tx)
+      if (!found || !found.inScope) throw notFound('cơ hội', code)
       const before = found.owners.filter((o) => o.role === 'SALE')
-      const verdict = assignVerdict(dealAtOf(found, lock.pendingSign), before.length)
+      const verdict = assignVerdict(dealAtOf(found, found.pendingSign), before.length)
       if (!verdict.ok) throw conflict(verdict.reason)
 
       const removed = before.filter((o) => !body.saleOwners.includes(o.id))
       const addedIds = body.saleOwners.filter((id) => !before.some((o) => o.id === id))
       const kept = removed.length === 0 && addedIds.length === 0
-      if (lock.pendingSign && !kept) {
+      if (found.pendingSign && !kept) {
         throw conflict(`Cơ hội ${code} đang chờ duyệt ký, chỉ đổi được Sale chính.`)
       }
-      const salePrimary = salePrimaryOf(
-        await lanePeople(tx, body.saleOwners),
-        primaryOf(found.owners),
-        body.salePrimary,
-      )
+      const actors = await actorsByIds(tx, body.saleOwners)
+      const salePrimary = salePrimaryOf(actors, primaryOf(found.owners), body.salePrimary)
       const same = salePrimary === primaryOf(found.owners)
-      if (kept && same) return
-      if (lock.pendingSign && body.reason === undefined) {
+      if (kept && same) return found
+      if (found.pendingSign && body.reason === undefined) {
         throw invalid({ reason: [PRIMARY_REASON_NEEDED] }, PRIMARY_REASON_NEEDED)
       }
-      await assertSellers(tx, addedIds)
+      assertSellersIn(actors, addedIds)
 
       /* The BD lane is written back as read under the lock: this door owns SALE only. */
       const bdOwners = found.owners.filter((o) => o.role === 'BD').map((o) => o.id)
@@ -122,10 +118,9 @@ export class OpportunityAssign {
       const primary = { from: primaryOf(found.owners), to: salePrimary, at }
       if (!same) await announcePrimary(tx, this.hub, { ...people, ...primary })
       await this.mirror.put(tx, toRef(fresh.row, fresh.holder))
+      return fresh
     })
 
-    const read = await this.deals.byCode(null, code)
-    if (!read) throw notFound('cơ hội', code)
     return OpportunitySaleOwnersResponse.parse(await this.facts.row(read))
   }
 }

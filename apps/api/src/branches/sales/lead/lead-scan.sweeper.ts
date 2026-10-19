@@ -8,11 +8,13 @@ import {
 import { LEAD_SCAN_FAILED, LEAD_SCAN_READY } from '@pv/engines'
 import { ENV, type Env } from '@api/platform/config/env'
 import { StorageService } from '@api/platform/storage/storage.service'
+import { LeadIntakeRepository } from './lead-intake.repository'
 import { COMMIT_FAILED } from './lead-scan.commit'
 import { LeadScanRepository } from './lead-scan.repository'
 import { FILE_FAILED, LeadScanService } from './lead-scan.service'
 
-/** Retention and dead-worker cleanup for the scan door. Self-timed like
+/** Retention and dead-worker cleanup for the scan door, plus the landing
+ *  intake's stale rate counters (one pass, no timer of their own). Self-timed like
  *  `SessionSweeper`, so it also runs in the worker; every statement is
  *  conditional and `remove` treats absent as success, so two passes overlap
  *  harmlessly. Rows are deleted BEFORE their objects: a failed removal
@@ -46,6 +48,7 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
     private readonly storage: StorageService,
     @Inject(ENV) private readonly env: Env,
     private readonly scans: LeadScanService,
+    private readonly intake: LeadIntakeRepository,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -115,6 +118,7 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
         })
       }
       if (keys.length > 0) this.log.log(`scan: removed ${keys.length} unlinked object(s)`)
+      await this.intake.purgeStale()
     } catch (error: unknown) {
       this.log.error(`scan sweep failed: ${error instanceof Error ? error.message : String(error)}`)
     }

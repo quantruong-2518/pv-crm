@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import { normalisePhone } from '@pv/engines'
+import { normalisePhone, type Actor } from '@pv/engines'
 import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
@@ -10,7 +10,7 @@ import { leadConverted, leadHasOpenDeal, leadSigned } from '../open-deal'
 import { leadHeld } from '../hold/hold.sql'
 import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
-import { leadLive } from './lead-scope'
+import { leadLive, leadScope } from './lead-scope'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
 import type { LeadContactMirror } from '../contact/contact.repository'
@@ -272,12 +272,17 @@ export class LeadWriteRepository {
    *  `hasDeal` = an open deal or a contract (ADR 0069): all-lost does not count.
    *
    *  `reached` rides on this same locked read rather than a second round trip:
-   *  reopen and resume both need it, and both already hold this row. */
+   *  reopen and resume both need it, and both already hold this row.
+   *
+   *  `who`'s holds-axis is in the locking WHERE, so a lead somebody else holds is
+   *  never locked: `null` then means "no live lead OR not yours" — `isLive` tells
+   *  which, off the lock. */
   async lockForMove(
     tx: Db,
     code: string,
+    who: Pick<Actor, 'id' | 'ownOnly'>,
   ): Promise<
-    | (Pick<LeadRowDb, 'state' | 'tier' | 'ownerId' | 'workstreamCode'> & {
+    | (Pick<LeadRowDb, 'state' | 'tier' | 'ownerId' | 'workstreamCode' | 'company'> & {
         openDeal: boolean
         signed: boolean
         hasDeal: boolean
@@ -292,6 +297,7 @@ export class LeadWriteRepository {
         tier: lead.tier,
         ownerId: lead.ownerId,
         workstreamCode: lead.workstreamCode,
+        company: lead.company,
         openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
         signed: sql<boolean>`${leadSigned(lead.code)}`,
         hasDeal: sql<boolean>`${leadConverted(lead.code)}`,
@@ -299,11 +305,22 @@ export class LeadWriteRepository {
         held: sql<boolean>`${leadHeld(lead.code)}`,
       })
       .from(lead)
-      .where(and(eq(lead.code, code), leadLive))
+      .where(and(eq(lead.code, code), leadLive, leadScope(who, true)))
       .limit(1)
       .for('update')
 
     return row ?? null
+  }
+
+  /** A live lead with this code exists — the non-locking read that tells a 404
+   *  from a 403 once `lockForMove` returned nothing. */
+  async isLive(tx: Db, code: string): Promise<boolean> {
+    const [row] = await tx
+      .select({ code: lead.code })
+      .from(lead)
+      .where(and(eq(lead.code, code), leadLive))
+      .limit(1)
+    return row !== undefined
   }
 
   /** Write the columns one patch named. `false` = no row carries that code.
