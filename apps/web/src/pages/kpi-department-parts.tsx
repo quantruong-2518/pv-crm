@@ -2,7 +2,7 @@ import { StatStrip } from '@pv/ui'
 import type { KpiPerson, KpiVerdict } from '@pv/contracts'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { num } from './home-model'
-import { PeopleHeatmap } from './kpi-company-people'
+import { PeopleHeatmap, type TeamOf } from './kpi-company-people'
 import { heavierFirst, weightOf } from './kpi-department-model'
 import { acknowledgementOf, needsAcknowledgement, roleGroups } from './kpi-model'
 
@@ -46,10 +46,12 @@ export function RankedHeatmap({
   catalog,
   people,
   period,
+  teamOf,
 }: {
   catalog: KpiCatalog
   people: readonly KpiPerson[]
   period: string
+  teamOf?: TeamOf
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -57,7 +59,15 @@ export function RankedHeatmap({
         const ranked = [...holders]
           .sort((a, b) => heavierFirst(weightOf([a.card]), weightOf([b.card])))
           .map(({ person, card }) => ({ ...person, scorecards: [card] }))
-        return <PeopleHeatmap key={role} catalog={catalog} people={ranked} period={period} />
+        return (
+          <PeopleHeatmap
+            key={role}
+            catalog={catalog}
+            people={ranked}
+            period={period}
+            teamOf={teamOf}
+          />
+        )
       })}
     </div>
   )

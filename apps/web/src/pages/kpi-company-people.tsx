@@ -7,11 +7,13 @@ import {
   type KpiMetricDef,
   type KpiPerson,
   type KpiReading,
+  type KpiTeamRef,
 } from '@pv/contracts'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { ROLE_LABEL } from '@/data/users'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
+import { teamPath } from './kpi-allocate-model'
 import { NAME_LINK } from './kpi-company-forecast'
 import {
   DASH,
@@ -57,12 +59,47 @@ const TWO_LINES = 'flex min-w-0 flex-col items-start gap-1'
 const FIGURE = 'tnum font-num'
 const LINE = 'text-[12.5px] leading-5'
 
-function attentionCells(row: PersonRow, period: string): ReactNode[] {
+/** A person's team in the roster of the month; only the department screen
+ *  passes one, so the company screen stays as it was. */
+export type TeamOf = (actorId: string) => KpiTeamRef | undefined
+
+const TEAM_LINK = cn(
+  NOTE,
+  'pointer-coarse:min-h-12 inline-flex items-center underline underline-offset-2',
+)
+
+/** The name opens the person's KPI; the team line under it opens the team page,
+ *  the head's way in there from this screen. */
+function NameCell({
+  person,
+  period,
+  teamOf,
+}: {
+  person: Pick<KpiPerson, 'actorId' | 'name'>
+  period: string
+  teamOf?: TeamOf
+}) {
+  const link = (
+    <Link to={personHref(person.actorId, period)} className={NAME_LINK}>
+      {person.name}
+    </Link>
+  )
+  const team = teamOf?.(person.actorId)
+  if (!team) return link
+  return (
+    <span className={TWO_LINES}>
+      {link}
+      <Link to={teamPath(team.id, period)} className={TEAM_LINK}>
+        Nhóm {team.name}
+      </Link>
+    </span>
+  )
+}
+
+function attentionCells(row: PersonRow, period: string, teamOf?: TeamOf): ReactNode[] {
   const { item, acknowledgement: ack } = row
   const head = [
-    <Link key="person" to={personHref(row.person.actorId, period)} className={NAME_LINK}>
-      {row.person.name}
-    </Link>,
+    <NameCell key="person" person={row.person} period={period} teamOf={teamOf} />,
     ROLE_LABEL[row.role],
   ]
   if (item === null) {
@@ -100,10 +137,12 @@ export function AttentionBlock({
   catalog,
   people,
   period,
+  teamOf,
 }: {
   catalog: KpiCatalog
   people: readonly KpiPerson[]
   period: string
+  teamOf?: TeamOf
 }) {
   const rows = exceptionRows(catalog, people)
   const unjudged = unjudgedRoles(people)
@@ -121,7 +160,7 @@ export function AttentionBlock({
             rowHeight="min-h-12 py-2"
             className="min-w-3xl"
             columns={ATTENTION_COLUMNS}
-            rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period) }))}
+            rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period, teamOf) }))}
           />
         </div>
       )}
@@ -156,11 +195,13 @@ function RoleHeat({
   defs,
   group,
   period,
+  teamOf,
 }: {
   /** The role's metrics in force, in catalog order. */
   defs: readonly KpiMetricDef[]
   group: RoleGroup
   period: string
+  teamOf?: TeamOf
 }) {
   const columns: TableColumn[] = [
     { header: 'Nhân sự', width: `minmax(${HEAT_CELL}px,1.2fr)` },
@@ -184,9 +225,7 @@ function RoleHeat({
             rows={group.holders.map(({ person, card }) => ({
               id: `${person.actorId}/${card.role}`,
               cells: [
-                <Link key="person" to={personHref(person.actorId, period)} className={NAME_LINK}>
-                  {person.name}
-                </Link>,
+                <NameCell key="person" person={person} period={period} teamOf={teamOf} />,
                 ...defs.map((def) =>
                   heatCell(
                     def,
@@ -208,15 +247,23 @@ export function PeopleHeatmap({
   catalog,
   people,
   period,
+  teamOf,
 }: {
   catalog: KpiCatalog
   people: readonly KpiPerson[]
   period: string
+  teamOf?: TeamOf
 }) {
   return (
     <div className="flex flex-col gap-4">
       {roleGroups(people).map((group) => (
-        <RoleHeat key={group.role} defs={catalog[group.role]} group={group} period={period} />
+        <RoleHeat
+          key={group.role}
+          defs={catalog[group.role]}
+          group={group}
+          period={period}
+          teamOf={teamOf}
+        />
       ))}
     </div>
   )

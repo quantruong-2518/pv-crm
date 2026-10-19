@@ -6,11 +6,12 @@ import { kpiPeopleQuery } from '@/data/kpi'
 import { kpiCountersQuery } from '@/data/kpi-allocation'
 import { kpiCatalogQuery, withCatalog } from '@/data/kpi-catalog'
 import { kpiForecastQuery } from '@/data/kpi-forecast'
+import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { keyOf, num } from './home-model'
 import { NOTE } from './home-tiles'
 import { PROPOSALS_PATH, monthQuery } from './kpi-allocate-model'
 import { KpiForecastBlock } from './kpi-company-forecast'
-import { AttentionBlock } from './kpi-company-people'
+import { AttentionBlock, type TeamOf } from './kpi-company-people'
 import { openCounters, roomForecast, roomPeople } from './kpi-department-model'
 import { RankedHeatmap, RoomStrip } from './kpi-department-parts'
 import { MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
@@ -40,6 +41,12 @@ export function KpiDepartmentPage() {
   const people = useQuery(kpiPeopleQuery(period))
   const forecast = useQuery(kpiForecastQuery(period))
   const counters = useQuery(kpiCountersQuery(period))
+  /* Optional: without the roster the tables still read, only the team line goes. */
+  const roster = useQuery(kpiTeamRosterQuery(period))
+  const teamByActor = new Map(
+    (roster.data?.teams ?? []).flatMap((t) => t.members.map((m) => [m.actorId, t] as const)),
+  )
+  const teamOf: TeamOf = (actorId) => teamByActor.get(actorId)
   const waiting = counters.data ? openCounters(counters.data.counters) : 0
   /* Nobody holds a KPI role: the strip's zero says so once. */
   const nobody = people.data !== undefined && roomPeople(people.data.people).length === 0
@@ -106,6 +113,7 @@ export function KpiDepartmentPage() {
                   catalog={defs}
                   people={roomPeople(data.people)}
                   period={data.period}
+                  teamOf={teamOf}
                 />
               )}
             </QueryBlock>
@@ -126,6 +134,7 @@ export function KpiDepartmentPage() {
                   catalog={defs}
                   people={roomPeople(data.people)}
                   period={data.period}
+                  teamOf={teamOf}
                 />
               )}
             </QueryBlock>
