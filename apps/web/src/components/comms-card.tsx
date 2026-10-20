@@ -74,7 +74,7 @@ export function WorkstreamComms({ workstreamCode }: { workstreamCode: string }) 
         onSelect={setPicked}
         caption={caption}
       />
-      {selected && <CommRecordRead row={selected} as="panel" />}
+      {selected && <CommRecordRead row={selected} />}
     </div>
   )
 }

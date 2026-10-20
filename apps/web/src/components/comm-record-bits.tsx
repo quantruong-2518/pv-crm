@@ -1,24 +1,20 @@
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Button, GlassCard, Icon, SectionTitle, cn } from '@pv/ui'
+import { ArrowRight, Button, Icon, cn } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { dmhm } from '@/lib/date'
 import { COMM_CARD_SURFACE, UNREACHED_LINE, summaryTextOf } from '@/data/comm-record-detail'
 import { commRecordPath } from '@/data/comm-records'
 import { ChannelPill, CommLateMark, CommStateBadge, StepCopyLine } from './comm-bits'
 
-/** The one read view of a comm (ADR 0075): summary, answers and step as the
- *  server kept them. `panel` sits under a subject's timeline and links to the
- *  comm's page; `page` is the right column of that page once the comm is done,
- *  where the header above already names channel, time and state. */
-export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'page' }) {
+/** A comm read under a subject's timeline (ADR 0075): summary, answers and step
+ *  as the server kept them, and the door to the comm's own page. */
+export function CommRecordRead({ row }: { row: DebriefView }) {
   const navigate = useNavigate()
   const unreached = row.state === 'unreached'
   const cancelled = row.state === 'cancelled'
   const body = (
     <>
-      {as === 'panel' && row.title && (
-        <h4 className="m-0 text-[13px] font-semibold">{row.title}</h4>
-      )}
+      {row.title && <h4 className="m-0 text-[13px] font-semibold">{row.title}</h4>}
       {!cancelled && (
         <p
           className={cn(
@@ -60,18 +56,6 @@ export function CommRecordRead({ row, as }: { row: DebriefView; as: 'panel' | 'p
       )}
     </>
   )
-
-  if (as === 'page') {
-    return (
-      <GlassCard
-        className="flex flex-col gap-4 p-5 lg:p-6"
-        aria-label={unreached ? 'Lượt liên hệ đã đóng' : 'Nội dung đã xác nhận'}
-      >
-        {!unreached && <SectionTitle size="detail">Đã xác nhận</SectionTitle>}
-        {body}
-      </GlassCard>
-    )
-  }
 
   return (
     <section

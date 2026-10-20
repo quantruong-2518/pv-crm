@@ -1,35 +1,24 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, GlassCard, SectionTitle, Skeleton, cn } from '@pv/ui'
-import type { DebriefView, MessageRow } from '@pv/contracts'
-import { isApiError, userMessage } from '@/app/api'
-import { useSession } from '@/app/auth'
+import { AppShell } from '@pv/ui'
+import type { DebriefView } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
-import { dmhm } from '@/lib/date'
-import { CommStateBadge } from '@/components/comm-bits'
-import { CommFileList } from '@/components/comm-files'
-import { threadMessagesQuery } from '@/data/comms'
-import {
-  COMM_CARD_SURFACE,
-  commFilesQuery,
-  commRecordQuery,
-  subjectPath,
-} from '@/data/comm-record-detail'
-import { CommRecordRead } from '@/components/comm-record-bits'
-import { RecordHeader } from '@/components/record/record-header'
+import { commRecordQuery } from '@/data/comm-record-detail'
 import { RecordShell } from '@/components/record/record-shell'
-import { ContextStrip } from '@/components/record/run-strip'
-import { ConfirmWorkspace, ScheduledMeeting, type CommHeaderSlots } from './comm-record-parts'
+import { CommFillWorkspace } from './comm-record-fill'
+import { CommReadView } from './comm-record-read'
+import { ScheduledMeeting } from './comm-record-meeting'
 
-/** One comm record — `/comms/:id` (ADR 0075).
+/** One comm record — `/comms/:id` (ADR 0075), one column, no side rail.
  *
- *  On the record shell. The owner of an open comm gets the working screen
- *  (`ConfirmWorkspace`); once done it is the read view, and anybody else sees a
- *  line saying whose it is — only the creator confirms (ADR 0075 §1 + 0074).
- *  A booked meeting (`scheduled`) has its own view, `ScheduledMeeting`.
+ *  Whoever may close an open comm gets the three-step fill form
+ *  (`CommFillWorkspace`); once done, or for anybody else, it is the read view
+ *  (`CommReadView`), which says whose it is while it is open — only the
+ *  creator confirms (ADR 0075 §1 + 0074). A booked meeting (`scheduled`,
+ *  `cancelled`) has its own view, `ScheduledMeeting`.
  *
  *  The subject is fixed at creation, so it is printed, never picked. A record
- *  mints no object code, so the strip carries the subject alone (law 10). */
+ *  mints no object code, so the ContextRail carries the subject alone (law 10). */
 
 export function CommRecordPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
@@ -44,6 +33,7 @@ export function CommRecordPage() {
       ) : (
         <RecordShell
           pending={isPending}
+          skeleton={{ strip: false, rail: false }}
           failure={{
             error,
             notFound: 'Không tìm thấy lượt liên hệ này.',
@@ -58,152 +48,13 @@ export function CommRecordPage() {
 
 export default CommRecordPage
 
+/** Keyed by id so moving between records never carries one form's state into another. */
 function RecordBody({ record }: { record: DebriefView }) {
-  const navigate = useNavigate()
-  const me = useSession((s) => s.actor)
-  const mine = me?.id === record.owner.id
-  const open = record.closedAt === null
-  const unreached = record.state === 'unreached'
-  const path = subjectPath(record.subject.code)
-
-  const strip = (
-    <ContextStrip
-      objects={[
-        {
-          code: record.subject.code,
-          source: true,
-          ...(path ? { onOpen: () => navigate(path) } : {}),
-        },
-      ]}
-    />
-  )
-  /* The state rides in the title (law 16); a booked meeting fills the
-     slots with its moves and the reason one is shut. */
-  const headerOf = (slots: CommHeaderSlots = {}) => (
-    <RecordHeader
-      title={
-        <>
-          {record.title ?? record.subject.label}
-          <span className="ml-3 align-middle tracking-normal">
-            <CommStateBadge state={record.state} />
-          </span>
-        </>
-      }
-      {...slots}
-    />
-  )
-  const header = headerOf()
-  const turns = <Turns threadId={record.threadId} textOnly={unreached} />
-
   if (record.state === 'scheduled' || record.state === 'cancelled') {
-    return <ScheduledMeeting key={record.id} record={record} strip={strip} header={headerOf} />
+    return <ScheduledMeeting key={record.id} record={record} />
   }
-  if (open && mine) {
-    return (
-      <ConfirmWorkspace
-        key={record.id}
-        record={record}
-        strip={strip}
-        header={header}
-        turns={turns}
-      />
-    )
+  if (record.closedAt === null && record.closableByMe) {
+    return <CommFillWorkspace key={record.id} record={record} />
   }
-
-  return (
-    <RecordShell
-      strip={strip}
-      header={header}
-      main={
-        <>
-          {turns}
-          <FilesCard id={record.id} hideEmpty={unreached} />
-        </>
-      }
-      rail={
-        open ? (
-          <GlassCard className="p-5 lg:p-6">
-            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-              Chỉ {record.owner.name} xác nhận được lượt liên hệ này.
-            </p>
-          </GlassCard>
-        ) : (
-          <CommRecordRead row={record} as="page" />
-        )
-      }
-      railLabel={unreached ? 'Lượt liên hệ đã đóng' : 'Xác nhận liên hệ'}
-    />
-  )
-}
-
-/** The conversation's turns, newest first. Reading bodies writes an audit
- *  line server-side, which is the point: this screen is where they are read. */
-function Turns({ threadId, textOnly = false }: { threadId: string; textOnly?: boolean }) {
-  const { data, isPending, error } = useQuery(threadMessagesQuery(threadId))
-  const all = data ? [...data.rows].reverse() : []
-  /* A record closed without content has no card of "nothing yet" to show. */
-  const rows = textOnly
-    ? all.filter((row) => row.content.state === 'visible' && row.content.bodyText.trim() !== '')
-    : all
-  if (textOnly && (isPending || rows.length === 0) && !error) return null
-
-  return (
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Nội dung đã ghi">
-      <SectionTitle size="detail">Nội dung đã ghi</SectionTitle>
-      {isPending ? (
-        <Skeleton className="h-16 w-full" />
-      ) : error ? (
-        <p className="text-destructive-foreground text-[12.5px]">
-          Không tải được các lượt trao đổi. {isApiError(error) ? userMessage(error) : ''}
-        </p>
-      ) : rows.length === 0 ? (
-        <p className="text-muted-foreground text-[12.5px]">Chưa có lượt nào.</p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {rows.map((row) => (
-            <Turn key={row.id} row={row} />
-          ))}
-        </ul>
-      )}
-    </GlassCard>
-  )
-}
-
-/** The attachments of a closed record. `hideEmpty` drops the card when there
- *  are none, instead of an empty-list line on a record that stays shut. */
-function FilesCard({ id, hideEmpty }: { id: string; hideEmpty: boolean }) {
-  const files = useQuery({ ...commFilesQuery(id), enabled: hideEmpty })
-  if (hideEmpty && (files.data ? files.data.rows.length === 0 : files.isPending)) return null
-  return (
-    /* Law 8 · a list sits on glass-b. */
-    <GlassCard variant="b" className="flex flex-col gap-4 p-4 sm:p-5" aria-label="Tệp">
-      <SectionTitle size="detail">Tệp đính kèm</SectionTitle>
-      <CommFileList id={id} canDelete={false} />
-    </GlassCard>
-  )
-}
-
-function Turn({ row }: { row: MessageRow }) {
-  const body =
-    row.content.state === 'visible'
-      ? row.content.bodyText
-      : row.content.state === 'hidden'
-        ? 'Vai của bạn không xem được nội dung lượt này.'
-        : 'Lượt này chưa có nội dung.'
-  return (
-    <li className={cn('flex flex-col gap-2 rounded-md p-3', COMM_CARD_SURFACE)}>
-      <span className="text-muted-foreground tnum text-[11.5px]">
-        {dmhm(row.at)}
-        {row.durationSec !== null && ` · ${Math.round(row.durationSec / 60)} phút`}
-      </span>
-      <p
-        className={cn(
-          'm-0 whitespace-pre-wrap break-words text-[12.5px] leading-[1.6]',
-          row.content.state !== 'visible' && 'text-muted-foreground',
-        )}
-      >
-        {body}
-      </p>
-    </li>
-  )
+  return <CommReadView key={record.id} record={record} />
 }

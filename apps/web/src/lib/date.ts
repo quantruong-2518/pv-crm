@@ -64,6 +64,12 @@ export function dmy(iso: string): string {
   return date ? DMY.format(date) : iso
 }
 
+/** '2026-08-30T23:00:00Z' → '06:00' (at +07) */
+export function hm(iso: string): string {
+  const date = moment(iso)
+  return date ? HM.format(date) : iso
+}
+
 /** '2026-08-30T23:00:00Z' → '31/08 06:00' (at +07).
  *
  *  Here because `dm` alone cannot carry a SCHEDULING screen: two waves on one

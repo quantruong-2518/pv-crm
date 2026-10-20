@@ -79,7 +79,7 @@ export function MeetingHeldForm({
         criterionId: c.id,
         answerId: picked[c.id] ?? '',
       })),
-      ...(target && { step: stepInputOf(draft, target.currentStep, options.data) }),
+      ...(target && { step: stepInputOf(draft, options.data) }),
       /* No booked list = no lists at all: an empty array would REPLACE the attendees. */
       ...(meeting && {
         hosts: people.hosts.map(({ actorId, name, attended }) => ({ actorId, name, attended })),
@@ -169,7 +169,6 @@ export function MeetingHeldForm({
           <SectionTitle size="md">Bước tiếp theo</SectionTitle>
           {target ? (
             <CommNextStepFields
-              current={target.currentStep}
               kinds={vocab.data?.stepKinds ?? []}
               options={options}
               draft={draft}

@@ -137,7 +137,7 @@ export function rereadOptionsOnRefusal(client: QueryClient) {
 
 /** Today + N as a local calendar day. Built from parts: parsing a bare
  *  `YYYY-MM-DD` reads it as UTC and lands on the day before, west of Greenwich. */
-function dayAfter(days: number): string {
+export function dayAfter(days: number): string {
   const now = new Date()
   const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + days)
   const pad = (n: number) => String(n).padStart(2, '0')

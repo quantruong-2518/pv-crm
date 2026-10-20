@@ -1,23 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Button,
-  FileDrop,
-  FileText,
-  Icon,
-  ImageFrame,
-  Modal,
-  Skeleton,
-  Trash2,
-  cn,
-  type IconGlyph,
-} from '@pv/ui'
-import {
-  COMM_MAX_AUDIO_BYTES,
-  COMM_MAX_FILE_BYTES,
-  type CommAttachment,
-  type CommAttachmentMime,
-} from '@pv/contracts'
+import { Button, FileDrop, Icon, Modal, Skeleton, Trash2, cn } from '@pv/ui'
+import { COMM_MAX_AUDIO_BYTES, COMM_MAX_FILE_BYTES, type CommAttachment } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
@@ -25,6 +9,7 @@ import {
   COMM_FILE_EXTENSIONS,
   COMM_FILE_PICK_CAP,
   checkCommFile,
+  commFileKindOf,
   commFilesQuery,
   fileSizeLabel,
   useAttachCommFile,
@@ -41,7 +26,7 @@ import {
 
 const MB = 1024 * 1024
 
-const CAP_HINT = `Ghi âm tối đa ${COMM_MAX_AUDIO_BYTES / MB} MB · tài liệu và ảnh tối đa ${COMM_MAX_FILE_BYTES / MB} MB.`
+const CAP_HINT = `Ghi âm tối đa ${COMM_MAX_AUDIO_BYTES / MB} MB, tệp khác tối đa ${COMM_MAX_FILE_BYTES / MB} MB.`
 
 export function CommFileDrop({ id }: { id: string }) {
   const attach = useAttachCommFile(id)
@@ -73,18 +58,7 @@ export function CommFileDrop({ id }: { id: string }) {
   )
 }
 
-const KIND: Record<string, string> = {
-  'text/plain': 'Văn bản',
-  'application/pdf': 'PDF',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
-}
-
-function kindOf(mime: CommAttachmentMime): { label: string; icon: IconGlyph } {
-  if (mime.startsWith('audio/')) return { label: 'Ghi âm', icon: FileText }
-  if (mime.startsWith('image/')) return { label: 'Ảnh', icon: ImageFrame }
-  return { label: KIND[mime] ?? mime, icon: FileText }
-}
-
+/** The files of an open record, each deletable by its owner. */
 export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean }) {
   const { data, isPending, error } = useQuery(commFilesQuery(id))
   const remove = useDeleteCommFile(id)
@@ -98,9 +72,8 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
       </p>
     )
   }
-  if (data.rows.length === 0) {
-    return <p className="text-muted-foreground text-[12.5px] leading-[1.6]">Chưa có tệp nào.</p>
-  }
+  /* It sits under the drop zone, which already says there is room for one. */
+  if (data.rows.length === 0) return null
 
   return (
     <>
@@ -121,7 +94,7 @@ export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean
       </ul>
       {data.rows.some((file) => file.url === null) && (
         <p className="text-muted-foreground m-0 text-[11.5px] leading-[1.6]">
-          Vai của bạn chỉ xem được tên và dung lượng tệp.
+          Bạn chỉ xem được tên và dung lượng tệp.
         </p>
       )}
       <DeleteConfirm
@@ -186,7 +159,7 @@ function FileRow({
   onDelete?: () => void
   busy: boolean
 }) {
-  const kind = kindOf(file.mime)
+  const kind = commFileKindOf(file.mime)
   const name =
     'text-foreground pointer-coarse:min-h-12 flex items-center truncate text-[12.5px] font-semibold'
   return (

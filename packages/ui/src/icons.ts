@@ -127,6 +127,7 @@ export {
   // The bare pencil read poorly at 14–16px; the pencil-in-a-square is the edit glyph.
   PencilEdit02Icon as Pencil,
   Moon02Icon as Moon,
+  CallDisabledIcon as PhoneOff,
   Route01Icon as Route,
   CheckmarkSquare02Icon as SquareCheckBig,
   Sun03Icon as Sun,

@@ -1,11 +1,13 @@
 import {
   queryOptions,
   useMutation,
+  useQuery,
   useQueryClient,
   type QueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
 import {
+  COMM_CONFIRM_WITHIN_HOURS,
   COMM_MAX_AUDIO_BYTES,
   COMM_MAX_FILE_BYTES,
   CommAttachmentDeclareResponse,
@@ -20,12 +22,15 @@ import {
   type DebriefClose,
   type DebriefStepInput,
   type DebriefSummary,
+  type MessageDirection,
   type StepOptionsResponse,
   type StepTemplateOption,
+  type ThreadChannel,
 } from '@pv/contracts'
+import { FileText, ImageFrame, type IconGlyph } from '@pv/ui'
 import { api, type ApiError } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
-import { COMMS_KEY, COMM_VIEW_NEED } from '@/data/comms'
+import { COMMS_KEY, COMM_VIEW_NEED, threadMessagesQuery } from '@/data/comms'
 import { nextStepKey, rereadOptionsOnRefusal, stepOptionsMoved } from '@/data/next-step'
 import { chainPath } from '@/data/opportunities'
 import { putOnceMore } from '@/data/lead-scan-run'
@@ -158,8 +163,7 @@ export function useConfirmComm() {
 export function commClosed(client: QueryClient, view: DebriefView) {
   client.setQueryData(commRecordQuery(view.id).queryKey, view)
   recordsMoved(client)
-  /* The step landed on the subject through the sales hook, and a step
-     marked done wrote a touch there too. */
+  /* The step landed on the subject through the sales hook. */
   void client.invalidateQueries({ queryKey: nextStepKey(view.subject.code) })
   /* A first real touch can move the lead's state, and with it the frame on offer. */
   stepOptionsMoved(client)
@@ -341,6 +345,64 @@ export function clearCommDraft(id: string) {
   }
 }
 
+/** The owner's unsent form, as the draft button keeps it. */
+export type CommDraft = {
+  title: string
+  summary: string
+  picked: Record<string, string>
+  step: StepDraft
+}
+
+/** Browser storage can throw or come back empty; a draft is a convenience. */
+export function readCommDraft(id: string): CommDraft | null {
+  try {
+    const raw = localStorage.getItem(commDraftKey(id))
+    return raw ? (JSON.parse(raw) as CommDraft) : null
+  } catch {
+    return null
+  }
+}
+
+export function writeCommDraft(id: string, draft: CommDraft) {
+  try {
+    localStorage.setItem(commDraftKey(id), JSON.stringify(draft))
+  } catch {
+    /* storage unavailable — the form still works, it just cannot be kept */
+  }
+}
+
+/** What one comm is called inside a sentence (the header, the step titles);
+ *  every chat channel is one conversation, whatever app carried it. */
+export const COMM_NOUN: Record<ThreadChannel, string> = {
+  phone: 'cuộc gọi',
+  meeting: 'buổi gặp',
+  email: 'thư',
+  'zalo-oa': 'cuộc trò chuyện',
+  telegram: 'cuộc trò chuyện',
+  whatsapp: 'cuộc trò chuyện',
+  'in-app': 'cuộc trò chuyện',
+}
+
+/** The opening words of the header's time line: the noun, and for a call or a
+ *  mail which way it went.
+ *  `direction` is the anchor turn's; unknown while the turns are read. */
+export function commKindLine(channel: ThreadChannel, direction: MessageDirection | null): string {
+  const noun = COMM_NOUN[channel]
+  const head = noun.charAt(0).toUpperCase() + noun.slice(1)
+  if (channel === 'phone' && direction) return `${head} ${direction === 'out' ? 'đi' : 'đến'}`
+  if (channel === 'email' && direction) return `${head} ${direction === 'out' ? 'gửi đi' : 'nhận'}`
+  return head
+}
+
+const HOUR_MS = 3_600_000
+
+/** Whole hours left of the confirm window, or null once it has run out —
+ *  the screen then shows the late mark, whatever the server's flag says yet. */
+export function confirmHoursLeft(createdAt: string, now: number): number | null {
+  const end = Date.parse(createdAt) + COMM_CONFIRM_WITHIN_HOURS * HOUR_MS
+  return end <= now ? null : Math.ceil((end - now) / HOUR_MS)
+}
+
 /** `hidden` and `none` must not read alike: one is a permission, the other
  *  an open record with nothing written yet. */
 export function summaryTextOf(summary: DebriefSummary): string {
@@ -357,22 +419,18 @@ export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
   return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
 }
 
-/** The next-step part of a confirm, as typed. `previousDone` claims the step
- *  the person saw is finished, so it starts unticked. `templateId` and
- *  `dueAuto` (the day came from a template) are optional: drafts kept in the
- *  browser before ADR 0080 carry neither. */
+/** The next-step part of a confirm, as typed. `templateId` and `dueAuto`
+ *  (the day came from a template) are optional: drafts kept in the browser
+ *  before ADR 0080 carry neither. Older drafts may still hold `previousDone`;
+ *  it is ignored, the form no longer marks the step before as done. */
 export type StepDraft = {
   kindId: string
   text: string
   due: string
-  previousDone: boolean
   templateId?: string
   dueAuto?: boolean
 }
-export const EMPTY_STEP_DRAFT: StepDraft = { kindId: '', text: '', due: '', previousDone: false }
-
-/** The step the closer saw on the subject — `DebriefStepTarget.currentStep`. */
-export type CurrentStep = { text: string; due: string } | null
+export const EMPTY_STEP_DRAFT: StepDraft = { kindId: '', text: '', due: '' }
 
 /** The draft's template, only while the state still offers it: a pick kept
  *  from before the frame changed counts as no pick. */
@@ -405,19 +463,16 @@ export function stepBlockerOf(
 
 export function stepInputOf(
   draft: StepDraft,
-  current: CurrentStep,
   options: StepOptionsResponse | undefined,
 ): DebriefStepInput {
-  const picked = pickedTemplateOf(draft, options)
   /* Listed-only: the template's own words and kind, whatever an older draft
-     still holds — the server refuses any other pair. */
-  const fixed = options?.freeEntry === false ? picked : undefined
+     still holds — the server refuses any other pair. A typed step names no template. */
+  const fixed = options?.freeEntry === false ? pickedTemplateOf(draft, options) : undefined
   return {
     kindId: fixed?.kind.id ?? draft.kindId,
     text: fixed?.name ?? draft.text.trim(),
     due: draft.due,
-    ...(picked && { templateId: picked.id }),
-    ...(draft.previousDone && current ? { previousDone: current } : {}),
+    ...(fixed && { templateId: fixed.id }),
   }
 }
 
@@ -438,4 +493,32 @@ export function evaluationBlockerOf(
   }
   const unanswered = vocab.data.criteria.filter((c) => !picked[c.id]).length
   return unanswered > 0 ? `Còn ${unanswered} câu đánh giá chưa trả lời.` : null
+}
+
+/** The steps every comm is filled and read in; their count is this list's length. */
+export const commStepTitles = (record: Pick<DebriefView, 'channel'>) => {
+  const noun = COMM_NOUN[record.channel]
+  return [`Nội dung ${noun}`, `Đánh giá ${noun}`, 'Bước tiếp theo'] as const
+}
+
+/** In-page anchor of a read step card, for the stepper's links. */
+export const commStepAnchor = (index: number) => `comm-step-${index + 1}`
+
+/** The turn the record is anchored on: its direction and, for a call, how long it ran. */
+export function useAnchorTurn(record: Pick<DebriefView, 'threadId' | 'messageId'>) {
+  const { data } = useQuery(threadMessagesQuery(record.threadId))
+  return data?.rows.find((row) => row.id === record.messageId) ?? null
+}
+
+const KIND: Record<string, string> = {
+  'text/plain': 'Văn bản',
+  'application/pdf': 'PDF',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word',
+}
+
+/** A file's type as a person names it, and its glyph. */
+export function commFileKindOf(mime: CommAttachmentMime): { label: string; icon: IconGlyph } {
+  if (mime.startsWith('audio/')) return { label: 'Ghi âm', icon: FileText }
+  if (mime.startsWith('image/')) return { label: 'Ảnh', icon: ImageFrame }
+  return { label: KIND[mime] ?? mime, icon: FileText }
 }

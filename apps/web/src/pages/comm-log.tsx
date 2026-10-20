@@ -222,7 +222,7 @@ function SaveStep({
   const save = () =>
     onSave({
       answers: Object.entries(picked).map(([criterionId, answerId]) => ({ criterionId, answerId })),
-      ...(step && { step: stepInputOf(draft, step.currentStep, options.data) }),
+      ...(step && { step: stepInputOf(draft, options.data) }),
     })
 
   return (
@@ -237,7 +237,6 @@ function SaveStep({
                 <span className="font-mono">{subjectCode}</span>
               </span>
               <CommNextStepFields
-                current={step.currentStep}
                 kinds={vocab.data?.stepKinds ?? []}
                 options={options}
                 draft={draft}
