@@ -33,6 +33,7 @@ export function pvAliases(rootUrl: string) {
     },
     { find: /^@pv\/contracts$/, replacement: r('./packages/contracts/src/index.ts') },
     { find: /^@pv\/contracts\/(.+)$/, replacement: `${r('./packages/contracts/src')}/$1` },
+    { find: /^@api\/(.+)$/, replacement: `${r('./apps/api/src')}/$1` },
     { find: /^@\/(.+)$/, replacement: `${r('./apps/web/src')}/$1` },
   ]
 }

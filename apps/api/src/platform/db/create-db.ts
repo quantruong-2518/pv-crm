@@ -66,9 +66,10 @@ export async function createDb(url: string): Promise<DbHandle> {
     /* 'memory' → sống trong RAM, chết theo tiến trình. Dùng cho test.
        Còn lại là một thư mục trên đĩa — dữ liệu còn sau khi tắt máy chủ. */
     const { pg_trgm } = await import('@electric-sql/pglite/contrib/pg_trgm')
-    const client = new PGlite(target === 'memory' ? undefined : target, {
-      extensions: { pg_trgm },
-    })
+    /* PGlite 0.5.7 drops the options when the first argument is `undefined`,
+       so memory uses the options-only form to keep the extension. */
+    const options = { extensions: { pg_trgm } }
+    const client = target === 'memory' ? new PGlite(options) : new PGlite(target, options)
     /* Search needs pg_trgm, and PGlite only has it when the client loads it —
        which drizzle-kit's own client does not, so migration 0088 skips it here. */
     await client.exec('CREATE EXTENSION IF NOT EXISTS pg_trgm')

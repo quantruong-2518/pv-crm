@@ -551,6 +551,8 @@ GROUP BY 1, 2 ORDER BY 1, 2;
 The API and worker also log one `metrics` line per minute (routes, runtime,
 queues), from `apps/api/src/platform/observability/`.
 
+Load check for these budgets: `node tools/scripts/load-smoke.mjs --base <staging url> --cookie <session>` replays read-only GETs on the heaviest routes and prints p50/p95/p99; run it on a Neon branch with production-shaped data, never production.
+
 ## Nguồn giá và hành vi nền tảng
 
 - Neon compute và scale-to-zero: <https://neon.com/docs/manage/endpoints/>
