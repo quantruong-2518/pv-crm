@@ -5,19 +5,15 @@ import {
   type WorkstreamStandKind,
 } from '@pv/contracts'
 
-/** The open runs per rung, one bar each, grouped under the journey step they
- *  belong to. A bar is a rung and not a whole step because the book filters by
- *  one `standKind` + `standKey` pair: a step-wide bar could not open its rows.
+/** Open runs split by the journey step they stand on, as a donut with a legend
+ *  that filters the book. A slice is a step and not a rung: three slices stay
+ *  readable, and the server's `standKind` filter opens exactly those rows.
  *
- *  Order, labels and counts are the server's, zeros included: a screen-side
- *  ladder would print a renamed stage under its old word. One hue for every
- *  bar (law 15); the active row is marked by ring and weight, not by a tint
- *  that would eat the bar-vs-track contrast. Built locally because
- *  `BarChart`'s horizontal rows take no `onSelect`. */
+ *  Counts come from the scorecard's rungs, summed per kind: the server owns the
+ *  ladder, so a renamed rung never reaches this file. One hue at three
+ *  strengths (law 15); the active legend row is marked by ring and weight. */
 
-type Stage = { kind: WorkstreamStandKind; key: string }
 type Rungs = WorkstreamScorecard['stages']
-type Group = { kind: WorkstreamStandKind; rungs: Rungs }
 
 const STEP_OF_KIND: Record<WorkstreamStandKind, (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']> =
   { LD: 'lead', OP: 'opportunity', HĐ: 'contract' }
@@ -25,147 +21,114 @@ const STEP_OF_KIND: Record<WorkstreamStandKind, (typeof WORKSTREAM_JOURNEY_STEPS
 const stepTitle = (kind: WorkstreamStandKind) =>
   WORKSTREAM_JOURNEY_STEPS.find((s) => s.key === STEP_OF_KIND[kind])?.label ?? kind
 
-/* Kinds in first-appearance order: the server already sends the ladder in
-   process order, so the screen never sorts. */
-function groupsOf(stages: Rungs): Group[] {
-  const kinds = [...new Set(stages.map((s) => s.kind))]
-  return kinds.map((kind) => ({ kind, rungs: stages.filter((s) => s.kind === kind) }))
+const KINDS: WorkstreamStandKind[] = ['LD', 'OP', 'HĐ']
+const ARC: Record<WorkstreamStandKind, { stroke: string; dot: string }> = {
+  LD: { stroke: 'stroke-primary', dot: 'bg-primary' },
+  OP: { stroke: 'stroke-primary/60', dot: 'bg-primary/60' },
+  HĐ: { stroke: 'stroke-primary/30', dot: 'bg-primary/30' },
 }
 
-/* Outline for keyboard focus and shadow for the active ring: two properties,
-   so a focused active row shows both instead of one overwriting the other. */
+/* Circumference of the r = 30 circle in an 80-unit box. */
+const RING = 2 * Math.PI * 30
 const FOCUS = 'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2'
-
-function Rung({
-  label,
-  count,
-  top,
-  active,
-  onSelect,
-  className,
-}: {
-  label: string
-  count: number | undefined
-  top: number
-  active: boolean
-  onSelect: (() => void) | undefined
-  className?: string
-}) {
-  const empty = count === undefined || count === 0
-  return (
-    <button
-      type="button"
-      disabled={onSelect === undefined}
-      aria-pressed={active}
-      onClick={onSelect}
-      className={cn(
-        'motion-std pointer-coarse:min-h-12 flex w-full flex-col justify-center gap-1 rounded-md px-2 py-1 text-left',
-        FOCUS,
-        active && 'shadow-[0_0_0_2px_var(--ring)]',
-        onSelect && !active && 'hover:bg-surface-ink/8 cursor-pointer',
-        className,
-      )}
-    >
-      <span className="flex items-baseline justify-between gap-2 text-[12px] leading-4">
-        <span
-          className={cn(
-            'truncate',
-            active
-              ? 'text-foreground font-bold'
-              : empty
-                ? 'text-muted-foreground'
-                : 'text-foreground',
-          )}
-          title={label}
-        >
-          {label}
-        </span>
-        <span
-          className={cn(
-            'tnum font-num shrink-0 font-semibold',
-            active ? 'text-accent-foreground' : empty ? 'text-muted-foreground' : 'text-foreground',
-          )}
-        >
-          {count ?? '—'}
-        </span>
-      </span>
-      <span className="bg-surface-ink/10 block h-2 overflow-hidden rounded-sm">
-        {!empty && (
-          <span
-            className="bg-primary block h-full rounded-sm"
-            style={{ width: `${Math.max((count / top) * 100, 2)}%` }}
-          />
-        )}
-      </span>
-    </button>
-  )
-}
 
 export function WorkstreamStageChart({
   stages,
   active,
   onPick,
 }: {
-  /** Undefined until the scorecard arrives: one dash row, nothing clicks. */
+  /** Undefined until the scorecard arrives: dashes, nothing clicks. */
   stages: Rungs | undefined
-  active: { standKind?: WorkstreamStandKind; standKey?: string }
-  /** The same pair again means "clear". */
-  onPick: (stage: Stage | undefined) => void
+  active: WorkstreamStandKind | undefined
+  /** The active kind again means "clear". */
+  onPick: (kind: WorkstreamStandKind | undefined) => void
 }) {
-  const known = stages !== undefined && stages.length > 0
-  const groups: Group[] = known
-    ? groupsOf(stages)
-    : (['LD', 'OP'] as const).map((kind) => ({ kind, rungs: [] }))
-  const top = Math.max(1, ...(stages ?? []).map((s) => s.count))
-  const isOn = (kind: WorkstreamStandKind, key: string) =>
-    active.standKind === kind && active.standKey === key
-  /* Under `sm` a zero rung is dropped (the strip would push the table below the
-     fold); the active one stays so it can still be cleared. */
-  const quiet = (s: Rungs[number]) => s.count === 0 && !isOn(s.kind, s.key)
-  const allQuiet = known && stages.every(quiet)
+  const counts = KINDS.map((kind) => ({
+    kind,
+    count: (stages ?? []).filter((s) => s.kind === kind).reduce((n, s) => n + s.count, 0),
+  }))
+  const total = counts.reduce((n, c) => n + c.count, 0)
+  let used = 0
 
   return (
     <GlassCard
       role="group"
       aria-label="Hành trình đang chạy theo giai đoạn"
-      className={cn('grid gap-x-6 gap-y-2 px-2 py-3 sm:grid-cols-2', allQuiet && 'max-sm:hidden')}
+      className="flex h-full items-center gap-4 px-4 py-3"
     >
-      {groups.map((group) => (
-        <div
-          key={group.kind}
-          className={cn(
-            'flex min-w-0 flex-col gap-1',
-            group.rungs.length > 0 && group.rungs.every(quiet) && 'max-sm:hidden',
-          )}
-        >
-          <div className="text-muted-foreground px-2 text-[12px] font-semibold leading-4">
-            {stepTitle(group.kind)}
-          </div>
-          {group.rungs.length === 0 && (
-            <Rung label="—" count={undefined} top={top} active={false} onSelect={undefined} />
-          )}
-          {group.rungs.map((rung) => {
-            const on = isOn(rung.kind, rung.key)
-            /* An active empty bar stays clickable or a stale address could not be cleared. */
-            const live = on || rung.count > 0
-            return (
-              <Rung
-                key={rung.key}
-                label={rung.label}
-                count={rung.count}
-                top={top}
-                active={on}
-                className={quiet(rung) ? 'max-sm:hidden' : undefined}
-                onSelect={
-                  live
-                    ? () => onPick(on ? undefined : { kind: rung.kind, key: rung.key })
-                    : undefined
-                }
-              />
-            )
-          })}
-        </div>
-      ))}
+      <div className="size-26 relative shrink-0">
+        <svg viewBox="0 0 80 80" className="size-full" aria-hidden>
+          <circle
+            cx={40}
+            cy={40}
+            r={30}
+            fill="none"
+            strokeWidth={8}
+            className="stroke-surface-ink/10"
+          />
+          {total > 0 &&
+            counts.map(({ kind, count }) => {
+              const length = (count / total) * RING
+              const drawn = count === 0 ? 0 : Math.max(0.6, length - 1.6)
+              const circle = (
+                <circle
+                  key={kind}
+                  cx={40}
+                  cy={40}
+                  r={30}
+                  fill="none"
+                  strokeWidth={8}
+                  strokeDasharray={`${drawn} ${RING - drawn}`}
+                  strokeDashoffset={-used}
+                  transform="rotate(-90 40 40)"
+                  className={cn(ARC[kind].stroke, active && active !== kind && 'opacity-40')}
+                />
+              )
+              used += length
+              return circle
+            })}
+        </svg>
+        <span className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="tnum font-num text-[24px] font-semibold leading-7">
+            {stages ? total : '—'}
+          </span>
+          <span className="text-muted-foreground text-[11px] leading-4">đang chạy</span>
+        </span>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        {counts.map(({ kind, count }) => {
+          const on = active === kind
+          const live = on || count > 0
+          return (
+            <button
+              key={kind}
+              type="button"
+              disabled={!live || stages === undefined}
+              aria-pressed={on}
+              onClick={() => onPick(on ? undefined : kind)}
+              className={cn(
+                'motion-std pointer-coarse:min-h-12 flex items-center gap-2 rounded-md px-2 py-1 text-left',
+                FOCUS,
+                on && 'shadow-[0_0_0_2px_var(--ring)]',
+                live && !on && 'hover:bg-surface-ink/8 cursor-pointer',
+              )}
+            >
+              <span aria-hidden className={cn('size-2 shrink-0 rounded-full', ARC[kind].dot)} />
+              <span className="tnum font-num w-6 shrink-0 text-[16px] font-semibold">
+                {stages ? count : '—'}
+              </span>
+              <span
+                className={cn(
+                  'min-w-0 flex-1 truncate text-[14px] leading-5',
+                  on ? 'font-bold' : count === 0 && 'text-muted-foreground',
+                )}
+              >
+                {stepTitle(kind)}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </GlassCard>
   )
 }

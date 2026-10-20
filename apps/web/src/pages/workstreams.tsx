@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
+  CalendarClock,
   Icon,
   ScreenLayout,
   SearchField,
@@ -148,7 +149,7 @@ function WorkstreamsBook() {
               label="Trạng thái"
               hideLabel
               tone="quiet"
-              value={query.status}
+              value={query.overdue === true ? 'open' : query.status}
               options={STATUS_OPTIONS}
               onChange={(v) => {
                 const parsed = WorkstreamStatus.safeParse(v)
@@ -162,7 +163,7 @@ function WorkstreamsBook() {
                search, reset chip and view switch would push past the card. */
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
               <SearchField
-                placeholder="Tìm theo mã hành trình, tên lead hoặc công ty…"
+                placeholder="Tìm hành trình, lead, công ty…"
                 value={text}
                 meta={searchHint(text)}
                 onChange={setText}
@@ -176,6 +177,19 @@ function WorkstreamsBook() {
                   className="pointer-coarse:h-12"
                 >
                   Bỏ hết bộ lọc
+                </Button>
+              )}
+              {query.overdue === true && (
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="pointer-coarse:h-12 text-on-tint-warning"
+                  aria-label="Bỏ lọc quá hạn"
+                  onClick={() => patch({ overdue: undefined })}
+                >
+                  <Icon icon={CalendarClock} size={16} />
+                  Quá hạn
+                  <Icon icon={X} size={16} />
                 </Button>
               )}
               {query.accountCode !== undefined && (

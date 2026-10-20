@@ -5,7 +5,7 @@ import type { WorkstreamBookQuery } from '@pv/contracts'
 import { workstreamScorecardQuery } from '@/data/workstreams'
 import { WorkstreamStageChart } from './workstreams-chart'
 
-/** The workstream book's dashboard strip: a chart of open runs per rung and two
+/** The workstream book's dashboard strip: a donut of open runs per step and two
  *  cards, each of which filters the table below. Whole-book counts from
  *  `GET /sales/workstreams/scorecard`; tab and search never move them, but the
  *  active stage / overdue filter is reflected. No deltas: the endpoint has no
@@ -32,27 +32,23 @@ function PressableCard({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      disabled={onPress === undefined}
-      aria-pressed={active}
-      onClick={onPress}
-      className={cn(
-        'motion-std pointer-coarse:min-h-12 group relative block w-full rounded-lg text-left',
-        'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
-        active && 'shadow-[0_0_0_2px_var(--ring)]',
-        onPress && 'cursor-pointer',
-      )}
-    >
+    <div className="relative h-full">
       {children}
-      {/* An overlay, not a background: the card paints its own glass over the button. */}
-      {onPress && (
-        <span
-          aria-hidden
-          className="motion-std bg-surface-ink/0 group-hover:bg-surface-ink/8 pointer-events-none absolute inset-0 rounded-lg"
-        />
-      )}
-    </button>
+      {/* A sibling overlay, not a wrapper: the card keeps the grid row's full height. */}
+      <button
+        type="button"
+        disabled={onPress === undefined}
+        aria-pressed={active}
+        aria-label="Lọc hành trình quá hạn"
+        onClick={onPress}
+        className={cn(
+          'motion-std group absolute inset-0 rounded-lg',
+          'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
+          active && 'shadow-[0_0_0_2px_var(--ring)]',
+          onPress && 'hover:bg-surface-ink/8 cursor-pointer',
+        )}
+      />
+    </div>
   )
 }
 
@@ -73,15 +69,15 @@ export function WorkstreamScoreStrip({ query, patch }: Props) {
   const overdueActive = query.overdue === true
 
   return (
-    <div className="grid grid-cols-2 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-2 items-stretch gap-3 lg:grid-cols-3">
       <div className="col-span-2 lg:col-span-1">
         <WorkstreamStageChart
           stages={data?.stages}
-          active={{ standKind: query.standKind, standKey: query.standKey }}
-          onPick={(stage) =>
+          active={query.standKind}
+          onPick={(kind) =>
             patch(
-              stage
-                ? { ...FRESH_BOOK, overdue: undefined, standKind: stage.kind, standKey: stage.key }
+              kind
+                ? { ...FRESH_BOOK, overdue: undefined, standKind: kind, standKey: undefined }
                 : NO_STAGE,
             )
           }
@@ -106,16 +102,12 @@ export function WorkstreamScoreStrip({ query, patch }: Props) {
           icon={CalendarClock}
           label="Quá hạn"
           value={data ? String(late) : '—'}
-          hint={
-            data && late === 0
-              ? 'Không có hành trình nào quá hạn'
-              : 'Hành trình đang chạy có bậc quá hạn'
-          }
           tone={late > 0 ? 'warning' : 'default'}
         />
       </PressableCard>
       <StatCard
         size="compact"
+        className="h-full"
         icon={CircleCheck}
         label="Tỷ lệ thắng"
         value={data && closed > 0 ? percent(data.won / closed) : '—'}

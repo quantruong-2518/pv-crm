@@ -1,4 +1,4 @@
-import { Badge, cn, type BadgeProps } from '@pv/ui'
+import { Badge, Icon, MessageSquare, cn, type BadgeProps } from '@pv/ui'
 import type { WorkstreamRow, WorkstreamStandKind } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
 import { chainPath } from '@/data/opportunities'
@@ -75,8 +75,9 @@ export function ContactCell({ row }: { row: WorkstreamRow }) {
     return <span className="text-muted-foreground truncate">Chưa liên lạc</span>
   }
   return (
-    <span className="min-w-0 truncate">
-      <span className="tnum font-num font-semibold">{total}</span> lượt liên hệ
+    <span className="flex min-w-0 items-center gap-2 truncate" title={`${total} lượt liên hệ`}>
+      <Icon icon={MessageSquare} size={16} className="text-muted-foreground shrink-0" />
+      <span className="tnum font-num font-semibold">{total}</span>
       {last !== null && (
         <span className="text-muted-foreground tnum font-num" title="Lần liên lạc gần nhất">
           {' '}

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Badge, Chip, cn } from '@pv/ui'
+import { Badge, CalendarClock, Chip, Icon, cn } from '@pv/ui'
 import type { WorkstreamCloseReason, WorkstreamStandKind } from '@pv/contracts'
 import { chainPath } from '@/data/opportunities'
 import { CLOSE_REASON_LABEL } from '@/data/workstreams'
@@ -70,6 +70,7 @@ export function OverdueNote({
   if (overdueBy <= 0) return null
   return (
     <Badge tone="warning" className="shrink-0 gap-1">
+      <Icon icon={CalendarClock} size={14} />
       Trễ <span className="tnum font-num">{overdueBy}</span> ngày
     </Badge>
   )

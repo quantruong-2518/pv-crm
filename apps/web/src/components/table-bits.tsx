@@ -83,7 +83,7 @@ export function TableFooter({
           ? `${total} ${noun} · trang ${page + 1}/${pageCount}`
           : `Hiển thị ${from}–${to} trong ${total}`}
       </span>
-      {pageCount > 1 && (
+      {
         <nav aria-label="Phân trang" className="flex items-center gap-1">
           <PageButton label="Trang trước" disabled={page === 0} onClick={() => onPage(page - 1)}>
             <Icon icon={ChevronLeft} size={16} />
@@ -112,7 +112,7 @@ export function TableFooter({
             <Icon icon={ChevronRight} size={16} />
           </PageButton>
         </nav>
-      )}
+      }
     </div>
   )
 }
