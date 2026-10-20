@@ -11,6 +11,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { conflict } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { MeetingCalendar } from './meeting-calendar'
+import { CALENDAR_BATCH } from './meeting-calendar.repository'
 import { MeetingRepository } from './meeting.repository'
 import type { MeetingRowDb } from './meeting.schema'
 
@@ -20,7 +21,8 @@ import type { MeetingRowDb } from './meeting.schema'
  *  records and the booker's bell commit with the close, or not at all.
  *
  *  Google is told after the commit (`forgetCancelled`), never inside it, for
- *  `MeetingCalendar`'s reason; what fails there `MeetingCancelSweeper` retries.
+ *  `MeetingCalendar`'s reason; what fails there the worker's `MeetingCancelSweeper`
+ *  retries, a batch an hour.
  *  Reopening the subject restores nothing, as withheld mail is not released
  *  (ADR 0068 §5). A person never cancels — they drop (`MeetingService.drop`). */
 @Injectable()
@@ -56,18 +58,19 @@ export class MeetingCancel {
    *  mails the guests. Never throws — a failure is the sweeper's to retry. */
   async forgetCancelled(rows: readonly MeetingRowDb[]): Promise<void> {
     for (const row of rows) {
-      if (!row.googleEventId) continue
+      if (!row.googleEventId && !row.calendarDirtyAt) continue
       try {
         if (await this.calendar.forget(row)) await this.repo.clearEvent(row.id)
+        else await this.repo.forgetFailed(row.id)
       } catch (error) {
         this.log.warn(`forget cancelled ${row.id} failed — ${(error as Error).message}`)
       }
     }
   }
 
-  /** The sweeper's pass: cancelled rows still holding an event, tried again. */
+  /** The sweeper's pass: cancelled rows that may still hold an event, tried again. */
   async retryForget(): Promise<number> {
-    const rows = await this.repo.cancelledWithEvent()
+    const rows = await this.repo.cancelledWithEvent(CALENDAR_BATCH)
     await this.forgetCancelled(rows)
     return rows.length
   }

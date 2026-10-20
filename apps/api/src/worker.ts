@@ -11,6 +11,8 @@ import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { HoldReminderModule } from './branches/sales/hold/hold-reminder.module'
 import { HoldReminderSweeper } from './branches/sales/hold/hold-reminder.sweeper'
+import { KpiAlertSweeper } from './branches/sales/kpi/kpi-alert.sweeper'
+import { MeetingCancelSweeper } from './branches/sales/meeting/meeting-cancel.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
@@ -127,6 +129,8 @@ async function bootstrap(): Promise<void> {
   const campaigns = app.get(CampaignSweeper)
   const gates = app.get(MailWaveGateSweeper)
   const holds = app.get(HoldReminderSweeper)
+  const meetings = app.get(MeetingCancelSweeper)
+  const kpiAlerts = app.get(KpiAlertSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -253,12 +257,18 @@ async function bootstrap(): Promise<void> {
   const sweepCampaigns = pass('Quét chiến dịch lỗi', () => campaigns.sweep())
   // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
   const sweepHolds = pass('Hold reminders failed', () => holds.sweep())
+  // Same: one pass a minute (Google Calendar retries), the cancelled pass hourly.
+  const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
+  // Same: one pass a day, the first tick after boot is the boot pass.
+  const sweepKpiAlerts = pass('KPI alert sweep failed', () => kpiAlerts.sweep())
   const sweep = setInterval(() => {
     sweepRelay()
     sweepRuns()
     sweepGmail()
     sweepCampaigns()
     sweepHolds()
+    sweepMeetings()
+    sweepKpiAlerts()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
   sweep.unref()

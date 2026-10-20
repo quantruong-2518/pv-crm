@@ -123,9 +123,9 @@ export const MeetingEventUrl = z
 
 /** Outcome of the Google Calendar sync attempt made while building THIS response.
  *  `off` = the server has no Google client configured; `not_connected` = the
- *  booker has not linked an account; `failed` = Google was reached or tried and
- *  the call did not succeed. */
-export const MeetingCalendarState = z.enum(['synced', 'not_connected', 'failed', 'off'])
+ *  booker has not linked an account; `pending` = the try failed and the worker
+ *  retries it; `failed` = no longer returned, kept until the web stops reading it. */
+export const MeetingCalendarState = z.enum(['synced', 'pending', 'not_connected', 'failed', 'off'])
 
 /** The object a meeting hangs off: a lead or an opportunity, never a contract. */
 export const MeetingSubjectCode = ObjectCode.regex(

@@ -30,6 +30,7 @@ import {
   type MeetingRowDb,
   type MeetingValues,
 } from './meeting.schema'
+import { dueBy } from './meeting-calendar.repository'
 
 /** SQL của sổ cuộc họp. Không quyết định gì, không biết quyền.
  *
@@ -160,25 +161,6 @@ export class MeetingRepository {
       .where(eq(meeting.id, id))
   }
 
-  /** The calendar mirror, written on the pool AFTER the booking committed.
-   *  The Meet URL fills `link` only while it is still empty, in SQL: a link
-   *  pasted meanwhile wins, with no read-then-write window. */
-  async setEvent(
-    id: string,
-    event: { eventId: string; eventUrl: string | null; ownerId: string },
-    meetUrl: string | null,
-  ): Promise<void> {
-    await this.db
-      .update(meeting)
-      .set({
-        googleEventId: event.eventId,
-        googleEventUrl: event.eventUrl,
-        googleOwnerId: event.ownerId,
-        ...(meetUrl ? { link: sql`COALESCE(${meeting.link}, ${meetUrl})` } : {}),
-      })
-      .where(eq(meeting.id, id))
-  }
-
   /** Soft-cancel the subjects' meetings still ahead and not closed out. One
    *  started but not closed out is left: it happened, and still owes its close-meeting. */
   async cancelUpcoming(
@@ -187,32 +169,46 @@ export class MeetingRepository {
     cause: MeetingCancelCause,
   ): Promise<MeetingRowDb[]> {
     if (codes.length === 0) return []
-    return tx
-      .update(meeting)
-      .set({ cancelledAt: sql`now()`, cancelCause: cause, updatedAt: new Date() })
-      .where(
-        and(
-          inArray(meeting.subjectCode, [...codes]),
-          isNull(meeting.heldAt),
-          isNull(meeting.cancelledAt),
-          gt(meeting.at, sql`now()`),
-        ),
-      )
-      .returning()
+    return (
+      tx
+        .update(meeting)
+        /* A fresh count for the removal retries (`cancelledWithEvent`'s backoff). */
+        .set({
+          cancelledAt: sql`now()`,
+          cancelCause: cause,
+          updatedAt: new Date(),
+          calendarAttempts: 0,
+        })
+        .where(
+          and(
+            inArray(meeting.subjectCode, [...codes]),
+            isNull(meeting.heldAt),
+            isNull(meeting.cancelledAt),
+            gt(meeting.at, sql`now()`),
+          ),
+        )
+        .returning()
+    )
   }
 
-  /** Cancelled rows whose Google event is still to remove, for the sweeper.
-   *  Seven days, then given up: a booker who never reconnects is not retried for ever. */
-  async cancelledWithEvent(): Promise<MeetingRowDb[]> {
+  /** Cancelled rows whose Google event may still be up (one stored, or a push
+   *  was owed under the stable id), for the sweeper, a batch at a time. Due on
+   *  the push backoff from the cancel, so rows that keep failing step aside for
+   *  newer ones. Seven days, then given up: a booker who never reconnects is
+   *  not retried for ever. */
+  async cancelledWithEvent(limit: number): Promise<MeetingRowDb[]> {
     return this.db
       .select()
       .from(meeting)
       .where(
         and(
-          isNotNull(meeting.googleEventId),
+          or(isNotNull(meeting.googleEventId), isNotNull(meeting.calendarDirtyAt)),
           gt(meeting.cancelledAt, sql`now() - interval '7 days'`),
+          dueBy(meeting.calendarAttempts, meeting.cancelledAt),
         ),
       )
+      .orderBy(asc(meeting.cancelledAt))
+      .limit(limit)
   }
 
   /** The mirror's display label per code — a lead's company, a deal's name. */
@@ -225,11 +221,24 @@ export class MeetingRepository {
     return new Map(rows.map((r) => [r.code, r.label]))
   }
 
-  /** The event is gone from Google: the mirror columns follow. */
+  /** The event is gone from Google: the mirror columns and the mark follow. */
   async clearEvent(id: string): Promise<void> {
     await this.db
       .update(meeting)
-      .set({ googleEventId: null, googleEventUrl: null, googleOwnerId: null })
+      .set({
+        googleEventId: null,
+        googleEventUrl: null,
+        googleOwnerId: null,
+        calendarDirtyAt: null,
+      })
+      .where(eq(meeting.id, id))
+  }
+
+  /** A cancelled row's removal failed: its next try waits longer. */
+  async forgetFailed(id: string): Promise<void> {
+    await this.db
+      .update(meeting)
+      .set({ calendarAttempts: sql`${meeting.calendarAttempts} + 1` })
       .where(eq(meeting.id, id))
   }
 

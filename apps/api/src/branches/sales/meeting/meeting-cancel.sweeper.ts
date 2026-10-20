@@ -1,60 +1,61 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  Module,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
-import { ENV, type Env } from '@api/platform/config/env'
+import { Injectable, Logger, Module } from '@nestjs/common'
+import { MeetingCalendar } from './meeting-calendar'
 import { MeetingCancel } from './meeting-cancel'
 import { MeetingModule } from './meeting.module'
 
-const SWEEP_EVERY_MS = 60 * 60_000
+const PASS_EVERY_MS = 60_000
+const CANCELLED_EVERY_MS = 60 * 60_000
 
-/** Retries the Google removal a cancel could not finish after its commit
- *  (booker's link down, Google refusing), for seven days (`cancelledWithEvent`).
+/** Finishes the Google work a commit left behind (0127): dirty meetings to push,
+ *  tombstones of dropped meetings to remove, cancelled meetings whose event is
+ *  still up. Each read is one batch (`CALENDAR_BATCH`); a backlog drains over passes.
  *
- *  Self-timed: hourly and once at boot, off under `NODE_ENV=test`. Safe to
- *  overlap with another process — a second DELETE of a gone event is a 404,
- *  which counts as removed. */
+ *  Rides the worker's existing tick (`worker.ts`), no clock of its own (ADR
+ *  0082 §2), throttled the `HoldReminderSweeper` way: one pass a minute (the
+ *  first push backoff), the cancelled pass hourly. Only the worker calls it, so
+ *  adding API machines adds no Google calls. A second worker repeating a pass
+ *  is safe: the stable event id, the mark's compare-and-set, a 404 on delete. */
 @Injectable()
-export class MeetingCancelSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
-  private readonly log = new Logger('meeting.cancel')
-  private timer: NodeJS.Timeout | null = null
+export class MeetingCancelSweeper {
+  private readonly log = new Logger('meeting.calendar')
+  private notBefore = 0
+  private cancelledNotBefore = 0
+  private running = false
 
   constructor(
+    private readonly calendar: MeetingCalendar,
     private readonly cancel: MeetingCancel,
-    @Inject(ENV) private readonly env: Env,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
-    this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
-    this.timer.unref()
-    void this.sweep()
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer)
-    this.timer = null
-  }
-
-  /** Never rejects: what is left stays for the next tick. */
-  private async sweep(): Promise<void> {
+  /** Called on every worker tick. `null` = this tick was not a pass. The clock
+   *  moves BEFORE the pass so a failing database is asked again one interval later. */
+  async sweep(now = Date.now()): Promise<number | null> {
+    if (this.running || now < this.notBefore) return null
+    this.notBefore = now + PASS_EVERY_MS
+    this.running = true
     try {
-      const tried = await this.cancel.retryForget()
-      if (tried > 0) this.log.log(`Retried calendar removal for ${tried} cancelled meetings.`)
-    } catch (error: unknown) {
-      this.log.error(
-        `Cancel sweep failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      const pushed = await this.calendar.retryDue()
+      const dropped = await this.calendar.retryDropped()
+      let cancelled = 0
+      if (now >= this.cancelledNotBefore) {
+        this.cancelledNotBefore = now + CANCELLED_EVERY_MS
+        cancelled = await this.cancel.retryForget()
+      }
+      const tried = pushed + dropped + cancelled
+      if (tried > 0) {
+        this.log.log(
+          `Calendar retries: ${pushed} pushed, ${dropped} dropped, ${cancelled} cancelled.`,
+        )
+      }
+      return tried
+    } finally {
+      this.running = false
     }
   }
 }
 
-/** Its own module, mounted by `SalesModule` (so by the API and the worker):
- *  the one-off scripts load `MeetingModule` alone, and a dry run must never
- *  call Google or write. */
+/** Its own module, mounted by `SalesModule`: the one-off scripts load
+ *  `MeetingModule` alone, and a dry run must never call Google or write. The
+ *  API process mounts it too, but only `worker.ts` ever calls `sweep`. */
 @Module({ imports: [MeetingModule], providers: [MeetingCancelSweeper] })
 export class MeetingCancelSweepModule {}

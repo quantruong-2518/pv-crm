@@ -1,4 +1,4 @@
-import { boolean, check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, text, timestamp, unique, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import type { MeetingCancelCause, MeetingMode, MeetingSide } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
@@ -88,7 +88,8 @@ export const meeting = sales.table(
     goal: text('goal'),
 
     /** The Google Calendar event mirroring this meeting; all three NULL = not
-     *  synced (never linked, sync failed, or booked before 0086).
+     *  synced (never linked, sync failed, or booked before 0086). A failed or
+     *  not-yet-run push also leaves `calendar_dirty_at` set, so it is retried.
      *
      *  `google_owner_id` is whose calendar holds the event: the refresh token
      *  that can update or delete it belongs to that person, who is not always
@@ -98,6 +99,16 @@ export const meeting = sales.table(
     googleEventId: text('google_event_id'),
     googleEventUrl: text('google_event_url'),
     googleOwnerId: text('google_owner_id').references(() => actor.id, { onDelete: 'set null' }),
+
+    /** Set in the SAME transaction as any write that changes what the Google event
+     *  shows (book, amend); NULL = nothing waiting. A push clears it with
+     *  `WHERE calendar_dirty_at = <value it read>`, so a write landing mid-push
+     *  keeps the row dirty. A mark, not a queue table: one pending push per meeting. */
+    calendarDirtyAt: timestamp('calendar_dirty_at', { withTimezone: true }),
+    /** Failed background pushes since the last success; reset to 0 on success. */
+    calendarAttempts: integer('calendar_attempts').notNull().default(0),
+    /** When the booker was told the event could not be synced, so they hear it once. */
+    calendarAlertedAt: timestamp('calendar_alerted_at', { withTimezone: true }),
 
     /** Soft cancel: the subject left the funnel, so this future meeting no longer
      *  happens. A mark pair, not a delete — the calendar and timeline still say
@@ -123,6 +134,12 @@ export const meeting = sales.table(
     index('meeting_upcoming_idx')
       .on(t.at)
       .where(sql`"held_at" IS NULL AND "cancelled_at" IS NULL`),
+    /** "Which meetings still need a Google push, oldest first" — the worker's pick,
+     *  every sweep. Partial: nearly every row is clean, and a cancelled one is not pushed. */
+    index('meeting_calendar_dirty_idx')
+      .on(t.calendarDirtyAt)
+      .where(sql`"calendar_dirty_at" IS NOT NULL AND "cancelled_at" IS NULL`),
+    check('meeting_calendar_attempts_nonneg', sql`"calendar_attempts" >= 0`),
     check('meeting_no_blank', sql`"title" <> '' AND "by" <> '' AND "subject_code" <> ''`),
     /** Only leads and deals carry meetings. Copied from `next_step_subject_known`
      *  by hand; `{4,}` because `%04d` pads, never truncates. */
@@ -222,6 +239,32 @@ export const meetingAttendee = sales.table(
      *  lời được khi có hai người trùng tên. */
     check('meeting_attendee_host_is_actor', sql`"side" <> 'host' OR "actor_id" IS NOT NULL`),
     check('meeting_attendee_no_blank', sql`"name" <> ''`),
+  ],
+)
+
+/** Tombstone written in the same transaction that hard-deletes a meeting, so the
+ *  Google event can still be removed once the row is gone. Not in the `pv_change`
+ *  push map: no screen lists it. */
+export const meetingCalendarDrop = sales.table(
+  'meeting_calendar_drop',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** No foreign key: the meeting row is deleted in the same transaction. UNIQUE
+     *  below, so a retried delete never queues the same event twice. */
+    meetingId: uuid('meeting_id').notNull(),
+    eventId: text('event_id').notNull(),
+    /** Whose calendar holds the event. CASCADE: once the person is gone no token
+     *  can reach the event, so there is nothing left to retry. */
+    ownerId: text('owner_id')
+      .notNull()
+      .references(() => actor.id, { onDelete: 'cascade' }),
+    /** Failed delete attempts so far. */
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('meeting_calendar_drop_meeting_uq').on(t.meetingId),
+    check('meeting_calendar_drop_attempts_nonneg', sql`"attempts" >= 0`),
   ],
 )
 

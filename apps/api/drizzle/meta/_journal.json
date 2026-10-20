@@ -876,6 +876,13 @@
       "when": 1794121560000,
       "tag": "0126_entity_change_push",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1794207960000,
+      "tag": "0127_meeting_calendar_sync",
+      "breakpoints": true
     }
   ]
 }

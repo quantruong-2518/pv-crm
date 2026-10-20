@@ -1,13 +1,6 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { KPI_FORECAST_FLAGGED } from '@pv/engines'
 import { KPI_METRIC_LABEL, type KpiForecast, type KpiPeriodKey } from '@pv/contracts'
-import { ENV, type Env } from '@api/platform/config/env'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { monthLabel } from './kpi-alert.service'
 import { KpiAlertRepository, type KpiAlertKey } from './kpi-alert.repository'
@@ -35,34 +28,39 @@ const ALERT_FROM_DAY = 16
  *  person and flag (0093 §4's collapse), so the first deploy rings a person at
  *  most twice however many metrics already stand flagged.
  *
- *  Self-timed like `ContractOverdueSweeper`: once at boot, then daily, off under
- *  `NODE_ENV=test`, and left to overlap with the worker: the claim is one
- *  INSERT, so a racing sweep gets nothing back. No `actorId`: the system speaks.
+ *  Rides the worker's existing tick (`worker.ts`), no clock of its own (ADR
+ *  0082 §2), throttled to one pass a day the `HoldReminderSweeper` way. Only the
+ *  worker calls it; the claim is one INSERT. No `actorId`: the system speaks.
  *  The hub swallows a failed bell write under its savepoint while the claim
  *  still commits, so such an alert is lost for the rest of that month. */
 @Injectable()
-export class KpiAlertSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
+export class KpiAlertSweeper {
   private readonly log = new Logger('sales.kpi')
-  private timer: NodeJS.Timeout | null = null
+  private notBefore = 0
+  private running = false
 
   constructor(
     private readonly forecast: KpiForecastService,
     private readonly repo: KpiAlertRepository,
     private readonly allocations: KpiAllocationRepository,
     private readonly hub: NotificationHub,
-    @Inject(ENV) private readonly env: Env,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
-    this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
-    this.timer.unref()
-    void this.sweep()
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer)
-    this.timer = null
+  /** Called on every worker tick. `null` = this tick was not a pass. The clock
+   *  moves BEFORE the pass so a failing database is asked again one interval later;
+   *  a failed pass leaves the flags unclaimed for the next one. */
+  async sweep(now = Date.now()): Promise<number | null> {
+    if (this.running || now < this.notBefore) return null
+    this.notBefore = now + SWEEP_EVERY_MS
+    this.running = true
+    try {
+      const rung = await this.ring(vietnamToday().slice(0, 7))
+      /* Announced, not written: the hub drops a failed or duplicate line silently. */
+      if (rung > 0) this.log.log(`Announced ${rung} KPI forecast alerts to the bell.`)
+      return rung
+    } finally {
+      this.running = false
+    }
   }
 
   /** Lines announced for `period`. A closed month has a verdict and a future
@@ -109,19 +107,6 @@ export class KpiAlertSweeper implements OnApplicationBootstrap, OnApplicationShu
       }
       return lines.size
     })
-  }
-
-  /** Never rejects: a sweep that fails before its claim commits leaves the flags unclaimed for the next day. */
-  private async sweep(): Promise<void> {
-    try {
-      const rung = await this.ring(vietnamToday().slice(0, 7))
-      /* Announced, not written: the hub drops a failed or duplicate line silently. */
-      if (rung > 0) this.log.log(`Announced ${rung} KPI forecast alerts to the bell.`)
-    } catch (error: unknown) {
-      this.log.error(
-        `KPI alert sweep failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
-    }
   }
 }
 

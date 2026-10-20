@@ -1,6 +1,12 @@
 import { and, arrayContains, asc, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { KpiMetricDef, KpiMetricKey, KpiScope, RoleId } from '@pv/contracts'
+import {
+  isCumulative,
+  type KpiMetricDef,
+  type KpiMetricKey,
+  type KpiScope,
+  type RoleId,
+} from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { toVndSql } from '../money'
@@ -8,6 +14,7 @@ import { dealLost, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
+import { cumulativeByEnd } from './kpi-weekly.sql'
 
 /** Every KPI figure, computed on read from the books' own tables, except a
  *  closed month's, which `monthValues` reads from its frozen copy (ADR 0100).
@@ -372,6 +379,23 @@ export class KpiReadingsRepository {
     return new Map(
       r.rows.map((row) => [address(row.series, row.scope, row.actor_id ?? ''), row.value]),
     )
+  }
+
+  /** The month-to-date figure of one cumulative seat at each Vietnam-day end in
+   *  `ends` (the weekly chart), in one statement. An end with no row is absent. */
+  async cumulativeAt(
+    seat: KpiSeat,
+    span: PeriodSpan,
+    ends: readonly string[],
+    actors?: Actors,
+  ): Promise<ReadonlyMap<string, number | null>> {
+    if (!isCumulative(seat.def)) throw new Error(`kpi: ${seat.def.key} has no running total`)
+    if (ends.length === 0) return new Map()
+    const body = cumulativeByEnd(metricSql(seat), onlyFor(actors), ends)
+    const r = (await this.db.execute(spanned(span, body))) as {
+      rows: { day: string; value: number | null }[]
+    }
+    return new Map(r.rows.map((row) => [row.day, row.value]))
   }
 
   /** `values`, except that a closed month answers from its frozen copy, which

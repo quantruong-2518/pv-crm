@@ -47,11 +47,15 @@ export class GoogleCalendar {
 
   constructor(private readonly access: GoogleAccess) {}
 
-  /** Insert, or patch `eventId`. An event deleted on Google's side (404/410)
-   *  is inserted again rather than reported failed for ever. */
+  /** Patch `eventId`, or insert under `stableId` — the caller's id, so a retried
+   *  insert whose first try Google took (reply lost to the deadline) cannot make a
+   *  second event: Google answers 409 and that event is patched back to
+   *  `confirmed` (it may be one deleted earlier). An `eventId` deleted on Google's
+   *  side (404/410) is inserted again, under the same stable id. */
   async put(
     ownerId: string,
     eventId: string | null,
+    stableId: string,
     event: CalendarEvent,
   ): Promise<CalendarOutcome> {
     const signal = AbortSignal.timeout(GOOGLE_TIMEOUT_MS)
@@ -59,17 +63,21 @@ export class GoogleCalendar {
     if (access.state !== 'ok') return { state: access.state }
     const token = access.token
 
-    const body = JSON.stringify(eventBody(event))
+    const body = eventBody(event)
     const query = '?conferenceDataVersion=1&sendUpdates=all'
-    let response = await this.call(
-      eventId ? `${EVENTS_URL}/${encodeURIComponent(eventId)}${query}` : `${EVENTS_URL}${query}`,
-      eventId ? 'PATCH' : 'POST',
-      token,
-      signal,
-      body,
-    )
-    if (eventId && (response?.status === 404 || response?.status === 410)) {
-      response = await this.call(`${EVENTS_URL}${query}`, 'POST', token, signal, body)
+    const patch = (id: string, extra: object = {}) =>
+      this.call(
+        `${EVENTS_URL}/${encodeURIComponent(id)}${query}`,
+        'PATCH',
+        token,
+        signal,
+        JSON.stringify({ ...body, ...extra }),
+      )
+    let response = eventId ? await patch(eventId) : null
+    if (!eventId || response?.status === 404 || response?.status === 410) {
+      const insert = JSON.stringify({ id: stableId, ...body })
+      response = await this.call(`${EVENTS_URL}${query}`, 'POST', token, signal, insert)
+      if (response?.status === 409) response = await patch(stableId, { status: 'confirmed' })
     }
     if (!response?.ok) return { state: 'failed' }
 

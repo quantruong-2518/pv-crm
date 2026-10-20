@@ -53,6 +53,8 @@ export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
 export const COMM_RECORD_LATE = 'platform.comms.record-late'
 /** Future meetings cancelled because their lead or deal closed; one per subject and booker. */
 export const MEETING_CANCELLED = 'sales.meeting.cancelled'
+/** A meeting's Google event still failed after repeated background tries; once per streak. */
+export const MEETING_CALENDAR_FAILED = 'sales.meeting.calendar-failed'
 /** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
 export const HOLD_DUE_SOON = 'sales.hold.due-soon'
 export const HOLD_DUE = 'sales.hold.due'
@@ -143,6 +145,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('contract-installment-overdue', CONTRACT_INSTALLMENT_OVERDUE, 'owner'),
   bell('comm-record-late', COMM_RECORD_LATE, 'owner'),
   bell('meeting-cancelled', MEETING_CANCELLED, 'owner'),
+  bell('meeting-calendar-failed', MEETING_CALENDAR_FAILED, 'owner'),
 
   /* The holder, plus whoever set the hold; `plan` rings one person once. */
   bell('hold-due-soon', HOLD_DUE_SOON, 'holders'),

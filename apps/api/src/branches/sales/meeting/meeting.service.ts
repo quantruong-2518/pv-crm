@@ -27,7 +27,8 @@ import { ActorRepository } from '@api/platform/session/actor.repository'
 import { LeadStateWriter } from '../lead/lead-state'
 import { editDetailsVerdict } from '../opportunity/opportunity-acts'
 import { TouchService, byOf } from '../touch/touch.service'
-import { MeetingCalendar } from './meeting-calendar'
+import { MeetingCalendar, calendarEventId } from './meeting-calendar'
+import { MeetingCalendarRepository } from './meeting-calendar.repository'
 import { refuseCancelled } from './meeting-cancel'
 import { MeetingRepository } from './meeting.repository'
 import { firstMeetingId, meetingEndOf, toContract } from './meeting.mapper'
@@ -58,6 +59,7 @@ export class MeetingService {
     private readonly records: CommRecordService,
     private readonly actors: ActorRepository,
     private readonly calendar: MeetingCalendar,
+    private readonly marks: MeetingCalendarRepository,
     /* The debrief hook is reached by token at call time: its module imports
        this one (and `LeadModule`), so a constructor injection is a cycle. */
     private readonly modules: ModuleRef,
@@ -109,13 +111,16 @@ export class MeetingService {
         goal: body.goal ?? null,
         by: who.name,
         createdBy: who.id,
+        /* The event is owed from this commit on, even if the process dies next. */
+        calendarDirtyAt: new Date(),
       })
       await this.repo.setAttendees(tx, id, attendeesOf(id, body))
       if (!ahead) return
       await this.moveLead(tx, code, who.id, at)
       await this.writeTouch(tx, who, { subjectCode: code, at, title: body.title }, already)
     })
-    /* After the commit, never inside it: Google cannot fail or hold the booking. */
+    /* After the commit, never inside it: Google cannot fail or hold the booking.
+       A failed try stays dirty and the worker retries it. */
     return this.one(code, id, await this.calendar.push(id))
   }
 
@@ -135,9 +140,13 @@ export class MeetingService {
         ? toContract(current, await this.repo.attendeesOf([id]), false)
         : undefined
 
+    /* Dirty only when somebody's calendar could hold the event (`push`'s owner). */
+    const owner = current.googleEventId ? current.googleOwnerId : current.createdBy
     await this.repo.run(async (tx) => {
       await this.stillOpen(tx, id)
       await this.repo.update(tx, id, {
+        /* A new edit starts a new retry streak; whether the booker was told stays. */
+        ...(owner ? { calendarDirtyAt: new Date(), calendarAttempts: 0 } : {}),
         ...(body.at === undefined ? {} : { at }),
         ...(body.title === undefined ? {} : { title: body.title }),
         /* Absent = untouched, and zod turns "" into absent, so no PATCH clears
@@ -178,26 +187,37 @@ export class MeetingService {
 
   /** Only a meeting still ahead and not held may go, and only while its comm
    *  record holds nothing but the booking (`dropBooked`); files leave storage
-   *  after the commit. */
+   *  after the commit. A tombstone in the same transaction keeps the Google
+   *  event removable once the row is gone (`entombEvent`). */
   async drop(who: Actor, code: string, id: string): Promise<void> {
     const row = await this.changeable(who, code, id)
     if (row.at.getTime() <= Date.now()) {
       throw conflict('Lịch họp đã diễn ra, không xoá được.')
     }
     const files = await this.repo.run(async (tx) => {
-      await this.stillOpen(tx, id)
+      const locked = await this.stillOpen(tx, id)
       const keys = await this.records.dropBooked(tx, id, {
         actorId: who.id,
         subjectCode: code,
         ownerId: row.createdBy,
       })
       await this.repo.remove(tx, id)
+      await this.entombEvent(tx, locked)
       return keys
     })
     /* The event first: it mails the guests, so a storage hiccup must not
        leave a cancelled meeting on their calendars. */
-    await this.afterDrop('calendar', row.id, () => this.calendar.forget(row))
+    await this.afterDrop('calendar', row.id, () => this.calendar.forgetDropped(row.id))
     await this.afterDrop('files', row.id, () => this.records.forgetFiles(files))
+  }
+
+  /** An event may exist: one is stored, or a push was owed (its insert may have
+   *  reached Google under the stable id). No owner = no token to remove it with. */
+  private async entombEvent(tx: Db, row: MeetingRowDb): Promise<void> {
+    const eventId = row.googleEventId ?? (row.calendarDirtyAt ? calendarEventId(row.id) : null)
+    const ownerId = row.googleEventId ? row.googleOwnerId : row.createdBy
+    if (!eventId || !ownerId) return
+    await this.marks.entomb(tx, { meetingId: row.id, eventId, ownerId })
   }
 
   /** The row is already gone: a cleanup that fails is logged, never the caller's 500. */
@@ -397,11 +417,12 @@ export class MeetingService {
 
   /** Re-read under the row lock inside the write: close-meeting may have
    *  landed since `changeable` read the row on the pool. */
-  private async stillOpen(tx: Db, id: string): Promise<void> {
+  private async stillOpen(tx: Db, id: string): Promise<MeetingRowDb> {
     const row = await this.repo.lock(tx, id)
     if (!row) throw notFound('cuộc họp', id)
     if (row.heldAt) throw conflict(HELD)
     refuseCancelled(row)
+    return row
   }
 
   /** Every `contactCode` must name somebody in the subject's own contact book

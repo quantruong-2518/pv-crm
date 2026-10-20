@@ -18,7 +18,7 @@ import { targetSources } from './kpi-allocation.mapper'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
-import { KpiReadingsRepository, valueKey, type KpiSeat } from './kpi-readings.repository'
+import { KpiReadingsRepository, type KpiSeat } from './kpi-readings.repository'
 import { monthClock, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { elapsedOf } from './kpi-verdict'
@@ -120,22 +120,23 @@ export class KpiForecastService {
       this.closes.of(period),
     ])
     const frozen = close !== null
-    const points = await Promise.all(
-      this.weeksOf(from, to).map(async (weekStart) => {
-        const end = addDays(weekStart, 7) < to ? addDays(weekStart, 7) : to
-        const started = (weekStart > from ? weekStart : from) <= today
-        /* Each week re-reads the month from day one, so the sum is the
-           fragment's own and never an addition done here. */
-        const values = started
-          ? await this.readings.values([seat], { key: period, from, to: end }, who.id)
-          : null
-        return {
-          weekStart,
-          cumulative: values ? (values.get(valueKey(seat, who.id)) ?? 0) : null,
-          expected: target === null ? null : target * elapsedOf(from, to, end),
-        }
-      }),
+    const weeks = this.weeksOf(from, to).map((weekStart) => ({
+      weekStart,
+      end: addDays(weekStart, 7) < to ? addDays(weekStart, 7) : to,
+      started: (weekStart > from ? weekStart : from) <= today,
+    }))
+    /* One scan of the month's rows for every started week's running total. */
+    const totals = await this.readings.cumulativeAt(
+      seat,
+      { key: period, from, to },
+      weeks.filter((w) => w.started).map((w) => w.end),
+      who.id,
     )
+    const points = weeks.map(({ weekStart, end, started }) => ({
+      weekStart,
+      cumulative: started ? (totals.get(end) ?? 0) : null,
+      expected: target === null ? null : target * elapsedOf(from, to, end),
+    }))
     return KpiWeeklyResponse.parse({ period, frozen, role, metricKey, points })
   }
 

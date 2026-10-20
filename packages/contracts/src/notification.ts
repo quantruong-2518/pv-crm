@@ -31,6 +31,7 @@ export const NotificationKind = z.enum([
   'next-step-done',
   'comm-record-late',
   'meeting-cancelled',
+  'meeting-calendar-failed',
   'hold-due-soon',
   'hold-due',
   'approval-waiting',
@@ -115,6 +116,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'next-step-done': 'Việc bạn giao đã xong',
   'comm-record-late': 'Lượt liên hệ quá hạn chưa xác nhận',
   'meeting-cancelled': 'Lịch họp của bạn đã bị huỷ',
+  'meeting-calendar-failed': 'Chưa đưa được lịch họp lên Google Calendar',
   'hold-due-soon': 'Sắp tới ngày hẹn gặp lại',
   'hold-due': 'Hôm nay là ngày hẹn gặp lại',
   'approval-waiting': 'Có yêu cầu đang chờ bạn duyệt',
@@ -206,6 +208,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'next-step-done': 'next-step',
   'comm-record-late': 'next-step',
   'meeting-cancelled': 'comm',
+  'meeting-calendar-failed': 'comm',
   'hold-due-soon': 'hold',
   'hold-due': 'hold',
   'approval-waiting': 'approval',
@@ -272,6 +275,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'next-step-done': { important: false, locked: false },
   'comm-record-late': { important: false, locked: false },
   'meeting-cancelled': { important: false, locked: false },
+  'meeting-calendar-failed': { important: true, locked: false },
   'hold-due-soon': { important: false, locked: false },
   'hold-due': { important: false, locked: false },
   'approval-waiting': { important: true, locked: true },
@@ -381,6 +385,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'next-step-done': ['lead', 'opportunity'],
     'comm-record-late': ['comm-record'],
     'meeting-cancelled': ['lead', 'opportunity'],
+    'meeting-calendar-failed': ['lead', 'opportunity'],
     'hold-due-soon': ['lead', 'opportunity'],
     'hold-due': ['lead', 'opportunity'],
     'approval-waiting': ['approval'],
@@ -437,6 +442,8 @@ export const NOTIFICATION_DETAIL_NO = 'no'
 export const NOTIFICATION_DETAIL_STEPS = 'steps'
 /** Why a `meeting-cancelled` line's meetings went: a `MEETING_CANCEL_CAUSE_LABEL`. */
 export const NOTIFICATION_DETAIL_REASON = 'reason'
+/** The meeting's title on a `meeting-calendar-failed` line. */
+export const NOTIFICATION_DETAIL_TITLE = 'title'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -484,6 +491,10 @@ export function notificationSentence(
   if (row.kind === 'meeting-cancelled' && typeof reason === 'string') {
     const count = num(n(NOTIFICATION_DETAIL_COUNT))
     return `Đã huỷ ${count} lịch họp sắp tới với ${name} vì ${reason.toLowerCase()}`
+  }
+  const title = row.detail?.[NOTIFICATION_DETAIL_TITLE]
+  if (row.kind === 'meeting-calendar-failed' && typeof title === 'string') {
+    return `Chưa đưa được lịch họp “${title}” với ${name} lên Google Calendar sau nhiều lần thử. Mở lịch họp và lưu lại, hoặc tự thêm vào Google Calendar.`
   }
   const parked = n(NOTIFICATION_DETAIL_COUNT)
   if (row.kind === 'campaign-finished' && parked > 0) {

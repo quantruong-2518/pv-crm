@@ -6,6 +6,7 @@ import { SessionModule } from '@api/platform/session/session.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { TouchModule } from '../touch/touch.module'
 import { MeetingCalendar } from './meeting-calendar'
+import { MeetingCalendarRepository } from './meeting-calendar.repository'
 import { MeetingCancel } from './meeting-cancel'
 import { MeetingTodayController } from './meeting-today.controller'
 import { MeetingRepository } from './meeting.repository'
@@ -33,7 +34,13 @@ import { MeetingService } from './meeting.service'
     NotificationModule,
   ],
   controllers: [MeetingTodayController],
-  providers: [MeetingService, MeetingRepository, MeetingCalendar, MeetingCancel],
-  exports: [MeetingService, MeetingCancel],
+  providers: [
+    MeetingService,
+    MeetingRepository,
+    MeetingCalendarRepository,
+    MeetingCalendar,
+    MeetingCancel,
+  ],
+  exports: [MeetingService, MeetingCancel, MeetingCalendar],
 })
 export class MeetingModule {}
