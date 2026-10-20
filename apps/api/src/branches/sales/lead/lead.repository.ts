@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -746,7 +745,12 @@ export class LeadRepository {
          (`opportunity.repository.ts#filtersOf`) nên hai ô tìm không lệch
          nhau. */
       q.codes ? inArray(lead.code, listOf(q.codes)) : undefined,
-      q.q ? or(ilike(lead.company, contains(q.q)), ilike(lead.code, contains(q.q))) : undefined,
+      /* Accent-blind like global search (owner 20/10): `sales.fold` is the form
+         the trigram indexes from migration 0088 are built on. */
+      q.q
+        ? sql`(sales.fold(${lead.company}) LIKE sales.fold(${contains(q.q)}::text)
+            OR sales.fold(${lead.code}) LIKE sales.fold(${contains(q.q)}::text))`
+        : undefined,
     ]
   }
 
