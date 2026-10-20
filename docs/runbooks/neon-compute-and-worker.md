@@ -473,6 +473,84 @@ Không rollback `/livez` về một DB query 15 giây. Nếu cần readiness ch�
 deploy, thêm deploy probe riêng; không biến liveness thành nguồn đốt CU và cũng
 không trả HTTP 200 cho trạng thái degraded.
 
+## SQL budgets per process and per-minute metrics (20/10/2026)
+
+Neon silently drops node-pg's timeout startup fields, and the `-pooler`
+endpoint refuses `options=-c ...` (`08P01`); both verified on production
+20/10. So the budgets live on two Neon roles, selected per process by the URL:
+
+| Role        | Used by                              | statement | lock | idle-in-tx |
+| ----------- | ------------------------------------ | --------- | ---- | ---------- |
+| `pv_api`    | API, via `DATABASE_URL`              | 15 s      | 5 s  | 30 s       |
+| `pv_worker` | worker, via `PV_WORKER_DATABASE_URL` | 120 s     | 10 s | 60 s       |
+
+`neondb_owner` stays unlimited and is what migrations and local scripts use.
+pg-boss keeps `PV_QUEUE_DATABASE_URL`.
+
+Owner steps, in order:
+
+1. Run the role SQL below in the Neon console (password placeholders).
+2. Set the two Fly secrets: `DATABASE_URL` (pv_api pooler URL) and
+   `PV_WORKER_DATABASE_URL` (pv_worker pooler URL).
+3. Restart both process groups.
+4. Verify with `SHOW` (last block of the SQL).
+
+```sql
+-- Neon console, run as neondb_owner, in the production branch (try a Neon branch copy first).
+-- Replace the two <...> placeholders with generated passwords; never commit them.
+
+-- 1. Two login roles that inherit everything neondb_owner owns.
+--    Verified on PGlite (real Postgres): a member role with INHERIT (the default) can
+--    SELECT/INSERT/UPDATE, call sales.fold, fire the pv_change triggers (pg_notify),
+--    LISTEN, ALTER TABLE and CREATE INDEX on objects owned by the parent role, so no
+--    per-table GRANT is needed.
+CREATE ROLE pv_api    LOGIN PASSWORD '<api-password>'    IN ROLE neondb_owner;
+CREATE ROLE pv_worker LOGIN PASSWORD '<worker-password>' IN ROLE neondb_owner;
+
+-- If step 1 fails with "permission denied to ... role neondb_owner" (PG16+ needs ADMIN
+-- OPTION on the parent), drop the IN ROLE and grant explicitly instead:
+--   CREATE ROLE pv_api LOGIN PASSWORD '<api-password>';   (same for pv_worker)
+--   GRANT USAGE, CREATE ON SCHEMA public, platform, sales, comms, pgboss, drizzle TO pv_api, pv_worker;
+--   GRANT ALL ON ALL TABLES    IN SCHEMA public, platform, sales, comms, pgboss, drizzle TO pv_api, pv_worker;
+--   GRANT ALL ON ALL SEQUENCES IN SCHEMA public, platform, sales, comms, pgboss, drizzle TO pv_api, pv_worker;
+--   GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public, platform, sales, comms, pgboss TO pv_api, pv_worker;
+--   ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA platform, sales, comms, pgboss
+--     GRANT ALL ON TABLES TO pv_api, pv_worker;   (and SEQUENCES, FUNCTIONS likewise)
+-- ...and then the app cannot ALTER owner-owned tables, which is fine: migrations run as owner.
+
+-- 2. Budgets live on the role, so they apply to every new session, pooled or direct.
+ALTER ROLE pv_api    SET statement_timeout = '15s';
+ALTER ROLE pv_api    SET lock_timeout = '5s';
+ALTER ROLE pv_api    SET idle_in_transaction_session_timeout = '30s';
+
+ALTER ROLE pv_worker SET statement_timeout = '120s';
+ALTER ROLE pv_worker SET lock_timeout = '10s';
+ALTER ROLE pv_worker SET idle_in_transaction_session_timeout = '60s';
+
+-- 3. Verify the stored settings.
+SELECT r.rolname, s.setconfig
+FROM pg_db_role_setting s JOIN pg_roles r ON r.oid = s.setrole
+WHERE r.rolname IN ('pv_api', 'pv_worker', 'neondb_owner')
+ORDER BY r.rolname;
+-- expect pv_api / pv_worker rows with the three values above; neondb_owner has none.
+
+-- 4. After pointing Fly at the new URLs (DATABASE_URL = pv_api pooler URL,
+--    PV_WORKER_DATABASE_URL = pv_worker pooler URL) and restarting, check the live sessions:
+SELECT usename, application_name, count(*)
+FROM pg_stat_activity
+WHERE usename IN ('pv_api', 'pv_worker', 'neondb_owner')
+GROUP BY 1, 2 ORDER BY 1, 2;
+-- expect pv-one-app-api under pv_api and pv-one-app-worker under pv_worker.
+
+-- 5. Prove the limit on a real login (run as pv_api through the pooler, NOT as owner):
+--    SHOW statement_timeout;            -- 15s
+--    SELECT pg_sleep(20);               -- ERROR 57014 after ~15s
+--    SHOW lock_timeout;                 -- 5s
+```
+
+The API and worker also log one `metrics` line per minute (routes, runtime,
+queues), from `apps/api/src/platform/observability/`.
+
 ## Nguồn giá và hành vi nền tảng
 
 - Neon compute và scale-to-zero: <https://neon.com/docs/manage/endpoints/>

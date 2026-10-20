@@ -1,12 +1,13 @@
 # Documentation
 
-Three kinds of thing live here, and nothing else.
+Four kinds of document live here.
 
-| Folder           | Holds                                                                                                               | Rots? |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------- | ----- |
-| `design-system/` | The Aurora v2.0 laws, the real token names, the three device frames. The only copy — no linter holds laws 12 and 13 | No    |
-| `decisions/`     | One ratified decision per file, ADR-numbered. Plus `open-questions.md` for what is still unsettled                  | No    |
-| `runbooks/`      | Manual verification procedures. The mail layer deliberately has no automated tests; its runbook is the substitute   | No    |
+| Folder           | Holds                                                                                                               | Rots?    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- | -------- |
+| `design-system/` | The Aurora v2.0 laws, the real token names, the three device frames. The only copy — no linter holds laws 12 and 13 | No       |
+| `decisions/`     | One ratified decision per file, ADR-numbered. Plus `open-questions.md` for what is still unsettled                  | No       |
+| `runbooks/`      | Manual verification procedures. The mail layer deliberately has no automated tests; its runbook is the substitute   | No       |
+| `reviews/`       | Owner-requested assessments tied to a date and revision, with evidence and recommendations; not accepted decisions  | Snapshot |
 
 ## What is deliberately not here
 
@@ -20,6 +21,10 @@ plan itself is not.
 
 **Anything the code already says.** A document restating a schema or a function
 signature is a second copy that drifts on the next edit.
+
+Requested reviews are evidence snapshots, not a live status ledger. Each review
+states its scope and revision; recheck its findings before implementation. A
+recommendation becomes an accepted decision only through the normal ADR process.
 
 ## Conventions
 
