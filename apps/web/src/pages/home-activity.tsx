@@ -135,7 +135,7 @@ function SeriesToggle({
         'pointer-coarse:min-h-12 flex cursor-pointer flex-col gap-2 rounded-2xl px-4 py-3 text-left',
         'transition-[translate,background-color] duration-150 hover:-translate-y-0.5 active:scale-95 motion-reduce:transition-none',
         'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
-        on ? series.tint : 'bg-surface-ink/5 opacity-55',
+        on ? series.tint : 'bg-surface-ink/5',
       )}
     >
       <span className="text-muted-foreground flex items-center gap-2 text-[12px] font-semibold leading-4">
@@ -257,8 +257,10 @@ function Plot({ views, shown }: { views: readonly BucketView[]; shown: readonly 
     <div className="flex flex-1 flex-col pt-4">
       <PlotTable views={views} />
       <div aria-hidden className="flex flex-1 flex-col gap-2">
-        <div className="flex gap-2">
-          <div aria-hidden className="relative h-52 w-4 shrink-0">
+        {/* Grows with the row: the reasons card beside it sets the height, and a
+            fixed plot left a blank band under the day labels. */}
+        <div className="flex min-h-52 flex-1 gap-2">
+          <div aria-hidden className="relative w-4 shrink-0">
             {ticks.map((t) => (
               <span
                 key={t}
@@ -269,7 +271,7 @@ function Plot({ views, shown }: { views: readonly BucketView[]; shown: readonly 
               </span>
             ))}
           </div>
-          <div className="relative h-52 min-w-0 flex-1">
+          <div className="relative min-w-0 flex-1">
             {ticks.map((t) => (
               <span
                 key={t}

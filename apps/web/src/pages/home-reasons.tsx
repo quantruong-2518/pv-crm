@@ -263,7 +263,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
         </span>
       </div>
       {leadTotal + dealTotal === 0 ? (
-        <p className="text-muted-foreground text-[12px] leading-4">
+        <p className="text-muted-foreground my-auto py-8 text-center text-[12px] leading-4">
           Kỳ này chưa có lead ngừng chăm sóc hay cơ hội dừng.
         </p>
       ) : (

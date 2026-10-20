@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Icon,
+  Phone,
   Plus,
   ScreenHeader,
   ScreenLayout,
@@ -221,9 +222,18 @@ function QuickAction({
   )
 }
 
-/** Only actions that open a page that exists: the design's quote, call, meeting,
- *  mail and export pills have no destination yet. */
-function QuickActions({ canLead, canDeal }: { canLead: boolean; canDeal: boolean }) {
+/** Only actions that open a page that exists: the design's quote, meeting, mail
+ *  and export pills have no destination yet. Its call pill opens the contact
+ *  log, which takes any channel, so it carries that page's name. */
+function QuickActions({
+  canLead,
+  canDeal,
+  canLog,
+}: {
+  canLead: boolean
+  canDeal: boolean
+  canLog: boolean
+}) {
   const navigate = useNavigate()
 
   return (
@@ -242,6 +252,14 @@ function QuickActions({ canLead, canDeal }: { canLead: boolean; canDeal: boolean
           label="Tạo cơ hội"
           primary={!canLead}
           onClick={() => navigate('/sales/opportunities/new')}
+        />
+      )}
+      {canLog && (
+        <QuickAction
+          icon={Phone}
+          label="Ghi liên hệ"
+          primary={!canLead && !canDeal}
+          onClick={() => navigate('/comms/log')}
         />
       )}
     </nav>
@@ -342,6 +360,7 @@ export function HomePage() {
   const canRuns = useCan('workstream.view')
   const canLead = useCan('lead.edit')
   const canDeal = useCan('opportunity.create')
+  const canLog = useCan('comm.view') && canRuns
 
   const [pick, setPick] = useState(() => currentPick())
   const [filter, setFilter] = useState<ListFilter | null>(null)
@@ -434,7 +453,9 @@ export function HomePage() {
           }
           actions={canCharts ? <PeriodPicker pick={pick} onPick={setPick} /> : undefined}
           context={
-            canLead || canDeal ? <QuickActions canLead={canLead} canDeal={canDeal} /> : undefined
+            canLead || canDeal || canLog ? (
+              <QuickActions canLead={canLead} canDeal={canDeal} canLog={canLog} />
+            ) : undefined
           }
           className={cn('gap-5', ENTER)}
         />

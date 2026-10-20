@@ -136,40 +136,52 @@ export function OpenValueTile({ data, className }: Figures) {
           <div className="flex min-w-0 flex-col gap-1">
             <h3 className={CARD_TITLE}>Giá trị cơ hội đang mở</h3>
             <span className={cn(NOTE, 'tnum font-num')}>
-              <strong className="text-foreground font-semibold">{num(count)} cơ hội</strong>, tính
-              đến hôm nay
+              Tính đến hôm nay
+              {count > 0 && (
+                <>
+                  {' · '}
+                  <strong className="text-foreground font-semibold">{num(count)} cơ hội</strong>
+                </>
+              )}
             </span>
           </div>
         </div>
         <span className={CARD_BIG}>{money(amountVnd)}</span>
       </div>
-      {count > 0 && (
-        <div className="flex flex-col gap-2">
-          <div aria-hidden className="flex h-2.5 gap-1">
-            <span
-              style={cssVars({ '--w': `${(valued / count) * 100}%` })}
-              className="from-primary-strong to-primary w-(--w) bg-linear-to-r ease-(--motion-ease) starting:w-0 rounded-full transition-[width] duration-1000"
-            />
-            {blank > 0 && (
+      {/* Pinned to the foot so the three side cards line up at any height. */}
+      <div className="mt-auto flex flex-col gap-2">
+        <div aria-hidden className="flex h-2.5 gap-1">
+          {count === 0 ? (
+            <span className="bg-surface-ink/8 w-full rounded-full" />
+          ) : (
+            <>
               <span
-                style={cssVars({ '--w': `${(blank / count) * 100}%` })}
-                className="bg-warning/20 w-(--w) ease-(--motion-ease) starting:w-0 min-w-1 rounded-full bg-[repeating-linear-gradient(45deg,var(--warning)_0_3px,transparent_3px_6px)] transition-[width] duration-1000"
+                style={cssVars({ '--w': `${(valued / count) * 100}%` })}
+                className="from-primary-strong to-primary w-(--w) bg-linear-to-r ease-(--motion-ease) starting:w-0 rounded-full transition-[width] duration-1000"
               />
-            )}
-          </div>
-          <span className={cn(NOTE, 'tnum font-num')}>
-            {blank > 0 ? (
-              <>
-                <strong className="text-foreground font-semibold">{num(valued)}</strong> có giá trị
-                · <strong className="text-warning font-semibold">{num(blank)}</strong> chưa nhập giá
-                trị, chưa tính vào tổng
-              </>
-            ) : (
-              'Tất cả đã có giá trị'
-            )}
-          </span>
+              {blank > 0 && (
+                <span
+                  style={cssVars({ '--w': `${(blank / count) * 100}%` })}
+                  className="bg-warning/20 w-(--w) ease-(--motion-ease) starting:w-0 min-w-1 rounded-full bg-[repeating-linear-gradient(45deg,var(--warning)_0_3px,transparent_3px_6px)] transition-[width] duration-1000"
+                />
+              )}
+            </>
+          )}
         </div>
-      )}
+        <span className={cn(NOTE, 'tnum font-num')}>
+          {count === 0 ? (
+            'Chưa có cơ hội nào đang mở'
+          ) : blank > 0 ? (
+            <>
+              <strong className="text-foreground font-semibold">{num(valued)}</strong> cơ hội đã có
+              giá trị · <strong className="text-warning font-semibold">{num(blank)}</strong> chưa
+              nhập giá trị, chưa tính vào tổng
+            </>
+          ) : (
+            'Tất cả đã có giá trị'
+          )}
+        </span>
+      </div>
     </section>
   )
 }
@@ -314,7 +326,7 @@ export function OverdueTile({
       className={cn(
         CARD_SHELL,
         'pointer-coarse:min-h-12 w-full cursor-pointer items-center justify-between gap-4 text-left',
-        'bg-linear-to-br from-warning/10 via-warning/20 to-warning/30',
+        'bg-linear-to-br from-warning/10 via-warning/15 to-warning/20',
         'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
         active && '[box-shadow:0_0_0_2px_var(--ring),var(--shadow-panel)]',
         className,

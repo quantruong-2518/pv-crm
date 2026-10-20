@@ -20,6 +20,15 @@ const BUCKET_UNIT: Record<SalesGrain, string> = {
   year: 'tháng',
 }
 
+/** Half the gap between two columns, by how many columns the grain draws: three
+ *  months may breathe, twelve must not starve their bars. */
+const COLUMN_PAD: Record<SalesGrain, string> = {
+  week: 'px-2',
+  month: 'px-2',
+  quarter: 'px-4',
+  year: 'px-1',
+}
+
 /** The line needs a shape to read; two points are only a slope. */
 const MIN_LINE_POINTS = 3
 
@@ -28,9 +37,14 @@ const MILLION = 1_000_000
 const BAR_MAX = 142
 const LINE_SPAN = 92
 
+/* Opaque stops mixed from tokens, and a softer top-left glow: the old ramp put
+   the period line under the title at 2.2:1 in stone and 4.3:1 in Aurora. */
+const HERO_GROUND =
+  'bg-[linear-gradient(150deg,color-mix(in_srgb,var(--brand-blue)_50%,var(--card))_0%,var(--card)_52%,color-mix(in_srgb,var(--channel-meeting)_8%,var(--card))_100%)]'
+
 const BAR_FILL = 'from-accent-foreground/80 via-primary to-primary-strong'
 const BAR_NOW =
-  'from-white/80 via-accent-foreground to-primary [box-shadow:0_0_32px_color-mix(in_srgb,var(--accent-foreground)_55%,transparent)]'
+  'from-primary-foreground/80 via-accent-foreground to-primary [box-shadow:0_0_32px_color-mix(in_srgb,var(--accent-foreground)_55%,transparent)]'
 
 /** A future bucket still counts when a contract carries a later signing day
  *  inside the running period: the hero total includes it, so the chart must. */
@@ -48,7 +62,17 @@ function cumulativeOf(views: BucketView[]) {
   })
 }
 
-function Column({ view, top, index }: { view: BucketView; top: number; index: number }) {
+function Column({
+  view,
+  top,
+  index,
+  pad,
+}: {
+  view: BucketView
+  top: number
+  index: number
+  pad: string
+}) {
   const { state, bucket } = view
   const future = !hasData(view)
   const zero = !future && bucket.signedAmountVnd === 0
@@ -56,8 +80,14 @@ function Column({ view, top, index }: { view: BucketView; top: number; index: nu
     ? BAR_MAX
     : Math.max(4, Math.round((bucket.signedAmountVnd / top) * BAR_MAX))
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 px-1">
-      <span className="tnum font-num whitespace-nowrap text-[12px] font-semibold leading-4">
+    <div
+      className={cn(
+        'group relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1',
+        pad,
+      )}
+    >
+      {/* The halo keeps the figure readable where the running-total line crosses it. */}
+      <span className="tnum font-num relative z-10 whitespace-nowrap text-[12px] font-semibold leading-4 [text-shadow:0_0_6px_var(--card),0_0_2px_var(--card)]">
         {future ? '' : num(Math.round(bucket.signedAmountVnd / MILLION))}
       </span>
       <span
@@ -69,8 +99,9 @@ function Column({ view, top, index }: { view: BucketView; top: number; index: nu
           'h-(--bar) max-w-13 w-full rounded-b-md rounded-t-xl',
           'ease-(--motion-ease) starting:h-0 transition-[height] duration-700',
           'motion-reduce:transition-none',
+          !future && 'group-hover:brightness-125',
           future &&
-            'bg-surface-ink/5 outline-muted-foreground/30 outline-dashed outline-1 -outline-offset-1',
+            'bg-surface-ink/3 outline-muted-foreground/25 outline-dashed outline-1 -outline-offset-1',
           zero && 'bg-muted-foreground',
           !future && !zero && 'bg-linear-to-b',
           !future && !zero && (state === 'now' ? BAR_NOW : BAR_FILL),
@@ -80,7 +111,7 @@ function Column({ view, top, index }: { view: BucketView; top: number; index: nu
   )
 }
 
-function Plot({ views }: { views: BucketView[] }) {
+function Plot({ views, pad }: { views: BucketView[]; pad: string }) {
   const top = Math.max(1, ...views.map((v) => v.bucket.signedAmountVnd))
   const points = cumulativeOf(views)
   const last = points[points.length - 1]
@@ -124,7 +155,7 @@ function Plot({ views }: { views: BucketView[] }) {
       )}
       <div className="relative flex h-full items-end">
         {views.map((view, index) => (
-          <Column key={view.bucket.key} view={view} top={top} index={index} />
+          <Column key={view.bucket.key} view={view} top={top} index={index} pad={pad} />
         ))}
         {end &&
           points.map((p) => (
@@ -156,12 +187,14 @@ function Labels({ views }: { views: BucketView[] }) {
               'tnum font-num whitespace-nowrap text-[12px] leading-4',
               view.state === 'now'
                 ? 'text-accent-foreground font-semibold'
-                : 'text-muted-foreground',
+                : view.state === 'future'
+                  ? 'text-glass-foreground'
+                  : 'text-muted-foreground',
             )}
           >
             {view.label}
           </span>
-          <span className="tnum font-num text-muted-foreground min-h-4 whitespace-nowrap text-[12px] leading-4">
+          <span className="tnum font-num text-glass-foreground min-h-4 whitespace-nowrap text-[12px] leading-4">
             {view.sub}
           </span>
         </div>
@@ -224,7 +257,7 @@ function Legend({ unit, total, future }: { unit: string; total: string | null; f
         <span className="inline-flex items-center gap-2">
           <span
             aria-hidden
-            className="bg-surface-ink/5 outline-muted-foreground/30 size-2.5 rounded-[3px] outline-dashed outline-1 -outline-offset-1"
+            className="bg-surface-ink/3 outline-muted-foreground/25 size-2.5 rounded-[3px] outline-dashed outline-1 -outline-offset-1"
           />
           Chưa tới
         </span>
@@ -255,14 +288,14 @@ export function SignedTile({
       className={cn(
         CARD_SHELL,
         'text-foreground dark relative flex-col gap-5 overflow-hidden p-6',
-        'bg-linear-to-br from-brand-blue/60 via-card to-brand-navy',
+        HERO_GROUND,
         '[box-shadow:0_24px_56px_color-mix(in_srgb,var(--brand-navy)_30%,transparent)]',
         className,
       )}
     >
       <span
         aria-hidden
-        className="bg-primary/40 pointer-events-none absolute -left-20 -top-32 h-80 w-[420px] rounded-full blur-3xl"
+        className="bg-primary/30 pointer-events-none absolute -left-20 -top-32 h-80 w-[420px] rounded-full blur-3xl"
       />
       <span
         aria-hidden
@@ -292,7 +325,7 @@ export function SignedTile({
       </div>
 
       <div className="relative flex flex-wrap items-end gap-4">
-        <span className="tnum font-num leading-14 text-[52px] font-bold tracking-[-0.035em] text-white [text-shadow:0_0_32px_color-mix(in_srgb,var(--accent-foreground)_45%,transparent)]">
+        <span className="tnum font-num leading-14 text-primary-foreground[text-shadow:0_0_32px_color-mix(in_srgb,var(--accent-foreground)_45%,transparent)] text-[52px] font-bold tracking-[-0.035em]">
           {money(current.signedAmountVnd)}
         </span>
         <div className="flex flex-col gap-1 pb-2">
@@ -316,7 +349,7 @@ export function SignedTile({
           />
         </div>
         <div aria-hidden className="flex flex-col gap-3">
-          <Plot views={views} />
+          <Plot views={views} pad={COLUMN_PAD[salesGrainOf(data.period)]} />
           <div className="bg-muted-foreground/20 h-px" />
           <Labels views={views} />
         </div>
