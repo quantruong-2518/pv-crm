@@ -25,6 +25,7 @@ import { SalesPinReach } from './branches/sales/pin-reach'
 import { HealthModule } from './platform/health/health.module'
 import { MailHooksModule, MailModule } from './platform/mail/mail.module'
 import { NotificationModule } from './platform/notification/notification.module'
+import { ObservabilityModule } from './platform/observability/observability.module'
 import { CrossSiteGuard } from './platform/http/cross-site.guard'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
@@ -61,6 +62,7 @@ import { RolesModule } from './platform/roles/roles.module'
   imports: [
     ConfigModule,
     DbModule,
+    ObservabilityModule,
     EnginesModule,
     AuditModule,
     SessionModule,

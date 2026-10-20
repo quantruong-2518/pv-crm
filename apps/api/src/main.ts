@@ -20,6 +20,7 @@ import { invalid } from './platform/http/problem'
 import { AppModule } from './app.module'
 import { ENV, type Env } from './platform/config/env'
 import { isAllowedOrigin } from './platform/http/origin'
+import { MetricsService } from './platform/observability/metrics.service'
 
 /** Threshold for the slow-request log; above a Neon round trip plus a page query. */
 const SLOW_REQUEST_MS = 300
@@ -135,8 +136,10 @@ async function bootstrap(): Promise<void> {
      reach the log, keyed by route pattern, so Fly logs list the candidates.
      The SSE stream is skipped — it is open for minutes by design. */
   const slow = new Logger('slow')
+  const metrics = app.get(MetricsService)
   adapter.getInstance<FastifyInstance>().addHook('onResponse', (req, reply, done) => {
     const streaming = (req.headers.accept ?? '').includes('text/event-stream')
+    if (!streaming) metrics.recordRequest(req.method, req.routeOptions.url, reply.elapsedTime)
     if (!streaming && reply.elapsedTime >= SLOW_REQUEST_MS) {
       const route = req.routeOptions.url ?? req.url.split('?')[0]
       const ms = Math.round(reply.elapsedTime)

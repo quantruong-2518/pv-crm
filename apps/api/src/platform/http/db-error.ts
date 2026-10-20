@@ -215,6 +215,16 @@ function pgErrorOf(raw: unknown, depth = 0): PgErrorLike | null {
   return 'cause' in e ? pgErrorOf(e.cause, depth + 1) : null
 }
 
+/** query_canceled (`statement_timeout`) and lock_not_available (`lock_timeout`):
+ *  the Neon role budgets (`pv_api` / `pv_worker`, picked by `appDatabaseUrl`) firing, so the caller should retry later. */
+const BUSY_SQLSTATES = new Set(['57014', '55P03'])
+
+/** The SQLSTATE when `raw` is a database budget running out, else `null`. */
+export function busyCodeOf(raw: unknown): string | null {
+  const code = pgErrorOf(raw)?.code
+  return code && BUSY_SQLSTATES.has(code) ? code : null
+}
+
 /** Let a service collapse one known race without parsing driver messages or
  *  exporting the database's internal error shape. */
 export function isDbConstraint(raw: unknown, constraint: string): boolean {

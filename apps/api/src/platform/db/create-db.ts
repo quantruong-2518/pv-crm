@@ -15,6 +15,21 @@ export type DbHandle = {
   db: Db
   close: () => Promise<void>
   kind: 'postgres' | 'pglite'
+  /** Pool occupancy right now; absent on PGlite, which has no pool. */
+  stats?: () => { total: number; idle: number; waiting: number }
+}
+
+/** Which URL the app pool connects with. SQL budgets live on the Neon roles
+ *  (`pv_api`, `pv_worker`) because Neon drops pg's timeout startup fields and
+ *  its pooler refuses `options`; so the worker needs its own URL, since Fly
+ *  secrets are shared by both process groups. */
+export function appDatabaseUrl(
+  env: { DATABASE_URL: string; PV_WORKER_DATABASE_URL: string },
+  role: string | undefined,
+): string {
+  return role === 'worker' && env.PV_WORKER_DATABASE_URL
+    ? env.PV_WORKER_DATABASE_URL
+    : env.DATABASE_URL
 }
 
 const PGLITE = 'pglite://'
@@ -77,7 +92,12 @@ export async function createDb(url: string): Promise<DbHandle> {
   pool.on('error', (err) => {
     new Logger('db').error(`Postgres pool background error: ${err.message}`)
   })
-  return { db: drizzleNodePg(pool), close: () => pool.end(), kind: 'postgres' }
+  return {
+    db: drizzleNodePg(pool),
+    close: () => pool.end(),
+    kind: 'postgres',
+    stats: () => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount }),
+  }
 }
 
 /** Tells processes apart in `pg_stat_activity` — not a parameter, because

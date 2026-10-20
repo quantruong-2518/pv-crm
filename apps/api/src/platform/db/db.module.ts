@@ -1,6 +1,6 @@
 import { Global, Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common'
 import { ENV, type Env } from '../config/env'
-import { createDb, type Db, type DbHandle } from './create-db'
+import { appDatabaseUrl, createDb, type Db, type DbHandle } from './create-db'
 
 export const DB_HANDLE = Symbol('pv.db.handle')
 export const DB = Symbol('pv.db')
@@ -22,7 +22,7 @@ export type { Db }
     {
       provide: DB_HANDLE,
       useFactory: async (env: Env): Promise<DbHandle> => {
-        const handle = await createDb(env.DATABASE_URL)
+        const handle = await createDb(appDatabaseUrl(env, process.env.PV_ROLE))
         new Logger('db').log(`Driver: ${handle.kind}`)
         return handle
       },

@@ -28,6 +28,16 @@ export class PvError extends HttpException {
   }
 }
 
+/** The database was too slow or locked past its budget (the Neon roles
+ *  `pv_api` / `pv_worker`, chosen per process by `appDatabaseUrl`). Kind
+ *  stays `server` because `ProblemKind` has no 503, so the status is carried by
+ *  the class; a plain `HttpException(503)` keeps rendering as 500 as before. */
+export class BusyError extends PvError {
+  constructor() {
+    super({ kind: 'server', status: 503, title: 'Hệ thống đang bận, thử lại sau ít phút.' })
+  }
+}
+
 export const STATUS_OF: Record<ProblemKind, number> = {
   unauthenticated: 401,
   forbidden: 403,
@@ -45,7 +55,7 @@ export function toProblem(e: PvError, ctx: { instance: string; traceId?: string 
     ...(e.extra ?? {}),
     type: e.kind,
     title: e.message,
-    status: STATUS_OF[e.kind],
+    status: e instanceof BusyError ? 503 : STATUS_OF[e.kind],
     instance: ctx.instance,
     ...(e.reason ? { reason: e.reason } : {}),
     ...(e.fields ? { errors: e.fields } : {}),

@@ -356,6 +356,15 @@ const Env = z
      *  pgbouncer ở chế độ transaction không đưa LISTEN/NOTIFY qua, và trạng
      *  thái mức phiên không còn đáng tin. Bỏ trống = dùng chung DATABASE_URL. */
     PV_QUEUE_DATABASE_URL: z.string().default(''),
+    /** The worker's app pool, when it should connect as a different Neon role
+     *  (`pv_worker`, longer SQL budgets) than the API's `DATABASE_URL`. Empty
+     *  means the worker shares `DATABASE_URL`. */
+    PV_WORKER_DATABASE_URL: z
+      .string()
+      .default('')
+      .refine((u) => u === '' || SCHEMES.some((s) => u.startsWith(s)), {
+        message: `PV_WORKER_DATABASE_URL phải bỏ trống hoặc bắt đầu bằng một trong: ${SCHEMES.join(' · ')}`,
+      }),
 
     // ------------------------------------------------------------------
     // SCAN — object storage and the AI reader behind lead scan intake
@@ -434,6 +443,13 @@ const Env = z
     message: 'PGlite không phải database của production — dùng postgres:// ở đó.',
     path: ['DATABASE_URL'],
   })
+  .refine(
+    (e) => !(e.NODE_ENV === 'production' && e.PV_WORKER_DATABASE_URL.startsWith('pglite://')),
+    {
+      message: 'PGlite không phải database của production — dùng postgres:// ở đó.',
+      path: ['PV_WORKER_DATABASE_URL'],
+    },
+  )
   .refine((e) => !(e.NODE_ENV === 'production' && e.PV_TRUST_ACTOR_HEADER), {
     message:
       'PV_TRUST_ACTOR_HEADER là cửa sau của POC — bật nó ở production nghĩa là ai cũng đóng vai được giám đốc.',

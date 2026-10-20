@@ -12,6 +12,7 @@ import { EntityKind } from '@pv/contracts'
 import { ENV, type Env } from '../config/env'
 import { DB_HANDLE } from '../db/db.module'
 import type { DbHandle } from '../db/create-db'
+import { countFanout } from '../observability/fanout'
 
 const CHANNEL = 'pv_notification'
 /** Row triggers notify here with one `EntityKind`; every subscriber hears it. */
@@ -140,7 +141,9 @@ export class NotificationListener implements BeforeApplicationShutdown, OnApplic
   private broadcast(payload: string): void {
     const kind = EntityKind.safeParse(payload)
     if (!kind.success) return this.log.debug(`Ignored ${CHANGE_CHANNEL} payload: ${payload}`)
-    for (const sink of this.all()) sink.entity(kind.data)
+    const sinks = this.all()
+    countFanout(sinks.length)
+    for (const sink of sinks) sink.entity(kind.data)
   }
 
   private all(): StreamSink[] {
