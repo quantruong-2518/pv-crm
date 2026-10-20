@@ -20,6 +20,7 @@ import {
   type Journey,
   type TreeLayout,
 } from './workstream-tree-model'
+import { CardDrawer } from './workstream-tree-drawer'
 import type { TreeZoom } from './workstream-tree-zoom'
 import {
   ContractCard,
@@ -115,6 +116,9 @@ function useFrame(frame: RefObject<HTMLElement | null>) {
 
 /** The key to the tree, kept out of the canvas: a button in the floating bar
  *  that opens on hover or focus, so the card opens on the tree itself. */
+/** Icon-sized on a mouse, 48px on a finger (law 13). */
+const SMALL = 'pointer-coarse:size-12 size-8 px-0'
+
 export function TreeLegend() {
   const dots = [
     { word: STATE_WORD.done, rung: { state: 'done', late: null } },
@@ -166,9 +170,8 @@ export function TreeLegend() {
         </div>
       }
     >
-      <Button size="lg" variant="ghost">
+      <Button size="sm" variant="ghost" className={SMALL} aria-label="Chú thích">
         <Icon icon={Info} size={16} />
-        Chú thích
       </Button>
     </InfoTip>
   )
@@ -185,11 +188,10 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
       aria-label="Phóng to thu nhỏ"
       className="bg-muted flex items-center gap-1 rounded-md p-1"
     >
-      <span className="text-muted-foreground pl-3 pr-1 text-[12px]">Thu phóng</span>
       <Button
         variant="ghost"
-        size="lg"
-        className={cn(QUIET, 'w-12 px-0')}
+        size="sm"
+        className={cn(QUIET, SMALL)}
         aria-label="Thu nhỏ"
         disabled={zoom <= floor}
         onClick={() => onZoom(clampZoom(zoom - ZOOM.step))}
@@ -197,15 +199,15 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
         <Icon icon={Minus} size={16} />
       </Button>
       <span
-        className="text-muted-foreground tnum min-w-12 text-center text-[12px]"
+        className="text-muted-foreground tnum min-w-10 text-center text-[12px]"
         aria-live="polite"
       >
         {Math.round(zoom * 100)}%
       </span>
       <Button
         variant="ghost"
-        size="lg"
-        className={cn(QUIET, 'w-12 px-0')}
+        size="sm"
+        className={cn(QUIET, SMALL)}
         aria-label="Phóng to"
         disabled={zoom >= ZOOM.max}
         onClick={() => onZoom(clampZoom(zoom + ZOOM.step))}
@@ -216,8 +218,8 @@ export function TreeZoomBar({ ctl }: { ctl: TreeZoom }) {
         shows; QUIET would strip it. */}
       <Button
         variant="ghost"
-        size="lg"
-        className={cn(fitted ? 'bg-surface-ink/12' : QUIET, 'px-4')}
+        size="sm"
+        className={cn(fitted ? 'bg-surface-ink/12' : QUIET, 'pointer-coarse:min-h-12 px-3')}
         aria-pressed={fitted}
         onClick={() => onZoom(null)}
       >
@@ -287,7 +289,9 @@ export function WorkstreamTree({
   journey,
   zoomCtl,
   ...track
-}: Track & { journey: Journey; zoomCtl: TreeZoom }) {
+}: Omit<Track, 'onPick'> & { journey: Journey; zoomCtl: TreeZoom }) {
+  const [opened, setOpened] = useState<string | null>(null)
+  const cards = { ...track, onPick: setOpened }
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const { asked: zoomAsked, zoomed, setView } = zoomCtl
   const frameRef = useRef<HTMLDivElement>(null)
@@ -368,7 +372,7 @@ export function WorkstreamTree({
                 )}
               </svg>
 
-              <LeadCard lead={journey.lead} box={layout.lead} {...track} />
+              <LeadCard lead={journey.lead} box={layout.lead} {...cards} />
               {layout.ghost && <GhostDeal box={layout.ghost} hidden={journey.hiddenDeals > 0} />}
               {layout.deals.map(({ deal, full, box }) => (
                 <DealCard
@@ -377,7 +381,7 @@ export function WorkstreamTree({
                   box={box}
                   full={full}
                   onToggle={() => toggle(deal.code)}
-                  {...track}
+                  {...cards}
                 />
               ))}
               {layout.contracts.map(({ contract, box }) => (
@@ -387,16 +391,23 @@ export function WorkstreamTree({
                   box={box}
                   open={expanded.has(contract.code)}
                   onToggle={() => toggle(contract.code)}
-                  {...track}
+                  {...cards}
                 />
               ))}
               {layout.doors.map(({ door, box, from }) => (
-                <DoorCard key={doorId(door)} door={door} from={from} box={box} {...track} />
+                <DoorCard key={doorId(door)} door={door} from={from} box={box} {...cards} />
               ))}
             </div>
           </div>
         </div>
       </div>
+      <CardDrawer
+        journey={journey}
+        code={opened}
+        onClose={() => setOpened(null)}
+        go={track.go}
+        pathOf={track.pathOf}
+      />
     </GlassCard>
   )
 }

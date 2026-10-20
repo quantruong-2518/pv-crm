@@ -12,6 +12,7 @@ import {
   type JourneyRungKey,
   type JourneyRungState,
   type JourneySubStep,
+  type WorkstreamHolder,
   type WorkstreamJourneyResponse,
 } from '@pv/contracts'
 import { billions, millions } from '@pv/ui'
@@ -124,7 +125,23 @@ export function rungStatus(state: JourneyRungState, late: DueLevel | null): Stat
   return { label: STATE_WORD[state], tone }
 }
 
+/** What a drawer's timeline reads off a rung beyond the rail's dot: who moved
+ *  it, how long it ran, and the work recorded under it. */
+type RungDetail = {
+  by?: WorkstreamHolder | null
+  days?: number | null
+  subSteps?: readonly {
+    label: string
+    state: JourneyRungState
+    at: string | null
+    note: string | null
+  }[]
+}
+
 export type RailRung = AnyRung & {
+  by: WorkstreamHolder | null
+  days: number | null
+  subSteps: NonNullable<RungDetail['subSteps']>
   label: string
   /** The due level of the CURRENT rung when it is overdue, else null. */
   late: DueLevel | null
@@ -157,7 +174,7 @@ export const gridCols = (rungs: number) => (rungs === 4 ? 'grid-cols-4' : 'grid-
  *  the object got, not which rungs it happened to use. */
 export function railOf(
   kind: PickKind,
-  rungs: readonly AnyRung[],
+  rungs: readonly (AnyRung & RungDetail)[],
   late: DueLevel | null,
 ): RailRung[] {
   const reach = lastIndex(rungs, (r) => r.state !== 'upcoming' && r.state !== 'skipped')
@@ -165,6 +182,9 @@ export function railOf(
     key: r.key,
     state: r.state,
     at: r.at,
+    by: r.by ?? null,
+    days: r.days ?? null,
+    subSteps: r.subSteps ?? [],
     label: rungLabel(kind, r.key) ?? '',
     late: r.state === 'current' ? late : null,
     litIn: i > 0 && i <= reach,
@@ -179,6 +199,15 @@ export function standOf<R extends AnyRung>(rungs: readonly R[]): R | undefined {
     rungs.find((r) => r.state === 'current' || r.state === 'stopped') ??
     rungs[lastIndex(rungs, (r) => r.state === 'done')]
   )
+}
+
+/** How a card reads at a glance: running as usual, on hold (warm), or finished
+ *  (grey, no colour). A hold wins over nothing: a finished object has none. */
+export type Life = 'live' | 'hold' | 'closed'
+
+export function lifeOf(rungs: readonly AnyRung[], hold: unknown, finished = false): Life {
+  if (finished || !rungs.some((r) => r.state === 'current')) return 'closed'
+  return hold ? 'hold' : 'live'
 }
 
 // ---------------------------------------------------------------------------

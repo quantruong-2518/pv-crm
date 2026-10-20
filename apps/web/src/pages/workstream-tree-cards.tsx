@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import {
   ArrowRight,
   Avatar,
@@ -23,7 +23,6 @@ import {
   type WorkstreamHolder,
 } from '@pv/contracts'
 import { dm, dmy } from '@/lib/date'
-import { ACCEPTOR_LABEL, acceptorText } from '@/data/deal-sale'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
 import { DueBadge } from '@/components/contract-bits'
@@ -32,7 +31,6 @@ import { ContractInside } from '@/components/contract-inside'
 import { hasInside } from '@/components/contract-run'
 import {
   CARD,
-  CHAIN_KIND,
   contractLate,
   contractStatus,
   dealLate,
@@ -40,6 +38,7 @@ import {
   doorId,
   gridCols,
   leadStatus,
+  lifeOf,
   moneyShort,
   POOL,
   railOf,
@@ -50,12 +49,12 @@ import {
   stoppedRungLabel,
   type Box,
   type Journey,
+  type Life,
   type PathOf,
   type PickKind,
   type RailRung,
   type Status,
 } from './workstream-tree-model'
-import { StepDrawer } from './workstream-tree-step'
 
 /** The cards of the journey tree — lead, deal (full or compact), contract,
  *  and the continuation doors of lane 4 (growth, waiting) —
@@ -63,18 +62,24 @@ import { StepDrawer } from './workstream-tree-step'
  *
  *  Each card is absolutely placed by `workstream-tree-model.ts` but sized by
  *  its own content, so titles wrap instead of ending in "…". `data-node`
- *  is how the tree finds the cards to measure. A rung opens its step drawer,
- *  whose footer opens the object's profile; a code and a door title open the
- *  profile straight away. There is no selection. */
+ *  is how the tree finds the cards to measure. A click anywhere on a lead, deal
+ *  or contract card opens its drawer (`workstream-tree-drawer.tsx`); a code and
+ *  a door title open the profile straight away. */
 
 type Go = (path: string) => void
-export type Track = { go: Go; pathOf: PathOf }
+/** `onPick` is how a card asks the tree for its drawer. */
+export type Track = { go: Go; pathOf: PathOf; onPick: (code: string) => void }
 
 /** A code the reader has no door to still reads as a code. */
-export function CodePill({ kind, code, go, pathOf }: Track & { kind: string; code: string }) {
+export function CodePill({
+  kind,
+  code,
+  go,
+  pathOf,
+}: Pick<Track, 'go' | 'pathOf'> & { kind: string; code: string }) {
   const path = pathOf(kind, code)
   return (
-    <Chip className="shrink-0" onOpen={path ? () => go(path) : undefined}>
+    <Chip className="relative shrink-0" onOpen={path ? () => go(path) : undefined}>
       {code}
     </Chip>
   )
@@ -109,16 +114,6 @@ export function DateText({ iso, title }: { iso: string; title: string }) {
     >
       <Icon icon={CalendarDays} size={14} />
       {dm(iso)}
-    </span>
-  )
-}
-
-function Holder({ person }: { person: WorkstreamHolder | null }) {
-  if (!person) return <span className="text-muted-foreground text-[12px]">{POOL}</span>
-  return (
-    <span className="flex min-w-0 items-center gap-2 text-[12px]">
-      <Avatar name={person.name} size="sm" />
-      <span className="min-w-0 break-words">{person.name}</span>
     </span>
   )
 }
@@ -177,86 +172,44 @@ function Half({ side, lit }: { side: 'in' | 'out'; lit: boolean }) {
   )
 }
 
-function Rail({
-  kind,
-  code,
-  rungs,
-  notes,
-  go,
-  pathOf,
-}: Track & {
-  kind: PickKind
-  code: string
-  rungs: RailRung[]
-  /** A line a rung's tooltip carries after its label, keyed by rung. */
-  notes?: Partial<Record<string, string>>
-}) {
-  const path = pathOf(CHAIN_KIND[kind], code)
-  /* The index outlives the close, so the drawer slides out with its words. */
-  const [step, setStep] = useState({ at: 0, open: false })
-  /* Stable: the drawer re-focuses its panel whenever `onClose` changes, which
-     would pull focus off the ‹ › button just pressed. */
-  const close = useCallback(() => setStep((s) => ({ ...s, open: false })), [])
-  const shown = rungs[step.at]
+/** The rungs are a picture, not buttons: the whole card opens the drawer that
+ *  reads them. A rung names itself for a screen reader and for a hover. */
+function Rail({ rungs }: { rungs: RailRung[] }) {
   return (
-    <>
-      <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
-        {rungs.map((r, i) => {
-          const word = rungStatus(r.state, r.late).label
-          const note = notes?.[r.key]
-          return (
-            <li key={r.key} className="min-w-0">
-              <button
-                type="button"
-                aria-haspopup="dialog"
-                aria-current={r.state === 'current' ? 'step' : undefined}
-                aria-label={[`Bước ${i + 1}`, r.label, word, note].filter(Boolean).join(' · ')}
-                title={note ? `${r.label} · ${note}` : r.label}
-                onClick={() => setStep({ at: i, open: true })}
-                className="motion-std hover:bg-surface-ink/9 flex min-h-12 w-full flex-col items-center rounded-md pt-1"
-              >
-                <span className="relative block h-4 w-full">
-                  {i > 0 && <Half side="in" lit={r.litIn} />}
-                  {i < rungs.length - 1 && <Half side="out" lit={r.litOut} />}
-                  <span className="absolute left-1/2 top-2 flex -translate-x-1/2 -translate-y-1/2">
-                    <RungDot rung={r} />
-                  </span>
-                </span>
-                {/* Wraps rather than cuts: a number beside the skipped word is
-                    wider than a 48px cell. */}
-                <span className="tnum flex flex-wrap justify-center gap-x-1 pt-1 text-[11px]">
-                  <span className="text-muted-foreground font-semibold">{i + 1}</span>
-                  <span
-                    className={cn(
-                      r.late !== null
-                        ? 'text-destructive-foreground'
-                        : r.state === 'current'
-                          ? 'text-warning'
-                          : 'text-muted-foreground',
-                    )}
-                  >
-                    {r.state === 'skipped' ? STATE_WORD.skipped : r.at !== null ? dm(r.at) : ''}
-                  </span>
-                </span>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
-      <StepDrawer
-        open={step.open}
-        kind={kind}
-        code={code}
-        rungs={rungs}
-        notes={notes}
-        at={step.at}
-        meta={shown && <StatusPill status={rungStatus(shown.state, shown.late)} />}
-        path={path}
-        onStep={(at) => setStep({ at, open: true })}
-        onClose={close}
-        onOpen={go}
-      />
-    </>
+    <ol className={cn('m-0 grid list-none p-0', gridCols(rungs.length))}>
+      {rungs.map((r, i) => {
+        const word = rungStatus(r.state, r.late).label
+        return (
+          <li
+            key={r.key}
+            aria-current={r.state === 'current' ? 'step' : undefined}
+            aria-label={[r.label, word].filter(Boolean).join(' · ')}
+            title={r.label}
+            className="flex min-w-0 flex-col items-center pt-1"
+          >
+            <span className="relative block h-4 w-full">
+              {i > 0 && <Half side="in" lit={r.litIn} />}
+              {i < rungs.length - 1 && <Half side="out" lit={r.litOut} />}
+              <span className="absolute left-1/2 top-2 flex -translate-x-1/2 -translate-y-1/2">
+                <RungDot rung={r} />
+              </span>
+            </span>
+            <span
+              className={cn(
+                'tnum pt-1 text-[11px]',
+                r.late !== null
+                  ? 'text-destructive-foreground'
+                  : r.state === 'current'
+                    ? 'text-warning'
+                    : 'text-muted-foreground',
+              )}
+            >
+              {r.state === 'skipped' ? STATE_WORD.skipped : r.at !== null ? dm(r.at) : ''}
+            </span>
+          </li>
+        )
+      })}
+    </ol>
   )
 }
 
@@ -264,11 +217,22 @@ function Rail({
 // CARDS
 // ---------------------------------------------------------------------------
 
+/** The whole card is one button over its content; the code chip, the expander
+ *  and the door titles sit above it (`relative`) and keep their own jobs.
+ *  A held card turns warm, a finished one goes grey and loses its colours. */
+const LIFE_TONE: Record<Life, string> = {
+  live: 'bg-card',
+  hold: 'bg-[color-mix(in_srgb,var(--warning)_14%,var(--card))]',
+  closed: 'bg-card text-muted-foreground grayscale',
+}
+
 function Card({
   id,
   x,
   w,
   box,
+  life = 'live',
+  onPick,
   className,
   children,
 }: {
@@ -276,30 +240,63 @@ function Card({
   x: number
   w: number
   box: Box
+  life?: Life
+  onPick?: (code: string) => void
   className?: string
   children: ReactNode
 }) {
   return (
     <div
       data-node={id}
-      className={cn('bg-card shadow-control-soft absolute flex flex-col rounded-lg', className)}
+      className={cn(
+        'shadow-control-soft absolute flex flex-col rounded-lg',
+        LIFE_TONE[life],
+        className,
+      )}
       style={{ left: x, top: box.top, width: w }}
     >
+      {onPick && (
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-label={`Mở chi tiết ${id}`}
+          onClick={() => onPick(id)}
+          className="hover:bg-surface-ink/5 pointer-coarse:min-h-12 motion-std absolute inset-0 rounded-lg"
+        />
+      )}
       {children}
     </div>
+  )
+}
+
+/** The card's holder, plain text: the people behind it read in the drawer. */
+function Holder({ person }: { person: WorkstreamHolder | null }) {
+  if (!person) return <span className="text-muted-foreground text-[12px]">{POOL}</span>
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-[12px]">
+      <Avatar name={person.name} size="sm" />
+      <span className="min-w-0 break-words">{person.name}</span>
+    </span>
   )
 }
 
 export function LeadCard({ lead, box, ...track }: Track & { lead: Journey['lead']; box: Box }) {
   const status = leadStatus(lead)
   return (
-    <Card id={lead.code} {...CARD.lead} box={box} className="gap-3 p-3">
+    <Card
+      id={lead.code}
+      {...CARD.lead}
+      box={box}
+      life={lifeOf(lead.rungs, lead.hold)}
+      onPick={track.onPick}
+      className="gap-3 p-3"
+    >
       <div className="flex flex-wrap items-center gap-2">
         <CodePill kind="LD" code={lead.code} {...track} />
         {status && <StatusPill status={status} />}
         <HoldMark hold={lead.hold} due />
       </div>
-      <Rail kind="lead" code={lead.code} rungs={railOf('lead', lead.rungs, null)} {...track} />
+      <Rail rungs={railOf('lead', lead.rungs, null)} />
       <Holder person={lead.holder} />
     </Card>
   )
@@ -310,7 +307,7 @@ function Expander({ code, open, onToggle }: { code: string; open: boolean; onTog
     <Button
       variant="ghost"
       size="lg"
-      className="hover:bg-surface-ink/9 w-12 shrink-0 bg-transparent px-0 shadow-none"
+      className="hover:bg-surface-ink/9 relative w-12 shrink-0 bg-transparent px-0 shadow-none"
       aria-expanded={open}
       aria-label={`${open ? 'Thu gọn' : 'Mở rộng'} ${code}`}
       onClick={onToggle}
@@ -320,7 +317,7 @@ function Expander({ code, open, onToggle }: { code: string; open: boolean; onTog
   )
 }
 
-function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAction']> }) {
+export function NextAction({ action }: { action: NonNullable<JourneyDeal['nextAction']> }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-[12px]">
       <Icon icon={ArrowRight} size={16} className="text-muted-foreground" />
@@ -345,17 +342,8 @@ function StopLine({ deal }: { deal: JourneyDeal }) {
   )
 }
 
-function acceptorNote(deal: JourneyDeal): string | undefined {
-  const who = acceptorText(deal)
-  return who ? `${ACCEPTOR_LABEL}: ${who}` : undefined
-}
-
-/** The engaged rung's tooltip: how many care activities it holds (ADR 0072). */
-function activityNote(deal: JourneyDeal): string | undefined {
-  const rung = deal.rungs.find((r) => r.key === 'engaged')
-  const n = rung?.subSteps.filter((s) => s.kind === 'activity').length ?? 0
-  return n === 0 ? undefined : `${n} hoạt động chăm sóc`
-}
+/** A deal that ended in either outcome is finished; only an open one can be held. */
+const dealLife = (deal: JourneyDeal): Life => lifeOf(deal.rungs, deal.hold, deal.outcome !== 'open')
 
 export function DealCard({
   deal,
@@ -372,6 +360,8 @@ export function DealCard({
         id={deal.code}
         {...CARD.deal}
         box={box}
+        life={dealLife(deal)}
+        onPick={track.onPick}
         className="flex-row items-center gap-3 py-3 pl-3 pr-1"
       >
         <div className="flex min-w-0 grow flex-col gap-1">
@@ -388,7 +378,14 @@ export function DealCard({
     )
   }
   return (
-    <Card id={deal.code} {...CARD.deal} box={box} className="gap-2 p-4">
+    <Card
+      id={deal.code}
+      {...CARD.deal}
+      box={box}
+      life={dealLife(deal)}
+      onPick={track.onPick}
+      className="gap-2 p-4"
+    >
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 grow flex-wrap items-center gap-2">
           <CodePill kind="OP" code={deal.code} {...track} />
@@ -409,18 +406,13 @@ export function DealCard({
         </div>
       </div>
       <span className="break-words text-[14px] font-semibold">{deal.name}</span>
-      <Rail
-        kind="deal"
-        code={deal.code}
-        rungs={railOf('deal', deal.rungs, dealLate(deal))}
-        notes={{ assigned: acceptorNote(deal), engaged: activityNote(deal) }}
-        {...track}
-      />
+      <Rail rungs={railOf('deal', deal.rungs, dealLate(deal))} />
       <div className="flex flex-wrap items-center gap-2">
         <StatusPill status={status} />
         <HoldMark hold={deal.hold} due />
       </div>
       <StopLine deal={deal} />
+      <Holder person={deal.holder} />
       {deal.outcome === 'open' && deal.nextAction && <NextAction action={deal.nextAction} />}
     </Card>
   )
@@ -438,7 +430,14 @@ export function ContractCard({
   const late = contractLate(contract)
   const kindLabel = useContractKindLabel()
   return (
-    <Card id={contract.code} {...CARD.contract} box={box} className="gap-3 p-3">
+    <Card
+      id={contract.code}
+      {...CARD.contract}
+      box={box}
+      life={lifeOf(contract.rungs, null)}
+      onPick={track.onPick}
+      className="gap-3 p-3"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-[14px] font-semibold">
           {contract.kind && kindLabel(contract.kind)}
@@ -456,12 +455,8 @@ export function ContractCard({
           </span>
         )}
       </div>
-      <Rail
-        kind="contract"
-        code={contract.code}
-        rungs={railOf('contract', contract.rungs, late)}
-        {...track}
-      />
+      <Rail rungs={railOf('contract', contract.rungs, late)} />
+      <Holder person={contract.holder} />
       {open && <ContractInside contract={contract} />}
     </Card>
   )
