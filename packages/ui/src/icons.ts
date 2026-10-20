@@ -57,6 +57,7 @@ export {
   Inbox,
   Info,
   Italic,
+  Lightbulb,
   Linkedin,
   List,
   ListChecks,

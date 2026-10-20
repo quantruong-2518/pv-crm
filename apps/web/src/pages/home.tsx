@@ -1,112 +1,338 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { salesGrainOf, type SalesPerformanceResponse } from '@pv/contracts'
 import {
   AppShell,
-  Button,
   ChevronLeft,
   ChevronRight,
   Icon,
+  Plus,
   ScreenHeader,
   ScreenLayout,
-  SegmentedControl,
+  UserPlus,
+  cn,
+  type IconGlyph,
 } from '@pv/ui'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
 import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
-import { MonthsTile, ReasonsTile } from './home-charts'
+import { ActivityTile } from './home-activity'
+import { FunnelTile } from './home-funnel'
 import { PriorityList } from './home-list'
+import { listQueryOf, type ListFilter } from './home-model'
 import {
+  GRAINS,
+  compareLabel,
   currentPick,
   keyOf,
-  listQueryOf,
   periodLabel,
+  progressOf,
   stepPick,
-  type HomeGrain,
-  type ListFilter,
   type PeriodPick,
-} from './home-model'
+} from './home-period'
+import { ReasonsTile } from './home-reasons'
+import { SignedTile } from './home-signed'
 import {
   ChartsFailed,
-  FunnelTile,
-  LeadToContractTile,
+  GROW_WIDTH,
   OpenValueTile,
   OverdueTile,
-  SignedTile,
   TileSkeleton,
   WinRateTile,
 } from './home-tiles'
 
 /** Screen 01 · Overview — a bento of sales figures over a short live list.
  *
- *  Every tile and the list are live reads; the reasons tile follows the
- *  picked period like the figures beside it.
+ *  Follows the canvas design. Header: bold title, how far the period has run,
+ *  and one pill frame with the four grains and the ‹ period › stepper. Under
+ *  it, pill quick actions that have a destination.
+ *  Bento: flex-wrap rows as in the design. Row one is the signed tile (7)
+ *  beside a column of three tiles (5); row two is the week's activity or the
+ *  funnel (7) beside the exit reasons (5). Each row stacks below its basis.
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
- *
  *  A tile filters the list and never the other tiles; the period picker moves
- *  the period-scoped tiles and never the list.
- *
- *  No ContextRail (law 10 debt): a chain anchored on the list's first row
- *  would describe a run nobody picked. It returns once a row can be chosen. */
+ *  the period-scoped tiles and never the list. No ContextRail (law 10 debt). */
 
-/* Row two is three-up only from `xl`; below that the funnel and the months
-   chart pair up and the reasons tile takes the full row, so no cell is left empty.
-   One floor height for the row, skeletons included, so nothing grows on load. */
-const BENTO = 'grid grid-cols-1 gap-4 md:grid-cols-6 xl:grid-cols-12'
-const PAIRED = 'min-h-72 md:col-span-3 xl:col-span-4'
-const WIDE = 'md:col-span-6 xl:col-span-4 xl:min-h-72'
+/* Flex bases are the design's, and skeletons take the same ones. Each bento row
+   is its own wrap, or a wide screen would pull row two up beside row one. */
+const ROW = 'flex flex-wrap items-stretch gap-4'
+const HERO = 'min-w-0 flex-[7_1_560px]'
+const SIDE = 'min-w-0 flex-[5_1_340px]'
+const SIDE_STACK = `${SIDE} flex flex-col gap-4`
+const SIDE_TILE = 'min-w-0 flex-1'
+const ROW_TWO_MAIN = 'min-h-72 min-w-0 flex-[7_1_560px]'
+const ROW_TWO_SIDE = 'min-h-72 min-w-0 flex-[5_1_380px]'
 /** Beside a failed figures tile nothing shares the row, so the reasons take it whole. */
-const WIDE_ALONE = 'md:col-span-6 xl:col-span-12 xl:min-h-72'
+const ROW_TWO_ALONE = 'min-h-72 min-w-0 flex-[1_1_100%]'
 
-const GRAINS: { value: HomeGrain; label: string }[] = [
-  { value: 'month', label: 'Tháng' },
-  { value: 'quarter', label: 'Quý' },
-]
+/* Entry and hover motion: only opacity and translate/scale move, and the
+   reduced-motion variant turns the transition off. */
+const ENTER =
+  'starting:translate-y-3 starting:opacity-0 transition-[opacity,translate] duration-500 ease-(--motion-ease) motion-reduce:transition-none'
+const PRESS =
+  'transition-[translate,scale,box-shadow,filter,background-color] duration-200 ease-(--motion-ease) hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-ring focus-visible:outline-2'
+const SOFT_SHADOW =
+  'shadow-[0_1px_2px_color-mix(in_srgb,var(--brand-navy)_6%,transparent),0_6px_18px_color-mix(in_srgb,var(--brand-navy)_8%,transparent)]'
+const NAVY_GRADIENT =
+  'bg-[linear-gradient(135deg,color-mix(in_srgb,var(--brand-blue)_45%,var(--brand-navy)),var(--brand-navy))]'
+const NAVY_LIFT = 'shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-navy)_22%,transparent)]'
+const ROUND_ICON =
+  'pointer-coarse:size-12 text-foreground hover:bg-surface-ink/8 flex size-9 items-center justify-center rounded-full disabled:opacity-50 disabled:hover:bg-transparent'
+
+function StepButton({
+  icon,
+  label,
+  target,
+  onPick,
+}: {
+  icon: IconGlyph
+  label: string
+  target: PeriodPick | null
+  onPick: (next: PeriodPick) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={target === null}
+      onClick={() => target && onPick(target)}
+      className={cn(ROUND_ICON, 'focus-visible:outline-ring focus-visible:outline-2')}
+    >
+      <Icon icon={icon} size={16} />
+    </button>
+  )
+}
 
 function PeriodPicker({ pick, onPick }: { pick: PeriodPick; onPick: (next: PeriodPick) => void }) {
-  const earlier = stepPick(pick, -1)
-  const later = stepPick(pick, 1)
-  const step = 'pointer-coarse:h-12 pointer-coarse:w-12 w-8 px-0'
+  return (
+    <div
+      role="group"
+      aria-label="Chọn kỳ"
+      className={cn('bg-card/80 flex flex-wrap items-center gap-1 rounded-full p-1', SOFT_SHADOW)}
+    >
+      {GRAINS.map((g) => {
+        const on = g.value === pick.grain
+        return (
+          <button
+            key={g.value}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onPick({ ...pick, grain: g.value })}
+            className={cn(
+              'pointer-coarse:h-12 h-9 min-w-[60px] rounded-full px-3 text-[13px] font-semibold',
+              'duration-(--motion-duration) ease-(--motion-ease) transition-[background-color,color] motion-reduce:transition-none',
+              'focus-visible:outline-ring focus-visible:outline-2',
+              on
+                ? cn(NAVY_GRADIENT, NAVY_LIFT, 'text-primary-foreground')
+                : 'text-muted-foreground hover:bg-surface-ink/8',
+            )}
+          >
+            {g.label}
+          </button>
+        )
+      })}
+      <span aria-hidden className="bg-surface-ink/12 mx-1 block h-5 w-px" />
+      <StepButton icon={ChevronLeft} label="Kỳ trước" target={stepPick(pick, -1)} onPick={onPick} />
+      <span
+        aria-live="polite"
+        className="tnum min-w-28 text-center text-[13px] font-semibold leading-5"
+      >
+        {periodLabel(keyOf(pick))}
+      </span>
+      <StepButton icon={ChevronRight} label="Kỳ sau" target={stepPick(pick, 1)} onPick={onPick} />
+    </div>
+  )
+}
+
+/** Names the data's own period, not the picker's, so a kept placeholder stays
+ *  truthful. A finished period has no days left to count, so it gets no bar. */
+function PeriodProgress({ data }: { data: SalesPerformanceResponse }) {
+  const { ran, total } = progressOf(data)
+  const compare = compareLabel(data)
+  if (ran === total) {
+    return (
+      <span className="tnum font-num">{compare.charAt(0).toUpperCase() + compare.slice(1)}</span>
+    )
+  }
+  return (
+    <span className="flex flex-wrap items-center gap-3">
+      <span
+        aria-hidden
+        className="bg-surface-ink/8 block h-1.5 w-[120px] overflow-hidden rounded-full"
+      >
+        <span
+          className={cn(
+            'block h-full rounded-full bg-[linear-gradient(90deg,var(--channel-meeting),var(--primary))]',
+            GROW_WIDTH,
+          )}
+          style={{ width: `${(ran / total) * 100}%` }}
+        />
+      </span>
+      <span className="tnum font-num">
+        Đã qua {ran}/{total} ngày · {compare}
+      </span>
+    </span>
+  )
+}
+
+const PILL =
+  'pointer-coarse:h-12 inline-flex h-10 items-center gap-2 rounded-full pl-1 pr-4 text-[13px] font-semibold'
+
+function QuickAction({
+  icon,
+  label,
+  primary,
+  onClick,
+}: {
+  icon: IconGlyph
+  label: string
+  primary: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        PILL,
+        PRESS,
+        primary
+          ? 'text-primary-foreground bg-[linear-gradient(135deg,var(--primary),var(--primary-strong))] shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_28%,transparent)] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--primary)_42%,transparent)]'
+          : cn('bg-card text-foreground', SOFT_SHADOW),
+      )}
+    >
+      <span
+        className={cn(
+          'flex size-7 items-center justify-center rounded-full',
+          primary
+            ? 'bg-primary-foreground/20'
+            : 'text-accent-foreground from-accent to-primary/25 bg-linear-to-br',
+        )}
+      >
+        <Icon icon={icon} size={16} />
+      </span>
+      {label}
+    </button>
+  )
+}
+
+/** Only actions that open a page that exists: the design's quote, call, meeting,
+ *  mail and export pills have no destination yet. */
+function QuickActions({ canLead, canDeal }: { canLead: boolean; canDeal: boolean }) {
+  const navigate = useNavigate()
 
   return (
-    <>
-      <SegmentedControl
-        label="Độ dài kỳ"
-        hideLabel
-        tone="quiet"
-        value={pick.grain}
-        options={GRAINS}
-        onChange={(grain) => onPick({ ...pick, grain: grain === 'month' ? 'month' : 'quarter' })}
-      />
-      <div role="group" aria-label="Chọn kỳ" className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={step}
-          aria-label="Kỳ trước"
-          disabled={earlier === null}
-          onClick={() => earlier && onPick(earlier)}
-        >
-          <Icon icon={ChevronLeft} size={16} />
-        </Button>
-        <span aria-live="polite" className="tnum min-w-32 text-center text-[12.5px] font-semibold">
-          {periodLabel(keyOf(pick))}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={step}
-          aria-label="Kỳ sau"
-          disabled={later === null}
-          onClick={() => later && onPick(later)}
-        >
-          <Icon icon={ChevronRight} size={16} />
-        </Button>
-      </div>
-    </>
+    <nav aria-label="Thao tác nhanh" className="flex flex-wrap items-center gap-2">
+      {canLead && (
+        <QuickAction
+          icon={UserPlus}
+          label="Thêm lead"
+          primary
+          onClick={() => navigate('/sales/leads/new')}
+        />
+      )}
+      {canDeal && (
+        <QuickAction
+          icon={Plus}
+          label="Tạo cơ hội"
+          primary={!canLead}
+          onClick={() => navigate('/sales/opportunities/new')}
+        />
+      )}
+    </nav>
+  )
+}
+
+type BentoProps = {
+  data: SalesPerformanceResponse | undefined
+  error: Error | null
+  onRetry: () => void
+  /** Figures on screen belong to the previous period until the new read lands. */
+  stale: boolean
+  canCharts: boolean
+  canRuns: boolean
+  overdueTile: (className: string) => ReactNode
+  exitsTile: (className: string) => ReactNode
+}
+
+/** Data wins over an error: a failed background refetch keeps the last good tiles. */
+function Bento({
+  data,
+  error,
+  onRetry,
+  stale,
+  canCharts,
+  canRuns,
+  overdueTile,
+  exitsTile,
+}: BentoProps) {
+  /* The data's own period decides, not the picker's: a kept placeholder
+     still holds the old grain's buckets until the new read lands. */
+  const weekly = data !== undefined && salesGrainOf(data.period) === 'week'
+
+  return (
+    <div
+      aria-busy={stale}
+      className={cn(
+        'duration-(--motion-duration) flex flex-col gap-6 transition-opacity motion-reduce:transition-none',
+        stale && 'opacity-60',
+      )}
+    >
+      {!canCharts ? (
+        <div className={ROW}>{overdueTile(SIDE)}</div>
+      ) : data ? (
+        <>
+          <div className={ROW}>
+            <SignedTile data={data} className={HERO} />
+            <div className={SIDE_STACK}>
+              <OpenValueTile data={data} className={SIDE_TILE} />
+              <WinRateTile data={data} className={SIDE_TILE} />
+              {overdueTile(SIDE_TILE)}
+            </div>
+          </div>
+          <div className={ROW}>
+            {weekly ? (
+              <ActivityTile data={data} className={ROW_TWO_MAIN} />
+            ) : (
+              <FunnelTile data={data} className={ROW_TWO_MAIN} />
+            )}
+            {exitsTile(ROW_TWO_SIDE)}
+          </div>
+        </>
+      ) : error ? (
+        <>
+          <div className={ROW}>
+            <ChartsFailed
+              detail={isApiError(error) ? userMessage(error) : 'Thử lại.'}
+              onRetry={onRetry}
+              className={canRuns ? HERO : ROW_TWO_ALONE}
+            />
+            {canRuns && <div className={SIDE_STACK}>{overdueTile(SIDE_TILE)}</div>}
+          </div>
+          <div className={ROW}>{exitsTile(ROW_TWO_ALONE)}</div>
+        </>
+      ) : (
+        <>
+          <div className={ROW}>
+            <TileSkeleton className={HERO} />
+            <div className={SIDE_STACK}>
+              <TileSkeleton className={SIDE_TILE} />
+              <TileSkeleton className={SIDE_TILE} />
+              {canRuns && <TileSkeleton className={SIDE_TILE} />}
+            </div>
+          </div>
+          <div className={ROW}>
+            <TileSkeleton className={ROW_TWO_MAIN} />
+            <TileSkeleton className={ROW_TWO_SIDE} />
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -114,6 +340,8 @@ export function HomePage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, lead, cơ hội, hợp đồng…' })
   const canCharts = useCan('performance.view')
   const canRuns = useCan('workstream.view')
+  const canLead = useCan('lead.edit')
+  const canDeal = useCan('opportunity.create')
 
   const [pick, setPick] = useState(() => currentPick())
   const [filter, setFilter] = useState<ListFilter | null>(null)
@@ -147,23 +375,28 @@ export function HomePage() {
     listRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' })
   }
 
-  /* Without the Overdue tile the figures beside it widen to close the row; the
-     skeletons take the same spans so nothing shifts when the figures land. */
-  const signedSpan = canRuns ? 'md:col-span-6 xl:col-span-4' : 'md:col-span-6 xl:col-span-6'
-  const span = canRuns ? 'md:col-span-3 xl:col-span-2' : 'md:col-span-2 xl:col-span-2'
+  /* The overdue tile's "within your scope" note must not flip with the filter,
+     so it remembers the unfiltered read's `hidden` and ignores kept placeholders. */
+  const [scopedBook, setScopedBook] = useState(false)
+  if (filter === null && list.data && !list.isPlaceholderData) {
+    const scoped = list.data.hidden > 0
+    if (scoped !== scopedBook) setScopedBook(scoped)
+  }
+
   const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
 
-  const overdue = canRuns && (
-    <OverdueTile
-      score={score.data}
-      failed={score.error !== null}
-      onRetry={() => void score.refetch()}
-      scoped={(list.data?.hidden ?? 0) > 0}
-      active={filter?.by === 'overdue'}
-      onToggle={() => applyFilter(filter?.by === 'overdue' ? null : { by: 'overdue' })}
-      className={span}
-    />
-  )
+  const overdueTile = (className: string) =>
+    canRuns && (
+      <OverdueTile
+        score={score.data}
+        failed={score.error !== null}
+        onRetry={() => void score.refetch()}
+        scoped={scopedBook}
+        active={filter?.by === 'overdue'}
+        onToggle={() => applyFilter(filter?.by === 'overdue' ? null : { by: 'overdue' })}
+        className={className}
+      />
+    )
 
   /* Its read does not depend on the figures', so it also stands beside the
      failure tile. */
@@ -180,60 +413,53 @@ export function HomePage() {
       <TileSkeleton className={className} />
     )
 
+  const data = charts.data
+  const stale = charts.isPlaceholderData || exitsRead.isPlaceholderData
+
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
         <ScreenHeader
-          title="Tổng quan"
+          title={
+            <span className="block text-[30px] font-bold leading-[38px] tracking-[-0.025em]">
+              Tổng quan bán hàng
+            </span>
+          }
+          description={
+            data ? (
+              <PeriodProgress data={data} />
+            ) : canCharts ? (
+              <span aria-hidden className="block h-4" />
+            ) : undefined
+          }
           actions={canCharts ? <PeriodPicker pick={pick} onPick={setPick} /> : undefined}
+          context={
+            canLead || canDeal ? <QuickActions canLead={canLead} canDeal={canDeal} /> : undefined
+          }
+          className={cn('gap-5', ENTER)}
         />
 
-        <div className={BENTO}>
-          {!canCharts ? (
-            overdue
-          ) : charts.error ? (
-            <>
-              <ChartsFailed
-                detail={isApiError(charts.error) ? userMessage(charts.error) : 'Thử lại.'}
-                onRetry={() => void charts.refetch()}
-                className={canRuns ? 'md:col-span-3 xl:col-span-10' : 'col-span-full'}
-              />
-              {overdue}
-              {exitsTile(WIDE_ALONE)}
-            </>
-          ) : charts.data ? (
-            <>
-              <SignedTile data={charts.data} className={signedSpan} />
-              <OpenValueTile data={charts.data} className={span} />
-              <WinRateTile data={charts.data} className={span} />
-              <LeadToContractTile data={charts.data} className={span} />
-              {overdue}
-              <FunnelTile data={charts.data} className={PAIRED} />
-              <MonthsTile data={charts.data} className={PAIRED} />
-              {exitsTile(WIDE)}
-            </>
-          ) : (
-            <>
-              <TileSkeleton className={signedSpan} />
-              <TileSkeleton className={span} />
-              <TileSkeleton className={span} />
-              <TileSkeleton className={span} />
-              {overdue}
-              <TileSkeleton className={PAIRED} />
-              <TileSkeleton className={PAIRED} />
-              <TileSkeleton className={WIDE} />
-            </>
-          )}
-        </div>
+        <Bento
+          data={data}
+          error={charts.error}
+          onRetry={() => void charts.refetch()}
+          stale={stale}
+          canCharts={canCharts}
+          canRuns={canRuns}
+          overdueTile={overdueTile}
+          exitsTile={exitsTile}
+        />
 
         {canRuns && (
           <div ref={listRef}>
             <PriorityList
               data={list.data}
+              score={score.data}
               error={list.error}
+              refreshing={list.isPlaceholderData}
               onRetry={() => void list.refetch()}
               filter={filter}
-              onClear={() => setFilter(null)}
+              onFilter={setFilter}
             />
           </div>
         )}
