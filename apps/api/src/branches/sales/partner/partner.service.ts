@@ -45,9 +45,10 @@ export class PartnerService {
   /** `q.motion` is ignored — a partner belongs to no motion. Hidden rows are
    *  for those who tidy the book; anyone else asking for them gets live ones. */
   async list(who: Actor, q: PartnerListQuery): Promise<PartnerListResponse> {
-    const includeInactive = !!q.includeInactive && this.access.allows(who, 'lead-origin.manage')
+    const seesInactive = this.access.allows(who, 'lead-origin.manage')
+    const includeInactive = !!q.includeInactive && seesInactive
     const [rows, tallies] = await Promise.all([
-      this.repo.list({ ...(q.q ? { q: q.q } : {}), includeInactive }),
+      this.repo.list({ ...(q.q ? { q: q.q } : {}), includeInactive, seesInactive }),
       this.repo.tallies(),
     ])
     const none = { leads: 0, opportunities: 0, contracts: 0 }

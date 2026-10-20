@@ -26,8 +26,15 @@ import {
   type NotificationValues,
 } from './notification.schema'
 
-/** The `labelKinds` arm is computed in JS, so the probe reads the label alone. */
-const probeOf = (q: string) => directProbe(sql`${notification}`, [notification.subjectLabel], q)
+/** The `labelKinds` arm is computed in JS, so the probe reads the label alone,
+ *  and only the caller's own rows: another recipient's hit is not theirs. */
+const probeOf = (recipientId: string) => (q: string) =>
+  directProbe(
+    sql`${notification}`,
+    eq(notification.recipientId, recipientId),
+    [notification.subjectLabel],
+    q,
+  )
 
 /** `important` is the kind policy row's switch, `null` when the kind has no
  *  row or follows the default; `effectiveImportant` resolves both. */
@@ -167,7 +174,7 @@ export class NotificationRepository {
       const [n] = await db.select({ n: count() }).from(notification).where(where)
       return { rows, total: n?.n ?? 0 }
     }
-    return underFloor(this.db, f.text, probeOf, read)
+    return underFloor(this.db, f.text, probeOf(recipientId), read)
   }
 
   /** One predicate for the rows and for `total`, so the two cannot drift. The

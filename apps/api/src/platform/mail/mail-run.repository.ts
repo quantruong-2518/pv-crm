@@ -187,7 +187,8 @@ export function stillEditable(runId: SQL, state: SQL): SQL {
 
 /** The one answer for the mail-run book, shared with the Sales visibility count. */
 export const MAIL_RUN_SEARCHED = [mailRun.label, mailRun.subject]
-export const mailRunProbe = (q: string) => directProbe(sql`${mailRun}`, MAIL_RUN_SEARCHED, q)
+export const mailRunProbe = (fence: SQL | undefined) => (q: string) =>
+  directProbe(sql`${mailRun}`, fence, MAIL_RUN_SEARCHED, q)
 
 /** A value list for `IN (…)`, as BIND PARAMETERS.
  *
@@ -366,8 +367,14 @@ export class MailRunRepository {
    *
    *  `hidden` is always 0. It is the count of rows the permission axis cut
    *  (luật 7), and permissions are not a platform-repository decision — the
-   *  Sales service that owns the endpoint fills it if its axis cuts anything. */
-  async list(query: MailRunListQuery, onlyIds?: readonly string[]): Promise<MailRunPage> {
+   *  Sales service that owns the endpoint fills it if its axis cuts anything.
+   *  `universe` is the caller's whole reach (`undefined` = every run), the
+   *  probe's fence alone: `onlyIds` may carry a UI filter, so it stays out. */
+  async list(
+    query: MailRunListQuery,
+    onlyIds?: readonly string[],
+    universe?: SQL,
+  ): Promise<MailRunPage> {
     if (query.campaign !== undefined && onlyIds === undefined) {
       throw new Error(
         'Lọc theo chiến dịch phải được nhánh Sales giải sẵn thành danh sách id lô gửi — ' +
@@ -375,12 +382,17 @@ export class MailRunRepository {
       )
     }
 
+    const byIds = onlyIds
+      ? onlyIds.length > 0
+        ? inArray(mailRun.id, [...onlyIds])
+        : sql`false`
+      : undefined
     const where = and(
       query.state ? eq(mailRun.state, query.state) : undefined,
       query.createdBy ? inArray(mailRun.createdBy, csvOf(query.createdBy)) : undefined,
       ...createdWithin(mailRun.createdAt, query.createdFrom, query.createdTo),
       query.q ? fuzzyAny(MAIL_RUN_SEARCHED, query.q) : undefined,
-      onlyIds ? (onlyIds.length > 0 ? inArray(mailRun.id, [...onlyIds]) : sql`false`) : undefined,
+      byIds,
     )
 
     /* With q, the best match leads the order; count and page share one tx under the `<%` floor. */
@@ -396,7 +408,7 @@ export class MailRunRepository {
         .offset((query.page - 1) * query.size)
       return { total: totals?.n ?? 0, rows }
     }
-    const { total, rows } = await underFloor(this.db, query.q, mailRunProbe, read)
+    const { total, rows } = await underFloor(this.db, query.q, mailRunProbe(universe), read)
 
     const ids = rows.map((r) => r.id)
     const [deliveries, engagement] = await Promise.all([

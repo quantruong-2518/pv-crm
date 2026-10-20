@@ -40,9 +40,17 @@ export type CampaignBookPage = {
  *  là khoá chính, vì lý do y hệt ở đó: trỏ nhầm danh mục phải hiện KHÔNG TÊN
  *  chứ không hiện tên của danh mục khác. LEFT join vì phần lớn chiến dịch chưa
  *  gán nguồn. */
-/** What the book's and the picker's search boxes read. */
+/** What the book's and the picker's search boxes read; each probes inside the
+ *  rows it can ever show (the book's scope, the picker's open campaigns). */
 const SEARCHED = [campaign.name, campaign.code]
-const probeOf = (q: string) => directProbe(sql`${campaign}`, SEARCHED, q)
+const probeOf = (fence: SQL | undefined) => (q: string) =>
+  directProbe(sql`${campaign}`, fence, SEARCHED, q)
+
+/** Campaigns a new lead may still join, on today's Asia/Ho_Chi_Minh date. */
+const PICKABLE = and(
+  inArray(campaign.state, ['DRAFT', 'RUNNING']),
+  sql`(${campaign.endsOn} IS NULL OR ${campaign.endsOn} >= (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)`,
+)
 
 const SOURCE_ON = and(eq(configEntry.id, campaign.sourceId), eq(configEntry.list, 'SOURCE'))
 
@@ -145,7 +153,7 @@ export class CampaignRepository {
    *  lead-create door; `q` is the picker's search. */
   pickable(by: { code?: string; q?: string }, db: Db = this.db) {
     const run = (d: Db) => this.pickableRows(d, by)
-    return underFloor(db, by.q, probeOf, run)
+    return underFloor(db, by.q, probeOf(PICKABLE), run)
   }
 
   private pickableRows(db: Db, by: { code?: string; q?: string }) {
@@ -161,8 +169,7 @@ export class CampaignRepository {
       .from(campaign)
       .where(
         and(
-          inArray(campaign.state, ['DRAFT', 'RUNNING']),
-          sql`(${campaign.endsOn} IS NULL OR ${campaign.endsOn} >= (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)`,
+          PICKABLE,
           by.code ? eq(campaign.code, by.code) : undefined,
           by.q ? fuzzyAny(SEARCHED, by.q) : undefined,
         ),
@@ -298,7 +305,7 @@ export class CampaignRepository {
         .orderBy(...this.orderBy(q))
         .limit(q.size)
         .offset((q.page - 1) * q.size)
-    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf(scope), [
       total,
       wide,
       page,

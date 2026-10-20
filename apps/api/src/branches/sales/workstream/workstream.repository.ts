@@ -146,7 +146,8 @@ export class WorkstreamRepository {
     /* Count a SECOND time only while the scope axis cuts: for a reader who sees
        the whole book `hidden` is always 0, so a full count would pay for a
        question nobody asked. The page reads the same filters and rides the wave. */
-    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+    const probe = probeOf(and(leadLive, scope))
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.count(and(...filters, scope), db),
       (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
       (db: Db) => this.page(and(...filters, scope), q, stand, db),
@@ -527,7 +528,8 @@ export class WorkstreamRepository {
     const stand = this.standPair(who, scoped)
     const closed = and(...this.filtersOf({ ...q, status: 'closed' }, stand), scope)
     const liveWhere = and(...this.filtersOf(q, stand), scope)
-    const [live, signed, dropped] = await readsUnderFloor(this.db, q.q, probeOf, [
+    const probe = probeOf(and(leadLive, scope))
+    const [live, signed, dropped] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.standTotals(liveWhere, stand, db),
       (db: Db) => this.standTotals(closed, stand, db),
       (db: Db) => this.reasonTotals(closed, db),
@@ -634,11 +636,12 @@ export type LadderRow = { name: string; limitDays: number | null }
  *  once here; `seqCodes` pads like migration 0045's backfill, without truncating. */
 const NEXT_CODES = (n: number): SQL => seqCodes('WS-', 'sales.workstream_code_seq', n)
 
-/** The three columns the book's search box reads. */
+/** The three columns the book's search box reads, probed inside the book's fence. */
 const SEARCHED = [workstream.code, lead.company, account.name]
-const probeOf = (q: string) =>
+const probeOf = (fence: SQL | undefined) => (q: string) =>
   directProbe(
     sql`${workstream} JOIN ${lead} ON ${ANCHOR_ON} LEFT JOIN ${account} ON ${eq(account.code, workstream.accountCode)}`,
+    fence,
     SEARCHED,
     q,
   )

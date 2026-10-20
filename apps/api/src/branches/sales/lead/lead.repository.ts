@@ -137,9 +137,15 @@ const NEXT_CODES = (n: number) => seqCodes('LD-', 'sales.lead_code_seq', n)
 /** The box promises company or lead code, so it searches both (filter and rank). */
 const SEARCHED = [lead.company, lead.legalName, lead.taxCode, lead.code]
 
-/** Same two arms as `filtersOf`: a lead column, or a contact's name. */
-const probeOf = (q: string) =>
-  sql`(${directProbe(sql`${lead}`, SEARCHED, q)} OR ${directProbe(sql`${contact}`, [contact.name], q)})`
+/** Same two arms as `filtersOf`: a lead column, or a contact's name — both
+ *  over the leads `fence` keeps (live or disabled view, plus scope). */
+const probeOf = (fence: SQL | undefined) => (q: string) =>
+  sql`(${directProbe(sql`${lead}`, fence, SEARCHED, q)} OR ${directProbe(
+    sql`${contact} JOIN ${lead} ON ${eq(lead.code, contact.leadCode)}`,
+    fence,
+    [contact.name],
+    q,
+  )})`
 
 /** Chỗ DUY NHẤT trong module lead có SQL.
  *
@@ -242,7 +248,8 @@ export class LeadRepository {
 
     /* The second count only runs when scope really cuts (else `hidden` is 0).
        Plain pool reads run side by side; with `q` they share one tx in sequence. */
-    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+    const view = onlyDisabled ? isNotNull(lead.disabledAt) : leadLive
+    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf(and(view, scope)), [
       (db: Db) => this.count(and(...filters, scope), db),
       (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
       rowsQuery,
@@ -320,7 +327,8 @@ export class LeadRepository {
   ): Promise<{ byState: Record<LeadState, number>; held: number }> {
     /* One open hold per subject (`hold_open_subject_uq`), so the LEFT JOIN
        keeps one row per lead and the hold is looked up once, not per FILTER. */
-    const rows = await underFloor(this.db, q.q, probeOf, (db) =>
+    const fence = and(leadLive, this.scopeOf(who, true))
+    const rows = await underFloor(this.db, q.q, probeOf(fence), (db) =>
       db
         .select({
           state: lead.state,
@@ -332,7 +340,7 @@ export class LeadRepository {
           hold,
           and(eq(hold.subjectType, 'lead'), eq(hold.subjectCode, lead.code), isNull(hold.endedAt)),
         )
-        .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
+        .where(and(...this.filtersOf(q), fence))
         .groupBy(lead.state),
     )
     const byState = Object.fromEntries(LeadState.options.map((s) => [s, 0])) as Record<
@@ -350,7 +358,8 @@ export class LeadRepository {
   /** The waiting labels in use on the scoped book under its other filters,
    *  `label` itself ignored — the rule `sourceKinds` follows. Catalogue order. */
   async labelFacets(who: Actor, q: LeadFacetsQuery): Promise<LeadLabel[]> {
-    return underFloor(this.db, q.q, probeOf, (db) =>
+    const fence = and(leadLive, this.scopeOf(who, true))
+    return underFloor(this.db, q.q, probeOf(fence), (db) =>
       db
         .selectDistinct({ id: configEntry.id, name: configEntry.name, ord: configEntry.ord })
         .from(leadLabel)
@@ -359,9 +368,7 @@ export class LeadRepository {
           configEntry,
           and(eq(configEntry.id, leadLabel.labelId), eq(configEntry.list, leadLabel.list)),
         )
-        .where(
-          and(...this.filtersOf({ ...q, label: undefined }), leadLive, this.scopeOf(who, true)),
-        )
+        .where(and(...this.filtersOf({ ...q, label: undefined }), fence))
         .orderBy(asc(configEntry.ord), asc(configEntry.id))
         .then((rows) => rows.map(({ id, name }) => ({ id, name }))),
     )
@@ -370,11 +377,9 @@ export class LeadRepository {
   /** How many leads the "disabled" view would list — the book's filters and
    *  scope, every state. */
   disabledCount(who: Actor, q: LeadFacetsQuery): Promise<number> {
-    return underFloor(this.db, q.q, probeOf, (db) =>
-      this.count(
-        and(...this.filtersOf(q), isNotNull(lead.disabledAt), this.scopeOf(who, true)),
-        db,
-      ),
+    const fence = and(isNotNull(lead.disabledAt), this.scopeOf(who, true))
+    return underFloor(this.db, q.q, probeOf(fence), (db) =>
+      this.count(and(...this.filtersOf(q), fence), db),
     )
   }
 

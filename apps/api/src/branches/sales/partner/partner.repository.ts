@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto'
-import { and, asc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { directProbe, fuzzyAny, fuzzyRank, underFloor } from '@api/platform/db/fuzzy'
@@ -31,7 +31,10 @@ function randomRef(): string {
 
 /** The referral ref is what a partner quotes by phone, so it is searched too. */
 const SEARCHED = [partner.code, partner.name, partner.ref]
-const probeOf = (q: string) => directProbe(sql`${partner}`, SEARCHED, q)
+/** `fence` = the rows the caller may ever see: hidden partners only for those
+ *  who tidy the book. Their "show hidden" tick is a UI filter and stays out. */
+const probeOf = (fence: SQL | undefined) => (q: string) =>
+  directProbe(sql`${partner}`, fence, SEARCHED, q)
 
 export type PartnerTally = { leads: number; opportunities: number; contracts: number }
 
@@ -49,7 +52,11 @@ export class PartnerRepository {
     return this.db.transaction((tx) => work(tx))
   }
 
-  list(q: { q?: string; includeInactive: boolean }): Promise<PartnerRowDb[]> {
+  list(q: {
+    q?: string
+    includeInactive: boolean
+    seesInactive: boolean
+  }): Promise<PartnerRowDb[]> {
     const run = (db: Db) =>
       db
         .select()
@@ -65,7 +72,8 @@ export class PartnerRepository {
           asc(partner.name),
           asc(partner.code),
         )
-    return underFloor(this.db, q.q, probeOf, run)
+    const fence = q.seesInactive ? undefined : eq(partner.active, true)
+    return underFloor(this.db, q.q, probeOf(fence), run)
   }
 
   /** Referral funnel per partner code. Partners with no leads are absent. */

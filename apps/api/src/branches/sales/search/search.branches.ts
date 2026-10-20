@@ -196,12 +196,14 @@ export function searchBranch(kind: SearchKind, who: Scope, q: string, limit: num
     LIMIT ${limit})`
 }
 
-/** Does `q` hit this kind's columns directly, fences left out. `q` stays off
+/** Does `q` hit this kind's columns directly, inside the branch's fence: a row
+ *  the caller cannot see must not switch their typos off. `q` stays off
  *  `branchOf` so the deal's contact lateral is not part of the probe's FROM. */
 export function probeBranch(kind: SearchKind, who: Scope, q: string): SQL {
   const b = branchOf(kind, who)
   return directProbe(
     b.from,
+    b.fence,
     b.cols.map((c) => c.expr),
     q,
   )

@@ -19,7 +19,7 @@ import { seqCodes } from '../code-seq'
 const SEARCHED = [account.name, account.legalName, account.taxCode, account.code]
 
 /** Shared with the facets repository: one answer per book. */
-export const accountProbe = (q: string) => directProbe(sql`${account}`, SEARCHED, q)
+export const accountProbe = (q: string) => directProbe(sql`${account}`, undefined, SEARCHED, q)
 
 /** `AC-0001`. Drizzle has no expression node for `nextval`, so the sequence name
  *  is written out once here — the same trade `opportunity.repository.ts` and

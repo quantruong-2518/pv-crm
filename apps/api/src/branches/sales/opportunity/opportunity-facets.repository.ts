@@ -32,7 +32,7 @@ export class OpportunityFacetsRepository {
     const [saleOwners, bdOwners, accounts, [counts]] = await readsUnderFloor(
       this.db,
       q.q,
-      opportunityProbe,
+      opportunityProbe(who, true),
       [
         (db) => this.lane(db, where, 'SALE'),
         (db) => this.lane(db, where, 'BD'),

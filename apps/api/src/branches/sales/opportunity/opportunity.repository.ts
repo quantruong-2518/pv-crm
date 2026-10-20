@@ -58,10 +58,12 @@ import { seqCodes } from '../code-seq'
 /** Name, deal code or company: whichever the user pasted, for filter and rank. */
 const SEARCHED = [opportunity.name, opportunity.code, lead.company]
 
-/** Shared with the facets repository: one answer per book. */
-export const opportunityProbe = (q: string) =>
+/** Shared with the facets repository: one answer per book, over the deals the
+ *  reader's book can ever show — live lead, deal scope. `onBoard` is a view. */
+export const opportunityProbe = (who: Actor, scoped: boolean) => (q: string) =>
   directProbe(
     sql`${opportunity} JOIN ${lead} ON ${lead.code} = ${opportunity.leadCode}`,
+    and(leadLive, dealScope(who, scoped)),
     SEARCHED,
     q,
   )
@@ -219,7 +221,8 @@ export class OpportunityRepository {
         .limit(q.size)
         .offset((q.page - 1) * q.size)
 
-    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, opportunityProbe, [
+    const probe = opportunityProbe(who, scoped)
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.count(where, db),
       (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
       rowsOf,

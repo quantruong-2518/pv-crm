@@ -321,7 +321,8 @@ export class ContractRepository {
         .orderBy(...this.orderBy(q))
         .limit(q.size)
         .offset((q.page - 1) * q.size)
-    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+    const probe = probeOf(and(leadLive, scope))
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       total,
       wide,
       page,
@@ -690,9 +691,10 @@ export class ContractRepository {
   }
 }
 
-/** The two columns the book's search box reads. */
+/** The two columns the book's search box reads, probed inside the book's fence. */
 const SEARCHED = [lead.company, contract.code]
-const probeOf = (q: string) => directProbe(sql`${contract} JOIN ${lead} ON ${ON_LEAD}`, SEARCHED, q)
+const probeOf = (fence: SQL | undefined) => (q: string) =>
+  directProbe(sql`${contract} JOIN ${lead} ON ${ON_LEAD}`, fence, SEARCHED, q)
 
 function groupByInstallment<T extends { installmentNo: number }>(rows: T[]): Map<number, T[]> {
   const by = new Map<number, T[]>()

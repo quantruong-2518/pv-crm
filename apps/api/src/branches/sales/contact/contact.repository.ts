@@ -26,8 +26,15 @@ export type ContactBookRead = {
 /** Columns the search box reads, for both the filter and the rank. */
 const SEARCHED = [contact.name, contact.email, contact.phone]
 
-/** Shared with the facets repository: one answer per book. */
-export const contactProbe = (q: string) => directProbe(sql`${contact}`, SEARCHED, q)
+/** Shared with the facets repository: one answer per book, over the contacts
+ *  `fence` keeps (`leadLive` and the lead scope — it reads `lead`). */
+export const contactProbe = (fence: SQL | undefined) => (q: string) =>
+  directProbe(
+    sql`${contact} JOIN ${lead} ON ${eq(lead.code, contact.leadCode)}`,
+    fence,
+    SEARCHED,
+    q,
+  )
 
 const presence = (column: typeof contact.email | typeof contact.phone, flag: '1' | '0') =>
   flag === '1' ? isNotNull(column) : isNull(column)
@@ -182,10 +189,8 @@ export class ContactRepository {
         .innerJoin(lead, eq(lead.code, contact.leadCode))
         .where(where)
 
-    const [rows, [tally]] = await readsUnderFloor(this.db, q.q, contactProbe, [
-      rowsOf,
-      tallyOf,
-    ] as const)
+    const probe = contactProbe(and(leadLive, scope))
+    const [rows, [tally]] = await readsUnderFloor(this.db, q.q, probe, [rowsOf, tallyOf] as const)
 
     return { rows, total: tally?.n ?? 0 }
   }

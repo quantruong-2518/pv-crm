@@ -135,6 +135,8 @@ export type RunScope = {
   onlyIds: string[] | undefined
   /** Rows the filter matched and the scope axis removed — `MailRunListResponse.hidden`. */
   hidden: number
+  /** Every run this caller may ever list, for the search probe; `undefined` = all. */
+  universe: SQL | undefined
 }
 
 export type RunSequenceContext = {
@@ -986,7 +988,7 @@ export class MasRepository {
     campaignIds: readonly string[] | undefined,
   ): Promise<RunScope> {
     if (!who.ownOnly) {
-      return { onlyIds: campaignIds ? [...campaignIds] : undefined, hidden: 0 }
+      return { onlyIds: campaignIds ? [...campaignIds] : undefined, hidden: 0, universe: undefined }
     }
 
     const filters = this.listFilters(query, campaignIds)
@@ -1001,12 +1003,14 @@ export class MasRepository {
         .select({ n: count() })
         .from(mailRun)
         .where(and(filters, ne(mailRun.createdBy, who.id)))
-    const [mine, [hidden]] = await readsUnderFloor(this.db, query.q, mailRunProbe, [
+    /* Probed over the caller's own runs: another sender's hit must not turn their typos off. */
+    const universe = eq(mailRun.createdBy, who.id)
+    const [mine, [hidden]] = await readsUnderFloor(this.db, query.q, mailRunProbe(universe), [
       ofMine,
       ofOthers,
     ] as const)
 
-    return { onlyIds: mine.map((r) => r.id), hidden: hidden?.n ?? 0 }
+    return { onlyIds: mine.map((r) => r.id), hidden: hidden?.n ?? 0, universe }
   }
 
   /** Trục 3 · phạm vi, over `sales.lead`. `undefined` = the axis cuts nothing,

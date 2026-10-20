@@ -37,11 +37,18 @@ const anyOf = (cols: SQLWrapper[], hit: (e: SQLWrapper) => SQL): SQL =>
 /** Any of the columns matches. */
 export const fuzzyAny = (cols: SQLWrapper[], q: string): SQL => anyOf(cols, (c) => fuzzyHit(c, q))
 
-/** Does `q` hit `cols` directly anywhere in `from`? Filters and scope are left
- *  out on purpose: one answer per book, so the book, its tabs, facets and board
- *  all take the same pass and never disagree on a count. */
-export const directProbe = (from: SQL, cols: SQLWrapper[], q: string): SQL =>
-  sql`EXISTS (SELECT 1 FROM ${from} WHERE ${anyOf(cols, (c) => directHit(c, q))})`
+/** Does `q` hit `cols` directly in the rows of `from` that `fence` keeps? The
+ *  fence is the universe the viewer's book can ever show (scope, `leadLive`,
+ *  recipient): a hit they cannot see must not switch their typos off. The UI's
+ *  filters stay out, so the book, its tabs, facets and board take one pass and
+ *  never disagree on a count. Required: `undefined` only for an unscoped book. */
+export const directProbe = (
+  from: SQL,
+  fence: SQL | undefined,
+  cols: SQLWrapper[],
+  q: string,
+): SQL =>
+  sql`EXISTS (SELECT 1 FROM ${from} WHERE ${anyOf(cols, (c) => directHit(c, q))} AND ${fence ?? sql`true`})`
 
 /** Rank tiers, same as `fuzzyScore` on the web: 3 equal, 2 prefix,
  *  1 substring, else word similarity (kept under 1). Sort by it DESC before

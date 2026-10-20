@@ -563,7 +563,7 @@ export class MasService {
       : undefined
 
     const scope = await this.repo.visibleRuns(who, query, campaignIds)
-    const page = await this.runs.list(query, scope.onlyIds)
+    const page = await this.runs.list(query, scope.onlyIds, scope.universe)
     const [contexts, rows] = await Promise.all([
       this.repo.sequenceContexts(page.rows.map((row) => row.id)),
       this.withCreators(who, page.rows),

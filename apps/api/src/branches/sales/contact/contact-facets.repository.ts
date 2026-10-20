@@ -28,7 +28,8 @@ export class ContactFacetsRepository {
       isNotNull(lead.accountCode),
     )
 
-    const rows = await underFloor(this.db, q.q, contactProbe, (db) =>
+    const probe = contactProbe(and(leadLive, leadScope(who, true)))
+    const rows = await underFloor(this.db, q.q, probe, (db) =>
       db
         .select({ value: lead.accountCode, label: account.name, count: count() })
         .from(contact)
