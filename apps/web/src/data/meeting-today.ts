@@ -1,7 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DebriefView, MeetingTodayResponse, type MeetingDebriefClose } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
-import { cacheTier } from '@/app/query-client'
+import { whileLive } from '@/app/query-client'
 import { commClosed } from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
 import { MEETING_KEY, MEETING_TODAY_KEY } from '@/data/meetings'
@@ -15,7 +15,8 @@ import { rereadOptionsOnRefusal } from '@/data/next-step'
  *  declares them; "own meetings only" and the closer fence are server-side. */
 
 /** The bar is a claim about the next hour, so it re-asks every minute and on
- *  focus — a mounted bar never remounts, so staleness alone would freeze it. */
+ *  focus — a mounted bar never remounts, so staleness alone would freeze it.
+ *  Not `cacheTier.live`: a meeting ending writes no row, so push never fires. */
 const TODAY_FRESH_MS = 60_000
 
 export const meetingTodayQuery = queryOptions({
@@ -26,7 +27,8 @@ export const meetingTodayQuery = queryOptions({
       schema: MeetingTodayResponse,
       signal,
     }),
-  ...cacheTier.live(TODAY_FRESH_MS),
+  staleTime: TODAY_FRESH_MS,
+  refetchInterval: whileLive(TODAY_FRESH_MS),
 })
 
 /** The close-out: summary, answers, step and attendance in one write; the record

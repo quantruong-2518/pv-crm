@@ -1,7 +1,9 @@
 # 0104 · Client cache tiers, and records-changed signals pushed over the notification stream
 
 Status: accepted
-Source: project owner's decisions, 19/10/2026 (built, not yet shipped)
+Source: project owner's decisions, 19/10/2026; shipped 20/10/2026 (Neon 0126,
+Fly v160, master `8ae8d19`); amended 20/10 after the architecture and performance
+review (findings 2 and 3)
 
 ## Context
 
@@ -56,8 +58,8 @@ valid `?page=`.
 - **Kind only, never a record code.** Every user hears it, and a code would
   reveal a record outside the hearer's scope. The browser drops that kind's
   cached reads and re-asks the permission-checked GETs.
-- Polls that push now covers (badges, today's meetings, comm queue, mail
-  sending progress, scan progress) run only while the stream is down. A
+- Polls that push now covers (badges, comm queue, mail sending progress, scan
+  progress) run only while the stream is down. A
   `ready` after reconnect triggers one catch-up invalidation.
 
 ### 5 · Rejected
@@ -77,10 +79,23 @@ valid `?page=`.
   are CORS simple requests; the server falls back to Fastify's request id for
   `traceId`.
 
+### 6 · Amendment 20/10: what push cannot cover
+
+- **A read whose answer moves with the clock keeps its clock.** Push fires on
+  row writes; a meeting ending or a day turning writes no row. Today's meeting
+  bar polls every minute while the session lives, stream or not.
+- **Aggregates follow business writes, throttled.** KPI and home figures are
+  computed from lead, opportunity, contract, meeting, comm and approval rows.
+  An event of those kinds schedules one sweep of `['sales','kpi']` and
+  `['sales','performance']` 60–75 s later (jittered per tab), not one per
+  event. A `kpi` event (targets) still sweeps at once.
+- Not done: an aggregate poll while the stream is down. Aggregates never
+  polled before this ADR; focus and remount still refresh them.
+
 ## Consequences
 
 - A colleague's catalog change shows up to 10 min late (same-tab approvals
-  still sweep); KPI and home figures up to 60 s late.
+  still sweep); KPI and home figures up to 75 s late.
 - Own writes cause one extra refetch, via the echo.
 - Every write of a kind wakes the active screens of that kind for all users.
   Acceptable at current headcount; revisit with codes plus per-scope routing

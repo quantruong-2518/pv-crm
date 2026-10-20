@@ -40,7 +40,8 @@ export function whileLive<A extends unknown[]>(
 /** A poll that only covers for a stream that is down: while the stream is live,
  *  every write of the kind arrives as an `entity` event and
  *  `data/entity-sync.ts` re-reads the mounted queries (ADR 0104). Same shape as
- *  `whileLive`, which stays for polls push cannot replace (signed-URL refresh). */
+ *  `whileLive`, which stays for polls push cannot replace: signed-URL refresh,
+ *  and answers that move with the clock rather than with a row (today's meeting). */
 export function untilPushed<A extends unknown[]>(
   every: number | ((...args: A) => number | false | undefined),
 ) {
@@ -62,10 +63,11 @@ subscribeStreamLive(() => {
 export const cacheTier = {
   /** Catalogs, labels, users, roles, templates: edited rarely, read everywhere. */
   reference: { staleTime: 10 * 60_000, gcTime: 30 * 60_000 },
-  /** Scorecards, KPI, home figures: a minute late is fine, recomputing is not free. */
+  /** Scorecards, KPI, home figures: a minute late is fine, recomputing is not free.
+   *  Others' writes reach them through a throttled sweep in `data/entity-sync.ts`. */
   aggregate: { staleTime: 60_000 },
-  /** Badges, today's meetings, queues: re-asked on a clock only while the session
-   *  lives and the stream is down; a live stream pushes the change instead. */
+  /** Badges, queues: re-asked on a clock only while the session lives and the
+   *  stream is down; a live stream pushes the change instead. */
   live: (everyMs: number) => ({ staleTime: everyMs, refetchInterval: untilPushed(everyMs) }),
 } as const
 

@@ -66,12 +66,11 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
     leadIndustryTagsQuery.queryKey,
     LEAD_SCOPED_KEY,
     NEXT_STEP_KEY,
-    PERFORMANCE_KEY,
   ],
-  opportunity: [OPPORTUNITY_BOOK_KEY, OPS_KEY, NEXT_STEP_KEY, PERFORMANCE_KEY],
+  opportunity: [OPPORTUNITY_BOOK_KEY, OPS_KEY, NEXT_STEP_KEY],
   account: [ACCOUNT_BOOK_KEY],
   contact: [CONTACT_BOOK_KEY, LEAD_SCOPED_KEY],
-  contract: [CONTRACT_BOOK_KEY, ['sales', 'overdue-reasons'], PERFORMANCE_KEY],
+  contract: [CONTRACT_BOOK_KEY, ['sales', 'overdue-reasons']],
   workstream: [WORKSTREAM_BOOK_KEY, NEXT_STEP_KEY],
   meeting: [MEETING_KEY],
   comm: COMM_QUEUE_KEYS,
@@ -115,8 +114,36 @@ function dropReads(prefixes: readonly QueryKey[]) {
   )
 }
 
+/** KPI and home figures are computed from these kinds' rows. Re-reading them on
+ *  every event would recompute each in every open tab up to once a second, so
+ *  they are swept at most once a minute; the jitter keeps tabs from asking in
+ *  the same second. */
+const AGGREGATE_KEYS = [SALES_KPI_KEY, PERFORMANCE_KEY] as const
+const AGGREGATE_SOURCES = new Set<EntityKind>([
+  'lead',
+  'opportunity',
+  'contract',
+  'meeting',
+  'comm',
+  'approval',
+])
+const AGGREGATE_EVERY_MS = 60_000
+let aggregateSweep: ReturnType<typeof setTimeout> | undefined
+
+function sweepAggregatesSoon() {
+  if (aggregateSweep) return
+  aggregateSweep = setTimeout(
+    () => {
+      aggregateSweep = undefined
+      dropReads(AGGREGATE_KEYS)
+    },
+    AGGREGATE_EVERY_MS * (1 + Math.random() / 4),
+  )
+}
+
 export function onEntityChange(kinds: readonly EntityKind[]) {
   dropReads(kinds.flatMap((kind) => KEYS_OF_KIND[kind]))
+  if (kinds.some((kind) => AGGREGATE_SOURCES.has(kind))) sweepAggregatesSoon()
 }
 
 /** The first `ready` of a page load has nothing stale behind it; a later one
@@ -129,5 +156,5 @@ export function onStreamReady() {
     seenReady = true
     return
   }
-  dropReads(Object.values(KEYS_OF_KIND).flat())
+  dropReads([...Object.values(KEYS_OF_KIND).flat(), ...AGGREGATE_KEYS])
 }
