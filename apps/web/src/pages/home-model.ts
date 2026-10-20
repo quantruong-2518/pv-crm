@@ -120,18 +120,18 @@ export function stopsByStage(stops: readonly SalesStopReason[]) {
 // THE SHORT LIST — one filter at a time, set by a tile
 // ---------------------------------------------------------------------------
 
-/** The list has one narrowing, set by the overdue tile or tab; null shows every open run. */
+/** The list has one narrowing, set by the overdue tile or tab; null shows every run, closed ones too. */
 export type ListFilter = { by: 'overdue' }
 
 /** Rows the overview shows before sending the reader to the book. */
 export const LIST_ROWS = 3
 
-/** The book's own priority ladder over open runs, narrowed by the tile filter
+/** The book's own priority ladder over every run, closed ones included, narrowed by the tile filter
  *  with the same params the book's score strip sends. */
 export function listQueryOf(filter: ListFilter | null): WorkstreamBookQuery {
   return {
     ...DEFAULT_WORKSTREAM_BOOK_QUERY,
-    status: 'open',
+    status: 'all',
     sort: 'priority',
     size: LIST_ROWS,
     ...(filter?.by === 'overdue' ? { overdue: true } : {}),

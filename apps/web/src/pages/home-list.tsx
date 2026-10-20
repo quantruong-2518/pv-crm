@@ -94,7 +94,7 @@ function Tab({
 
 /** The count line under the title: how many rows show, out of how many in this view. */
 function CountLine({ data, filter }: { data: WorkstreamBookResponse; filter: ListFilter | null }) {
-  const scope = filter ? ' hành trình đã trễ hạn' : ' hành trình đang chạy'
+  const scope = filter ? ' hành trình đã trễ hạn' : ' hành trình'
   return (
     <span className="text-muted-foreground tnum font-num text-[12px] leading-4">
       <strong className="text-foreground font-semibold">{num(data.rows.length)}</strong> trong{' '}
@@ -123,7 +123,6 @@ function ListHead({
   filter: ListFilter | null
   onFilter: (next: ListFilter | null) => void
 }) {
-  const open = score?.stages.reduce((n, stage) => n + stage.count, 0)
   return (
     <div className="flex flex-wrap items-center gap-3 px-6 py-4">
       <div className="flex items-center gap-3">
@@ -140,7 +139,12 @@ function ListHead({
         aria-label="Lọc danh sách"
         className="bg-surface-ink/6 flex gap-1 rounded-full p-1"
       >
-        <Tab label="Tất cả" count={open} on={filter === null} onPick={() => onFilter(null)} />
+        <Tab
+          label="Tất cả"
+          count={filter === null ? data?.total : undefined}
+          on={filter === null}
+          onPick={() => onFilter(null)}
+        />
         <Tab
           label="Đã trễ hạn"
           count={score?.overdue}
@@ -213,7 +217,7 @@ export function PriorityList({
                 ? 'Không có hành trình nào khớp bộ lọc.'
                 : data.hidden > 0
                   ? `${data.hidden} hành trình nằm ngoài phạm vi của bạn.`
-                  : 'Chưa có hành trình nào đang chạy.'
+                  : 'Chưa có hành trình nào.'
             }
             action={
               filter
