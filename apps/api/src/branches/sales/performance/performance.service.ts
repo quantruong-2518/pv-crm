@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common'
-import { SalesExitsResponse, SalesPerformanceResponse, type SalesPeriodKey } from '@pv/contracts'
+import {
+  lastDayOf,
+  salesGrainOf,
+  SalesExitsResponse,
+  SalesPerformanceResponse,
+  type SalesPeriodKey,
+} from '@pv/contracts'
 import { OpportunityService } from '../opportunity/opportunity.service'
-import { spansOf } from './performance-period'
+import { spansOf, type PeriodSpan } from './performance-period'
 import { PerformanceExitsRepository } from './performance-exits.repository'
 import { PerformanceRepository } from './performance.repository'
 
@@ -19,24 +25,31 @@ export class PerformanceService {
   ) {}
 
   async read(period: SalesPeriodKey): Promise<SalesPerformanceResponse> {
-    const { current, previous, months } = spansOf(period)
-    /* A month period is also one of its quarter's months: asked for once. */
-    const spans = new Map([current, previous, ...months].map((s) => [s.key, s]))
-
     /* `open` is ASKED of the opportunity book, not re-derived: the tile sits
        beside that book's scorecard and must print the same three numbers. */
-    const [figures, card] = await Promise.all([
-      this.repo.figures([...spans.values()]),
-      this.opportunities.scorecard(),
-    ])
+    const [asOf, card] = await Promise.all([this.repo.today(), this.opportunities.scorecard()])
+    const { current, previous, compare, months, buckets } = spansOf(period, asOf)
+    /* One key is one span (`spansOf` keys a cut compare apart), so a month
+       that is also a bucket or one of `months` is asked for once. */
+    const spans = new Map(
+      [current, previous, compare, ...months, ...buckets].map((s) => [s.key, s]),
+    )
+    const figures = await this.repo.figures([...spans.values()], {
+      reached: salesGrainOf(period) === 'week',
+    })
+    const range = (s: PeriodSpan) => ({ first: s.from, last: lastDayOf(s) })
 
     /* Parsed rather than returned raw, like the books: a span the query dropped
        or a column that changed type trips here and not on a screen. */
     return SalesPerformanceResponse.parse({
       period,
+      asOf,
+      span: range(current),
       current: figures.get(current.key),
       previous: figures.get(previous.key),
+      compare: { ...range(compare), figures: figures.get(compare.key) },
       open: { count: card.open, amountVnd: card.openAmountVnd, blank: card.openBlank },
+      buckets: buckets.map((b) => ({ key: b.key, ...range(b), ...figures.get(b.key) })),
       months: months.map((m) => ({ key: m.key, ...figures.get(m.key) })),
     })
   }

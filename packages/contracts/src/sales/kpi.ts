@@ -14,7 +14,7 @@ import { RoleId, RoleIds } from '../auth'
  *  the catalog's `unit` says how to print it. */
 
 /** A calendar month only (`2026-10`). Targets are agreed per month, so the
- *  quarter keys `SalesPeriodKey` also accepts are refused here. */
+ *  week, quarter and year keys `SalesPeriodKey` also accepts are refused here. */
 export const KpiPeriodKey = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
 
 export const KpiPeriodParams = z.object({ period: KpiPeriodKey })

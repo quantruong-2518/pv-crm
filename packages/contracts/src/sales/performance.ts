@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { MoneyVnd } from '../primitives'
+import { Day, MoneyVnd } from '../primitives'
 import { StageKey } from './enums'
+import { isSalesPeriodKey } from './sales-period'
 
 /** `GET /sales/performance/:period` — the overview's period figures in one read.
  *  `GET /sales/performance/:period/exits` — why leads and deals left, same span.
@@ -8,10 +9,11 @@ import { StageKey } from './enums'
  *  One route rather than a period param on three scorecards: the tiles compare a
  *  period with the one before it, and three reads fenced separately could each
  *  place the boundary differently. Figures here are whole-book, like the
- *  scorecards they sit beside, and COUNTS: the screen owns how a ratio prints. */
+ *  scorecards they sit beside, and COUNTS: the screen owns how a ratio prints.
+ *  Period arithmetic lives in `./sales-period`, shared with the API's fence. */
 
-/** `2026-10` for a month, `2026-Q4` for a quarter. */
-export const SalesPeriodKey = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2]|Q[1-4])$/)
+/** `2026-W43` week · `2026-10` month · `2026-Q4` quarter · `2026` year. */
+export const SalesPeriodKey = z.string().refine(isSalesPeriodKey, 'Kỳ không hợp lệ.')
 
 export const SalesPerformanceParams = z.object({ period: SalesPeriodKey })
 
@@ -46,6 +48,21 @@ export const SalesPeriodFigures = z.object({
    *  `win-rate` reading over the whole room. A deal signing twice is one deal. */
   wonDeals: count,
   lostDeals: count,
+  /** Leads that reached a step IN the span, by the day they reached it,
+   *  whatever span they entered in: the week view's activity. A lead counts
+   *  once, on its first real exchange and on its first deal. Zeros outside a
+   *  week read, which is the only reader and the costly part of the query. */
+  reached: z.object({ firstContacts: count, opportunities: count }),
+})
+
+/** Both ends inclusive, for printing. */
+export const SalesDayRange = z.object({ first: Day, last: Day })
+
+/** One slice of the period, one grain finer (`salesBucketsOf`). */
+export const SalesBucket = SalesPeriodFigures.extend({
+  key: z.string(),
+  first: Day,
+  last: Day,
 })
 
 /** One calendar month of the quarter the period sits in. */
@@ -55,13 +72,21 @@ export const SalesMonthPoint = SalesPeriodFigures.extend({
 
 export const SalesPerformanceResponse = z.object({
   period: SalesPeriodKey,
+  /** The Vietnam day the read ran on; a later bucket has not happened yet. */
+  asOf: Day,
+  span: SalesDayRange,
   current: SalesPeriodFigures,
-  /** The period of the same grain right before `period`. */
+  /** The whole period before. Kept whole because the web shipped before 20/10
+   *  prints it under that period's full name. */
   previous: SalesPeriodFigures,
+  /** What the deltas compare with: the period before, cut to as many days as
+   *  `period` has run by `asOf`; the whole period before once it is over. */
+  compare: SalesDayRange.extend({ figures: SalesPeriodFigures }),
   /** A snapshot of today, not of the period: the open book keeps no history,
    *  so it has no previous figure to compare with. */
   open: z.object({ count, amountVnd: MoneyVnd, blank: count }),
-  /** The three months of the quarter containing `period`, oldest first. */
+  buckets: z.array(SalesBucket).min(3).max(12),
+  /** Superseded by `buckets`; still filled until the web that reads it is gone. */
   months: z.array(SalesMonthPoint).length(3),
 })
 
@@ -98,6 +123,8 @@ export type SalesPerformanceParams = z.infer<typeof SalesPerformanceParams>
 export type SalesCohort = z.infer<typeof SalesCohort>
 export type SalesPeriodFigures = z.infer<typeof SalesPeriodFigures>
 export type SalesMonthPoint = z.infer<typeof SalesMonthPoint>
+export type SalesDayRange = z.infer<typeof SalesDayRange>
+export type SalesBucket = z.infer<typeof SalesBucket>
 export type SalesPerformanceResponse = z.infer<typeof SalesPerformanceResponse>
 export type SalesExitsParams = z.infer<typeof SalesExitsParams>
 export type SalesExitReason = z.infer<typeof SalesExitReason>

@@ -21,6 +21,8 @@ type Row = {
   blank_amount: number
   won_deals: number
   lost_deals: number
+  reached_first_contacts?: number
+  reached_opportunities?: number
 }
 
 /** The only SQL of the module: every span of one period read in ONE statement.
@@ -35,16 +37,30 @@ type Row = {
  *  rows — `SalesCohort` says why the two differ. Won and lost are KPI
  *  `win-rate`'s predicates and its close-moment fence, over the whole room.
  *
- *  Month edges are Vietnam calendar days, the form `createdWithin` spells
+ *  Span edges are Vietnam calendar days, the form `createdWithin` spells
  *  (`platform/db/book-filter.ts`): the tiles sit beside the lead and contract
  *  books, whose date filters cut there. `ContractRepository.trend` does not. */
 @Injectable()
 export class PerformanceRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
+  /** The Vietnam day on the clock the fences below cut on. `::text`, because a
+   *  `date` comes back as a JS `Date` in Node's zone: the second clock again. */
+  async today(): Promise<string> {
+    const r = (await this.db.execute(
+      sql`SELECT ((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)::text AS today`,
+    )) as { rows: { today: string }[] }
+    return r.rows[0]!.today
+  }
+
   /** Figures by span key. Every span asked for comes back, empty ones as zeros:
-   *  the spans are the driving table and everything else hangs off them. */
-  async figures(spans: PeriodSpan[]): Promise<Map<string, SalesPeriodFigures>> {
+   *  the spans are the driving table and everything else hangs off them.
+   *  `reached` off leaves `firsts` out of the SQL and reads zeros: it scans
+   *  every live lead, and only the week view prints it. */
+  async figures(
+    spans: PeriodSpan[],
+    opts: { reached: boolean },
+  ): Promise<Map<string, SalesPeriodFigures>> {
     const values = sql.join(
       spans.map(
         (s) => sql`(${s.key}::text,
@@ -54,12 +70,11 @@ export class PerformanceRepository {
       sql`, `,
     )
 
-    /* Each step asks EXISTS per lead, so a lead with three deals is one and no
-       step outgrows `leads`. A contract's deal is NOT NULL, so `contracts`
-       cannot pass `opportunities` either. */
+    /* EXISTS per lead keeps a step from outgrowing `leads`; a contract's deal is
+       NOT NULL, so `contracts` cannot pass `opportunities`. */
     const r = (await this.db.execute(sql`
-      WITH span("key", "lo", "hi") AS (VALUES ${values})
-      SELECT s."key", c.*, g.*, d.*
+      WITH span("key", "lo", "hi") AS (VALUES ${values})${opts.reached ? FIRSTS : sql``}
+      SELECT s."key", c.*, g.*, d.*${opts.reached ? sql`, r.*` : sql``}
       FROM span s
       LEFT JOIN LATERAL (
         SELECT count(*)::int                                                    AS leads,
@@ -91,6 +106,7 @@ export class PerformanceRepository {
           JOIN "sales"."lead" dl ON dl."code" = o."lead_code" AND dl."disabled_at" IS NULL
          WHERE o."closed_at" >= s."lo" AND o."closed_at" < s."hi"
       ) d ON true
+      ${opts.reached ? REACHED : sql``}
     `)) as { rows: Row[] }
 
     /* `bigint` is a string from node-postgres and a number from PGlite. */
@@ -109,8 +125,32 @@ export class PerformanceRepository {
           blankAmount: row.blank_amount,
           wonDeals: row.won_deals,
           lostDeals: row.lost_deals,
+          reached: {
+            firstContacts: row.reached_first_contacts ?? 0,
+            opportunities: row.reached_opportunities ?? 0,
+          },
         },
       ]),
     )
   }
 }
+
+/** Each live lead's first real exchange and first deal. MATERIALIZED: one pass
+ *  over the leads serves every span instead of one pass per span. */
+const FIRSTS = sql`,
+  firsts AS MATERIALIZED (
+    SELECT (SELECT min(x.at) FROM (${realExchanges(sql`l."code"`)}) x) AS contact_at,
+           (SELECT min(o."created_at") FROM "sales"."opportunity" o
+             WHERE o."lead_code" = l."code")                             AS deal_at
+      FROM "sales"."lead" l
+     WHERE l."disabled_at" IS NULL
+  )`
+
+const REACHED = sql`
+  LEFT JOIN LATERAL (
+    SELECT count(*) FILTER (WHERE f."contact_at" >= s."lo" AND f."contact_at" < s."hi")::int
+                                                                      AS reached_first_contacts,
+           count(*) FILTER (WHERE f."deal_at" >= s."lo" AND f."deal_at" < s."hi")::int
+                                                                      AS reached_opportunities
+      FROM firsts f
+  ) r ON true`
