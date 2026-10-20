@@ -529,8 +529,36 @@ export type NotificationReadResponse = z.infer<typeof NotificationReadResponse>
  * mapping stay in one place: the existing GET endpoints. The browser
  * refetches on each signal to read fresh, authorized rows.
  */
-export const NotificationStreamEvent = z.enum(['ready', 'changed'])
+export const NotificationStreamEvent = z.enum(['ready', 'changed', 'entity'])
 export type NotificationStreamEvent = z.infer<typeof NotificationStreamEvent>
+
+/** What kind of record changed, for the `entity` event (ADR 0104). A kind and
+ *  never a code: every connected user hears it, and a code would tell someone
+ *  outside the record's scope that it exists. The browser drops its cached
+ *  reads of that kind and asks the permission-checked GETs again. */
+export const EntityKind = z.enum([
+  'lead',
+  'opportunity',
+  'account',
+  'contact',
+  'contract',
+  'workstream',
+  'meeting',
+  'comm',
+  'approval',
+  'mail',
+  'campaign',
+  'scan',
+  'config',
+  'kpi',
+  'hold',
+  'user',
+])
+export type EntityKind = z.infer<typeof EntityKind>
+
+/** `data` of an `entity` event: the kinds written since the last one. */
+export const EntityChangeEvent = z.strictObject({ kinds: z.array(EntityKind).min(1) })
+export type EntityChangeEvent = z.infer<typeof EntityChangeEvent>
 
 export const NOTIFICATION_STREAM_PATH = '/notifications/stream'
 

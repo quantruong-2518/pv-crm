@@ -28,7 +28,7 @@ const CREATE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead.edit' }
 const MANAGE_NEED: ApiNeed = { branch: 'Sales', permission: 'lead-origin.manage' }
 
 const PARTNERS_PATH = '/sales/partners'
-const PARTNERS_KEY = ['sales', 'partners'] as const
+export const PARTNERS_KEY = ['sales', 'partners'] as const
 /** Same literal `data/lead-create.ts` copies, for the reason it states there. */
 const LEAD_BOOK_KEY = ['sales', 'lead-book'] as const
 

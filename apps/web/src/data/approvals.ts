@@ -27,7 +27,8 @@ import { api, type ApiError, type ApiNeed } from '@/app/api'
  *  edge instead of in the interface. */
 const DECIDE_NEED: ApiNeed = { permission: 'approval.decide' }
 
-const INBOX_KEY = ['platform', 'approvals', 'pending'] as const
+export const APPROVALS_KEY = ['platform', 'approvals'] as const
+const INBOX_KEY = [...APPROVALS_KEY, 'pending'] as const
 
 /** Everything waiting on me. Not paged — see `PendingApprovalsResponse`: a
  *  queue that hides its own tail is a queue nobody trusts. */

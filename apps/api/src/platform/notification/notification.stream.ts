@@ -1,11 +1,13 @@
 import type { OutgoingHttpHeaders } from 'node:http'
 import type { FastifyReply } from 'fastify'
-import type { NotificationStreamEvent } from '@pv/contracts'
+import type { EntityChangeEvent, EntityKind, NotificationStreamEvent } from '@pv/contracts'
 import type { NotificationListener } from './notification.listener'
 
 const HEARTBEAT_MS = 25_000
 const MAX_AGE_MS = 15 * 60_000
 const COALESCE_MS = 250
+/** A bulk write touches many rows; one event a second, naming every kind, is plenty. */
+const ENTITY_COALESCE_MS = 1_000
 
 /** Writes one SSE response for `actorId` until the client leaves or MAX_AGE_MS
  *  passes. Returns once the stream is hijacked; teardown runs on 'close'.
@@ -24,17 +26,20 @@ export function openStream(reply: FastifyReply, listener: NotificationListener, 
     'X-Accel-Buffering': 'no',
   })
 
-  const send = (event: NotificationStreamEvent): void => {
-    if (!raw.writableEnded) raw.write(`event: ${event}\ndata: {}\n\n`)
+  const send = (event: NotificationStreamEvent, data = '{}'): void => {
+    if (!raw.writableEnded) raw.write(`event: ${event}\ndata: ${data}\n\n`)
   }
 
   let burst: NodeJS.Timeout | null = null
+  let entityBurst: NodeJS.Timeout | null = null
+  const kinds = new Set<EntityKind>()
   let heartbeat: NodeJS.Timeout | null = null
   /* Timers go BEFORE `end()`: a write after end raises 'error' on the response,
      and with nobody listening that takes the process down. */
   const finish = (): void => {
     if (heartbeat) clearInterval(heartbeat)
     if (burst) clearTimeout(burst)
+    if (entityBurst) clearTimeout(entityBurst)
     clearTimeout(expiry)
     unsubscribe()
     if (!raw.writableEnded) raw.end()
@@ -45,6 +50,15 @@ export function openStream(reply: FastifyReply, listener: NotificationListener, 
         burst = null
         send('changed')
       }, COALESCE_MS)
+    },
+    entity: (kind) => {
+      kinds.add(kind)
+      entityBurst ??= setTimeout(() => {
+        entityBurst = null
+        const event: EntityChangeEvent = { kinds: [...kinds] }
+        kinds.clear()
+        if (event.kinds.length > 0) send('entity', JSON.stringify(event))
+      }, ENTITY_COALESCE_MS)
     },
     up: () => send('ready'),
     drop: finish,

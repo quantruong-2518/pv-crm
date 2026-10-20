@@ -41,7 +41,7 @@ const CAMPAIGN_NEED: ApiNeed = { branch: 'Sales', permission: 'campaign.view' }
 const ORIGINS_PATH = '/sales/lead-origins'
 
 export const LEAD_ORIGINS_KEY = ['sales', 'lead-origins'] as const
-const STATS_KEY = ['sales', 'lead-source-stats'] as const
+export const STATS_KEY = ['sales', 'lead-source-stats'] as const
 /** Same literal `data/lead-create.ts` copies, for the reason it states there. */
 const LEAD_BOOK_KEY = ['sales', 'lead-book'] as const
 

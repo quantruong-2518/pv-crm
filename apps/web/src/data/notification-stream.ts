@@ -1,6 +1,10 @@
-import { NOTIFICATION_STREAM_PATH, NotificationStreamEvent } from '@pv/contracts'
+import { EntityChangeEvent, NOTIFICATION_STREAM_PATH, NotificationStreamEvent } from '@pv/contracts'
 import { API_BASE_URL } from '@/app/api/base-url'
 import { renewSession } from '@/app/auth'
+import { setStreamLive } from '@/app/stream-live'
+
+/* Callers keep importing the flag from here. */
+export { streamIsLive, subscribeStreamLive } from '@/app/stream-live'
 
 /** The one live connection behind the bell (`GET /notifications/stream`, SSE).
  *
@@ -14,7 +18,8 @@ import { renewSession } from '@/app/auth'
  *  API's proxy counts against its limit for as long as it lives, and nobody
  *  reads a hidden tab. `ready` on return is the catch-up signal, as it is
  *  after the server's deliberate 15-minute close. `live` is true from `ready`
- *  until the next error or hide; polling covers the rest. */
+ *  until the next error or hide; polling covers the rest. `entity` carries the
+ *  kinds of record written (ADR 0104); `data/entity-sync.ts` drops their reads. */
 
 const GRACE_MS = 1_000
 /** First wait after the server REFUSED the stream; each refusal in a row
@@ -24,9 +29,12 @@ const RETRY_CAP_MS = 5 * 60_000
 
 const STREAM_URL = `${API_BASE_URL}${NOTIFICATION_STREAM_PATH}`
 
+/** What reaches the bell; `entity` has its own path below. */
+type BellSignal = Exclude<NotificationStreamEvent, 'entity'>
+
 type Hold = {
   userId: string
-  onSignal: (event: NotificationStreamEvent) => void
+  onSignal: (event: BellSignal) => void
   source: EventSource | null
   refs: number
   /** Refusals since the last `ready`; sets the next wait. */
@@ -36,42 +44,41 @@ type Hold = {
 }
 
 let hold: Hold | null = null
-let live = false
-const listeners = new Set<() => void>()
-
-const setLive = (next: boolean) => {
-  if (live === next) return
-  live = next
-  listeners.forEach((listener) => listener())
-}
-
-export const streamIsLive = () => live
-
-export const subscribeStreamLive = (listener: () => void) => {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
 
 function connect(h: Hold) {
   if (h.source || document.visibilityState !== 'visible') return
   const source = new EventSource(STREAM_URL, { withCredentials: true })
   source.addEventListener(NotificationStreamEvent.enum.ready, () => {
     h.refusals = 0
-    setLive(true)
+    setStreamLive(true)
     h.onSignal('ready')
+    void import('./entity-sync').then((m) => m.onStreamReady())
   })
   source.addEventListener(NotificationStreamEvent.enum.changed, () => h.onSignal('changed'))
+  /* Not through `onSignal`: that path re-reads the bell and diffs toasts. */
+  source.addEventListener(NotificationStreamEvent.enum.entity, (event) => {
+    const kinds = parseKinds((event as MessageEvent<string>).data)
+    if (kinds) void import('./entity-sync').then((m) => m.onEntityChange(kinds))
+  })
   /* A dropped line reconnects by itself; a refused one (401, 503 with no
      push, a deploy's 502) is CLOSED for good, so `refused` decides what next. */
   source.onerror = () => {
-    setLive(false)
+    setStreamLive(false)
     if (source.readyState !== EventSource.CLOSED) return
     disconnect(h)
     void refused(h)
   }
   h.source = source
+}
+
+/** A malformed line is dropped: the next event or the catch-up on `ready` fixes it. */
+function parseKinds(data: string): EntityChangeEvent['kinds'] | null {
+  try {
+    const parsed = EntityChangeEvent.safeParse(JSON.parse(data))
+    return parsed.success ? parsed.data.kinds : null
+  } catch {
+    return null
+  }
 }
 
 /** EventSource hides the status of a refusal, so one plain request reads it.
@@ -103,7 +110,7 @@ function disconnect(h: Hold) {
   window.clearTimeout(h.retry)
   h.source?.close()
   h.source = null
-  setLive(false)
+  setStreamLive(false)
 }
 
 const onVisibility = () => {
@@ -124,7 +131,7 @@ function shut() {
  *  latest holder's wins, since it belongs to the screen now mounted. */
 export function holdNotificationStream(
   userId: string,
-  onSignal: (event: NotificationStreamEvent) => void,
+  onSignal: (event: BellSignal) => void,
 ): () => void {
   if (typeof EventSource === 'undefined') return () => {}
   if (hold && hold.userId !== userId) shut()

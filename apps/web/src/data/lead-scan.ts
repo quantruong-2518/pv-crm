@@ -13,7 +13,7 @@ import {
   type ScanBatchState,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { whileLive } from '@/app/query-client'
+import { untilPushed, whileLive } from '@/app/query-client'
 
 /** Module 2 · the SCAN door of the lead book — card photos and profile PDFs.
  *
@@ -41,19 +41,21 @@ const MOVING: ReadonlySet<ScanBatchState> = new Set(['UPLOADING', 'READING', 'CO
 
 const scanPath = (code: string) => `/sales/leads/scan/${encodeURIComponent(code)}`
 
-export const scanBatchKey = (code: string) => ['sales', 'lead-scan', code] as const
+export const LEAD_SCAN_KEY = ['sales', 'lead-scan'] as const
+export const scanBatchKey = (code: string) => [...LEAD_SCAN_KEY, code] as const
 
 export const scanBatchQuery = (code: string) =>
   queryOptions({
     queryKey: scanBatchKey(code),
     queryFn: ({ signal }) =>
       api.read(scanPath(code), { need: SCAN_NEED, schema: LeadScanResponse, signal }),
-    refetchInterval: whileLive((query: { state: { data?: LeadScanResponse } }) =>
+    refetchInterval: untilPushed((query: { state: { data?: LeadScanResponse } }) =>
       query.state.data && MOVING.has(query.state.data.state) ? POLL_MS : false,
     ),
   })
 
-/** The batch, polled while it moves; refreshes the lead book once it is DONE. */
+/** The batch, polled while it moves and the push stream is down; refreshes the
+ *  lead book once it is DONE. */
 export function useScanBatch(code: string) {
   const client = useQueryClient()
   const batch = useQuery({ ...scanBatchQuery(code), enabled: code !== '' })

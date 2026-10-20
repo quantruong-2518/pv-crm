@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { sessionIsLive, useSession } from '@/app/auth'
+import { streamIsLive, subscribeStreamLive } from '@/app/stream-live'
 
 /** TanStack Query defaults for server data, not frozen fixtures.
  *
@@ -36,6 +37,25 @@ export function whileLive<A extends unknown[]>(
     sessionIsLive() ? (typeof every === 'number' ? every : every(...args)) : false
 }
 
+/** A poll that only covers for a stream that is down: while the stream is live,
+ *  every write of the kind arrives as an `entity` event and
+ *  `data/entity-sync.ts` re-reads the mounted queries (ADR 0104). Same shape as
+ *  `whileLive`, which stays for polls push cannot replace (signed-URL refresh). */
+export function untilPushed<A extends unknown[]>(
+  every: number | ((...args: A) => number | false | undefined),
+) {
+  const poll = whileLive(every)
+  return (...args: A) => (streamIsLive() ? false : poll(...args))
+}
+
+/** An observer only re-reads its `refetchInterval` rule after a query update,
+ *  so a poll that resolved to `false` while the stream was live would stay off
+ *  after the stream drops (and the reverse). `setState({})` changes nothing and
+ *  just makes every mounted observer ask the rule again, with no request. */
+subscribeStreamLive(() => {
+  for (const query of queryClient.getQueryCache().findAll({ type: 'active' })) query.setState({})
+})
+
 /** Cache tiers by how often OTHER people change the data. Writes in this tab
  *  invalidate their own keys whatever the tier; the plain default (30 s, above)
  *  is the tier for books and profiles, so it has no entry here. */
@@ -44,8 +64,9 @@ export const cacheTier = {
   reference: { staleTime: 10 * 60_000, gcTime: 30 * 60_000 },
   /** Scorecards, KPI, home figures: a minute late is fine, recomputing is not free. */
   aggregate: { staleTime: 60_000 },
-  /** Badges, today's meetings, queues: re-asked on a clock while the session lives. */
-  live: (everyMs: number) => ({ staleTime: everyMs, refetchInterval: whileLive(everyMs) }),
+  /** Badges, today's meetings, queues: re-asked on a clock only while the session
+   *  lives and the stream is down; a live stream pushes the change instead. */
+  live: (everyMs: number) => ({ staleTime: everyMs, refetchInterval: untilPushed(everyMs) }),
 } as const
 
 /** Đổi người thì cache PHẢI chết theo.

@@ -8,11 +8,14 @@ import {
 } from '@nestjs/common'
 import { sql } from 'drizzle-orm'
 import { Client } from 'pg'
+import { EntityKind } from '@pv/contracts'
 import { ENV, type Env } from '../config/env'
 import { DB_HANDLE } from '../db/db.module'
 import type { DbHandle } from '../db/create-db'
 
 const CHANNEL = 'pv_notification'
+/** Row triggers notify here with one `EntityKind`; every subscriber hears it. */
+const CHANGE_CHANNEL = 'pv_change'
 const BACKOFF_FIRST_MS = 1_000
 const BACKOFF_MAX_MS = 30_000
 /** Streams one person may hold; past it the oldest is dropped. A browser tab
@@ -29,15 +32,22 @@ const PROBE_PREFIX = 'probe:'
  *  back: on a live line both take milliseconds. */
 const ROUND_TRIP_MS = 5_000
 
-/** `changed`: this person's rows moved. `up`: the line is listening from now
- *  on, re-read. `drop`: stop relying on this stream and close it. */
-export type StreamSink = { changed(): void; up(): void; drop(): void }
+/** `changed`: this person's rows moved. `entity`: some record of that kind
+ *  moved. `up`: the line is listening from now on, re-read. `drop`: stop
+ *  relying on this stream and close it. */
+export type StreamSink = {
+  changed(): void
+  entity(kind: EntityKind): void
+  up(): void
+  drop(): void
+}
 
 type PgliteLike = {
   listen(channel: string, cb: (payload: string) => void): Promise<() => Promise<void>>
 }
 
-/** One LISTEN on `pv_notification`, fanned out to in-process subscribers.
+/** One LISTEN line on `pv_notification` (per person) and `pv_change` (to
+ *  everyone, ADR 0104), fanned out to in-process subscribers.
  *
  *  The line opens on the first subscriber and closes `IDLE_CLOSE_MS` after the
  *  last one leaves, so the worker never opens it and an API with no open bell
@@ -125,6 +135,14 @@ export class NotificationListener implements BeforeApplicationShutdown, OnApplic
     if (payload === this.probe?.nonce) this.probe.arrived()
   }
 
+  /** A kind only, never a code, so hearing it outside a record's scope leaks
+   *  nothing; the browser re-asks its permission-checked reads. */
+  private broadcast(payload: string): void {
+    const kind = EntityKind.safeParse(payload)
+    if (!kind.success) return this.log.debug(`Ignored ${CHANGE_CHANNEL} payload: ${payload}`)
+    for (const sink of this.all()) sink.entity(kind.data)
+  }
+
   private all(): StreamSink[] {
     return [...this.subscribers.values()].flatMap((set) => [...set])
   }
@@ -193,10 +211,19 @@ export class NotificationListener implements BeforeApplicationShutdown, OnApplic
     }
   }
 
+  /** One unlisten for both channels; a half-made pair is undone here, since a
+   *  retry would otherwise stack a second bell callback on the shared client. */
   private async listenPglite(): Promise<() => Promise<void>> {
     const client = (this.handle.db as unknown as { $client?: PgliteLike }).$client
     if (!client) throw new Error('pglite driver without a $client')
-    return client.listen(CHANNEL, (payload) => this.dispatch(payload))
+    const bell = await client.listen(CHANNEL, (payload) => this.dispatch(payload))
+    try {
+      const change = await client.listen(CHANGE_CHANNEL, (payload) => this.broadcast(payload))
+      return async () => void (await Promise.allSettled([bell(), change()]))
+    } catch (error) {
+      await bell().catch(() => undefined)
+      throw error
+    }
   }
 
   private async openPostgres(): Promise<void> {
@@ -211,11 +238,14 @@ export class NotificationListener implements BeforeApplicationShutdown, OnApplic
     client.on('error', (error) => current() && this.lost(error))
     client.on('end', () => current() && this.lost(new Error('connection ended')))
     client.on('notification', (m) => {
-      if (m.channel === CHANNEL && m.payload) this.dispatch(m.payload)
+      if (!m.payload) return
+      if (m.channel === CHANNEL) this.dispatch(m.payload)
+      else if (m.channel === CHANGE_CHANNEL) this.broadcast(m.payload)
     })
     this.client = client
     await client.connect()
-    await client.query(`LISTEN ${CHANNEL}`)
+    /* Every retry builds a fresh client, so both LISTENs are always re-issued together. */
+    await client.query(`LISTEN ${CHANNEL}; LISTEN ${CHANGE_CHANNEL}`)
   }
 
   /** Returns why push cannot be trusted, or null. Both checks go through the
@@ -229,6 +259,13 @@ export class NotificationListener implements BeforeApplicationShutdown, OnApplic
         AND tgenabled <> 'D'
     `)) as { rows: { n: number }[] }
     if (found.rows[0]?.n !== 2) return 'triggers from migration 0103 are missing or disabled'
+    /* `ready` also tells the web to stop polling what `entity` covers, so a
+       database without 0126's triggers must not claim it. */
+    const pushed = (await this.handle.db.execute(sql`
+      SELECT count(*)::int AS n FROM pg_trigger
+      WHERE tgname = 'pv_change_write' AND tgenabled <> 'D'
+    `)) as { rows: { n: number }[] }
+    if (!pushed.rows[0]?.n) return 'triggers from migration 0126 are missing or disabled'
 
     const nonce = `${PROBE_PREFIX}${randomUUID()}`
     let settle: (ok: boolean) => void = () => undefined

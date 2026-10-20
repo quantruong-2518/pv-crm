@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { ServerDown } from '@/app/api'
 import { startAuthLifecycle } from '@/app/auth'
 import { closeMasMail } from '@/app/mas-mail-composer'
@@ -44,6 +45,9 @@ createRoot(host).render(
       {/* Above every screen and every other layer: when the server is gone, the
           session lock cannot let anyone back in either. See `server-down.tsx`. */}
       <ServerDown />
+      {/* Cache inspector for development; the package renders nothing in a
+          production build, so it never reaches users. */}
+      <ReactQueryDevtools buttonPosition="bottom-left" />
     </QueryClientProvider>
   </StrictMode>,
 )

@@ -2,8 +2,10 @@ import { lazy, Suspense, type ComponentType } from 'react'
 import {
   createBrowserRouter,
   generatePath,
+  type LoaderFunctionArgs,
   matchPath,
   Navigate,
+  type Params,
   useLocation,
   useParams,
 } from 'react-router-dom'
@@ -12,6 +14,8 @@ import type { Branch, Permission } from '@pv/engines'
 import { CHANGE_PASSWORD_PATH, RequireAccess } from '@/app/auth'
 import { getLang, onLangChange, type Lang } from '@/app/i18n'
 import { isParked } from '@/app/parked'
+import { queryClient } from '@/app/query-client'
+import { warmScreen } from '@/app/route-warm'
 
 /** Bảng route của PV One.
  *
@@ -48,6 +52,8 @@ type ScreenDef = {
   path: string
   name: string
   load: () => Promise<{ default: ComponentType }>
+  /** The screen's main read, started by the route loader beside the chunk. */
+  warm?: (params: Params) => Promise<unknown>
   /** Nhánh cần license; bỏ trống = One Core. */
   branch?: Branch
   /** Quyền vai màn này đòi. Bỏ trống = có license là vào được.
@@ -300,6 +306,10 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/lead-detail'),
+    warm: ({ code = '' }) =>
+      import('@/data/lead-profile').then((m) =>
+        queryClient.prefetchQuery(m.leadProfileQuery(code)),
+      ),
   },
   {
     /** THE CUSTOMER COMPANY BOOK — a permission domain of its own, not borrowed
@@ -325,6 +335,8 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     permission: 'account.view',
     load: () => import('@/pages/account-detail'),
+    warm: ({ code = '' }) =>
+      import('@/data/accounts').then((m) => queryClient.prefetchQuery(m.accountProfileQuery(code))),
   },
   {
     /** THE CONTACT BOOK — the lead read permission, NOT the company one.
@@ -384,6 +396,10 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     permission: 'opportunity.view',
     load: () => import('@/pages/opportunity-detail'),
+    warm: ({ code = '' }) =>
+      import('@/data/opportunities').then((m) =>
+        queryClient.prefetchQuery(m.opportunityProfileQuery(code)),
+      ),
   },
   {
     path: '/sales/workstreams',
@@ -421,6 +437,10 @@ export const SCREENS: ScreenDef[] = [
     branch: 'Sales',
     permission: 'contract.view',
     load: () => import('@/pages/contract-detail'),
+    warm: ({ code = '' }) =>
+      import('@/data/contracts').then((m) =>
+        queryClient.prefetchQuery(m.contractDetailQuery(code)),
+      ),
   },
   {
     /* One level deeper than any other Sales screen, and it earns the depth: an
@@ -607,21 +627,30 @@ function LegacyRedirect({ to }: { to: string }) {
 }
 
 export const router = createBrowserRouter([
-  ...SCREENS.map(({ path, load, branch, permission, public: isPublic }) => ({
-    path,
-    /* A parked module (`app/parked.ts`) sends the path home rather than losing
-       its route: a bookmark or a link inside old mail still has to land
-       somewhere, and a dropped route paints nothing at all. */
-    element: isParked(permission) ? (
-      <Navigate to="/" replace />
-    ) : isPublic ? (
-      withFallback(load)
-    ) : (
-      <RequireAccess branch={branch ?? null} permission={permission}>
-        {withFallback(load)}
-      </RequireAccess>
-    ),
-  })),
+  ...SCREENS.map((screen) => {
+    const { path, load, branch, permission, public: isPublic } = screen
+    return {
+      path,
+      /* Parked and public screens have nothing to warm: one redirects, the
+         other needs no session. */
+      loader:
+        isParked(permission) || isPublic
+          ? undefined
+          : ({ params }: LoaderFunctionArgs) => warmScreen(screen, params),
+      /* A parked module (`app/parked.ts`) sends the path home rather than losing
+         its route: a bookmark or a link inside old mail still has to land
+         somewhere, and a dropped route paints nothing at all. */
+      element: isParked(permission) ? (
+        <Navigate to="/" replace />
+      ) : isPublic ? (
+        withFallback(load)
+      ) : (
+        <RequireAccess branch={branch ?? null} permission={permission}>
+          {withFallback(load)}
+        </RequireAccess>
+      ),
+    }
+  }),
   ...Object.entries(LEGACY_PATHS).map(([from, to]) => ({
     path: from,
     element: <LegacyRedirect to={to} />,

@@ -26,6 +26,9 @@ Break that and E1/E2 stop running on both ends, which is the whole point of
 Contracts are zod in `@pv/contracts` — it is the single type source (`docs/decisions/0003-zod-is-the-sole-type-source.md`). No class-validator, no DTO classes. Validation
 goes through `platform/http/zod.pipe.ts`.
 
+A new table a screen lists must join the `pv_change` map (migration 0126,
+ADR 0104), or browsers stop seeing its changes once they stop polling.
+
 Config that must differ from the web tsconfig (CommonJS, decorators) is
 explained in `tsconfig.api.json`; read it before changing a compiler flag.
 

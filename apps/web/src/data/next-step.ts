@@ -81,7 +81,8 @@ function stepSaved(client: QueryClient, subject: NextStepSubject, code: string) 
 const path = (subject: NextStepSubject, code: string) =>
   `${DOOR[subject].base}/${encodeURIComponent(code)}/next-step`
 
-export const nextStepKey = (code: string) => ['sales', 'next-step', code] as const
+export const NEXT_STEP_KEY = ['sales', 'next-step'] as const
+export const nextStepKey = (code: string) => [...NEXT_STEP_KEY, code] as const
 
 export const nextStepQuery = (subject: NextStepSubject, code: string) =>
   queryOptions({

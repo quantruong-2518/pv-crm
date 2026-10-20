@@ -21,7 +21,7 @@ import type {
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
-import { cacheTier, whileLive } from '@/app/query-client'
+import { cacheTier, untilPushed } from '@/app/query-client'
 
 /** SỔ CHIẾN DỊCH THẬT — `sales.campaign`, mã `CP-nnnn`. ĐỌC TỪ MÁY CHỦ.
  *
@@ -152,7 +152,8 @@ export const campaignBookQuery = (query: CampaignBookQuery) =>
  *  `refetchInterval` bám theo trạng thái ĐỢT, không theo trạng thái chiến
  *  dịch: một chiến dịch `RUNNING` với đợt tiếp theo hẹn sang tuần không được
  *  đánh thức trình duyệt mỗi 5 giây suốt bảy ngày. Cùng lý lẽ với
- *  `leadMailTimelineQuery`. */
+ *  `leadMailTimelineQuery`. Polls only while the push
+ *  stream is down; a live one sends `mail` instead. */
 export const campaignProfileQuery = (code: string) =>
   queryOptions({
     queryKey: [...CAMPAIGN_BOOK_KEY, 'profile', code] as const,
@@ -161,7 +162,7 @@ export const campaignProfileQuery = (code: string) =>
         need: READ_NEED,
         signal,
       }),
-    refetchInterval: whileLive((query: { state: { data?: CampaignProfile } }) =>
+    refetchInterval: untilPushed((query: { state: { data?: CampaignProfile } }) =>
       query.state.data?.waves.some((w) => w.run.state === 'SENDING') ? 5_000 : false,
     ),
   })

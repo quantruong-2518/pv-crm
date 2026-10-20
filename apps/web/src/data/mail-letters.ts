@@ -13,7 +13,7 @@ import type {
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { whileLive } from '@/app/query-client'
+import { untilPushed } from '@/app/query-client'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { leadProfileQuery } from '@/data/lead-profile'
@@ -51,7 +51,8 @@ const TIMELINE: Record<MailSubjectKind, { path: string; need: ApiNeed }> = {
 
 /** The letters on one subject's activity line, newest first. Polls only while
  *  one of them is on its way — a letter held for tomorrow must not wake the
- *  browser every five seconds for a day. */
+ *  browser every five seconds for a day. The poll is the fallback for a down
+ *  stream; a live one pushes a `mail` event instead. */
 export const subjectLettersQuery = (door: MailSubjectKind, code: string) =>
   queryOptions({
     queryKey: [...LETTERS_KEY, door, code] as const,
@@ -60,7 +61,7 @@ export const subjectLettersQuery = (door: MailSubjectKind, code: string) =>
         `/sales/${TIMELINE[door].path}/${encodeURIComponent(code)}/letters`,
         { need: TIMELINE[door].need, signal },
       ),
-    refetchInterval: whileLive((query: { state: { data?: MailSubjectTimelineResponse } }) =>
+    refetchInterval: untilPushed((query: { state: { data?: MailSubjectTimelineResponse } }) =>
       query.state.data?.rows.some((row) => row.state === 'SENDING') ? 5_000 : false,
     ),
   })

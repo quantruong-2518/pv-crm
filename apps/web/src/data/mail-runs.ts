@@ -11,7 +11,7 @@ import type {
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { bookQueryParams } from '@/app/book-query'
-import { whileLive } from '@/app/query-client'
+import { untilPushed } from '@/app/query-client'
 import { LETTERS_KEY } from '@/data/mas'
 
 /** SỔ LÔ GỬI — `platform.mail_run`, mọi lô thư đã rời hoặc sắp rời máy.
@@ -98,7 +98,8 @@ export const EDITABLE: readonly MailRunState[] = ['SCHEDULED']
  *
  *  `refetchInterval` chỉ chạy khi có lô ĐANG gửi trên trang này. Một trang
  *  toàn lô đã xong không được đánh thức trình duyệt, và một lô hẹn sang tuần
- *  cũng không — cùng lý lẽ với `leadMailTimelineQuery`, và cùng con số. */
+ *  cũng không — cùng lý lẽ với `leadMailTimelineQuery`, và cùng con số.
+ *  Polls only while the push stream is down; a live one sends `mail` instead. */
 export const mailRunListQuery = (query: MailRunListQuery) =>
   queryOptions({
     queryKey: [...MAIL_RUN_KEY, 'page', query] as const,
@@ -107,7 +108,7 @@ export const mailRunListQuery = (query: MailRunListQuery) =>
         need: READ_NEED,
         signal,
       }),
-    refetchInterval: whileLive((q: { state: { data?: MailRunListResponse } }) =>
+    refetchInterval: untilPushed((q: { state: { data?: MailRunListResponse } }) =>
       q.state.data?.rows.some((row) => row.state === 'SENDING') ? 5_000 : false,
     ),
   })
@@ -125,7 +126,7 @@ export const mailRunListQuery = (query: MailRunListQuery) =>
  *  `refetchInterval` follows the state of the LETTERS, not of the batch: rows
  *  still `pending`/`sending` are the rows about to change, and a list that is
  *  all `delivered` has nothing left to wait for. Same 5s beat as
- *  `mailRunListQuery`. */
+ *  `mailRunListQuery`, and only while the push stream is down. */
 export const mailRunRecipientsQuery = (runId: string) =>
   queryOptions({
     queryKey: [...MAIL_RUN_KEY, 'recipients', runId] as const,
@@ -134,7 +135,7 @@ export const mailRunRecipientsQuery = (runId: string) =>
         `/sales/mail/runs/${encodeURIComponent(runId)}/recipients`,
         { need: READ_NEED, signal },
       ),
-    refetchInterval: whileLive((q: { state: { data?: MailRunRecipientsResponse } }) =>
+    refetchInterval: untilPushed((q: { state: { data?: MailRunRecipientsResponse } }) =>
       q.state.data?.rows.some((r) => PENDING_MAIL[r.deliveryState]) ? 5_000 : false,
     ),
   })
