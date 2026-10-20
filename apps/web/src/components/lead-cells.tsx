@@ -1,4 +1,3 @@
-import { Icon, TriangleAlert } from '@pv/ui'
 import type { LeadRow } from '@pv/contracts'
 
 /** Lead-row cells shared by the lead book and the campaign audience picker.
@@ -39,29 +38,6 @@ export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => 
           </span>
         )}
       </span>
-      {lead.duplicateOf && lead.duplicateOf.length > 0 && (
-        <DuplicateWarning codes={lead.duplicateOf} />
-      )}
-    </span>
-  )
-}
-
-/** Other LIVE leads sharing this mailbox — flagged on the row, not refused at
- *  write time (ADR 0067 §9, carried out end to end by ADR 0070): the book
- *  dropped its per-email uniqueness, so a row a reader must notice is marked
- *  here instead. `null` entries are leads OUTSIDE this reader's scope — the
- *  count is right, the name just is not this reader's to see. */
-function DuplicateWarning({ codes }: { codes: readonly (string | null)[] }) {
-  const names = codes.map((code) => code ?? 'một lead khác')
-  const text = `Trùng email với ${names.join(', ')}`
-
-  return (
-    <span
-      className="text-warning flex min-w-0 items-center gap-1 text-[11px] leading-[1.5]"
-      title={text}
-    >
-      <Icon icon={TriangleAlert} size={14} className="shrink-0" />
-      <span className="truncate">{text}</span>
     </span>
   )
 }
