@@ -24,6 +24,7 @@ import {
   type CampaignState,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { useSalesPeople } from '@/data/directory'
 import { salesCatalogQuery } from '@/data/sales-config'
 import { useCan } from '@/app/auth'
@@ -211,6 +212,7 @@ export function CampaignsPage() {
               <SearchField
                 placeholder="Tìm theo tên hoặc mã chiến dịch"
                 value={book.text}
+                meta={searchHint(book.text)}
                 onChange={book.setText}
                 className="pointer-coarse:h-12 w-full sm:w-[320px]"
               />

@@ -21,6 +21,7 @@ import type { CampaignMemberRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { listField, useClientBookFilter } from '@/app/client-book-filter'
 import { toast } from '@/app/toast'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
 import { ROW_ICON, TableFooter } from '@/components/table-bits'
 import { campaignMembersQuery, type useCampaignMembers } from '@/data/campaign-book'
 import { AudiencePicker } from './campaign-audience-picker'
@@ -95,8 +96,7 @@ const MEMBER_FILTERS = { email: listField() }
 const EMAIL_PRESENT = 'present'
 const EMAIL_MISSING = 'missing'
 
-const memberMatches = (m: CampaignMemberRow, term: string) =>
-  [m.leadCode, m.company, m.contactName, m.email ?? ''].some((v) => v.toLowerCase().includes(term))
+const memberFields = (m: CampaignMemberRow) => [m.leadCode, m.company, m.contactName, m.email]
 
 /** WHO IS ALREADY IN — one `.glass-b` card: a toolbar, the table, and the door
  *  to take somebody out. Search and the email filter run on the rows already
@@ -124,8 +124,7 @@ function MemberCard({
   const total = data?.total ?? 0
   const { filters, text, setText, patch, clear, dirty } = useClientBookFilter(MEMBER_FILTERS)
 
-  const term = filters.q.toLowerCase()
-  const searched = term === '' ? rows : rows.filter((m) => memberMatches(m, term))
+  const searched = fuzzyRank(rows, filters.q, memberFields)
   const withEmail = searched.filter((m) => m.email).length
   const visible =
     filters.email.length === 0

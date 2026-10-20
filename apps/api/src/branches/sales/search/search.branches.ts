@@ -1,6 +1,7 @@
 import { and, eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
-import type { SearchKind, SearchMatchField } from '@pv/contracts'
+import { TYPO_SCORE_CAP, type SearchKind, type SearchMatchField } from '@pv/contracts'
 import { contains } from '@api/platform/db/like'
+import { directProbe, folded, fuzzyHit, needle } from '@api/platform/db/fuzzy'
 import { campaign } from '../campaign/campaign.schema'
 import { contact } from '../contact/contact.schema'
 import { contract } from '../contract/contract.schema'
@@ -38,22 +39,7 @@ type Branch = {
   resolveOrder?: SQL
 }
 
-const folded = (e: SQLWrapper): SQL => sql`sales.fold(${e})`
 const lit = (s: string): SQL => sql.raw(`'${s}'::text`)
-
-/** The query, folded in SQL by the same function the indexes are built on. */
-const needle = (q: string): SQL => sql`sales.fold(${q}::text)`
-
-/** Only names forgive a typo. A code, tax code, phone or email is an
- *  identifier: `LD-1003` must not bring back `LD-1002` because it looks alike. */
-const isName = (field: SearchMatchField): boolean => field === 'title' || field === 'contact'
-
-/** Substring, plus trigram word-similarity for names. `<%` with the needle on
- *  the left is the form the GIN trigram index on `sales.fold(col)` answers. */
-const hit = (e: SQLWrapper, q: string, fuzzy: boolean): SQL =>
-  fuzzy
-    ? sql`(${folded(e)} LIKE sales.fold(${contains(q)}::text) OR ${needle(q)} <% ${folded(e)})`
-    : sql`${folded(e)} LIKE sales.fold(${contains(q)}::text)`
 
 const anyOf = (parts: SQL[]): SQL => sql`(${sql.join(parts, sql` OR `)})`
 
@@ -156,7 +142,7 @@ function opportunityBranch(who: Scope, liveScoped: SQL | undefined, q?: string):
     FROM sales.opportunity_contact oc
     JOIN sales.contact cc ON cc.code = oc.contact_code
     JOIN sales.lead ON lead.code = cc.lead_code
-    WHERE ${q === undefined ? sql`true` : hit(sql`cc.name`, q, true)} AND ${liveScoped ?? sql`true`} ${tail}`
+    WHERE ${q === undefined ? sql`true` : fuzzyHit(sql`cc.name`, q)} AND ${liveScoped ?? sql`true`} ${tail}`
   const byContact = sql`LEFT JOIN LATERAL (${viaContact(
     sql`cc.name AS name`,
     sql`AND oc.opportunity_code = ${opportunity.code} ORDER BY word_similarity(${needle(q ?? '')}, ${folded(sql`cc.name`)}) DESC LIMIT 1`,
@@ -186,27 +172,39 @@ export function searchBranch(kind: SearchKind, who: Scope, q: string, limit: num
   const b = branchOf(kind, who, q)
   const n = needle(q)
   const values = b.cols.map(
-    (c) =>
-      sql`(${lit(c.field)}, ${c.expr}::text, ${folded(c.expr)}, ${sql.raw(String(!!c.code))}, ${sql.raw(String(isName(c.field)))})`,
+    (c) => sql`(${lit(c.field)}, ${c.expr}::text, ${folded(c.expr)}, ${sql.raw(String(!!c.code))})`,
   )
   if (kind === 'opportunity') {
-    values.push(sql`('contact'::text, hc.name, ${folded(sql`hc.name`)}, false, true)`)
+    values.push(sql`('contact'::text, hc.name, ${folded(sql`hc.name`)}, false)`)
   }
-  const arms = b.cols.map((c) => hit(c.expr, q, isName(c.field)))
+  const arms = b.cols.map((c) => fuzzyHit(c.expr, q))
   if (b.also) arms.push(b.also)
   return sql`(SELECT ${SELECT_HEAD(kind, b)}, m.field, m.txt AS text, m.score
     FROM ${b.from}
     CROSS JOIN LATERAL (
       SELECT v.field, v.txt,
         (CASE WHEN v.is_code AND v.f = ${n} THEN 3 WHEN starts_with(v.f, ${n}) THEN 2
-              ELSE word_similarity(${n}, v.f) END)::float8 AS score
-      FROM (VALUES ${sql.join(values, sql`, `)}) AS v(field, txt, f, is_code, is_name)
-      WHERE v.f LIKE sales.fold(${contains(q)}::text) OR (v.is_name AND ${n} <% v.f)
+              WHEN v.f LIKE sales.fold(${contains(q)}::text) THEN 1
+              ELSE least(word_similarity(${n}, v.f), ${sql.raw(String(TYPO_SCORE_CAP))}) END)::float8 AS score
+      FROM (VALUES ${sql.join(values, sql`, `)}) AS v(field, txt, f, is_code)
+      WHERE v.f LIKE sales.fold(${contains(q)}::text)
+        OR (current_setting('pv.search_typos', true) = 'on' AND ${n} <% v.f)
       ORDER BY score DESC LIMIT 1
     ) m
     WHERE ${anyOf(arms)} AND ${b.fence ?? sql`true`}
     ORDER BY m.score DESC, ${b.title}, ${b.code}
     LIMIT ${limit})`
+}
+
+/** Does `q` hit this kind's columns directly, fences left out. `q` stays off
+ *  `branchOf` so the deal's contact lateral is not part of the probe's FROM. */
+export function probeBranch(kind: SearchKind, who: Scope, q: string): SQL {
+  const b = branchOf(kind, who)
+  return directProbe(
+    b.from,
+    b.cols.map((c) => c.expr),
+    q,
+  )
 }
 
 /** The rows for known codes, in the same shape and under the same fence. */

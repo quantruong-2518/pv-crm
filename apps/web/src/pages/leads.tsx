@@ -16,6 +16,7 @@ import {
 } from '@pv/ui'
 import { LEAD_ACTIVE_STATES, LeadBookQuery, OWNER_NONE, type LeadStateFilter } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -546,6 +547,7 @@ export function LeadsPage() {
               <SearchField
                 placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
                 value={text}
+                meta={searchHint(text)}
                 onChange={setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

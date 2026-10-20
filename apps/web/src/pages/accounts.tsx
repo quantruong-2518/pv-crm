@@ -16,6 +16,7 @@ import {
 } from '@pv/ui'
 import { AccountBookQuery, AccountSortKey, type LeadCategory } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -241,6 +242,7 @@ export default function AccountsPage() {
               <SearchField
                 placeholder="Tìm theo tên công ty hoặc mã số thuế…"
                 value={book.text}
+                meta={searchHint(book.text)}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

@@ -18,6 +18,7 @@ import {
   type WorkstreamRow,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { dmy } from '@/lib/date'
@@ -163,6 +164,7 @@ function WorkstreamsBook() {
               <SearchField
                 placeholder="Tìm theo mã hành trình, tên lead hoặc công ty…"
                 value={text}
+                meta={searchHint(text)}
                 onChange={setText}
                 className="min-w-0 flex-1 max-sm:basis-full sm:max-w-[320px]"
               />

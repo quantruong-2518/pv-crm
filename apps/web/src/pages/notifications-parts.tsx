@@ -16,6 +16,7 @@ import {
   type NotificationRow,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { searchHint } from '@/lib/search-box'
 import type { useBookQuery } from '@/app/book-query'
 import { BookCount } from '@/components/book-page'
 import { NotificationLine } from '@/components/notification-line'
@@ -90,6 +91,7 @@ export function NotificationToolbar({
         <SearchField
           placeholder="Tìm theo tên công ty, cơ hội hoặc lô gửi…"
           value={book.text}
+          meta={searchHint(book.text)}
           onChange={book.setText}
           className="pointer-coarse:h-12 min-w-[200px] flex-1 sm:max-w-[320px]"
         />

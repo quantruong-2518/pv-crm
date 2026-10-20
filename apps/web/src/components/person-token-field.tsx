@@ -11,6 +11,8 @@ import {
 import { createPortal } from 'react-dom'
 import { ChevronDown, Search, X } from '@pv/ui'
 import { Avatar, Icon, Input, cn } from '@pv/ui'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
+import { searchableText } from '@/lib/search-box'
 
 /** A list of people already chosen, plus one box to add the next one.
  *
@@ -108,13 +110,10 @@ export function PersonTokenField({
   const needle = query.trim().toLocaleLowerCase('vi')
   const matches = useMemo(
     () =>
-      suggestions
-        .filter((person) =>
-          needle === '' || onSearch
-            ? true
-            : `${person.name} ${person.note ?? ''}`.toLocaleLowerCase('vi').includes(needle),
-        )
-        .slice(0, SHOWN),
+      (onSearch ? suggestions : fuzzyRank(suggestions, needle, (p) => [p.name, p.note])).slice(
+        0,
+        SHOWN,
+      ),
     [suggestions, needle, onSearch],
   )
 
@@ -212,7 +211,7 @@ export function PersonTokenField({
         <SuggestionMenu
           box={box}
           matches={matches}
-          searching={needle !== ''}
+          searching={searchableText(needle) !== undefined}
           freeText={Boolean(onFreeText)}
           emptyNote={emptyNote}
           onPick={pick}

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { PipelinePositionView } from '../position'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { Problem } from '../problem'
@@ -574,7 +575,7 @@ export const OpportunityBookQuery = PageQuery.extend({
    *  Three fields rather than one because the box above the book is one box and
    *  people type all three into it — a deal code out of an email, half a
    *  company name, the word "MES". */
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
 
   /** Default order is the book's own: newest first. That is both what the
    *  screen shows when no header is active and what the repository already did,

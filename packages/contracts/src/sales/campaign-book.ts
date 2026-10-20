@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { ObjectCode, Moment, Day, textInput, textInputOptional } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ConfigCode } from './config'
@@ -99,7 +100,7 @@ export const CampaignBookQuery = PageQuery.extend({
   /** Creation date range, inclusive both ends, as a Vietnam calendar day. */
   createdFrom: Day.optional(),
   createdTo: Day.optional(),
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   sort: CampaignBookSortKey.default('createdAt'),
   dir: SortDir.default('desc'),
 })
@@ -335,7 +336,7 @@ export const CampaignPreflightResponse = z.object({
  *  `DRAFT`/`RUNNING` campaigns not past `endsOn` are pickable: a `STOPPED` or
  *  `DONE` one, or one whose window closed, cannot gain a new member. */
 export const CampaignPickableQuery = z.object({
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
 })
 export type CampaignPickableQuery = z.infer<typeof CampaignPickableQuery>
 

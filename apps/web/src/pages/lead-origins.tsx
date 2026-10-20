@@ -16,6 +16,7 @@ import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { leadOriginsQuery } from '@/data/lead-origins'
+import { searchHint, searchableText } from '@/lib/search-box'
 import { useMotionLabel } from '@/data/sales-motions'
 import { BookCount, BookPage } from '@/components/book-page'
 import { FilterMenu } from '@/components/table-bits'
@@ -64,7 +65,7 @@ export function LeadOriginsPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => setQ(text.trim()), SEARCH_DELAY_MS)
+    const timer = setTimeout(() => setQ(searchableText(text) ?? ''), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [text])
 
@@ -128,6 +129,7 @@ export function LeadOriginsPage() {
               <SearchField
                 placeholder="Tìm theo tên nguồn hoặc tên gọi khác…"
                 value={text}
+                meta={searchHint(text)}
                 onChange={setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { PipelinePositionView } from '../position'
 import { ThreadChannel } from '../comms/thread'
@@ -176,7 +177,7 @@ export const WorkstreamSortKey = z.enum(['openedAt', 'customer', 'priority', 'la
 export const WorkstreamBookQuery = PageQuery.extend({
   status: WorkstreamStatus.default('open'),
   accountCode: ObjectCode.optional(),
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   /** The board's "this column only" filter — each column is one call to the
    *  same book door, so a column pages and sorts like any other view instead
    *  of needing a door of its own. */

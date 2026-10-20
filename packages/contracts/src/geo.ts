@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { LEAD_MAX } from './sales/lead-fields'
+import { SEARCH_MIN_CHARS } from './search-text'
 
 /** Address lookup — `GET /geo/address-suggest`. A suggestion is text to store,
  *  never an id to keep: nothing here reaches a table except as the plain
@@ -10,7 +11,7 @@ import { LEAD_MAX } from './sales/lead-fields'
  *  A suggestion is capped at the tightest column it can land in (the lead's),
  *  so a pick never comes back from the server as a field error the user did
  *  not type. */
-export const ADDRESS_SUGGEST_MIN_CHARS = 3
+export const ADDRESS_SUGGEST_MIN_CHARS = SEARCH_MIN_CHARS
 export const ADDRESS_SUGGEST_MAX_ITEMS = 8
 export const ADDRESS_SUGGEST_Q_MAX = 120
 

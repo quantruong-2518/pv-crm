@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -27,7 +26,7 @@ import {
   type WorkstreamStandKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
@@ -147,11 +146,11 @@ export class WorkstreamRepository {
     /* Count a SECOND time only while the scope axis cuts: for a reader who sees
        the whole book `hidden` is always 0, so a full count would pay for a
        question nobody asked. The page reads the same filters and rides the wave. */
-    const [scopedTotal, all, rows] = await Promise.all([
-      this.count(and(...filters, scope)),
-      scope ? this.count(and(...filters)) : Promise.resolve(null),
-      this.page(and(...filters, scope), q, stand),
-    ])
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+      (db: Db) => this.count(and(...filters, scope), db),
+      (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
+      (db: Db) => this.page(and(...filters, scope), q, stand, db),
+    ] as const)
 
     return { rows, total: scopedTotal, hidden: all === null ? 0 : all - scopedTotal }
   }
@@ -335,8 +334,9 @@ export class WorkstreamRepository {
     where: SQL | undefined,
     q: WorkstreamBookQuery,
     stand: StandPair,
+    db: Db = this.db,
   ): Promise<WorkstreamRead[]> {
-    return this.db
+    return db
       .select(READ_COLUMNS)
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
@@ -354,8 +354,8 @@ export class WorkstreamRepository {
   /** Counts under the same joins `page()` uses, so both numbers describe the
    *  same set. `account` is joined without a column selected because the search
    *  box reads `account.name`; without it Postgres refuses the statement. */
-  private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db
+  private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
+    const [r] = await db
       .select({ n: count() })
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
@@ -442,15 +442,8 @@ export class WorkstreamRepository {
           : undefined,
       q.accountCode ? eq(workstream.accountCode, q.accountCode) : undefined,
       /* One box, three columns: a run code pasted out of a chat, half the legal
-         name, or the customer as the seller says it. Through `contains()` so a
-         `%` the user typed stays a character. */
-      q.q
-        ? or(
-            ilike(workstream.code, contains(q.q)),
-            ilike(lead.company, contains(q.q)),
-            ilike(account.name, contains(q.q)),
-          )
-        : undefined,
+         name, or the customer as the seller says it. */
+      q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
       q.closeReason ? eq(workstream.closeReason, q.closeReason) : undefined,
       /* Half a pair still narrows: the two are independent in the contract, so
          each answers on its own rather than waiting for the other. */
@@ -474,11 +467,15 @@ export class WorkstreamRepository {
    *  refuses a key the book cannot sort on rather than answer in some other
    *  order — see the book door, and `rungSql` for which rungs are missing. */
   private orderBy(q: WorkstreamBookQuery, stand: StandPair): SQL[] {
-    if (q.sort === 'priority') return [...priorityOrder(stand), sql`${workstream.code} desc`]
+    /* Best match first, or a typo'd hit could bury the exact one on page 2. */
+    const best = q.q ? [sql`${fuzzyRank(SEARCHED, q.q)} desc`] : []
+    if (q.sort === 'priority') {
+      return [...best, ...priorityOrder(stand), sql`${workstream.code} desc`]
+    }
 
     const dir = q.dir === 'asc' ? 'asc' : 'desc'
     const primary = q.sort === 'customer' ? CUSTOMER : OPENED_AT
-    return [sql`${primary} ${sql.raw(dir)}`, sql`${workstream.code} ${sql.raw(dir)}`]
+    return [...best, sql`${primary} ${sql.raw(dir)}`, sql`${workstream.code} ${sql.raw(dir)}`]
   }
 
   /** The three cards and the per-rung counts above the book, over the reader's
@@ -529,19 +526,24 @@ export class WorkstreamRepository {
     const scope = this.scopeOf(who, scoped)
     const stand = this.standPair(who, scoped)
     const closed = and(...this.filtersOf({ ...q, status: 'closed' }, stand), scope)
-    const [live, signed, dropped] = await Promise.all([
-      this.standTotals(and(...this.filtersOf(q, stand), scope), stand),
-      this.standTotals(closed, stand),
-      this.reasonTotals(closed),
-    ])
+    const liveWhere = and(...this.filtersOf(q, stand), scope)
+    const [live, signed, dropped] = await readsUnderFloor(this.db, q.q, probeOf, [
+      (db: Db) => this.standTotals(liveWhere, stand, db),
+      (db: Db) => this.standTotals(closed, stand, db),
+      (db: Db) => this.reasonTotals(closed, db),
+    ] as const)
     return { stand: live, signed, closeReason: dropped }
   }
 
   /** Grouped BY ORDINAL, never by repeating the two expressions: a scoped
    *  reader's pair carries an `EXISTS`, and Postgres matches no subquery node
    *  to another — the same text in `GROUP BY` comes back as ungrouped. */
-  private standTotals(where: SQL | undefined, stand: StandPair): Promise<StandTotal[]> {
-    return this.db
+  private standTotals(
+    where: SQL | undefined,
+    stand: StandPair,
+    db: Db = this.db,
+  ): Promise<StandTotal[]> {
+    return db
       .select({ kind: stand.kind, key: stand.key, n: count() })
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
@@ -550,8 +552,8 @@ export class WorkstreamRepository {
       .groupBy(sql`1`, sql`2`)
   }
 
-  private reasonTotals(where: SQL | undefined): Promise<CloseReasonTotal[]> {
-    return this.db
+  private reasonTotals(where: SQL | undefined, db: Db = this.db): Promise<CloseReasonTotal[]> {
+    return db
       .select({ closeReason: workstream.closeReason, n: count() })
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
@@ -631,6 +633,15 @@ export type LadderRow = { name: string; limitDays: number | null }
  *  Drizzle has no expression node for `nextval`, so the name is written out
  *  once here; `seqCodes` pads like migration 0045's backfill, without truncating. */
 const NEXT_CODES = (n: number): SQL => seqCodes('WS-', 'sales.workstream_code_seq', n)
+
+/** The three columns the book's search box reads. */
+const SEARCHED = [workstream.code, lead.company, account.name]
+const probeOf = (q: string) =>
+  directProbe(
+    sql`${workstream} JOIN ${lead} ON ${ANCHOR_ON} LEFT JOIN ${account} ON ${eq(account.code, workstream.accountCode)}`,
+    SEARCHED,
+    q,
+  )
 
 const SALE_ACTOR = alias(actor, 'sale_actor')
 const BD_ACTOR = alias(actor, 'bd_actor')

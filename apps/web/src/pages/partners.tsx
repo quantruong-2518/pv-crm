@@ -22,7 +22,8 @@ import { listField, oneOf, useClientBookFilter, type BookFilters } from '@/app/c
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { useOriginNames } from '@/data/lead-origins'
-import { normalise } from '@/data/intake'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
+import { searchableText } from '@/lib/search-box'
 import { partnersQuery } from '@/data/partners'
 import { BookCount, BookPage } from '@/components/book-page'
 import { AddPartnerModal, EditPartnerModal } from './partners-parts'
@@ -64,9 +65,8 @@ function filterPartnerBook(
   rows: Partner[],
   f: Omit<PartnerFilters, 'view'> & { view?: PartnerFilters['view'] },
 ): Partner[] {
-  const needle = normalise(f.q)
-  return rows.filter((p) => {
-    if (needle && !normalise(`${p.code} ${p.ref} ${p.name}`).includes(needle)) return false
+  const searched = fuzzyRank(rows, f.q, (p) => [p.code, p.ref, p.name])
+  return searched.filter((p) => {
     if (f.view === 'active' && !p.active) return false
     if (f.view === 'hidden' && p.active) return false
     return f.origin.length === 0 || f.origin.includes(p.originId)
@@ -85,11 +85,14 @@ const PARTNER_SORTS: Record<string, (a: Partner, b: Partner) => number> = {
  *  origin filter but not the tab, so a tab never promises rows the table lacks. */
 function partnerView(all: Partner[], filters: PartnerFilters, sort: TableSort) {
   const compare = PARTNER_SORTS[sort.key]
-  const asc = compare ? [...filterPartnerBook(all, filters)].sort(compare) : []
+  const found = filterPartnerBook(all, filters)
+  const asc = compare ? [...found].sort(compare) : []
   const beforeView = filterPartnerBook(all, { ...filters, view: undefined })
   const active = beforeView.filter((p) => p.active).length
+  /* While searching, best match first like the server books; the column sort resumes after. */
+  const searching = searchableText(filters.q) !== undefined
   return {
-    rows: sort.dir === 'asc' ? asc : asc.reverse(),
+    rows: searching ? found : sort.dir === 'asc' ? asc : asc.reverse(),
     counts: { active, hidden: beforeView.length - active, all: beforeView.length },
   }
 }

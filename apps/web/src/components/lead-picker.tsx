@@ -8,6 +8,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery } from '@/data/leads'
 import { opportunitiesOfLeadQuery } from '@/data/opportunities'
+import { searchableText } from '@/lib/search-box'
 
 /** WHICH LEAD this deal comes out of — a search box and a short list.
  *
@@ -58,8 +59,7 @@ export function LeadPickList({
   const [q, setQ] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    const typed = text.trim().slice(0, SEARCH_MAX)
-    const wanted = typed === '' ? undefined : typed
+    const wanted = searchableText(text.trim().slice(0, SEARCH_MAX))
     if (wanted === q) return
     const timer = setTimeout(() => setQ(wanted), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)

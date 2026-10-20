@@ -19,6 +19,7 @@ import {
 } from '@pv/ui'
 import { MailRunListQuery, MailRunSortKey, type MailRunRow, type MailRunState } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -306,6 +307,7 @@ export function MailRunsPage() {
               <SearchField
                 placeholder="Tìm theo tên lô hoặc tiêu đề email…"
                 value={book.text}
+                meta={searchHint(book.text)}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

@@ -28,7 +28,6 @@ import { ACCEPT, downloadCsv, type Sheet } from '@/data/intake-file'
 import {
   MOTION_FACE,
   errorRows,
-  normalise,
   originTally,
   type BuiltRow,
   type DupRow,
@@ -36,6 +35,7 @@ import {
   type ImportSpec,
   type RowError,
 } from '@/data/intake'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
 import { dealLine } from '@/data/import-held'
 import { admissionMarkText, hasAdmissionMarks } from '@/data/import-admission'
 import { BookCount } from '@/components/book-page'
@@ -88,12 +88,10 @@ function ResultList({
   const [picked, setPicked] = useState<string[]>([])
   if (items.length === 0) return null
 
-  const needle = normalise(q)
-  const shown = items.filter(
-    (item) =>
-      (picked.length === 0 || (item.kind !== undefined && picked.includes(item.kind))) &&
-      (!needle || normalise(item.haystack).includes(needle)),
+  const ofKind = items.filter(
+    (item) => picked.length === 0 || (item.kind !== undefined && picked.includes(item.kind)),
   )
+  const shown = fuzzyRank(ofKind, q, (item) => [item.haystack])
   const dirty = q.trim() !== '' || picked.length > 0
   const clear = () => {
     setQ('')

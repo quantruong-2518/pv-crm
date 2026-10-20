@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MasRecipient } from '@/data/mas-mail-draft'
+import { searchableText } from '@/lib/search-box'
 
 const DEBOUNCE_MS = 250
 
@@ -23,9 +24,10 @@ export function useRecipientSearch(
       if (!search) return
       clearTimeout(timer.current)
       const turn = ++latest.current
-      if (!text.trim()) return setHits(null)
+      const typed = searchableText(text)
+      if (typed === undefined) return setHits(null)
       timer.current = setTimeout(() => {
-        search(text.trim())
+        search(typed)
           .then((rows) => {
             if (turn !== latest.current) return
             setHits(rows)

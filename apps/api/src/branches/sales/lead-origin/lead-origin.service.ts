@@ -6,6 +6,8 @@ import {
   LeadOriginMergeResponse,
   LeadSourceStatsResponse,
   MOTION_SIDE,
+  SEARCH_MIN_CHARS,
+  fuzzyScore,
   originKey,
   type LeadMotion,
   type LeadOrigin,
@@ -47,16 +49,12 @@ export class LeadOriginService {
   async list(who: Actor, q: LeadOriginListQuery): Promise<LeadOriginListResponse> {
     const all = await this.catalog(this.repo.handle, { ownerId: who.ownOnly ? who.id : undefined })
     const key = q.q ? originKey(q.q) : ''
-    const needle = q.q?.toLowerCase() ?? ''
-
-    const rows = all.filter(
-      (o) =>
-        (q.includeInactive || o.active) &&
-        (!q.motion || o.motions.includes(q.motion)) &&
-        (!q.q ||
-          o.name.toLowerCase().includes(needle) ||
-          (key !== '' && (o.key.includes(key) || o.aliases.some((a) => a.includes(key))))),
+    /* The list follows the one search rule; `exact`/`similar` below still look up any key. */
+    const listed = all.filter(
+      (o) => (q.includeInactive || o.active) && (!q.motion || o.motions.includes(q.motion)),
     )
+    const scored = q.q && q.q.length >= SEARCH_MIN_CHARS ? scoreOrigins(listed, q.q, key) : null
+    const rows = scored ?? listed
 
     const hit = key ? all.find((o) => o.key === key || o.aliases.includes(key)) : undefined
     const survivor = hit?.mergedInto ? all.find((o) => o.id === hit.mergedInto) : hit
@@ -332,4 +330,16 @@ function levenshtein(a: string, b: string): number {
     prev = cur
   }
   return prev[b.length]!
+}
+
+/** Origins matching `q`, best first; typo matches only when nothing hits directly. */
+function scoreOrigins(rows: LeadOrigin[], q: string, key: string): LeadOrigin[] {
+  const hits = rows
+    .map((o) => {
+      const byKey = key !== '' && (o.key.includes(key) || o.aliases.some((a) => a.includes(key)))
+      return { o, score: Math.max(fuzzyScore(q, o.name), byKey ? 1 : 0) }
+    })
+    .filter((h) => h.score > 0)
+  const direct = hits.filter((h) => h.score >= 1)
+  return (direct.length > 0 ? direct : hits).sort((a, b) => b.score - a.score).map((h) => h.o)
 }

@@ -5,18 +5,18 @@ import {
   count,
   desc,
   eq,
-  ilike,
   inArray,
   isNull,
   lt,
   notInArray,
   or,
+  sql,
   type SQL,
 } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { NotificationKind, NotificationSubject, PageQuery } from '@pv/contracts'
 import type { Branch, RoleId } from '@pv/engines'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyHit, fuzzyRank, underFloor } from '@api/platform/db/fuzzy'
 import { DB, type Db } from '../db/db.module'
 import { actor } from '../db/platform.schema'
 import {
@@ -25,6 +25,9 @@ import {
   type NotificationRowDb,
   type NotificationValues,
 } from './notification.schema'
+
+/** The `labelKinds` arm is computed in JS, so the probe reads the label alone. */
+const probeOf = (q: string) => directProbe(sql`${notification}`, [notification.subjectLabel], q)
 
 /** `important` is the kind policy row's switch, `null` when the kind has no
  *  row or follows the default; `effectiveImportant` resolves both. */
@@ -135,30 +138,36 @@ export class NotificationRepository {
     return rows.map((r) => r.id)
   }
 
-  /** Newest first. One `announce` writes all its rows at the same
-   *  `created_at`, so `id` breaks the tie and paging stays stable. The policy
-   *  join is on its primary key, so it adds a column and never a row. */
+  /** Newest first, or best match first when there is text, newest after it.
+   *  One `announce` writes all its rows at the same `created_at`, so `id`
+   *  breaks the tie and paging stays stable. The policy join is on its primary
+   *  key, so it adds a column and never a row. */
   async page(
     recipientId: string,
     q: PageQuery,
     f: NotificationFilter,
   ): Promise<{ rows: NotificationWithActor[]; total: number }> {
     const where = this.where(recipientId, f)
-    const rows = await this.db
-      .select({
-        row: notification,
-        actorName: actor.name,
-        important: notificationKindPolicy.important,
-      })
-      .from(notification)
-      .leftJoin(actor, eq(actor.id, notification.actorId))
-      .leftJoin(notificationKindPolicy, eq(notificationKindPolicy.kind, notification.kind))
-      .where(where)
-      .orderBy(desc(notification.createdAt), desc(notification.id))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
-    const [n] = await this.db.select({ n: count() }).from(notification).where(where)
-    return { rows, total: n?.n ?? 0 }
+    /* With text, count and page share one tx under the `<%` floor, run in sequence. */
+    const rank = f.text ? [desc(fuzzyRank([notification.subjectLabel], f.text))] : []
+    const read = async (db: Db) => {
+      const rows = await db
+        .select({
+          row: notification,
+          actorName: actor.name,
+          important: notificationKindPolicy.important,
+        })
+        .from(notification)
+        .leftJoin(actor, eq(actor.id, notification.actorId))
+        .leftJoin(notificationKindPolicy, eq(notificationKindPolicy.kind, notification.kind))
+        .where(where)
+        .orderBy(...rank, desc(notification.createdAt), desc(notification.id))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size)
+      const [n] = await db.select({ n: count() }).from(notification).where(where)
+      return { rows, total: n?.n ?? 0 }
+    }
+    return underFloor(this.db, f.text, probeOf, read)
   }
 
   /** One predicate for the rows and for `total`, so the two cannot drift. The
@@ -170,7 +179,7 @@ export class NotificationRepository {
       f.kinds ? inArray(notification.kind, [...f.kinds]) : undefined,
       f.text
         ? or(
-            ilike(notification.subjectLabel, contains(f.text)),
+            fuzzyHit(notification.subjectLabel, f.text),
             f.labelKinds.length
               ? and(
                   isNull(notification.subjectLabel),

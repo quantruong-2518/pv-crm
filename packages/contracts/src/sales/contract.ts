@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ContractKind, CurrencyCode } from './enums'
@@ -358,7 +359,7 @@ export const ContractBookQuery = PageQuery.extend({
   signedFrom: Day.optional(),
   signedTo: Day.optional(),
   /** Substring of the contract code or the customer's company name. */
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   sort: ContractSortKey.default('nextDue'),
   dir: SortDir.default('asc'),
 })

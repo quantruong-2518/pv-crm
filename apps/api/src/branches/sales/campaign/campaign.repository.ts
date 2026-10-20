@@ -1,17 +1,4 @@
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNull,
-  not,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, not, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
@@ -22,7 +9,13 @@ import {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { csvOf, createdWithin } from '@api/platform/db/book-filter'
-import { contains } from '@api/platform/db/like'
+import {
+  directProbe,
+  fuzzyAny,
+  fuzzyRank,
+  readsUnderFloor,
+  underFloor,
+} from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
@@ -47,6 +40,10 @@ export type CampaignBookPage = {
  *  là khoá chính, vì lý do y hệt ở đó: trỏ nhầm danh mục phải hiện KHÔNG TÊN
  *  chứ không hiện tên của danh mục khác. LEFT join vì phần lớn chiến dịch chưa
  *  gán nguồn. */
+/** What the book's and the picker's search boxes read. */
+const SEARCHED = [campaign.name, campaign.code]
+const probeOf = (q: string) => directProbe(sql`${campaign}`, SEARCHED, q)
+
 const SOURCE_ON = and(eq(configEntry.id, campaign.sourceId), eq(configEntry.list, 'SOURCE'))
 
 /** Hai số đếm KHÔNG phải cột — subquery tương quan thay vì đọc rồi đếm ở Node,
@@ -147,6 +144,11 @@ export class CampaignRepository {
    *  on today's Asia/Ho_Chi_Minh date. `code` narrows to one row for the
    *  lead-create door; `q` is the picker's search. */
   pickable(by: { code?: string; q?: string }, db: Db = this.db) {
+    const run = (d: Db) => this.pickableRows(d, by)
+    return underFloor(db, by.q, probeOf, run)
+  }
+
+  private pickableRows(db: Db, by: { code?: string; q?: string }) {
     return db
       .select({
         code: campaign.code,
@@ -162,10 +164,10 @@ export class CampaignRepository {
           inArray(campaign.state, ['DRAFT', 'RUNNING']),
           sql`(${campaign.endsOn} IS NULL OR ${campaign.endsOn} >= (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date)`,
           by.code ? eq(campaign.code, by.code) : undefined,
-          by.q ? ilike(campaign.name, contains(by.q)) : undefined,
+          by.q ? fuzzyAny(SEARCHED, by.q) : undefined,
         ),
       )
-      .orderBy(asc(campaign.name))
+      .orderBy(...(by.q ? [sql`${fuzzyRank(SEARCHED, by.q)} DESC`] : []), asc(campaign.name))
       .limit(20)
   }
 
@@ -284,10 +286,10 @@ export class CampaignRepository {
 
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — cùng lý do ở
        `lead.repository.ts#book`. */
-    const [scoped_, all, rows] = await Promise.all([
-      this.count(and(...filters, scope)),
-      scope ? this.count(and(...filters)) : Promise.resolve(null),
-      this.db
+    const total = (db: Db) => this.count(and(...filters, scope), db)
+    const wide = (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null))
+    const page = (db: Db) =>
+      db
         .select(SELECT_READ)
         .from(campaign)
         .leftJoin(actor, eq(actor.id, campaign.ownerId))
@@ -295,8 +297,12 @@ export class CampaignRepository {
         .where(and(...filters, scope))
         .orderBy(...this.orderBy(q))
         .limit(q.size)
-        .offset((q.page - 1) * q.size),
-    ])
+        .offset((q.page - 1) * q.size)
+    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+      total,
+      wide,
+      page,
+    ] as const)
 
     return { rows, total: scoped_, hidden: all === null ? 0 : all - scoped_ }
   }
@@ -538,8 +544,8 @@ export class CampaignRepository {
     return scoped && who.ownOnly ? eq(campaign.ownerId, who.id) : undefined
   }
 
-  private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db.select({ n: count() }).from(campaign).where(where)
+  private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
+    const [r] = await db.select({ n: count() }).from(campaign).where(where)
     return r?.n ?? 0
   }
 
@@ -553,7 +559,8 @@ export class CampaignRepository {
       audienceCount: AUDIENCE_COUNT,
       waveCount: WAVE_COUNT,
     }[q.sort]
-    return [dir(primary), dir(campaign.code)]
+    const best = q.q ? [sql`${fuzzyRank(SEARCHED, q.q)} DESC`] : []
+    return [...best, dir(primary), dir(campaign.code)]
   }
 
   /** `OWNER_NONE` among the ids also matches campaigns nobody owns. */
@@ -570,11 +577,8 @@ export class CampaignRepository {
       q.owner ? this.byOwner(q.owner) : undefined,
       q.source ? inArray(campaign.sourceId, csvOf(q.source)) : undefined,
       ...createdWithin(campaign.createdAt, q.createdFrom, q.createdTo),
-      /* Code as well as name — the search box on the book offers both, and
-         typing `CP-0001` into a name-only ilike returns nothing. */
-      q.q
-        ? or(ilike(campaign.name, contains(q.q)), ilike(campaign.code, contains(q.q)))
-        : undefined,
+      /* Code as well as name: the box offers both, so `CP-0001` must hit. */
+      q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
     ]
   }
 }

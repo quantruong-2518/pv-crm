@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { keepPreviousData, queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   SEARCH_KINDS,
+  SEARCH_MIN_CHARS,
   SearchKind,
   SearchRecentResult,
   SearchResult,
@@ -13,6 +14,7 @@ import { ArrowRight, type SearchGroup, type SearchRecords } from '@pv/ui'
 import { api, type ApiNeed } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { hitPath, hitRow, pickedKind, SEARCH_KIND_FACTS, splitPrefix } from './search-rows'
+import { searchableText } from '@/lib/search-box'
 
 /** The header search box's data — `GET /sales/search` and `/sales/search/recent`.
  *
@@ -33,7 +35,6 @@ const RECENT_PATH = '/sales/search/recent'
 const RECENT_KEY = ['sales', 'search', 'recent'] as const
 
 const SEARCH_DELAY_MS = 200
-const MIN_CHARS = 2
 
 /* A record just disabled or reassigned must not linger in results for long,
    so they expire after a minute. */
@@ -94,7 +95,7 @@ export function useHeaderSearch(): SearchRecords | undefined {
   const scope = current.kind ?? chip
   const settled = splitPrefix(useSettled(text))
   const kind = settled.kind ?? chip
-  const searching = allowed.lead && settled.q.length >= MIN_CHARS
+  const searching = allowed.lead && searchableText(settled.q) !== undefined
 
   const found = useQuery({ ...searchQuery(settled.q, kind), enabled: searching })
   const recent = useQuery({ ...searchRecentQuery, enabled: allowed.lead })
@@ -156,7 +157,8 @@ export function useHeaderSearch(): SearchRecords | undefined {
   const pending = found.isFetching || current.q !== settled.q
   let status: string | undefined
   if (typed === '') status = undefined
-  else if (current.q.length < MIN_CHARS) status = `Gõ ít nhất ${MIN_CHARS} ký tự để tìm bản ghi.`
+  else if (searchableText(current.q) === undefined)
+    status = `Gõ ít nhất ${SEARCH_MIN_CHARS} ký tự để tìm bản ghi.`
   else if (pending) status = 'Đang tìm…'
   else if (found.isError) status = 'Không tìm được bản ghi. Thử lại sau.'
   else if (!groups.length) status = `Không có bản ghi nào khớp “${current.q}”.`

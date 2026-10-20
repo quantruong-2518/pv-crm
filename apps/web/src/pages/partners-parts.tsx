@@ -8,6 +8,7 @@ import { contactBookQuery, DEFAULT_CONTACT_BOOK_QUERY } from '@/data/contacts'
 import { useCreatePartner, usePatchPartner } from '@/data/partners'
 import { useReferrerMotions } from '@/data/sales-motions'
 import { OriginSelect } from '@/components/lead-origin-pickers'
+import { searchableText } from '@/lib/search-box'
 
 /** The two modals of the partner book (`pages/partners.tsx`).
  *
@@ -22,10 +23,10 @@ type Pick = { kind: 'contact'; code: string; name: string } | { kind: 'name'; na
 /** A partner is a contact we already know; typing a name nobody has is the fallback. */
 function WhoField({ value, onChange }: { value: Pick | null; onChange: (p: Pick) => void }) {
   const [query, setQuery] = useState('')
-  const text = query.trim()
+  const search = searchableText(query)
   const { data, isFetching } = useQuery({
-    ...contactBookQuery({ ...DEFAULT_CONTACT_BOOK_QUERY, size: 8, q: text || undefined }),
-    enabled: text.length >= 2,
+    ...contactBookQuery({ ...DEFAULT_CONTACT_BOOK_QUERY, size: 8, q: search }),
+    enabled: search !== undefined,
   })
   const options = (data?.rows ?? []).map((c) => ({
     value: c.code,

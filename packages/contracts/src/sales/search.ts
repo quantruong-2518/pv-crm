@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SEARCH_MAX_CHARS, SEARCH_MIN_CHARS } from '../search-text'
 import { Moment } from '../primitives'
 
 /** Global search (header box): `GET /sales/search`, plus the per-user recent
@@ -31,9 +32,9 @@ export const SearchQuery = z.object({
   q: z
     .string()
     .trim()
-    .min(2)
-    .max(120)
-    .transform((q) => q.normalize('NFC')),
+    .max(SEARCH_MAX_CHARS)
+    .transform((q) => q.normalize('NFC'))
+    .refine((q) => q.length >= SEARCH_MIN_CHARS),
   kinds: z
     .string()
     .max(200)
@@ -66,7 +67,7 @@ export type SearchResult = z.infer<typeof SearchResult>
 /** `q` may be empty here: a pick can be logged with no text typed, and a
  *  zero-result search is logged on close to be audited later. */
 export const SearchRecentWrite = z.object({
-  q: z.string().trim().max(120),
+  q: z.string().trim().max(SEARCH_MAX_CHARS),
   kinds: z.array(SearchKind).max(SEARCH_KINDS.length).optional(),
   picked: z.object({ kind: SearchKind, code: z.string().min(1).max(64) }).optional(),
   resultCount: z.number().int().nonnegative().max(1000),

@@ -1,8 +1,8 @@
 import { randomInt } from 'node:crypto'
-import { and, asc, eq, ilike, isNull, or, sql } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, underFloor } from '@api/platform/db/fuzzy'
 import { motionPolicy } from '../config/motion.schema'
 import { leadOrigin, leadOriginMotion } from '../lead-origin/lead-origin.schema'
 import { lead } from '../lead/lead.schema'
@@ -29,6 +29,10 @@ function randomRef(): string {
   }
 }
 
+/** The referral ref is what a partner quotes by phone, so it is searched too. */
+const SEARCHED = [partner.code, partner.name, partner.ref]
+const probeOf = (q: string) => directProbe(sql`${partner}`, SEARCHED, q)
+
 export type PartnerTally = { leads: number; opportunities: number; contracts: number }
 
 export type PartnerSet = Partial<Pick<PartnerRowDb, 'name' | 'originId' | 'active'>>
@@ -46,18 +50,22 @@ export class PartnerRepository {
   }
 
   list(q: { q?: string; includeInactive: boolean }): Promise<PartnerRowDb[]> {
-    return this.db
-      .select()
-      .from(partner)
-      .where(
-        and(
-          q.includeInactive ? undefined : eq(partner.active, true),
-          q.q
-            ? or(ilike(partner.code, contains(q.q)), ilike(partner.name, contains(q.q)))
-            : undefined,
-        ),
-      )
-      .orderBy(asc(partner.name), asc(partner.code))
+    const run = (db: Db) =>
+      db
+        .select()
+        .from(partner)
+        .where(
+          and(
+            q.includeInactive ? undefined : eq(partner.active, true),
+            q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
+          ),
+        )
+        .orderBy(
+          ...(q.q ? [sql`${fuzzyRank(SEARCHED, q.q)} DESC`] : []),
+          asc(partner.name),
+          asc(partner.code),
+        )
+    return underFloor(this.db, q.q, probeOf, run)
   }
 
   /** Referral funnel per partner code. Partners with no leads are absent. */

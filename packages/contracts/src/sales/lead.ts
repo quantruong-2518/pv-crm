@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import {
   MoneyVnd,
   ObjectCode,
@@ -343,7 +344,7 @@ export const LeadBookQuery = PageQuery.extend({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
 
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
 
   /** Exact lead codes joined by commas: the book reads back just these rows,
    *  still inside the caller's scope. Lets mail and selection fetch the leads

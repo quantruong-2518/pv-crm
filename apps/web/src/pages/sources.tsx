@@ -45,7 +45,9 @@ import {
 import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
 import { isApiError, userMessage } from '@/app/api'
 import { toast } from '@/app/toast'
-import { RECIPIENT_SPEC, normalise } from '@/data/intake'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
+import { searchableText } from '@/lib/search-box'
+import { RECIPIENT_SPEC } from '@/data/intake'
 import { useLeadImport } from '@/data/lead-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { BookCount, BookPage } from '@/components/book-page'
@@ -133,9 +135,7 @@ type SourceFilters = BookFilters<typeof SOURCE_FILTERS>
 /** Pure: the search covers name and code; channel matches ANY wave of the source;
  *  the date range is on the start day. */
 function filterSourceBook(rows: SourceRow[], f: SourceFilters): SourceRow[] {
-  const needle = normalise(f.q)
-  return rows.filter((r) => {
-    if (needle && !normalise(`${r.label} ${r.code}`).includes(needle)) return false
+  return fuzzyRank(rows, f.q, (r) => [r.label, r.code]).filter((r) => {
     if (f.status && r.status !== f.status) return false
     if (f.owner.length > 0 && !f.owner.includes(r.owner)) return false
     if (f.channel.length > 0 && !r.waves.some((w) => f.channel.includes(w.channel))) return false
@@ -189,7 +189,8 @@ export function SourcesPage() {
   const visible = useMemo(() => {
     const list = filterSourceBook(sources, filters)
     const compare = SOURCE_SORTS.find((s) => s.key === sort.key)?.compare
-    if (!compare) return list
+    /* While searching, best match first like the server books. */
+    if (!compare || searchableText(filters.q) !== undefined) return list
     /* `compare` của tầng data LUÔN tăng dần — hướng là việc của màn. */
     const asc = [...list].sort(compare)
     return sort.dir === 'asc' ? asc : asc.reverse()

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { PageQuery, SortDir, paged } from '../pagination'
 import {
   MoneyVnd,
@@ -168,7 +169,7 @@ export const AccountBookQuery = PageQuery.extend({
 
   /** Name, legal name or tax code — one box, because a person looking for a
    *  company types whichever of the three they happen to remember. */
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   /** One province, or several joined by commas. */
   province: z.string().trim().min(1).max(1200).optional(),
   /** One category, or several joined by commas. */

@@ -1,21 +1,9 @@
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNotNull,
-  isNull,
-  or,
-  sql,
-  type SQL,
-} from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { normalisePhone, type Actor } from '@pv/engines'
 import { OWNER_NONE, type ContactBookQuery, type ContactFacetsQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { leadLive } from '../lead/lead-scope'
@@ -34,6 +22,12 @@ export type ContactBookRead = {
   ownerName: string | null
   ownerEmail: string | null
 }
+
+/** Columns the search box reads, for both the filter and the rank. */
+const SEARCHED = [contact.name, contact.email, contact.phone]
+
+/** Shared with the facets repository: one answer per book. */
+export const contactProbe = (q: string) => directProbe(sql`${contact}`, SEARCHED, q)
 
 const presence = (column: typeof contact.email | typeof contact.phone, flag: '1' | '0') =>
   flag === '1' ? isNotNull(column) : isNull(column)
@@ -163,8 +157,8 @@ export class ContactRepository {
     const scope = scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
     const where = and(...this.filtersOf(q), leadLive, scope)
 
-    const [rows, [tally]] = await Promise.all([
-      this.db
+    const rowsOf = (db: Db) =>
+      db
         .select({
           row: contact,
           company: lead.company,
@@ -180,13 +174,18 @@ export class ContactRepository {
         .where(where)
         .orderBy(...this.orderBy(q))
         .limit(q.size)
-        .offset((q.page - 1) * q.size),
-      this.db
+        .offset((q.page - 1) * q.size)
+    const tallyOf = (db: Db) =>
+      db
         .select({ n: sql<number>`count(*)::int` })
         .from(contact)
         .innerJoin(lead, eq(lead.code, contact.leadCode))
-        .where(where),
-    ])
+        .where(where)
+
+    const [rows, [tally]] = await readsUnderFloor(this.db, q.q, contactProbe, [
+      rowsOf,
+      tallyOf,
+    ] as const)
 
     return { rows, total: tally?.n ?? 0 }
   }
@@ -226,15 +225,7 @@ export class ContactRepository {
   filtersOf(q: ContactFacetsQuery): SQL[] {
     const parts: SQL[] = []
 
-    if (q.q !== undefined) {
-      const needle = contains(q.q)
-      const hit = or(
-        ilike(contact.name, needle),
-        ilike(contact.email, needle),
-        ilike(contact.phone, needle),
-      )
-      if (hit) parts.push(hit)
-    }
+    if (q.q !== undefined) parts.push(fuzzyAny(SEARCHED, q.q))
 
     if (q.primary === '1') parts.push(eq(contact.isPrimary, true))
     if (q.account !== undefined) parts.push(inArray(lead.accountCode, q.account.split(',')))
@@ -265,6 +256,11 @@ export class ContactRepository {
   }
 
   private orderBy(q: ContactBookQuery): SQL[] {
+    const rank = q.q ? [desc(fuzzyRank(SEARCHED, q.q))] : []
+    return [...rank, ...this.baseOrder(q)]
+  }
+
+  private baseOrder(q: ContactBookQuery): SQL[] {
     if (q.sort === 'best') {
       const reachable = sql`(${contact.email} is not null)::int + (${contact.phone} is not null)::int`
       return [desc(contact.isPrimary), desc(reachable), asc(contact.name), asc(contact.code)]

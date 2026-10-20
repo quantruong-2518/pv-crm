@@ -30,7 +30,14 @@ import {
   type LeadStateFilter,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import {
+  directProbe,
+  fuzzyAny,
+  fuzzyHit,
+  fuzzyRank,
+  readsUnderFloor,
+  underFloor,
+} from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
@@ -41,6 +48,7 @@ import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
+import { contact } from '../contact/contact.schema'
 import { lead, leadLabel } from './lead.schema'
 import { labelsOf, leadLabelledAny } from './lead-label.sql'
 import { leadLive, leadScope } from './lead-scope'
@@ -126,6 +134,13 @@ const DAYS_HERE = sql<number>`GREATEST(0, FLOOR(
  *  See the long note on `leadCodeSeq` for the rest. */
 const NEXT_CODES = (n: number) => seqCodes('LD-', 'sales.lead_code_seq', n)
 
+/** The box promises company or lead code, so it searches both (filter and rank). */
+const SEARCHED = [lead.company, lead.legalName, lead.taxCode, lead.code]
+
+/** Same two arms as `filtersOf`: a lead column, or a contact's name. */
+const probeOf = (q: string) =>
+  sql`(${directProbe(sql`${lead}`, SEARCHED, q)} OR ${directProbe(sql`${contact}`, [contact.name], q)})`
+
 /** Chỗ DUY NHẤT trong module lead có SQL.
  *
  *  Không quyết định gì về quyền: nó chỉ THI HÀNH trục phạm vi mà endpoint đã
@@ -200,37 +215,38 @@ export class LeadRepository {
 
     const scope = this.scopeOf(who, scoped)
 
-    const rowsQuery = this.db
-      .select({
-        row: lead,
-        ownerName: actor.name,
-        ownerEmail: actor.email,
-        createdByName: creator.name,
-        campaignName: configEntry.name,
-        originName: leadOrigin.name,
-        partnerName: partner.name,
-        daysHere: DAYS_HERE,
-        signed: this.signedValue(),
-        duplicateOf: this.duplicatesOf(who, scoped),
-      })
-      .from(lead)
-      .leftJoin(actor, eq(actor.id, lead.ownerId))
-      .leftJoin(creator, eq(creator.id, lead.createdBy))
-      .leftJoin(configEntry, CAMPAIGN_ON)
-      .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
-      .leftJoin(partner, eq(partner.code, lead.partnerCode))
-      .where(and(...filters, scope))
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
+    const rowsQuery = (db: Db) =>
+      db
+        .select({
+          row: lead,
+          ownerName: actor.name,
+          ownerEmail: actor.email,
+          createdByName: creator.name,
+          campaignName: configEntry.name,
+          originName: leadOrigin.name,
+          partnerName: partner.name,
+          daysHere: DAYS_HERE,
+          signed: this.signedValue(),
+          duplicateOf: this.duplicatesOf(who, scoped),
+        })
+        .from(lead)
+        .leftJoin(actor, eq(actor.id, lead.ownerId))
+        .leftJoin(creator, eq(creator.id, lead.createdBy))
+        .leftJoin(configEntry, CAMPAIGN_ON)
+        .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
+        .leftJoin(partner, eq(partner.code, lead.partnerCode))
+        .where(and(...filters, scope))
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size)
 
     /* The second count only runs when scope really cuts (else `hidden` is 0).
-       Three independent pool reads, so they run side by side. */
-    const [scoped_, all, rows] = await Promise.all([
-      this.count(and(...filters, scope)),
-      scope ? this.count(and(...filters)) : Promise.resolve(null),
+       Plain pool reads run side by side; with `q` they share one tx in sequence. */
+    const [scoped_, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+      (db: Db) => this.count(and(...filters, scope), db),
+      (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
       rowsQuery,
-    ])
+    ] as const)
 
     const codes = rows.map((r) => r.row.code)
     const [labels, holds] = await Promise.all([
@@ -304,19 +320,21 @@ export class LeadRepository {
   ): Promise<{ byState: Record<LeadState, number>; held: number }> {
     /* One open hold per subject (`hold_open_subject_uq`), so the LEFT JOIN
        keeps one row per lead and the hold is looked up once, not per FILTER. */
-    const rows = await this.db
-      .select({
-        state: lead.state,
-        n: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NULL)::int`,
-        held: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NOT NULL)::int`,
-      })
-      .from(lead)
-      .leftJoin(
-        hold,
-        and(eq(hold.subjectType, 'lead'), eq(hold.subjectCode, lead.code), isNull(hold.endedAt)),
-      )
-      .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
-      .groupBy(lead.state)
+    const rows = await underFloor(this.db, q.q, probeOf, (db) =>
+      db
+        .select({
+          state: lead.state,
+          n: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NULL)::int`,
+          held: sql<number>`count(*) FILTER (WHERE ${hold.subjectCode} IS NOT NULL)::int`,
+        })
+        .from(lead)
+        .leftJoin(
+          hold,
+          and(eq(hold.subjectType, 'lead'), eq(hold.subjectCode, lead.code), isNull(hold.endedAt)),
+        )
+        .where(and(...this.filtersOf(q), leadLive, this.scopeOf(who, true)))
+        .groupBy(lead.state),
+    )
     const byState = Object.fromEntries(LeadState.options.map((s) => [s, 0])) as Record<
       LeadState,
       number
@@ -332,24 +350,31 @@ export class LeadRepository {
   /** The waiting labels in use on the scoped book under its other filters,
    *  `label` itself ignored — the rule `sourceKinds` follows. Catalogue order. */
   async labelFacets(who: Actor, q: LeadFacetsQuery): Promise<LeadLabel[]> {
-    return this.db
-      .selectDistinct({ id: configEntry.id, name: configEntry.name, ord: configEntry.ord })
-      .from(leadLabel)
-      .innerJoin(lead, eq(lead.code, leadLabel.leadCode))
-      .innerJoin(
-        configEntry,
-        and(eq(configEntry.id, leadLabel.labelId), eq(configEntry.list, leadLabel.list)),
-      )
-      .where(and(...this.filtersOf({ ...q, label: undefined }), leadLive, this.scopeOf(who, true)))
-      .orderBy(asc(configEntry.ord), asc(configEntry.id))
-      .then((rows) => rows.map(({ id, name }) => ({ id, name })))
+    return underFloor(this.db, q.q, probeOf, (db) =>
+      db
+        .selectDistinct({ id: configEntry.id, name: configEntry.name, ord: configEntry.ord })
+        .from(leadLabel)
+        .innerJoin(lead, eq(lead.code, leadLabel.leadCode))
+        .innerJoin(
+          configEntry,
+          and(eq(configEntry.id, leadLabel.labelId), eq(configEntry.list, leadLabel.list)),
+        )
+        .where(
+          and(...this.filtersOf({ ...q, label: undefined }), leadLive, this.scopeOf(who, true)),
+        )
+        .orderBy(asc(configEntry.ord), asc(configEntry.id))
+        .then((rows) => rows.map(({ id, name }) => ({ id, name }))),
+    )
   }
 
   /** How many leads the "disabled" view would list — the book's filters and
    *  scope, every state. */
   disabledCount(who: Actor, q: LeadFacetsQuery): Promise<number> {
-    return this.count(
-      and(...this.filtersOf(q), isNotNull(lead.disabledAt), this.scopeOf(who, true)),
+    return underFloor(this.db, q.q, probeOf, (db) =>
+      this.count(
+        and(...this.filtersOf(q), isNotNull(lead.disabledAt), this.scopeOf(who, true)),
+        db,
+      ),
     )
   }
 
@@ -495,8 +520,8 @@ export class LeadRepository {
     ) END`
   }
 
-  private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db.select({ n: count() }).from(lead).where(where)
+  private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
+    const [r] = await db.select({ n: count() }).from(lead).where(where)
     return r?.n ?? 0
   }
 
@@ -688,7 +713,8 @@ export class LeadRepository {
     const dir = q.dir === 'asc' ? asc : desc
     const primary =
       q.sort === 'company' ? lead.company : q.sort === 'daysHere' ? DAYS_HERE : lead.createdAt
-    return [dir(primary), dir(lead.code)]
+    const rank = q.q ? [desc(fuzzyRank(SEARCHED, q.q))] : []
+    return [...rank, dir(primary), dir(lead.code)]
   }
 
   /** A comma list of actor ids on `column`; `OWNER_NONE` among them also
@@ -736,20 +762,13 @@ export class LeadRepository {
       q.motion ? eq(lead.motion, q.motion) : undefined,
       q.origin ? inArray(lead.originId, listOf(q.origin)) : undefined,
       q.label ? leadLabelledAny(lead.code, listOf(q.label)) : undefined,
-      /* Ô tìm hứa "tên công ty hoặc mã lead" (placeholder ở `pages/leads.tsx`)
-         nên phải hỏi CẢ HAI cột, không riêng company — trước bản sửa này gõ
-         `LD-0235` trả về rỗng dù dòng đó tồn tại, đúng nghĩa "search chưa gọi
-         đúng API" mà lời hứa trên ô tìm đặt ra. Mẫu dựng bằng `contains()`,
-         không ghép chuỗi: `%` và `_` gõ vào ô tìm là CHỮ, không phải ký tự
-         đại diện — xem docblock hàm đó. Cùng mẫu với Ops book
-         (`opportunity.repository.ts#filtersOf`) nên hai ô tìm không lệch
-         nhau. */
       q.codes ? inArray(lead.code, listOf(q.codes)) : undefined,
-      /* Accent-blind like global search (owner 20/10): `sales.fold` is the form
-         the trigram indexes from migration 0088 are built on. */
+      /* The box promises contacts too; a contact hit ranks below a lead-column hit. */
       q.q
-        ? sql`(sales.fold(${lead.company}) LIKE sales.fold(${contains(q.q)}::text)
-            OR sales.fold(${lead.code}) LIKE sales.fold(${contains(q.q)}::text))`
+        ? or(
+            fuzzyAny(SEARCHED, q.q),
+            sql`EXISTS (SELECT 1 FROM ${contact} WHERE ${contact.leadCode} = ${lead.code} AND ${fuzzyHit(contact.name, q.q)})`,
+          )
         : undefined,
     ]
   }

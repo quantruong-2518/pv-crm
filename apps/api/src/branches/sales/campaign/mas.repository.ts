@@ -5,7 +5,6 @@ import {
   count,
   eq,
   getTableColumns,
-  ilike,
   inArray,
   isNull,
   ne,
@@ -27,10 +26,14 @@ import type {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { createdWithin, csvOf } from '@api/platform/db/book-filter'
-import { contains } from '@api/platform/db/like'
+import { fuzzyAny, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor, audit, type ActorRow } from '@api/platform/db/platform.schema'
 import { mailRun } from '@api/platform/mail/mail-run.schema'
-import { stillEditable } from '@api/platform/mail/mail-run.repository'
+import {
+  MAIL_RUN_SEARCHED,
+  mailRunProbe,
+  stillEditable,
+} from '@api/platform/mail/mail-run.repository'
 import { emailSuppression } from '@api/platform/mail/mail.schema'
 import { lead } from '../lead/lead.schema'
 import { edgeTrimmed } from './mail-address-sql'
@@ -988,16 +991,20 @@ export class MasRepository {
 
     const filters = this.listFilters(query, campaignIds)
 
-    const [mine, [hidden]] = await Promise.all([
-      this.db
+    const ofMine = (db: Db) =>
+      db
         .select({ id: mailRun.id })
         .from(mailRun)
-        .where(and(filters, eq(mailRun.createdBy, who.id))),
-      this.db
+        .where(and(filters, eq(mailRun.createdBy, who.id)))
+    const ofOthers = (db: Db) =>
+      db
         .select({ n: count() })
         .from(mailRun)
-        .where(and(filters, ne(mailRun.createdBy, who.id))),
-    ])
+        .where(and(filters, ne(mailRun.createdBy, who.id)))
+    const [mine, [hidden]] = await readsUnderFloor(this.db, query.q, mailRunProbe, [
+      ofMine,
+      ofOthers,
+    ] as const)
 
     return { onlyIds: mine.map((r) => r.id), hidden: hidden?.n ?? 0 }
   }
@@ -1025,9 +1032,7 @@ export class MasRepository {
       query.state ? eq(mailRun.state, query.state) : undefined,
       query.createdBy ? inArray(mailRun.createdBy, csvOf(query.createdBy)) : undefined,
       ...createdWithin(mailRun.createdAt, query.createdFrom, query.createdTo),
-      query.q
-        ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
-        : undefined,
+      query.q ? fuzzyAny(MAIL_RUN_SEARCHED, query.q) : undefined,
       campaignIds
         ? campaignIds.length > 0
           ? inArray(mailRun.id, [...campaignIds])

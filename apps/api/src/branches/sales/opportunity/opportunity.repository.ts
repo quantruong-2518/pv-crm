@@ -5,12 +5,10 @@ import {
   desc,
   eq,
   exists,
-  ilike,
   inArray,
   isNotNull,
   ne,
   not,
-  or,
   sql,
   type SQL,
 } from 'drizzle-orm'
@@ -27,7 +25,7 @@ import {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { csvOf } from '@api/platform/db/book-filter'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
 import { configEntry } from '../config/config.schema'
@@ -56,6 +54,17 @@ import {
   type RefOwner,
 } from './opportunity.mapper'
 import { seqCodes } from '../code-seq'
+
+/** Name, deal code or company: whichever the user pasted, for filter and rank. */
+const SEARCHED = [opportunity.name, opportunity.code, lead.company]
+
+/** Shared with the facets repository: one answer per book. */
+export const opportunityProbe = (q: string) =>
+  directProbe(
+    sql`${opportunity} JOIN ${lead} ON ${lead.code} = ${opportunity.leadCode}`,
+    SEARCHED,
+    q,
+  )
 
 const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
@@ -193,26 +202,28 @@ export class OpportunityRepository {
     /* Chỉ đếm LẦN HAI khi trục phạm vi thật sự đang cắt — với người nhìn được
        cả sổ thì `hidden` luôn bằng 0, và một COUNT toàn bảng để in ra số 0 là
        trả phí cho câu không ai hỏi. Cùng phép mà sổ lead đang dùng. */
-    const [scopedTotal, all] = await Promise.all([
-      this.count(where),
-      scope ? this.count(and(...filters)) : Promise.resolve(null),
-    ])
+    const rowsOf = (db: Db) =>
+      db
+        .select({
+          row: opportunity,
+          account: lead.company,
+          contractCodes: CONTRACT_CODES,
+          held: HELD,
+          daysInStage: DAYS_IN_STAGE,
+          acceptorName: ACCEPTOR_NAME,
+        })
+        .from(opportunity)
+        .innerJoin(lead, eq(lead.code, opportunity.leadCode))
+        .where(where)
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size)
 
-    const rows = await this.db
-      .select({
-        row: opportunity,
-        account: lead.company,
-        contractCodes: CONTRACT_CODES,
-        held: HELD,
-        daysInStage: DAYS_IN_STAGE,
-        acceptorName: ACCEPTOR_NAME,
-      })
-      .from(opportunity)
-      .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .where(where)
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, opportunityProbe, [
+      (db: Db) => this.count(where, db),
+      (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
+      rowsOf,
+    ] as const)
 
     /* Two follow-up reads, in PARALLEL: they read two different join tables
        with the same list of codes, and neither needs the other's result.
@@ -758,8 +769,8 @@ export class OpportunityRepository {
    *  (`account`, `q`) đọc `lead.company`, nên một câu đếm không nối sẽ chết ở
    *  Postgres với "missing FROM-clause entry". Nối trong (`innerJoin`) trên một
    *  khoá ngoại NOT NULL không đổi số dòng, nên `total` vẫn là con số cũ. */
-  private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db
+  private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
+    const [r] = await db
       .select({ n: count() })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -789,6 +800,11 @@ export class OpportunityRepository {
    *  `amount` sắp theo `AMOUNT_VND` chứ không theo cột — xem docblock của biểu
    *  thức đó. */
   private orderBy(q: OpportunityBookQuery): SQL[] {
+    const rank = q.q ? [desc(fuzzyRank(SEARCHED, q.q))] : []
+    return [...rank, ...this.baseOrder(q)]
+  }
+
+  private baseOrder(q: OpportunityBookQuery): SQL[] {
     const dir = q.dir === 'asc' ? 'asc' : 'desc'
     const nullable = q.sort === 'amount' || q.sort === 'expectedClose'
 
@@ -836,20 +852,7 @@ export class OpportunityRepository {
       ownerFilter(this.db, 'SALE', q.sale),
       ownerFilter(this.db, 'BD', q.bd),
       q.account ? inArray(lead.company, csvOf(q.account)) : undefined,
-      /* Một ô gõ, ba cột. Người ta dán vào đây một mã đơn lấy từ email, nửa cái
-         tên công ty, hoặc một chữ trong tên đơn — hỏi cả ba là cách duy nhất ô
-         đó trả lời được cả ba mà không bắt người dùng chọn trước mình đang tìm
-         theo kiểu gì.
-
-         Mẫu dựng bằng `contains()` chứ không ghép chuỗi: `%` và `_` người dùng
-         gõ là CHỮ, không phải ký tự đại diện — xem docblock của hàm đó. */
-      q.q
-        ? or(
-            ilike(opportunity.name, contains(q.q)),
-            ilike(opportunity.code, contains(q.q)),
-            ilike(lead.company, contains(q.q)),
-          )
-        : undefined,
+      q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
     ]
   }
 

@@ -5,6 +5,7 @@ import type { LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
 import { assignDoorOf } from '@/components/assign-door'
 import { HandoverDeals } from '@/components/handover-deals'
 import { ROW_ICON } from '@/components/table-bits'
@@ -134,11 +135,7 @@ export function AssignMenu({
   )
 
   const shown = useMemo(() => {
-    const needle = debouncedQuery.trim().toLowerCase()
-    if (needle === '') return others
-    return others.filter((p) =>
-      [p.name, p.role, ...p.domains].some((s) => s.toLowerCase().includes(needle)),
-    )
+    return fuzzyRank(others, debouncedQuery, (p) => [p.name, p.role, ...p.domains])
   }, [others, debouncedQuery])
 
   useEffect(() => {

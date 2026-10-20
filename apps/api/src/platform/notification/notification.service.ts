@@ -7,6 +7,8 @@ import {
   NotificationListResponse,
   NotificationReadResponse,
   NotificationUnreadCount,
+  SEARCH_MIN_CHARS,
+  fuzzyScore,
   type NotificationListQuery,
   type NotificationReadBody,
 } from '@pv/contracts'
@@ -23,13 +25,15 @@ export class NotificationService {
     const kinds = q.group
       ? NotificationKind.options.filter((k) => NOTIFICATION_KIND_GROUP[k] === q.group)
       : undefined
-    const needle = q.q?.toLocaleLowerCase('vi')
-    const labelKinds = needle
-      ? NotificationKind.options.filter((k) =>
-          NOTIFICATION_KIND_LABEL[k].toLocaleLowerCase('vi').includes(needle),
-        )
+    /* Under the search floor a box reads as no filter. NFC: the SQL fold
+       only knows precomposed letters. */
+    const typed = q.q?.trim().normalize('NFC')
+    const text = typed && typed.length >= SEARCH_MIN_CHARS ? typed : undefined
+    /* Kind sentences match directly only: they share words, so typo scores light up unrelated kinds. */
+    const labelKinds = text
+      ? NotificationKind.options.filter((k) => fuzzyScore(text, NOTIFICATION_KIND_LABEL[k]) >= 1)
       : []
-    const filter = { unread: q.unread === '1', kinds, text: q.q, labelKinds }
+    const filter = { unread: q.unread === '1', kinds, text, labelKinds }
     const { rows, total } = await this.repo.page(who.id, q, filter)
     return NotificationListResponse.parse({ rows: rows.map(toContract), total, hidden: 0 })
   }

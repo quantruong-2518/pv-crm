@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  ilike,
   inArray,
   isNull,
   notExists,
@@ -23,7 +22,7 @@ import {
   type ContractSummary,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
@@ -310,20 +309,23 @@ export class ContractRepository {
        someone who sees the whole book `hidden` is always 0, and a full COUNT
        to print a zero is paying for a question nobody asked. Same trade the
        other two books took. */
-    const [scopedTotal, all] = await Promise.all([
-      this.count(and(scope, filters)),
-      scope ? this.count(filters) : Promise.resolve(null),
-    ])
-
-    const rows = await this.db
-      .select({ row: contract, ownerName: actor.name, customer: lead.company })
-      .from(contract)
-      .innerJoin(lead, ON_LEAD)
-      .leftJoin(actor, eq(actor.id, contract.ownerId))
-      .where(and(scope, filters, leadLive))
-      .orderBy(...this.orderBy(q))
-      .limit(q.size)
-      .offset((q.page - 1) * q.size)
+    const total = (db: Db) => this.count(and(scope, filters), db)
+    const wide = (db: Db) => (scope ? this.count(filters, db) : Promise.resolve(null))
+    const page = (db: Db) =>
+      db
+        .select({ row: contract, ownerName: actor.name, customer: lead.company })
+        .from(contract)
+        .innerJoin(lead, ON_LEAD)
+        .leftJoin(actor, eq(actor.id, contract.ownerId))
+        .where(and(scope, filters, leadLive))
+        .orderBy(...this.orderBy(q))
+        .limit(q.size)
+        .offset((q.page - 1) * q.size)
+    const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probeOf, [
+      total,
+      wide,
+      page,
+    ] as const)
 
     const codes = rows.map((r) => r.row.code)
     const [schedule, people] = await Promise.all([
@@ -623,7 +625,8 @@ export class ContractRepository {
   private orderBy(q: ContractBookQuery): SQL[] {
     const primary = q.sort === 'amount' ? CONTRACT_VND : NEXT_DUE
     const dir = q.dir === 'asc' ? sql`ASC` : sql`DESC`
-    return [sql`${primary} ${dir} NULLS LAST`, desc(contract.signedAt), asc(contract.code)]
+    const best = q.q ? [sql`${fuzzyRank(SEARCHED, q.q)} DESC`] : []
+    return [...best, sql`${primary} ${dir} NULLS LAST`, desc(contract.signedAt), asc(contract.code)]
   }
 
   /** Every book filter, ANDed. Independent of the scope axis. */
@@ -645,7 +648,7 @@ export class ContractRepository {
       q.signedTo
         ? sql`${contract.signedAt} < ((${q.signedTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
         : undefined,
-      q.q ? or(ilike(lead.company, contains(q.q)), ilike(contract.code, contains(q.q))) : undefined,
+      q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
     ]
   }
 
@@ -677,8 +680,8 @@ export class ContractRepository {
     return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
   }
 
-  private async count(where: SQL | undefined): Promise<number> {
-    const [r] = await this.db
+  private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
+    const [r] = await db
       .select({ n: count() })
       .from(contract)
       .innerJoin(lead, ON_LEAD)
@@ -686,6 +689,10 @@ export class ContractRepository {
     return r?.n ?? 0
   }
 }
+
+/** The two columns the book's search box reads. */
+const SEARCHED = [lead.company, contract.code]
+const probeOf = (q: string) => directProbe(sql`${contract} JOIN ${lead} ON ${ON_LEAD}`, SEARCHED, q)
 
 function groupByInstallment<T extends { installmentNo: number }>(rows: T[]): Map<number, T[]> {
   const by = new Map<number, T[]>()

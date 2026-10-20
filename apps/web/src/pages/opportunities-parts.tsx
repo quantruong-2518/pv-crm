@@ -27,6 +27,7 @@ import {
   opportunityFacetQuery,
   opportunityScorecardQuery,
 } from '@/data/opportunities'
+import { searchHint } from '@/lib/search-box'
 import { useCan } from '@/app/auth'
 import { opportunityStopReasonsQuery } from '@/data/opportunities-write'
 import { usePins } from '@/data/pins'
@@ -118,6 +119,7 @@ export function BookTools({
       <SearchField
         placeholder="Tìm theo tên, mã cơ hội hoặc khách hàng…"
         value={text}
+        meta={searchHint(text)}
         onChange={onText}
         className="min-w-0 flex-1 sm:max-w-[320px]"
       />

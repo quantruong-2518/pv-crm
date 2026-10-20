@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { PageQuery, SortDir, paged } from '../pagination'
 import {
   ObjectCode,
@@ -307,7 +308,7 @@ export const ContactBookQuery = PageQuery.extend({
   dir: SortDir.default('asc'),
   /** Name, mailbox or phone — one box, because somebody looking for a person
    *  types whichever of the three they remember. */
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   /** Only the primary contact of each lead. The switch a person flips when the
    *  question is "who do I call at each customer" rather than "who do we know". */
   primary: z.enum(['1']).optional(),

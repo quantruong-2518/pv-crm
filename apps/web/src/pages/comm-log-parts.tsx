@@ -36,6 +36,7 @@ import {
   subjectKindLabel,
 } from '@/data/comm-record-detail'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQuery } from '@/data/workstreams'
+import { searchableText } from '@/lib/search-box'
 
 /** Steps 1–3 of the manual log on a phone, plus the collapsed line a finished
  *  step folds into. Step 4 and the save live in `comm-log.tsx`.
@@ -123,7 +124,7 @@ export function PickWorkstream({ onPick }: { onPick: (ws: WorkstreamRow) => void
   const [q, setQ] = useState('')
 
   useEffect(() => {
-    const timer = setTimeout(() => setQ(typed.trim()), SEARCH_DELAY_MS)
+    const timer = setTimeout(() => setQ(searchableText(typed) ?? ''), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [typed])
 

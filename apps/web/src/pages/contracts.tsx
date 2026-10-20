@@ -20,6 +20,7 @@ import {
 } from '@pv/ui'
 import { ContractBookQuery, OWNER_NONE, type ContractStatusFilter } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
+import { searchHint } from '@/lib/search-box'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
 import { useSalesPeople } from '@/data/directory'
@@ -299,6 +300,7 @@ export function ContractsPage() {
               <SearchField
                 placeholder="Tìm theo mã hợp đồng hoặc tên khách hàng…"
                 value={book.text}
+                meta={searchHint(book.text)}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

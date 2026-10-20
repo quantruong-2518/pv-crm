@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import { Check, Lock, Plus, Search, TriangleAlert, Users, X } from '@pv/ui'
 import { Avatar, Button, GlassCard, Icon, Input, Modal, Select, cn } from '@pv/ui'
 import { SALES_INBOX } from '@pv/contracts'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
 import type { LetterContact } from '@/data/mail-letters'
 import type { ToCell } from './letter-model'
 
@@ -173,12 +174,9 @@ export function RecipientPicker({
   onDrop: (code: string) => void
 }) {
   const [query, setQuery] = useState('')
-  const q = query.trim().toLowerCase()
   const picked = new Set(cells.map((cell) => cell.code))
-  const found = (pool ?? []).filter(
-    (row) =>
-      !picked.has(row.code) && (!q || `${row.name} ${row.email ?? ''}`.toLowerCase().includes(q)),
-  )
+  const left = (pool ?? []).filter((row) => !picked.has(row.code))
+  const found = fuzzyRank(left, query, (row) => [row.name, row.email])
   const close = () => {
     setQuery('')
     onClose()

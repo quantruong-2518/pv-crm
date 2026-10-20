@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AppShell, Badge, Button, Chip, ScreenLayout, SearchField, type TableSort } from '@pv/ui'
 import { ContactBookQuery, ContactSortKey, type ContactBookRow } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
+import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { contactBookQuery } from '@/data/contacts'
@@ -188,6 +189,7 @@ export default function ContactsPage() {
               <SearchField
                 placeholder="Tìm theo tên, email hoặc số điện thoại…"
                 value={book.text}
+                meta={searchHint(book.text)}
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />

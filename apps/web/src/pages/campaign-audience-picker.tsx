@@ -31,6 +31,7 @@ import { LEAD_CATEGORIES, LEAD_TIERS } from '@/data/campaigns'
 import { useSalesPeople } from '@/data/directory'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { NO_OWNER_TITLE, leadBookQuery } from '@/data/leads'
+import { searchableText } from '@/lib/search-box'
 
 /** Module 1 · the campaign audience's PICKER — the lead table inside the
  *  add-recipients drawer. Split from `campaign-audience-parts.tsx` (max-lines); it wears
@@ -91,7 +92,8 @@ export function AudiencePicker({
   const [filters, setFilters] = useState(NO_PICKER_FILTERS)
 
   useEffect(() => {
-    const timer = setTimeout(() => setSearch(text.trim().slice(0, SEARCH_MAX)), SEARCH_DELAY_MS)
+    const typed = searchableText(text.trim().slice(0, SEARCH_MAX)) ?? ''
+    const timer = setTimeout(() => setSearch(typed), SEARCH_DELAY_MS)
     return () => clearTimeout(timer)
   }, [text])
 

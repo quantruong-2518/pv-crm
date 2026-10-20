@@ -1,9 +1,9 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccountBookQuery, AccountFacetsQuery, LeadCategory } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { leadLive } from '../lead/lead-scope'
@@ -14,6 +14,12 @@ import { toVndSql } from '../money'
 import { account, type AccountRowDb } from './account.schema'
 import type { AccountValues } from './account.mapper'
 import { seqCodes } from '../code-seq'
+
+/** Columns the search box reads, for both the filter and the rank. */
+const SEARCHED = [account.name, account.legalName, account.taxCode, account.code]
+
+/** Shared with the facets repository: one answer per book. */
+export const accountProbe = (q: string) => directProbe(sql`${account}`, SEARCHED, q)
 
 /** `AC-0001`. Drizzle has no expression node for `nextval`, so the sequence name
  *  is written out once here — the same trade `opportunity.repository.ts` and
@@ -195,8 +201,8 @@ export class AccountRepository {
   async book(q: AccountBookQuery): Promise<AccountBookPage> {
     const where = this.filtersOf(q)
 
-    const [rows, [tally]] = await Promise.all([
-      this.db
+    const rowsOf = (db: Db) =>
+      db
         .select({
           row: account,
           leads: LEAD_COUNT,
@@ -208,9 +214,13 @@ export class AccountRepository {
         .where(where)
         .orderBy(...this.orderBy(q))
         .limit(q.size)
-        .offset((q.page - 1) * q.size),
-      this.db.select({ n: count() }).from(account).where(where),
-    ])
+        .offset((q.page - 1) * q.size)
+    const tallyOf = (db: Db) => db.select({ n: count() }).from(account).where(where)
+
+    const [rows, [tally]] = await readsUnderFloor(this.db, q.q, accountProbe, [
+      rowsOf,
+      tallyOf,
+    ] as const)
 
     return {
       rows: rows.map((r) => ({
@@ -361,15 +371,7 @@ export class AccountRepository {
   filtersOf(q: AccountFacetsQuery): SQL | undefined {
     const parts: SQL[] = []
 
-    if (q.q !== undefined) {
-      const needle = contains(q.q)
-      const hit = or(
-        ilike(account.name, needle),
-        ilike(account.legalName, needle),
-        ilike(account.taxCode, needle),
-      )
-      if (hit) parts.push(hit)
-    }
+    if (q.q !== undefined) parts.push(fuzzyAny(SEARCHED, q.q))
 
     if (q.province !== undefined)
       parts.push(inArray(account.province, q.province.split(',').filter(Boolean)))
@@ -403,6 +405,7 @@ export class AccountRepository {
        forty companies all have zero deals would otherwise shuffle between two
        requests for the same page, and the pager would show the same company
        twice while hiding another. */
-    return [dir(column), asc(account.code)]
+    const rank = q.q ? [desc(fuzzyRank(SEARCHED, q.q))] : []
+    return [...rank, dir(column), asc(account.code)]
   }
 }

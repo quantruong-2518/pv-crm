@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, inArray, or, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type {
   MailRunListQuery,
@@ -7,7 +7,7 @@ import type {
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { createdWithin, csvOf } from '@api/platform/db/book-filter'
-import { contains } from '@api/platform/db/like'
+import { directProbe, fuzzyAny, fuzzyRank, underFloor } from '@api/platform/db/fuzzy'
 import { MAIL_STATE_RANK, MAIL_STATES, type MailState } from './mail.contract'
 import { mailRun, type MailRunRow } from './mail-run.schema'
 
@@ -184,6 +184,10 @@ export function stillEditable(runId: SQL, state: SQL): SQL {
              AND d."state" <> 'pending'
         )`
 }
+
+/** The one answer for the mail-run book, shared with the Sales visibility count. */
+export const MAIL_RUN_SEARCHED = [mailRun.label, mailRun.subject]
+export const mailRunProbe = (q: string) => directProbe(sql`${mailRun}`, MAIL_RUN_SEARCHED, q)
 
 /** A value list for `IN (…)`, as BIND PARAMETERS.
  *
@@ -375,22 +379,24 @@ export class MailRunRepository {
       query.state ? eq(mailRun.state, query.state) : undefined,
       query.createdBy ? inArray(mailRun.createdBy, csvOf(query.createdBy)) : undefined,
       ...createdWithin(mailRun.createdAt, query.createdFrom, query.createdTo),
-      query.q
-        ? or(ilike(mailRun.label, contains(query.q)), ilike(mailRun.subject, contains(query.q)))
-        : undefined,
+      query.q ? fuzzyAny(MAIL_RUN_SEARCHED, query.q) : undefined,
       onlyIds ? (onlyIds.length > 0 ? inArray(mailRun.id, [...onlyIds]) : sql`false`) : undefined,
     )
 
-    const [totals] = await this.db.select({ n: count() }).from(mailRun).where(where)
-    const total = totals?.n ?? 0
-
-    const rows = await this.db
-      .select()
-      .from(mailRun)
-      .where(where)
-      .orderBy(...this.orderBy(query))
-      .limit(query.size)
-      .offset((query.page - 1) * query.size)
+    /* With q, the best match leads the order; count and page share one tx under the `<%` floor. */
+    const rank = query.q ? [desc(fuzzyRank(MAIL_RUN_SEARCHED, query.q))] : []
+    const read = async (db: Db) => {
+      const [totals] = await db.select({ n: count() }).from(mailRun).where(where)
+      const rows = await db
+        .select()
+        .from(mailRun)
+        .where(where)
+        .orderBy(...rank, ...this.orderBy(query))
+        .limit(query.size)
+        .offset((query.page - 1) * query.size)
+      return { total: totals?.n ?? 0, rows }
+    }
+    const { total, rows } = await underFloor(this.db, query.q, mailRunProbe, read)
 
     const ids = rows.map((r) => r.id)
     const [deliveries, engagement] = await Promise.all([

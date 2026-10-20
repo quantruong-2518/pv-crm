@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { Day, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, paged, SortDir } from '../pagination'
 import { MailDoor, MailDoorSet, MAIL_DOOR_LEGACY } from './mail-door'
@@ -892,7 +893,7 @@ export const MailRunListQuery = PageQuery.extend({
   createdFrom: Day.optional(),
   createdTo: Day.optional(),
   /** Substring search over the run's `label` and `subject`. */
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   sort: MailRunSortKey.default('createdAt'),
   dir: SortDir.default('desc'),
 })

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { searchText } from '../search-text'
 import { Moment, Bool, ObjectCode, textInput } from '../primitives'
 import { LeadOriginId } from './lead-origin'
 
@@ -31,7 +32,7 @@ export const Partner = z.object({
 export type Partner = z.infer<typeof Partner>
 
 export const PartnerListQuery = z.object({
-  q: z.string().trim().min(1).max(120).optional(),
+  q: searchText,
   includeInactive: Bool.optional(),
 })
 export type PartnerListQuery = z.infer<typeof PartnerListQuery>

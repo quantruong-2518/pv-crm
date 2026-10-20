@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SEARCH_MAX_CHARS } from '../search-text'
 import { ObjectCode, Bool, Day, textInput } from '../primitives'
 import { LeadMotion } from './enums'
 
@@ -94,10 +95,11 @@ export const LeadOrigin = z.object({
 export type LeadOrigin = z.infer<typeof LeadOrigin>
 
 /** `GET /sales/lead-origins` — the picker's own search, not the book's
- *  filter facet (that one is `LeadFacets.origins`). */
+ *  filter facet (that one is `LeadFacets.origins`). `q` is not `searchText`:
+ *  it also looks up an existing key, and "FB" is a whole origin name. */
 export const LeadOriginListQuery = z.object({
   motion: LeadMotion.optional(),
-  q: z.string().trim().min(1).max(120).optional(),
+  q: z.string().trim().min(1).max(SEARCH_MAX_CHARS).optional(),
   includeInactive: Bool.optional(),
 })
 export type LeadOriginListQuery = z.infer<typeof LeadOriginListQuery>

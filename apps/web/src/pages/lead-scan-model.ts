@@ -9,7 +9,7 @@ import type {
   ScanOutcome,
 } from '@pv/contracts'
 import type { RailObject } from '@pv/ui'
-import { normalise } from '@/data/intake'
+import { fuzzyRank } from '@/lib/fuzzy-rank'
 import type { ReplaceJob } from '@/data/lead-scan-replace'
 import type { LocalFile, ScanRun } from '@/data/lead-scan-run'
 
@@ -176,13 +176,11 @@ export function filterGroups(
   groups: readonly ScanGroup[],
   f: { q: string; outcome: readonly string[] },
 ): ScanGroup[] {
-  const needle = normalise(f.q)
-  return groups.filter((g) => {
-    if (f.outcome.length > 0 && !f.outcome.includes(g.outcome)) return false
-    if (!needle) return true
-    const people = g.people.flatMap((p) => [p.name, p.title ?? '', p.email ?? ''])
-    const code = g.outcome === 'MERGE_INTO_LEAD' ? g.leadCode : (g.accountCode ?? '')
-    return normalise([g.company, g.meta, code, ...people].join(' ')).includes(needle)
+  const inOutcome = groups.filter((g) => f.outcome.length === 0 || f.outcome.includes(g.outcome))
+  return fuzzyRank(inOutcome, f.q, (g) => {
+    const people = g.people.flatMap((p) => [p.name, p.title, p.email])
+    const code = g.outcome === 'MERGE_INTO_LEAD' ? g.leadCode : g.accountCode
+    return [g.company, g.meta, code, ...people]
   })
 }
 

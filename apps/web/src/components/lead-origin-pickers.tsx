@@ -13,6 +13,7 @@ import { contactBookQuery } from '@/data/contacts'
 import { leadOriginsQuery, pickableCampaignsQuery, useOriginNames } from '@/data/lead-origins'
 import { partnerLabel, partnersQuery, useCreatePartner } from '@/data/partners'
 import { dm } from '@/lib/date'
+import { searchableText } from '@/lib/search-box'
 
 /** The search-as-you-type pickers of a lead's origin — origin, campaign and
  *  partner — plus `OriginSelect`, the short catalog list admin screens pin to.
@@ -140,7 +141,7 @@ export function CampaignPicker({
 }) {
   const [query, setQuery] = useState('')
   const q = useSettled(query.trim())
-  const { data, isFetching } = useQuery(pickableCampaignsQuery(q === '' ? undefined : q))
+  const { data, isFetching } = useQuery(pickableCampaignsQuery(searchableText(q)))
   const rows = data?.rows ?? []
 
   return (
@@ -209,17 +210,17 @@ export function PartnerPicker({
   const [query, setQuery] = useState('')
   const [pending, setPending] = useState<PendingReferrer | null>(null)
   const q = useSettled(query.trim())
-  const { data, isFetching } = useQuery(partnersQuery({ q: q === '' ? undefined : q }))
+  /* `q` still drives the create row and the name match; `search` is what the server may filter by. */
+  const search = searchableText(q)
+  const { data, isFetching } = useQuery(partnersQuery({ q: search }))
   const contacts = useQuery({
-    ...contactBookQuery(
-      ContactBookQuery.parse({ q: q === '' ? undefined : q, size: CONTACT_ROWS }),
-    ),
-    enabled: q !== '',
+    ...contactBookQuery(ContactBookQuery.parse({ q: search, size: CONTACT_ROWS })),
+    enabled: search !== undefined,
     placeholderData: keepPreviousData,
   })
   const originNames = useOriginNames()
   const rows = data?.rows ?? []
-  const people = q === '' ? [] : (contacts.data?.rows ?? [])
+  const people = search === undefined ? [] : (contacts.data?.rows ?? [])
   const named = (name: string) => name.trim().toLowerCase() === q.toLowerCase()
   const creatable =
     q !== '' && !rows.some((p) => named(p.name)) && !people.some((c) => named(c.name))
