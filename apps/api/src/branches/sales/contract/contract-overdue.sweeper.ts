@@ -1,12 +1,5 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { CONTRACT_INSTALLMENT_OVERDUE } from '@pv/engines'
-import { ENV, type Env } from '@api/platform/config/env'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository } from './contract.repository'
 import { ContractScheduleRepository } from './contract-schedule.repository'
@@ -19,35 +12,29 @@ const SWEEP_EVERY_MS = 60 * 60_000
  *  `<kind>/<contract>/<no>/<day>` and the ledger's UNIQUE keeps it to one line
  *  per owner per due date.
  *
- *  Self-timed: hourly and once at boot, off under `NODE_ENV=test`. It may
- *  overlap with the worker process — the second writer's row is dropped by
- *  that UNIQUE. No `actorId`: the system speaks. */
+ *  Rides the worker's existing tick (`worker.ts`), no clock of its own (ADR
+ *  0082 §2), throttled to one pass an hour the `HoldReminderSweeper` way. Only
+ *  the worker calls it; a second worker's row is dropped by that UNIQUE.
+ *  No `actorId`: the system speaks. */
 @Injectable()
-export class ContractOverdueSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
+export class ContractOverdueSweeper {
   private readonly log = new Logger('sales.contract')
-  private timer: NodeJS.Timeout | null = null
+  private notBefore = 0
+  private running = false
 
   constructor(
     private readonly repo: ContractRepository,
     private readonly schedule: ContractScheduleRepository,
     private readonly hub: NotificationHub,
-    @Inject(ENV) private readonly env: Env,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
-    this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
-    this.timer.unref()
-    void this.sweep()
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer)
-    this.timer = null
-  }
-
-  /** Never rejects: a failed sweep leaves the installments for the next tick. */
-  private async sweep(): Promise<void> {
+  /** Called on every worker tick. `null` = this tick was not a pass. The clock
+   *  moves BEFORE the pass so a failing database is asked again one interval later;
+   *  a failed pass leaves the installments for the next one. */
+  async sweep(now = Date.now()): Promise<number | null> {
+    if (this.running || now < this.notBefore) return null
+    this.notBefore = now + SWEEP_EVERY_MS
+    this.running = true
     try {
       /* `announce` writes inside its caller's transaction: one for the sweep. */
       const announced = await this.schedule.run(async (tx) => {
@@ -72,10 +59,9 @@ export class ContractOverdueSweeper implements OnApplicationBootstrap, OnApplica
       })
       /* Announced, not written: the hub drops a failed or duplicate line silently. */
       if (announced > 0) this.log.log(`Announced ${announced} overdue installments to the bell.`)
-    } catch (error: unknown) {
-      this.log.error(
-        `Overdue sweep failed: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      return announced
+    } finally {
+      this.running = false
     }
   }
 }

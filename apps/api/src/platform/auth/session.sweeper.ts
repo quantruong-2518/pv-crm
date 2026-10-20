@@ -1,11 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
-import { ENV, type Env } from '../config/env'
+import { Injectable, Logger } from '@nestjs/common'
 import { AuthRepository } from './auth.repository'
 
 /** Hourly. Nothing about the number is precious — see below. */
@@ -37,57 +30,34 @@ const SWEEP_EVERY_MS = 60 * 60_000
  *  `PV_QUEUE_POLL_SECONDS` is documented with.
  *
  *  ------------------------------------------------------------------
- *  OFF UNDER `NODE_ENV=test`, AND DUPLICATED IN THE WORKER ON PURPOSE
+ *  RIDES THE WORKER'S TICK, NO CLOCK OF ITS OWN
  *  ------------------------------------------------------------------
- *  A test that builds the DI container should not acquire a background timer
- *  that outlives it and writes to a database.
- *
- *  `worker.ts` imports `AppModule`, so the worker process runs this sweep too
- *  and the two processes overlap. That is left alone deliberately rather than
- *  fenced off with a flag: the statement is an idempotent `DELETE` over an
- *  indexed range, so the second one finds nothing and costs one round trip an
- *  hour. A flag to prevent it would be a new way to configure the system wrong
- *  in exchange for saving two queries a day. */
+ *  `worker.ts` calls `sweep` on every tick and the throttle below keeps it to
+ *  one pass an hour (ADR 0082 §2). API machines never run it: a timer per
+ *  machine repeated the same `DELETE` and kept each one's pool busy. The first
+ *  tick after a worker boots is the boot pass, so redeploying often cannot
+ *  starve the table of its sweep. */
 @Injectable()
-export class SessionSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
+export class SessionSweeper {
   private readonly log = new Logger('auth')
-  private timer: NodeJS.Timeout | null = null
+  private notBefore = 0
+  private running = false
 
-  constructor(
-    private readonly repo: AuthRepository,
-    @Inject(ENV) private readonly env: Env,
-  ) {}
+  constructor(private readonly repo: AuthRepository) {}
 
-  onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
-
-    this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
-    /* Do not hold the process open for a housekeeping timer. Same call as
-       `worker.ts` makes for its own poll loop. */
-    this.timer.unref()
-
-    /* Once at boot as well as on the interval. A machine that is redeployed
-       every few hours would otherwise never reach the first tick, and the
-       table would grow for exactly as long as the deploy cadence stays below
-       the sweep cadence — a backlog caused by shipping often. */
-    void this.sweep()
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer)
-    this.timer = null
-  }
-
-  /** Never rejects. A sweep that fails — Neon dropping the connection, a
-   *  deploy landing mid-statement — must not become an unhandled rejection
-   *  that takes the process down; the rows are still there and the next tick
-   *  removes them. Same reasoning as the relay loop in `worker.ts`. */
-  private async sweep(): Promise<void> {
+  /** Called on every worker tick. `null` = this tick was not a pass. The clock
+   *  moves BEFORE the pass so a failing database is asked again one interval
+   *  later; the rows are still there for the next one. */
+  async sweep(now = Date.now()): Promise<number | null> {
+    if (this.running || now < this.notBefore) return null
+    this.notBefore = now + SWEEP_EVERY_MS
+    this.running = true
     try {
       const removed = await this.repo.sweepExpiredSessions()
       if (removed > 0) this.log.log(`Quét phiên hết hạn: xoá ${removed} dòng.`)
-    } catch (error: unknown) {
-      this.log.error(`Quét phiên lỗi: ${error instanceof Error ? error.message : String(error)}`)
+      return removed
+    } finally {
+      this.running = false
     }
   }
 }

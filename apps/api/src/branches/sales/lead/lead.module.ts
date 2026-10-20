@@ -142,7 +142,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadScanRepository,
     LeadScanService,
     LeadScanCommit,
-    /* Self-timed like `SessionSweeper`, so it needs no line in `worker.ts`. */
+    /* Ticked by `worker.ts`, which finds it anywhere in the tree. */
     LeadScanSweeper,
     /* What `worker.ts` runs for the two scan queues — `platform/` cannot name us. */
     {

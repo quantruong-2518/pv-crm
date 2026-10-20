@@ -17,7 +17,7 @@ const SWEEP_EVERY_MS = 60 * 60_000
 
 /** Deletes read bell lines past `KEEP_READ_DAYS`.
  *
- *  Self-timed like `SessionSweeper`: hourly and once at boot, off under
+ *  Self-timed: hourly and once at boot, off under
  *  `NODE_ENV=test`. Unlike it, only the worker process runs it: one pass an
  *  hour is enough, the worker group always runs, and every API machine would
  *  otherwise repeat the same statement for nothing.

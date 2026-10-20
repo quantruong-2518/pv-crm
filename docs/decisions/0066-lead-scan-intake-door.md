@@ -115,7 +115,7 @@ opting into marketing mail.
 ### 7 · Retention: one sweep every 15 minutes, keyed to what each row is waiting on
 
 `LeadScanSweeper` (`apps/api/src/branches/sales/lead/lead-scan.sweeper.ts`)
-runs on the 15-minute rung itself, in both the API process and the worker,
+runs on the 15-minute rung itself, on the worker's tick only (amended 20/10/2026),
 because a daily pace would leave a batch stuck for up to a day before the
 15-minute rule ever got to look at it:
 

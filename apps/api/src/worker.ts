@@ -11,15 +11,18 @@ import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { HoldReminderModule } from './branches/sales/hold/hold-reminder.module'
 import { HoldReminderSweeper } from './branches/sales/hold/hold-reminder.sweeper'
+import { ContractOverdueSweeper } from './branches/sales/contract/contract-overdue.sweeper'
 import { KpiAlertSweeper } from './branches/sales/kpi/kpi-alert.sweeper'
 import { MeetingCancelSweeper } from './branches/sales/meeting/meeting-cancel.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
 import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
+import { LeadScanSweeper } from './branches/sales/lead/lead-scan.sweeper'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
+import { SessionSweeper } from './platform/auth/session.sweeper'
 import { MailModule } from './platform/mail/mail.module'
 import { GmailThreadSweeper } from './platform/mail/gmail-thread.sweeper'
 import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
@@ -131,6 +134,9 @@ async function bootstrap(): Promise<void> {
   const holds = app.get(HoldReminderSweeper)
   const meetings = app.get(MeetingCancelSweeper)
   const kpiAlerts = app.get(KpiAlertSweeper)
+  const overdue = app.get(ContractOverdueSweeper)
+  const leadScans = app.get(LeadScanSweeper)
+  const sessions = app.get(SessionSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
      trình HTTP cũng cần lược đồ và cần hàng đợi tồn tại trước khi `send`, nên
@@ -261,6 +267,10 @@ async function bootstrap(): Promise<void> {
   const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
   // Same: one pass a day, the first tick after boot is the boot pass.
   const sweepKpiAlerts = pass('KPI alert sweep failed', () => kpiAlerts.sweep())
+  // Same: contract overdue bells hourly, scan expiry every 15 minutes, expired sessions hourly.
+  const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
+  const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
+  const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
   const sweep = setInterval(() => {
     sweepRelay()
     sweepRuns()
@@ -269,6 +279,9 @@ async function bootstrap(): Promise<void> {
     sweepHolds()
     sweepMeetings()
     sweepKpiAlerts()
+    sweepOverdue()
+    sweepLeadScans()
+    sweepSessions()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
   sweep.unref()

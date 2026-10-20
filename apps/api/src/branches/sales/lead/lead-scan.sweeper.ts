@@ -1,12 +1,5 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  type OnApplicationBootstrap,
-  type OnApplicationShutdown,
-} from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import { LEAD_SCAN_FAILED, LEAD_SCAN_READY } from '@pv/engines'
-import { ENV, type Env } from '@api/platform/config/env'
 import { StorageService } from '@api/platform/storage/storage.service'
 import { LeadIntakeRepository } from './lead-intake.repository'
 import { COMMIT_FAILED } from './lead-scan.commit'
@@ -14,11 +7,11 @@ import { LeadScanRepository } from './lead-scan.repository'
 import { FILE_FAILED, LeadScanService } from './lead-scan.service'
 
 /** Retention and dead-worker cleanup for the scan door, plus the landing
- *  intake's stale rate counters (one pass, no timer of their own). Self-timed like
- *  `SessionSweeper`, so it also runs in the worker; every statement is
- *  conditional and `remove` treats absent as success, so two passes overlap
- *  harmlessly. Rows are deleted BEFORE their objects: a failed removal
- *  leaves orphan bytes, never a row pointing at nothing. */
+ *  intake's stale rate counters (one pass). Rides the worker's existing tick
+ *  (`worker.ts`), no clock of its own (ADR 0082 §2); only the worker calls it.
+ *  Every statement is conditional and `remove` treats absent as success, so a
+ *  second worker's pass is harmless. Rows are deleted BEFORE their objects: a
+ *  failed removal leaves orphan bytes, never a row pointing at nothing. */
 
 /** A browser that has not finished its PUTs in a day never will. */
 const UPLOAD_STALE_MS = 24 * 60 * 60_000
@@ -39,34 +32,27 @@ const FILE_UPLOAD_EXPIRED = 'Tệp này chưa tải lên xong trong một ngày.
 const ADDED_UPLOAD_EXPIRED = `Tệp này chưa tải lên xong trong ${WORK_STALE_MS / 60_000} phút.`
 
 @Injectable()
-export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShutdown {
+export class LeadScanSweeper {
   private readonly log = new Logger('sales.scan')
-  private timer: NodeJS.Timeout | null = null
+  private notBefore = 0
+  private running = false
 
   constructor(
     private readonly repo: LeadScanRepository,
     private readonly storage: StorageService,
-    @Inject(ENV) private readonly env: Env,
     private readonly scans: LeadScanService,
     private readonly intake: LeadIntakeRepository,
   ) {}
 
-  onApplicationBootstrap(): void {
-    if (this.env.NODE_ENV === 'test') return
-    this.timer = setInterval(() => void this.sweep(), SWEEP_EVERY_MS)
-    this.timer.unref()
-    void this.sweep()
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer)
-    this.timer = null
-  }
-
-  /** Never rejects. Public so a script can run one pass on demand. */
-  async sweep(now = Date.now()): Promise<void> {
+  /** Called on every worker tick. `null` = this tick was not a pass. The clock
+   *  moves BEFORE the pass so a failing database is asked again one interval later;
+   *  a failed pass leaves its rows for the next one. */
+  async sweep(now = Date.now()): Promise<number | null> {
+    if (this.running || now < this.notBefore) return null
+    this.notBefore = now + SWEEP_EVERY_MS
+    this.running = true
     try {
-      await this.repo.run(async (tx) => {
+      const expired = await this.repo.run(async (tx) => {
         const uploads = await this.repo.expireBatches(
           tx,
           'UPLOADING',
@@ -107,6 +93,7 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
         }
         const touched = uploads.length + reads.length + commits.length
         if (touched > 0) this.log.log(`scan: expired ${touched} stuck batch(es)`)
+        return touched
       })
       /* Its own transaction: a purge that fails must not undo the expiries. */
       const keys = await this.repo.run((tx) =>
@@ -119,8 +106,9 @@ export class LeadScanSweeper implements OnApplicationBootstrap, OnApplicationShu
       }
       if (keys.length > 0) this.log.log(`scan: removed ${keys.length} unlinked object(s)`)
       await this.intake.purgeStale()
-    } catch (error: unknown) {
-      this.log.error(`scan sweep failed: ${error instanceof Error ? error.message : String(error)}`)
+      return expired + keys.length
+    } finally {
+      this.running = false
     }
   }
 }

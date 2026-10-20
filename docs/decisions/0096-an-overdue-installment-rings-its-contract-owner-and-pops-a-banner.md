@@ -15,9 +15,9 @@ reminders and §1 names it important by default; wave 3 had not started.
 ### 1 · One bell line per installment and due day
 
 Kind `contract-installment-overdue`, subject kind `contract` (code = contract
-code), new group `contract` ("Hợp đồng"). An hourly self-timed sweeper
-(`apps/api/src/branches/sales/contract/contract-overdue.sweeper.ts`), built like
-`CommLateSweeper`: once at boot, off under test, overlapping with the worker.
+code), new group `contract` ("Hợp đồng"). An hourly sweeper
+(`apps/api/src/branches/sales/contract/contract-overdue.sweeper.ts`) on the
+worker's tick (ADR 0082 §2); only the worker runs it (amended 20/10/2026).
 
 - **What rings.** An unpaid installment with `due < now()` on a live lead
   (`ContractRepository.overdueUntold`), kept only when `dueLevelOf` in

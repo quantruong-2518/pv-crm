@@ -647,7 +647,7 @@
   },
   "apps/api/src/platform/auth/session.sweeper.ts": {
     "aurora/comment-budget": {
-      "count": 2
+      "count": 1
     }
   },
   "apps/api/src/platform/auth/token.ts": {
