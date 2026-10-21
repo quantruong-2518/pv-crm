@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Chip,
   Icon,
+  Lock,
   StatusDot,
   cn,
 } from '@pv/ui'
@@ -456,7 +457,20 @@ export function ContractCard({
         )}
       </div>
       <Rail rungs={railOf('contract', contract.rungs, late)} />
-      <Holder person={contract.holder} />
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-muted-foreground text-[12px]">Người chốt</span>
+          <Holder person={contract.holder} />
+        </span>
+        {contract.canEdit === false && (
+          <span className="text-muted-foreground flex items-center gap-2 text-[12px]">
+            <Icon icon={Lock} size={14} className="shrink-0" />
+            <span className="min-w-0 break-words">
+              Chỉ xem{contract.holder && ` · ${contract.holder.name} phụ trách`}
+            </span>
+          </span>
+        )}
+      </span>
       {open && <ContractInside contract={contract} />}
     </Card>
   )

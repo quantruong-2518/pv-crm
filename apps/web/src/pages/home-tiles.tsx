@@ -42,8 +42,8 @@ import {
  *  the open book carries a "now" line instead. The hero is `home-signed.tsx`. */
 
 /** Shared with the chart tiles: only the measured mark moves, never the tile
- *  (the global reduced-motion rule in the token file switches both off). */
-export const GROW_WIDTH = 'transition-[width] duration-(--motion-duration) ease-(--motion-ease)'
+ *  (the global reduced-motion rule in the token file switches both off).
+ *  The width twin lives in `components/period-picker-style.ts`. */
 export const GROW_HEIGHT = 'transition-[height] duration-(--motion-duration) ease-(--motion-ease)'
 
 export const TILE = 'flex min-w-0 flex-col gap-3 p-4'

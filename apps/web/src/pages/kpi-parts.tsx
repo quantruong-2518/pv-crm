@@ -23,7 +23,8 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { keyOf, periodLabel, type PeriodPick } from './home-model'
-import { GROW_WIDTH, NOTE, TILE } from './home-tiles'
+import { GROW_WIDTH } from '@/components/period-picker-style'
+import { NOTE, TILE } from './home-tiles'
 import {
   boardOf,
   BAR_FILL,

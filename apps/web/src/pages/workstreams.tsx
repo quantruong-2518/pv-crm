@@ -1,54 +1,61 @@
+import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Button,
-  CalendarClock,
   ScreenLayout,
   SearchField,
   SegmentedControl,
-  type TableColumn,
   type TableSort,
 } from '@pv/ui'
 import {
   WorkstreamBookQuery,
   WorkstreamSortKey,
   WorkstreamStatus,
+  vnDayOf,
   type WorkstreamRow,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import { dmy } from '@/lib/date'
+import { keyOf } from '@/data/period-pick'
 import {
   DEFAULT_WORKSTREAM_BOOK_QUERY,
   WORKSTREAM_STATUS_LABEL,
   parseBoardView,
   withBoardParams,
   workstreamBookQuery,
+  workstreamScorecardQuery,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
-import { dayRangeChip, type ActiveFilter } from '@/components/active-filters'
+import { PeriodPicker, PeriodProgress } from '@/components/period-picker'
 import { TableFooter } from '@/components/table-bits'
-import { ContactCell, CustomerCell, StandCell, StatusCell } from '@/components/workstream-cells'
+import {
+  CustomerLines,
+  InChargeCell,
+  LastContactCell,
+  NextStepCell,
+  StandCell,
+} from '@/components/workstream-cells'
 import { WorkstreamsBoard } from './workstreams-board'
+import { columns, filterChips } from './workstreams-model'
+import { OverdueToggle } from './workstreams-parts'
+import { useBookPeriod } from './workstreams-period'
 import { WorkstreamScoreStrip } from './workstreams-score'
 import { ViewSwitch } from './workstreams-board-parts'
 
 /** The workstream book — `/sales/workstreams`. One row per customer journey run.
  *
- *  Only what the server can filter is offered: status tabs, search, the account
- *  chip, and the strip's rung bars and overdue card. Sort is customer, start
- *  date, or the server's priority ladder (the default). Filters live in the
- *  address (`app/book-query.ts`). No close reason / channel filter yet: the
- *  contract takes those single-valued, and a filter held in the browser only
- *  filters the page the server happened to send.
+ *  Only what the server can filter is offered: status tabs, search, the overdue
+ *  toggle and the four period cards. Sort is customer or the server's priority
+ *  ladder (the default). Filters live in the address (`app/book-query.ts`), the
+ *  period beside them (`workstreams-period.ts`). A filter held in the browser
+ *  only filters the page the server happened to send, so none is offered.
  *
  *  No ContextRail (law 10), the same conscious debt `pages/opportunities.tsx`
  *  records: a book has no open object to build a chain from. */
-
-type Go = (path: string) => void
 
 /* Rows per page: the contract's own default, restated for `useBookQuery` so the
    address never carries a `size` nobody chose. */
@@ -68,6 +75,8 @@ const FILTER_KEYS = [
   'liveTo',
   'closedFrom',
   'closedTo',
+  'openedFrom',
+  'openedTo',
 ] as const
 
 /* Built from the shared label table, not typed out again: the board names the
@@ -76,75 +85,13 @@ const STATUS_OPTIONS: { value: WorkstreamStatus; label: string }[] = WorkstreamS
   (value) => ({ value, label: WORKSTREAM_STATUS_LABEL[value] }),
 )
 
-/* Ordered by the question the book answers first: whose journey, where it
-   stands, whether it needs action, then the history. Holders and the journey
-   code are not columns: the detail page names them. */
-const columns: TableColumn[] = [
-  { header: 'Khách hàng', width: 'minmax(220px,2.4fr)', sortKey: 'customer' },
-  { header: 'Giai đoạn hiện tại', width: 'minmax(260px,2.4fr)' },
-  { header: 'Tình trạng', width: 'minmax(160px,1.2fr)', sortKey: 'priority' },
-  { header: 'Lịch sử liên hệ', width: 'minmax(200px,1.4fr)' },
-  { header: 'Ngày bắt đầu', width: '128px', sortKey: 'openedAt' },
-]
-
-/** The overdue card, the overview's runs tile and an account link narrow the
- *  book with no control of their own on the toolbar, so each gets a removable chip. */
-function filterChips(
-  query: WorkstreamBookQuery,
-  patch: (next: Partial<WorkstreamBookQuery>) => void,
-): ActiveFilter[] {
+function rowCells(row: WorkstreamRow, go: (path: string) => void, today: string) {
   return [
-    ...(query.overdue === true
-      ? [
-          {
-            id: 'overdue',
-            label: 'Quá hạn',
-            aria: 'Bỏ lọc quá hạn',
-            icon: CalendarClock,
-            className: 'text-on-tint-warning',
-            onDrop: () => patch({ overdue: undefined }),
-          },
-        ]
-      : []),
-    ...(query.stopped === true
-      ? [
-          {
-            id: 'stopped',
-            label: 'Đã dừng',
-            aria: 'Bỏ lọc hành trình đã dừng',
-            onDrop: () => patch({ stopped: undefined }),
-          },
-        ]
-      : []),
-    ...dayRangeChip('live', 'Đang chạy trong', query.liveFrom, query.liveTo, () =>
-      patch({ liveFrom: undefined, liveTo: undefined }),
-    ),
-    ...dayRangeChip('closed', 'Ngày đóng', query.closedFrom, query.closedTo, () =>
-      patch({ closedFrom: undefined, closedTo: undefined }),
-    ),
-    ...(query.accountCode !== undefined
-      ? [
-          {
-            id: 'accountCode',
-            label: query.accountCode,
-            aria: `Bỏ lọc theo công ty ${query.accountCode}`,
-            className: 'font-mono',
-            onDrop: () => patch({ accountCode: undefined }),
-          },
-        ]
-      : []),
-  ]
-}
-
-function rowCells(row: WorkstreamRow, go: Go) {
-  return [
-    <CustomerCell key="customer" row={row} go={go} />,
+    <CustomerLines key="customer" row={row} go={go} />,
     <StandCell key="stand" row={row} go={go} />,
-    <StatusCell key="status" row={row} />,
-    <ContactCell key="contact" row={row} />,
-    <span key="opened" className="tnum font-num text-muted-foreground">
-      {dmy(row.openedAt)}
-    </span>,
+    <NextStepCell key="next" row={row} />,
+    <InChargeCell key="charge" row={row} />,
+    <LastContactCell key="contact" row={row} today={today} />,
   ]
 }
 
@@ -165,6 +112,11 @@ function WorkstreamsBook() {
   const { query, text, setText, patch, goPage, clear: clearAll, dirty } = book
 
   const { data, isPending, error, refetch } = useQuery(workstreamBookQuery(query))
+  const [pick, onPick] = useBookPeriod()
+  const score = useQuery(workstreamScorecardQuery(keyOf(pick)))
+  const inPeriod = score.data?.inPeriod
+  /* One clock read for the screen: a redraw never moves "yesterday". */
+  const [today] = useState(() => vnDayOf(new Date()))
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
@@ -196,7 +148,22 @@ function WorkstreamsBook() {
       <ScreenLayout>
         <BookPage
           title="Sổ hành trình"
-          score={<WorkstreamScoreStrip query={query} patch={patch} />}
+          description={
+            inPeriod ? (
+              <PeriodProgress data={inPeriod} />
+            ) : (
+              <span aria-hidden className="block h-4" />
+            )
+          }
+          actions={<PeriodPicker pick={pick} onPick={onPick} />}
+          score={
+            <WorkstreamScoreStrip
+              query={query}
+              patch={patch}
+              data={inPeriod}
+              stale={score.isPlaceholderData}
+            />
+          }
           tabs={
             <SegmentedControl
               label="Trạng thái"
@@ -221,6 +188,7 @@ function WorkstreamsBook() {
                 onChange={setText}
                 className="min-w-0 flex-1 max-sm:basis-full sm:max-w-[320px]"
               />
+              <OverdueToggle query={query} patch={patch} count={score.data?.overdue} />
               {dirty && (
                 <Button
                   size="md"
@@ -265,14 +233,14 @@ function WorkstreamsBook() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[1000px]',
+            minWidth: 'min-w-[1040px]',
             sort: tableSort,
             onSort,
             columns,
             rows: rows.map((row) => ({
               id: row.code,
               onOpen: () => navigate(`/sales/workstreams/${encodeURIComponent(row.code)}`),
-              cells: rowCells(row, navigate),
+              cells: rowCells(row, navigate, today),
             })),
           }}
           footer={

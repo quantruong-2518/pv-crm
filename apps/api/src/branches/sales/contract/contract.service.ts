@@ -11,6 +11,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { notFound } from '@api/platform/http/problem'
 import { toBookRow, toDetail, toRef } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
+import { mayWriteContract } from './contract-writer'
 
 /** The contract book — read only, and the only place that holds both the
  *  repository and an engine.
@@ -85,6 +86,9 @@ export class ContractService {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('hợp đồng', code)
 
-    return ContractDetailResponse.parse(toDetail(found))
+    return ContractDetailResponse.parse({
+      ...toDetail(found),
+      canEdit: mayWriteContract(who, found.row.ownerId),
+    })
   }
 }

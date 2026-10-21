@@ -8,8 +8,6 @@ import {
 } from '@pv/contracts'
 import {
   AppShell,
-  ChevronLeft,
-  ChevronRight,
   Icon,
   Phone,
   Plus,
@@ -23,30 +21,16 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
+import { currentPick, keyOf } from '@/data/period-pick'
 import { workstreamBookQuery } from '@/data/workstreams'
+import { PeriodPicker, PeriodProgress } from '@/components/period-picker'
+import { SOFT_SHADOW } from '@/components/period-picker-style'
 import { ActivityTile } from './home-activity'
 import { FunnelTile } from './home-funnel'
-import {
-  GRAINS,
-  compareLabel,
-  currentPick,
-  keyOf,
-  periodLabel,
-  progressOf,
-  stepPick,
-  type PeriodPick,
-} from './home-period'
 import { daysOfPeriod, liveRunsQuery, stoppedRunsQuery } from './home-model'
 import { ReasonsTile } from './home-reasons'
 import { SignedTile } from './home-signed'
-import {
-  ChartsFailed,
-  GROW_WIDTH,
-  OpenValueTile,
-  RunsTile,
-  TileSkeleton,
-  WinRateTile,
-} from './home-tiles'
+import { ChartsFailed, OpenValueTile, RunsTile, TileSkeleton, WinRateTile } from './home-tiles'
 
 /** Screen 01 · Overview — a bento of sales figures.
  *
@@ -81,109 +65,6 @@ const ENTER =
   'starting:translate-y-3 starting:opacity-0 transition-[opacity,translate] duration-500 ease-(--motion-ease) motion-reduce:transition-none'
 const PRESS =
   'transition-[translate,scale,box-shadow,filter,background-color] duration-200 ease-(--motion-ease) hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-ring focus-visible:outline-2'
-const SOFT_SHADOW =
-  'shadow-[0_1px_2px_color-mix(in_srgb,var(--brand-navy)_6%,transparent),0_6px_18px_color-mix(in_srgb,var(--brand-navy)_8%,transparent)]'
-const NAVY_GRADIENT =
-  'bg-[linear-gradient(135deg,color-mix(in_srgb,var(--brand-blue)_45%,var(--brand-navy)),var(--brand-navy))]'
-const NAVY_LIFT = 'shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-navy)_22%,transparent)]'
-const ROUND_ICON =
-  'pointer-coarse:size-12 text-foreground hover:bg-surface-ink/8 flex size-9 items-center justify-center rounded-full disabled:opacity-50 disabled:hover:bg-transparent'
-
-function StepButton({
-  icon,
-  label,
-  target,
-  onPick,
-}: {
-  icon: IconGlyph
-  label: string
-  target: PeriodPick | null
-  onPick: (next: PeriodPick) => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={target === null}
-      onClick={() => target && onPick(target)}
-      className={cn(ROUND_ICON, 'focus-visible:outline-ring focus-visible:outline-2')}
-    >
-      <Icon icon={icon} size={16} />
-    </button>
-  )
-}
-
-function PeriodPicker({ pick, onPick }: { pick: PeriodPick; onPick: (next: PeriodPick) => void }) {
-  return (
-    <div
-      role="group"
-      aria-label="Chọn kỳ"
-      className={cn('bg-card/80 flex flex-wrap items-center gap-1 rounded-full p-1', SOFT_SHADOW)}
-    >
-      {GRAINS.map((g) => {
-        const on = g.value === pick.grain
-        return (
-          <button
-            key={g.value}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onPick({ ...pick, grain: g.value })}
-            className={cn(
-              'pointer-coarse:h-12 h-9 min-w-[60px] rounded-full px-3 text-[13px] font-semibold',
-              'duration-(--motion-duration) ease-(--motion-ease) transition-[background-color,color] motion-reduce:transition-none',
-              'focus-visible:outline-ring focus-visible:outline-2',
-              on
-                ? cn(NAVY_GRADIENT, NAVY_LIFT, 'text-primary-foreground')
-                : 'text-muted-foreground hover:bg-surface-ink/8',
-            )}
-          >
-            {g.label}
-          </button>
-        )
-      })}
-      <span aria-hidden className="bg-surface-ink/12 mx-1 block h-5 w-px" />
-      <StepButton icon={ChevronLeft} label="Kỳ trước" target={stepPick(pick, -1)} onPick={onPick} />
-      <span
-        aria-live="polite"
-        className="tnum min-w-28 text-center text-[13px] font-semibold leading-5"
-      >
-        {periodLabel(keyOf(pick))}
-      </span>
-      <StepButton icon={ChevronRight} label="Kỳ sau" target={stepPick(pick, 1)} onPick={onPick} />
-    </div>
-  )
-}
-
-/** Names the data's own period, not the picker's, so a kept placeholder stays
- *  truthful. A finished period has no days left to count, so it gets no bar. */
-function PeriodProgress({ data }: { data: SalesPerformanceResponse }) {
-  const { ran, total } = progressOf(data)
-  const compare = compareLabel(data)
-  if (ran === total) {
-    return (
-      <span className="tnum font-num">{compare.charAt(0).toUpperCase() + compare.slice(1)}</span>
-    )
-  }
-  return (
-    <span className="flex flex-wrap items-center gap-3">
-      <span
-        aria-hidden
-        className="bg-surface-ink/8 block h-1.5 w-[120px] overflow-hidden rounded-full"
-      >
-        <span
-          className={cn(
-            'block h-full rounded-full bg-[linear-gradient(90deg,var(--channel-meeting),var(--primary))]',
-            GROW_WIDTH,
-          )}
-          style={{ width: `${(ran / total) * 100}%` }}
-        />
-      </span>
-      <span className="tnum font-num">
-        Đã qua {ran}/{total} ngày · {compare}
-      </span>
-    </span>
-  )
-}
 
 const PILL =
   'pointer-coarse:h-12 inline-flex h-10 items-center gap-2 rounded-full pl-1 pr-4 text-[13px] font-semibold'

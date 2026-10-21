@@ -11,7 +11,7 @@ import {
 } from '@pv/ui'
 import type { SalesPerformanceResponse } from '@pv/contracts'
 import { deltaOf, num, type Delta } from './home-model'
-import { bucketViews, type BucketView } from './home-period'
+import { bucketViews, type BucketView } from '@/data/period-pick'
 import { LIFT, ToneTile } from './home-funnel'
 
 /** The week view of row two: three counts per day on one shared axis, so a

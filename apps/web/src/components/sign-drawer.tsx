@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Chip, Drawer, Select } from '@pv/ui'
 import {
   ContractSign,
+  isSellerRole,
   type ContractKind,
   type CurrencyCode,
   type InstallmentDraft,
@@ -9,8 +10,9 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { useSalesPeople } from '@/data/directory'
+import { useDirectory, useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
 import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
@@ -42,7 +44,7 @@ type SignForm = {
   currency: CurrencyCode | ''
   /** `YYYY-MM-DD`, as `<input type="date">` reads. */
   signedDate: string
-  /** Seeded from the row's `holder`; `''` = no override is sent. */
+  /** The closer: the signed-in seller, else the row's `holder`; `''` = no override is sent. */
   ownerId: string
   /** The pending quotation round this signature wins; `''` = none picked. */
   quotationId: string
@@ -116,11 +118,16 @@ type Props = {
 }
 
 export function SignDrawer({ op, open, onClose, quotationId }: Props) {
-  const people = useSalesPeople()
+  const salesPeople = useSalesPeople()
+  const directory = useDirectory()
   const resolveKind = useContractKindLabel()
   const sign = useSignContract(op.code)
   const direct = op.signsDirect
   const again = op.state === 'won'
+  /* Primitives, not the actor: a renewed ticket hands over a new object, and
+     that must not reseed a form someone is typing into. */
+  const meId = useSession((s) => s.actor?.id)
+  const meSells = useSession((s) => isSellerRole(s.actor?.roleIds))
 
   /* `op` keeps its reference between react-query renders, so the seed does too
      and the effect below never reseeds over a box being typed into. */
@@ -130,11 +137,11 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
       amount: again ? null : op.amount,
       currency: op.currency ?? '',
       signedDate: localDay(new Date()),
-      ownerId: op.holder?.id ?? '',
+      ownerId: (meSells && meId) || (op.holder?.id ?? ''),
       quotationId: '',
       installments: [],
     }),
-    [op, again],
+    [op, again, meId, meSells],
   )
 
   const [form, setForm] = useState<SignForm>(seed)
@@ -145,6 +152,12 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
     if (!open) return
     setForm(quotationId ? lend(seed, op, quotationId) : seed)
   }, [open, seed, op, quotationId])
+
+  /* Only sellers may close; the current value stays so the select never shows blank. */
+  const people = [
+    ...salesPeople.filter((a) => isSellerRole(a.roleIds)),
+    ...directory.filter((a) => a.id === form.ownerId && !isSellerRole(a.roleIds)),
+  ]
 
   const set = <K extends keyof SignForm>(key: K, value: SignForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }))

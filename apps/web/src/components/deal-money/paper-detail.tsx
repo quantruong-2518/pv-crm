@@ -168,6 +168,8 @@ function SignedPaper({
           workstreamCode={workstreamCode}
           contractCode={c.code}
           count={c.files.contract}
+          /* The server ANDs both flags with the closer rule (ADR 0110). */
+          canEdit={c.can.editSchedule || c.can.recordPayment}
         />
       </div>
     </div>

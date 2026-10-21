@@ -31,6 +31,7 @@ import {
   RECORD_CHANNEL_LABEL,
   contractDetailQuery,
   daysPhrase,
+  contractReadOnlyNote,
   installmentOf,
   overdue,
   today,
@@ -135,7 +136,8 @@ function InstallmentScreen({
   ).data?.money.contracts.find((c) => c.code === contract.code)?.can.editSchedule
   /* A terminated contract refuses every write (ADR 0107), so no door is offered. */
   const ended = contract.termination !== null
-  const canDone = (verdict ?? permitted) && !installment.paidAt && !ended
+  const canDone =
+    (verdict ?? permitted) && contract.canEdit !== false && !installment.paidAt && !ended
   const done = useDoneCondition(contract.code)
   const { blocking } = view
 
@@ -160,7 +162,13 @@ function InstallmentScreen({
               )}
             </>
           }
-          note={ended && installment.paidAt ? 'Hợp đồng đã chấm dứt.' : null}
+          note={
+            ended && installment.paidAt
+              ? 'Hợp đồng đã chấm dứt.'
+              : contract.canEdit === false
+                ? contractReadOnlyNote(contract.ownerName)
+                : null
+          }
           actions={
             blocking &&
             canDone && (

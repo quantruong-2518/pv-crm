@@ -1,7 +1,19 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { Avatar, Chip, GlassCard, Icon, Kanban, List, Lock, Skeleton, cn, initialsOf } from '@pv/ui'
+import {
+  Avatar,
+  AvatarGroup,
+  Chip,
+  GlassCard,
+  Icon,
+  Kanban,
+  List,
+  Lock,
+  Skeleton,
+  cn,
+  initialsOf,
+} from '@pv/ui'
 import type {
   WorkstreamBoardColumn,
   WorkstreamBookQuery,
@@ -10,6 +22,7 @@ import type {
 } from '@pv/contracts'
 import { dm } from '@/lib/date'
 import {
+  IN_CHARGE_SEAT_WORD,
   footprintTotal,
   workstreamColumnQuery,
   type BoardStepGroup,
@@ -474,16 +487,53 @@ function GuestAvatar({ name }: { name: string }) {
   )
 }
 
+/** The line under the customer: who holds the run. An API one deploy behind
+ *  sends no `inCharge`, and the card then falls back to the Sale it always showed. */
+function HolderLine({ row }: { row: WorkstreamRow }) {
+  const { inCharge, saleHolder: sale, bdHolder: bd } = row
+  const muted = 'text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]'
+  if (inCharge === undefined) {
+    return sale === null ? (
+      <span className={muted}>Chưa có Sale giữ hành trình này</span>
+    ) : (
+      <>
+        {/* BD stays on a hover title, as before this card knew `inCharge`. */}
+        <span title={bd === null ? sale.name : `${sale.name} · BD: ${bd.name}`} className="flex">
+          <Avatar size="sm" name={sale.name} />
+        </span>
+        <span className={muted}>
+          <span className="text-glass-foreground">Phụ trách: </span>
+          {sale.name}
+        </span>
+      </>
+    )
+  }
+  const people = inCharge?.people ?? []
+  const [only] = people
+  if (inCharge === null || only === undefined) return <span className={muted}>Chưa ai nhận</span>
+  if (people.length > 1) {
+    const names = people.map((p) => p.name)
+    return (
+      <>
+        <AvatarGroup names={names} max={3} />
+        <span className={muted} title={names.join(' · ')}>
+          {people.length} {inCharge.seat === 'contract' ? 'người chốt' : 'người'}
+        </span>
+      </>
+    )
+  }
+  return (
+    <>
+      <Avatar size="sm" name={only.name} />
+      <span className={muted}>
+        <span className="text-glass-foreground">{IN_CHARGE_SEAT_WORD[inCharge.seat]}: </span>
+        {only.name}
+      </span>
+    </>
+  )
+}
+
 function JourneyCard({ row }: { row: WorkstreamRow }) {
-  const sale = row.saleHolder
-  /* BD lost its line in this design; it rides on the PIC avatar's own label,
-     which a screen reader announces and a `title` on a touch screen does not. */
-  const picLabel =
-    sale === null
-      ? ''
-      : row.bdHolder === null
-        ? sale.name
-        : `${sale.name} · BD: ${row.bdHolder.name}`
   const last = row.footprint.lastContactedAt
   return (
     /* Hover lifts by SHADOW, never by tinting the face: a tint lightens the
@@ -515,19 +565,7 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
       </span>
 
       <span className="flex min-w-0 items-center gap-2">
-        {sale === null ? (
-          <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]">
-            Chưa có Sale giữ hành trình này
-          </span>
-        ) : (
-          <>
-            <Avatar size="sm" name={picLabel} />
-            <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]">
-              <span className="text-glass-foreground">PIC: </span>
-              {sale.name}
-            </span>
-          </>
-        )}
+        <HolderLine row={row} />
         <span
           className="tnum font-num text-muted-foreground shrink-0 text-[10.5px]"
           title="Tổng số lần liên lạc · lần gần nhất"

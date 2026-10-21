@@ -40,6 +40,7 @@ import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
+import { closerOnDealEdit } from '../contract/contract-writer'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadStateWriter } from '../lead/lead-state'
@@ -682,11 +683,9 @@ export class OpportunityService {
     return free ? null : who.id
   }
 
-  /** A signed deal's edit carries its commission holder onto each contract, in
-   *  the edit's transaction (ADR 0057 §1). The holder moves only when they are
-   *  no longer a SALE owner — one hand-picked in the sign drawer survives — and
-   *  moves to the deal's holder (`holderOf`). Money no longer follows: each
-   *  paper names its own (ADR 0069 §5). */
+  /** The closer is picked at signing and never re-derived from the lane (ADR
+   *  0110 §1), so a deal edit leaves every closer alone. Only a legacy paper
+   *  with NO closer adopts the deal's holder (`closerOnDealEdit`). */
   private async syncContract(
     tx: Db,
     found: OpportunityRead,
@@ -695,25 +694,16 @@ export class OpportunityService {
     holder: RefOwner | null,
     terminated: boolean,
   ): Promise<void> {
-    if (signed.row.ownerId !== null && body.saleOwners.includes(signed.row.ownerId)) return
-    /* A terminated paper is final (ADR 0107 §2): with no holder it stays
-       empty; removing its holder refuses the whole edit. */
-    if (terminated) {
-      if (signed.row.ownerId === null || signed.row.ownerId === holder?.id) return
-      throw conflict(
-        `Hợp đồng ${signed.row.code} đã chấm dứt nên không đổi được người hưởng hoa hồng. Giữ ${signed.ownerName ?? 'người này'} trong Sale đứng đơn.`,
-      )
-    }
-
-    const row = await this.contracts.updateTerms(tx, signed.row.code, {
-      ownerId: holder?.id ?? null,
-    })
+    const adopt = closerOnDealEdit(signed.row.ownerId, terminated, holder)
+    if (adopt === null) return
+    const row = await this.contracts.updateTerms(tx, signed.row.code, { ownerId: adopt.id })
     await this.mirror.put(tx, {
       code: row.code,
       kind: 'HĐ',
       branch: 'Sales',
       label: `${found.account} · ${body.name}`,
-      ...(holder ? { owner: holder.name, ownerId: holder.id } : {}),
+      owner: adopt.name,
+      ownerId: adopt.id,
       ...(row.amount === null ? {} : { amount: row.amount }),
     })
   }

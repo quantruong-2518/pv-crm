@@ -6,7 +6,7 @@ import { campaign } from '../campaign/campaign.schema'
 import { contact } from '../contact/contact.schema'
 import { contract } from '../contract/contract.schema'
 import { leadLive, leadScope } from '../lead/lead-scope'
-import { dealStoodBy } from '../open-deal'
+import { contractReadBy, dealStoodBy } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { account } from '../account/account.schema'
 import { lead } from '../lead/lead.schema'
@@ -128,7 +128,20 @@ function branchOf(kind: SearchKind, who: Scope, q?: string): Branch {
           { field: 'code', expr: contract.code, code: true },
           { field: 'title', expr: lead.company },
         ],
-        fence: and(leadLive, who.ownOnly ? eq(contract.ownerId, who.id) : undefined),
+        /* The contract door's own reach (ADR 0110 §2), not the book's owner-only cut. */
+        fence: and(
+          leadLive,
+          who.ownOnly
+            ? contractReadBy(
+                {
+                  ownerId: contract.ownerId,
+                  leadOwnerId: lead.ownerId,
+                  opportunityCode: contract.opportunityCode,
+                },
+                who.id,
+              )
+            : undefined,
+        ),
       }
   }
 }

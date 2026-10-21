@@ -116,11 +116,14 @@ export async function assertSellers(tx: Db, added: readonly string[]): Promise<v
   assertSellersIn(await actorsByIds(tx, added), added)
 }
 
+/** Rule 1's person: switched on, and a seller by role. Also who may close a
+ *  contract (ADR 0110 §1). */
+export const isActiveSeller = (a: ActorRow): boolean =>
+  a.disabledAt === null && isSellerRole(a.roleIds)
+
 /** `assertSellers` over rows already read — an id with no row is not a seller. */
 export function assertSellersIn(actors: readonly ActorRow[], added: readonly string[]): void {
-  const sellers = new Set(
-    actors.filter((a) => a.disabledAt === null && isSellerRole(a.roleIds)).map((a) => a.id),
-  )
+  const sellers = new Set(actors.filter(isActiveSeller).map((a) => a.id))
   if (added.some((id) => !sellers.has(id))) throw invalid({ saleOwners: [NOT_SELLER] }, NOT_SELLER)
 }
 

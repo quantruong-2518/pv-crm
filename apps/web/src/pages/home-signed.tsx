@@ -4,7 +4,7 @@ import { ArrowRight, FileCheck, Icon, cn } from '@pv/ui'
 import { salesGrainOf, type SalesGrain, type SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { deltaOf, money, num } from './home-model'
-import { bucketViews, periodLabel, type BucketView } from './home-period'
+import { bucketViews, periodLabel, type BucketView } from '@/data/period-pick'
 import { CARD_SHELL, DeltaLine, IconTile, NOTE } from './home-tiles'
 
 /** The hero tile of the overview: contracts signed in the period, and the same

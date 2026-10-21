@@ -13,10 +13,13 @@ export function ContractFiles({
   workstreamCode,
   contractCode,
   count,
+  canEdit,
 }: {
   workstreamCode: string | null
   contractCode: string
   count: number
+  /** Only an explicit `false` shuts the drop zone and the remove buttons. */
+  canEdit?: boolean
 }) {
   const allowed = useCan('workstream.view')
 
@@ -24,7 +27,7 @@ export function ContractFiles({
     <section className="flex min-w-0 flex-col gap-3" aria-label="Tệp hợp đồng">
       <span className="text-muted-foreground text-[12px] font-medium">Tệp hợp đồng · {count}</span>
       {allowed && workstreamCode ? (
-        <Files code={workstreamCode} contractCode={contractCode} />
+        <Files code={workstreamCode} contractCode={contractCode} writable={canEdit !== false} />
       ) : count === 0 ? (
         <span className="text-warning text-[13px]">Chưa có bản hợp đồng đính kèm.</span>
       ) : null}
@@ -32,7 +35,15 @@ export function ContractFiles({
   )
 }
 
-function Files({ code, contractCode }: { code: string; contractCode: string }) {
+function Files({
+  code,
+  contractCode,
+  writable,
+}: {
+  code: string
+  contractCode: string
+  writable: boolean
+}) {
   const { data, isPending, error } = useWorkstreamDocuments(code)
   const step = { kind: 'contract', contractCode } as const
   const mine = stepKey(step)
@@ -51,9 +62,9 @@ function Files({ code, contractCode }: { code: string; contractCode: string }) {
       ) : rows.length === 0 ? (
         <span className="text-warning text-[13px]">Chưa có bản hợp đồng đính kèm.</span>
       ) : (
-        <DocList code={code} rows={rows} />
+        <DocList code={code} rows={rows} canRemove={writable} />
       )}
-      <DropZone code={code} step={step} />
+      {writable && <DropZone code={code} step={step} />}
     </>
   )
 }

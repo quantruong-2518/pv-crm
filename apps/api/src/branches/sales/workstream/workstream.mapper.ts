@@ -9,6 +9,8 @@ import {
   type WorkstreamCloseReason,
   type WorkstreamFootprint,
   type WorkstreamHolder,
+  type WorkstreamInCharge,
+  type WorkstreamRowStep,
   type WorkstreamScorecard,
   type WorkstreamRow,
   type WorkstreamStand,
@@ -83,43 +85,52 @@ export function standOf(
   read: WorkstreamRead,
   kept: boolean,
   stage: Map<StageKey, PhaseConfig>,
+  paperCode: string | null = null,
 ): WorkstreamStand {
   const { standKind, standKey, standCode, standLeadKey } = read.row
   const kind = kept ? standKind : 'LD'
   const key = kept ? standKey : standLeadKey
   /* `standCode` is null only between the intake insert and the lead one
-     statement later, which no reader ever sees — see its column. */
-  const code = (kept ? standCode : read.lead.code) ?? read.lead.code
+     statement later, which no reader ever sees — see its column. A kept
+     signature rung prints the paper this reader may open (`paperCode`). */
+  const own = kind === 'HĐ' && paperCode !== null ? paperCode : standCode
+  const code = (kept ? own : read.lead.code) ?? read.lead.code
 
   return { code, kind, key, phaseLabel: labelOf(kind, key, stage) }
 }
 
 /** May this reader open the object the run stands on — the SAME question
  *  `WorkstreamRepository.opensStand` puts to the database, asked over rows
- *  already in hand.
- *
- *  Not "is the object E2 kept the one `stand_code` names": E2 lets a deal with
- *  NO owner row through (its scope axis has nobody to compare), while the SQL
- *  `EXISTS` finds nobody and pushes the card to the lead column — so that card
- *  landed in the lead column printing a deal. Both ends now ask `dealStoodBy`
- *  (either lane or the acceptor; `stands` is its in-memory twin), and a
- *  signature is judged by its own deal, the axis `rowsOf` already cuts on.
+ *  already in hand: a deal by `stands` (`dealStoodBy`'s twin: either lane or
+ *  the acceptor), a signature by `contractOpens`. Not "did E2 keep the object":
+ *  E2 lets an ownerless deal through while the SQL pushes its card to the lead
+ *  column, and a card in the lead column printing a deal was the bug.
  *
  *  `readerId` is null for a reader who sees the whole book: no fence, the same
  *  branch `standPair` takes. */
 export function opensStand(
   read: WorkstreamRead,
-  contracts: readonly { code: string; deal: string }[],
+  contracts: readonly SignedPaper[],
   stands: (dealCode: string) => boolean,
   readerId: string | null,
 ): boolean {
   const { standKind, standCode } = read.row
   if (readerId === null || standKind === 'LD') return true
+  if (standKind === 'OP') return standCode !== null && stands(standCode)
 
-  const deal =
-    standKind === 'OP' ? standCode : (contracts.find((c) => c.code === standCode)?.deal ?? null)
-  return deal !== null && stands(deal)
+  return contracts.some((c) => contractOpens(read, c, stands, readerId))
 }
+
+/** `contractReadBy` (ADR 0110 §2) over rows in hand: the reader closed it,
+ *  holds the run's lead, or stands on its deal. */
+export const contractOpens = (
+  read: WorkstreamRead,
+  paper: SignedPaper,
+  stands: (dealCode: string) => boolean,
+  readerId: string,
+): boolean => paper.ownerId === readerId || read.lead.ownerId === readerId || stands(paper.deal)
+
+type SignedPaper = { code: string; deal: string; ownerId: string | null }
 
 /** Which object of the run this reader OPENS — what E3's inbox is asked
  *  about. The one thing `live` still decides: `stand` is off the row now. */
@@ -196,6 +207,9 @@ export type WorkstreamAssembled = {
   position: PipelinePositionView | null
   holders: { sale: WorkstreamHolder | null; bd: WorkstreamHolder | null }
   footprint: WorkstreamFootprint
+  /** Who answers for the stand, by its seat — `./workstream-seat.ts`. */
+  inCharge: WorkstreamInCharge | null
+  nextStep: WorkstreamRowStep | null
 }
 
 /** One row of the book, as the screen reads it. */
@@ -216,6 +230,8 @@ export function toContract(input: WorkstreamAssembled): WorkstreamRow {
     bdHolder: input.holders.bd,
     waitingOn: input.position?.waitingOn ?? null,
     footprint: input.footprint,
+    inCharge: input.inCharge,
+    nextStep: input.nextStep,
   }
 }
 

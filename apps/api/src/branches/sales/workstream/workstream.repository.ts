@@ -23,6 +23,7 @@ import {
   type WorkstreamBookQuery,
   type WorkstreamCloseReason,
   type WorkstreamFootprint,
+  type WorkstreamPeriodFigures,
   type WorkstreamStandKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -32,7 +33,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
-import { dealStoodBy } from '../open-deal'
+import { contractReadBy, contractTerminated, dealStoodBy } from '../open-deal'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { leadLive } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
@@ -152,7 +153,7 @@ export class WorkstreamRepository {
     const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.count(and(...filters, scope), db),
       (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
-      (db: Db) => this.page(and(...filters, scope), q, stand, db),
+      (db: Db) => this.page(and(...filters, scope), q, stand, this.inScopeValue(who, scoped), db),
     ] as const)
 
     return { rows, total: scopedTotal, hidden: all === null ? 0 : all - scopedTotal }
@@ -263,19 +264,26 @@ export class WorkstreamRepository {
 
   /** Every signature of a page of runs, NEWEST first per run, each with the
    *  deal it signed: `stand` prints the first one the reader may open, and that
-   *  code has to be the same on two reads. */
-  async contractsOf(
-    codes: readonly string[],
-  ): Promise<Map<string, { code: string; deal: string }[]>> {
+   *  code has to be the same on two reads. The closer and the termination ride
+   *  along for the row's `inCharge` (ADR 0110 §4). */
+  async contractsOf(codes: readonly string[]): Promise<Map<string, RunContract[]>> {
     if (codes.length === 0) return new Map()
 
     const rows = await this.db
-      .select({ ws: contract.workstreamCode, code: contract.code, deal: contract.opportunityCode })
+      .select({
+        ws: contract.workstreamCode,
+        code: contract.code,
+        deal: contract.opportunityCode,
+        ownerId: contract.ownerId,
+        ownerName: actor.name,
+        terminated: sql<boolean>`${contractTerminated(contract.code)}`,
+      })
       .from(contract)
+      .leftJoin(actor, eq(actor.id, contract.ownerId))
       .where(inArray(contract.workstreamCode, [...codes]))
       .orderBy(desc(contract.signedAt), desc(contract.code))
 
-    const byWorkstream = new Map<string, { code: string; deal: string }[]>()
+    const byWorkstream = new Map<string, RunContract[]>()
     for (const { ws, ...signed } of rows) {
       if (ws !== null) byWorkstream.set(ws, [...(byWorkstream.get(ws) ?? []), signed])
     }
@@ -337,10 +345,11 @@ export class WorkstreamRepository {
     where: SQL | undefined,
     q: WorkstreamBookQuery,
     stand: StandPair,
+    inScope: SQL<boolean>,
     db: Db = this.db,
-  ): Promise<WorkstreamRead[]> {
+  ): Promise<WorkstreamPageRow[]> {
     return db
-      .select(READ_COLUMNS)
+      .select({ ...READ_COLUMNS, inScope })
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
       .leftJoin(account, eq(account.code, workstream.accountCode))
@@ -351,7 +360,7 @@ export class WorkstreamRepository {
       .orderBy(...this.orderBy(q, stand))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
-      .then((rows) => rows.map(toRead))
+      .then((rows) => rows.map((r) => ({ ...toRead(r), inScope: r.inScope })))
   }
 
   /** Counts under the same joins `page()` uses, so both numbers describe the
@@ -367,20 +376,19 @@ export class WorkstreamRepository {
     return r?.n ?? 0
   }
 
-  /** "My run" is "the lead that opened it stands in my name".
+  /** "My run" (ADR 0110 §3): I hold the lead that opened it, OR I stand on
+   *  any of its deals (`dealStoodBy`), OR I closed any of its contracts.
    *
-   *  By `owner_id`, the same predicate `LeadRepository.scopeOf` uses, and
-   *  deliberately WITHOUT asking `opportunity_owner` as well: a run may have no
-   *  deal at all, so a scope axis reading the deal table would answer nothing
-   *  for every journey still in the funnel. Whoever holds the lead holds the
-   *  run. */
+   *  The lead arm stays first and alone covers a run with no deal yet — most
+   *  of the funnel. The other two key on `workstream_code`, the column
+   *  `dealsOf` and `contractsOf` read, so the fence and the rows agree. */
   private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
-    return scoped && who.ownOnly ? eq(lead.ownerId, who.id) : undefined
+    return scoped && who.ownOnly ? runReachedBy(who.id) : undefined
   }
 
   /** The same predicate, SELECTED instead of filtered on — see `byCode`. */
-  private inScopeValue(who: Actor): SQL<boolean> {
-    const scope = this.scopeOf(who, true)
+  private inScopeValue(who: Actor, scoped = true): SQL<boolean> {
+    const scope = this.scopeOf(who, scoped)
     return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
   }
 
@@ -417,29 +425,28 @@ export class WorkstreamRepository {
     }
   }
 
-  /** "May this reader open the object the run stands on" — the same predicate
-   *  `OpportunityRepository.scopeOf` puts on the deal book, asked about the
-   *  deal behind `stand_code`.
-   *
-   *  ONE question for both kinds, because the service already cuts both on one
-   *  axis: it keeps a signature only while the reader stands on the DEAL that
-   *  signature came out of (`rowsOf`), never on the contract row itself — no
-   *  table names an owner of a contract. */
+  /** "May this reader open the object the run stands on": a deal by the deal
+   *  book's own predicate (`dealStoodBy`); at the signature rung, ANY contract
+   *  of the run the contract door opens (`contractReadBy`, ADR 0110 §2), since
+   *  the newest may be a colleague's. The mapper's `opensStand` is the twin. */
   private opensStand(who: Actor): SQL {
-    return dealStoodBy(STAND_DEAL, who.id)
+    const paper = contractReadBy(
+      {
+        ownerId: sql`ws_s.owner_id`,
+        leadOwnerId: lead.ownerId,
+        opportunityCode: sql`ws_s.opportunity_code`,
+      },
+      who.id,
+    )
+    return sql`(CASE WHEN ${workstream.standKind} = 'HĐ'
+      THEN EXISTS (SELECT 1 FROM sales.contract ws_s WHERE ws_s.workstream_code = ${workstream.code} AND ${paper})
+      ELSE ${dealStoodBy(STAND_DEAL, who.id)} END)`
   }
 
   /** THE USER's filters. The scope axis stands outside them — see `book()`.
    *  `leadLive` rides here, not in scope: a run whose lead is switched off is
    *  absent from every count, `hidden` included. */
-  private filtersOf(
-    q: WorkstreamFilters &
-      Pick<
-        WorkstreamBookQuery,
-        'overdue' | 'stopped' | 'liveFrom' | 'liveTo' | 'closedFrom' | 'closedTo'
-      >,
-    stand: StandPair,
-  ): (SQL | undefined)[] {
+  private filtersOf(q: BookFilters, stand: StandPair): (SQL | undefined)[] {
     return [
       leadLive,
       q.status === 'open'
@@ -468,6 +475,7 @@ export class WorkstreamRepository {
         ? or(isNull(workstream.closedAt), ...createdWithin(workstream.closedAt, q.liveFrom))
         : undefined,
       ...createdWithin(workstream.closedAt, q.closedFrom, q.closedTo),
+      ...createdWithin(workstream.openedAt, q.openedFrom, q.openedTo),
     ]
   }
 
@@ -505,25 +513,51 @@ export class WorkstreamRepository {
    *  `stages` is a second statement because a `GROUP BY` cannot share the
    *  single-row pass; it rides the same fence and the reader's `standPair`, so
    *  a count opens exactly the rows the `standKind`/`standKey` filter returns. */
-  async scorecard(who: Actor, scoped: boolean): Promise<WorkstreamScorecardTotals> {
+  async scorecard(
+    who: Actor,
+    scoped: boolean,
+    spans: readonly DayRange[] = [],
+  ): Promise<WorkstreamScorecardTotals> {
     const closedWith = (...reasons: WorkstreamCloseReason[]) =>
       sql<number>`count(*) FILTER (WHERE ${inArray(workstream.closeReason, reasons)})::int`
 
     const fence = and(leadLive, this.scopeOf(who, scoped))
     const stand = this.standPair(who, scoped)
+    /* Each period figure is the book's own filter (`filtersOf`) as a FILTER on
+       this one pass: the same rows `count()` would total, no round trip each. */
+    const figure = (q: BookFilters) =>
+      sql<number>`count(*) FILTER (WHERE ${and(...this.filtersOf(q, stand))})::int`
+    const periods = Object.fromEntries(
+      spans.flatMap((span, i) =>
+        PERIOD_FIGURES.map((key) => [`${key}${i}`, figure(periodQuery(key, span))]),
+      ),
+    )
     const [[r], stages] = await Promise.all([
       this.db
         .select({
           overdue: sql<number>`count(*) FILTER (WHERE ${overdueOpen(stand.due)})::int`,
           won: closedWith('WON'),
           stopped: closedWith(...STOPPED_REASONS),
+          ...periods,
         })
         .from(workstream)
         .innerJoin(lead, ANCHOR_ON)
         .where(fence),
       this.standTotals(and(fence, isNull(workstream.closedAt)), stand),
     ])
-    return { overdue: r?.overdue ?? 0, won: r?.won ?? 0, stopped: r?.stopped ?? 0, stages }
+    const read = r as Record<string, number> | undefined
+    return {
+      overdue: r?.overdue ?? 0,
+      won: r?.won ?? 0,
+      stopped: r?.stopped ?? 0,
+      stages,
+      periods: spans.map(
+        (_, i) =>
+          Object.fromEntries(
+            PERIOD_FIGURES.map((key) => [key, read?.[`${key}${i}`] ?? 0]),
+          ) as WorkstreamPeriodFigures,
+      ),
+    }
   }
 
   /** The board's three counts, under the book door's joins, filters and scope —
@@ -600,6 +634,18 @@ export type WorkstreamRead = {
   held: boolean
 }
 
+/** A book row plus the scope verdict E2's second grid is built from. */
+export type WorkstreamPageRow = WorkstreamRead & { inScope: boolean }
+
+/** One signature of a run, as the book row reads it. */
+export type RunContract = {
+  code: string
+  deal: string
+  ownerId: string | null
+  ownerName: string | null
+  terminated: boolean
+}
+
 /** What BOTH doors narrow by — the book's query minus paging and sorting, which
  *  change which rows come back and never how many match. Borrowed from the
  *  contract rather than declared a second time. */
@@ -608,15 +654,53 @@ export type WorkstreamFilters = Pick<
   'status' | 'accountCode' | 'q' | 'standKind' | 'standKey' | 'closeReason'
 >
 
+/** Every filter `filtersOf` reads: the board's plus the book's own cards. */
+type BookFilters = WorkstreamFilters &
+  Pick<
+    WorkstreamBookQuery,
+    | 'overdue'
+    | 'stopped'
+    | 'liveFrom'
+    | 'liveTo'
+    | 'closedFrom'
+    | 'closedTo'
+    | 'openedFrom'
+    | 'openedTo'
+  >
+
 /** The rung as THIS reader sees it — see `standPair`. */
 type StandPair = { kind: SQL<WorkstreamStandKind>; key: SQL<string>; due: SQL }
 
-/** What the repository counts for the cards; the service names the rungs. */
+/** What the repository counts for the cards; the service names the rungs.
+ *  `periods` follows the order of the spans asked for. */
 export type WorkstreamScorecardTotals = {
   overdue: number
   won: number
   stopped: number
   stages: StandTotal[]
+  periods: WorkstreamPeriodFigures[]
+}
+
+/** Vietnam days, both ends inclusive. */
+export type DayRange = { first: string; last: string }
+
+const PERIOD_FIGURES = ['live', 'opened', 'won', 'stopped', 'closed'] as const
+
+/** The book filter each period card opens (`WorkstreamPeriodFigures`). */
+function periodQuery(key: (typeof PERIOD_FIGURES)[number], span: DayRange): BookFilters {
+  const closed = { closedFrom: span.first, closedTo: span.last }
+  switch (key) {
+    case 'live':
+      return { status: 'all', liveFrom: span.first, liveTo: span.last }
+    case 'opened':
+      return { status: 'all', openedFrom: span.first, openedTo: span.last }
+    case 'won':
+      return { status: 'closed', closeReason: 'WON', ...closed }
+    case 'stopped':
+      return { status: 'closed', stopped: true, ...closed }
+    case 'closed':
+      return { status: 'closed', ...closed }
+  }
 }
 
 export type StandTotal = { kind: WorkstreamStandKind; key: string; n: number }
@@ -635,7 +719,7 @@ export type WorkstreamBoardTotals = {
 }
 
 export type WorkstreamBookPage = {
-  rows: WorkstreamRead[]
+  rows: WorkstreamPageRow[]
   total: number
   /** Rows the scope axis cut away — law 7, and the server has to count them
    *  because the screen cannot count what it never received. */
@@ -673,6 +757,13 @@ const BD_ACTOR = alias(actor, 'bd_actor')
  *  on (`lead.owner_id`). A door that lets two leads share a run would print
  *  that run twice — so it keeps the invariant or turns this into a lateral. */
 const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
+
+/** `scopeOf`'s three arms, aliased so an outer `opportunity` or `contract`
+ *  is never captured — the rule `../open-deal.ts` writes out. */
+const runReachedBy = (actorId: string): SQL =>
+  sql`(${eq(lead.ownerId, actorId)}
+    OR EXISTS (SELECT 1 FROM sales.opportunity ws_o WHERE ws_o.workstream_code = ${workstream.code} AND ${dealStoodBy(sql`ws_o.code`, actorId)})
+    OR EXISTS (SELECT 1 FROM sales.contract ws_k WHERE ws_k.workstream_code = ${workstream.code} AND ws_k.owner_id = ${actorId}))`
 
 /** The customer name on the row: the COMPANY once somebody has said which
  *  company this run belongs to, and the lead's own wording until then.

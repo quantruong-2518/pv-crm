@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
-import { ArrowRight, Button, Drawer, Icon, SegmentedControl, cn } from '@pv/ui'
+import { ArrowRight, Button, Drawer, Icon, Lock, SegmentedControl, cn } from '@pv/ui'
 import type { MailSubjectKind } from '@pv/contracts'
 import { dm, dmhm } from '@/lib/date'
+import { contractReadOnlyNote } from '@/data/contracts'
 import { useContractKindLabel } from '@/data/sales-config'
 import { HoldMark } from '@/components/hold-strip'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -44,6 +45,8 @@ type Picked = {
   rungs: RailRung[]
   hold: Journey['lead']['hold']
   next: Journey['deals'][number]['nextAction']
+  /** Why this reader cannot write the object: set on a contract only. */
+  readOnly: string | null
 }
 
 function pickOf(
@@ -60,6 +63,7 @@ function pickOf(
       rungs: railOf('lead', lead.rungs, null),
       hold: lead.hold,
       next: null,
+      readOnly: null,
     }
   }
   const deal = journey.deals.find((d) => d.code === code)
@@ -71,6 +75,7 @@ function pickOf(
       rungs: railOf('deal', deal.rungs, dealLate(deal)),
       hold: deal.hold,
       next: deal.outcome === 'open' ? deal.nextAction : null,
+      readOnly: null,
     }
   }
   const contract = journey.contracts.find((c) => c.code === code)
@@ -82,6 +87,7 @@ function pickOf(
     rungs: railOf('contract', contract.rungs, contractLate(contract)),
     hold: null,
     next: null,
+    readOnly: contract.canEdit === false ? contractReadOnlyNote(contract.holder?.name) : null,
   }
 }
 
@@ -190,6 +196,12 @@ export function CardDrawer({
       }
     >
       <div className="flex flex-col gap-5">
+        {picked.readOnly && (
+          <p className="text-muted-foreground m-0 flex items-start gap-2 text-[12.5px] leading-[1.6]">
+            <Icon icon={Lock} size={16} className="mt-1 shrink-0" />
+            {picked.readOnly}
+          </p>
+        )}
         <RunContacts subject={subject} />
         <SegmentedControl
           label="Nội dung của thẻ"

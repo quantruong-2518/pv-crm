@@ -4,7 +4,8 @@ import { PageQuery, SortDir, paged } from '../pagination'
 import { PipelinePositionView } from '../position'
 import { ThreadChannel } from '../comms/thread'
 import { Bool, Day, Moment, ObjectCode, textInput } from '../primitives'
-import { type LeadState, WorkstreamCloseReason } from './enums'
+import { DueLevel, type LeadState, WorkstreamCloseReason } from './enums'
+import { SalesDayRange, SalesPeriodKey } from './performance'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
  *  lead, its opportunities and the contracts that came out of ONE run at ONE
@@ -114,6 +115,22 @@ export const WorkstreamFootprint = z.object({
   lastContactedAt: Moment.nullable(),
 })
 
+/** Who answers for the object the run stands on, under that object's seat:
+ *  the lead's PIC, the deal's primary seller, or the closer of each live contract
+ *  of the run (ADR 0110). Never the lead's PIC standing in for a contract. */
+export const WorkstreamInCharge = z.object({
+  seat: z.enum(['lead', 'deal', 'contract']),
+  people: z.array(WorkstreamHolder),
+})
+
+/** The stand's next step, slimmed for a book row. Not `NextStep` itself:
+ *  `./next-step` imports this file, and the cycle would break module load. */
+export const WorkstreamRowStep = z.object({
+  text: z.string().min(1),
+  due: Day,
+  dueLevel: DueLevel,
+})
+
 // ---------------------------------------------------------------------------
 // THE READ SHAPE
 // ---------------------------------------------------------------------------
@@ -152,6 +169,10 @@ export const WorkstreamRow = z.object({
   waitingOn: PipelinePositionView.shape.waitingOn,
 
   footprint: WorkstreamFootprint,
+
+  /* Optional: the screen must still read an API one deploy behind. */
+  inCharge: WorkstreamInCharge.nullable().optional(),
+  nextStep: WorkstreamRowStep.nullable().optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -201,6 +222,10 @@ export const WorkstreamBookQuery = PageQuery.extend({
   /** Close moment (`closedAt`) as Vietnam days, both ends inclusive. */
   closedFrom: Day.optional(),
   closedTo: Day.optional(),
+  /** Open moment (`openedAt`) as Vietnam days, both ends inclusive — the
+   *  scorecard's opened-in-period set; pair with `status` `all`. */
+  openedFrom: Day.optional(),
+  openedTo: Day.optional(),
   sort: WorkstreamSortKey.default('priority'),
   dir: SortDir.default('desc'),
 })
@@ -246,6 +271,18 @@ export const WorkstreamBoardResponse = z.object({
   columns: z.array(WorkstreamBoardColumn),
 })
 
+/** Runs counted over one span, each with the book filter that opens its rows:
+ *  `live` = `liveFrom/liveTo`, `opened` = `openedFrom/openedTo`, `won` =
+ *  `closeReason` WON + `closedFrom/closedTo`, `stopped` = `stopped` + the same
+ *  close range, `closed` = `status` closed + the same close range. */
+export const WorkstreamPeriodFigures = z.object({
+  live: z.number().int().nonnegative(),
+  opened: z.number().int().nonnegative(),
+  won: z.number().int().nonnegative(),
+  stopped: z.number().int().nonnegative(),
+  closed: z.number().int().nonnegative(),
+})
+
 /** `GET /sales/workstreams/scorecard` — the strip above the book, counted by
  *  SQL over the WHOLE book the reader may see (scoped like the book, unlike
  *  the room-wide `LeadScorecard`, because each count opens its own rows). No params: tab, search and
@@ -273,7 +310,24 @@ export const WorkstreamScorecard = z.object({
       count: z.number().int().nonnegative(),
     }),
   ),
+  /** Present only when `?period=` was asked; optional for an API one deploy
+   *  behind. */
+  inPeriod: z
+    .object({
+      period: SalesPeriodKey,
+      /** The database's Vietnam day, as on the overview (ADR 0106 §3). */
+      asOf: Day,
+      span: SalesDayRange,
+      now: WorkstreamPeriodFigures,
+      /** The period before, cut to as many days as `span` has run by `asOf`. */
+      compare: SalesDayRange.extend({ figures: WorkstreamPeriodFigures }),
+    })
+    .optional(),
 })
+
+/** `GET /sales/workstreams/scorecard?period=` — the overview's period keys
+ *  (`2026-W43`, `2026-10`, `2026-Q4`, `2026`). Absent = no `inPeriod` block. */
+export const WorkstreamScorecardQuery = z.object({ period: SalesPeriodKey.optional() })
 
 // ---------------------------------------------------------------------------
 // SHARED LADDERS
@@ -320,3 +374,7 @@ export type WorkstreamBookResponse = z.infer<typeof WorkstreamBookResponse>
 export type WorkstreamBoardColumn = z.infer<typeof WorkstreamBoardColumn>
 export type WorkstreamBoardResponse = z.infer<typeof WorkstreamBoardResponse>
 export type WorkstreamScorecard = z.infer<typeof WorkstreamScorecard>
+export type WorkstreamScorecardQuery = z.infer<typeof WorkstreamScorecardQuery>
+export type WorkstreamPeriodFigures = z.infer<typeof WorkstreamPeriodFigures>
+export type WorkstreamInCharge = z.infer<typeof WorkstreamInCharge>
+export type WorkstreamRowStep = z.infer<typeof WorkstreamRowStep>

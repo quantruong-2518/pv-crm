@@ -7,6 +7,7 @@ import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import {
   contractDetailQuery,
+  contractReadOnlyNote,
   daysPhrase,
   today,
   viewInstallment,
@@ -28,7 +29,6 @@ import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
-import { RunSigners } from '@/components/run/run-signers'
 import { RunContacts } from '@/components/run/run-contacts'
 import { ContractMoney } from './contract-money'
 import { ContractTodo } from './contract-todo'
@@ -82,7 +82,9 @@ function ContractScreen({ contract }: { contract: Contract }) {
   const [mailing, setMailing] = useState<BarContact | null>(null)
   const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
   const canRecord = useCan('comm.view')
-  const canTerminate = useCan('contract.terminate')
+  /* Only an explicit `false` shuts the doors: an API one deploy behind sends none. */
+  const readOnly = contract.canEdit === false
+  const canTerminate = useCan('contract.terminate') && !readOnly
   const [terminating, setTerminating] = useState(false)
   /* Ended for good (ADR 0107): nothing is owed, so no next installment and no chase. */
   const ended = contract.termination
@@ -123,6 +125,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
               )}
             </>
           }
+          note={readOnly ? contractReadOnlyNote(contract.ownerName) : null}
         />
       }
       main={
@@ -162,10 +165,13 @@ function ContractScreen({ contract }: { contract: Contract }) {
       rail={
         <>
           <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
-          <RunSigners people={contract.participants} />
           <RunContacts subject={subject} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
-          <RunDocuments workstreamCode={run.workstreamCode} />
+          <RunDocuments
+            workstreamCode={run.workstreamCode}
+            canEdit={contract.canEdit}
+            contractCode={contract.code}
+          />
         </>
       }
       actionBar={

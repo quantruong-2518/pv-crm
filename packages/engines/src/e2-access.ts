@@ -277,9 +277,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
  *  written where the refusal is. */
 const KIND_DOMAIN: Partial<Record<ObjectKind, 'lead' | 'opportunity' | 'contract' | 'account'>> = {
   LD: 'lead',
-  /** A run is anchored on its lead (migration 0045 mints one per lead), and
-   *  the scope axis cuts on that lead's `owner_id` — so the SQL fence and this
-   *  grid ask one question, not two that can drift. */
+  /** A run is anchored on its lead (migration 0045 mints one per lead). The
+   *  API's SQL fence also admits whoever holds a deal or contract of the run
+   *  (ADR 0110) and names that reader as the ref's owner, so both axes agree. */
   WS: 'lead',
   OP: 'opportunity',
   /** Until 02/09 this kind had no domain, so `permissionFor` returned `null` for

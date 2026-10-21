@@ -6,11 +6,13 @@ import {
   WorkstreamDocumentDeclareResponse,
   type ObjectCode,
   type WorkstreamDocumentDeclareBody,
+  type WorkstreamDocumentStep,
 } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { invalid, notFound } from '@api/platform/http/problem'
+import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { StorageService } from '@api/platform/storage/storage.service'
+import { assertMayWriteContract } from '../contract/contract-writer'
 import { toAttachment } from '../lead/lead-scan.mapper'
 import { WorkstreamDocumentRepository } from './workstream-document.repository'
 import { WorkstreamRepository } from './workstream.repository'
@@ -33,11 +35,13 @@ export class WorkstreamDocumentService {
   ) {}
 
   async list(who: Actor, code: ObjectCode): Promise<LeadAttachmentsResponse> {
-    /* Scan sources are the LEAD's files: only its holder reads them here. */
-    const withScans =
-      (await this.fence(who, code)) === 'lead' && this.access.allows(who, 'lead.view')
+    /* Scan sources are the LEAD's files: only its holder reads them here. A
+       closer reads only the files of the contracts they closed. */
+    const at = await this.fence(who, code)
+    const withScans = at.arm === 'lead' && this.access.allows(who, 'lead.view')
+    const rows = await this.repo.listOf(code, withScans)
     const out = []
-    for (const a of await this.repo.listOf(code, withScans)) {
+    for (const a of rows.filter((r) => at.arm !== 'closer' || ownsStep(at.papers, r.step))) {
       const url = await this.storage.presignGet(a.row.storageKey)
       const thumbUrl = a.row.thumbKey ? await this.storage.presignGet(a.row.thumbKey) : null
       out.push(toAttachment(a, url, thumbUrl))
@@ -50,9 +54,13 @@ export class WorkstreamDocumentService {
     code: ObjectCode,
     body: WorkstreamDocumentDeclareBody,
   ): Promise<WorkstreamDocumentDeclareResponse> {
-    await this.fence(who, code)
-    if (body.step && !(await this.repo.stepInRun(code, body.step))) {
+    const step = stepFor(await this.fence(who, code), body.step)
+    if (step && !(await this.repo.stepInRun(code, step))) {
       throw invalid({ step: ['Mục gắn tệp không thuộc hành trình này.'] })
+    }
+    /* A contract's or instalment's file is a contract write (ADR 0110 §2). */
+    if (step && step.kind !== 'quotation') {
+      assertMayWriteContract(who, (await this.repo.closerOf(step.contractCode)) ?? null)
     }
     const { kept, pending } = await this.repo.load(code, who.id)
     if (kept >= MAX_DOCUMENTS || pending >= MAX_PENDING) {
@@ -71,7 +79,7 @@ export class WorkstreamDocumentService {
         ownerKind: 'workstream',
         createdBy: who.id,
       },
-      body.step,
+      step,
     )
     const putUrl = await this.storage.presignPut(storageKey, body.mime, body.bytes)
     return WorkstreamDocumentDeclareResponse.parse({ id, putUrl })
@@ -116,16 +124,38 @@ export class WorkstreamDocumentService {
     })
   }
 
-  /** The run's own read fence (the holder of the lead), widened for these four
-   *  doors only: whoever stands on a deal of the run passes too (ADR 0090).
-   *  Answers WHICH arm let the actor in — the lead's holder wins when both do. */
-  private async fence(who: Actor, code: ObjectCode): Promise<'lead' | 'deal'> {
+  /** The lead's holder, then whoever stands on a deal of the run (ADR 0090),
+   *  then a closer of one of its contracts, for that contract's files only.
+   *  Answers WHICH arm let the actor in. Asks the holder itself, not the run
+   *  scope (ADR 0110 §3): only the holder reads the lead's scans. */
+  private async fence(who: Actor, code: ObjectCode): Promise<Arm> {
     const found = await this.runs.byCode(who, code)
-    if (found?.inScope) return 'lead'
-    if (found && (await this.repo.standsOnDeal(who, code))) return 'deal'
+    if (found?.inScope && (!who.ownOnly || found.lead.ownerId === who.id)) return { arm: 'lead' }
+    if (found && (await this.repo.standsOnDeal(who, code))) return { arm: 'deal' }
+    const papers = found ? await this.repo.closedInRun(who, code) : []
+    if (papers.length > 0) return { arm: 'closer', papers }
     throw notFound('hành trình', code)
   }
 }
+
+/** Which arm let the actor in; a closer carries the contracts they closed. */
+type Arm = { arm: 'lead' | 'deal' } | { arm: 'closer'; papers: string[] }
+
+/** A closer's file must hang on a contract they closed: an untagged upload
+ *  (the contract page sends none) lands on their one paper of the run. */
+function stepFor(at: Arm, step: WorkstreamDocumentStep | undefined) {
+  if (at.arm !== 'closer') return step
+  if (step && step.kind !== 'quotation') return step
+  const [only, ...more] = at.papers
+  if (step || !only || more.length > 0) throw denied('permission-denied', CLOSER_ONLY)
+  return { kind: 'contract' as const, contractCode: only }
+}
+
+const CLOSER_ONLY = 'Bạn chỉ thêm được tệp vào hợp đồng mình chốt. Mở hợp đồng đó rồi thêm tệp.'
+
+/** A listed file belongs to one of the closer's contracts. */
+const ownsStep = (papers: readonly string[], step: { contractCode: string | null } | null) =>
+  !!step?.contractCode && papers.includes(step.contractCode)
 
 /** A shelf, not an archive; and a cap on declares nobody confirmed, so a loop
  *  of declare calls cannot fill the table. */

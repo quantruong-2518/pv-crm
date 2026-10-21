@@ -5,6 +5,7 @@ import { Button, Icon, type IconGlyph } from '@pv/ui'
  *  its answer rather than printing a zero that is not one. */
 export function BookQueueButton({
   id,
+  ariaLabel,
   icon,
   label,
   count,
@@ -12,6 +13,8 @@ export function BookQueueButton({
   onPress,
 }: {
   id?: string
+  /** Where the label alone would not say what the press does. */
+  ariaLabel?: string
   icon: IconGlyph
   label: string
   count: number | undefined
@@ -21,6 +24,7 @@ export function BookQueueButton({
   return (
     <Button
       id={id}
+      aria-label={ariaLabel}
       size="md"
       variant={active ? 'default' : 'secondary'}
       aria-pressed={active}

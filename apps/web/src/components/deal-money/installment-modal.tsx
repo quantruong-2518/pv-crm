@@ -137,6 +137,7 @@ export function InstallmentModal({
             <StepDocuments
               workstreamCode={workstreamCode}
               step={{ kind: 'installment', contractCode: contract.code, installmentNo: i.no }}
+              canEdit={contract.can.editSchedule || contract.can.recordPayment}
             />
           </Section>
         </div>

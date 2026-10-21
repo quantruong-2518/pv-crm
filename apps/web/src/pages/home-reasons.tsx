@@ -17,7 +17,7 @@ import {
   rateOf,
   stoppedDealsHref,
 } from './home-model'
-import { periodLabel } from './home-period'
+import { periodLabel } from '@/data/period-pick'
 
 /** Why leads, deals and signed contracts left in the picked period: one panel
  *  per group, each a donut and a legend of reasons, most frequent first, with

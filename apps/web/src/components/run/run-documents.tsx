@@ -21,19 +21,45 @@ const NEWEST = 5
  *  a drop zone, the five newest, and the rest behind a "see more" drawer.
  *  `code` is the WORKSTREAM code. Scanned lead sources share the list, but only
  *  the uploader removes an upload here — a scan file has a batch. */
-export function RunDocuments({ workstreamCode }: { workstreamCode: string | null }) {
+export function RunDocuments({
+  workstreamCode,
+  canEdit,
+  contractCode,
+}: {
+  workstreamCode: string | null
+  /** Only an explicit `false` shuts the drop zone and the remove buttons. */
+  canEdit?: boolean
+  /** On a contract page: uploads are tagged to it, so a closer's file lands on
+   *  the contract they may write (ADR 0110). */
+  contractCode?: string
+}) {
   const allowed = useCan('workstream.view')
-  return allowed && workstreamCode ? <Documents code={workstreamCode} /> : null
+  return allowed && workstreamCode ? (
+    <Documents code={workstreamCode} writable={canEdit !== false} contractCode={contractCode} />
+  ) : null
 }
 
-function Documents({ code }: { code: string }) {
+function Documents({
+  code,
+  writable,
+  contractCode,
+}: {
+  code: string
+  writable: boolean
+  contractCode?: string
+}) {
   const { data, isPending, error } = useWorkstreamDocuments(code)
   const [all, setAll] = useState(false)
   const rows = [...(data?.rows ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   return (
     <RunBlock title="Tài liệu">
-      <DropZone code={code} />
+      {writable && (
+        <DropZone
+          code={code}
+          step={contractCode ? { kind: 'contract', contractCode } : undefined}
+        />
+      )}
       {isPending ? (
         <Skeleton className="h-16 w-full" />
       ) : error ? (
@@ -46,7 +72,7 @@ function Documents({ code }: { code: string }) {
         </p>
       ) : (
         <>
-          <DocList code={code} rows={rows.slice(0, NEWEST)} />
+          <DocList code={code} rows={rows.slice(0, NEWEST)} canRemove={writable} />
           {rows.length > NEWEST && (
             <Button
               size="sm"
@@ -66,13 +92,21 @@ function Documents({ code }: { code: string }) {
         title="Tài liệu của hành trình"
         subtitle={`${code} · ${rows.length} tài liệu, mới nhất trước`}
       >
-        <DocList code={code} rows={rows} />
+        <DocList code={code} rows={rows} canRemove={writable} />
       </Drawer>
     </RunBlock>
   )
 }
 
-export function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }) {
+export function DocList({
+  code,
+  rows,
+  canRemove = true,
+}: {
+  code: string
+  rows: LeadAttachment[]
+  canRemove?: boolean
+}) {
   const remove = useDeleteDocument(code)
   const me = useSession((st) => st.actor?.id)
 
@@ -96,7 +130,7 @@ export function DocList({ code, rows }: { code: string; rows: LeadAttachment[] }
               </span>
             </span>
           </a>
-          {!file.batchCode && file.createdBy.id === me && (
+          {canRemove && !file.batchCode && file.createdBy.id === me && (
             <Button
               size="sm"
               variant="ghost"

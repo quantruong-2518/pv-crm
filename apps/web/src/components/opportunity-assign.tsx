@@ -24,7 +24,7 @@ type Lane =
   | Pick<OpportunityProfileResponse, 'code' | 'owners' | 'pendingSign'>
 
 const PENDING_NOTE =
-  'Đang chờ duyệt ký: chỉ đổi được Sale chính. Người hưởng hoa hồng trong đề nghị ký giữ nguyên.'
+  'Đang chờ duyệt ký: chỉ đổi được Sale chính. Người chốt trong đề nghị ký giữ nguyên.'
 
 const sameSet = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id) => b.includes(id))

@@ -28,7 +28,7 @@ import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
-import { contractTerminated } from '../open-deal'
+import { contractReadBy, contractTerminated } from '../open-deal'
 import { fromDraft } from './contract.mapper'
 import { opportunityOwner } from '../opportunity/opportunity.schema'
 import { contractParticipant } from './contract-participant.schema'
@@ -137,6 +137,13 @@ const TREND_MONTHS = 12
  *  FK `contract_opportunity_fk` keeps it equal to its deal's. Every read joins
  *  through here and cuts on `leadLive` — a contract is off when its lead is. */
 const ON_LEAD = eq(lead.code, contract.leadCode)
+
+/** `contractReadBy` over this file's joins: the lead joined is the run's lead. */
+const CONTRACT_REACH = {
+  ownerId: contract.ownerId,
+  leadOwnerId: lead.ownerId,
+  opportunityCode: contract.opportunityCode,
+}
 
 /** A terminated contract's unpaid installments are owed by nobody (ADR 0107):
  *  every money, status and overdue read below stands on live contracts only. */
@@ -679,7 +686,8 @@ export class ContractRepository {
   }
 
   /** E2 axis 3 on this book: someone marked `ownOnly` sees only the contracts
-   *  whose commission is theirs.
+   *  whose commission is theirs. The BOOK stays owner-only on purpose (ADR 0110
+   *  §2, "my contracts"); one contract opens wider, see `inScopeValue`.
    *
    *  One column, no join table — a contract has exactly one owner, unlike an
    *  opportunity where Sale and BD both stand on the row. A contract with no
@@ -690,11 +698,13 @@ export class ContractRepository {
     return eq(contract.ownerId, who.id)
   }
 
-  /** Same predicate, SELECTed instead of filtered on — see `byCode`. The
-   *  COALESCE is what turns the NULL of an unowned contract into `false`. */
+  /** One contract's verdict, SELECTed instead of filtered on — see `byCode`.
+   *  Wider than the book's `scopeOf` (ADR 0110 §2): a co-seller opens the
+   *  paper read-only. COALESCE turns an unowned contract's NULL into `false`. */
   private inScopeValue(who: Actor): SQL<boolean> {
-    const scope = this.scopeOf(who, true)
-    return (scope ? sql`COALESCE(${scope}, false)` : sql`true`) as SQL<boolean>
+    if (!who.ownOnly) return sql<boolean>`true`
+    const reach = contractReadBy(CONTRACT_REACH, who.id)
+    return sql<boolean>`COALESCE(${reach}, false)`
   }
 
   private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {

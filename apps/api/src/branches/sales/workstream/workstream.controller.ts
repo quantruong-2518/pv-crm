@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ObjectCode, WorkstreamBookQuery } from '@pv/contracts'
+import { ObjectCode, WorkstreamBookQuery, WorkstreamScorecardQuery } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { invalid } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -17,12 +17,13 @@ import { WorkstreamService } from './workstream.service'
  *  shared key would hand deal codes out a side door. The key travels with
  *  `opportunity.view`, to the four roles holding it.
  *
- *  `KIND_DOMAIN.WS` is `'lead'` all the same: 0045 mints one run per lead and
- *  the scope axis cuts on that lead's `owner_id`, so the SQL fence and the E2
- *  grid ask one question, not two that can drift.
+ *  `KIND_DOMAIN.WS` is `'lead'` all the same: 0045 mints one run per lead, and
+ *  E2's grid reads the anchor lead's ref with the reader as owner whenever the
+ *  SQL fence let them in (`runRef`), so the two cannot drift.
  *
- *  `scoped: true` on all four: a seller marked `ownOnly` reads the runs their
- *  own leads opened. The book thins out and reports `hidden`; the board and the
+ *  `scoped: true` on all four: a seller marked `ownOnly` reads the runs whose
+ *  lead they hold, whose deals they stand on, or whose contracts they closed
+ *  (ADR 0110 §3). The book thins out and reports `hidden`; the board and the
  *  scorecard count the same thinned book; the profile refuses. */
 /** The board asks the book's question MINUS paging and sorting, and it is cut
  *  out of the book's own schema rather than written again: a filter the two
@@ -68,12 +69,16 @@ export class WorkstreamController {
     return this.runs.board(who, q)
   }
 
-  /** The four cards above the book. DECLARED BEFORE `@Get(':code')` for
-   *  `board`'s reason: `scorecard` would otherwise die as a malformed code. */
+  /** The cards above the book; `?period=` adds the period block. DECLARED
+   *  BEFORE `@Get(':code')` for `board`'s reason: `scorecard` would otherwise
+   *  die as a malformed code. */
   @Get('scorecard')
   @Need({ branch: 'Sales', permission: 'workstream.view', scoped: true })
-  scorecard(@CurrentActor() who: Actor) {
-    return this.runs.scorecard(who)
+  scorecard(
+    @CurrentActor() who: Actor,
+    @Query(zod(WorkstreamScorecardQuery)) q: WorkstreamScorecardQuery,
+  ) {
+    return this.runs.scorecard(who, q)
   }
 
   /** One journey: its lead, the deals this reader may open, their contracts

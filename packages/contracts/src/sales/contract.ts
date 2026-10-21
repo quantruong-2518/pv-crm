@@ -359,6 +359,10 @@ export const ContractDetailRow = ContractRow.extend({
   contact: textInput(120),
   contactRole: textInput(120),
   installments: z.array(InstallmentRow),
+  /** Whether the reader may write this contract: its closer (`ownerId`), the
+   *  head of sales or the director (ADR 0110). Optional so a screen reads an
+   *  API one deploy behind; absent keeps the screen's old gate. */
+  canEdit: z.boolean().optional(),
 })
 
 /** What a contract book row is judged by. A contract stores no state: all four

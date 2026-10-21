@@ -1,4 +1,4 @@
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
 import { keepPageUnderSameFilters } from '@/app/book-query'
 import {
   WORKSTREAM_JOURNEY_STEPS,
@@ -28,6 +28,26 @@ const READ_NEED: ApiNeed = { branch: 'Sales', permission: 'workstream.view', sco
 
 export const DEFAULT_WORKSTREAM_BOOK_QUERY: WorkstreamBookQuery = WorkstreamBookQuery.parse({})
 
+/** Every key a scorecard card or the overdue toggle can set, cleared in one
+ *  patch: what they open is that filter alone, so a press drops the others, the
+ *  typed search and the company chip, and returns to the default tab. */
+export const NARROWING_CLEARED = {
+  q: undefined,
+  accountCode: undefined,
+  standKind: undefined,
+  standKey: undefined,
+  closeReason: undefined,
+  overdue: undefined,
+  stopped: undefined,
+  liveFrom: undefined,
+  liveTo: undefined,
+  openedFrom: undefined,
+  openedTo: undefined,
+  closedFrom: undefined,
+  closedTo: undefined,
+  status: DEFAULT_WORKSTREAM_BOOK_QUERY.status,
+} satisfies Partial<WorkstreamBookQuery>
+
 /** Re-exported, not re-declared: the label set lives in `@pv/contracts`
  *  beside its enum so the board door and this screen print the same word. */
 export { CLOSE_REASON_LABEL } from '@pv/contracts'
@@ -38,6 +58,14 @@ export const WORKSTREAM_STATUS_LABEL: Record<WorkstreamStatus, string> = {
   open: 'Đang hoạt động',
   closed: 'Đã kết thúc',
   all: 'Tất cả',
+}
+
+/** What each seat is called wherever a run's people are named: the book's
+ *  column and the board's card read the same word. */
+export const IN_CHARGE_SEAT_WORD: Record<'lead' | 'deal' | 'contract', string> = {
+  lead: 'PIC lead',
+  deal: 'Sale chính',
+  contract: 'Người chốt',
 }
 
 /** Every channel is always present on the wire, so a sum of 0 is a real 0.
@@ -68,6 +96,8 @@ export function workstreamBookQueryToParams(q: WorkstreamBookQuery): string {
   if (q.liveTo !== undefined) p.set('liveTo', q.liveTo)
   if (q.closedFrom !== undefined) p.set('closedFrom', q.closedFrom)
   if (q.closedTo !== undefined) p.set('closedTo', q.closedTo)
+  if (q.openedFrom !== undefined) p.set('openedFrom', q.openedFrom)
+  if (q.openedTo !== undefined) p.set('openedTo', q.openedTo)
   return p.toString()
 }
 
@@ -90,24 +120,27 @@ export function workstreamBookQuery(q: WorkstreamBookQuery) {
   })
 }
 
-/** `GET /sales/workstreams/scorecard` — the strip above the book (stage chart
- *  and cards). No params: tab and filters never move it.
+/** `GET /sales/workstreams/scorecard?period=` — the strip above the book. Tab
+ *  and filters never move it; the period does, and an API one deploy behind
+ *  ignores `period` and answers without `inPeriod`.
  *
  *  The key nests under `WORKSTREAM_BOOK_KEY` on purpose: every writer already
  *  invalidates that prefix, so the cards follow the book with no list to keep
  *  in step (a sibling `workstream-scorecard` key would need adding to four).
  *  Aggregate tier, as the lead scorecard: the strip remounts on every return
  *  from a run. */
-export const workstreamScorecardQuery = queryOptions({
-  queryKey: [...WORKSTREAM_BOOK_KEY, 'scorecard'] as const,
-  queryFn: ({ signal }) =>
-    api.read<WorkstreamScorecard>(`${BOOK_PATH}/scorecard`, {
-      need: READ_NEED,
-      schema: WorkstreamScorecard,
-      signal,
-    }),
-  ...cacheTier.aggregate,
-})
+export const workstreamScorecardQuery = (period: string) =>
+  queryOptions({
+    queryKey: [...WORKSTREAM_BOOK_KEY, 'scorecard', period] as const,
+    queryFn: ({ signal }) =>
+      api.read<WorkstreamScorecard>(`${BOOK_PATH}/scorecard?period=${period}`, {
+        need: READ_NEED,
+        schema: WorkstreamScorecard,
+        signal,
+      }),
+    placeholderData: keepPreviousData,
+    ...cacheTier.aggregate,
+  })
 
 // ---------------------------------------------------------------------------
 // THE BOARD — one catalogue call, then one paging call per column

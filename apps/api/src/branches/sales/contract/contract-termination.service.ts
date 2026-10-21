@@ -21,6 +21,7 @@ import { toDetail } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 import { ContractTerminationRepository } from './contract-termination.repository'
+import { assertMayWriteContract, mayWriteContract } from './contract-writer'
 
 /** Ending a signed contract (ADR 0107): a direct door, final, one row. Also the
  *  one guard every other contract write calls, so "terminated means frozen"
@@ -73,6 +74,7 @@ export class ContractTerminationService {
       await this.repo.lockDeal(tx, code)
       const row = await this.schedule.lock(tx, code)
       if (!row) throw notFound('hợp đồng', code)
+      assertMayWriteContract(who, row.ownerId)
       if (await this.isTerminated(tx, code)) throw conflict('Hợp đồng này đã chấm dứt.')
       await this.assertReason(tx, body.reasonKey)
 
@@ -104,7 +106,10 @@ export class ContractTerminationService {
 
     const found = await this.contracts.byCode(who, code)
     if (!found) throw notFound('hợp đồng', code)
-    return ContractTerminateResponse.parse(toDetail(found))
+    return ContractTerminateResponse.parse({
+      ...toDetail(found),
+      canEdit: mayWriteContract(who, found.row.ownerId),
+    })
   }
 
   /** The machine's park: no lead door, permission or scope, and EX-09 is

@@ -12,15 +12,28 @@ import { DocList, DropZone } from './run-documents'
 export function StepDocuments({
   workstreamCode,
   step,
+  canEdit,
 }: {
   workstreamCode: string | null
   step: WorkstreamDocumentStep
+  /** Only an explicit `false` shuts the drop zone and the remove buttons. */
+  canEdit?: boolean
 }) {
   const allowed = useCan('workstream.view')
-  return allowed && workstreamCode ? <StepFiles code={workstreamCode} step={step} /> : null
+  return allowed && workstreamCode ? (
+    <StepFiles code={workstreamCode} step={step} writable={canEdit !== false} />
+  ) : null
 }
 
-function StepFiles({ code, step }: { code: string; step: WorkstreamDocumentStep }) {
+function StepFiles({
+  code,
+  step,
+  writable,
+}: {
+  code: string
+  step: WorkstreamDocumentStep
+  writable: boolean
+}) {
   const { data, isPending, error } = useWorkstreamDocuments(code)
   const mine = stepKey(step)
   const rows = (data?.rows ?? [])
@@ -40,9 +53,9 @@ function StepFiles({ code, step }: { code: string; step: WorkstreamDocumentStep 
           Chưa có tài liệu nào.
         </p>
       ) : (
-        <DocList code={code} rows={rows} />
+        <DocList code={code} rows={rows} canRemove={writable} />
       )}
-      <DropZone code={code} step={step} />
+      {writable && <DropZone code={code} step={step} />}
     </div>
   )
 }

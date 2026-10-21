@@ -15,16 +15,23 @@ import {
   WorkstreamBookResponse,
   WorkstreamJourneyResponse,
   WorkstreamScorecard,
+  lastDayOf,
+  salesCompareSpan,
+  salesPeriodSpan,
+  type DaySpan,
   type ObjectCode,
   type OpportunityOwner,
+  type SalesPeriodKey,
   type WorkstreamBookQuery,
   type WorkstreamRow,
+  type WorkstreamScorecardQuery,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { ApprovalService } from '@api/platform/approval/approval.service'
 import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
+import { mayWriteContract } from '../contract/contract-writer'
 import { NextStepRepository } from '../next-step/next-step.repository'
 import { scopeRefOf, toRef as dealRef, type OwnerRow } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
@@ -32,10 +39,13 @@ import {
   blankFootprint,
   WorkstreamRepository,
   type WorkstreamFilters,
+  type RunContract,
+  type WorkstreamPageRow,
   type WorkstreamRead,
 } from './workstream.repository'
 import {
   boardColumns,
+  contractOpens,
   holdersOf,
   liveCodeOf,
   liveOf,
@@ -46,7 +56,12 @@ import {
   type WorkstreamLive,
 } from './workstream.mapper'
 import { journeyOf } from './workstream-lanes'
-import { WorkstreamLanesRepository } from './workstream-lanes.repository'
+import {
+  WorkstreamLanesRepository,
+  type ContractLaneRow,
+  type LaneRows,
+} from './workstream-lanes.repository'
+import { inChargeOf, rowStepOf, stepSubjectOf } from './workstream-seat'
 
 /** Module 5 · the journey book. Repository AND engine, the only layer allowed
  *  to know both.
@@ -70,10 +85,9 @@ export class WorkstreamService {
   async book(who: Actor, q: WorkstreamBookQuery): Promise<WorkstreamBookResponse> {
     const page = await this.repo.book(who, q, true)
 
-    /* The second grid rides the ANCHOR LEAD's ref: `ObjectKind` has no `'WS'`,
-       and the lead is what the SQL axis already cut on — so both fences ask
-       one question rather than two. */
-    const items = page.rows.map((r) => ({ ...r, ref: leadRef(r.lead, r.saleName) }))
+    /* The second grid rides the ANCHOR LEAD's ref (`ObjectKind` has no `'WS'`),
+       carrying the reader as owner when the SQL fence let them in — see `runRef`. */
+    const items = page.rows.map((r) => ({ ...r, ref: runRef(who, r) }))
     const { visible, hidden } = this.access.visible(who, items)
 
     return WorkstreamBookResponse.parse({
@@ -111,15 +125,31 @@ export class WorkstreamService {
    *  cuts nothing the axis has not (every role holding `workstream.view` holds
    *  `lead.view`), but a role granted the first without the second sees an
    *  empty book under a non-zero card. */
-  async scorecard(who: Actor): Promise<WorkstreamScorecard> {
+  async scorecard(who: Actor, q: WorkstreamScorecardQuery): Promise<WorkstreamScorecard> {
+    const period = q.period ? await this.periodSpans(q.period) : null
     const [totals, ladders] = await Promise.all([
-      this.repo.scorecard(who, true),
+      this.repo.scorecard(who, true, period ? [period.span, period.compare] : []),
       this.repo.ladderRows(),
     ])
+    const [now, figures] = totals.periods
     return WorkstreamScorecard.parse({
-      ...totals,
+      overdue: totals.overdue,
+      won: totals.won,
+      stopped: totals.stopped,
       stages: scorecardStages(totals.stages, stageConfigOf(ladders.stage)),
+      ...(period && now && figures
+        ? { inPeriod: { ...period, now, compare: { ...period.compare, figures } } }
+        : {}),
     })
+  }
+
+  /** The period's two spans (ADR 0110 §5). `asOf` is the database's Vietnam
+   *  day — `steps.today()` runs the very expression `PerformanceRepository
+   *  .today()` does, so the compare cut matches the overview's (ADR 0106 §3). */
+  private async periodSpans(period: SalesPeriodKey) {
+    const asOf = await this.steps.today()
+    const span = rangeOf(salesPeriodSpan(period))
+    return { period, asOf, span, compare: rangeOf(salesCompareSpan(period, asOf)) }
   }
 
   /** One journey by code. Both ways of failing answer the SAME 404.
@@ -136,22 +166,29 @@ export class WorkstreamService {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('hành trình', code)
 
-    const [[byRun, owners], ladders, ordinal] = await Promise.all([
+    const [[byRun, owners], ladders, ordinal, papers] = await Promise.all([
       this.dealsWithOwners([found.row.code]),
       this.repo.ladderRows(),
       this.repo.ordinalOf(found.row),
+      this.repo.contractsOf([found.row.code]),
     ])
     const all = byRun.get(found.row.code) ?? []
-    const { deals, hidden } = this.visibleDeals(who, all, owners)
+    const closed = papers.get(found.row.code) ?? []
+    const { deals, hidden } = this.visibleDeals(who, found, all, owners, closed)
     const dealCodes = deals.map((d) => d.code)
     const stopKeys = deals.flatMap((d) => (d.stopReason === null ? [] : [d.stopReason]))
 
-    const [rows, steps, today, acceptors] = await Promise.all([
+    const [lanes, steps, today, acceptors] = await Promise.all([
       this.lanes.lanesOf(found.lead.code, dealCodes, stopKeys),
       this.steps.stepsOf(dealCodes),
       this.steps.today(),
       this.repo.dealAcceptorsOf(dealCodes),
     ])
+    /* A closer's deal shows whole, its sibling papers do not (ADR 0110 §2). */
+    const stands = standsFor(who.id, all, owners)
+    const rows = who.ownOnly
+      ? readableLanes(lanes, (c) => contractOpens(found, c, stands, who.id))
+      : lanes
 
     return WorkstreamJourneyResponse.parse(
       journeyOf({
@@ -167,6 +204,7 @@ export class WorkstreamService {
         stage: stageConfigOf(ladders.stage),
         now: new Date(),
         today,
+        canEdit: (ownerId) => mayWriteContract(who, ownerId),
       }),
     )
   }
@@ -195,32 +233,59 @@ export class WorkstreamService {
        column that does not describe it. */
     const readerId = who.ownOnly ? who.id : null
     const stands = standsFor(who.id, [...deals.values()].flat(), owners)
+    const stage = stageConfigOf(ladders.stage)
+    const tier = tierConfigOf(ladders.tier)
 
     const walked = reads.map((read) => {
       const runContracts = contracts.get(read.row.code) ?? []
-      const own = this.visibleDeals(who, deals.get(read.row.code) ?? [], owners).deals
-      const signed = runContracts.find((c) => own.some((d) => d.code === c.deal))
+      const own = this.visibleDeals(
+        who,
+        read,
+        deals.get(read.row.code) ?? [],
+        owners,
+        runContracts,
+      ).deals
+      /* The newest signature this reader may open — the stand's own rule. */
+      const signed = runContracts.find((c) =>
+        readerId === null
+          ? own.some((d) => d.code === c.deal)
+          : contractOpens(read, c, stands, readerId),
+      )
+      const kept = opensStand(read, runContracts, stands, readerId)
+      /* The stand's own paper when this reader may open it, else their newest. */
+      const paper =
+        readerId === null
+          ? undefined
+          : (runContracts.find(
+              (c) => c.code === read.row.standCode && contractOpens(read, c, stands, readerId),
+            ) ?? signed)
       return {
         read,
         own,
+        runContracts,
         live: liveOf(own, signed?.code ?? null),
-        kept: opensStand(read, runContracts, stands, readerId),
+        kept,
+        stand: standOf(read, kept, stage, paper?.code ?? null),
       }
     })
 
-    const [waiting, acceptors] = await Promise.all([
+    const standDeals = walked.flatMap((w) => (w.stand.kind === 'OP' ? [w.stand.code] : []))
+    const [waiting, acceptors, steps, today] = await Promise.all([
       this.approvals.pendingOnMany(walked.map((w) => liveCodeOf(w.read, w.live))),
-      this.repo.dealAcceptorsOf(walked.flatMap((w) => w.own.map((d) => d.code))),
+      this.repo.dealAcceptorsOf([
+        ...walked.flatMap((w) => w.own.map((d) => d.code)),
+        ...standDeals,
+      ]),
+      this.steps.stepsOf(walked.flatMap((w) => stepSubjectOf(w.stand) ?? [])),
+      this.steps.today(),
     ])
 
-    const stage = stageConfigOf(ladders.stage)
-    const tier = tierConfigOf(ladders.tier)
     const now = new Date().toISOString()
 
     return walked.map((w) =>
       toContract({
         read: w.read,
-        stand: standOf(w.read, w.kept, stage),
+        stand: w.stand,
         /* A folded row prints the lead's rung, so it prints no deadline of the
            deal; a held stand has its clock stopped (ADR 0097 §3). */
         overdueBy: w.kept && !w.read.held ? overdueOf(w.read.row.standDueAt, now) : null,
@@ -234,6 +299,8 @@ export class WorkstreamService {
         /* A run whose three ledgers are all silent still prints seven zeroes:
            `footprintOf` only emits the buckets it counted something in. */
         footprint: footprints.get(w.read.row.code) ?? blankFootprint(),
+        inCharge: inChargeOf(w.stand, w.read, owners, acceptors, w.runContracts),
+        nextStep: rowStepOf(w.stand, steps, today),
       }),
     )
   }
@@ -247,21 +314,33 @@ export class WorkstreamService {
   }
 
   /** E2 per deal, with the ref `OpportunityService.book()` builds — the same
-   *  fence the opportunity book puts between this reader and a deal. */
+   *  fence the opportunity book puts between this reader and a deal. A deal
+   *  with a contract the reader may open (`contractOpens`: closer, lead
+   *  holder) also shows, read-only, so the card hangs off it as the book's
+   *  stand says (ADR 0110 §2–3). Deal write doors keep their own scope. */
   private visibleDeals(
     who: Actor,
+    read: WorkstreamRead,
     all: readonly OpportunityRowDb[],
     owners: Map<string, OpportunityOwner[]>,
+    papers: readonly RunContract[],
   ): { deals: OpportunityRowDb[]; hidden: number } {
-    const items = all.map((row) => ({
-      row,
-      ref: scopeRefOf(row, owners.get(row.code) ?? [], who),
-    }))
+    const stands = standsFor(who.id, all, owners)
+    const opened = papers.filter((c) => contractOpens(read, c, stands, who.id))
+    const reached = new Set(opened.map((c) => c.deal))
+    const items = all.map((row) => {
+      const ref = scopeRefOf(row, owners.get(row.code) ?? [], who)
+      return {
+        row,
+        ref: reached.has(row.code) ? { ...ref, owner: who.name, ownerId: who.id } : ref,
+      }
+    })
     const { visible } = this.access.visible(who, items)
     /* E2 reads a ref with no owner as shared; a deal with no owner row must
        still stay out of an own-only reader's journey, so the id is asked here too. */
-    const stands = standsFor(who.id, all, owners)
-    const deals = visible.map((v) => v.row).filter((d) => !who.ownOnly || stands(d.code))
+    const deals = visible
+      .map((v) => v.row)
+      .filter((d) => !who.ownOnly || stands(d.code) || reached.has(d.code))
     return { deals, hidden: all.length - deals.length }
   }
 }
@@ -334,6 +413,28 @@ function inputOf(
     since: read.lead.stateSince.toISOString(),
   }
 }
+
+/** The anchor lead's ref for E2's second grid. A reader the SQL fence let in
+ *  through a deal or a contract of the run (ADR 0110 §3) is named as its
+ *  owner — the move `scopeRefOf` makes for a deal — or axis 3 hides the row. */
+function runRef(who: Actor, r: WorkstreamPageRow): ObjectRef {
+  const ref = leadRef(r.lead, r.saleName)
+  return who.ownOnly && r.inScope ? { ...ref, owner: who.name, ownerId: who.id } : ref
+}
+
+/** The lane rows minus the contracts, and their instalments, the reader may
+ *  not open. */
+function readableLanes(rows: LaneRows, opens: (c: ContractLaneRow) => boolean): LaneRows {
+  const contracts = rows.contracts.filter(opens)
+  const kept = new Set(contracts.map((c) => c.code))
+  return {
+    ...rows,
+    contracts,
+    installments: rows.installments.filter((i) => kept.has(i.contractCode)),
+  }
+}
+
+const rangeOf = (span: DaySpan) => ({ first: span.from, last: lastDayOf(span) })
 
 /** `dealStoodBy` (`../open-deal.ts`) over rows already loaded: the reader
  *  stands on the deal in either lane, or accepted it. */

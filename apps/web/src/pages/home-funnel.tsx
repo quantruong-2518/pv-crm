@@ -14,7 +14,7 @@ import {
 import type { SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { enteredLeadsHref, funnelOf, num, rateOf } from './home-model'
-import { rangeLabel } from './home-period'
+import { rangeLabel } from '@/data/period-pick'
 import { IconTile } from './home-tiles'
 
 /** The funnel of row two: the leads that entered the book in the period, and

@@ -48,6 +48,8 @@ export type BookTable = {
 export type BookPageProps = {
   /** The book's name. Uppercased by CSS, so readers still hear words. */
   title: string
+  /** One line under the title — a period's progress, say. */
+  description?: ReactNode
   /** Write doors — create, import. Right of the title from `sm`. */
   actions?: ReactNode
   /** Nav across sibling books, between the header and the score row. */
@@ -84,6 +86,7 @@ export type BookPageProps = {
 
 export function BookPage({
   title,
+  description,
   actions,
   nav,
   score,
@@ -116,7 +119,11 @@ export function BookPage({
   )
   const head = (
     <>
-      <ScreenHeader title={<span className="uppercase">{title}</span>} actions={actions} />
+      <ScreenHeader
+        title={<span className="uppercase">{title}</span>}
+        description={description}
+        actions={actions}
+      />
       {nav}
       {score}
     </>

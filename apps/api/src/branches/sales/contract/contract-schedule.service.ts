@@ -28,6 +28,7 @@ import { ContractRepository } from './contract.repository'
 import type { ContractInstallmentRowDb, ContractRowDb } from './contract.schema'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 import { ContractTerminationService } from './contract-termination.service'
+import { assertMayWriteContract, mayWriteContract } from './contract-writer'
 
 /** What a door did: the audit note, and the bell it rings, if any. `occurrence`
  *  keeps two acts of one kind on one contract apart in the bell's ledger. */
@@ -196,9 +197,9 @@ export class ContractScheduleService {
     })
   }
 
-  /** Scope fence, then one transaction: lock the contract, run the change, write
-   *  the audit line and ring the bell it returns. Out of scope answers the same
-   *  404 as the read. */
+  /** Scope fence, then one transaction: lock the contract, ask who may write it
+   *  (`contract-writer.ts`), run the change, write the audit line and ring the
+   *  bell it returns. Out of scope answers the same 404 as the read. */
   private async write(
     who: Actor,
     code: ContractCode,
@@ -209,6 +210,7 @@ export class ContractScheduleService {
     await this.schedule.run(async (tx) => {
       const row = await this.schedule.lock(tx, code)
       if (!row) throw notFound('hợp đồng', code)
+      assertMayWriteContract(who, row.ownerId)
       await this.termination.assertLive(tx, code)
       const { note, bell } = await work(tx, row)
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
@@ -217,7 +219,10 @@ export class ContractScheduleService {
 
     const found = await this.contracts.byCode(who, code)
     if (!found) throw notFound('hợp đồng', code)
-    return ContractScheduleResponse.parse(toDetail(found))
+    return ContractScheduleResponse.parse({
+      ...toDetail(found),
+      canEdit: mayWriteContract(who, found.row.ownerId),
+    })
   }
 
   /** The actor is passed so E4 skips them: nobody is told about their own act.

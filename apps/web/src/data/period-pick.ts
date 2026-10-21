@@ -103,9 +103,13 @@ export function bucketViews(data: SalesPerformanceResponse): BucketView[] {
   })
 }
 
+/** What the progress line reads: the overview's response and a book scorecard's
+ *  `inPeriod` both carry it, so each screen prints the same line. */
+export type PeriodRead = { span: SalesDayRange; asOf: string; compare: SalesDayRange }
+
 /** How far the period has run, in days, for the header's progress line; a
  *  finished period has run all of them. */
-export function progressOf(data: SalesPerformanceResponse): { ran: number; total: number } {
+export function progressOf(data: PeriodRead): { ran: number; total: number } {
   const dayNo = (day: string) => Date.parse(`${day}T00:00:00Z`) / 86_400_000
   const total = dayNo(data.span.last) - dayNo(data.span.first) + 1
   const ran = Math.min(total, Math.max(0, dayNo(data.asOf) - dayNo(data.span.first) + 1))
@@ -113,5 +117,5 @@ export function progressOf(data: SalesPerformanceResponse): { ran: number; total
 }
 
 /** The header's comparison line, read off the span the server compared with. */
-export const compareLabel = (data: SalesPerformanceResponse): string =>
+export const compareLabel = (data: PeriodRead): string =>
   `so với ${rangeLabel(data.compare, data.span.first)}`

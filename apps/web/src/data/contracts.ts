@@ -247,6 +247,14 @@ export const DUE_LABEL: Record<DueLevel, string> = {
   'long-overdue': 'Quá hạn lâu',
 }
 
+/** The one sentence a reader without write rights gets on a contract (ADR 0110).
+ *  With nobody holding it, only the head of sales and the director are named. */
+export function contractReadOnlyNote(holder: string | null | undefined): string {
+  return holder
+    ? `Bạn chỉ xem được hợp đồng này. ${holder}, trưởng phòng hoặc giám đốc mới sửa được.`
+    : 'Chỉ trưởng phòng hoặc giám đốc mới sửa được hợp đồng này.'
+}
+
 /** How many days, said the way a person would say it. */
 export function daysPhrase(daysLeft: number): string {
   if (daysLeft > 0) return `còn ${daysLeft} ngày`

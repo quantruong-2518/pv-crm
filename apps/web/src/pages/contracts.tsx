@@ -103,7 +103,7 @@ function rowCells(row: ContractBookRow) {
     <span key="signed" className="tnum font-num text-[11.5px]">
       {dm(row.contract.signedAt)}
     </span>,
-    <AvatarCell key="owner" name={row.contract.ownerName} empty="Chưa có người phụ trách" />,
+    <AvatarCell key="owner" name={row.contract.ownerName} empty="Chưa có người chốt" />,
     <MoneyCell
       key="value"
       amount={row.contract.amount}
@@ -224,11 +224,11 @@ function useColumnTools(book: Book) {
   const { query } = book
   const salesPeople = useSalesPeople()
   const ownerOptions = [
-    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
+    { value: OWNER_NONE, label: 'Chưa có người chốt' },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
   const ownerFilter = (
-    <ColumnFilter label="Người phụ trách" active={Boolean(query.owner)}>
+    <ColumnFilter label="Người chốt" active={Boolean(query.owner)}>
       {(close) => (
         <ColumnFilterList
           options={ownerOptions}

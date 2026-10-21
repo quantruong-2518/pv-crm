@@ -14,9 +14,9 @@ import { Field } from './ops-fields'
 
 /** Two pieces of the sign drawer, split out to keep it under the function
  *  ceiling: the footer, and the one-line fold for the signing day and the
- *  commission owner. */
+ *  closer. */
 
-/** The signing day and who the commission goes to, folded into one row that
+/** The signing day and who closes the contract, folded into one row that
  *  says both while the defaults stand; its change link opens the two fields.
  *  The verb follows the door: sign when the press signs, send when it sends
  *  a request. */
@@ -48,7 +48,7 @@ export function SignWhenWho({
         onClick={() => setChanging((was) => !was)}
         className="bg-surface-ink/9 motion-std hover:bg-surface-ink/14 pointer-coarse:min-h-12 flex min-h-12 items-center gap-3 rounded-md px-3 text-left"
       >
-        <span className="text-muted-foreground text-[12px] font-medium">Ngày ký · Hoa hồng về</span>
+        <span className="text-muted-foreground text-[12px] font-medium">Ngày ký · Người chốt</span>
         <span className="tnum min-w-0 flex-1 truncate text-[13px]">
           {taken ? `Lấy lúc bấm ${verb}` : `Ngày ${dmy(signedDate)}`}
           {' · '}
@@ -79,9 +79,13 @@ export function SignWhenWho({
               onChange={(e) => onDate(e.target.value)}
             />
           </Field>
-          <Field label="Hoa hồng về" plain hint="Mặc định là Sale đang giữ đơn.">
+          <Field
+            label="Người chốt hợp đồng"
+            plain
+            hint="Người này nhận hoa hồng, nhận nhắc thu tiền và sửa được hợp đồng."
+          >
             <Select
-              label="Hoa hồng về"
+              label="Người chốt hợp đồng"
               hideLabel
               size="lg"
               value={ownerId}

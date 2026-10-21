@@ -148,6 +148,8 @@ export type JourneyInput = {
   now: Date
   /** Vietnam calendar day (`YYYY-MM-DD`) every due level is graded against. */
   today: string
+  /** `mayWriteContract` bound to the reader: the fold stays reader-blind. */
+  canEdit: (ownerId: string | null) => boolean
 }
 
 export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
@@ -174,7 +176,10 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
     lead: lead.lead,
     deals,
     hiddenDeals: input.hidden,
-    contracts: rows.contracts.map((c) => contractOf(c, rows, input.now, input.today)),
+    contracts: rows.contracts.map((c) => ({
+      ...contractOf(c, rows, input.now, input.today),
+      canEdit: input.canEdit(c.ownerId),
+    })),
     doors: lead.door ? [lead.door] : [],
   }
 }

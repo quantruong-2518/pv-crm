@@ -26,6 +26,9 @@ type Row = {
   hint?: string
   /** The SALE lane's primary, said only when the lane has several people. */
   primary?: boolean
+  /** Keeps `seat` as the line even for a person the directory knows: the
+   *  closer's seat IS the role here, and their job title would hide it. */
+  keepSeat?: boolean
 }
 
 const name = (holder: WorkstreamHolder | null) => holder?.name ?? null
@@ -130,11 +133,12 @@ export function RunOwners({
           {
             key: contract.code,
             step: 'Hợp đồng',
-            seat: 'Giữ hợp đồng',
+            seat: 'Người chốt',
             code: contract.code,
             who: name(contract.holder),
             id: idOf(contract.holder),
-            hint: 'Chưa có người giữ',
+            hint: 'Chưa có người chốt',
+            keepSeat: true,
           },
           ...(contract.implementer
             ? [
@@ -160,7 +164,9 @@ export function RunOwners({
       <PersonList>
         {rows.map((row) => {
           const door = doors[row.key]
-          const seat = people.find((a) => a.id === row.id)?.role ?? row.seat
+          const seat = row.keepSeat
+            ? row.seat
+            : (people.find((a) => a.id === row.id)?.role ?? row.seat)
           return (
             <PersonRow
               key={row.key}

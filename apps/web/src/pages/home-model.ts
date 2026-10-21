@@ -18,7 +18,7 @@ import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQueryToParams } from '@/da
 
 /** Calculation behind the overview screen (`home.tsx`): how a figure compares
  *  with the period before, and the book addresses its tiles open. The overview's own four-grain picker lives in
- *  `home-period.ts`; the month/quarter picker below is the KPI and cost
+ *  `data/period-pick.ts`; the month/quarter picker below is the KPI and cost
  *  screens'. No render, no fetch. */
 
 // ---------------------------------------------------------------------------
