@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import type { DueLevel } from '@pv/engines'
-import type { ConditionSide, Installment, InstallmentView } from '@/data/contracts'
+import type { ConditionSide, InstallmentView } from '@/data/contracts'
 import { DUE_LABEL, standingOf } from '@/data/contracts'
 import { BADGE_INK } from '@/data/opportunities'
 
@@ -61,31 +61,6 @@ export function SideTag({ side, long = false }: { side: ConditionSide; long?: bo
       <Icon icon={ours ? ArrowRight : ArrowLeft} size={14} />
       {ours ? 'Ta' : 'Khách'}
       {long && ' phải làm'}
-    </span>
-  )
-}
-
-/** One dash per unlock condition, in contract order — done, late, or still
- *  ahead. Deliberately not a percentage bar: four conditions are four discrete
- *  promises, and "75%" hides which one is missing. */
-export function ConditionBar({
-  installment,
-  lateIds,
-}: {
-  installment: Installment
-  lateIds: Set<string>
-}) {
-  return (
-    <span className="flex gap-1" aria-hidden>
-      {installment.conditions.map((c) => (
-        <span
-          key={c.id}
-          className={cn(
-            'h-[5px] w-6 rounded-sm',
-            c.doneAt ? 'bg-success' : lateIds.has(c.id) ? 'bg-destructive' : 'bg-surface-ink/14',
-          )}
-        />
-      ))}
     </span>
   )
 }

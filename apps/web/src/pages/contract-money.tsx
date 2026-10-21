@@ -1,279 +1,159 @@
-import { useMemo } from 'react'
-import {
-  ChevronRight,
-  GlassCard,
-  Icon,
-  SectionTitle,
-  StatCard,
-  StatusDot,
-  billions,
-  cn,
-  vnd,
-  millions,
-} from '@pv/ui'
-import { daysUntil, needsAttention } from '@pv/engines'
+import { Badge, Chip, ClipboardList, GlassCard, Icon, cn } from '@pv/ui'
+import { daysUntil, type DueLevel } from '@pv/engines'
 import { dm, dmy } from '@/lib/date'
 import {
+  DUE_LABEL,
   daysPhrase,
+  standingOf,
   today,
   type Contract,
   type Installment,
+  type InstallmentCondition,
   type InstallmentView,
 } from '@/data/contracts'
-import { ConditionBar, DueBadge, MoneySplit } from '@/components/contract-bits'
-import { RecordCard } from '@/components/record/record-card'
+import { BADGE_INK } from '@/data/opportunities'
+import { useContractKindLabel } from '@/data/sales-config'
+import { TintBadge } from '@/components/deal-money/tint-badge'
+import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/money'
 
-/** The working content of the contract profile: the headline numbers and the
- *  shape of the money, then the installments as doors into level 2.
- *
- *  What this screen deliberately does NOT draw is a two-rail timeline of money
- *  against obligations. That drawing was built and thrown away: it encoded the
- *  same facts this list carries, but it made the reader decode a graph first.
- *  The obligations did not disappear — they live inside each installment as its
- *  unlock checklist, which is also how the contract itself words them. */
+/** The contract's money block, drawn like the deal's (`PaperDetail`): one well
+ *  with the paper's heading, then the installments as tiles that open level 2.
+ *  Same tile, same badge, same acceptance line — the two screens read as one.
+ * */
 
-function moneyOf(contract: Contract, now: string) {
-  const collected = contract.installments.filter((d) => d.paidAt).reduce((n, d) => n + d.amount, 0)
-  const overdue = contract.installments
-    .filter((d) => !d.paidAt && daysUntil(d.due, now) < 0)
-    .reduce((n, d) => n + d.amount, 0)
-  /* `amount` is nullable on the wire — a contract can be signed before anyone
-     has typed the number. Zero keeps the bar drawable; the tile above prints
-     the null as it is. */
-  return { collected, overdue, remaining: (contract.amount ?? 0) - collected }
+const LABEL = 'text-muted-foreground text-[12px] font-medium'
+
+const LEVEL_TONE: Record<DueLevel, 'success' | 'draft' | 'warning' | 'danger'> = {
+  done: 'success',
+  upcoming: 'draft',
+  'due-soon': 'warning',
+  due: 'warning',
+  overdue: 'danger',
+  'long-overdue': 'danger',
 }
 
-/** Bars in installment order, not on a time axis.
- *
- *  A real time axis would squeeze the first three installments into two months
- *  and stretch the retention one across half the width — a shape that says
- *  something true about the calendar and nothing about the money. The caption
- *  under the chart says so, so nobody reads spacing as duration. */
-export function InstallmentChart({ views }: { views: InstallmentView<Installment>[] }) {
-  const tallest = Math.max(...views.map((v) => v.installment.amount))
-  const fill: Record<string, string> = {
-    done: 'bg-success',
-    'due-soon': 'bg-warning',
-    due: 'bg-warning',
-    overdue: 'bg-destructive',
-    'long-overdue': 'bg-destructive',
-    upcoming: 'bg-surface-ink/14',
-  }
+const late = (level: DueLevel) => level === 'overdue' || level === 'long-overdue'
 
-  return (
-    <RecordCard title="Hình của dòng tiền" hint="Cột xếp theo thứ tự đợt.">
-      <div className="flex h-[180px] items-end gap-6">
-        {views.map((v) => (
-          <div key={v.installment.no} className="flex h-full flex-1 flex-col justify-end gap-2">
-            <span className="tnum font-num text-center text-[12.5px] font-semibold">
-              {millions(v.installment.amount, 0)}
-            </span>
-            <span
-              className={cn('w-full rounded-t-md', fill[v.level])}
-              style={{ height: `${Math.round((v.installment.amount / tallest) * 150)}px` }}
-              title={`Đợt ${v.installment.no} · ${vnd(v.installment.amount)} · hạn ${dmy(v.installment.due)}`}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-surface-ink/8 h-px" />
-
-      <div className="flex gap-6">
-        {views.map((v) => (
-          <span key={v.installment.no} className="flex flex-1 flex-col items-center gap-1">
-            <span className="text-[11.5px]">
-              Đợt {v.installment.no} · {v.installment.share}%
-            </span>
-            <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-              {dm(v.installment.due)}
-            </span>
-          </span>
-        ))}
-      </div>
-    </RecordCard>
-  )
+/** The condition that holds the tile up, else the first open one, else the first. */
+function acceptanceOf(view: InstallmentView<Installment>): InstallmentCondition | undefined {
+  const { conditions } = view.installment
+  return view.blocking ?? conditions.find((c) => !c.doneAt) ?? conditions[0]
 }
 
-/** The headline numbers and the split of the money, above the installment list. */
-export function MoneySummary({
-  contract,
-  now,
-  next,
-}: {
-  contract: Contract
-  now: string
-  next: InstallmentView<Installment> | undefined
-}) {
-  const money = moneyOf(contract, now)
-  return (
-    <RecordCard>
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          size="compact"
-          label="Giá trị hợp đồng"
-          value={contract.amount === null ? '—' : billions(contract.amount)}
-          source={contract.amount === null ? 'chưa có số tiền' : vnd(contract.amount)}
-        />
-        <StatCard
-          size="compact"
-          label="Đã thu"
-          value={millions(money.collected, 0)}
-          source={
-            contract.amount
-              ? `${Math.round((money.collected / contract.amount) * 100)}% giá trị`
-              : 'chưa có số tiền để so'
-          }
-        />
-        <StatCard
-          size="compact"
-          label="Còn phải thu"
-          value={millions(money.remaining, 0)}
-          source={`${contract.installments.filter((d) => !d.paidAt).length} đợt còn lại`}
-        />
-        <StatCard
-          size="compact"
-          label="Quá hạn thu"
-          value={money.overdue > 0 ? millions(money.overdue, 0) : '0 ₫'}
-          source={money.overdue > 0 ? 'phải gọi hôm nay' : 'chưa đợt nào trễ hạn'}
-        />
-      </div>
-
-      <MoneySplit
-        collected={money.collected}
-        atRisk={next && needsAttention(next.level) ? next.installment.amount : 0}
-        ahead={money.remaining - (next && needsAttention(next.level) ? next.installment.amount : 0)}
-      />
-
-      <div className="flex flex-wrap gap-6">
-        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-          <StatusDot state="ok" /> Đã thu
-        </span>
-        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-          <StatusDot state="warning" /> Đang cần chú ý
-        </span>
-        <span className="text-muted-foreground flex items-center gap-2 text-[10.5px]">
-          <StatusDot state="next" /> Chưa tới hạn
-        </span>
-      </div>
-    </RecordCard>
-  )
-}
-
-const ROW_GRID = 'grid-cols-[132px_180px_140px_minmax(0,1fr)_150px_24px]'
-
-/** A long list, so `.glass-b` (law 8). Beside the rail the column is narrower
- *  than the six cells, so the list scrolls sideways rather than crushing them. */
-export function InstallmentList({
+export function ContractMoney({
+  contract: c,
   views,
   onOpen,
 }: {
+  contract: Contract
   views: InstallmentView<Installment>[]
   onOpen: (no: number) => void
 }) {
-  return (
-    <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
-      <SectionTitle size="detail" hint="Mở một đợt để xem điều kiện, giấy tờ, bản ghi và ghi chú.">
-        {views.length} đợt thanh toán
-      </SectionTitle>
+  const resolveKind = useContractKindLabel()
+  const collected = c.installments.filter((d) => d.paidAt).reduce((n, d) => n + d.amount, 0)
+  const standing = standingOf(
+    views.map((v) => ({ overdue: late(v.level), paid: Boolean(v.installment.paidAt) })),
+  )
 
-      <div className="overflow-x-auto">
-        <div className="flex min-w-[880px] flex-col gap-1">
-          <div
-            className={cn(
-              'text-muted-foreground grid items-center gap-4 px-4 pb-2 text-[11.5px] font-medium shadow-[inset_0_-1px_0_var(--sheen-b)]',
-              ROW_GRID,
-            )}
-          >
-            <span>Đợt</span>
-            <span>Số tiền</span>
-            <span>Hạn</span>
-            <span>Điều kiện mở khoá</span>
-            <span>Hồ sơ bên trong</span>
-            <span />
-          </div>
-          {views.map((v) => (
-            <InstallmentRow
-              key={v.installment.no}
-              view={v}
-              onOpen={() => onOpen(v.installment.no)}
-            />
-          ))}
+  return (
+    <GlassCard variant="b" className="flex min-w-0 flex-col p-5 sm:p-6" aria-label="Hợp đồng">
+      <div className="bg-surface-ink/5 flex min-w-0 flex-col gap-6 rounded-lg p-4 sm:p-6">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <h2 className="font-display m-0 text-[20px] font-semibold">
+            {kindLabel(c.kind, resolveKind)}
+          </h2>
+          <Chip>{c.code}</Chip>
+          <Badge tone={standing.tone}>{standing.label}</Badge>
+          <span className="text-muted-foreground tnum text-[12px]">Ký {dmy(c.signedAt)}</span>
+          <span className="tnum font-num ml-auto text-[20px] font-semibold">
+            {c.amount === null ? NO_AMOUNT : compactMoney(c.amount, c.currency)}
+          </span>
         </div>
+
+        <section className="flex min-w-0 flex-col gap-3" aria-label="Lịch thanh toán">
+          <span className={LABEL}>
+            Lịch thanh toán · đã thu {compactMoney(collected, c.currency)}
+            {c.amount !== null && ` / ${compactMoney(c.amount, c.currency)}`}
+          </span>
+          {views.length === 0 ? (
+            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+              Chưa có lịch thanh toán
+            </p>
+          ) : (
+            <div
+              role="group"
+              aria-label="Các đợt thanh toán"
+              className="-m-1 grid snap-x auto-cols-[max(176px,calc((100%-24px)/3))] grid-flow-col gap-3 overflow-x-auto p-1"
+            >
+              {views.map((v) => (
+                <InstallmentTile
+                  key={v.installment.no}
+                  view={v}
+                  currency={c.currency}
+                  onOpen={() => onOpen(v.installment.no)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </GlassCard>
   )
 }
 
-function InstallmentRow({
+function InstallmentTile({
   view,
+  currency,
   onOpen,
 }: {
   view: InstallmentView<Installment>
+  currency: Contract['currency']
   onOpen: () => void
 }) {
-  const { installment: d } = view
-  const lateIds = useMemo(
-    () =>
-      new Set(
-        d.conditions.filter((c) => !c.doneAt && daysUntil(c.due, today()) < 0).map((c) => c.id),
-      ),
-    [d.conditions],
-  )
+  const { installment: d, level } = view
+  const line = acceptanceOf(view)
+  const lineLate = Boolean(line && !line.doneAt && daysUntil(line.due, today()) < 0)
+  const overdue = late(level)
 
   return (
     <button
       type="button"
       onClick={onOpen}
       className={cn(
-        'motion-std grid min-h-[76px] w-full items-center gap-4 rounded-md px-4 py-3 text-left',
-        ROW_GRID,
-        'hover:bg-surface-ink/6',
-        /* No tint: a tinted ground took the badge under 4.5:1 in the light theme. The
-           badge and the blocking line already say why the row wants a look. */
-        (needsAttention(view.level) || view.blocking) && 'shadow-[inset_0_1px_0_var(--sheen-b)]',
+        'motion-std focus-visible:outline-ring shadow-control flex min-h-[148px] snap-start flex-col items-start gap-2 rounded-lg p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2',
+        overdue
+          ? 'bg-destructive/14 hover:bg-destructive/22 stone:hover:bg-destructive/14'
+          : 'bg-surface-ink/9 hover:bg-surface-ink/14 stone:hover:bg-surface-ink/9',
       )}
     >
-      <span className="flex flex-col items-start gap-1">
-        <span className="text-[12.5px] font-semibold">
-          Đợt {d.no} · {d.share}%
-        </span>
-        <DueBadge level={view.level} />
+      <span className="flex w-full items-baseline gap-2">
+        <span className="text-[13px] font-semibold">{d.label}</span>
+        <span className="text-muted-foreground tnum ml-auto text-[12px]">{d.share}%</span>
       </span>
-
-      <span className="tnum font-num text-[14px] font-semibold">{vnd(d.amount)}</span>
-
-      <span className="flex flex-col gap-1">
-        <span className="tnum font-mono text-[11.5px]">{dmy(d.due)}</span>
-        <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-          {d.paidAt ? `về ${dm(d.paidAt)}` : daysPhrase(view.daysLeft)}
-        </span>
+      <span className="tnum font-num text-[20px] font-semibold leading-[1.3]">
+        {compactMoney(d.amount, currency)}
       </span>
-
-      <span className="flex min-w-0 items-center gap-3">
-        <ConditionBar installment={d} lateIds={lateIds} />
-        <span className="min-w-0 truncate text-[11.5px]">
-          {view.doneConditions}/{view.totalConditions}
-          {view.blocking ? (
-            <span className="text-on-tint-destructive">
-              {' '}
-              · còn {view.blocking.what.toLowerCase()}
-            </span>
-          ) : view.doneConditions === view.totalConditions ? (
-            <span className="text-on-tint-success"> · xong cả hai bên</span>
-          ) : (
-            <span className="text-muted-foreground"> điều kiện</span>
+      <span className="text-muted-foreground tnum text-[12px]">hạn {dm(d.due)}</span>
+      <TintBadge tone={LEVEL_TONE[level]} className={cn(level === 'upcoming' && BADGE_INK)}>
+        {d.paidAt
+          ? `${DUE_LABEL.done} ${dmy(d.paidAt)}`
+          : `${DUE_LABEL[level]} · ${daysPhrase(view.daysLeft)}`}
+      </TintBadge>
+      {line && (
+        <span
+          className={cn(
+            'mt-auto flex items-center gap-2 text-[12px] leading-[1.5]',
+            line.doneAt
+              ? 'text-on-tint-success'
+              : lineLate
+                ? 'text-on-tint-destructive'
+                : 'text-on-tint-warning',
           )}
+        >
+          <Icon icon={ClipboardList} size={14} className="shrink-0" />
+          {line.what}
         </span>
-      </span>
-
-      <span className="text-muted-foreground tnum font-mono text-[10.5px]">
-        {d.docs.length} giấy tờ · {d.records.length} bản ghi
-      </span>
-
-      <span className="text-muted-foreground flex justify-end">
-        <Icon icon={ChevronRight} size={16} />
-      </span>
+      )}
     </button>
   )
 }

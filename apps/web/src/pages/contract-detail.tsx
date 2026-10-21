@@ -29,7 +29,7 @@ import { CommJourney } from '@/components/run/comm-journey'
 import { RunOwners } from '@/components/run/run-owners'
 import { RunSigners } from '@/components/run/run-signers'
 import { RunContacts } from '@/components/run/run-contacts'
-import { InstallmentChart, InstallmentList, MoneySummary } from './contract-money'
+import { ContractMoney } from './contract-money'
 import { ContractTodo } from './contract-todo'
 
 /** Level 1 of the drill — one contract, on the record shell (ADR 0078): run
@@ -119,9 +119,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
       main={
         <>
           <ContractTodo inside={run.inside} read={run.read} next={next} />
-          <MoneySummary contract={contract} now={now} next={next} />
-          <InstallmentChart views={views} />
-          <InstallmentList views={views} onOpen={openInstallment} />
+          <ContractMoney contract={contract} views={views} onOpen={openInstallment} />
           {run.inside && hasInside(run.inside) && (
             <RecordCard>
               <ContractInside contract={run.inside} />
