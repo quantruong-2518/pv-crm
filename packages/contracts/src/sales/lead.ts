@@ -343,6 +343,13 @@ export const LeadBookQuery = PageQuery.extend({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  /** `EXIT_REASON` id of a lead that left the funnel (`exitReason`), or the
+   *  `'other'` a stop door also stores. */
+  exitReason: z.union([ConfigCode, z.literal(OPPORTUNITY_STOP_REASON_OTHER)]).optional(),
+  /** Exit moment (`exitedAt`) as Vietnam days, both ends inclusive — the fence
+   *  the overview's stop reasons count by, so their links match. */
+  exitedFrom: Day.optional(),
+  exitedTo: Day.optional(),
 
   q: searchText,
 

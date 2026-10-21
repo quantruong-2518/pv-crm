@@ -1,6 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ArrowDown,
+  ArrowRight,
   Button,
   EmptyState,
   GlassCard,
@@ -18,7 +20,8 @@ import {
   type IconGlyph,
 } from '@pv/ui'
 import type { SalesPerformanceResponse, WorkstreamScorecard } from '@pv/contracts'
-import { deltaOf, money, num, rateOf, type Delta } from './home-model'
+import { useCan } from '@/app/auth'
+import { dealsHref, deltaOf, money, num, rateOf, type Delta } from './home-model'
 
 /** Shared parts of the overview bento and its three compact cards.
  *
@@ -41,11 +44,19 @@ export const NEUTRAL_MARK = 'bg-muted-foreground'
 export const BIG = 'tnum font-num text-[34px] font-semibold leading-none tracking-[-1.2px]'
 const TITLE = 'text-[13px] font-semibold leading-5'
 
+/** A small pill link inside a card; the coarse floor keeps it a 48px target. */
+export const PILL_LINK = cn(
+  'bg-surface-ink/10 hover:bg-surface-ink/15 pointer-coarse:min-h-12 inline-flex items-center gap-2',
+  'rounded-full px-3 py-1 text-[12px] font-semibold leading-4 transition-colors',
+  'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
+  'motion-reduce:transition-none',
+)
+
 /* The card shell: lifts on hover and rises in on first paint (`starting:`). */
 export const CARD_SHELL = cn(
   'bg-card flex min-w-0 rounded-3xl p-5 [box-shadow:var(--shadow-panel)]',
   'starting:translate-y-3 starting:opacity-0 transition duration-500 hover:-translate-y-0.5',
-  'motion-reduce:transition-none',
+  'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
 )
 const CARD_TITLE = 'text-[14px] font-semibold leading-5'
 const CARD_BIG =
@@ -119,6 +130,7 @@ type Figures = { data: SalesPerformanceResponse; className?: string }
 export function OpenValueTile({ data, className }: Figures) {
   const { count, amountVnd, blank } = data.open
   const valued = count - blank
+  const canView = useCan('opportunity.view')
   return (
     <section
       className={cn(
@@ -168,19 +180,27 @@ export function OpenValueTile({ data, className }: Figures) {
             </>
           )}
         </div>
-        <span className={cn(NOTE, 'tnum font-num')}>
-          {count === 0 ? (
-            'Chưa có cơ hội nào đang mở'
-          ) : blank > 0 ? (
-            <>
-              <strong className="text-foreground font-semibold">{num(valued)}</strong> cơ hội đã có
-              giá trị · <strong className="text-warning font-semibold">{num(blank)}</strong> chưa
-              nhập giá trị, chưa tính vào tổng
-            </>
-          ) : (
-            'Tất cả đã có giá trị'
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className={cn(NOTE, 'tnum font-num')}>
+            {count === 0 ? (
+              'Chưa có cơ hội nào đang mở'
+            ) : blank > 0 ? (
+              <>
+                <strong className="text-foreground font-semibold">{num(valued)}</strong> cơ hội đã
+                có giá trị · <strong className="text-warning font-semibold">{num(blank)}</strong>{' '}
+                chưa nhập giá trị, chưa tính vào tổng
+              </>
+            ) : (
+              'Tất cả đã có giá trị'
+            )}
+          </span>
+          {canView && count > 0 && (
+            <Link to={dealsHref('open')} className={PILL_LINK}>
+              Xem cơ hội
+              <Icon icon={ArrowRight} size={14} />
+            </Link>
           )}
-        </span>
+        </div>
       </div>
     </section>
   )
@@ -231,6 +251,7 @@ function WinRing({ rate }: { rate: number }) {
  *  (ADR 0088 §7) — the KPI definition. A dash when nothing closed. */
 export function WinRateTile({ data, className }: Figures) {
   const { wonDeals, lostDeals } = data.current
+  const canView = useCan('opportunity.view')
   const rate = winRate(data.current)
   const delta = deltaOf(rate, winRate(data.compare.figures), 'points')
   return (
@@ -252,6 +273,8 @@ export function WinRateTile({ data, className }: Figures) {
             <span className={cn(NOTE, 'tnum font-num')}>
               {rate === null ? (
                 'Chưa có cơ hội đóng trong kỳ'
+              ) : canView ? (
+                `${num(wonDeals + lostDeals)} cơ hội đã đóng`
               ) : (
                 <>
                   <strong className="text-foreground font-semibold">{num(wonDeals)} thắng</strong>{' '}
@@ -259,6 +282,24 @@ export function WinRateTile({ data, className }: Figures) {
                 </>
               )}
             </span>
+            {canView && rate !== null && (
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ['won', wonDeals, 'đã ký'],
+                    ['lost', lostDeals, 'đã dừng'],
+                  ] as const
+                ).map(
+                  ([state, count, word]) =>
+                    count > 0 && (
+                      <Link key={state} to={dealsHref(state, data.span)} className={PILL_LINK}>
+                        <span className="tnum font-num">{num(count)}</span> {word}
+                        <Icon icon={ArrowRight} size={14} />
+                      </Link>
+                    ),
+                )}
+              </div>
+            )}
           </div>
           {rate !== null &&
             (delta ? (

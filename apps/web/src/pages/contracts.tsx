@@ -35,6 +35,7 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { BookCount, BookPage } from '@/components/book-page'
+import { dayRangeChip } from '@/components/active-filters'
 import { AvatarCell, TableFooter } from '@/components/table-bits'
 import { MoneySplit } from '@/components/contract-bits'
 import { MoneyCell } from '@/components/money-cell'
@@ -237,7 +238,11 @@ function useColumnTools(book: Book) {
     )
   }
 
-  return { ownerFilter, signedFilter, onSort }
+  const chips = dayRangeChip('signed', 'Ngày ký', query.signedFrom, query.signedTo, () =>
+    book.patch({ signedFrom: undefined, signedTo: undefined }),
+  )
+
+  return { ownerFilter, signedFilter, onSort, chips }
 }
 
 export function ContractsPage() {
@@ -259,7 +264,7 @@ export function ContractsPage() {
   const rows = useMemo(() => (data ? bookRowsOf(data) : []), [data])
   const hidden = data?.hidden ?? 0
 
-  const { ownerFilter, signedFilter, onSort } = useColumnTools(book)
+  const { ownerFilter, signedFilter, onSort, chips } = useColumnTools(book)
 
   /* One `size=1` read per tab: `total` is the count under the OTHER filters in
      force, and no other endpoint answers that. */
@@ -295,6 +300,7 @@ export function ContractsPage() {
             />
           }
           count={data && <BookCount total={data.total} noun="hợp đồng" />}
+          filters={chips}
           tools={
             <>
               <SearchField

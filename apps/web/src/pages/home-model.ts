@@ -1,12 +1,14 @@
 import { billions, millions } from '@pv/ui'
 import {
   StageKey,
+  lastDayOf,
   salesPeriodOf,
   salesPeriodSpan,
   stepSalesPeriod,
   vnDayOf,
   type LeadState,
   type SalesCohort,
+  type SalesDayRange,
   type SalesStopReason,
   type WorkstreamBookQuery,
 } from '@pv/contracts'
@@ -145,6 +147,53 @@ export const leadStateHref = (state: LeadState): string =>
 /** The opportunity book narrowed to the open deals standing in one column. */
 export const openStageHref = (stage: StageKey): string =>
   `/sales/opportunities?${opportunityBookQueryToParams({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, state: 'open', stage })}`
+
+/** The days a period key covers, both ends inclusive: the shape of a performance
+ *  response's `span`, for the exits response, which carries only the key. */
+export function daysOfPeriod(key: string): SalesDayRange {
+  const span = salesPeriodSpan(key)
+  return { first: span.from, last: lastDayOf(span) }
+}
+
+/** The opportunity book on a state, closed or open; `days` narrows by close day. */
+export const dealsHref = (state: 'open' | 'won' | 'lost', days?: SalesDayRange): string =>
+  `/sales/opportunities?${opportunityBookQueryToParams({
+    ...DEFAULT_OPPORTUNITY_BOOK_QUERY,
+    state,
+    ...(days && { closedFrom: days.first, closedTo: days.last }),
+  })}`
+
+/** Deals stopped for one reason at one column, closed in the period. */
+export const stoppedDealsHref = (reason: string, stage: StageKey, days: SalesDayRange): string =>
+  `/sales/opportunities?${opportunityBookQueryToParams({
+    ...DEFAULT_OPPORTUNITY_BOOK_QUERY,
+    state: 'lost',
+    stopReason: reason,
+    stoppedStage: stage,
+    closedFrom: days.first,
+    closedTo: days.last,
+  })}`
+
+/** The lead book on every lead that entered in the period, whatever its state now. */
+export const enteredLeadsHref = (days: SalesDayRange): string =>
+  `/sales/leads?${leadBookQueryToParams({
+    ...DEFAULT_LEAD_BOOK_QUERY,
+    state: 'all',
+    createdFrom: days.first,
+    createdTo: days.last,
+  })}`
+
+/** Leads that left for one reason in the period. `state=all` with no `states`:
+ *  a CHECK ties `exit_reason` to `disqualified`, and a per-state tab would also
+ *  drop held leads the card still counts. */
+export const exitedLeadsHref = (reason: string, days: SalesDayRange): string =>
+  `/sales/leads?${leadBookQueryToParams({
+    ...DEFAULT_LEAD_BOOK_QUERY,
+    state: 'all',
+    exitReason: reason,
+    exitedFrom: days.first,
+    exitedTo: days.last,
+  })}`
 
 // ---------------------------------------------------------------------------
 // THE SHORT LIST — one filter at a time, set by a tile

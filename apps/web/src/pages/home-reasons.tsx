@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { GlassCard, Ban, Icon, Lightbulb, cn, percent } from '@pv/ui'
 import {
   OPPORTUNITY_STAGE_LABEL,
@@ -5,8 +6,9 @@ import {
   type SalesExitsResponse,
   type SalesStopReason,
 } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { LIFT, ToneTile } from './home-funnel'
-import { num, rateOf } from './home-model'
+import { daysOfPeriod, exitedLeadsHref, num, rateOf, stoppedDealsHref } from './home-model'
 import { periodLabel } from './home-period'
 
 /** Why leads and deals left in the picked period: one panel per group, each a
@@ -140,15 +142,23 @@ function LegendRow({
   tag,
   count,
   share,
+  to,
 }: {
   swatch: string
   label: string
   tag?: string
   count: number
   share: number | null
+  /** Makes the whole row a link to the list it counts. */
+  to?: string
 }) {
-  return (
-    <div className="hover:bg-card grid grid-cols-[10px_minmax(0,1fr)_auto_40px] items-center gap-2 rounded-xl px-2 py-1 transition-colors duration-150 motion-reduce:transition-none">
+  const className = cn(
+    'grid grid-cols-[10px_minmax(0,1fr)_auto_40px] items-center gap-2 rounded-xl px-2 py-1',
+    to !== undefined &&
+      'hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:min-h-12 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none',
+  )
+  const cells = (
+    <>
       <span aria-hidden className={cn('size-2.5 rounded-sm', swatch)} />
       <span className="min-w-0 text-[13px] leading-[18px]" title={label}>
         {label}
@@ -158,7 +168,14 @@ function LegendRow({
       <span className="tnum font-num text-muted-foreground text-right text-[12px] leading-4">
         {share === null ? '' : percent(share)}
       </span>
-    </div>
+    </>
+  )
+  return to === undefined ? (
+    <div className={className}>{cells}</div>
+  ) : (
+    <Link to={to} className={className}>
+      {cells}
+    </Link>
   )
 }
 
@@ -167,12 +184,15 @@ function ReasonGroup({
   title,
   unit,
   rows,
+  hrefOf,
   delay,
 }: {
   kind: keyof typeof LOOK
   title: string
   unit: string
   rows: readonly Row[]
+  /** The list a row opens; undefined leaves the row unlinked. */
+  hrefOf: (row: Row) => string | undefined
   delay: number
 }) {
   const look = LOOK[kind]
@@ -204,6 +224,7 @@ function ReasonGroup({
               tag={r.stage ? `ở ${OPPORTUNITY_STAGE_LABEL[r.stage]}` : undefined}
               count={r.count}
               share={rateOf(r.count, total)}
+              to={hrefOf(r)}
             />
           ))}
           {rest.n > 0 && (
@@ -240,6 +261,9 @@ function ReasonGroup({
 export function ReasonsTile({ data, className }: { data: SalesExitsResponse; className?: string }) {
   const leadTotal = sumOf(data.leadExits)
   const dealTotal = sumOf(data.dealStops)
+  const canLeads = useCan('lead.view')
+  const canDeals = useCan('opportunity.view')
+  const days = daysOfPeriod(data.period)
 
   return (
     <GlassCard className={cn('flex min-w-0 flex-col', LIFT, 'gap-4', className)}>
@@ -274,6 +298,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               title="Lead ngừng chăm sóc"
               unit="lead"
               rows={data.leadExits}
+              hrefOf={(r) => (canLeads ? exitedLeadsHref(r.key, days) : undefined)}
               delay={460}
             />
           )}
@@ -283,6 +308,9 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               title="Cơ hội đã dừng"
               unit="cơ hội"
               rows={data.dealStops}
+              hrefOf={(r) =>
+                canDeals && r.stage ? stoppedDealsHref(r.key, r.stage, days) : undefined
+              }
               delay={600}
             />
           )}

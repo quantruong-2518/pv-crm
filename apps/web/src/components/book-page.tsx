@@ -1,16 +1,21 @@
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import {
+  Button,
   DataTable,
   EmptyState,
   GlassCard,
+  Icon,
   Inbox,
   ScreenHeader,
   Skeleton,
   TriangleAlert,
+  X,
+  cn,
   type TableColumn,
   type TableRowModel,
   type TableSort,
 } from '@pv/ui'
+import type { ActiveFilter } from './active-filters'
 
 /** ONE shape for every book screen — leads, deals, campaigns, lead sources,
  *  mail runs, mail templates, companies, contacts, workstreams, users.
@@ -55,6 +60,9 @@ export type BookPageProps = {
   count?: ReactNode
   /** Search box and `FilterMenu`, right end of the toolbar row. */
   tools?: ReactNode
+  /** Removable chips above the toolbar, one per narrowing a link can set —
+   *  a header's filter dot alone does not say what narrows the book. */
+  filters?: readonly ActiveFilter[]
   pending?: boolean
   /** A failed read. The button retries — it does not offer to clear filters,
    *  because the filters are not what broke. */
@@ -82,6 +90,7 @@ export function BookPage({
   tabs,
   count,
   tools,
+  filters,
   pending = false,
   failure,
   empty,
@@ -91,13 +100,18 @@ export function BookPage({
 }: BookPageProps) {
   const hasToolbar = Boolean(tabs || count || tools)
   const hasRows = !pending && !failure && !empty
+  const hasFilters = Boolean(filters?.length)
+  /* The toolbar's own padding closes the chip line; without one it closes itself. */
+  const chips = <ActiveFilters items={filters} className={hasToolbar ? undefined : 'pb-4'} />
   const toolbar = hasToolbar && (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         {tabs}
         {count}
       </div>
-      {tools && <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{tools}</div>}
+      {tools && (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{tools}</div>
+      )}
     </div>
   )
   const head = (
@@ -114,8 +128,9 @@ export function BookPage({
     return (
       <>
         {head}
-        {toolbar && (
+        {(toolbar || hasFilters) && (
           <GlassCard variant="b" aria-label={title}>
+            {chips}
             {toolbar}
           </GlassCard>
         )}
@@ -133,6 +148,7 @@ export function BookPage({
           of its own. No `overflow-hidden`: the filter popover must hang past
           the card's edge. */}
       <GlassCard variant="b" aria-label={title}>
+        {chips}
         {toolbar}
 
         <div className="overflow-x-auto">
@@ -173,6 +189,54 @@ export function BookPage({
         {hasRows && footer}
       </GlassCard>
     </>
+  )
+}
+
+/** The chip line. Stays mounted, padding-free, when nothing is active: it is
+ *  where focus lands once the last chip is dropped, instead of the page body.
+ *  Each chip is the ghost button the workstream board's `DropFilter` draws. */
+function ActiveFilters({
+  items = [],
+  className,
+}: {
+  items?: readonly ActiveFilter[]
+  className?: string
+}) {
+  const group = useRef<HTMLDivElement>(null)
+  /* The pressed chip unmounts; its neighbours keep their nodes (stable keys). */
+  const drop = (index: number, onDrop: () => void) => {
+    const chips = group.current?.children
+    const next = chips?.[index + 1] ?? chips?.[index - 1] ?? group.current
+    onDrop()
+    if (next instanceof HTMLElement) next.focus()
+  }
+  return (
+    <div
+      ref={group}
+      role={items.length > 0 ? 'group' : undefined}
+      aria-label={items.length > 0 ? 'Bộ lọc đang áp dụng' : undefined}
+      tabIndex={-1}
+      className={cn(
+        'flex flex-wrap items-center gap-2 outline-none',
+        items.length > 0 && cn('px-5 pt-4', className),
+      )}
+    >
+      {items.map((item, index) => (
+        <Button
+          key={item.id}
+          variant="ghost"
+          size="md"
+          className={cn('pointer-coarse:h-12 max-w-full', item.className)}
+          title={item.label}
+          aria-label={item.aria ?? `Bỏ lọc ${item.label}`}
+          onClick={() => drop(index, item.onDrop)}
+        >
+          {item.icon && <Icon icon={item.icon} size={16} />}
+          <span className="min-w-0 truncate">{item.label}</span>
+          <Icon icon={X} size={16} />
+        </Button>
+      ))}
+    </div>
   )
 }
 

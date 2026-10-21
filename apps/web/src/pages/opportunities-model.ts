@@ -25,13 +25,20 @@ export const ANY = 'all'
  *  (`opportunities-filters.tsx`). Only the server's sort keys
  *  (`OpportunitySortKey`) get an arrow; a header that sorts nothing is a lie. */
 export const bookColumns = (
-  filters: Record<'account' | 'stage' | 'bd' | 'sale', ReactNode>,
+  filters: Record<'account' | 'stage' | 'closed' | 'bd' | 'sale', ReactNode>,
 ): TableColumn[] => [
   { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name', filter: filters.account },
   { header: filters.stage, width: 'minmax(112px,1fr)' },
   /* Fixed tracks: full digits up to tens of billions, and the lead book's person width. */
   { header: 'Giá trị (₫)', width: '144px', align: 'right', sortKey: 'amount' },
-  { header: 'Dự kiến chốt', width: '128px', align: 'center', sortKey: 'expectedClose' },
+  /* A closed deal prints its close day here, so the close-day range filters this column. */
+  {
+    header: 'Dự kiến chốt',
+    width: '128px',
+    align: 'center',
+    sortKey: 'expectedClose',
+    filter: filters.closed,
+  },
   { header: filters.bd, width: '140px', align: 'center' },
   { header: filters.sale, width: '140px', align: 'center' },
   { header: 'Tương tác gần nhất', width: 'minmax(144px,1fr)' },
@@ -130,6 +137,9 @@ export const FILTER_KEYS = [
   'state',
   'stopReason',
   'stage',
+  'stoppedStage',
+  'closedFrom',
+  'closedTo',
   'accepted',
   'overdue',
   'sale',

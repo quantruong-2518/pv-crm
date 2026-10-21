@@ -14,13 +14,12 @@ import {
   SearchField,
   SegmentedControl,
 } from '@pv/ui'
-import { LEAD_ACTIVE_STATES, LeadBookQuery, OWNER_NONE, type LeadStateFilter } from '@pv/contracts'
+import { LEAD_ACTIVE_STATES, LeadBookQuery, OWNER_NONE } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { searchHint } from '@/lib/search-box'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import { DEFAULT_LEAD_BOOK_QUERY } from '@/app/url'
 import { leadBookQuery, leadFacetsQuery, leadSearchQuery, leadsByCodesQuery } from '@/data/leads'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { leadProfileQuery } from '@/data/lead-profile'
@@ -51,7 +50,15 @@ import {
   SourceCell,
   StatusCell,
 } from './leads-parts'
-import { STATE_TABS, stateTabOf, tabCount } from './leads-model'
+import {
+  DISABLED,
+  PINNED,
+  STATE_TABS,
+  stateTabOf,
+  tabCount,
+  tabPatch,
+  useLeadFilterChips,
+} from './leads-model'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
@@ -91,13 +98,10 @@ const FILTER_KEYS = [
   'state',
   'pinned',
   'label',
+  'exitReason',
+  'exitedFrom',
+  'exitedTo',
 ] as const
-
-/** The pinned tab's value — `pinned=true` on the URL across every state, not a state. */
-const PINNED = 'pinned'
-
-/** The switched-off tab's value — `disabled=true` on the URL, not a state. */
-const DISABLED = 'disabled'
 
 /** Panel nạp tệp KHÔNG chống trùng trong trình duyệt nữa — tập rỗng là một
  *  quyết định, không phải một chỗ chưa nối.
@@ -187,26 +191,7 @@ export function LeadsPage() {
   const onTab = (value: string) => {
     /* A selection never crosses the switched-off tab's edge: its action flips. */
     if ((value === DISABLED) !== disabledView) clearSelection()
-    /* The pinned and switched-off tabs REPLACE the state filter: pins span every
-       state. Off the active tab the state-list filter is hidden, so it is dropped. */
-    if (value === PINNED)
-      patch({ pinned: true, state: 'all', states: undefined, disabled: undefined })
-    else if (value === DISABLED)
-      patch({
-        disabled: true,
-        state: DEFAULT_LEAD_BOOK_QUERY.state,
-        states: undefined,
-        pinned: undefined,
-      })
-    else
-      patch({
-        state: value as LeadStateFilter,
-        states: value === 'active' ? query.states : undefined,
-        disabled: undefined,
-        pinned: undefined,
-        /* The held tab trades the created-date column for the hold's date. */
-        ...(value === 'held' ? { createdFrom: undefined, createdTo: undefined } : {}),
-      })
+    patch(tabPatch(value, query.states))
   }
 
   /* Options come from the facets, so a filter never offers a value no lead
@@ -259,6 +244,7 @@ export function LeadsPage() {
   )
 
   const canEmail = useCan('lead.send-email')
+  const filterChips = useLeadFilterChips(query, patch)
 
   /* Shared by every bulk-action book: selection outlives paging and keeps the
      mouse/pen paint gesture identical between the lead and opportunity books. */
@@ -541,7 +527,8 @@ export function LeadsPage() {
               onChange={onTab}
             />
           }
-          count={<BookCount total={total} noun="lead" />}
+          count={<BookCount total={total} noun="lead" hidden={bookPage?.hidden} />}
+          filters={filterChips}
           tools={
             <>
               <SearchField

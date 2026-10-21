@@ -38,7 +38,7 @@ import {
   useMailable,
 } from './opportunities-model'
 import { BookTabs, BookTools, ScoreCards } from './opportunities-parts'
-import { useOpportunityFilters } from './opportunities-filters'
+import { useOpportunityFilterChips, useOpportunityFilters } from './opportunities-filters'
 import {
   AmountCell,
   CloseCell,
@@ -99,6 +99,7 @@ export function OpportunitiesPage() {
   const canAccept = useCan('opportunity.accept')
 
   const filters = useOpportunityFilters(query, patch)
+  const filterChips = useOpportunityFilterChips(query, patch, rows)
   const selection = useBookSelection(rows)
   const { selectedCodes, pageSelected, allPageSelected, clearSelection } = selection
 
@@ -117,6 +118,7 @@ export function OpportunitiesPage() {
             <BookTabs query={urlQuery} total={total} hidden={data?.hidden ?? 0} onPatch={patch} />
           }
           tools={<BookTools text={text} onText={setText} dirty={dirty} onClear={clearFilters} />}
+          filters={filterChips}
           pending={isPending}
           failure={
             bookError

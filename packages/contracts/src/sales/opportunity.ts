@@ -544,6 +544,17 @@ export const OpportunityBookQuery = PageQuery.extend({
     .max(200)
     .refine((v) => v.split(',').every((s) => StageKey.safeParse(s).success))
     .optional(),
+  /** The column a STOPPED deal stood in (`stoppedAtStage`): a stop clears
+   *  `stage`, so `stage` cannot narrow lost deals. Same comma list. */
+  stoppedStage: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((s) => StageKey.safeParse(s).success))
+    .optional(),
+  /** Close moment (`closedAt`) as Vietnam days, both ends inclusive — the fence
+   *  the overview's win rate and stop reasons count by, so their links match. */
+  closedFrom: Day.optional(),
+  closedTo: Day.optional(),
   /** Open deals past `new` — the head's "no seller yet" queue pairs this with
    *  `sale=OWNER_NONE`, which means no seller-role owner (ADR 0071 §4). */
   accepted: Bool.optional(),

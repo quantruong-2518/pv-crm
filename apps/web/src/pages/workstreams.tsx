@@ -4,11 +4,9 @@ import {
   AppShell,
   Button,
   CalendarClock,
-  Icon,
   ScreenLayout,
   SearchField,
   SegmentedControl,
-  X,
   type TableColumn,
   type TableSort,
 } from '@pv/ui'
@@ -31,6 +29,7 @@ import {
   workstreamBookQuery,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
+import type { ActiveFilter } from '@/components/active-filters'
 import { TableFooter } from '@/components/table-bits'
 import { ContactCell, CustomerCell, StandCell, StatusCell } from '@/components/workstream-cells'
 import { WorkstreamsBoard } from './workstreams-board'
@@ -82,6 +81,39 @@ const columns: TableColumn[] = [
   { header: 'Lịch sử liên hệ', width: 'minmax(200px,1.4fr)' },
   { header: 'Ngày bắt đầu', width: '128px', sortKey: 'openedAt' },
 ]
+
+/** The overdue card and an account link narrow the book with no control of
+ *  their own on the toolbar, so each gets a removable chip. */
+function filterChips(
+  query: WorkstreamBookQuery,
+  patch: (next: Partial<WorkstreamBookQuery>) => void,
+): ActiveFilter[] {
+  return [
+    ...(query.overdue === true
+      ? [
+          {
+            id: 'overdue',
+            label: 'Quá hạn',
+            aria: 'Bỏ lọc quá hạn',
+            icon: CalendarClock,
+            className: 'text-on-tint-warning',
+            onDrop: () => patch({ overdue: undefined }),
+          },
+        ]
+      : []),
+    ...(query.accountCode !== undefined
+      ? [
+          {
+            id: 'accountCode',
+            label: query.accountCode,
+            aria: `Bỏ lọc theo công ty ${query.accountCode}`,
+            className: 'font-mono',
+            onDrop: () => patch({ accountCode: undefined }),
+          },
+        ]
+      : []),
+  ]
+}
 
 function rowCells(row: WorkstreamRow, go: Go) {
   return [
@@ -158,10 +190,9 @@ function WorkstreamsBook() {
             />
           }
           count={<BookCount total={total} noun="hành trình" hidden={hidden} />}
+          filters={filterChips(query, patch)}
           tools={
-            /* Own wrapper: BookPage's tools row cannot wrap, so at 375px the
-               search, reset chip and view switch would push past the card. */
-            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+            <>
               <SearchField
                 placeholder="Tìm hành trình, lead, công ty…"
                 value={text}
@@ -179,38 +210,13 @@ function WorkstreamsBook() {
                   Bỏ hết bộ lọc
                 </Button>
               )}
-              {query.overdue === true && (
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="pointer-coarse:h-12 text-on-tint-warning"
-                  aria-label="Bỏ lọc quá hạn"
-                  onClick={() => patch({ overdue: undefined })}
-                >
-                  <Icon icon={CalendarClock} size={16} />
-                  Quá hạn
-                  <Icon icon={X} size={16} />
-                </Button>
-              )}
-              {query.accountCode !== undefined && (
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="pointer-coarse:h-12 font-mono"
-                  aria-label={`Bỏ lọc theo công ty ${query.accountCode}`}
-                  onClick={() => patch({ accountCode: undefined })}
-                >
-                  {query.accountCode}
-                  <Icon icon={X} size={16} />
-                </Button>
-              )}
               <ViewSwitch
                 view="table"
                 onChange={(next) =>
                   setParams(withBoardParams(params, { view: next }), { replace: true })
                 }
               />
-            </div>
+            </>
           }
           pending={isPending}
           failure={

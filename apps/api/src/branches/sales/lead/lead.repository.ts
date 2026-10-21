@@ -29,6 +29,7 @@ import {
   type LeadTier,
   type LeadStateFilter,
 } from '@pv/contracts'
+import { createdWithin } from '@api/platform/db/book-filter'
 import { DB, type Db } from '@api/platform/db/db.module'
 import {
   directProbe,
@@ -755,6 +756,10 @@ export class LeadRepository {
       q.createdTo
         ? sql`${lead.createdAt} < ((${q.createdTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
         : undefined,
+      /* The overview's stop-reason fence (`PerformanceExitsRepository.leadExits`)
+         on the same columns and Vietnam-day edges, so its links list what it counted. */
+      q.exitReason ? eq(lead.exitReason, q.exitReason) : undefined,
+      ...createdWithin(lead.exitedAt, q.exitedFrom, q.exitedTo),
       q.campaign ? eq(lead.campaignId, q.campaign) : undefined,
       /* `sourceKind` là nửa "không chiến dịch" của ô lọc Nguồn — đọc docblock
          `LeadFacets` (`@pv/contracts`) trước khi sửa. `isNull(campaignId)` bắt

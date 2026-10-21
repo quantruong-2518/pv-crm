@@ -43,6 +43,23 @@ type Patch = (next: Partial<OpportunityBookQuery>) => void
 /** The pinned tab's value — `pinned=true` on the URL, across every state. */
 const PINNED = 'pinned'
 
+/** A stop reason and the stopped-at column narrow only stopped deals, so every
+ *  tab press drops them; a close-day range would empty the open tab. */
+function tabPatch(value: string): Partial<OpportunityBookQuery> {
+  const dropped = {
+    stopReason: undefined,
+    stoppedStage: undefined,
+    ...(value === 'open' ? { closedFrom: undefined, closedTo: undefined } : {}),
+  }
+  return value === PINNED
+    ? { ...dropped, pinned: true, state: undefined }
+    : {
+        ...dropped,
+        state: value === ANY ? undefined : (value as OpportunityStatus),
+        pinned: undefined,
+      }
+}
+
 /** The toolbar's left end: state tabs and the row count. Tab counts honour
  *  every other filter in force; the pinned tab counts the person's own pins. */
 export function BookTabs({
@@ -56,9 +73,16 @@ export function BookTabs({
   hidden: number
   onPatch: Patch
 }) {
-  /* The tabs count the book, not the pins nor a stop reason — as the lead book's do. */
+  /* The tabs count the book, not the pins nor a stop narrowing — as the lead book's do. */
   const { data: facets } = useQuery(
-    opportunityFacetQuery(facetsQueryOf({ ...query, pinned: undefined, stopReason: undefined })),
+    opportunityFacetQuery(
+      facetsQueryOf({
+        ...query,
+        pinned: undefined,
+        stopReason: undefined,
+        stoppedStage: undefined,
+      }),
+    ),
   )
   const pinCount = usePins('opportunity').codes.length
   /* `/sales/holds` is a `lead.view` screen; a deal-only reader gets no dead link. */
@@ -74,17 +98,7 @@ export function BookTabs({
           ...stateTabs(facets?.byState),
           { value: PINNED, label: 'Đã ghim', count: pinCount },
         ]}
-        onChange={(value) =>
-          onPatch(
-            value === PINNED
-              ? { pinned: true, state: undefined, stopReason: undefined }
-              : {
-                  state: value === ANY ? undefined : (value as OpportunityStatus),
-                  pinned: undefined,
-                  stopReason: undefined,
-                },
-          )
-        }
+        onChange={(value) => onPatch(tabPatch(value))}
       />
       <StopReasonFilter query={query} patch={onPatch} />
       <BookCount total={total} noun="cơ hội" hidden={hidden} />

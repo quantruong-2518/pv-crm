@@ -12,7 +12,8 @@ import {
   type IconGlyph,
 } from '@pv/ui'
 import type { SalesPerformanceResponse } from '@pv/contracts'
-import { funnelOf, num, rateOf } from './home-model'
+import { useCan } from '@/app/auth'
+import { enteredLeadsHref, funnelOf, num, rateOf } from './home-model'
 import { rangeLabel } from './home-period'
 import { IconTile } from './home-tiles'
 
@@ -73,21 +74,50 @@ const STEP_LOOK = [
 const ROW = 'grid grid-cols-[172px_minmax(0,1fr)_72px] items-center gap-4'
 export const SUB = 'text-muted-foreground text-[12px] leading-4'
 
-function StepRow({ step, index, first }: { step: Step; index: number; first: number }) {
+function StepRow({
+  step,
+  index,
+  first,
+  to,
+}: {
+  step: Step
+  index: number
+  first: number
+  /** Makes the step's name a link to the list it counts. */
+  to?: string
+}) {
   const look = STEP_LOOK[index]!
+  const chip = (
+    <span
+      className={cn(
+        'flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
+        look.chip,
+      )}
+    >
+      {index + 1}
+    </span>
+  )
   return (
     <div className={ROW}>
-      <span className="flex items-center gap-3 text-[13px] font-medium leading-[18px]">
-        <span
+      {to === undefined ? (
+        <span className="flex items-center gap-3 text-[13px] font-medium leading-[18px]">
+          {chip}
+          {step.label}
+        </span>
+      ) : (
+        <Link
+          to={to}
           className={cn(
-            'flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
-            look.chip,
+            'flex items-center gap-3 text-[13px] font-medium leading-[18px] hover:underline',
+            'pointer-coarse:min-h-12 underline-offset-4 motion-reduce:transition-none',
+            'focus-visible:outline-ring rounded-md focus-visible:outline-2 focus-visible:outline-offset-2',
           )}
         >
-          {index + 1}
-        </span>
-        {step.label}
-      </span>
+          {chip}
+          {step.label}
+          <Icon icon={ArrowRight} size={14} />
+        </Link>
+      )}
       <span aria-hidden className="bg-surface-ink/5 flex h-9 justify-center rounded-xl">
         <span
           className={cn(
@@ -231,6 +261,7 @@ export function FunnelTile({
   const { cohort } = data.current
   const steps = funnelOf(cohort)
   const rate = rateOf(cohort.contracts, cohort.leads)
+  const canLeads = useCan('lead.view')
 
   return (
     <GlassCard className={cn('flex min-w-0 flex-col', LIFT, className)}>
@@ -262,7 +293,12 @@ export function FunnelTile({
           return (
             <div key={step.key} className="flex flex-col">
               {before && <Connector before={before} step={step} />}
-              <StepRow step={step} index={i} first={cohort.leads} />
+              <StepRow
+                step={step}
+                index={i}
+                first={cohort.leads}
+                to={i === 0 && canLeads ? enteredLeadsHref(data.span) : undefined}
+              />
             </div>
           )
         })}

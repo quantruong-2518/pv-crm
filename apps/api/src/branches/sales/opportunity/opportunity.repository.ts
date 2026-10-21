@@ -24,7 +24,7 @@ import {
   type OpportunityStatus,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { csvOf } from '@api/platform/db/book-filter'
+import { createdWithin, csvOf } from '@api/platform/db/book-filter'
 import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { pinnedBy } from '@api/platform/pin/pinned'
@@ -846,6 +846,10 @@ export class OpportunityRepository {
       q.stopReason ? eq(opportunity.stopReason, q.stopReason) : undefined,
       /* A lost or won deal stands in no column (`stage` NULL), so it drops out. */
       q.stage ? inArray(opportunity.stage, stagesOf(q.stage)) : undefined,
+      q.stoppedStage ? inArray(opportunity.stoppedAtStage, stagesOf(q.stoppedStage)) : undefined,
+      /* The overview's win-rate and stop-reason fence (`performance/`) cut on the
+         same Vietnam-day edges, so a card's link lists exactly what it counted. */
+      ...createdWithin(opportunity.closedAt, q.closedFrom, q.closedTo),
       /* Accepted = past `new` on the board (ADR 0071); `false` = the `new` queue. */
       q.accepted === undefined
         ? undefined

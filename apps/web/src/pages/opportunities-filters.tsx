@@ -1,12 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
-import { ColumnFilter, ColumnFilterList } from '@pv/ui'
+import { CalendarClock, ColumnFilter, ColumnFilterList, ColumnFilterRange } from '@pv/ui'
 import {
   OPPORTUNITY_STAGE_LABEL,
+  OPPORTUNITY_STOP_REASON_OTHER,
+  OPPORTUNITY_STOP_REASON_OTHER_LABEL,
   OWNER_NONE,
   StageKey,
   type OpportunityBookQuery,
+  type OpportunityBookRow,
 } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { opportunityFacetQuery } from '@/data/opportunities'
+import { opportunityStopReasonsQuery } from '@/data/opportunities-write'
+import { dayRangeChip, listChip, type ActiveFilter } from '@/components/active-filters'
 import { csvOf, peopleOptions } from './opportunities-model'
 
 /** The deal book's column filters, the lead book's pattern (ColumnFilter in the
@@ -71,6 +77,23 @@ export function useOpportunityFilters(query: OpportunityBookQuery, patch: Patch)
     </ColumnFilter>
   )
 
+  const closed = (
+    <ColumnFilter
+      label="Ngày đóng"
+      active={query.closedFrom !== undefined || query.closedTo !== undefined}
+      iconOnly
+    >
+      {(close) => (
+        <ColumnFilterRange
+          from={query.closedFrom}
+          to={query.closedTo}
+          close={close}
+          onApply={({ from, to }) => patch({ closedFrom: from, closedTo: to })}
+        />
+      )}
+    </ColumnFilter>
+  )
+
   return {
     account: multi(
       'Khách hàng',
@@ -79,6 +102,8 @@ export function useOpportunityFilters(query: OpportunityBookQuery, patch: Patch)
       true,
     ),
     stage,
+    /* An open deal has no close day, so on the open tab the range only empties the book. */
+    closed: query.state === 'open' ? null : closed,
     bd: multi('BD phụ trách', 'bd', [
       { value: OWNER_NONE, label: 'Chưa ghi BD' },
       ...peopleOptions(choices?.bdOwners ?? []),
@@ -88,4 +113,65 @@ export function useOpportunityFilters(query: OpportunityBookQuery, patch: Patch)
       ...peopleOptions(choices?.saleOwners ?? []),
     ]),
   }
+}
+
+const stageName = (s: string) => {
+  const parsed = StageKey.safeParse(s)
+  return parsed.success ? OPPORTUNITY_STAGE_LABEL[parsed.data] : s
+}
+
+/** The narrowings an overview link sets that a header dot alone would hide.
+ *  The stop-reason list needs `opportunity.edit`; without it, or for a retired
+ *  reason, the chip takes the label the server put on the loaded rows, else
+ *  names its axis — never the bare id. */
+export function useOpportunityFilterChips(
+  query: OpportunityBookQuery,
+  patch: Patch,
+  rows: readonly OpportunityBookRow[],
+): ActiveFilter[] {
+  const canList = useCan('opportunity.edit')
+  const { data: reasons } = useQuery({
+    ...opportunityStopReasonsQuery,
+    enabled: canList && query.stopReason !== undefined,
+  })
+  const reasonName =
+    query.stopReason === OPPORTUNITY_STOP_REASON_OTHER
+      ? OPPORTUNITY_STOP_REASON_OTHER_LABEL
+      : (reasons?.rows.find((r) => r.id === query.stopReason)?.name ??
+        rows.find((r) => r.stopReason === query.stopReason)?.stopReasonLabel)
+  return [
+    ...(query.overdue === true
+      ? [
+          {
+            id: 'overdue',
+            label: 'Quá hạn',
+            aria: 'Bỏ lọc quá hạn',
+            icon: CalendarClock,
+            className: 'text-on-tint-warning',
+            onDrop: () => patch({ overdue: undefined }),
+          },
+        ]
+      : []),
+    ...listChip('stage', 'Giai đoạn', query.stage, stageName, () => patch({ stage: undefined })),
+    ...listChip(
+      'stoppedStage',
+      'Dừng ở',
+      query.stoppedStage,
+      stageName,
+      () => patch({ stoppedStage: undefined }),
+      ' ',
+    ),
+    ...(query.stopReason
+      ? [
+          {
+            id: 'stopReason',
+            label: reasonName ? `Lý do dừng: ${reasonName}` : 'Lý do dừng',
+            onDrop: () => patch({ stopReason: undefined }),
+          },
+        ]
+      : []),
+    ...dayRangeChip('closed', 'Ngày đóng', query.closedFrom, query.closedTo, () =>
+      patch({ closedFrom: undefined, closedTo: undefined }),
+    ),
+  ]
 }
