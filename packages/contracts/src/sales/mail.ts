@@ -282,12 +282,9 @@ export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
 
 /** Why a picked lead will NOT receive this run.
  *
- *  Five reasons, kept apart because they need different actions from the
+ *  Four reasons, kept apart because they need different actions from the
  *  person about to press send:
  *
- *   · `EXITED`     — the lead has left the funnel (`sales.lead.exit_reason`).
- *     Nothing to do: this is not a gap to fill or a block to appeal, it is a
- *     person we decided to stop pursuing.
  *   · `SUPPRESSED` — the address is in `platform.email_suppression`: it hard
  *     bounced, complained, or unsubscribed. Nobody may send there again, and
  *     nothing the sender does changes that.
@@ -301,21 +298,14 @@ export type MailMergeKey = (typeof MAIL_MERGE_KEYS)[number]
  *     exist, or publishes that it accepts none). Usually a typo in the data:
  *     fixable, and re-checked on every preflight, never stored.
  *
- *  One combined "blocked" flag would leave all five looking identical on
+ *  One combined "blocked" flag would leave all four looking identical on
  *  screen while only three of them are anybody's problem. */
-export const MasRecipientBlock = z.enum([
-  'EXITED',
-  'SUPPRESSED',
-  'NO_EMAIL',
-  'DUPLICATE',
-  'UNDELIVERABLE',
-])
+export const MasRecipientBlock = z.enum(['SUPPRESSED', 'NO_EMAIL', 'DUPLICATE', 'UNDELIVERABLE'])
 
 /** What each block reason is called. Same shared-label rule as
  *  `MAIL_RUN_STATE_LABEL` above — the preflight panel prints these, and so does
  *  the server-side send report. */
 export const MAS_RECIPIENT_BLOCK_LABEL = {
-  EXITED: 'Đã rơi khỏi phễu',
   SUPPRESSED: 'Đã chặn',
   NO_EMAIL: 'Thiếu email',
   DUPLICATE: 'Trùng địa chỉ',

@@ -8,9 +8,9 @@ import { contractTerminated, leadDealsAllLost, leadSigned } from '../open-deal'
  *
  *  WON when the lead is signed (`leadSigned`) at its latest LIVE signature; LOST
  *  when no deal is open and nothing live is signed (`leadDealsAllLost`) on a
- *  PARKED lead (`nurturing`/`disqualified`, or `new` — the pool), or on a lead
+ *  PARKED lead (`nurturing` or `new` — the two pools), or on a lead
  *  that kept `converted` because a contract was terminated (ADR 0107), at its
- *  last stop or termination; or when a lead with no deal is `disqualified`, at
+ *  last stop or termination; or when a lead with no deal is `nurturing`, at
  *  `exited_at`; else OPEN — which also REOPENS a closed run, so re-warming the
  *  lead or opening a new deal brings the same run back. `CHURNED` is never
  *  derived. Only rows whose pair actually changes are written.
@@ -61,15 +61,15 @@ function SYNC_CLOSED(codes: readonly string[]): SQL {
                    (SELECT max(k.signed_at) FROM sales.contract k
                      WHERE k.lead_code = l.code AND NOT ${contractTerminated(sql`k.code`)}) AS signed_at,
                    CASE WHEN ${leadDealsAllLost(sql`l.code`)}
-                             AND (l.state IN ('nurturing', 'disqualified', 'new')
+                             AND (l.state IN ('nurturing', 'new')
                                   OR EXISTS (SELECT 1 FROM sales.contract k WHERE k.lead_code = l.code))
                           THEN greatest(
                                  (SELECT max(o.closed_at) FROM sales.opportunity o WHERE o.lead_code = l.code),
                                  (SELECT max(t.terminated_at) FROM sales.contract_termination t
                                     JOIN sales.contract k ON k.code = t.contract_code
                                    WHERE k.lead_code = l.code),
-                                 CASE l.state WHEN 'disqualified' THEN l.exited_at END)
-                        WHEN l.state = 'disqualified'
+                                 CASE l.state WHEN 'nurturing' THEN l.exited_at END)
+                        WHEN l.state = 'nurturing'
                              AND NOT EXISTS (SELECT 1 FROM sales.opportunity o WHERE o.lead_code = l.code)
                           THEN l.exited_at
                    END AS lost_at

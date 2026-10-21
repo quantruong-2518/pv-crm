@@ -25,14 +25,7 @@ import { WorkstreamHolder } from './workstream'
 export const HoldSubjectType = z.enum(['lead', 'opportunity'])
 
 /** How a hold ended — the `end_kind` CHECK on `sales.hold`. Never printed. */
-export const HoldEndKind = z.enum([
-  'resumed',
-  'to-waiting',
-  'touch',
-  'stopped',
-  'disqualified',
-  'converted',
-])
+export const HoldEndKind = z.enum(['resumed', 'to-waiting', 'touch', 'stopped', 'converted'])
 
 export const HOLD_NOTE_MAX = 1_000
 

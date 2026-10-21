@@ -21,6 +21,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { AssignMenu } from '@/components/assign-menu'
+import { ClaimLeadButton } from '@/components/lead-claim'
 import { MomentCell } from '@/components/lead-cells'
 import { HoldMark } from '@/components/hold-strip'
 import { LabelChips } from '@/components/lead-labels'
@@ -224,12 +225,24 @@ export function StatusCell({ lead }: { lead: LeadRow }) {
  *  always claims for self, held gets the bare avatar. Both paths write
  *  through `PATCH /sales/leads/:code/owner` (`useSetLeadOwner`); no separate
  *  claim or assign endpoint. Stops the click from reaching the row, or
- *  claiming/assigning would also open the lead. */
+ *  claiming/assigning would also open the lead.
+ *
+ *  A lead in the nurturing pool has no holder to hand over: it shows the claim
+ *  button instead, which takes it through the resume door (ADR 0109). */
 export function LeadPicCell({ lead }: { lead: LeadRow }) {
   const me = useSession((s) => s.actor)
   const mayAssign = useCan('lead.assign')
+  const canClaim = useCan('lead.edit')
   const setOwner = useSetLeadOwner()
   const held = Boolean(lead.ownerEmail || lead.ownerName)
+
+  if (lead.state === 'nurturing') {
+    return canClaim ? (
+      <ClaimLeadButton code={lead.code} />
+    ) : (
+      <AvatarCell empty="Lead chờ người nhận" />
+    )
+  }
 
   if (me && mayAssign) {
     return (

@@ -890,6 +890,13 @@
       "when": 1794294360000,
       "tag": "0128_contract_termination",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794380760000,
+      "tag": "0129_one_nurturing_list",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ import { CALENDAR_BATCH } from './meeting-calendar.repository'
 import { MeetingRepository } from './meeting.repository'
 import type { MeetingRowDb } from './meeting.schema'
 
-/** The server's soft cancel: a lead or deal closed (deal lost, lead stopped,
+/** The server's soft cancel: a lead or deal closed (deal lost, lead parked,
  *  lead switched off), so its meetings still ahead will not happen. Called by
  *  those doors INSIDE their transaction — the meeting rows, their booked comm
  *  records and the booker's bell commit with the close, or not at all.
@@ -23,7 +23,7 @@ import type { MeetingRowDb } from './meeting.schema'
  *  Google is told after the commit (`forgetCancelled`), never inside it, for
  *  `MeetingCalendar`'s reason; what fails there the worker's `MeetingCancelSweeper`
  *  retries, a batch an hour.
- *  Reopening the subject restores nothing, as withheld mail is not released
+ *  Claiming the subject back restores nothing, as withheld mail is not released
  *  (ADR 0068 §5). A person never cancels — they drop (`MeetingService.drop`). */
 @Injectable()
 export class MeetingCancel {

@@ -12,6 +12,10 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { LEAD_PARK_REASON, LeadStateWriter } from '../lead/lead-state'
+import { LEAD_NOTE } from '../lead/lead-write.mapper'
+import { MeetingCancel } from '../meeting/meeting-cancel'
+import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { syncLeadRuns } from '../workstream/workstream-sync'
 import { toDetail } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
@@ -21,7 +25,7 @@ import { ContractTerminationRepository } from './contract-termination.repository
 /** Ending a signed contract (ADR 0107): a direct door, final, one row. Also the
  *  one guard every other contract write calls, so "terminated means frozen"
  *  is said once. Lock order: lead (the deal stop's), deal (every deal door's),
- *  then contract. */
+ *  then contract. A lead left with nothing live parks itself (ADR 0109). */
 @Injectable()
 export class ContractTerminationService {
   constructor(
@@ -30,6 +34,8 @@ export class ContractTerminationService {
     private readonly repo: ContractTerminationRepository,
     private readonly audit: AuditRepository,
     private readonly hub: NotificationHub,
+    private readonly leadStates: LeadStateWriter,
+    private readonly meetings: MeetingCancel,
   ) {}
 
   /** `OpportunityStopReasons`'s shape, so one picker reads both lists. */
@@ -62,7 +68,7 @@ export class ContractTerminationService {
       throw notFound('hợp đồng', code)
     }
 
-    await this.schedule.run(async (tx) => {
+    const gone = await this.schedule.run(async (tx) => {
       if (!(await this.repo.lockLead(tx, leadCode))) throw notFound('hợp đồng', code)
       await this.repo.lockDeal(tx, code)
       const row = await this.schedule.lock(tx, code)
@@ -88,14 +94,26 @@ export class ContractTerminationService {
       })
       const note = `contract terminated (${body.reasonKey}), refunded ${body.refundedAmount} of ${collected}`
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
+      await this.ring(tx, who, code)
+      if (await this.repo.leadParks(tx, leadCode)) return this.parkLead(tx, who, leadCode)
       /* The lead's run was closed WON on this contract; it re-derives without it. */
       await syncLeadRuns(tx, [leadCode])
-      await this.ring(tx, who, code)
+      return []
     })
+    await this.meetings.forgetCancelled(gone)
 
     const found = await this.contracts.byCode(who, code)
     if (!found) throw notFound('hợp đồng', code)
     return ContractTerminateResponse.parse(toDetail(found))
+  }
+
+  /** The machine's park: no lead door, permission or scope, and EX-09 is
+   *  written even when switched off in config. The writer re-syncs the run. */
+  private async parkLead(tx: Db, who: Actor, leadCode: string): Promise<MeetingRowDb[]> {
+    const reasonId = LEAD_PARK_REASON.contractTerminated
+    const note = LEAD_NOTE.nurtured(reasonId, undefined)
+    await this.leadStates.parked(tx, leadCode, { by: null, reasonId, note, actorId: who.id })
+    return this.meetings.cancelFor(tx, who, [leadCode], 'lead-nurtured')
   }
 
   /** `other` is virtual (no catalogue row); the body already demanded its note. */

@@ -122,7 +122,8 @@ export const PERMISSIONS = [
    *  (`AssignMenu`). NOT a change of owner: changing the owner re-splits the
    *  commission, so that goes through an approval of its own. */
   'lead.assign',
-  /** Take a lead out of the funnel (`ExitDialog`). Rare, and one-way. */
+  /** Move a lead into the nurturing list, the shared pool (ADR 0109). The key
+   *  keeps its old name because stored grants use it. */
   'lead.disqualify',
   /** Switch a lead OFF for everybody (and back on): hidden from every list
    *  and frozen, together with the deals and contracts raised on it. The

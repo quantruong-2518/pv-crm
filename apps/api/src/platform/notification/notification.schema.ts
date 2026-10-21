@@ -74,12 +74,12 @@ export const notification = platform.table(
     index('notification_read_purge_idx')
       .on(t.readAt)
       .where(sql`"read_at" IS NOT NULL`),
-    /** The fifty-seven `NotificationKind` values, copied out for
+    /** The fifty-six `NotificationKind` values, copied out for
      *  `touch_kind_known`'s reason: a new kind must be a migration somebody reads. */
     check(
       'notification_kind_known',
       sql`"kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered',
-                     'lead-stopped', 'lead-scan-ready', 'lead-scan-committed',
+                     'lead-scan-ready', 'lead-scan-committed',
                      'lead-scan-failed', 'opportunity-awaiting-accept', 'opportunity-lost',
                      'opportunity-accepted', 'opportunity-assigned', 'opportunity-unassigned',
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
@@ -92,7 +92,7 @@ export const notification = platform.table(
                      'contract-schedule-replaced', 'contract-condition-done',
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
-                     'lead-resumed', 'lead-reopened', 'mail-run-replied',
+                     'lead-resumed', 'mail-run-replied',
                      'comm-record-late', 'contract-installment-overdue',
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
@@ -151,7 +151,7 @@ export const notificationKindPolicy = platform.table(
     check(
       'notification_kind_policy_kind_known',
       sql`"kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered',
-                     'lead-stopped', 'lead-scan-ready', 'lead-scan-committed',
+                     'lead-scan-ready', 'lead-scan-committed',
                      'lead-scan-failed', 'opportunity-awaiting-accept', 'opportunity-lost',
                      'opportunity-accepted', 'opportunity-assigned', 'opportunity-unassigned',
                      'next-step-assigned', 'next-step-done', 'approval-waiting',
@@ -164,7 +164,7 @@ export const notificationKindPolicy = platform.table(
                      'contract-schedule-replaced', 'contract-condition-done',
                      'campaign-stopped', 'campaign-finished', 'kpi-target-proposed',
                      'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured',
-                     'lead-resumed', 'lead-reopened', 'mail-run-replied',
+                     'lead-resumed', 'mail-run-replied',
                      'comm-record-late', 'contract-installment-overdue',
                      'hold-due-soon', 'hold-due', 'kpi-target-allocated',
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',

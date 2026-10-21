@@ -51,9 +51,7 @@ export type LeadDraft = {
   /** Edit door only: value left a box → PATCH that one field if it changed.
    *  No-op on the create door. */
   commit: (field: FormField) => void
-  /** Edit door only: does saving this box reach the server for THIS lead —
-   *  `isEditable`, asked with the lead's state: tier is shut once it left the
-   *  funnel. */
+  /** Edit door only: does saving this box reach the server — `isEditable`. */
   editable: (field: FormField) => boolean
   dirty: FieldKey[]
   /** Create door only: drops everything typed. */
@@ -198,7 +196,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   }
 
   const commit = (field: FormField) => {
-    if (profile === null || !isEditable(field, profile)) return
+    if (profile === null || !isEditable(field)) return
     /* A patch answers after the reader may have stepped to another lead, and
        this hook is the same instance for both. A stale answer must not paint a
        saved state — or a refusal — over a profile it never touched. */
@@ -288,7 +286,7 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     base,
     set,
     commit,
-    editable: (field) => profile !== null && isEditable(field, profile),
+    editable: (field) => profile !== null && isEditable(field),
     dirty: changedFields(base, values),
     reset,
     submit,

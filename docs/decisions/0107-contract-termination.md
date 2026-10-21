@@ -3,6 +3,8 @@
 Status: accepted
 Source: project owner's decisions, 21/10/2026
 
+> Superseded in part by 0109: "Out of scope" — a terminated contract that leaves nothing live now parks the lead in the nurturing list.
+
 ## Context
 
 A contract row alone makes a deal "won" everywhere. The dashboard's panel of

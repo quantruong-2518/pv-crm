@@ -10,7 +10,7 @@ import {
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, invalid, notFound, type PvError } from '@api/platform/http/problem'
 import { stageConfigOf } from '../ladder'
-import { LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { LeadStateWriter } from '../lead/lead-state'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
 import { peopleOf } from './opportunity.mapper'
 import { OpportunityRepository } from './opportunity.repository'
@@ -23,9 +23,6 @@ export const opens = (who: Actor, ownerId: string | null): boolean =>
 
 export const foreignLead = (code: string) =>
   denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-
-export const leadGone = () =>
-  conflict(`Lead đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`)
 
 export const STRANGER = 'Người liên hệ phải thuộc lead này hoặc một lead khác của cùng công ty.'
 
@@ -133,7 +130,7 @@ export class OpportunityOpening {
     return byLead
   }
 
-  /** Lock the leads a deal write lands on (`lockLeads`), so an exit or a
+  /** Lock the leads a deal write lands on (`lockLeads`), so a park or a
    *  hand-over racing it waits, then re-check scope and liveness on the locked
    *  rows — the pre-reads ran outside the tx — and hand the opener every lead
    *  nobody holds (ADR 0088 §17). Returns each lead's company, read under that
@@ -150,7 +147,6 @@ export class OpportunityOpening {
     if (gone) throw notFound('lead', gone)
     const foreign = rows.find((r) => !opens(who, r.ownerId))
     if (foreign) throw foreignLead(foreign.code)
-    if (rows.some((r) => r.exited)) throw leadGone()
     await this.leadStates.claimed(
       tx,
       rows.filter((r) => r.ownerId === null),

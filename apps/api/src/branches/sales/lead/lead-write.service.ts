@@ -11,7 +11,6 @@ import {
   type LeadCreate,
   type LeadOwnerWrite,
   type LeadPatch,
-  type LeadState,
   type ObjectCode,
   type RoleId,
 } from '@pv/contracts'
@@ -40,7 +39,7 @@ import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadAdmissionService } from './lead-admission.service'
-import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from './lead-state'
+import { LeadStateWriter } from './lead-state'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { LeadOriginService } from '../lead-origin/lead-origin.service'
 import { CampaignService } from '../campaign/campaign.service'
@@ -430,6 +429,10 @@ export class LeadWriteService {
     await this.repo.run(async (tx) => {
       const found = await this.repo.lockForOwnerChange(tx, code)
       if (!found) throw notFound('lead', code)
+      /* The pool has no holder to change; the claim door is its only way out (ADR 0109). */
+      if (found.state === 'nurturing') {
+        throw conflict('Lead đang ở Nhóm chờ chăm sóc. Bấm Nhận lead để chăm lại.')
+      }
 
       if (!mayAssign) {
         if (found.ownerId !== null) {
@@ -452,12 +455,8 @@ export class LeadWriteService {
          held once. Returning early skips a touch row that would read as a
          second hand-over on the timeline. */
       if (found.ownerId === (body.ownerId ?? null)) return
-      if (body.ownerId === null && (found.state === 'nurturing' || found.held)) {
-        throw conflict(
-          found.held
-            ? 'Lead đang tạm hoãn nên chỉ đổi được người giữ, không bỏ trống được.'
-            : 'Lead đang ở Nhóm chờ chăm sóc nên chỉ đổi được người giữ, không bỏ trống được.',
-        )
+      if (body.ownerId === null && found.held) {
+        throw conflict('Lead đang tạm hoãn nên chỉ đổi được người giữ, không bỏ trống được.')
       }
 
       /* The holder being replaced, looked up for their NAME — the timeline row
@@ -563,8 +562,8 @@ export class LeadWriteService {
    *  on a live deal of the lead reads it (`inScope`) but only the holder edits
    *  (`holds`). Both come from the one `byCode` read, with the profile's two
    *  refusals and words — 404 for a code in no book, 403 `out-of-scope` for a
-   *  lead held by somebody else. The common pool counts as not held, so an
-   *  `ownOnly` Sale cannot edit an unclaimed lead.
+   *  lead held by somebody else. Neither pool (`new`, `nurturing`) counts as
+   *  held, so an `ownOnly` Sale claims a lead before editing it (ADR 0109).
    *
    *  `setOwner` deliberately ignores `inScope` at the END of its work, and that
    *  is not a contradiction: a Sale who just handed a lead away is out of scope
@@ -577,7 +576,7 @@ export class LeadWriteService {
    *  ------------------------------------------------------------------
    *  Editing a profile is not care being scheduled and not an exchange, so it
    *  moves nothing (ADR 0063 §2) — the label would lie. `tier` is accepted in
-   *  every state but the two gone ones (§3), still never cleared. A raise
+   *  every state (§3), still never cleared. A raise
    *  writes `tier-raised` beside `field-filled`; a lowering writes no tier row.
    *
    *  ------------------------------------------------------------------
@@ -600,9 +599,6 @@ export class LeadWriteService {
       throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     }
 
-    if (body.tier !== undefined && !TIER_EDITABLE(before.row.state)) {
-      throw conflict(`Lead ${code} đang ở trạng thái ${LEAD_GONE_WORDS}. Không sửa được bậc.`)
-    }
     /* The five person columns belong to the primary contact's writer; the
        wire shape is unchanged, only who writes them. */
     const { contactName, contactTitle, email, phone, contactChannel, ...own } = body
@@ -714,11 +710,6 @@ export class LeadWriteService {
     return name
   }
 }
-
-/** Tier is a plain optional field now (ADR 0063 §3): patchable in every state
- *  but the two a lead has left the book by. */
-const TIER_EDITABLE = (state: LeadState): boolean =>
-  !(LEAD_GONE_STATES as readonly LeadState[]).includes(state)
 
 /** Rung index on the tier ladder; no tier sits below the first rung. */
 const rungOf = (tier: LeadTier | null): number =>

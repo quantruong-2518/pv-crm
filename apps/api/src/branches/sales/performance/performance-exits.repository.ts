@@ -6,7 +6,6 @@ import {
   type StageKey,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { dealLost } from '../open-deal'
 import type { PeriodSpan } from './performance-period'
 
@@ -15,9 +14,8 @@ type StopRow = ExitRow & { stage: StageKey }
 
 /** Why leads, deals and contracts left in one span (ADR 0088 §22, 0107).
  *
- *  Leads are counted where they STAND, off `lead.exit_reason`: a lead that
- *  left and was reopened is not an exit any more, and a nurture park never
- *  writes that column. `ConfigRepository.usage` counts stop EVENTS instead,
+ *  Leads are counted where they STAND, off `lead.exit_reason` of the
+ *  `nurturing` pool (ADR 0109): a lead claimed back is not an exit any more. `ConfigRepository.usage` counts stop EVENTS instead,
  *  to weigh a catalogue row; the two differ by design. A termination counts
  *  on `terminated_at`, the event, not on the deal's close moment.
  *
@@ -38,7 +36,7 @@ export class PerformanceExitsRepository {
         FROM "sales"."lead" l
         LEFT JOIN "sales"."config_entry" c
           ON c."id" = l."exit_reason" AND c."list" = 'EXIT_REASON'
-       WHERE l."disabled_at" IS NULL AND l."state" IN (${GONE})
+       WHERE l."disabled_at" IS NULL AND l."state" = 'nurturing'
          AND ${within(sql`l."exited_at"`, span)}
        GROUP BY l."exit_reason"
        ORDER BY count(*) DESC, l."exit_reason" COLLATE "C"
@@ -77,11 +75,6 @@ export class PerformanceExitsRepository {
     return r.rows
   }
 }
-
-const GONE = sql.join(
-  LEAD_GONE_STATES.map((s) => sql`${s}`),
-  sql`, `,
-)
 
 const day = (d: string) => sql`(${d}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`
 

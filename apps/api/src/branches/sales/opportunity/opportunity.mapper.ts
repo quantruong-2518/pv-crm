@@ -241,15 +241,6 @@ export const NOTE = {
       ? `${OPPORTUNITY_STATE_LABEL.lost} · ${reasonKey} · ${note}`
       : `${OPPORTUNITY_STATE_LABEL.lost} · ${reasonKey}`,
 
-  /** On the LEAD, when the stop above was its last live deal (ADR 0069 §3).
-   *  No deal code: the lead's readers may not see the deal. The stop door only
-   *  writes `nurturing`, when its stopper picks the waiting group (owner,
-   *  15/10/2026); `new` is kept for `seed.ts`. */
-  lastLost: {
-    nurturing: 'Cơ hội cuối đã dừng — lead về nhóm chờ chăm sóc',
-    new: 'Cơ hội cuối đã dừng — lead không có người giữ nên về kho chung',
-  },
-
   /** On a deal a lead hand-over left behind (ADR 0069 §10), with the reason. */
   handOverSkipped: (to: string, why: string) => `Không chuyển theo lead sang ${to}: ${why}`,
 

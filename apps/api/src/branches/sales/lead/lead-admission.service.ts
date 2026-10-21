@@ -32,7 +32,6 @@ import {
   type Needles,
 } from './lead-admission.mapper'
 import { LeadAdmissionRepository, type BookSlice } from './lead-admission.repository'
-import { LEAD_GONE_STATES } from './lead-state'
 
 type Caller = Pick<Actor, 'id' | 'name' | 'ownOnly'>
 
@@ -79,7 +78,7 @@ export class LeadAdmissionService {
     const needles = needlesOf(items.map((item) => leadKeys(item.company, item.people)))
     const slice = await this.sliceFor(handle, who, needles)
     const labels = labelsOf(slice)
-    return decideLeadAdmission(items, bookOf(slice, LEAD_GONE_STATES)).map((decision) => ({
+    return decideLeadAdmission(items, bookOf(slice)).map((decision) => ({
       ...decision,
       ...labels,
     }))
@@ -92,7 +91,7 @@ export class LeadAdmissionService {
     who: Pick<Actor, 'id' | 'ownOnly'> | null,
     needles: Needles,
   ): Promise<AdmissionBook> {
-    return bookOf(await this.sliceFor(handle, who, needles), LEAD_GONE_STATES)
+    return bookOf(await this.sliceFor(handle, who, needles))
   }
 
   /** THE one loading path: `reach`, then `slice`, each paged past `BIND_BUDGET`. */

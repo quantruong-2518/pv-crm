@@ -6,6 +6,8 @@ and §2, §4, §5 including D3, and D7; to that extent revives the
 record/reason catalogue settled by 0070)
 Source: project owner's decisions in chat, 29/09/2026
 
+> Superseded in part by 0109: §4's holder kept on `nurturing` (the pool has no holder) and §5's `disqualified` state.
+
 ## Context
 
 0067 modelled every presale stop the same way: a lead parks in `nurturing`

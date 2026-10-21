@@ -9,6 +9,8 @@ six `EXIT_REASONS` are no longer a closed list — admin-editable config); §1's
 contract update partially superseded by 0088 (cancel and appendix only)
 Source: project owner's decision in session, 17/09/2026
 
+> Superseded in part by 0109: §2's exit/reopen pair is replaced by one park door into `nurturing`; `disqualified` is retired.
+
 ## Context
 
 Seven separate rulings on the sales pipeline, ratified together on 17/09,

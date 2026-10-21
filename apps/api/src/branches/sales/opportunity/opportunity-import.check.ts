@@ -15,7 +15,6 @@ import {
   type OpportunityImportRowOut,
   type OpportunityRunningDeal,
 } from '@pv/contracts'
-import { LEAD_GONE_WORDS } from '../lead/lead-state'
 import { acknowledges, STRANGER } from './opportunity-opening.service'
 import { NO_OWNER, NOT_SELLER, SALE_LANE_SELF } from './opportunity-owners'
 
@@ -62,21 +61,16 @@ export type ImportCheckInput = {
   leadByCompany: ReadonlyMap<string, string>
   /** Tên công ty đã gấp mà khớp NHIỀU HƠN MỘT lead. */
   ambiguousCompany: ReadonlySet<string>
-  /** Codes of every live lead a deal may be opened on (not exited). */
+  /** Codes of every live lead a deal may be opened on. */
   liveLeads: ReadonlySet<string>
-  /** Codes of leads that have left the funnel, for a row naming one by code. */
-  exitedLeads: ReadonlySet<string>
   /** Lead code → its running deals, oldest first. Basis of `dupWithBook`. */
   running: ReadonlyMap<string, readonly OpportunityRunningDeal[]>
   /** Lead code → the contacts a deal on it may name (`reachByLead`). */
   contactsByLead: ReadonlyMap<string, readonly { code: string; primary: boolean }[]>
   /** Ids of the PRODUCT catalogue still switched on. */
   products: ReadonlySet<string>
-  /** Folded company name → code of a lead that has left the funnel — refused
-   *  with its own sentence, since "no such lead" would send the reader hunting. */
-  exitedCompany: ReadonlyMap<string, string>
   /** Lead codes the caller may not open a deal on (`opens`: a lead somebody
-   *  else holds, exited ones included) — a row error, so preview and commit agree. */
+   *  else holds) — a row error, so preview and commit agree. */
   outOfScope: ReadonlySet<string>
   /** The importer holds `opportunity.accept`, so every deal is born accepted
    *  and has a holder even with both lanes empty (ADR 0071). */
@@ -318,9 +312,8 @@ function checkRow(
 function leadOf(code: string, company: string, input: ImportCheckInput): string | RowFail {
   if (code !== '') {
     const field = 'leadCode' as const
-    /* Scope first: somebody else's lead answers one sentence, exited or not. */
+    /* Scope first: somebody else's lead answers one sentence. */
     if (input.outOfScope.has(code)) return { field, reason: foreignReason(code) }
-    if (input.exitedLeads.has(code)) return { field, reason: goneReason(code) }
     if (!input.liveLeads.has(code)) return { field, reason: `Không có lead mã "${code}".` }
     return code
   }
@@ -331,17 +324,13 @@ function leadOf(code: string, company: string, input: ImportCheckInput): string 
     return { field, reason: `Có nhiều lead tên "${company}". Điền cột ${LABEL.leadCode}.` }
   }
   const leadCode = input.leadByCompany.get(folded)
-  const named = leadCode ?? input.exitedCompany.get(folded)
-  if (named === undefined) {
+  if (leadCode === undefined) {
     return { field, reason: `Không có lead tên "${company}". Nạp lead trước.` }
   }
-  if (input.outOfScope.has(named)) return { field, reason: foreignReason(company) }
-  if (leadCode === undefined) return { field, reason: goneReason(company) }
+  if (input.outOfScope.has(leadCode)) return { field, reason: foreignReason(company) }
   return leadCode
 }
 
-const goneReason = (lead: string) =>
-  `Lead "${lead}" đang ở trạng thái ${LEAD_GONE_WORDS}, không tạo được cơ hội.`
 const foreignReason = (lead: string) => `Lead "${lead}" không do bạn phụ trách.`
 
 /** The row's one contact, so its primary. A blank cell takes the lead's own

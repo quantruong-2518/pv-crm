@@ -1,4 +1,4 @@
-import { billions, millions } from '@pv/ui'
+import { billions, millions, vnd } from '@pv/ui'
 import {
   CURRENCIES,
   INSTALLMENT_STATUS_LABEL,
@@ -27,6 +27,10 @@ export function compactMoney(amount: number, currency: CurrencyCode | null): str
   }
   return `${amount.toLocaleString('vi-VN')} ${currency}`
 }
+
+/** A full figure: this is the record of money that moved, not a glance. */
+export const moneyIn = (currency: CurrencyCode | null) => (n: number) =>
+  currency === 'VND' || currency === null ? vnd(n) : compactMoney(n, currency)
 
 /** The sign a currency wears inside a number box; empty for none. */
 export const symbolOf = (currency: CurrencyCode | null): string =>

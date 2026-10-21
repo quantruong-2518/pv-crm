@@ -8,7 +8,6 @@ import {
   isNotNull,
   isNull,
   not,
-  notInArray,
   or,
   sql,
   type SQL,
@@ -47,12 +46,11 @@ import { leadHeld, openHoldsOf } from '../hold/hold.sql'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
-import { LEAD_GONE_STATES } from './lead-state'
 import { touch } from '../touch/touch.schema'
 import { contact } from '../contact/contact.schema'
 import { lead, leadLabel } from './lead.schema'
 import { labelsOf, leadLabelledAny } from './lead-label.sql'
-import { leadLive, leadScope } from './lead-scope'
+import { leadHolderScope, leadLive, leadScope } from './lead-scope'
 import type {
   LeadMailEventRead,
   LeadMailTimelineRead,
@@ -476,7 +474,7 @@ export class LeadRepository {
     const reads = this.readScopeOf(who)
     return {
       inScope: reads ? sql<boolean>`COALESCE(${reads}, false)` : sql<boolean>`true`,
-      holds: sql<boolean>`COALESCE(${and(this.scopeOf(who, true), leadLive)}, false)`,
+      holds: sql<boolean>`COALESCE(${and(leadHolderScope(who, true), leadLive)}, false)`,
     }
   }
 
@@ -498,9 +496,10 @@ export class LeadRepository {
     return leadScope(who, scoped)
   }
 
-  /** The one-lead READ axis: the holder, or someone standing on a live deal of
-   *  this lead — they read and mail the customer they are selling to. The book
-   *  and every edit stay on `scopeOf`: a deal does not hand over the lead. */
+  /** The one-lead READ axis: the book's scope, or someone standing on a live
+   *  deal of this lead — they read and mail the customer they are selling to.
+   *  Edits use `holds` (`leadHolderScope`): a deal does not hand over the lead,
+   *  and the shared pool is claimed before it is edited (ADR 0109). */
   private readScopeOf(who: Pick<Actor, 'id' | 'ownOnly'>): SQL | undefined {
     const holds = this.scopeOf(who, true)
     return holds ? or(holds, leadDealHeldBy(lead.code, who.id)) : undefined
@@ -508,22 +507,19 @@ export class LeadRepository {
 
   /** Codes of the OTHER live leads on this row's mailbox — flagged, not refused,
    *  since ADR 0070 dropped the unique index. A twin outside the reader's scope
-   *  comes back `null`: counted, not named. NULL for a disqualified row. */
+   *  comes back `null`: counted, not named. */
   private duplicatesOf(who: Pick<Actor, 'id' | 'ownOnly'>, scoped: boolean) {
     /* `${twin}` inside raw `sql` prints "sales"."twin", not the aliased table,
        so the FROM spells `lead AS "twin"` out and the columns follow the alias. */
     const named =
       scoped && who.ownOnly ? sql`COALESCE(${twin.ownerId} = ${who.id}, false)` : sql`true`
-    return sql<
-      (string | null)[] | null
-    >`CASE WHEN ${notInArray(lead.state, [...LEAD_GONE_STATES])} THEN (
+    return sql<(string | null)[] | null>`(
       SELECT array_agg(CASE WHEN ${named} THEN ${twin.code} END ORDER BY ${twin.code})
         FROM ${lead} AS "twin"
        WHERE lower(${twin.email}) = lower(${lead.email})
          AND ${twin.code} <> ${lead.code}
-         AND ${notInArray(twin.state, [...LEAD_GONE_STATES])}
          AND ${isNull(twin.disabledAt)}
-    ) END`
+    )`
   }
 
   private async count(where: SQL | undefined, db: Db = this.db): Promise<number> {
@@ -694,13 +690,12 @@ export class LeadRepository {
 
   /** The book's `state` filter: `active` is the open states minus the waiting
    *  group, `open` is the five `LEAD_OPEN_STATES`, `live`
-   *  is everything not gone, `all` is no condition, `held` the leads on hold,
+   *  and `all` are no condition (nothing is gone since ADR 0109), `held` the leads on hold,
    *  anything else is one state. A held lead leaves `open` and every single
    *  state (ADR 0097 §3), so the tabs never list one lead twice. */
   private stateFilter(state: LeadStateFilter): SQL | undefined {
     const held = leadHeld(lead.code)
-    if (state === 'all') return undefined
-    if (state === 'live') return notInArray(lead.state, [...LEAD_GONE_STATES])
+    if (state === 'all' || state === 'live') return undefined
     if (state === 'held') return held
     if (state === 'active') return and(inArray(lead.state, [...LEAD_ACTIVE_STATES]), not(held))
     if (state === 'open') return and(inArray(lead.state, [...LEAD_OPEN_STATES]), not(held))

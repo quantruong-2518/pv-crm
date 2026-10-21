@@ -168,7 +168,7 @@ export const meeting = sales.table(
     /** Three values of `MeetingCancelCause`, copied out like `meeting_mode_known`. */
     check(
       'meeting_cancel_cause_known',
-      sql`"cancel_cause" IS NULL OR "cancel_cause" IN ('opportunity-lost', 'lead-disqualified', 'lead-disabled')`,
+      sql`"cancel_cause" IS NULL OR "cancel_cause" IN ('opportunity-lost', 'lead-nurtured', 'lead-disabled')`,
     ),
     /** The two columns are one fact: a time without a cause, or the reverse, is unreadable. */
     check('meeting_cancel_pair', sql`("cancelled_at" IS NULL) = ("cancel_cause" IS NULL)`),

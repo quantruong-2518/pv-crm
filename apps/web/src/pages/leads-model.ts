@@ -1,49 +1,38 @@
-import { useQuery } from '@tanstack/react-query'
 import {
   LEAD_ACTIVE_STATES,
   LEAD_STATE_LABEL,
-  LEAD_STOP_REASON_OTHER,
   LeadState,
   type LeadBookQuery,
   type LeadFacets,
   type LeadStateFilter,
 } from '@pv/contracts'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { leadStopReasonsQuery } from '@/data/leads'
-import { stopReasonLabel } from '@/data/sales-config'
 import { dayRangeChip, listChip, type ActiveFilter } from '@/components/active-filters'
 
 /** Module 2 · the lead book's state tabs and filter chips, without JSX — split
  *  from `leads.tsx`.
  *
- *  `all` comes first, then the two ways a lead leaves the funnel, then the live
- *  groups. Each key is a `LeadStateFilter` value, so it goes onto the URL and the
- *  wire unchanged. The waiting group and the hold list have tabs of their own
- *  (ADR 0097 §3): a held lead is counted in `held` and in no `byState` entry, so
- *  no lead is counted twice. Pinned and switched-off are toggles beside the
- *  search box, not tabs: they cut across the states. */
+ *  `all` comes first, then the lead that became a deal, then the live groups.
+ *  Each key is a `LeadStateFilter` value, so it goes onto the URL and the wire
+ *  unchanged. The nurturing pool lives on its own page and shows here under
+ *  `all` only (ADR 0109); the hold list has a tab (ADR 0097 §3): a held lead
+ *  is counted in `held` and in no `byState` entry, so no lead is counted
+ *  twice. Pinned and switched-off are toggles beside the search box, not tabs:
+ *  they cut across the states. */
 
-export type StateTab = 'active' | 'nurturing' | 'held' | 'converted' | 'disqualified' | 'all'
+export type StateTab = 'active' | 'held' | 'converted' | 'all'
 
 export const STATE_TABS: { key: StateTab; label: string }[] = [
   { key: 'all', label: 'Tất cả' },
   { key: 'converted', label: LEAD_STATE_FACE.converted.label },
-  { key: 'disqualified', label: LEAD_STATE_FACE.disqualified.label },
   { key: 'active', label: 'Đang hoạt động' },
-  { key: 'nurturing', label: LEAD_STATE_FACE.nurturing.label },
   { key: 'held', label: 'Tạm hoãn' },
 ]
 
 /** What a tab press writes. The pinned and switched-off toggles are left as
- *  they are. Off the active tab the state-list narrowing is dropped; off the
- *  stopped tabs, so is the exit narrowing, which would only empty them. */
+ *  they are. Off the active tab the state-list narrowing is dropped. */
 export function tabPatch(value: string, states: string | undefined): Partial<LeadBookQuery> {
-  const exit =
-    value === 'disqualified' || value === 'all'
-      ? {}
-      : { exitReason: undefined, exitedFrom: undefined, exitedTo: undefined }
   return {
-    ...exit,
     state: value as LeadStateFilter,
     states: value === 'active' ? states : undefined,
     /* The held tab trades the created-date column for the hold's date. */
@@ -63,25 +52,20 @@ export function tabCount(counts: LeadFacets | undefined, key: StateTab): number 
 }
 
 /** Which state tab the address lights. One open state picked by hand, or an
- *  old `open` link, lights `active` — the waiting group is a tab of its own. */
+ *  old `open` link, lights `active`; the pool has no tab of its own, so an old
+ *  `nurturing` link lights `all`. */
 export function stateTabOf(state: LeadStateFilter): string {
-  if (state === 'open' || (state !== 'nurturing' && isOpenState(state))) return 'active'
+  if (state === 'nurturing') return 'all'
+  if (state === 'open' || isOpenState(state)) return 'active'
   return state
 }
 
 /** The book's narrowings a column dot alone would hide — the ones an overview
- *  link sets. A stop reason not yet loaded, or unknown, shows its axis only:
- *  never the bare id. */
+ *  link sets. */
 export function useLeadFilterChips(
   query: LeadBookQuery,
   patch: (next: Partial<LeadBookQuery>) => void,
 ): ActiveFilter[] {
-  const other = query.exitReason === LEAD_STOP_REASON_OTHER
-  const { data: reasons } = useQuery({
-    ...leadStopReasonsQuery,
-    enabled: query.exitReason !== undefined && !other,
-  })
-  const reasonName = (reasons || other) && stopReasonLabel(reasons?.rows, query.exitReason)
   const stateName = (s: string) => {
     const parsed = LeadState.safeParse(s)
     return parsed.success ? LEAD_STATE_LABEL[parsed.data] : s
@@ -92,21 +76,6 @@ export function useLeadFilterChips(
     ),
     ...dayRangeChip('created', 'Ngày tạo', query.createdFrom, query.createdTo, () =>
       patch({ createdFrom: undefined, createdTo: undefined }),
-    ),
-    ...(query.exitReason
-      ? [
-          {
-            id: 'exitReason',
-            label:
-              reasonName && reasonName !== query.exitReason
-                ? `Lý do dừng chăm sóc: ${reasonName}`
-                : 'Lý do dừng chăm sóc',
-            onDrop: () => patch({ exitReason: undefined }),
-          },
-        ]
-      : []),
-    ...dayRangeChip('exited', 'Ngày ngừng chăm sóc', query.exitedFrom, query.exitedTo, () =>
-      patch({ exitedFrom: undefined, exitedTo: undefined }),
     ),
   ]
 }

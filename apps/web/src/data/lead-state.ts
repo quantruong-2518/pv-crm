@@ -7,14 +7,14 @@ import { LEAD_TIERS } from '@pv/engines/fixtures/das-vina'
  *  names. What stays here is the TONE, which never travels on the wire.
  *
  *  The pill tone answers "does this row need somebody": amber while nobody
- *  has acted, azure while a PIC is on it, grey while parked or retired, green
- *  once it became a deal, red once it was dropped. The label carries the exact
- *  state; colour deliberately does not invent eight separate meanings. */
+ *  has acted, azure while a PIC is on it, grey while parked, green once it
+ *  became a deal. The label carries the exact state; colour deliberately does
+ *  not invent separate meanings. */
 export const LEAD_STATE_FACE: Record<
   LeadState,
   {
     label: string
-    badge: 'warning' | 'running' | 'draft' | 'success' | 'danger'
+    badge: 'warning' | 'running' | 'draft' | 'success'
   }
 > = {
   new: { label: LEAD_STATE_LABEL.new, badge: 'warning' },
@@ -23,7 +23,6 @@ export const LEAD_STATE_FACE: Record<
   working: { label: LEAD_STATE_LABEL.working, badge: 'running' },
   nurturing: { label: LEAD_STATE_LABEL.nurturing, badge: 'draft' },
   converted: { label: LEAD_STATE_LABEL.converted, badge: 'success' },
-  disqualified: { label: LEAD_STATE_LABEL.disqualified, badge: 'danger' },
 }
 
 const OPEN: ReadonlySet<string> = new Set(LEAD_OPEN_STATES)
@@ -41,11 +40,3 @@ const TIER_LABEL: ReadonlyMap<string, string> = new Map(TIER_CHOICES.map((t) => 
 /** Takes a string because `AccountProfile.leadRows[].tier` is typed loosely;
  *  an unknown key prints as itself rather than vanishing. */
 export const tierLabel = (tier: string): string => TIER_LABEL.get(tier) ?? tier
-
-/** May `PATCH` carry `tier`? Everywhere but the one state that left the
- *  funnel — the mirror of the server's rule since the grade was decoupled from
- *  the state (ADR 0063): a tier is an assessment the PIC may write at any point
- *  while the lead is still being worked, and nobody re-grades a dropped one. */
-export function tierEditable(lead: { state: LeadState }): boolean {
-  return lead.state !== 'disqualified'
-}

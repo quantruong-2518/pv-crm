@@ -190,9 +190,10 @@ export class HandoverRepository {
       .for('update')
   }
 
-  /** The leaver's leads change holder in one UPDATE. Their state stays: an open
-   *  lead always has a holder (`lead_open_owner_matches`), so `ownerSet`'s
-   *  state-follows-owner branch cannot fire. The caller re-puts the mirror. */
+  /** The leaver's leads change holder in one UPDATE. Their state stays: a lead
+   *  the leaver holds is never in a pool (`new` and `nurturing` have no holder,
+   *  `lead_open_owner_matches`), so `ownerSet`'s state-follows-owner branch
+   *  cannot fire. The caller re-puts the mirror. */
   async giveLeads(tx: Db, codes: readonly string[], toId: string): Promise<void> {
     await tx
       .update(lead)

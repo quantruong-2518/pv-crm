@@ -163,16 +163,6 @@ export const OpportunityMoney = z.object({
   contracts: z.array(OpportunityMoneyContract),
 })
 
-/** Set when stopping this deal would leave its `converted` lead with no live
- *  deal and nothing signed, and this reader may stop the deal: the stop then
- *  asks where the lead goes (owner, 15/10/2026). `holders` may take it into the
- *  waiting group, default first; empty = that choice is closed. `canStop` = the
- *  reader may also stop caring for the lead (the lead exit door's own gate). */
-export const LeadAfterStop = z.object({
-  holders: z.array(z.object({ id: textInput(64), name: textInput(120) })),
-  canStop: z.boolean(),
-})
-
 export const OpportunityProfileResponse = OpportunityRow.extend({
   position: PipelinePositionView.nullable(),
   pendingSign: PendingSign.nullable(),
@@ -195,7 +185,9 @@ export const OpportunityProfileResponse = OpportunityRow.extend({
   /** The open hold; while set, the move, sign and quotation acts are refused
    *  with the held-deal sentence. */
   hold: Hold.nullable(),
-  leadAfterStop: LeadAfterStop.nullable(),
+  /** Stopping this deal parks its lead: it is the last live deal and nothing
+   *  is live-signed. The stop dialog prints one hint line from it. */
+  parksLead: z.boolean(),
 })
 
 /** `POST|PATCH /sales/opportunities/:code/hold` and `…/hold/end` (bodies in `./hold`). */
@@ -211,6 +203,5 @@ export type OpportunityMoneyNegotiation = z.infer<typeof OpportunityMoneyNegotia
 export type OpportunityMoneyInstallment = z.infer<typeof OpportunityMoneyInstallment>
 export type OpportunityMoneyContract = z.infer<typeof OpportunityMoneyContract>
 export type OpportunityMoney = z.infer<typeof OpportunityMoney>
-export type LeadAfterStop = z.infer<typeof LeadAfterStop>
 export type OpportunityProfileResponse = z.infer<typeof OpportunityProfileResponse>
 export type OpportunityHoldResponse = z.infer<typeof OpportunityHoldResponse>

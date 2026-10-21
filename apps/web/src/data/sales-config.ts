@@ -459,9 +459,8 @@ export function useProposeLossReason() {
 /** Add one entry to `EXIT_REASON` — used by 5.4's `AddStopReason` row.
  *
  *  Same shape as `useProposeProduct` — a name-only `POST`, no `stage` — because
- *  the door refuses `stage` on any list but `LOSS_REASON` (`assertAttrs`). The
- *  catalogue is shared by both stop doors (ADR 0070), so one new row here
- *  reaches the park picker and the disqualify picker at once. */
+ *  the door refuses `stage` on any list but `LOSS_REASON` (`assertAttrs`). A
+ *  new row here reaches every park picker at once (ADR 0070). */
 export function useProposeStopReason() {
   const client = useQueryClient()
 

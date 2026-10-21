@@ -14,6 +14,7 @@ import {
   cn,
 } from '@pv/ui'
 import {
+  LEAD_STATE_LABEL,
   LOSS_REASON_DO_NOT_CONTACT_LABEL,
   OPPORTUNITY_STOP_NOTE_MAX,
   OPPORTUNITY_STOP_REASON_OTHER,
@@ -32,14 +33,6 @@ import {
 } from '@/data/opportunities-write'
 import { MeetingsCancelNote } from './meetings-cancel-note'
 import { Field } from './ops-fields'
-import { LeadAfterStopField } from './opportunity-stop-lead'
-import {
-  LEAD_AFTER_EMPTY,
-  type LeadAfterDraft,
-  leadAfterChoiceOf,
-  leadAfterMissing,
-  leadAfterTo,
-} from './opportunity-stop-lead-model'
 
 /** Module 3 · stopping a deal, and what a stopped deal remembers (ADR 0069 §1).
  *
@@ -48,15 +41,14 @@ import {
  *  reason, note and who concluded — in place of the moves it no longer has.
  *  Reasons are the stage-scoped `LOSS_REASON` catalogue from the stop-reasons
  *  door; a key travels, never a label, and `other` needs a note (the contract's
- *  own refine, mirrored). On the lead's last live deal it also asks where the
- *  lead goes (`opportunity-stop-lead.tsx`). */
+ *  own refine, mirrored). On the lead's last live deal the lead parks by
+ *  itself (ADR 0109), so the drawer says so. */
 
-/** The lead's own meetings go too when the stopper also stops the lead. */
-function stopSubjects(op: OpportunityProfileResponse, lead: LeadAfterDraft): MeetingSubject[] {
-  const stopsLead = op.leadAfterStop !== null && leadAfterTo(lead, op.leadAfterStop) === 'stop'
+/** The lead's own meetings go too when the stop parks the lead. */
+function stopSubjects(op: OpportunityProfileResponse): MeetingSubject[] {
   return [
     { kind: 'opportunity', code: op.code },
-    ...(stopsLead ? [{ kind: 'lead' as const, code: op.leadCode }] : []),
+    ...(op.parksLead ? [{ kind: 'lead' as const, code: op.leadCode }] : []),
   ]
 }
 
@@ -72,7 +64,6 @@ export function StopDrawer({
   const waiting = op.money.open.filter((n) => n.pendingId !== null).length
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
-  const [lead, setLead] = useState(LEAD_AFTER_EMPTY)
   const stop = useStopDeal(op.code)
   const { data: catalog } = useQuery(opportunityStopReasonsQuery)
   /* `stage: null` is offered in every column — the rule the server checks the key by. */
@@ -80,17 +71,13 @@ export function StopDrawer({
   const flagged = new Set(reasons.filter((r) => r.doNotContact).map((r) => r.id))
   const busy = stop.isPending
   const noteNeeded = reasonKey === OPPORTUNITY_STOP_REASON_OTHER
-  const after = op.leadAfterStop
-  const leadMissing = after ? leadAfterMissing(lead, after) : null
-  const ready =
-    reasonKey !== '' && (!noteNeeded || note.trim() !== '') && leadMissing === null && !busy
+  const ready = reasonKey !== '' && (!noteNeeded || note.trim() !== '') && !busy
 
   const submit = () =>
     stop.mutate(
       {
         reasonKey,
         ...(note.trim() === '' ? {} : { note: note.trim() }),
-        ...(after ? { lead: leadAfterChoiceOf(lead, after) } : {}),
       },
       {
         /* Closes only once the server accepted, so a refusal cannot vanish. */
@@ -98,7 +85,6 @@ export function StopDrawer({
           toastDone(`Đã dừng ${op.code}.`)
           setReasonKey('')
           setNote('')
-          setLead(LEAD_AFTER_EMPTY)
           onClose()
         },
       },
@@ -123,8 +109,7 @@ export function StopDrawer({
       title="Dừng cơ hội"
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account}. Dừng rồi không mở lại được
-          {op.leadAfterStop ? '.' : ', muốn chăm lại thì đi từ lead.'}
+          <span className="font-mono">{op.code}</span> · {op.account}. Dừng rồi không mở lại được .
         </>
       }
       footer={
@@ -144,7 +129,7 @@ export function StopDrawer({
                   ? 'Chọn một lý do.'
                   : noteNeeded && note.trim() === ''
                     ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
-                    : leadMissing}
+                    : null}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button
@@ -199,7 +184,7 @@ export function StopDrawer({
           </p>
         )}
 
-        <MeetingsCancelNote enabled={open} subjects={stopSubjects(op, lead)} />
+        <MeetingsCancelNote enabled={open} subjects={stopSubjects(op)} />
 
         <Field label="Ghi chú" required={noteNeeded}>
           <Textarea
@@ -213,7 +198,11 @@ export function StopDrawer({
           />
         </Field>
 
-        {after && <LeadAfterStopField after={after} draft={lead} onChange={setLead} />}
+        {op.parksLead && (
+          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+            Lead của cơ hội này sẽ chuyển vào {LEAD_STATE_LABEL.nurturing}.
+          </p>
+        )}
       </div>
     </Drawer>
   )

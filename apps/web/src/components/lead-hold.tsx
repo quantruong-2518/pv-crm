@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button, CalendarClock, Icon, RotateCcw, Timer } from '@pv/ui'
 import { LEAD_STATE_LABEL, type LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
+import { useCan } from '@/app/auth'
 import { toastDone, toastFail } from '@/app/toast'
 import { useEndLeadHold } from '@/data/holds'
 import { HoldDialog } from '@/components/hold-dialog'
@@ -44,13 +45,13 @@ export function LeadHoldDialog({
 }
 
 /** No strip when the lead has no open hold; the drawers stay mounted so the
- *  one that just ended the hold can finish its own save and close. A lead
- *  already in the waiting group returns there on resume, so it is not
- *  offered the second way. */
+ *  one that just ended the hold can finish its own save and close. The park
+ *  way out needs `lead.disqualify` besides the hold's own permission. */
 export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite: boolean }) {
   const [changing, setChanging] = useState(false)
   const [parking, setParking] = useState(false)
   const end = useEndLeadHold(lead.code)
+  const canPark = useCan('lead.disqualify')
 
   const resume = () =>
     end.mutate(
@@ -67,7 +68,7 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
         <Icon icon={RotateCcw} size={16} />
         Bỏ tạm hoãn
       </Button>
-      {lead.state !== 'nurturing' && (
+      {canPark && (
         <Button
           size="md"
           variant="ghost"
@@ -75,7 +76,7 @@ export function LeadHoldStrip({ lead, canWrite }: { lead: LeadProfile; canWrite:
           onClick={() => setParking(true)}
         >
           <Icon icon={Timer} size={16} />
-          Chuyển sang {LEAD_STATE_LABEL.nurturing}
+          Chuyển vào {LEAD_STATE_LABEL.nurturing}
         </Button>
       )}
       <Button

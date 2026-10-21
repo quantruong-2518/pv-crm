@@ -1,3 +1,13 @@
+/* The columns a plain reason row leaves at their defaults; this file sits at its line cap. */
+const PLAIN = {
+  active: true,
+  limitDays: null,
+  kind: null,
+  stage: null,
+  doNotContact: false,
+  criterionId: null,
+}
+
 /** The catalogue rows migrations plant in `sales.config_entry` (loss and exit
  *  reasons, next-step kinds, comm criteria and their answers), dumped from a
  *  freshly migrated database rather than retyped. Criteria come first: an
@@ -123,6 +133,8 @@ export const CONFIG_ENTRIES = [
     doNotContact: false,
     criterionId: null,
   },
+  { ...PLAIN, id: 'EX-08', list: 'EXIT_REASON', name: 'Cơ hội bị dừng', ord: 8 },
+  { ...PLAIN, id: 'EX-09', list: 'EXIT_REASON', name: 'Hợp đồng bị chấm dứt', ord: 9 },
   {
     id: 'LR-01',
     list: 'LOSS_REASON',

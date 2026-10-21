@@ -3,6 +3,8 @@
 Status: accepted (settles 0088 §5, §10 and §14; amends 0069 §3; keeps 0068 §4; answers open question 68; §8 answers questions 92–100)
 Source: project owner's decisions in chat, 15/10/2026, one question each
 
+> Superseded in part by 0109: §1–2 (holder rule, "Lead này đi đâu?"), §3 in part (no hold on a nurturing lead) and §6 (campaign-end park).
+
 ## Context
 
 0088 decided the waiting group, the pause list and the leaver hand-over in a

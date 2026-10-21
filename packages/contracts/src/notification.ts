@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { RoleId, type Permission } from './auth'
 import { PageQuery, paged } from './pagination'
 import { Moment } from './primitives'
-import { LEAD_STATE_LABEL } from './sales/enums'
 
 /** The in-app bell: `GET /notifications` pages the caller's own rows newest
  *  first, `GET /notifications/unread-count` feeds the badge, and
@@ -18,7 +17,6 @@ export const NotificationKind = z.enum([
   'lead-received',
   'lead-removed',
   'lead-re-entered',
-  'lead-stopped',
   'lead-scan-ready',
   'lead-scan-committed',
   'lead-scan-failed',
@@ -60,7 +58,6 @@ export const NotificationKind = z.enum([
   'comm-closed-by-other',
   'lead-nurtured',
   'lead-resumed',
-  'lead-reopened',
   'mail-run-replied',
   'contract-installment-overdue',
   'kpi-target-allocated',
@@ -104,7 +101,6 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'lead-received': 'Bạn được giao lead',
   'lead-removed': 'Lead không còn giao cho bạn',
   'lead-re-entered': 'Khách của bạn liên hệ lại',
-  'lead-stopped': 'Lead của bạn chuyển sang Ngừng chăm sóc',
   'lead-scan-ready': 'Nạp từ ảnh: đã đọc xong, chờ bạn xem',
   'lead-scan-committed': 'Nạp từ ảnh: lead đã vào Sổ lead',
   'lead-scan-failed': 'Nạp từ ảnh: chưa hoàn tất, cần làm lại',
@@ -144,9 +140,8 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-target-proposed': 'Có chỉ tiêu KPI chờ duyệt',
   'kpi-target-agreed': 'Chỉ tiêu KPI bạn đề nghị đã được duyệt',
   'comm-closed-by-other': 'Bản ghi liên hệ của bạn đã được người khác chốt',
-  'lead-nurtured': 'Lead của bạn chuyển sang Nhóm chờ chăm sóc',
+  'lead-nurtured': 'Lead của bạn đã chuyển vào Nhóm chờ chăm sóc',
   'lead-resumed': 'Lead của bạn được chăm sóc lại',
-  'lead-reopened': 'Lead của bạn được mở lại',
   'mail-run-replied': 'Khách trả lời thư của lô gửi',
   'contract-installment-overdue': 'Đợt thanh toán của hợp đồng đã quá hạn thu',
   'kpi-target-allocated': 'Bạn được giao chỉ tiêu mới',
@@ -197,7 +192,6 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'lead-received': 'lead',
   'lead-removed': 'lead',
   'lead-re-entered': 'lead',
-  'lead-stopped': 'lead',
   'lead-scan-ready': 'lead',
   'lead-scan-committed': 'lead',
   'lead-scan-failed': 'lead',
@@ -239,7 +233,6 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'comm-closed-by-other': 'comm',
   'lead-nurtured': 'lead',
   'lead-resumed': 'lead',
-  'lead-reopened': 'lead',
   'mail-run-replied': 'mail',
   'contract-installment-overdue': 'contract',
   'kpi-target-allocated': 'kpi',
@@ -265,7 +258,6 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'lead-received': { important: true, locked: false },
   'lead-removed': { important: false, locked: false },
   'lead-re-entered': { important: false, locked: false },
-  'lead-stopped': { important: false, locked: false },
   'lead-scan-ready': { important: false, locked: false },
   'lead-scan-committed': { important: false, locked: false },
   'lead-scan-failed': { important: false, locked: false },
@@ -307,7 +299,6 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'comm-closed-by-other': { important: false, locked: false },
   'lead-nurtured': { important: false, locked: false },
   'lead-resumed': { important: false, locked: false },
-  'lead-reopened': { important: false, locked: false },
   'mail-run-replied': { important: false, locked: false },
   'contract-installment-overdue': { important: true, locked: false },
   'kpi-target-allocated': { important: true, locked: false },
@@ -376,7 +367,6 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'lead-received': ['lead', 'lead-batch', 'opportunity-batch'],
     'lead-removed': ['lead'],
     'lead-re-entered': ['lead', 'lead-batch'],
-    'lead-stopped': ['lead'],
     'lead-scan-ready': ['lead-scan'],
     'lead-scan-committed': ['lead-scan'],
     'lead-scan-failed': ['lead-scan'],
@@ -418,7 +408,6 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'comm-closed-by-other': ['comm'],
     'lead-nurtured': ['lead', 'lead-batch'],
     'lead-resumed': ['lead'],
-    'lead-reopened': ['lead'],
     'mail-run-replied': ['mail-run'],
     'contract-installment-overdue': ['contract'],
     'kpi-target-allocated': ['kpi-target'],
@@ -505,10 +494,6 @@ export function notificationSentence(
     return `Chưa đưa được lịch họp “${title}” với ${name} lên Google Calendar sau nhiều lần thử. Mở lịch họp và lưu lại, hoặc tự thêm vào Google Calendar.`
   }
   if (row.kind === 'comm-record-late') return `Thông tin liên hệ ở ${name} đã quá hạn bổ sung`
-  const parked = n(NOTIFICATION_DETAIL_COUNT)
-  if (row.kind === 'campaign-finished' && parked > 0) {
-    return `Chiến dịch ${name} đã chạy xong, ${num(parked)} lead không phản hồi đã về ${LEAD_STATE_LABEL.nurturing}`
-  }
   return null
 }
 

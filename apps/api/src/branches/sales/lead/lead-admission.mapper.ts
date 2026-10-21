@@ -120,7 +120,7 @@ export function pagesOf(n: Needles): Needles[] {
 /** Rows → the engine's book. Keys are folded here from the RAW columns by
  *  `leadKeys`, so a row whose stored key predates the backfill still compares
  *  the way the incoming side does; stored keys only serve round 1's lookup. */
-export function bookOf(slice: BookSlice, gone: readonly string[]): AdmissionBook {
+export function bookOf(slice: BookSlice): AdmissionBook {
   const people = new Map<string, LeadKeyPerson[]>()
   for (const lead of slice.leads) {
     people.set(lead.code, [
@@ -139,7 +139,7 @@ export function bookOf(slice: BookSlice, gone: readonly string[]): AdmissionBook
       code: lead.code,
       accountCode: lead.accountCode,
       /* Switched off is not open: its customer returns as a new lead. */
-      open: lead.live && !gone.includes(lead.state),
+      open: lead.live,
       inScope: lead.inScope,
       people: keys.people,
     }

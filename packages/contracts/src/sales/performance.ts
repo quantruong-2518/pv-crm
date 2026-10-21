@@ -115,7 +115,7 @@ export const SalesStopReason = SalesExitReason.extend({ stage: StageKey })
 /** Both lists hold only reasons that occurred, most frequent first. */
 export const SalesExitsResponse = z.object({
   period: SalesPeriodKey,
-  /** Leads that left the funnel (`:code/exit`) in the span, by `EXIT_REASON`. */
+  /** Leads now in `nurturing` that entered it in the span, by `EXIT_REASON`. */
   leadExits: z.array(SalesExitReason),
   /** Deals stopped in the span, by stage and `LOSS_REASON`. */
   dealStops: z.array(SalesStopReason),

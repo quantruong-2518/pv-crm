@@ -106,7 +106,7 @@ export const MOTION_FACE: Record<LeadMotion, MotionFace> = {
   recycle: {
     label: 'Đánh thức lại',
     icon: RefreshCw,
-    blurb: 'Lead đã ngừng chăm sóc, nay có lý do quay lại.',
+    blurb: 'Lead trong Nhóm chờ chăm sóc, nay có lý do quay lại.',
     example: 'Đơn thua vì hết ngân sách năm ngoái, sang năm mở lại',
   },
 }

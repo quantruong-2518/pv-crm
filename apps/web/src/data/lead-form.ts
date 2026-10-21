@@ -17,7 +17,6 @@ import {
   LeadPatch,
   PHONE_MAX,
 } from '@pv/contracts'
-import { tierEditable } from '@/data/lead-state'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
 /** Module 2 · Blueprint of the lead profile form: which boxes exist, what they
@@ -387,7 +386,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
      fixture cho một hợp đồng cơ sở dữ liệu chưa từng nghe tên. Hai trường vẫn
      còn trong kiểu `LeadProfile` của fixture (`profileForm` để trống chúng);
      chúng biến mất hẳn ngày form bỏ được hình đóng băng. */
-  { key: 'exitReason', label: 'Lý do ra khỏi luồng', kind: 'read', group: 'system' },
+  { key: 'exitReason', label: 'Lý do vào nhóm chờ', kind: 'read', group: 'system' },
 ]
 
 // ---------------------------------------------------------------------------
@@ -535,11 +534,8 @@ export function isRequiredOnSave(field: FormField): boolean {
  *  values: a box that takes typing and writes nothing is a worse lie than a
  *  line nobody can type into — and with autosave there is no button left whose
  *  silence could hint at it. Asked of the contract, never listed. */
-export function isEditable(field: FormField, lead?: Parameters<typeof tierEditable>[0]): boolean {
+export function isEditable(field: FormField): boolean {
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
-  /* `LeadPatch` carries `tier`, but the server refuses it on a lead that left
-     the funnel (ADR 0063) — so the box follows `tierEditable`, not the state. */
-  if (wire === 'tier') return lead !== undefined && tierEditable(lead)
   return wire in PATCH_SHAPE
 }
 

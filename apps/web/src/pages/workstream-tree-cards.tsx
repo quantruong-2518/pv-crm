@@ -474,10 +474,9 @@ const DOOR_TEXT = {
   arose: 'Phát sinh từ',
   whyNewTitle: 'Vì sao là hành trình mới',
   whyNew: 'Khách đang triển khai hoặc đang dùng mà có nhu cầu mới thì mở hành trình mới.',
-  wakeAny:
-    'Đưa lead vào chiến dịch hoặc bấm "Chăm lại" thì lead này quay lại chăm sóc, vẫn trong hành trình này, do người giữ cũ phụ trách.',
+  wakeAny: 'Bấm "Nhận lead" hoặc khách trả lời chiến dịch thì lead này quay lại chăm sóc.',
   wakeManual:
-    'Chỉ bấm "Chăm lại" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
+    'Chỉ bấm "Nhận lead" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
   wakeUnknown: 'Chưa biết khách có đồng ý liên hệ lại không.',
 } as const
 

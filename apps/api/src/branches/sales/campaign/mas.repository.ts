@@ -16,7 +16,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type {
   LeadSourceKind,
-  LeadState,
   MailDoor,
   MailRunListQuery,
   MailRunState,
@@ -71,13 +70,6 @@ export type MasSubjectRow = {
   email: string | null
   sourceKind: LeadSourceKind | null
   suppressed: boolean
-  /** The lead's lifecycle state (ADR 0058). A FACT and not a filter: a lead
-   *  cut in SQL comes back in no row at all, and the preflight would then
-   *  report "40 picked, 37 sendable" with three that vanished for a reason the
-   *  screen never names. A `disqualified` lead is one this caller
-   *  is fully entitled to see; it just must not be written to — so it comes
-   *  back whole, and `MasService.decide` turns it into `EXITED`. */
-  state: LeadState
 }
 
 /** Which book owns a wave chain. Read off the column rather than written out
@@ -95,7 +87,6 @@ const LEAD_FACTS = {
   email: sql<string | null>`NULLIF(${edgeTrimmed(lead.email)}, '')`,
   sourceKind: lead.sourceKind,
   suppressed: sql<boolean>`(${emailSuppression.recipient} IS NOT NULL)`,
-  state: lead.state,
 }
 
 /** The block list, on the SAME normal form `rowOf()` writes — see the class
@@ -287,19 +278,7 @@ export class MasRepository {
    *  than merely mirrored" (see `@pv/contracts`), against the day a lead
    *  reaches the book without a mailbox. `NULLIF(trim(…), '')` is what keeps
    *  that door honest at a cost of one function call: a column that loosens
-   *  later produces a blocked recipient, not a letter addressed to `''`.
-   *
-   *  ------------------------------------------------------------------
-   *  `state` IS SELECTED, NOT FILTERED — AND THAT IS THE POINT
-   *  ------------------------------------------------------------------
-   *  A lead that left the funnel must not be written to, and the obvious fix is
-   *  `AND state <> 'disqualified'` in the WHERE clause. It is the wrong one: the
-   *  row would then be absent exactly like a row the scope axis cut, the
-   *  preflight would say "40 picked · 37 sendable" and account for none of the
-   *  other three, and the sender would go looking for a data problem that is
-   *  not there. The column comes back as a FACT and `MasService.decide` turns
-   *  it into `EXITED`, so the panel can name it. Same rule as `suppressed`
-   *  right above it — see the note on `MasSubjectRow.state`. */
+   *  later produces a blocked recipient, not a letter addressed to `''`. */
   async audience(
     handle: Db,
     who: Actor,

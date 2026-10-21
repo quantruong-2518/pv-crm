@@ -6,6 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
+import { leadDealsAllLost } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contract, contractInstallment } from './contract.schema'
 import {
@@ -69,6 +70,16 @@ export class ContractTerminationRepository {
       .where(and(eq(lead.code, leadCode), leadLive))
       .for('no key update')
     return rows.length > 0
+  }
+
+  /** After the termination's insert: the lead is `converted` and nothing is
+   *  left on it — no live contract, no open deal — so it parks (ADR 0109). */
+  async leadParks(tx: Db, leadCode: string): Promise<boolean> {
+    const [row] = await tx
+      .select({ parks: sql<boolean>`${leadDealsAllLost(lead.code)}` })
+      .from(lead)
+      .where(and(eq(lead.code, leadCode), eq(lead.state, 'converted')))
+    return row?.parks === true
   }
 
   /** The contract's deal, `FOR UPDATE` like `OpportunityRepository.lockDeal`:

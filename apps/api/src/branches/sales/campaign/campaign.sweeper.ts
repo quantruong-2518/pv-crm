@@ -1,17 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { CAMPAIGN_FINISHED, LEAD_NURTURED } from '@pv/engines'
-import { NOTIFICATION_DETAIL_COUNT } from '@pv/contracts'
-import type { Db } from '@api/platform/db/db.module'
+import { CAMPAIGN_FINISHED } from '@pv/engines'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
-import { LEAD_NOTE } from '../lead/lead-write.mapper'
-import { LeadStateWriter } from '../lead/lead-state'
-import { CampaignParkRepository, type SilentMember } from './campaign-park.repository'
 import { CampaignRepository } from './campaign.repository'
-
-/** The machine's park reason, "no reply to the campaign" (flow C5), named by
- *  id because migration 0111 inserts it under this id and fails if the id holds
- *  any other reason; the desk may rename it, the id never moves. */
-export const CAMPAIGN_SILENT_REASON = 'EX-07'
 
 /** LƯỢT QUÉT TẦNG TRÊN CÙNG — anh em của `MailRelay` và `MailRunSweeper`, và
  *  là bậc thứ ba của cùng một câu hỏi.
@@ -55,8 +45,6 @@ export class CampaignSweeper {
   constructor(
     private readonly repo: CampaignRepository,
     private readonly hub: NotificationHub,
-    private readonly parks: CampaignParkRepository,
-    private readonly states: LeadStateWriter,
   ) {}
 
   /** One tick. Returns the codes of the campaigns it closed, so a caller can
@@ -82,16 +70,14 @@ export class CampaignSweeper {
     return closed
   }
 
-  /** Close, the owner's bell and C5 in ONE transaction (ADR 0093, 0097 §6): a
-   *  campaign is never DONE while its silent leads stay in `working`, and a
-   *  failed park retries all three. No actor, so even the owner hears it.
-   *  `false` when another tick closed it between the listing and here. */
+  /** Close and the owner's bell in ONE transaction (ADR 0093). No actor, so
+   *  even the owner hears it. A close parks nobody since ADR 0109: a silent
+   *  lead never left the pool. `false` when another tick closed it between the
+   *  listing and here. */
   private async close(code: string): Promise<boolean> {
-    const { row, parked } = await this.repo.run(async (tx) => {
+    const row = await this.repo.run(async (tx) => {
       const [row] = await this.repo.closeFinished(tx, code)
-      if (!row) return { row: undefined, parked: [] }
-      const silent = await this.parks.silentMembers(tx, [code])
-      /* The owner's one line counts every lead this close parks (owner, 15/10/2026). */
+      if (!row) return undefined
       await this.hub.announce(tx, {
         event: {
           name: CAMPAIGN_FINISHED,
@@ -100,48 +86,9 @@ export class CampaignSweeper {
           occurrence: String(row.updatedAt.getTime()),
         },
         subject: { kind: 'campaign', code, label: row.name },
-        detail: silent.length > 0 ? { [NOTIFICATION_DETAIL_COUNT]: silent.length } : null,
       })
-      const note = LEAD_NOTE.nurtured(CAMPAIGN_SILENT_REASON, undefined)
-      const park = { by: null, reasonId: CAMPAIGN_SILENT_REASON, note }
-      await this.states.parkedMany(
-        tx,
-        silent.map((m) => m.code),
-        park,
-      )
-      await this.ringParks(tx, row, silent)
-      return { row, parked: silent.map((m) => m.code) }
+      return row
     })
-
-    if (parked.length > 0) {
-      this.log.log(
-        `Campaign ${code} close parked ${parked.length} silent lead(s): ${parked.join(' · ')}`,
-      )
-    }
     return row !== undefined
-  }
-
-  /** C5's bell (ADR 0093): ONE `lead-nurtured` line per holder per campaign,
-   *  on the campaign as a `lead-batch` and counted — a Sale reads the leads
-   *  through the book, where `campaign` would need `campaign.view`. The
-   *  campaign's owner is skipped: their `campaign-finished` line counts them. */
-  private async ringParks(
-    tx: Db,
-    c: { code: string; name: string; updatedAt: Date; ownerId: string | null },
-    silent: readonly SilentMember[],
-  ): Promise<void> {
-    for (const holder of new Set(silent.map((m) => m.ownerId))) {
-      if (holder === c.ownerId) continue
-      await this.hub.announce(tx, {
-        event: {
-          name: LEAD_NURTURED,
-          ref: { code: c.code },
-          audiences: { holder: [holder] },
-          occurrence: String(c.updatedAt.getTime()),
-        },
-        subject: { kind: 'lead-batch', code: c.code, label: c.name },
-        detail: { [NOTIFICATION_DETAIL_COUNT]: silent.filter((m) => m.ownerId === holder).length },
-      })
-    }
   }
 }

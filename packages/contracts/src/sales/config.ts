@@ -47,10 +47,9 @@ export const ConfigList = z.enum([
   'STAGE',
   'TIER',
   'CATEGORY',
-  /** Why a lead left the loop — the SAME catalogue for BOTH stop doors,
-   *  `:code/exit` (final) and `:code/nurture` (park): ADR 0070 counts a park
-   *  as a stop event too, so one list answers both rather than a screen
-   *  merging two. OPEN, not the closed six-value enum this used to mirror —
+  /** Why a lead left the loop — the catalogue of the one park door,
+   *  `:code/nurture` (ADR 0109), and of the two automatic parks (EX-08 deal
+   *  stopped, EX-09 contract terminated): one list answers every way in. OPEN, not the closed six-value enum this used to mirror —
    *  the desk adds a row here without a deploy. Virtual key `'other'` needs a
    *  note, same rule as `LOSS_REASON` below. */
   'EXIT_REASON',
@@ -220,7 +219,7 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *     `sales.lead.campaign_id` references `config_entry.id`, and so does
  *     `sales.touch.reason_id` since ADR 0070 moved the reason off the old
  *     six-value enum. `EXIT_REASON` counts STOP EVENTS — every exit and every
- *     park, a loop never erasing one — not "leads currently disqualified".
+ *     park, a loop never erasing one — not "leads currently nurturing".
  *   · `STAGE` · `TIER` · `CATEGORY` — the key is the lower-case slug the
  *     column holds ('quotation', 'chip'), because `sales.lead` does not carry
  *     config ids yet. The server does NOT invent a name-to-slug join to paper
@@ -241,7 +240,7 @@ export const ConfigUsage = z.object({
   TIER: Tally,
   CATEGORY: Tally,
   /** Keyed by config id, like `SOURCE` — count of STOP EVENTS on `sales.touch`,
-   *  not of leads currently `disqualified`. See the rule above. */
+   *  not of leads currently `nurturing`. See the rule above. */
   EXIT_REASON: Tally,
   CHANNEL: Tally,
   SOURCE: Tally,

@@ -88,9 +88,6 @@ const FILTER_KEYS = [
   'state',
   'pinned',
   'label',
-  'exitReason',
-  'exitedFrom',
-  'exitedTo',
 ] as const
 
 /** Panel nạp tệp KHÔNG chống trùng trong trình duyệt nữa — tập rỗng là một
@@ -381,7 +378,7 @@ export function LeadsPage() {
           key="c"
           lead={l}
           onEmail={
-            canEmail && !disabledView && l.state !== 'disqualified'
+            canEmail && !disabledView
               ? () =>
                   openMasMail({
                     recipients: [l],

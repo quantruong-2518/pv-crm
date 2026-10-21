@@ -1,7 +1,7 @@
 import { Button, Icon, X, cn, type IconGlyph } from '@pv/ui'
 import { userMessage, type ApiError } from '@/app/api'
 
-/** Same footer as `ExitDialog`: one live sentence on the left (the server's
+/** One live sentence on the left (the server's
  *  refusal wins), cancel and confirm on the right. Shared by the park, hold
  *  and account-lock drawers. */
 export function StepFooter({

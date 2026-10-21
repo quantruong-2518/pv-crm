@@ -375,6 +375,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/holds'),
   },
   {
+    /** Leads parked, deals stopped and contracts terminated, one list (ADR 0109). */
+    path: '/sales/nurturing',
+    name: 'Nhóm chờ chăm sóc',
+    branch: 'Sales',
+    permission: 'lead.view',
+    load: () => import('@/pages/nurturing'),
+  },
+  {
     /** Typing a deal by hand — the same door `/sales/leads/new` opens, and it
      *  reaches the same form card `:code` draws.
      *

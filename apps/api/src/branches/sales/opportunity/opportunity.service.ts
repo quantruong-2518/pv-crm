@@ -54,13 +54,13 @@ import {
 import { dealAtOf, vnDay } from './opportunity-lifecycle'
 import { toHold } from '../hold/hold.mapper'
 import { pendingSignOf, profileContractsOf, stageSpansOf } from './opportunity-profile'
-import { LeadAfterStopRule } from './opportunity-stop-lead'
+import { parksLead } from './opportunity-stop-lead'
 import { signsDirect } from './opportunity-sign.service'
 import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { editTrail } from './opportunity-trail'
 import { announceOpened, announceOwners, announcePrimary } from './opportunity-bell'
-import { foreignLead, leadGone, opens, OpportunityOpening } from './opportunity-opening.service'
+import { foreignLead, opens, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorsByIds,
   assertHeld,
@@ -146,7 +146,6 @@ export class OpportunityService {
     private readonly facetsRepo: OpportunityFacetsRepository,
     private readonly meetings: MeetingService,
     private readonly quotes: QuotationService,
-    private readonly leadAfter: LeadAfterStopRule,
   ) {}
 
   async book(who: Actor, q: OpportunityBookQuery): Promise<OpportunityBookResponse> {
@@ -313,14 +312,12 @@ export class OpportunityService {
       ])
 
     const sign = approvals.find((a) => a.kind === 'contract-sign')
-    /* `money` waits on no verdict; only `leadAfter` does, so it chains on `acts`. */
-    const [{ verdicts, leadAfterStop }, money] = await Promise.all([
+    /* `money` waits on no verdict; only `parksLead` does, so it chains on `acts`. */
+    const [{ verdicts, parks }, money] = await Promise.all([
       this.acts.of(who, found, sign !== undefined).then(async (verdicts) => ({
         verdicts,
-        /* Asked only of a reader who may stop: holder names stay with them. */
-        leadAfterStop: verdicts.acts.stop.ok
-          ? await this.leadAfter.of(this.repo.readonlyHandle, who, found)
-          : null,
+        /* Asked only of a reader who may stop: the hint belongs to the stop dialog. */
+        parks: verdicts.acts.stop.ok && (await parksLead(this.repo.readonlyHandle, found)),
       })),
       this.quotes.money(who, found.row, signedRows),
     ])
@@ -336,7 +333,7 @@ export class OpportunityService {
       money,
       chain: story.chain.map(toChainLink),
       hold: hold ? toHold(hold, vnDay(new Date())) : null,
-      leadAfterStop,
+      parksLead: parks,
     })
   }
 
@@ -378,7 +375,6 @@ export class OpportunityService {
     const { names, roles } = labelsOf(actors)
     if (lead === null) throw notFound('lead', body.leadCode)
     if (!opens(who, lead.ownerId)) throw foreignLead(body.leadCode)
-    if (lead.exited) throw leadGone()
     assertOwnSaleLane(this.onlySaleAtCreate(who), body.saleOwners)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the

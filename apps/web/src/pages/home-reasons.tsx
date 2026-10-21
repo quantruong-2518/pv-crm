@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { GlassCard, Ban, Icon, Lightbulb, cn, percent } from '@pv/ui'
 import {
+  LEAD_STATE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type SalesExitReason,
   type SalesExitsResponse,
@@ -8,7 +9,14 @@ import {
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { LIFT, ToneTile } from './home-funnel'
-import { daysOfPeriod, exitedLeadsHref, num, rateOf, stoppedDealsHref } from './home-model'
+import {
+  NURTURING_CONTRACTS_HREF,
+  daysOfPeriod,
+  exitedLeadsHref,
+  num,
+  rateOf,
+  stoppedDealsHref,
+} from './home-model'
 import { periodLabel } from './home-period'
 
 /** Why leads, deals and signed contracts left in the picked period: one panel
@@ -278,6 +286,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
   const dealTotal = sumOf(data.dealStops)
   const canLeads = useCan('lead.view')
   const canDeals = useCan('opportunity.view')
+  const canContracts = useCan('contract.view')
   const days = daysOfPeriod(data.period)
   const endedTotal = sumOf(data.contractTerminations)
   const total = leadTotal + dealTotal + endedTotal
@@ -291,8 +300,8 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
             <h3 className="text-[16px] font-semibold leading-6">Lý do dừng</h3>
             {total > 0 && (
               <span className="text-muted-foreground tnum font-num text-[12px] leading-4">
-                <strong className="text-foreground font-semibold">{num(leadTotal)} lead</strong>{' '}
-                ngừng chăm sóc ·{' '}
+                <strong className="text-foreground font-semibold">{num(leadTotal)} lead</strong> vào{' '}
+                {LEAD_STATE_LABEL.nurturing} ·{' '}
                 <strong className="text-foreground font-semibold">{num(dealTotal)} cơ hội</strong>{' '}
                 đã dừng
                 {endedTotal > 0 && (
@@ -314,14 +323,14 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
       </div>
       {total === 0 ? (
         <p className="text-muted-foreground my-auto py-8 text-center text-[12px] leading-4">
-          Kỳ này chưa có lead ngừng chăm sóc, cơ hội dừng hay hợp đồng chấm dứt.
+          Kỳ này chưa có lead vào {LEAD_STATE_LABEL.nurturing}, cơ hội dừng hay hợp đồng chấm dứt.
         </p>
       ) : (
         <>
           {data.leadExits.length > 0 && (
             <ReasonGroup
               kind="lead"
-              title="Lead ngừng chăm sóc"
+              title={`Lead vào ${LEAD_STATE_LABEL.nurturing}`}
               unit="lead"
               rows={data.leadExits}
               hrefOf={(r) => (canLeads ? exitedLeadsHref(r.key, days) : undefined)}
@@ -346,7 +355,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               title="Hợp đồng đã chấm dứt"
               unit="hợp đồng"
               rows={data.contractTerminations}
-              hrefOf={() => undefined}
+              hrefOf={() => (canLeads && canContracts ? NURTURING_CONTRACTS_HREF : undefined)}
               delay={740}
             />
           )}

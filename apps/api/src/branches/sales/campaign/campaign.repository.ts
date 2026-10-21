@@ -469,8 +469,6 @@ export class CampaignRepository {
    *  thay đổi TRẠNG THÁI" mà `campaign_member.state` đã đặt ra. */
   async addMembers(tx: Db, code: string, leadCodes: readonly string[]): Promise<number> {
     if (leadCodes.length === 0) return 0
-    /* "Added while nurturing" is read off the lead IN this statement (C5); a
-       re-add keeps an ACTIVE row's fact — wave 1 may have moved the lead since. */
     const rows = await tx
       .insert(campaignMember)
       .values(
@@ -478,15 +476,11 @@ export class CampaignRepository {
           campaignCode: code,
           leadCode,
           state: 'ACTIVE' as const,
-          addedWhileNurturing: sql<boolean>`COALESCE((SELECT l."state" = 'nurturing' FROM "sales"."lead" l WHERE l."code" = ${leadCode}), false)`,
         })),
       )
       .onConflictDoUpdate({
         target: [campaignMember.campaignCode, campaignMember.leadCode],
-        set: {
-          state: 'ACTIVE' as const,
-          addedWhileNurturing: sql`CASE WHEN ${campaignMember.state} = 'REMOVED' THEN excluded."added_while_nurturing" ELSE ${campaignMember.addedWhileNurturing} END`,
-        },
+        set: { state: 'ACTIVE' as const },
       })
       .returning({ leadCode: campaignMember.leadCode })
     return rows.length

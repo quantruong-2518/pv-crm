@@ -97,6 +97,8 @@ export const LEAD_NOTE = {
   replied: 'Khách đã trả lời thư',
   /** The RUNG row of a reply that moved the lead — beside `replied`, never instead of it. */
   repliedIntoWork: 'Có trao đổi thật với khách · khách trả lời thư',
+  /** The same reply on a pool lead: it goes back to the shared pool for someone to take. */
+  repliedIntoPool: 'Khách trả lời thư · lead về kho chung chờ người nhận',
   /** The two mail troubles the worker reports (ADR 0068): the holder must see
    *  them on the trail, since nothing else on the lead would change. */
   mailFailed: (address: string, unknown: boolean) =>
@@ -104,12 +106,9 @@ export const LEAD_NOTE = {
       ? `Thư tới ${address} quá hạn gửi lại — không rõ đã tới khách chưa`
       : `Gửi thư tới ${address} thất bại — lý do ở nhật ký gửi thư`,
   mailSyncFailed: 'Thư đã tới khách nhưng chưa chuyển được trạng thái lead — cần chỉnh tay',
-  /** Both stop doors carry the reason as its config id (ADR 0070): labels
-   *  belong to the screen, which swaps the second segment for the catalogue's. */
-  exited: (reason: string, note: string | undefined) =>
-    note ? `Rời phễu · ${reason} · ${note}` : `Rời phễu · ${reason}`,
-  reopened: 'Mở lại lead — quay về phễu',
   verified: (tier: LeadTier) => `Xác minh xong · bậc ${tier}`,
+  /** Every park carries the reason as its config id (ADR 0070): labels belong
+   *  to the screen, which swaps the second segment for the catalogue's. */
   nurtured: (reason: string, note: string | undefined) =>
     note
       ? `Tạm dừng chăm sóc, chờ dịp sau · ${reason} · ${note}`

@@ -6,7 +6,7 @@ import {
   type AccessControl,
   type ScanPlanGroup,
 } from '@pv/engines'
-import type { LeadState, ScanResult } from '@pv/contracts'
+import type { ScanResult } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import type { ScanAttempt } from '@api/platform/queue/scan-jobs'
 import { ACCESS } from '@api/platform/engines/tokens'
@@ -30,7 +30,6 @@ import { LEAD_NOTE, marketingCredit } from './lead-write.mapper'
 import { LeadWriteRepository } from './lead-write.repository'
 import { LeadWriteService } from './lead-write.service'
 import { LeadRepository } from './lead.repository'
-import { LEAD_GONE_STATES } from './lead-state'
 
 /** The scan commit job: the plan recomputed fresh, then ONE transaction per
  *  group, in plan order. Each takes the admission gate's lock and asks the
@@ -230,8 +229,8 @@ export class LeadScanCommit {
       if (action?.kind !== 'merge') return null
       const { leadCode } = action
       const found = await this.writeRepo.lockForOwnerChange(tx, leadCode)
-      const gone = !found || (LEAD_GONE_STATES as readonly LeadState[]).includes(found.state)
-      if (gone || (creator.ownOnly && found.ownerId !== creator.id)) return null
+      const pool = found?.state === 'nurturing'
+      if (!found || (creator.ownOnly && found.ownerId !== creator.id && !pool)) return null
       await this.writeRepo.fillEmpty(tx, leadCode, companyValuesOf(group))
       const people = fresh.newPeople.map((n) => {
         const person = contactOf(group.people[n]!)

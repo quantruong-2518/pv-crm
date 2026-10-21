@@ -882,14 +882,6 @@ export const StopReasonBody = z
     path: ['note'],
   })
 
-/** Where the lead goes when a stop ends its last live deal with nothing signed
- *  (owner, 15/10/2026): the waiting group under one of the profile's
- *  `leadAfterStop.holders`, or stopped (`disqualified`) with an `EXIT_REASON` key. */
-export const LeadAfterStopChoice = z.discriminatedUnion('to', [
-  z.object({ to: z.literal('waiting'), holderId: textInput(64) }),
-  StopReasonBody.safeExtend({ to: z.literal('stop') }),
-])
-
 /** `POST /sales/opportunities/:code/stop` — the deal is lost, for good; there is
  *  no reopen door. Nurturing again starts from the lead.
  *
@@ -900,12 +892,9 @@ export const LeadAfterStopChoice = z.discriminatedUnion('to', [
  *  key was sent — and that `other` came with a sentence, because "Khác" with no
  *  note is a reason nobody can read later.
  *
- *  `lead` is required exactly when the profile's `leadAfterStop` is set; the
- *  server judges that again under its locks (409 when missing) and ignores
- *  `lead` on any other stop. */
-export const OpportunityStopBody = StopReasonBody.safeExtend({
-  lead: LeadAfterStopChoice.optional(),
-})
+ *  The lead needs no answer: stopping the last live deal with nothing signed
+ *  parks it by itself (profile `parksLead`, ADR 0109). */
+export const OpportunityStopBody = StopReasonBody
 
 /** `POST /sales/opportunities/:code/accept` — a head-of-sales or director
  *  takes a `new` deal to `assigned`. Permission `opportunity.accept`.
@@ -992,7 +981,6 @@ export type OpportunityMilestoneKind = z.infer<typeof OpportunityMilestoneKind>
 export type OpportunityMilestoneBody = z.infer<typeof OpportunityMilestoneBody>
 export type OpportunityMilestoneResponse = z.infer<typeof OpportunityMilestoneResponse>
 export type StopReasonBody = z.infer<typeof StopReasonBody>
-export type LeadAfterStopChoice = z.infer<typeof LeadAfterStopChoice>
 export type OpportunityStopBody = z.infer<typeof OpportunityStopBody>
 export type OpportunityStopResponse = z.infer<typeof OpportunityStopResponse>
 export type OpportunityContactsBody = z.infer<typeof OpportunityContactsBody>

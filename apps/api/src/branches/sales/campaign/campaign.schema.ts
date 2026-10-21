@@ -110,11 +110,6 @@ export const campaignMember = sales.table(
     /** REMOVED rather than deleted: taking someone out of the audience must
      *  not erase that they were mailed in wave 1. */
     state: text('state').$type<'ACTIVE' | 'REMOVED'>().notNull().default('ACTIVE'),
-    /** The lead was `nurturing` when added — the fact the campaign's close reads
-     *  to park a silent lead again (care-lists §1.4). Stored, because the lead's
-     *  state has moved on by then. `false` on rows that predate 0111: unknown is
-     *  read as "not from the waiting group", so nothing is parked on a guess. */
-    addedWhileNurturing: boolean('added_while_nurturing').notNull().default(false),
   },
   (t) => [
     index('campaign_member_lead_idx').on(t.leadCode),

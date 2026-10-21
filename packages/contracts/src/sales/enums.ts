@@ -85,17 +85,15 @@ export const ContractKind = z
  *   · `new` / `assigned` — no PIC yet / a PIC who has scheduled nothing yet
  *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
  *   · `working`    — first real touch: call, message, meeting held, any mail sent
- *   · `nurturing`  — parked by hand from `assigned`/`verifying`/`working`, never
- *                    expires; any real touch loops it back to `working`
- *   · `converted`  — the first opportunity was opened from it. When its last
- *                    live deal is stopped unsigned the stopper sends it to
- *                    `nurturing` or `disqualified`; parked by hand when nothing
- *                    is live or signed (ADR 0069 §3, ADR 0097)
- *   · `disqualified` — a person pressed "stop caring"; out of the loop (ADR 0068)
+ *   · `nurturing`  — the one shared waiting pool, never expires and has NO holder.
+ *                    Entered by the park door or automatically when the last
+ *                    live deal or contract ends; left by a claim or a reply
+ *   · `converted`  — the first opportunity was opened from it; parks itself when
+ *                    nothing live or signed is left (ADR 0109)
  *  Tier belongs to no state, and neither does a hold (`./hold`, an overlay).
  *  Not `StageKey`: that is the deal's. */
 export const LeadState = z.enum(
-  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted', 'disqualified'],
+  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted'],
   'Trạng thái lead không có trong danh sách',
 )
 
@@ -111,7 +109,6 @@ export const LEAD_STATE_LABEL: Record<LeadState, string> = {
   working: 'Tình trạng chăm sóc',
   nurturing: 'Nhóm chờ chăm sóc',
   converted: 'Thành cơ hội',
-  disqualified: 'Ngừng chăm sóc',
 }
 
 /** Display words for each state, read only by the journey screen; kept beside
@@ -137,22 +134,17 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   working: {
     does: 'Đang chăm sóc. Mỗi lần liên hệ được ghi vào lịch sử.',
     who: 'PIC',
-    next: 'Tạm gác thì sang Nhóm chờ chăm sóc. Bấm ngừng thì sang Ngừng chăm sóc. Mở cơ hội thì sang Thành cơ hội.',
+    next: 'Chuyển vào Nhóm chờ chăm sóc khi tạm gác. Mở cơ hội thì sang Thành cơ hội.',
   },
   nurturing: {
-    does: 'Lead tạm gác, vẫn giữ PIC.',
-    who: 'PIC',
-    next: 'Liên hệ khách lại hoặc bấm "Chăm lại" thì về Tình trạng chăm sóc.',
+    does: 'Lead đang chờ chăm sóc, không có người phụ trách.',
+    who: 'Chung cho cả nhóm',
+    next: 'Bấm "Nhận lead" hoặc khách trả lời chiến dịch thì lead quay lại chăm sóc.',
   },
   converted: {
     does: 'Đã mở cơ hội đầu tiên từ lead này.',
     who: 'Người có quyền tạo cơ hội và sửa lead',
-    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Dừng cơ hội cuối mà chưa ký thì người dừng chọn cho lead về Nhóm chờ chăm sóc hoặc Ngừng chăm sóc. Không còn cơ hội nào chạy và chưa ký thì tạm gác được, lead sang Nhóm chờ chăm sóc.',
-  },
-  disqualified: {
-    does: 'Có người bấm ngừng chăm sóc. Chiến dịch và mail không đưa lead này trở lại.',
-    who: 'Người bấm ngừng chăm sóc',
-    next: 'Chỉ người có quyền mới mở lại được.',
+    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Hết cơ hội đang chạy và chưa ký thì lead tự sang Nhóm chờ chăm sóc.',
   },
 }
 

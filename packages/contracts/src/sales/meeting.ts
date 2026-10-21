@@ -135,11 +135,11 @@ export const MeetingSubjectCode = ObjectCode.regex(
 
 /** Why the server cancelled a booking: its subject closed. Copied into the
  *  `meeting_cancel_cause_known` CHECK. A person never cancels — they drop. */
-export const MeetingCancelCause = z.enum(['opportunity-lost', 'lead-disqualified', 'lead-disabled'])
+export const MeetingCancelCause = z.enum(['opportunity-lost', 'lead-nurtured', 'lead-disabled'])
 
 export const MEETING_CANCEL_CAUSE_LABEL: Record<MeetingCancelCause, string> = {
   'opportunity-lost': 'Cơ hội đã dừng',
-  'lead-disqualified': 'Lead đã ngừng chăm sóc',
+  'lead-nurtured': 'Lead chuyển vào Nhóm chờ chăm sóc',
   'lead-disabled': 'Lead đã bị vô hiệu hoá',
 }
 

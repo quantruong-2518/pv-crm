@@ -237,13 +237,13 @@ export const lead = sales.table(
     /** Where the lead is in its OWN lifecycle (ADR 0058) — not the pipeline
      *  stage, which belongs to `pipeline_position`. Stored, not derived: the
      *  server moves it in the same transaction as the write that caused it.
-     *  The seven values are fenced by `lead_state_known` below — `archived`
-     *  retired by ADR 0068, nothing retires a lead on a timer any more. */
+     *  The six values are fenced by `lead_state_known` below — `archived`
+     *  retired by ADR 0068, `disqualified` by ADR 0109 (one nurturing pool). */
     state: text('state').$type<LeadState>().notNull().default('new'),
     /** When the lead entered `state`. Replaces `days_here`: a stored day count
      *  goes stale with nobody touching the row, a stored timestamp does not —
      *  the age is `now() - state_since`, computed on read. Was `stage_since`
-     *  until 0052; every state change resets it, `disqualified` included. */
+     *  until 0052; every state change resets it, a park included. */
     stateSince: timestamp('state_since', { withTimezone: true }).notNull().defaultNow(),
     sourceKind: text('source_kind').$type<LeadSourceKind>(),
     /** Who made the first move — one of the six `LeadMotion` values.
@@ -364,7 +364,8 @@ export const lead = sales.table(
 
     // ── exit · ra khỏi luồng ───────────────────────────────────────────────
     /** An `EXIT_REASON` config id or `'other'` — a plain string since the
-     *  catalogue became desk-edited (`LeadRow.exitReason`). */
+     *  catalogue became desk-edited (`LeadRow.exitReason`). Set exactly while
+     *  the lead is `nurturing`: the park reason and moment (ADR 0109). */
     exitReason: text('exit_reason'),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
 
@@ -442,30 +443,28 @@ export const lead = sales.table(
     check('lead_exit_pair', sql`("exit_reason" IS NULL) = ("exited_at" IS NULL)`),
     /** Switched off always says by whom — the audit trail's second witness. */
     check('lead_disabled_pair', sql`("disabled_at" IS NULL) = ("disabled_by" IS NULL)`),
-    /** The seven `LeadState` values, copied out by hand for `touch_kind_known`'s
+    /** The six `LeadState` values, copied out by hand for `touch_kind_known`'s
      *  reason: a state added to the contract must be a migration somebody reads.
-     *  `archived` retired by ADR 0068 — 0067 moves those rows to `nurturing`. */
+     *  `archived` retired by 0067, `disqualified` by 0129 — both moved to `nurturing`. */
     check(
       'lead_state_known',
       sql`"state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                      'converted', 'disqualified')`,
+                      'converted')`,
     ),
-    /** A reason exists exactly when the lead is disqualified — ADR 0057 §2's
-     *  exit, renamed as a state. `lead_exit_pair` above pairs the timestamp. */
-    check(
-      'lead_disqualified_has_reason',
-      sql`("state" = 'disqualified') = ("exit_reason" IS NOT NULL)`,
-    ),
+    /** A park always says why, and leaving the pool clears it (ADR 0109 §1).
+     *  `lead_exit_pair` above pairs the timestamp. */
+    check('lead_nurturing_has_reason', sql`("state" = 'nurturing') = ("exit_reason" IS NOT NULL)`),
     /* NO `lead_working_has_tier` here, and the absence is the decision: `working`
        is entered by a logged exchange with the customer, which says nothing about
        grading, so a tierless `working` lead is an ordinary row (ADR 0063). */
 
-    /** Among the open states, `new` means exactly "no PIC yet". Terminal states
-     *  are exempt: a spam intake lead is disqualified without ever having one. */
+    /** Among the open states, the two pools have no PIC and the rest always
+     *  do: `new` before anyone took it, `nurturing` once a park released the
+     *  holder (ADR 0109). `converted` stays exempt, as before. */
     check(
       'lead_open_owner_matches',
       sql`"state" NOT IN ('new', 'assigned', 'verifying', 'working', 'nurturing')
-          OR (("state" = 'new') = ("owner_id" IS NULL))`,
+          OR (("state" IN ('new', 'nurturing')) = ("owner_id" IS NULL))`,
     ),
     /** `contact_channel` joined this list on 27/08, and it is not cosmetic:
      *  it is one of the two columns slot 5 of `required_filled` reads

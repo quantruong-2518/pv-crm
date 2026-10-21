@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { NEXT_STEP_DONE, type AccessControl, type Actor } from '@pv/engines'
 import {
-  LEAD_OPEN_STATES,
+  LEAD_ACTIVE_STATES,
   LEAD_STATE_LABEL,
   NextStepResponse,
   type LeadState,
@@ -34,7 +34,7 @@ export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>>
  *  `LeadExitService.lockRow` pattern: a lead handed away between the read and
  *  the write must not be written by an `ownOnly` actor who no longer holds it.
  *
- *  A step belongs to a lead still in the funnel (`LEAD_OPEN_STATES`): writes on
+ *  A step belongs to a lead being worked (`LEAD_ACTIVE_STATES`, never the pool): writes on
  *  any other state are refused, and a read of one answers null. `dueLevel` is
  *  graded against the Vietnam day the database reads with the row. */
 @Injectable()
@@ -219,7 +219,7 @@ export class NextStepService {
 }
 
 const isOpen = (state: LeadState): boolean =>
-  (LEAD_OPEN_STATES as readonly LeadState[]).includes(state)
+  (LEAD_ACTIVE_STATES as readonly LeadState[]).includes(state)
 
 /** A step left on a lead that has left the funnel is not shown: it is nobody's
  *  work any more, whatever the row still says. */

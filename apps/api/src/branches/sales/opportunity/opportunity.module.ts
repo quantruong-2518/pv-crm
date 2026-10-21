@@ -10,7 +10,6 @@ import { RolesModule } from '@api/platform/roles/roles.module'
 import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
 import { ContractRepository } from '../contract/contract.repository'
-import { LeadModule } from '../lead/lead.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
 import { QuotationRepository } from '../quotation/quotation.repository'
@@ -30,7 +29,6 @@ import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunityMailSentHook } from './opportunity-mail-sent.hook'
 import { OpportunityMoves } from './opportunity-moves.service'
-import { LeadAfterStopRule } from './opportunity-stop-lead'
 import { OpportunityImportRepository } from './opportunity-import.repository'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
 import { OpportunityOpening } from './opportunity-opening.service'
@@ -96,12 +94,8 @@ import { OpportunityService } from './opportunity.service'
     TouchModule,
     WorkstreamModule,
     LeadStateModule,
-    /* `LeadExitService`: a stop that ends a lead's last live deal may stop the
-       lead too, through that door's own write (owner, 15/10/2026). */
-    LeadModule,
     MeetingModule,
-    /* `RolePermissionRepository`, for the permission reads of the mail-sent hook
-       and of `LeadAfterStopRule` (who may hold the lead of a stopped deal). */
+    /* `RolePermissionRepository`, for the permission reads of the mail-sent hook. */
     RolesModule,
     /* The book's activity-freshness dials (`sales.activity.*`, ADR 0077 §4). */
     SettingModule,
@@ -116,7 +110,6 @@ import { OpportunityService } from './opportunity.service'
        here live in this module. */
     OpportunityLifecycle,
     OpportunityMoves,
-    LeadAfterStopRule,
     OpportunityAccept,
     OpportunityAssign,
     OpportunityOpening,

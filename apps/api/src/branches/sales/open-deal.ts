@@ -3,7 +3,7 @@ import { sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 /** THE one definition of "open deal", "lost deal", "signed lead" and "lost
  *  lead" on the server, the rule migration 0048 wrote into its backfill. The
  *  lead book, the leaderboard, the live-deal reads, the stop door, the hand-over,
- *  reopen and the run sync all ask through here, so no caller grows its own.
+ *  the lead park and the run sync all ask through here, so no caller grows its own.
  *
  *  Raw SQL with private aliases rather than Drizzle builders: the fragments ride
  *  inside queries whose outer FROM may be `sales.opportunity` or `sales.contract`
@@ -61,7 +61,7 @@ export const leadHasContract = (leadCode: SQLWrapper): SQL =>
 
 /** The lead stands `converted`: a deal still open, or something signed, even
  *  if that contract was later terminated (the lead did have a deal). A lead
- *  whose deals were all lost does not — reopen reads it (`stateOnReopen`). */
+ *  whose deals were all lost does not. */
 export const leadConverted = (leadCode: SQLWrapper): SQL =>
   sql`(${leadHasOpenDeal(leadCode)} OR EXISTS (SELECT 1 FROM sales.contract od_v WHERE od_v.lead_code = ${leadCode}))`
 

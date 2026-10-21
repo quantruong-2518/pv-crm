@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   SquareCheckBig,
   Target,
+  Timer,
   Users,
   UsersRound,
 } from '@pv/ui'
@@ -325,6 +326,15 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'customer',
   },
   {
+    no: 0,
+    icon: Timer,
+    label: 'Nhóm chờ chăm sóc',
+    path: '/sales/nurturing',
+    permission: 'lead.view',
+    question: 'Lead và cơ hội đã dừng, hợp đồng đã chấm dứt',
+    group: 'customer',
+  },
+  {
     /* Sits after Ops because it is the next step for the same customer:
        an opportunity that closes won becomes a contract. Renumbering the three
        modules below it is cheap — cross references in comments name modules, not
@@ -539,7 +549,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         ...menuOf(
           'Khách hàng',
           Users,
-          'Công ty, người liên hệ, đối tác và lead tạm hoãn',
+          'Công ty, người liên hệ, đối tác, lead tạm hoãn và nhóm chờ chăm sóc',
           appsIn('customer'),
         ),
         ...menuOf('Báo cáo', Gauge, 'KPI, chỉ tiêu và kế hoạch kỳ tới', appsIn('manage')),

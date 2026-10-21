@@ -56,9 +56,7 @@ export const hold = sales.table(
     endedAt: timestamp('ended_at', { withTimezone: true }),
     /** NULL even on an ended row: a customer reply ends a hold with nobody pressing anything. */
     endedBy: text('ended_by').references(() => actor.id),
-    endKind: text('end_kind').$type<
-      'resumed' | 'to-waiting' | 'touch' | 'stopped' | 'disqualified' | 'converted'
-    >(),
+    endKind: text('end_kind').$type<'resumed' | 'to-waiting' | 'touch' | 'stopped' | 'converted'>(),
 
     /** Stamped by the sweep so each of the two bells rings once. */
     remindedSoonAt: timestamp('reminded_soon_at', { withTimezone: true }),
@@ -83,11 +81,12 @@ export const hold = sales.table(
       .where(sql`"ended_at" IS NULL`),
     check('hold_subject_type_known', sql`"subject_type" IN ('lead', 'opportunity')`),
     /** Copied by hand: a new way to end a hold must be a migration somebody reads.
-     *  No `handover` — a handover moves the subject WITH its hold, never ends it. */
+     *  No `handover` — a handover moves the subject WITH its hold, never ends it.
+     *  No `disqualified` since 0129: every park ends a hold as `to-waiting`. */
     check(
       'hold_end_kind_known',
       sql`"end_kind" IS NULL OR "end_kind" IN ('resumed', 'to-waiting', 'touch', 'stopped',
-                                              'disqualified', 'converted')`,
+                                              'converted')`,
     ),
     /** An end has a moment and a kind or neither; a person only once it ended. */
     check(

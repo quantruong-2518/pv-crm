@@ -32,7 +32,6 @@ import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { toVndSql } from '../money'
 import { terminationsOf } from '../contract/contract-termination.repository'
 import {
@@ -75,8 +74,6 @@ export const opportunityProbe = (who: Actor, scoped: boolean) => (q: string) =>
     SEARCHED,
     q,
   )
-
-const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
 /** The acceptor's name, beside `accepted_by_id` (ADR 0071). A scalar subquery
  *  rather than a join so it rides a `FOR UPDATE` read too (the hand-over's). */
@@ -399,7 +396,6 @@ export class OpportunityRepository {
   ): Promise<{
     company: string
     workstreamCode: string | null
-    exited: boolean
     ownerId: string | null
   } | null> {
     const [row] = await tx
@@ -407,7 +403,6 @@ export class OpportunityRepository {
         company: lead.company,
         workstreamCode: lead.workstreamCode,
         ownerId: lead.ownerId,
-        exited: sql<boolean>`${inArray(lead.state, [...LEAD_GONE_STATES])}`,
       })
       .from(lead)
       .where(and(eq(lead.code, code), leadLive))
@@ -623,8 +618,8 @@ export class OpportunityRepository {
     return r?.lost === true
   }
 
-  /** Lock leads `FOR NO KEY UPDATE` and answer, per lead, whether it has exited
-   *  and who holds it — so a deal write cannot land on a lead exiting or
+  /** Lock leads `FOR NO KEY UPDATE` and answer, per lead, its state and who
+   *  holds it — so a deal write cannot land on a lead being parked or
    *  changing hands in the same instant. Not `FOR SHARE`: the same tx then
    *  UPDATEs the lead to `converted`, and two share-holders upgrading at once
    *  deadlock. The deal's FK takes KEY SHARE, which this mode allows;
@@ -632,7 +627,7 @@ export class OpportunityRepository {
    *  in no row: Postgres re-checks the WHERE once the lock is granted. */
   async lockLeads(tx: Db, leadCodes: readonly string[]) {
     if (leadCodes.length === 0) return []
-    const rows = await tx
+    return tx
       .select({
         code: lead.code,
         state: lead.state,
@@ -645,7 +640,6 @@ export class OpportunityRepository {
       .where(and(inArray(lead.code, [...leadCodes]), leadLive))
       .orderBy(asc(lead.code))
       .for('no key update')
-    return rows.map((r) => ({ ...r, exited: GONE.has(r.state) }))
   }
 
   /** Sửa một đơn. Trả về dòng SAU khi sửa. */

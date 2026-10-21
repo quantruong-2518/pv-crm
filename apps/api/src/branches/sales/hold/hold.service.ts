@@ -17,11 +17,12 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { LeadExitService } from '../lead/lead-exit.service'
 import { leadScope } from '../lead/lead-scope'
 import { LeadService } from '../lead/lead.service'
+import { MeetingCancel } from '../meeting/meeting-cancel'
 import { dealScope } from '../opportunity/opportunity-book.sql'
 import { dealAtOf, holdVerdict, vnDay } from '../opportunity/opportunity-lifecycle'
 import { peopleOf } from '../opportunity/opportunity.mapper'
@@ -34,13 +35,14 @@ import { endHolds, shiftDealClock } from './hold.sql'
 
 /** Holds (ADR 0097 §3): the set / change / end doors on a lead and on a
  *  deal, and the one shared list. Each door is scoped and locked exactly like
- *  its sibling — the lead's like the nurture door (`LeadExitService`), the
+ *  its sibling — the lead's like the park door (`LeadExitService`), the
  *  deal's like the stop door — then answers with the subject's profile.
  *  At the date nothing moves: only these doors, a real exchange, a park, a
- *  stop, an exit or a new deal end a hold. */
+ *  stop or a new deal end a hold. */
 
-/** States a lead may be held from: it has a holder and is still being cared for. */
-const LEAD_HOLDABLE: readonly LeadState[] = ['assigned', 'verifying', 'working', 'nurturing']
+/** States a lead may be held from: it has a holder and is still being cared
+ *  for. The `nurturing` pool has no holder, so no hold (ADR 0109). */
+const LEAD_HOLDABLE: readonly LeadState[] = ['assigned', 'verifying', 'working']
 
 /** Why a held lead's unsent mail is held back (ADR 0068 §6's mechanism). */
 const LEAD_HELD_WITHHOLD = {
@@ -64,6 +66,7 @@ export class HoldService {
     private readonly deals: OpportunityRepository,
     private readonly opportunities: OpportunityService,
     private readonly mailRuns: MailRunRepository,
+    private readonly meetings: MeetingCancel,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -102,20 +105,23 @@ export class HoldService {
     return this.leads.profile(who, code)
   }
 
-  /** `POST /sales/leads/:code/hold/end`. The "to waiting" end runs the
-   *  nurture door's own verdict and write, which ends the hold `to-waiting`. */
+  /** `POST /sales/leads/:code/hold/end`. The "to waiting" end is the park
+   *  door's own verdict and write, which ends the hold `to-waiting`, so it
+   *  also needs the park door's permission (ADR 0109). */
   async endLead(who: Actor, code: ObjectCode, body: LeadHoldEndBody): Promise<LeadProfile> {
-    await this.repo.run(async (tx) => {
+    if (body.to === 'waiting' && !this.access.allows(who, 'lead.disqualify')) {
+      throw denied('permission-denied', 'Bạn không có quyền chuyển lead vào Nhóm chờ chăm sóc.')
+    }
+    const gone = await this.repo.run(async (tx) => {
       const found = await this.leadDoors.lockRow(tx, who, code)
       if (!found.held) throw notHeld('Lead', code)
-      if (body.to === 'waiting') {
-        await this.leadDoors.park(tx, who, code, found, body, true)
-        return
-      }
+      if (body.to === 'waiting') return this.leadDoors.park(tx, who, code, found, body)
       const [ended] = await endHolds(tx, 'lead', [code], 'resumed', who.id)
       if (ended) await this.repo.shiftLeadClock(tx, code, ended)
       await syncLeadRuns(tx, [code])
+      return []
     })
+    await this.meetings.forgetCancelled(gone)
     return this.leads.profile(who, code)
   }
 

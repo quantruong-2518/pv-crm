@@ -190,7 +190,7 @@ export const LeadRow = z.object({
   lastTouchAt: Moment.optional(),
 
   createdAt: Moment,
-  /** Both present exactly while `state` is `disqualified`. A config id from the
+  /** Both present exactly while `state` is `nurturing` (park reason and moment). A config id from the
    *  `EXIT_REASON` list (ADR 0070), or the virtual key `'other'` — never the
    *  fixed six-value enum this used to be, since the catalogue is now admin-
    *  edited. A plain string because a closed list here would refuse a reason
@@ -223,8 +223,8 @@ export const LeadRow = z.object({
  *  converted — every lead a deal may still be raised on) or `all`. A group
  *  key rather than a list param, so "which five are open" is decided on the
  *  server and not re-spelled by every caller. `held` = leads with an open hold
- *  (`./hold`); a held lead leaves `open` and every single-state value, so the
- *  `nurturing` (waiting group) tab lists only the unheld ones. */
+ *  (`./hold`); a held lead leaves `open` and every single-state value. The
+ *  `nurturing` pool has no holder, so no hold ever sits on it. */
 export const LeadStateFilter = z.enum(
   [...LeadState.options, 'active', 'open', 'live', 'held', 'all'],
   'Trạng thái không có trong danh sách.',
@@ -671,11 +671,10 @@ export const LeadProfile = LeadRow.extend({
  *     disagree with the data it counts.
  *   · `score`, `state`, `stateSince`, `createdAt`, `lastTouchAt` — the system's
  *     own bookkeeping; `state` starts at `new` or `assigned` by owner.
- *   · `tier` — graded later by the PIC through the patch door, in any state
- *     but `disqualified`; a lead that has just been typed has not
- *     been assessed yet.
- *   · `exitReason` / `exitedAt` — a lead cannot be born already lost, and
- *     `CHECK lead_disqualified_has_reason` would be the one to say so.
+ *   · `tier` — graded later by the PIC through the patch door, in any state;
+ *     a lead that has just been typed has not been assessed yet.
+ *   · `exitReason` / `exitedAt` — a lead cannot be born already parked, and
+ *     `CHECK lead_nurturing_has_reason` would be the one to say so.
  *   · `source.kind` — the system records the origin, nobody types it. For this
  *     endpoint the origin is `MANUAL`, which is why `motion` is narrowed below
  *     to the motions that door can carry. Only `campaignId` is accepted.
@@ -838,11 +837,11 @@ const clearableText = (max: number) =>
  *
  *   · `code` · `createdAt` · `score` · `requiredFilled` — the system's own
  *     bookkeeping, two of them generated columns Postgres computes.
- *   · `state` — moved by the server and the lifecycle doors (`nurture`, `resume`, `exit`, `reopen`), never typed.
+ *   · `state` — moved by the server and the lifecycle doors (`nurture`, `resume`), never typed.
  *   · `ownerId` · `bdOwnerId` · `marketingOwnerId` — `PATCH :code/owner` is
  *     their door, and it holds a rule this one does not (who may hand a lead
  *     to somebody else) that would have to be copied here to stay true.
- *   · `exitReason` · `exitedAt` — they move with `state` through `:code/exit`.
+ *   · `exitReason` · `exitedAt` — they move with `state` through `:code/nurture`.
  *   · `motion` · `campaignId` — where the lead CAME FROM. That is history, and
  *     history is not a thing you correct on a form six weeks later.
  *
@@ -870,8 +869,7 @@ export const LeadPatch = z
     address: clearableText(LEAD_MAX.address),
     province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),
-    /** Tier is decoupled from state: patchable in any state except
-     *  `disqualified`. Not clearable once set. */
+    /** Tier is decoupled from state: patchable in any state. Not clearable once set. */
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
     industries: industryTags.optional(),
@@ -927,7 +925,8 @@ export const LeadPatchResponse = LeadProfile
 // ---------------------------------------------------------------------------
 
 /** Who holds this lead from now on. `null` puts it back in the common pool —
- *  refused (409) on a `nurturing` or held lead, which may change hands only.
+ *  refused (409) on a held lead, which may change hands only. Any owner write
+ *  on a `nurturing` lead is refused: the pool has no holder, the claim door (`resume`) is its way out.
  *
  *  ------------------------------------------------------------------
  *  ONE FIELD, AND NO `task` BESIDE IT
@@ -1004,27 +1003,18 @@ export type LeadStopReasonResponse = z.infer<typeof LeadStopReasonResponse>
 export const LeadIndustryTagsResponse = z.object({ tags: z.array(z.string()) })
 export type LeadIndustryTagsResponse = z.infer<typeof LeadIndustryTagsResponse>
 
-/** `POST /sales/leads/:code/exit`. No approval: `POST :code/reopen` (no body)
- *  undoes it, so E3 has nothing irreversible to weigh (ADR 0057). */
-export const LeadExitBody = LeadStopBody
-
-/** Both doors answer the re-read profile, like `PATCH :code`. */
-export const LeadExitResponse = LeadProfile
-export const LeadReopenResponse = LeadProfile
-
 // ---------------------------------------------------------------------------
-// MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058)
+// MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058, ADR 0109)
 // ---------------------------------------------------------------------------
 
-/** `POST /sales/leads/:code/nurture` — `assigned` | `verifying` | `working`, or
- *  `converted` with no open deal and no contract, → `nurturing`.
- *  `POST :code/resume` (no body) brings it back to `working` if an exchange
- *  was ever logged on the lead, else to `verifying`. Same reason, same
- *  catalogue as `:code/exit` (ADR 0070) — both are stop events counted on
- *  `EXIT_REASON`. Labels are not in this body: they go through `:code/labels`. */
+/** `POST /sales/leads/:code/nurture` — the ONE park door: `new` | `assigned` |
+ *  `verifying` | `working`, or `converted` with no open deal and no live
+ *  contract, → `nurturing` with no holder. The reason comes from `EXIT_REASON`
+ *  (ADR 0070). `POST :code/resume` (the claim, no body) makes the caller the
+ *  holder again. Labels are not in this body: they go through `:code/labels`. */
 export const LeadNurtureBody = LeadStopBody
 
-/** All lifecycle doors answer the re-read profile, like `:code/exit`. */
+/** All lifecycle doors answer the re-read profile, like `PATCH :code`. */
 export const LeadContactedResponse = LeadProfile
 export const LeadNurtureResponse = LeadProfile
 export const LeadResumeResponse = LeadProfile
@@ -1103,9 +1093,6 @@ export type LeadPatchResponse = z.infer<typeof LeadPatchResponse>
 export type LeadOwnerWrite = z.infer<typeof LeadOwnerWrite>
 export type LeadOwnerResponse = z.infer<typeof LeadOwnerResponse>
 export type LeadStopBody = z.infer<typeof LeadStopBody>
-export type LeadExitBody = z.infer<typeof LeadExitBody>
-export type LeadExitResponse = z.infer<typeof LeadExitResponse>
-export type LeadReopenResponse = z.infer<typeof LeadReopenResponse>
 export type LeadNurtureBody = z.infer<typeof LeadNurtureBody>
 export type LeadContactedResponse = z.infer<typeof LeadContactedResponse>
 export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>

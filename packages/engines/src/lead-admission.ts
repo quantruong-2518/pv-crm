@@ -67,7 +67,7 @@ export type AdmissionBookAccount = {
 export type AdmissionBookLead = {
   code: string
   accountCode: string
-  /** False = disqualified or closed: it never receives a contact. */
+  /** False = closed (switched off): it never receives a contact. */
   open: boolean
   /** Whether the caller may open and join this lead; it also ranks the choices. */
   inScope: boolean

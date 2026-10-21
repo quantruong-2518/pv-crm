@@ -57,8 +57,7 @@ const MailGroupAddressing = z.object({
 
 export const MailGroupPreflightRequest = MailGroupAddressing.refine(fitsDoor, DOOR_MISMATCH)
 
-/** The group verdicts: `EXITED` is a lead-level fact the detail door already
- *  shows, so only the four per-address reasons apply. */
+/** The group verdicts: the four per-address reasons. */
 export const MailGroupBlock = MasRecipientBlock.extract([
   'NO_EMAIL',
   'SUPPRESSED',

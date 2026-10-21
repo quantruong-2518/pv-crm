@@ -20,7 +20,6 @@ import {
 } from '@pv/contracts'
 import { daysUntil, dueLevelOf, stepLevelOf } from '@pv/engines'
 import { toHold } from '../hold/hold.mapper'
-import { stateByWork } from '../lead/lead-state'
 import type { LeadRowDb } from '../lead/lead.schema'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
 import type { NextStepBatchRead } from '../next-step/next-step.repository'
@@ -215,10 +214,9 @@ const RUNG_HIT: Record<LeadRungKey, (t: LeadTouchEntry) => boolean> = {
 
 const touchHolder = (t: LeadTouchEntry): WorkstreamHolder | null => personOf(t.actorId, t.by)
 
-/** The five backbone rungs, and the waiting door while the lead sits in
- *  `nurturing` (ADR 0068: it loops there on the same lead) — the ONLY waiting
- *  door: a lost deal draws none (ADR 0069). `disqualified` also stops the
- *  rung but opens no door — a person stopped caring. */
+/** The five backbone rungs, and the waiting door while the lead sits in the
+ *  `nurturing` pool (ADR 0109) — the ONLY waiting door: a lost deal draws none
+ *  (ADR 0069). The park stops the rung at `exitedAt`, the moment it was parked. */
 function leadOf(
   read: WorkstreamRead,
   deals: readonly OpportunityRowDb[],
@@ -244,11 +242,7 @@ function leadOf(
 
   const parked = lead.state === 'nurturing' ? lastOf(trail, (t) => t.kind === 'nurtured') : null
   const stoppedAt =
-    lead.state === 'disqualified'
-      ? (lastOf(trail, (t) => t.kind === 'exited')?.at ?? lead.exitedAt ?? lead.stateSince)
-      : lead.state === 'nurturing'
-        ? (parked?.at ?? lead.stateSince)
-        : null
+    lead.state === 'nurturing' ? (lead.exitedAt ?? parked?.at ?? lead.stateSince) : null
   const outcomeAt = stoppedAt ?? firstDeal
 
   const index = standingOn(lead, entryOf)
@@ -322,14 +316,10 @@ function parkReasonOf(parked: LeadTouchEntry | null | undefined): string {
   return parked.note
 }
 
-/** Which rung the lead is DRAWN on. `nurturing` parks it exactly where
- *  `LeadExitService.resume` would put it back — the same `stateByWork`, off
- *  the fact that an exchange was once logged (ADR 0063 §4). A lead that LEFT
- *  stands on the last rung its trail proves it reached. */
+/** Which rung the lead is DRAWN on. A lead off the backbone — the `nurturing`
+ *  pool, which may never have been assigned — stands on the last rung its trail
+ *  proves it reached; the SQL twin is `sales.workstream_stand()` (0129). */
 function standingOn(lead: LeadRowDb, entryOf: (key: LeadRungKey) => Entry): number {
-  if (lead.state === 'nurturing') {
-    return LEAD_LANE_BACKBONE.indexOf(stateByWork(entryOf('working') !== null))
-  }
   const onBackbone = (LEAD_LANE_BACKBONE as readonly LeadState[]).indexOf(lead.state)
   if (onBackbone >= 0) return onBackbone
 

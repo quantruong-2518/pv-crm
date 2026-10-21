@@ -10,14 +10,13 @@ import { toastDone, toastFail } from '@/app/toast'
 import { leadContactsQuery } from '@/data/contacts'
 import { useLeadDealReach } from '@/data/deal-sale'
 import { useLeadDraft } from '@/data/lead-draft'
-import { useReopenLead, useResumeLead } from '@/data/lead-exit'
+import { useResumeLead } from '@/data/lead-exit'
 import { leadOf, leadProfileQuery } from '@/data/lead-profile'
-import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
+import { isOpenState } from '@/data/lead-state'
 import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { assignDoorOf } from '@/components/assign-door'
 import { AssignMenu } from '@/components/assign-menu'
 import { ConvertDialog } from '@/components/convert-dialog'
-import { ExitDialog } from '@/components/exit-dialog'
 import { DisableLeadsDialog } from '@/components/lead-disable'
 import { LeadHoldDialog, LeadHoldStrip } from '@/components/lead-hold'
 import { LeadLabelsCard } from '@/components/lead-labels'
@@ -95,10 +94,13 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const off = lead.disabledAt !== undefined
   const dealReach = useLeadDealReach(lead) && !off
   const canWrite = useCan('lead.edit') && lead.canEdit
+  /* `canEdit` is the holder's fence, and a pool lead has no holder yet. */
+  const canClaim = useCan('lead.edit') && !off
   const canDisqualify = useCan('lead.disqualify') && lead.canEdit
   const canSendEmail = useCan('lead.send-email')
   const canConvert = useCan('opportunity.create') && lead.canEdit
   const canAssign = useCan('lead.assign')
+  const canDisable = useCan('lead.disable')
   const convert =
     canConvert && !off && (isOpenState(lead.state) || lead.state === 'converted')
       ? () => setConverting(true)
@@ -106,47 +108,44 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const pin = usePinToggle('lead', lead.code)
   const liveDeal = useQuery(opportunitiesOfLeadQuery(lead.code)).data ?? EMPTY_LIVE_DEAL
   const contacts = useQuery(leadContactsQuery(lead.code)).data?.rows
-  const resume = useResumeLead(lead.code)
-  const reopen = useReopenLead(lead.code)
+  const claim = useResumeLead(lead.code)
   /* ONE draft for the whole screen, seeded from the server's copy. */
   const draft = useLeadDraft({ mode: 'edit', profile: lead })
   const dockRow = useDockRow({ kind: 'lead', code: lead.code }, canWrite)
   const [converting, setConverting] = useState(false)
-  const [exiting, setExiting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
   const [holding, setHolding] = useState(false)
   const [composing, setComposing] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [disabling, setDisabling] = useState(false)
 
-  const mailBlocked = mailBlockedOf(lead, canSendEmail)
+  const mailBlocked = mailBlockedOf(canSendEmail)
   const people = barPeopleOf(lead, contacts)
 
-  const assignDoor = assignDoorOf(lead.ownerId ?? null, canAssign, dealReach, me !== undefined)
+  /* The pool has no holder to hand over; the claim is its only way out. */
+  const assignDoor = assignDoorOf(
+    lead.ownerId ?? null,
+    canAssign,
+    dealReach || lead.state === 'nurturing',
+    me !== undefined,
+  )
   const more = leadMoreChoices(
     lead,
-    { write: canWrite, disqualify: canDisqualify, disable: useCan('lead.disable') },
+    { write: canWrite, claim: canClaim, disqualify: canDisqualify, disable: canDisable },
     assignDoor,
     pin.pinned,
     dealReach,
     liveDeal,
     {
-      onResume: () =>
-        resume.mutate(undefined, {
-          onSuccess: (next) =>
-            toastDone(`${lead.code} chuyển sang ${LEAD_STATE_FACE[next.state].label}.`),
-          onError: (e) => toastFail('Không chăm lại được lead.', userMessage(e)),
+      onClaim: () =>
+        claim.mutate(undefined, {
+          onSuccess: () => toastDone(`Đã nhận ${lead.code}.`),
+          onError: (e) => toastFail('Không nhận được lead.', userMessage(e)),
         }),
       onNurture: () => setNurturing(true),
       onHold: () => setHolding(true),
       onAssign: () => setAssigning(true),
       onPin: pin.toggle,
-      onExit: () => setExiting(true),
-      onReopen: () =>
-        reopen.mutate(undefined, {
-          onSuccess: () => toastDone(`Đã mở lại ${lead.code}.`),
-          onError: (e) => toastFail('Không mở lại được lead.', userMessage(e)),
-        }),
       onDisable: () => setDisabling(true),
     },
   )
@@ -168,7 +167,10 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       main={
         <>
           {off && <MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={false} />}
-          <LeadTodo lead={lead} canStep={canWrite && isOpenState(lead.state)} />
+          <LeadTodo
+            lead={lead}
+            canStep={canWrite && isOpenState(lead.state) && lead.state !== 'nurturing'}
+          />
           <LeadLabelsCard lead={lead} canEdit={canWrite && isOpenState(lead.state)} />
           <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
         </>
@@ -220,7 +222,6 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       />
       {/* The WIRE profile: the convert form is seeded from the stored row. */}
       <ConvertDialog profile={lead} open={converting} onClose={() => setConverting(false)} />
-      <ExitDialog profile={lead} open={exiting} onClose={() => setExiting(false)} />
       <NurtureDialog profile={lead} open={nurturing} onClose={() => setNurturing(false)} />
       <LeadHoldDialog lead={lead} open={holding} onClose={() => setHolding(false)} />
       <DisableLeadsDialog

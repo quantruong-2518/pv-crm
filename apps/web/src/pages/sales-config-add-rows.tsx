@@ -116,10 +116,9 @@ export function AddLossReason() {
   )
 }
 
-/** 5.4 · add one reason to `EXIT_REASON`, the catalogue shared by both stop
- *  doors (ADR 0070) — the park door and the disqualify door read the same
- *  list, so one row added here opens up on both pickers at once. No stage
- *  picker: unlike `LOSS_REASON`, this list is not scoped to a board column. */
+/** 5.4 · add one reason to `EXIT_REASON`, the catalogue the park door reads
+ *  (ADR 0070). No stage picker: unlike `LOSS_REASON`, this list is not scoped
+ *  to a board column. */
 export function AddStopReason() {
   const [name, setName] = useState('')
   const canPropose = useCan('config.propose')

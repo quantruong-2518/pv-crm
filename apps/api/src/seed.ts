@@ -17,6 +17,7 @@ import { stepTemplate } from '@api/branches/sales/config/step-frame.schema'
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead } from '@api/branches/sales/lead/lead.schema'
+import { LEAD_PARK_REASON } from '@api/branches/sales/lead/lead-state'
 import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
 import { salePrimaryOf } from '@api/branches/sales/opportunity/opportunity-owners'
@@ -268,16 +269,16 @@ function plantJourney(j: JourneySeed, i: number): void {
     pushTouch(
       ld,
       'lead',
-      'exited',
+      'nurtured',
       exitedAt!,
       owner ?? MARKETING,
-      LEAD_NOTE.exited(exitIdOf(j.exit.reason), undefined),
+      LEAD_NOTE.nurtured(exitIdOf(j.exit.reason), undefined),
       { reasonId: exitIdOf(j.exit.reason) },
     )
   }
 
-  const { won, parkedAt, closedAt } = outcomeOf(ld, owner, deals, exitedAt)
-  const state = stateOf(j, owner, deals.length, parkedAt !== null)
+  const { won, parkedAt, closedAt } = outcomeOf(ld, deals, exitedAt)
+  const { state, holder } = standOf(j, owner, deals.length, parkedAt !== null)
   const firstDealAt = deals[0]?.enteredAt ?? null
   /* Every HELD lead carries it, not just one parked at `working`: a lead that
      went on to a deal still passed verification to get its tier, and the
@@ -302,8 +303,8 @@ function plantJourney(j: JourneySeed, i: number): void {
     kind: 'LD',
     branch: 'Sales',
     label: a.name,
-    owner: owner?.name,
-    ownerId: owner?.id,
+    owner: holder?.name,
+    ownerId: holder?.id,
     state,
   })
   out.edges.push({ fromCode: ld, toCode: ac, kind: 'belongs-to' })
@@ -332,7 +333,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     budget: j.budget ?? null,
     currency: j.budget ? 'VND' : null,
     deadline: j.deadlineInDays === undefined ? null : dateOnly(ago(-j.deadlineInDays)),
-    ownerId: owner?.id ?? null,
+    ownerId: holder?.id ?? null,
     bdOwnerId: reached ? BD.id : null,
     marketingOwnerId: MARKETING.id,
     /* An unowned `new` lead has not been verified, so it has no tier. */
@@ -346,30 +347,28 @@ function plantJourney(j: JourneySeed, i: number): void {
     lastTouchAt: out.touches
       .filter((t) => t.subjectCode === ld)
       .reduce((max, t) => (t.at! > max ? t.at! : max), born),
-    exitReason: j.exit ? exitIdOf(j.exit.reason) : null,
-    exitedAt,
+    exitReason: j.exit ? exitIdOf(j.exit.reason) : parkedAt && LEAD_PARK_REASON.dealStopped,
+    exitedAt: exitedAt ?? parkedAt,
   })
   if (src.campaign) {
     out.members.push({ campaignCode: campaignCodeOf.get(src.key)!, leadCode: ld, addedAt: born })
   }
 }
 
-/** Every CHECK of ADR 0058 holds: exit ⇔ disqualified, a live deal ⇒
- *  converted, every deal lost ⇒ parked (ADR 0069 §3), no holder ⇔ new, and a
- *  holder with a tier is a verified lead. */
-function stateOf(j: JourneySeed, owner: Hand | null, deals: number, parked: boolean): LeadState {
-  if (j.exit) return 'disqualified'
-  if (parked) return owner ? 'nurturing' : 'new'
-  if (deals > 0) return 'converted'
-  return owner ? 'working' : 'new'
+/** Every CHECK of ADR 0109 holds: a park reason ⇔ nurturing, a live deal ⇒
+ *  converted, every deal lost ⇒ parked, no holder ⇔ new or nurturing (the trail
+ *  keeps who held a parked lead), and a holder with a tier is a verified lead. */
+function standOf(j: JourneySeed, owner: Hand | null, deals: number, parked: boolean) {
+  const state: LeadState =
+    j.exit || parked ? 'nurturing' : deals > 0 ? 'converted' : owner ? 'working' : 'new'
+  return { state, holder: state === 'nurturing' ? null : owner }
 }
 
 /** How the run ends. A lost deal ends it only when it was the last one and
- *  nothing is signed (ADR 0069 §3); a lead not exited is then parked as the
- *  stop door parks it, dated by the same `nurtured` row. */
+ *  nothing is signed (ADR 0069 §3); a lead not parked by hand is then parked
+ *  by the machine, as the stop door does (EX-08), dated by its `nurtured` row. */
 function outcomeOf(
   ld: string,
-  owner: Hand | null,
   deals: readonly { signedAt: Date | null; lostAt: Date | null }[],
   exitedAt: Date | null,
 ) {
@@ -380,7 +379,10 @@ function outcomeOf(
       : new Date(Math.max(...deals.map((r) => r.lostAt!.getTime())))
   const parkedAt = lastLost && !exitedAt ? lastLost : null
   if (parkedAt) {
-    pushTouch(ld, 'lead', 'nurtured', parkedAt, owner, NOTE.lastLost[owner ? 'nurturing' : 'new'])
+    const reasonId = LEAD_PARK_REASON.dealStopped
+    pushTouch(ld, 'lead', 'nurtured', parkedAt, null, LEAD_NOTE.nurtured(reasonId, undefined), {
+      reasonId,
+    })
   }
   return { won, parkedAt, closedAt: won?.signedAt ?? latest(lastLost, exitedAt) }
 }

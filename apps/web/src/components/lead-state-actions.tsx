@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Drawer, Timer } from '@pv/ui'
 import { LEAD_STATE_LABEL, LEAD_STOP_REASON_OTHER, type LeadProfile } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
-import { StopReasonField } from '@/components/exit-dialog'
+import { MeetingsCancelNote } from '@/components/meetings-cancel-note'
+import { StopReasonField } from '@/components/stop-reason-field'
 import { StepFooter } from '@/components/step-footer'
 import { LabelPicker } from '@/components/lead-labels'
 import { useNurtureLead } from '@/data/lead-exit'
 import { useEndLeadHold } from '@/data/holds'
 import { sameLabels, useSetLeadLabels } from '@/data/lead-labels'
+import { meetingsCancelled } from '@/data/meetings'
 
-/** The drawer behind the PIC's parking step (ADR 0063) — opened from the
- *  lead profile's more menu. Every door answers a 409 when the state moved
- *  under the reader; the drawer prints the server's own sentence and stays
- *  open. */
+/** The drawer behind the one park door (ADR 0109) — opened from the lead
+ *  profile's more menu and from a hold's strip. The door answers a 409 when
+ *  the state moved under the reader; the drawer prints the server's own
+ *  sentence and stays open. */
 
-/** Into `nurturing` (ADR 0097 §1). Reason and note come from the same
- *  `EXIT_REASON` catalogue the exit door reads (ADR 0070, `StopReasonField`):
- *  parking is a stop event too, so it is counted the same way a disqualify is.
- *  A held lead goes through `hold/end` instead, which parks it the same way.
- *  Labels ride a second write once the lead is parked — the park body has none. */
+/** Into the nurturing pool, which has no holder. Reason and note come from the
+ *  `EXIT_REASON` catalogue (ADR 0070, `StopReasonField`). A held lead goes
+ *  through `hold/end` instead, which parks it the same way. Labels ride a
+ *  second write once the lead is parked — the park body has none. */
 export function NurtureDialog({
   profile,
   open,
@@ -29,6 +31,7 @@ export function NurtureDialog({
   open: boolean
   onClose: () => void
 }) {
+  const client = useQueryClient()
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const [labels, setLabels] = useState<string[]>([])
@@ -54,7 +57,8 @@ export function NurtureDialog({
 
   const ready = reasonKey !== '' && (reasonKey !== LEAD_STOP_REASON_OTHER || note.trim() !== '')
   const parked = () => {
-    const message = `Đã chuyển ${profile.code} sang ${LEAD_STATE_LABEL.nurturing}.`
+    meetingsCancelled(client)
+    const message = `Đã chuyển ${profile.code} vào ${LEAD_STATE_LABEL.nurturing}.`
     if (sameLabels(labels, current)) return done(message, onClose)
     saveLabels.mutate(
       { labelIds: labels },
@@ -72,14 +76,12 @@ export function NurtureDialog({
     <Drawer
       open={open}
       onClose={onClose}
-      title={LEAD_STATE_LABEL.nurturing}
+      title={`Chuyển vào ${LEAD_STATE_LABEL.nurturing}`}
       subtitle={
-        <Subject
-          profile={profile}
-          /* ADR 0068: a parked lead never expires on its own — only a real
-             touch wakes it, or a person presses the disqualify button. */
-          what="Khách chưa sẵn sàng. Có liên hệ thật thì lead quay lại."
-        />
+        <>
+          <span className="font-mono">{profile.code}</span> · {profile.company}. Lead về kho chung,
+          ai cũng nhận lại được.
+        </>
       }
       footer={
         <StepFooter
@@ -89,7 +91,7 @@ export function NurtureDialog({
           onClose={onClose}
           confirm={{
             icon: Timer,
-            label: `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
+            label: `Chuyển vào ${LEAD_STATE_LABEL.nurturing}`,
             disabled: !ready,
             onClick: () => {
               const trimmed = note.trim()
@@ -112,6 +114,9 @@ export function NurtureDialog({
         <span className="text-muted-foreground text-[11px]">Nhãn nhóm chờ</span>
         <LabelPicker value={labels} onChange={setLabels} disabled={door.isPending} />
       </div>
+      <div className="mt-6 empty:hidden">
+        <MeetingsCancelNote enabled={open} subjects={[{ kind: 'lead', code: profile.code }]} />
+      </div>
     </Drawer>
   )
 }
@@ -119,12 +124,4 @@ export function NurtureDialog({
 function done(message: string, onClose: () => void) {
   toastDone(message)
   onClose()
-}
-
-function Subject({ profile, what }: { profile: LeadProfile; what: string }) {
-  return (
-    <>
-      <span className="font-mono">{profile.code}</span> · {profile.company}. {what}
-    </>
-  )
 }

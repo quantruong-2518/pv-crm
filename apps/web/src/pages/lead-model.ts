@@ -1,7 +1,6 @@
 import {
   LEAD_LANE_BACKBONE,
   LEAD_STATE_LABEL,
-  LEAD_STOP_REASON_OTHER,
   type JourneyLeadRung,
   type JourneyRungState,
   type LeadProfile,
@@ -12,7 +11,6 @@ import {
 import { Pin, UserSwitch } from '@pv/ui'
 import { dm, dmy } from '@/lib/date'
 import { leadContactOf } from '@/data/comm-records'
-import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { StepSubject } from '@/data/next-step'
 import type { TouchEvent } from '@/data/touches'
@@ -60,7 +58,7 @@ export function leadRungsOf(
     late: false,
     caption:
       state === 'stopped'
-        ? stopCaption(lead, touches, reasons)
+        ? stopCaption(lead, reasons)
         : state === 'current'
           ? `từ ${dm(lead.stateSince)} · ${lead.daysHere} ngày`
           : state === 'skipped'
@@ -78,8 +76,8 @@ const ENTRY_KINDS: Record<Exclude<Rung, 'assigned'>, readonly TouchKind[]> = {
 }
 
 /** A passed rung nothing entered is a dateless `done`, never `skipped`; a
- *  parked lead stands where resuming would put it back (`stateByWork`); a
- *  dropped one on the last rung its trail reached. */
+ *  parked lead stands on the last rung its trail reached, since a pool lead
+ *  may never have been assigned. */
 function derivedSteps(
   lead: LeadProfile,
   touches: readonly TouchEvent[] | undefined,
@@ -95,16 +93,10 @@ function derivedSteps(
   const backbone = LEAD_LANE_BACKBONE as readonly string[]
   const index =
     lead.state === 'nurturing'
-      ? backbone.indexOf(entryOf('working') ? 'working' : 'verifying')
-      : lead.state === 'disqualified'
-        ? days.reduce((last, at, i) => (at === null ? last : i), 0)
-        : backbone.indexOf(lead.state)
-  const parked = lead.state === 'nurturing' || lead.state === 'disqualified'
-  const standing: JourneyRungState = parked
-    ? 'stopped'
-    : lead.state === 'converted'
-      ? 'done'
-      : 'current'
+      ? days.reduce((last, at, i) => (at === null ? last : i), 0)
+      : backbone.indexOf(lead.state)
+  const standing: JourneyRungState =
+    lead.state === 'nurturing' ? 'stopped' : lead.state === 'converted' ? 'done' : 'current'
 
   return LEAD_LANE_BACKBONE.map((key, i) => ({
     key,
@@ -113,27 +105,12 @@ function derivedSteps(
   }))
 }
 
-/** "<state> · <reason> · <day>". A dropped lead carries its reason key; a
- *  parked one only in its `nurtured` note, "<prefix> · <key>[ · note]" — and
- *  either stop's free text only there (no structured field yet). The
- *  catch-all reason prints that free text. */
-function stopCaption(
-  lead: LeadProfile,
-  touches: readonly TouchEvent[] | undefined,
-  reasons: Reasons,
-) {
-  const kind = lead.state === 'nurturing' ? 'nurtured' : 'exited'
-  const last = touches?.find((t) => t.kind === kind)
-  const [, noteKey, ...rest] = last?.note.split(' · ') ?? []
-  const key = lead.state === 'nurturing' ? noteKey : lead.exitReason
-  const label = stopReasonLabel(reasons, key)
-  const note = rest.join(' · ')
-  const at =
-    last?.at ?? (lead.state === 'disqualified' ? lead.exitedAt : undefined) ?? lead.stateSince
+/** "<state> · <reason> · <day>", read off the row's own park reason and moment. */
+function stopCaption(lead: LeadProfile, reasons: Reasons) {
   return [
     LEAD_STATE_LABEL[lead.state],
-    key === LEAD_STOP_REASON_OTHER && note ? `${label}: ${note}` : label,
-    dm(at),
+    stopReasonLabel(reasons, lead.exitReason),
+    dm(lead.exitedAt ?? lead.stateSince),
   ]
     .filter(Boolean)
     .join(' · ')
@@ -176,16 +153,15 @@ export function barPeopleOf(
     : [{ ...leadContactOf(lead), primary: true }]
 }
 
-/** Why the bar's mail row is shut, or `undefined` when it is open. A dropped
- *  lead has left the funnel: no mail, said on every mail row. */
-export function mailBlockedOf(lead: LeadProfile, canSendEmail: boolean): string | undefined {
-  if (!canSendEmail) return 'Cần quyền gửi email cho lead.'
-  return lead.state === 'disqualified'
-    ? `Lead ${LEAD_STATE_FACE[lead.state].label.toLowerCase()}, không gửi email được nữa.`
-    : undefined
+/** Why the bar's mail row is shut, or `undefined` when it is open. */
+export function mailBlockedOf(canSendEmail: boolean): string | undefined {
+  return canSendEmail ? undefined : 'Cần quyền gửi email cho lead.'
 }
 
-/** States with a holder still being worked — where parking and a hold start. */
+/** States a lead can be parked from, held-or-not aside (ADR 0109). */
+const PARKABLE: ReadonlySet<string> = new Set(['new', 'assigned', 'verifying', 'working'])
+
+/** States with a holder still being worked — where a hold starts. */
 const WORKED: ReadonlySet<string> = new Set(['assigned', 'verifying', 'working'])
 
 /** The bar's other moves: the state moves the header does not hold, the
@@ -193,7 +169,7 @@ const WORKED: ReadonlySet<string> = new Set(['assigned', 'verifying', 'working']
  *  this reader cannot use is left out rather than shown shut. */
 export function leadMoreChoices(
   lead: LeadProfile,
-  can: { write: boolean; disqualify: boolean; disable: boolean },
+  can: { write: boolean; claim: boolean; disqualify: boolean; disable: boolean },
   /** The hand-over drawer's own door (`assignDoorOf`), so the row reads its words. */
   assign: AssignDoor,
   pinned: boolean,
@@ -201,36 +177,33 @@ export function leadMoreChoices(
   dealReach: boolean,
   liveDeal: OpportunityLiveDeal,
   doors: {
-    onResume: () => void
+    onClaim: () => void
     onNurture: () => void
     onHold: () => void
     onAssign: () => void
     onPin: () => void
-    onExit: () => void
-    onReopen: () => void
     onDisable: () => void
   },
 ): MenuChoice[] {
-  /* A converted lead may still be dropped while it holds no open deal and has
-     not signed — the same two refusals the exit door answers 409 with. */
+  /* A converted lead parks while it holds no open deal and has not signed — the
+     same two refusals the park door answers 409 with. */
   const noDeal = liveDeal.codes.length === 0 && liveDeal.hidden === 0 && !lead.signed
-  const droppable = isOpenState(lead.state) || (lead.state === 'converted' && noDeal)
+  const parkable = PARKABLE.has(lead.state) || (lead.state === 'converted' && noDeal)
   /* A held lead's ways out sit on its hold strip (ADR 0097 §3), not here. */
   const free = can.write && lead.hold === null
   const choices: MenuChoice[] = []
 
-  if (free && lead.state === 'nurturing') {
-    choices.push({ key: 'resume', label: 'Chăm lại', onSelect: doors.onResume })
+  if (can.claim && lead.state === 'nurturing') {
+    choices.push({ key: 'claim', label: 'Nhận lead', onSelect: doors.onClaim })
   }
-  /* ADR 0097 §1: a converted lead parks on the same terms it may be dropped. */
-  if (free && (WORKED.has(lead.state) || (lead.state === 'converted' && noDeal))) {
+  if (can.disqualify && lead.hold === null && parkable) {
     choices.push({
       key: 'nurture',
-      label: `Chuyển sang ${LEAD_STATE_LABEL.nurturing}`,
+      label: `Chuyển vào ${LEAD_STATE_LABEL.nurturing}`,
       onSelect: doors.onNurture,
     })
   }
-  if (free && lead.ownerId && (WORKED.has(lead.state) || lead.state === 'nurturing')) {
+  if (free && lead.ownerId && WORKED.has(lead.state)) {
     choices.push({ key: 'hold', label: 'Tạm hoãn', onSelect: doors.onHold })
   }
   if (!assign.shut) {
@@ -248,16 +221,6 @@ export function leadMoreChoices(
       icon: Pin,
       active: pinned,
       onSelect: doors.onPin,
-    })
-  }
-  if (can.disqualify && lead.state === 'disqualified') {
-    choices.push({ key: 'reopen', label: 'Mở lại lead', onSelect: doors.onReopen })
-  } else if (can.disqualify && droppable) {
-    choices.push({
-      key: 'exit',
-      label: LEAD_STATE_LABEL.disqualified,
-      tone: 'danger',
-      onSelect: doors.onExit,
     })
   }
   if (can.disable) {

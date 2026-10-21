@@ -34,10 +34,10 @@ import { LeadTier } from './enums'
  *  table is where the two vocabularies drift.
  *
  *  Not every kind has a writer yet, and that is honest rather than aspirational:
- *  the branch writes what its doors actually do. `exited`/`reopened` are written
- *  by `POST /sales/leads/:code/exit` and `.../reopen` (`./lead`), the
- *  lifecycle kinds by the state writer, `.../nurture`, `.../resume` and the
- *  archive sweep.
+ *  the branch writes what its doors actually do. A lead's `exited`/`reopened`
+ *  are LEGACY history rows (the exit/reopen doors went in ADR 0109); the
+ *  lifecycle kinds come from the state writer, `.../nurture`, `.../resume` and
+ *  the archive sweep.
  *
  *  ------------------------------------------------------------------
  *  MAIL IS NOT IN HERE
@@ -78,9 +78,9 @@ export const TouchKind = z.enum([
   /** LEGACY, rows persist: same rung as `exchange-logged` (→ `working`); such
    *  rows carry the tier set at the time. */
   'verified',
-  /** The PIC parked the lead as not ready yet (→ `nurturing`). */
+  /** The lead was parked, by hand or by a deal or contract ending (→ `nurturing`, no holder). */
   'nurtured',
-  /** The PIC brought a nurtured lead back (→ `working`). */
+  /** Someone claimed a nurturing lead and became its holder. */
   'resumed',
   /** LEGACY, rows persist: the retired six-month sweep (→ `archived`, ADR 0068). */
   'archived',
@@ -104,10 +104,10 @@ export const TouchKind = z.enum([
   'care-left',
   /** A contract was signed. */
   'signed',
-  /** The lead left the funnel, or the deal was stopped (`note` carries the
-   *  reason); `subjectKind` says which. */
+  /** LEGACY for leads, never written again (history rows only). A deal stop
+   *  (`note` carries the reason); `subjectKind` says which. */
   'exited',
-  /** The lead came back into the funnel, after `exited`. */
+  /** LEGACY, never written again: a lead came back after `exited`. */
   'reopened',
   /** The holder marked the next step done (`./next-step`); `note` quotes its
    *  text, since the step itself is replaced or cleared in the same write. */

@@ -32,7 +32,7 @@ import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
-import { LEAD_GONE_STATES, LEAD_GONE_WORDS, LeadStateWriter } from '../lead/lead-state'
+import { LeadStateWriter } from '../lead/lead-state'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import { deadNote, mailKey } from './mail-domain'
 import {
@@ -303,9 +303,9 @@ export class MailLetterService {
 
   /** 404 for a subject that does not exist; 403 when the caller is outside the
    *  subject's OWN scope — the lead's read scope for the lead door (a live deal
-   *  on it counts), the deal's for a deal (a sibling deal does not), the
-   *  contract's for a contract; 409 when the lead left care (ADR 0068 §5) or
-   *  the deal is lost — its care goes on from the lead (ADR 0069 §1). */
+   *  on it counts; a pool lead is claimed first, ADR 0109), the deal's for a deal (a sibling deal does not), the
+   *  contract's for a contract; 409 when the deal is lost — its care goes on
+   *  from the lead (ADR 0069 §1). */
   private async subjectFor(
     who: Actor,
     door: MailSubjectKind,
@@ -313,22 +313,18 @@ export class MailLetterService {
   ): Promise<LetterSubject> {
     const subject = await this.repo.subjectOf(door, code)
     if (!subject) throw notFound(subjectLabel(door), code)
-    const found = await this.leads.byCode(who, subject.leadCode)
     const deal = door === 'opportunity' ? await this.deals.byCode(who, code) : null
+    const found = door === 'lead' ? await this.leads.byCode(who, subject.leadCode) : null
     const inScope =
       door === 'lead'
-        ? found?.inScope
+        ? found?.row.state === 'nurturing'
+          ? found.holds
+          : found?.inScope
         : door === 'opportunity'
           ? deal?.inScope
           : (await this.contracts.byCode(who, code))?.inScope
     if (!inScope) {
       throw denied('out-of-scope', `${MAIL_DOOR_LABEL[door]} ${code} không do bạn phụ trách.`)
-    }
-    const via = door === 'lead' ? '' : ` (của ${subjectLabel(door)} ${code})`
-    if (found && (LEAD_GONE_STATES as readonly string[]).includes(found.row.state)) {
-      throw conflict(
-        `Lead ${subject.leadCode}${via} đang ở trạng thái ${LEAD_GONE_WORDS}. Không gửi được thư.`,
-      )
     }
     if (deal?.row.state === 'lost') throw conflict('Cơ hội đã dừng. Gửi thư từ lead.')
     return subject
@@ -348,8 +344,7 @@ export class MailLetterService {
   /** The verdict per To pick, in the order picked. A code outside the
    *  subject's company is refused outright — a code is not an address the
    *  client may choose freely. Shares `decide`'s case-blind address key and its
-   *  NO_EMAIL → SUPPRESSED → UNDELIVERABLE → DUPLICATE order; `decide` also has
-   *  EXITED, which a letter to a picked contact does not. */
+   *  NO_EMAIL → SUPPRESSED → UNDELIVERABLE → DUPLICATE order. */
   private async judge(
     handle: Db,
     subject: LetterSubject,

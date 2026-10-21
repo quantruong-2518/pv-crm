@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { normalisePhone, type Actor } from '@pv/engines'
 import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
@@ -6,11 +6,11 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { motionPolicy } from '../config/motion.schema'
-import { leadConverted, leadHasOpenDeal, leadSigned } from '../open-deal'
+import { leadHasOpenDeal, leadSigned } from '../open-deal'
 import { leadHeld } from '../hold/hold.sql'
-import { LEAD_GONE_STATES, type LeadReach } from './lead-state'
+import type { LeadReach } from './lead-state'
 import { lead, type LeadRowDb } from './lead.schema'
-import { leadLive, leadScope } from './lead-scope'
+import { leadHolderScope, leadLive, leadScope } from './lead-scope'
 import type { ActorLite } from './lead-import.check'
 import type { LeadValues } from './lead-write.mapper'
 import type { LeadContactMirror } from '../contact/contact.repository'
@@ -175,8 +175,8 @@ export class LeadWriteRepository {
     return row !== undefined
   }
 
-  /** Which of these mailboxes already belong to a LIVE lead — `lower(email)`,
-   *  state not gone: the same match the book's `duplicateOf` flags on. No
+  /** Which of these mailboxes already belong to a lead — `lower(email)`, the
+   *  same match the book's `duplicateOf` flags on. No
    *  index refuses a second one any more (ADR 0070); a caller that wants one
    *  lead per mailbox asks here first. Asked about named addresses only,
    *  never `SELECT email FROM lead`. */
@@ -186,12 +186,7 @@ export class LeadWriteRepository {
     const rows = await tx
       .select({ key: sql<string>`lower(${lead.email})`, code: lead.code })
       .from(lead)
-      .where(
-        and(
-          notInArray(lead.state, [...LEAD_GONE_STATES]),
-          inArray(sql`lower(${lead.email})`, [...emails]),
-        ),
-      )
+      .where(inArray(sql`lower(${lead.email})`, [...emails]))
 
     return new Map(rows.map((r) => [r.key, r.code]))
   }
@@ -266,26 +261,25 @@ export class LeadWriteRepository {
     return row ?? null
   }
 
-  /** What a lifecycle door (contacted, exit, reopen, nurture, resume) must know,
+  /** What a lifecycle door (contacted, nurture, resume, hold, labels) must know,
    *  read under a row lock for the reason `lockForOwnerChange` gives: two
    *  presses would otherwise both see the old state and both write a touch.
-   *  `hasDeal` = an open deal or a contract (ADR 0069): all-lost does not count.
    *
    *  `reached` rides on this same locked read rather than a second round trip:
-   *  reopen and resume both need it, and both already hold this row.
+   *  the claim out of the pool needs it and already holds this row.
    *
    *  `who`'s holds-axis is in the locking WHERE, so a lead somebody else holds is
    *  never locked: `null` then means "no live lead OR not yours" — `isLive` tells
-   *  which, off the lock. */
+   *  which, off the lock. `claim` widens it to the shared pool (ADR 0109). */
   async lockForMove(
     tx: Db,
     code: string,
     who: Pick<Actor, 'id' | 'ownOnly'>,
+    claim = false,
   ): Promise<
     | (Pick<LeadRowDb, 'state' | 'tier' | 'ownerId' | 'workstreamCode' | 'company'> & {
         openDeal: boolean
         signed: boolean
-        hasDeal: boolean
         reached: LeadReach
         held: boolean
       })
@@ -300,12 +294,11 @@ export class LeadWriteRepository {
         company: lead.company,
         openDeal: sql<boolean>`${leadHasOpenDeal(lead.code)}`,
         signed: sql<boolean>`${leadSigned(lead.code)}`,
-        hasDeal: sql<boolean>`${leadConverted(lead.code)}`,
         reached: reachedRung,
         held: sql<boolean>`${leadHeld(lead.code)}`,
       })
       .from(lead)
-      .where(and(eq(lead.code, code), leadLive, leadScope(who, true)))
+      .where(and(eq(lead.code, code), leadLive, (claim ? leadScope : leadHolderScope)(who, true)))
       .limit(1)
       .for('update')
 

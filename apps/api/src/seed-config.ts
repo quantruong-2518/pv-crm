@@ -34,8 +34,10 @@ const CATEGORY_CONFIG: Record<LeadCategory, [string, string]> = {
   automotive: ['Ô tô', 'u-am'],
   pharma: ['Dược', 'u-grace'],
 }
-/** Seed-local keys for the six stop reasons the catalogue starts with (ADR 0070);
- *  the closed contract enum is gone, and what a lead stores is the `EX-` id. */
+/** Seed-local keys for the stop reasons the catalogue starts with (ADR 0070);
+ *  the closed contract enum is gone, and what a lead stores is the `EX-` id.
+ *  The last three are the machine's (migrations 0111 and 0129), in id order:
+ *  the auto-parks write EX-08 and EX-09 (`LEAD_PARK_REASON`). */
 const EXIT_KEYS = [
   'unreachable',
   'not-a-fit',
@@ -43,6 +45,9 @@ const EXIT_KEYS = [
   'contact-left',
   'chose-competitor',
   'silent-after-quote',
+  'campaign-silent',
+  'deal-stopped',
+  'contract-terminated',
 ] as const
 export type SeedExitKey = (typeof EXIT_KEYS)[number]
 const EXIT_NAME: Record<SeedExitKey, string> = {
@@ -52,6 +57,9 @@ const EXIT_NAME: Record<SeedExitKey, string> = {
   'contact-left': 'Người liên hệ nghỉ việc',
   'chose-competitor': 'Khách chọn bên khác',
   'silent-after-quote': 'Im sau báo giá',
+  'campaign-silent': 'Không phản hồi chiến dịch',
+  'deal-stopped': 'Cơ hội bị dừng',
+  'contract-terminated': 'Hợp đồng bị chấm dứt',
 }
 const CHANNEL_NAME: Record<ContactChannel, string> = {
   email: 'Email',

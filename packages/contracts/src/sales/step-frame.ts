@@ -24,7 +24,7 @@ import { NEXT_STEP_TEXT_MAX, NextStepKind, StepTemplateId } from './next-step'
 export const FREE_ENTRY_DEFAULT = true
 
 /** Open states only: the next-step doors refuse a lead outside the funnel, so
- *  a template on `converted` or `disqualified` could never be picked. */
+ *  a template on `converted` could never be picked. */
 export const StepLeadState = LeadState.extract(
   LEAD_OPEN_STATES,
   'Trạng thái lead không nhận bước tiếp theo',

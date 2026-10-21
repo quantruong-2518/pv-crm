@@ -23,7 +23,7 @@ import { WORKSTREAM_BOOK_KEY } from './workstreams'
  *
  *  Every write answers the subject's whole profile, so it lands in the profile
  *  cache as is; the books, the journey and the list are re-read. A hold also
- *  ends inside doors this file does not own (a logged exchange, a disqualify,
+ *  ends inside doors this file does not own (a logged exchange, a park,
  *  a deal stop) — `HOLD_LIST_KEY` rides `invalidateLeadState` for those. */
 
 export const HOLD_LIST_KEY = ['sales', 'holds'] as const

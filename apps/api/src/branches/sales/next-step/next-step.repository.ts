@@ -1,6 +1,6 @@
 import { and, arrayContains, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import { LEAD_OPEN_STATES } from '@pv/contracts'
+import { LEAD_ACTIVE_STATES } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
@@ -116,7 +116,7 @@ export class NextStepRepository {
       .where(
         and(
           inArray(lead.code, [...codes]),
-          inArray(lead.state, [...LEAD_OPEN_STATES]),
+          inArray(lead.state, [...LEAD_ACTIVE_STATES]),
           leadLive,
           leadScope(who, true),
         ),
@@ -129,7 +129,7 @@ export class NextStepRepository {
     const [row] = await this.db
       .select({ code: lead.code })
       .from(lead)
-      .where(and(eq(lead.code, code), inArray(lead.state, [...LEAD_OPEN_STATES]), leadLive))
+      .where(and(eq(lead.code, code), inArray(lead.state, [...LEAD_ACTIVE_STATES]), leadLive))
       .unionAll(
         this.db
           .select({ code: opportunity.code })

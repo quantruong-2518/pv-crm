@@ -439,7 +439,7 @@ function recipientBlocker(
   if (campaign.audienceCount > campaign.batchCeiling)
     return ceilingNote(campaign.audienceCount, campaign.batchCeiling)
   if (preflight?.sendable === 0)
-    return 'Không ai nhận được thư: đã rơi khỏi phễu, đã chặn, thiếu email hoặc trùng địa chỉ. Sửa ở tab Người nhận.'
+    return 'Không ai nhận được thư: đã chặn, thiếu email, tên miền không nhận thư hoặc trùng địa chỉ. Sửa ở tab Người nhận.'
   return null
 }
 

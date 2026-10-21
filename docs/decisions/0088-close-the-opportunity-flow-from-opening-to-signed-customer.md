@@ -7,6 +7,8 @@ import contacts, §2 renewal start and §4's refusal on an unheld lead, 0082 §2
 amends 0082 §3 — exact paragraphs under "Superseded and amended")
 Source: project owner's decisions in chat, 12/10/2026
 
+> Superseded in part by 0109: §4's two care lists — one nurturing list now. §5 still holds.
+
 ## Context
 
 The opportunity flow had gaps that each screen answered on its own: whether a

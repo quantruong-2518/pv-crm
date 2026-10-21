@@ -12,7 +12,6 @@ import {
   Textarea,
   X,
   cn,
-  vnd,
 } from '@pv/ui'
 import {
   OPPORTUNITY_STATE_LABEL,
@@ -27,7 +26,7 @@ import { toastDone } from '@/app/toast'
 import { contractTerminationReasonsQuery, rowOf, type Contract } from '@/data/contracts'
 import { useTerminateContract } from '@/data/contracts-write'
 import { dmy } from '@/lib/date'
-import { compactMoney, symbolOf } from './deal-money/money'
+import { moneyIn, symbolOf } from './deal-money/money'
 import { Field } from './ops-fields'
 
 /** Ending a signed contract for good (ADR 0107), and what an ended one shows.
@@ -37,10 +36,6 @@ import { Field } from './ops-fields'
  *  note — and adds the refund, capped by what was collected. The server takes
  *  its own snapshot of the collected money; the figure here is only the hint.
  *  Amounts are in the contract's currency. */
-
-/** A full figure: this is the record of money that moved, not a glance. */
-const moneyIn = (currency: CurrencyCode | null) => (n: number) =>
-  currency === 'VND' || currency === null ? vnd(n) : compactMoney(n, currency)
 
 const NOTE = 'min-w-0 flex-1 text-[11.5px] leading-[1.5]'
 

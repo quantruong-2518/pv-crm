@@ -18,7 +18,6 @@ import {
   LeadBookQuery,
   LeadCreate,
   LeadDisableBody,
-  LeadExitBody,
   LeadFacetsQuery,
   LeadImportBody,
   LeadLabelsBody,
@@ -354,34 +353,14 @@ export class LeadController {
     return this.exits.contacted(who, code)
   }
 
-  /** Take a lead out of the funnel, or put it back — no approval, because each
-   *  undoes the other (ADR 0057 §2). `lead.disqualify`, which E2 withholds from
-   *  marketing and BD; scoped like `PATCH :code`. 200, nothing is created. */
-  @Post(':code/exit')
-  @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
-  exit(
-    @CurrentActor() who: Actor,
-    @Param('code', zod(ObjectCode)) code: ObjectCode,
-    @Body(zod(LeadExitBody)) body: LeadExitBody,
-  ) {
-    return this.exits.exit(who, code, body)
-  }
-
-  @Post(':code/reopen')
-  @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
-  reopen(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
-    return this.exits.reopen(who, code)
-  }
-
-  /** The PIC's own lifecycle calls (ADR 0058, 0063): park as not ready, bring
-   *  back. `lead.edit` and scoped like `PATCH :code` — moving one's own lead is
-   *  editing it. 200, like `exit`. The forward moves have no door of their own:
-   *  they are facts the work doors write (ADR 0063 §2). */
+  /** The one park door into the shared `nurturing` pool (ADR 0109). No
+   *  approval: the claim below undoes it. `lead.disqualify`, which E2 withholds
+   *  from marketing and BD; scoped, so an `ownOnly` actor parks only their own
+   *  lead. 200, nothing is created. The forward moves have no door of their
+   *  own: they are facts the work doors write (ADR 0063 §2). */
   @Post(':code/nurture')
   @HttpCode(200)
-  @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
+  @Need({ branch: 'Sales', permission: 'lead.disqualify', scoped: true })
   nurture(
     @CurrentActor() who: Actor,
     @Param('code', zod(ObjectCode)) code: ObjectCode,
@@ -390,6 +369,8 @@ export class LeadController {
     return this.exits.nurture(who, code, body)
   }
 
+  /** The claim out of the pool: the caller becomes the holder. `lead.edit`,
+   *  scoped — the pool is in every `ownOnly` actor's scope. */
   @Post(':code/resume')
   @HttpCode(200)
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
@@ -398,7 +379,7 @@ export class LeadController {
   }
 
   /** Waiting labels (ADR 0097 §5): the whole set, replacing the old one, so `PUT`.
-   *  `lead.edit`, scoped like `nurture` — labelling is editing one's own lead. */
+   *  `lead.edit`, scoped like `resume` — own leads and the shared pool. */
   @Put(':code/labels')
   @Need({ branch: 'Sales', permission: 'lead.edit', scoped: true })
   setLabels(

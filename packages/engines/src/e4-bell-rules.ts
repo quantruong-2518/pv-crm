@@ -10,7 +10,6 @@ import type { EventPayload, NotificationRule } from './e4-notifications'
 export const LEAD_POOLED = 'sales.lead.pooled'
 export const LEAD_HANDED_OVER = 'sales.lead.handed-over'
 export const LEAD_RE_ENTERED = 'sales.lead.re-entered'
-export const LEAD_STOPPED = 'sales.lead.stopped'
 export const LEAD_SCAN_READY = 'sales.lead-scan.ready'
 export const LEAD_SCAN_COMMITTED = 'sales.lead-scan.committed'
 export const LEAD_SCAN_FAILED = 'sales.lead-scan.failed'
@@ -36,7 +35,6 @@ export const KPI_TARGET_AGREED = 'sales.kpi.target-agreed'
 export const COMM_CLOSED_FOR_OWNER = 'platform.comm.closed-for-owner'
 export const LEAD_NURTURED = 'sales.lead.nurtured'
 export const LEAD_RESUMED = 'sales.lead.resumed'
-export const LEAD_REOPENED = 'sales.lead.reopened'
 export const ROLE_GRANTS_REPLACED = 'platform.role.grants-replaced'
 export const NEXT_STEP_SET = 'sales.next-step.set'
 export const NEXT_STEP_DONE = 'sales.next-step.done'
@@ -93,7 +91,6 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('lead-received', LEAD_HANDED_OVER, 'new-holder'),
   bell('lead-removed', LEAD_HANDED_OVER, 'previous-holder'),
   bell('lead-re-entered', LEAD_RE_ENTERED, 'holder'),
-  bell('lead-stopped', LEAD_STOPPED, 'holder'),
   bell('lead-scan-ready', LEAD_SCAN_READY, 'uploader'),
   bell('lead-scan-committed', LEAD_SCAN_COMMITTED, 'uploader'),
   bell('lead-scan-failed', LEAD_SCAN_FAILED, 'uploader'),
@@ -142,7 +139,6 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('comm-closed-by-other', COMM_CLOSED_FOR_OWNER, 'owner'),
   bell('lead-nurtured', LEAD_NURTURED, 'holder'),
   bell('lead-resumed', LEAD_RESUMED, 'holder'),
-  bell('lead-reopened', LEAD_REOPENED, 'holder'),
 
   bell('next-step-assigned', NEXT_STEP_SET, 'doer'),
   bell('next-step-done', NEXT_STEP_DONE, 'setter'),

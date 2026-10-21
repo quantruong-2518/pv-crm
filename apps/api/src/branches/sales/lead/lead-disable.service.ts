@@ -25,7 +25,7 @@ const LEAD_DISABLED_WITHHOLD = {
  *  move and no touch: `state` is kept so switching on restores the lead where
  *  it stood, and the audit row is the record.
  *
- *  Switching back on does NOT release the withheld letters, as reopen does not
+ *  Switching back on does NOT release the withheld letters, as a claim does not
  *  (ADR 0068 §5): mail held weeks ago must not leave unannounced. Switching
  *  off cancels the future meetings of the leads and their deals in the same
  *  transaction; switching on books none back, by the same rule. */

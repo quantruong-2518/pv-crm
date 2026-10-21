@@ -11,7 +11,7 @@ import { MeetingModule } from './meeting.module'
 import type { MeetingRowDb } from './meeting.schema'
 
 /** One-off: future meetings of subjects that closed BEFORE the doors began
- *  cancelling (deal lost, lead stopped, lead switched off) get the same soft
+ *  cancelling (deal lost, lead parked, lead switched off) get the same soft
  *  cancel, through `MeetingCancel.cancelFor` — no bell, the closer is long gone.
  *  Then their Google events are removed, as the doors do after commit.
  *
@@ -29,13 +29,13 @@ const CANDIDATES = sql`
   SELECT DISTINCT m."subject_code",
          CASE WHEN l."disabled_at" IS NOT NULL THEN 'lead-disabled'
               WHEN o."state" = 'lost' THEN 'opportunity-lost'
-              ELSE 'lead-disqualified' END AS "cause"
+              ELSE 'lead-nurtured' END AS "cause"
     FROM "sales"."meeting" m
     LEFT JOIN "sales"."opportunity" o ON o."code" = m."subject_code"
     JOIN "sales"."lead" l ON l."code" = COALESCE(o."lead_code", m."subject_code")
    WHERE m."held_at" IS NULL AND m."cancelled_at" IS NULL AND m."at" > now()
      AND (l."disabled_at" IS NOT NULL OR o."state" = 'lost'
-          OR (m."subject_code" LIKE 'LD-%' AND l."state" = 'disqualified'))
+          OR (m."subject_code" LIKE 'LD-%' AND l."state" = 'nurturing'))
    ORDER BY 1`
 
 @Module({ imports: [ConfigModule, DbModule, MeetingModule] })

@@ -56,15 +56,15 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     fields: ['state'],
     message: 'Trạng thái lead không có trong danh sách.',
   },
-  lead_disqualified_has_reason: {
+  lead_nurturing_has_reason: {
     kind: 'conflict',
     fields: ['exitReason'],
-    message: `Lead “${LEAD_STATE_LABEL.disqualified}” phải có lý do rời phễu, lead khác thì không.`,
+    message: `Lead ở “${LEAD_STATE_LABEL.nurturing}” phải có lý do, lead khác thì không.`,
   },
   lead_open_owner_matches: {
     kind: 'conflict',
     fields: ['ownerId'],
-    message: `Lead còn trong phễu: chưa có người phụ trách thì phải ở “${LEAD_STATE_LABEL.new}”, và ngược lại.`,
+    message: `Lead ở “${LEAD_STATE_LABEL.new}” hoặc “${LEAD_STATE_LABEL.nurturing}” không có người phụ trách; lead đang chăm sóc thì phải có.`,
   },
 
   /** CHECK trải trên mười lăm cột, nên không quy được về một ô nào. Câu chung,

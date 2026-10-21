@@ -4,7 +4,7 @@ import type { Db } from '@api/platform/db/db.module'
 import type { NotificationHub } from '@api/platform/notification/notification.hub'
 import { nextStep } from './next-step.schema'
 
-/** What other doors do to a step inside THEIR transaction: lead exit and
+/** What other doors do to a step inside THEIR transaction: lead park and
  *  convert, and a deal's stop and sign, drop it; an owner change hands it over.
  *
  *  Plain functions over `tx`, not a provider: the lead and deal modules call

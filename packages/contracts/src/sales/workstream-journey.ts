@@ -171,8 +171,7 @@ export const JourneyContractRung = JourneyRungBase.extend({ key: ContractRungKey
  *  the response's `previous` link — one journey, one lead, one origin. */
 export const JourneyLead = z.object({
   code: ObjectCode,
-  /** Stored state, so a stopped rung can say which stop it is: parked in
-   *  `nurturing` or ended in `disqualified`. */
+  /** Stored state, so a stopped rung can say the lead is parked in `nurturing`. */
   state: LeadState,
   holder: WorkstreamHolder.nullable(),
   rungs: z.array(JourneyLeadRung).length(LEAD_LANE_BACKBONE.length),
@@ -181,8 +180,7 @@ export const JourneyLead = z.object({
 })
 
 /** The fail log of a lost deal (ADR 0069 §1). A lost deal draws no waiting
- *  door — only the lead moves, when its last live deal is lost: the lead parks
- *  or stops, by the stopper's choice. */
+ *  door — only the lead moves, when its last live deal is lost: it parks itself. */
 export const JourneyDealStop = z.object({
   reason: textInput(200),
   note: textInput(OPPORTUNITY_STOP_NOTE_MAX).nullable(),
@@ -255,9 +253,8 @@ export const JourneyDoorAnchor = z.object({
 
 /** The lead's park only — a lost deal carries its own `stop` instead. `reason`
  *  is a catalogue name, never a raw config id. `concludedBy` is null when the
- *  machine parked the lead (flow C5): it joined a campaign from `nurturing`, and
- *  the campaign closed with no real exchange since it started (outbound mail
- *  does not count) — reason EX-07 (no campaign response). */
+ *  machine parked the lead: its last deal was stopped (EX-08) or its contract
+ *  terminated (EX-09). Old EX-07 parks (campaign end) stay as history. */
 export const JourneyWaitingDoor = z.object({
   kind: z.literal('waiting'),
   leadCode: ObjectCode,

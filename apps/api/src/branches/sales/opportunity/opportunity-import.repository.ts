@@ -4,14 +4,11 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { LEAD_GONE_STATES } from '../lead/lead-state'
 import type { ActorLite } from './opportunity-import.check'
 import type { OpportunityValues } from './opportunity.mapper'
 import type { OpportunityStageEventInsert } from './opportunity.repository'
 import { opportunity, opportunityStageEvent, type OpportunityRowDb } from './opportunity.schema'
 import { seqCodes } from '../code-seq'
-
-const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
 /** SQL of the file import (`OpportunityImport`), apart from `OpportunityRepository`
  *  for its line ceiling. Batch-shaped on purpose: a file carries up to two thousand
@@ -46,18 +43,14 @@ export class OpportunityImportRepository {
   /** Company name → lead code, for the file's "Account" column.
    *
    *  Names are folded in Postgres (`lower`) so both ends agree on case; the
-   *  whitespace collapse is done in Node. Only leads not exited enter `byCompany`
-   *  (the condition `lead_email_live_idx` carries); exited ones go to `exited` so
-   *  their row is refused with its own sentence. `ownerByLead` holds exited leads
-   *  too: scope is judged before liveness. Ambiguous names (two leads, one
+   *  whitespace collapse is done in Node. Every live lead enters `byCompany`;
+   *  none is gone since ADR 0109. Ambiguous names (two leads, one
    *  company) are returned whole, never resolved to the first row: a guess would
    *  put a deal on the wrong profile. */
   async leadsByCompany(tx: Db): Promise<{
     byCompany: Map<string, string>
     ambiguous: Set<string>
     workstreamByLead: Map<string, string | null>
-    exited: Map<string, string>
-    exitedCodes: Set<string>
     ownerByLead: Map<string, string | null>
   }> {
     const rows = await tx
@@ -65,7 +58,6 @@ export class OpportunityImportRepository {
         code: lead.code,
         folded: sql<string>`lower(${lead.company})`,
         workstreamCode: lead.workstreamCode,
-        state: lead.state,
         ownerId: lead.ownerId,
       })
       .from(lead)
@@ -74,24 +66,17 @@ export class OpportunityImportRepository {
     const byCompany = new Map<string, string>()
     const ambiguous = new Set<string>()
     const workstreamByLead = new Map<string, string | null>()
-    const exited = new Map<string, string>()
-    const exitedCodes = new Set<string>()
     const ownerByLead = new Map<string, string | null>()
 
     for (const r of rows) {
       const key = r.folded.trim().replace(/\s+/g, ' ')
       ownerByLead.set(r.code, r.ownerId)
-      if (GONE.has(r.state)) {
-        if (!exited.has(key)) exited.set(key, r.code)
-        exitedCodes.add(r.code)
-        continue
-      }
       workstreamByLead.set(r.code, r.workstreamCode)
       if (byCompany.has(key)) ambiguous.add(key)
       else byCompany.set(key, r.code)
     }
 
-    return { byCompany, ambiguous, workstreamByLead, exited, exitedCodes, ownerByLead }
+    return { byCompany, ambiguous, workstreamByLead, ownerByLead }
   }
 
   /** The batch, in chunks: `CHUNK` keeps one INSERT under Postgres' 65,535 bind

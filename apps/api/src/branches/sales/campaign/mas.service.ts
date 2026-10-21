@@ -34,7 +34,7 @@ import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository, type MailRunUpdate } from '@api/platform/mail/mail-run.repository'
 import { MailRunSweeper } from '@api/platform/mail/mail-run.sweeper'
-import { LEAD_GONE_STATES, LeadStateWriter } from '../lead/lead-state'
+import { LeadStateWriter } from '../lead/lead-state'
 import { deadNote, mailKey } from './mail-domain'
 import {
   MasRepository,
@@ -43,8 +43,6 @@ import {
   type MasSubjectRow,
   type SequenceSubject,
 } from './mas.repository'
-
-const GONE: ReadonlySet<string> = new Set(LEAD_GONE_STATES)
 
 /** The template this feature composes against — `platform/mail/mas.composer.ts`
  *  answers for exactly this string, and the version is in the name because
@@ -874,14 +872,8 @@ export class MasService {
    *  A lead can fail more than one test, and `MasRecipient.block` holds one
    *  answer, so the order below is what the person reads:
    *
-   *   1 · `EXITED`     — this lead left the funnel, so the question "can we
-   *                      write to it" does not arise. It outranks `NO_EMAIL`
-   *                      because the two lead to opposite actions: `NO_EMAIL`
-   *                      sends somebody off to find a mailbox, and finding one
-   *                      for a lead we stopped pursuing is work spent to reach
-   *                      a person we decided not to reach.
-   *   2 · `NO_EMAIL`   — there is no address, so no other test even applies.
-   *   3 · `SUPPRESSED` — the address is refused, and nothing the sender does
+   *   1 · `NO_EMAIL`   — there is no address, so no other test even applies.
+   *   2 · `SUPPRESSED` — the address is refused, and nothing the sender does
    *                      changes that. It has to outrank `DUPLICATE`, because
    *                      `DUPLICATE` means "folded into a letter that IS going
    *                      out" — and telling someone their lead was folded into
@@ -889,20 +881,19 @@ export class MasService {
    *                      them looking for a mail nobody received. Two leads
    *                      sharing one suppressed address therefore BOTH read
    *                      `SUPPRESSED`, which is what actually happened.
-   *   4 · `UNDELIVERABLE` — the domain cannot receive mail (`dead`). Below
+   *   3 · `UNDELIVERABLE` — the domain cannot receive mail (`dead`). Below
    *                      `SUPPRESSED`, the permanent fact; above `DUPLICATE`
    *                      for the same reason: no letter goes to that address.
-   *   5 · `DUPLICATE`  — a letter is going to this address; this pick was
+   *   4 · `DUPLICATE`  — a letter is going to this address; this pick was
    *                      folded into it.
    *
    *  ------------------------------------------------------------------
-   *  AN EXITED LEAD DOES NOT CLAIM ITS ADDRESS EITHER
+   *  A BLOCKED PICK DOES NOT CLAIM ITS ADDRESS
    *  ------------------------------------------------------------------
    *  `spokenFor` is only ever added to on the sendable branch, so a pick
    *  blocked for ANY of the reasons leaves the address free for the next
-   *  pick that shares it. That matters most here: a dead lead and a live lead
-   *  at the same company mailbox must not end with the live one reading
-   *  `DUPLICATE` of a letter that was never written.
+   *  pick that shares it: no pick may end up reading `DUPLICATE` of a
+   *  letter that was never written.
    *
    *  ------------------------------------------------------------------
    *  FIRST PICK WINS, AND "FIRST" MEANS THE ORDER THE USER SENT
@@ -934,18 +925,15 @@ export class MasService {
       if (!row) continue
 
       const address = row.email?.toLowerCase()
-      /* `nurturing` stays mailable — keeping in touch is what it is for. */
-      const block: MasRecipientBlock | undefined = GONE.has(row.state)
-        ? 'EXITED'
-        : !address
-          ? 'NO_EMAIL'
-          : row.suppressed
-            ? 'SUPPRESSED'
-            : dead.has(mailKey(address))
-              ? 'UNDELIVERABLE'
-              : spokenFor.has(address)
-                ? 'DUPLICATE'
-                : undefined
+      const block: MasRecipientBlock | undefined = !address
+        ? 'NO_EMAIL'
+        : row.suppressed
+          ? 'SUPPRESSED'
+          : dead.has(mailKey(address))
+            ? 'UNDELIVERABLE'
+            : spokenFor.has(address)
+              ? 'DUPLICATE'
+              : undefined
 
       if (block === undefined && address) spokenFor.add(address)
       out.push({ row, block })

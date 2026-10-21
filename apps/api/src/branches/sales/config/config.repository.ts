@@ -130,7 +130,7 @@ export class SalesConfigRepository {
       SELECT 'CATEGORY', category, count(*)::int
         FROM sales.lead WHERE category IS NOT NULL AND disabled_at IS NULL GROUP BY category
       UNION ALL
-      /* Stop EVENTS, not leads now disqualified (ADR 0070): every exit and park
+      /* Stop EVENTS, not leads parked now (ADR 0070): every exit and park
          keeps its reason on its own touch, so a loop never erases a count. */
       SELECT 'EXIT_REASON', reason_id, count(*)::int
         FROM sales.touch

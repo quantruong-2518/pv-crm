@@ -469,8 +469,30 @@ owner the same day (ADR 0097 §8).
 104.  **Should terminating route the lead back to a waiting group, or stop it,
       like the deal-stop door's `lead` choice?** Default: no this turn; the
       lead stays converted. _(see ADR 0107, out of scope)_
+      **Answered 21/10/2026: yes — terminating parks the lead when nothing else is live (ADR 0109).**
 105.  **Should the reasons panel count terminations on `terminated_at` or on
       the deal's close moment?** Default: `terminated_at`. _(see ADR 0107 §3,
       §4)_
 106.  **Should the Sale who owns the deal be able to REQUEST termination for a
       head to execute?** Default: no. _(see ADR 0107 §1)_
+
+## One nurturing list (added 21/10/2026)
+
+Raised while recording the one nurturing list (ADR 0109). Each default is what
+the code does today, and stands until the owner says otherwise.
+
+107.  **Should bd and marketing keep the park door?** They hold `lead.edit`
+      but not `lead.disqualify`, so they lose the door they had. Default:
+      no — the park door needs `lead.disqualify`. _(see ADR 0109 §2)_
+108.  **Should a head be able to hand a nurturing lead to a specific person?**
+      Today anyone with `lead.edit` takes it for themself with "Nhận lead".
+      Default: no hand-to door. _(see ADR 0109 §3)_
+109.  **Should a customer's auto-reply be filtered out?** It counts as a reply
+      and sends the lead to the pool `new`. Default: not filtered.
+      _(see ADR 0109 §3)_
+110.  **May an own-only Sale mail or label a pool lead without claiming it?**
+      Default: no — every write but the claim needs the claim first, and the
+      refusal is a 403 "not yours", not a 409 naming the pool. _(see ADR 0109 §4)_
+111.  **Two bells when the last deal stops?** A lead holder who is not on the
+      deal gets the lost-deal line and the "moved into Nhóm chờ chăm sóc" line.
+      Default: both ring. _(see ADR 0109 §2)_

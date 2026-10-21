@@ -182,17 +182,21 @@ export const enteredLeadsHref = (days: SalesDayRange): string =>
     createdTo: days.last,
   })}`
 
-/** Leads that left for one reason in the period. `state=all` with no `states`:
- *  a CHECK ties `exit_reason` to `disqualified`, and a per-state tab would also
- *  drop held leads the card still counts. */
-export const exitedLeadsHref = (reason: string, days: SalesDayRange): string =>
-  `/sales/leads?${leadBookQueryToParams({
-    ...DEFAULT_LEAD_BOOK_QUERY,
-    state: 'all',
+const NURTURING_HREF = '/sales/nurturing'
+
+/** Leads parked in the nurturing pool for one reason in the period. */
+export const exitedLeadsHref = (reason: string, days: SalesDayRange): string => {
+  const params = new URLSearchParams({
+    tab: 'lead',
     exitReason: reason,
     exitedFrom: days.first,
     exitedTo: days.last,
-  })}`
+  })
+  return `${NURTURING_HREF}?${params}`
+}
+
+/** The pool's tab of contracts that were terminated. */
+export const NURTURING_CONTRACTS_HREF = `${NURTURING_HREF}?tab=contract`
 
 // ---------------------------------------------------------------------------
 // THE WORKSTREAM BOOK — where the runs tile sends the reader
