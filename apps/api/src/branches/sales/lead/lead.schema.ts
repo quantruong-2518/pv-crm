@@ -445,7 +445,7 @@ export const lead = sales.table(
     check('lead_disabled_pair', sql`("disabled_at" IS NULL) = ("disabled_by" IS NULL)`),
     /** The six `LeadState` values, copied out by hand for `touch_kind_known`'s
      *  reason: a state added to the contract must be a migration somebody reads.
-     *  `archived` retired by 0067, `disqualified` by 0129 — both moved to `nurturing`. */
+     *  `archived` retired by 0067, `disqualified` by 0129–0130 — both moved to `nurturing`. */
     check(
       'lead_state_known',
       sql`"state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',

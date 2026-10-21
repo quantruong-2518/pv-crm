@@ -82,7 +82,7 @@ export const hold = sales.table(
     check('hold_subject_type_known', sql`"subject_type" IN ('lead', 'opportunity')`),
     /** Copied by hand: a new way to end a hold must be a migration somebody reads.
      *  No `handover` — a handover moves the subject WITH its hold, never ends it.
-     *  No `disqualified` since 0129: every park ends a hold as `to-waiting`. */
+     *  No `disqualified` since 0130: every park ends a hold as `to-waiting`. */
     check(
       'hold_end_kind_known',
       sql`"end_kind" IS NULL OR "end_kind" IN ('resumed', 'to-waiting', 'touch', 'stopped',

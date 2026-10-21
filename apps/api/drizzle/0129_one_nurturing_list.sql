@@ -1,17 +1,16 @@
--- 0129 - one nurturing list (ADR 0109): the lead state `disqualified` is
--- retired, and `nurturing` becomes a shared pool with no holder that always
--- carries a park reason and moment. Two system park reasons join EXIT_REASON,
--- and the retired bell kinds, hold end and meeting cause are rewritten in place.
+-- 0129 - one nurturing list (ADR 0109), EXPAND half: `nurturing` becomes a
+-- shared pool with no holder that carries a park reason and moment, and every
+-- `disqualified` lead joins it. Two system park reasons join EXIT_REASON, and
+-- the retired hold end, meeting cause and bell kinds are rewritten in place.
 --
--- ORDER INSIDE: the old fences refuse the new data (an ownerless or reasoned
--- `nurturing` lead, a `lead-nurtured` cause), so every fence touched here is
--- dropped first and re-added last, after the data has moved. The two stand
--- functions are replaced before the data moves, so the stand trigger the state
--- UPDATE fires already draws a pool lead with the new rule.
--- ORDER OUTSIDE: lockstep, not migrate-before-deploy. The old build's park writes
--- (an owned `nurturing`, `disqualified`) fail these CHECKs and the new build's
--- fail the old ones: migrate and deploy back to back. EX-08/EX-09 must be free
--- on Neon first, or the guards below stop the migration.
+-- ORDER OUTSIDE: migrate BEFORE deploy. Only fences that refuse the new rows are
+-- relaxed, so the old build keeps writing (an owned or reasonless `nurturing`,
+-- `disqualified`, `lead-stopped`, `added_while_nurturing`). 0130 is the CONTRACT
+-- half: it re-runs these moves for rows the old build wrote in the window, then
+-- tightens every fence. EX-08/EX-09 must be free on Neon, or the guards stop here.
+-- ORDER INSIDE: fences dropped first, re-added last; the stand functions are
+-- replaced before the data moves so the stand trigger draws with the new rule.
+-- Re-runnable: IF EXISTS on DDL, every data statement guarded.
 -- Hand-written for 0047's reason: `generate`'s baseline is still stuck at 0026.
 
 -- The two automatic park reasons (ADR 0109 §2), 0111's EX-07 pattern: `ord`
@@ -50,16 +49,12 @@ BEGIN
   END IF;
 END $$;--> statement-breakpoint
 
-ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_state_known";--> statement-breakpoint
+-- The three fences that refuse the moved rows. `lead_disqualified_has_reason`
+-- has no replacement until 0130: in the window the old build parks a lead in
+-- `nurturing` with no reason, and the new build parks it with one.
 ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_disqualified_has_reason";--> statement-breakpoint
-ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_nurturing_has_reason";--> statement-breakpoint
 ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_open_owner_matches";--> statement-breakpoint
-ALTER TABLE "sales"."workstream" DROP CONSTRAINT IF EXISTS "workstream_stand_key_known";--> statement-breakpoint
-ALTER TABLE "sales"."workstream" DROP CONSTRAINT IF EXISTS "workstream_stand_lead_key_known";--> statement-breakpoint
-ALTER TABLE "sales"."hold" DROP CONSTRAINT IF EXISTS "hold_end_kind_known";--> statement-breakpoint
 ALTER TABLE "sales"."meeting" DROP CONSTRAINT IF EXISTS "meeting_cancel_cause_known";--> statement-breakpoint
-ALTER TABLE "platform"."notification" DROP CONSTRAINT IF EXISTS "notification_kind_known";--> statement-breakpoint
-ALTER TABLE "platform"."notification_kind_policy" DROP CONSTRAINT IF EXISTS "notification_kind_policy_kind_known";--> statement-breakpoint
 
 -- The whole 0073 body again, because a function is replaced whole. The
 -- `nurturing` branch is gone: it drew the rung `resume` would restore, but a
@@ -99,9 +94,9 @@ BEGIN
   IF anchor.state = ANY (backbone) THEN
     lead_rung := anchor.state;
   ELSE
-    -- Off the backbone (`nurturing`, the pool, since ADR 0109): the furthest
-    -- rung its trail PROVES it reached, never the one it was heading for. Rung
-    -- `new` needs no row - every lead has a creation date - so the walk floors at 0.
+    -- Off the backbone (`nurturing`, the pool since ADR 0109; `disqualified`
+    -- until 0130): the furthest rung its trail PROVES it reached. Rung `new`
+    -- needs no row - every lead has a creation date - so the walk floors at 0.
     SELECT max(CASE
                  WHEN t.kind = 'entered-pipeline' THEN 4
                  WHEN t.kind IN ('verified', 'exchange-logged') THEN 3
@@ -165,8 +160,8 @@ BEGIN
 END
 $fn$;--> statement-breakpoint
 
--- The touch-side trigger follows: `nurturing` is now the only state whose rung
--- is read off the trail, so it is the only one a new touch can move.
+-- The touch-side trigger follows: the two states whose rung is read off the
+-- trail are the only ones a new touch can move. 0130 drops `disqualified`.
 CREATE OR REPLACE FUNCTION "sales"."workstream_stand_bump_touch"()
 RETURNS trigger
 LANGUAGE plpgsql AS $fn$
@@ -176,36 +171,37 @@ BEGIN
   SELECT l.workstream_code INTO ws
     FROM sales.lead l
    WHERE l.code = NEW.subject_code
-     AND l.state = 'nurturing';
+     AND l.state IN ('nurturing', 'disqualified');
   IF ws IS NOT NULL THEN PERFORM sales.workstream_stand_sync(ARRAY[ws]); END IF;
   RETURN NULL;
 END
 $fn$;--> statement-breakpoint
 
--- Every parked lead joins the pool. A former `disqualified` lead keeps its
--- reason and moment. A `nurturing` lead never stored one (the old fence
--- refused it), so it takes them from its latest `nurtured` touch: a touch with
--- no reason is a deal-stop park (EX-08); no touch at all reads 'other' at
--- `state_since`. COALESCE on the stored pair makes a re-run change nothing.
+-- Every parked lead joins the pool. A `disqualified` lead keeps its reason and
+-- moment. A `nurturing` lead with no reason, or still with a holder (the old
+-- build's park), takes them from its latest `nurtured` touch: no reason there
+-- is a deal-stop park (EX-08); no touch at all reads 'other' at `state_since`.
 UPDATE "sales"."lead" l
    SET "state" = 'nurturing',
        "owner_id" = NULL,
-       "exit_reason" = COALESCE(l."exit_reason",
-                                (SELECT COALESCE(t."reason_id", 'EX-08')
-                                   FROM "sales"."touch" t
-                                  WHERE t."subject_code" = l."code" AND t."subject_kind" = 'lead'
-                                    AND t."kind" = 'nurtured'
-                                  ORDER BY t."at" DESC, t."id" DESC LIMIT 1),
-                                'other'),
-       "exited_at" = COALESCE(l."exited_at",
-                              (SELECT t."at"
-                                 FROM "sales"."touch" t
-                                WHERE t."subject_code" = l."code" AND t."subject_kind" = 'lead'
-                                  AND t."kind" = 'nurtured'
-                                ORDER BY t."at" DESC, t."id" DESC LIMIT 1),
-                              l."state_since")
+       "exit_reason" = CASE WHEN l."exit_reason" IS NULL OR (l."state" = 'nurturing' AND l."owner_id" IS NOT NULL)
+                            THEN COALESCE((SELECT COALESCE(t."reason_id", 'EX-08')
+                                             FROM "sales"."touch" t
+                                            WHERE t."subject_code" = l."code" AND t."subject_kind" = 'lead'
+                                              AND t."kind" = 'nurtured'
+                                            ORDER BY t."at" DESC, t."id" DESC LIMIT 1),
+                                          'other')
+                            ELSE l."exit_reason" END,
+       "exited_at" = CASE WHEN l."exit_reason" IS NULL OR (l."state" = 'nurturing' AND l."owner_id" IS NOT NULL)
+                          THEN COALESCE((SELECT t."at"
+                                           FROM "sales"."touch" t
+                                          WHERE t."subject_code" = l."code" AND t."subject_kind" = 'lead'
+                                            AND t."kind" = 'nurtured'
+                                          ORDER BY t."at" DESC, t."id" DESC LIMIT 1),
+                                        l."state_since")
+                          ELSE l."exited_at" END
  WHERE l."state" IN ('nurturing', 'disqualified')
-   AND (l."state" <> 'nurturing' OR l."owner_id" IS NOT NULL OR l."exit_reason" IS NULL);--> statement-breakpoint
+   AND (l."state" = 'disqualified' OR l."owner_id" IS NOT NULL OR l."exit_reason" IS NULL);--> statement-breakpoint
 
 -- The mirror row, which `toRef` would write: E2's scope axis reads
 -- `owner_id`, so a stale holder there would keep reach over a pool lead.
@@ -295,31 +291,9 @@ UPDATE "platform"."notification"
  WHERE "kind" IN ('lead-stopped', 'lead-reopened');--> statement-breakpoint
 DELETE FROM "platform"."notification_kind_policy" WHERE "kind" IN ('lead-stopped', 'lead-reopened');--> statement-breakpoint
 
--- It served only the campaign-end park, which ADR 0109 §3 removes.
-ALTER TABLE "sales"."campaign_member" DROP COLUMN IF EXISTS "added_while_nurturing";--> statement-breakpoint
-
--- Six `LeadState` values now, not seven.
-ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_state_known" CHECK ("state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                'converted'));--> statement-breakpoint
-ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_nurturing_has_reason" CHECK (("state" = 'nurturing') = ("exit_reason" IS NOT NULL));--> statement-breakpoint
-ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_open_owner_matches" CHECK ("state" NOT IN ('new', 'assigned', 'verifying', 'working', 'nurturing')
-          OR (("state" IN ('new', 'nurturing')) = ("owner_id" IS NULL)));--> statement-breakpoint
-ALTER TABLE "sales"."workstream" ADD CONSTRAINT "workstream_stand_key_known" CHECK (
-  CASE "stand_kind"
-    WHEN 'HĐ' THEN "stand_key" = 'signed'
-    WHEN 'OP' THEN "stand_key" IN ('new', 'assigned', 'engaged', 'quotation')
-    WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                                   'converted')
-    ELSE true
-  END
-);--> statement-breakpoint
-ALTER TABLE "sales"."workstream" ADD CONSTRAINT "workstream_stand_lead_key_known" CHECK (
-  "stand_lead_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                       'converted')
-);--> statement-breakpoint
-ALTER TABLE "sales"."hold" ADD CONSTRAINT "hold_end_kind_known" CHECK ("end_kind" IS NULL OR "end_kind" IN ('resumed', 'to-waiting', 'touch', 'stopped', 'converted'));--> statement-breakpoint
-ALTER TABLE "sales"."meeting" ADD CONSTRAINT "meeting_cancel_cause_known" CHECK ("cancel_cause" IS NULL OR "cancel_cause" IN ('opportunity-lost', 'lead-nurtured', 'lead-disabled'));--> statement-breakpoint
-
--- 0128's fifty-eight kinds minus `lead-stopped` and `lead-reopened`: fifty-six.
-ALTER TABLE "platform"."notification" ADD CONSTRAINT "notification_kind_known" CHECK ("kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered', 'lead-scan-ready', 'lead-scan-committed', 'lead-scan-failed', 'opportunity-awaiting-accept', 'opportunity-lost', 'opportunity-accepted', 'opportunity-assigned', 'opportunity-unassigned', 'next-step-assigned', 'next-step-done', 'approval-waiting', 'approval-approved', 'approval-rejected', 'mail-run-sent', 'mail-run-cancelled', 'mail-failed', 'customer-replied', 'access-changed', 'password-reset-by-admin', 'google-link-broken', 'opportunity-stage-moved', 'opportunity-primary-changed', 'contract-signed', 'quotation-new-round', 'quotation-superseded', 'contract-installment-paid', 'contract-installment-undone', 'contract-schedule-replaced', 'contract-condition-done', 'campaign-stopped', 'campaign-finished', 'kpi-target-proposed', 'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured', 'lead-resumed', 'mail-run-replied', 'comm-record-late', 'contract-installment-overdue', 'hold-due-soon', 'hold-due', 'kpi-target-allocated', 'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss', 'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided', 'kpi-team-share-assigned', 'meeting-cancelled', 'meeting-calendar-failed', 'contract-terminated'));--> statement-breakpoint
-ALTER TABLE "platform"."notification_kind_policy" ADD CONSTRAINT "notification_kind_policy_kind_known" CHECK ("kind" IN ('lead-pooled', 'lead-received', 'lead-removed', 'lead-re-entered', 'lead-scan-ready', 'lead-scan-committed', 'lead-scan-failed', 'opportunity-awaiting-accept', 'opportunity-lost', 'opportunity-accepted', 'opportunity-assigned', 'opportunity-unassigned', 'next-step-assigned', 'next-step-done', 'approval-waiting', 'approval-approved', 'approval-rejected', 'mail-run-sent', 'mail-run-cancelled', 'mail-failed', 'customer-replied', 'access-changed', 'password-reset-by-admin', 'google-link-broken', 'opportunity-stage-moved', 'opportunity-primary-changed', 'contract-signed', 'quotation-new-round', 'quotation-superseded', 'contract-installment-paid', 'contract-installment-undone', 'contract-schedule-replaced', 'contract-condition-done', 'campaign-stopped', 'campaign-finished', 'kpi-target-proposed', 'kpi-target-agreed', 'comm-closed-by-other', 'lead-nurtured', 'lead-resumed', 'mail-run-replied', 'comm-record-late', 'contract-installment-overdue', 'hold-due-soon', 'hold-due', 'kpi-target-allocated', 'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss', 'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided', 'kpi-team-share-assigned', 'meeting-cancelled', 'meeting-calendar-failed', 'contract-terminated'));
+-- Relaxed for the window: `new` has no holder and the working rungs have one,
+-- as before; `nurturing` may go either way until 0130 makes it the pool's.
+ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_open_owner_matches" CHECK ("state" NOT IN ('new', 'assigned', 'verifying', 'working')
+          OR (("state" = 'new') = ("owner_id" IS NULL)));--> statement-breakpoint
+-- `lead-nurtured` joins; `lead-disqualified` stays until 0130.
+ALTER TABLE "sales"."meeting" ADD CONSTRAINT "meeting_cancel_cause_known" CHECK ("cancel_cause" IS NULL OR "cancel_cause" IN ('opportunity-lost', 'lead-disqualified', 'lead-nurtured', 'lead-disabled'));
