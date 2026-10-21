@@ -114,7 +114,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'opportunity-unassigned': 'Bạn không còn phụ trách cơ hội',
   'next-step-assigned': 'Bạn được giao việc tiếp theo',
   'next-step-done': 'Việc bạn giao đã xong',
-  'comm-record-late': 'Lượt liên hệ quá hạn chưa xác nhận',
+  'comm-record-late': 'Thông tin liên hệ quá hạn bổ sung',
   'meeting-cancelled': 'Lịch họp của bạn đã bị huỷ',
   'meeting-calendar-failed': 'Chưa đưa được lịch họp lên Google Calendar',
   'hold-due-soon': 'Sắp tới ngày hẹn gặp lại',
@@ -206,7 +206,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'opportunity-unassigned': 'opportunity',
   'next-step-assigned': 'next-step',
   'next-step-done': 'next-step',
-  'comm-record-late': 'next-step',
+  'comm-record-late': 'comm',
   'meeting-cancelled': 'comm',
   'meeting-calendar-failed': 'comm',
   'hold-due-soon': 'hold',
@@ -444,6 +444,9 @@ export const NOTIFICATION_DETAIL_STEPS = 'steps'
 export const NOTIFICATION_DETAIL_REASON = 'reason'
 /** The meeting's title on a `meeting-calendar-failed` line. */
 export const NOTIFICATION_DETAIL_TITLE = 'title'
+/** Code of the lead or opportunity a `comm-record-late` line is about; the
+ *  line's own subject is the record. */
+export const NOTIFICATION_DETAIL_OBJECT = 'object'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -496,6 +499,7 @@ export function notificationSentence(
   if (row.kind === 'meeting-calendar-failed' && typeof title === 'string') {
     return `Chưa đưa được lịch họp “${title}” với ${name} lên Google Calendar sau nhiều lần thử. Mở lịch họp và lưu lại, hoặc tự thêm vào Google Calendar.`
   }
+  if (row.kind === 'comm-record-late') return `Thông tin liên hệ ở ${name} đã quá hạn bổ sung`
   const parked = n(NOTIFICATION_DETAIL_COUNT)
   if (row.kind === 'campaign-finished' && parked > 0) {
     return `Chiến dịch ${name} đã chạy xong, ${num(parked)} lead không phản hồi đã về ${LEAD_STATE_LABEL.nurturing}`

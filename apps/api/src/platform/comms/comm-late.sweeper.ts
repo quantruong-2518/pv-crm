@@ -5,6 +5,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common'
+import { NOTIFICATION_DETAIL_OBJECT } from '@pv/contracts'
 import { COMM_RECORD_LATE } from '@pv/engines'
 import { ENV, type Env } from '../config/env'
 import { NotificationHub } from '../notification/notification.hub'
@@ -62,6 +63,7 @@ export class CommLateSweeper implements OnApplicationBootstrap, OnApplicationShu
               audiences: { owner: [record.ownerId] },
             },
             subject: { kind: 'comm-record', code: record.id, label: record.subjectLabel },
+            detail: { [NOTIFICATION_DETAIL_OBJECT]: record.subjectCode },
           })
         }
         return due.length

@@ -36,7 +36,12 @@ export type DebriefPointer = { id: string; state: CommRecordState }
 
 export type DebriefCount = { ownerId: string; name: string; pending: number; oldestAt: Date }
 
-export type LateRecord = { id: string; ownerId: string; subjectLabel: string }
+export type LateRecord = {
+  id: string
+  ownerId: string
+  subjectCode: string
+  subjectLabel: string
+}
 
 /** ADR 0075 §2, derived in SQL and never stored, so a turn or a file landing
  *  moves it with no second write. A covered turn is one written since the
@@ -281,7 +286,12 @@ export class DebriefRepository {
    *  ones are left alone: a deploy must not ring a whole backlog at once. */
   async late(tx: Db): Promise<LateRecord[]> {
     return tx
-      .select({ id: debrief.id, ownerId: debrief.ownerId, subjectLabel: objectRef.label })
+      .select({
+        id: debrief.id,
+        ownerId: debrief.ownerId,
+        subjectCode: debrief.subjectCode,
+        subjectLabel: objectRef.label,
+      })
       .from(debrief)
       .innerJoin(objectRef, LIVE_SUBJECT)
       .innerJoin(actor, and(eq(actor.id, debrief.ownerId), isNull(actor.disabledAt)))
