@@ -7,8 +7,8 @@ import { useSyncExternalStore } from 'react'
  *
  *  Same shape as `useThemeMode`/`toggleTheme` in `@pv/ui` (DOM read + a
  *  `storage` event for cross-tab sync) — one difference: no anti-FOUC script
- *  in `index.html`, since no CSS depends on language the way it depends on
- *  `data-theme`. */
+ *  in `index.html`. The one thing language adds to the page is the Hangul
+ *  face, loaded on demand by `loadHangulFace` (ADR 0108). */
 export type Lang = 'vi' | 'en' | 'ko'
 
 const LANG_KEY = 'pv-lang'
@@ -31,10 +31,31 @@ function readStored(): Lang {
 
 let current: Lang = readStored()
 
+/** Pretendard is the Hangul face in every theme's stack; its stylesheet is
+ *  fetched the first time the page turns Korean, never for Vietnamese. */
+const HANGUL_FACE_URL =
+  'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css'
+/** Pins that exact file: a third-party stylesheet on a page holding customer
+ *  data must not be able to change under us. */
+const HANGUL_FACE_SRI = 'sha384-GIdEBaqGN9mNkDkMkzMHW8EKUqtpPIe/sLj1X7DIrnc9uPtLROJgmuDlh+3rBw0j'
+
+function loadHangulFace(lang: Lang) {
+  if (lang !== 'ko' || document.querySelector('link[data-hangul-face]')) return
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = HANGUL_FACE_URL
+  link.integrity = HANGUL_FACE_SRI
+  link.crossOrigin = 'anonymous'
+  link.dataset.hangulFace = ''
+  document.head.append(link)
+}
+loadHangulFace(current)
+
 function subscribe(onChange: () => void) {
   const onStorage = (event: StorageEvent) => {
     if (event.key !== LANG_KEY && event.key !== null) return
     current = isLang(event.newValue) ? event.newValue : 'vi'
+    loadHangulFace(current)
     onChange()
   }
   window.addEventListener(CHANGE_EVENT, onChange)
@@ -63,6 +84,7 @@ export function onLangChange(listener: () => void) {
 
 export function setLang(next: Lang) {
   current = next
+  loadHangulFace(current)
   try {
     localStorage.setItem(LANG_KEY, current)
   } catch {

@@ -270,12 +270,12 @@ export function AppHeader({
         >
           {/* One brand at two widths: the wordmark already holds the mark. */}
           <img
-            src={themeMode === 'stone' ? markBlue : markLight}
+            src={themeMode !== 'aurora' ? markBlue : markLight}
             alt=""
             className="size-9 shrink-0 object-contain md:hidden"
           />
           <img
-            src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+            src={themeMode !== 'aurora' ? wordmarkBlue : wordmarkLight}
             alt=""
             className="hidden h-10 shrink-0 object-contain md:block"
           />

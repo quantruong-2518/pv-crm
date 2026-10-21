@@ -4,9 +4,11 @@
     <meta charset="UTF-8" />
     <script>
       // Apply the saved appearance before the first paint, including auth screens.
+      // The theme list mirrors THEMES in packages/ui/src/ui/theme-switch.tsx.
       try {
+        const saved = localStorage.getItem('pv-theme')
         document.documentElement.dataset.theme =
-          localStorage.getItem('pv-theme') === 'stone' ? 'stone' : 'aurora'
+          saved === 'stone' || saved === 'porcelain' ? saved : 'aurora'
       } catch {
         document.documentElement.dataset.theme = 'aurora'
       }
@@ -59,9 +61,10 @@
     <!-- Pebble Aurora ships one sans and one mono (docs/design-system/laws.md
          law 6). Be Vietnam Pro 400/500/600 covers body, label and heading;
          700 stays for the high-contrast kiosk button. JetBrains Mono 500 is
-         the only weight the code style asks for. -->
+         the only weight the code style asks for. Inter is Sứ's sans (ADR
+         0108); browsers fetch its files only when that theme draws text. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap"
       rel="stylesheet"
     />
     <script type="application/ld+json">

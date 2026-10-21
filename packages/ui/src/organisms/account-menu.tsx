@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Lock, Moon, Orbit, Sun } from '../icons'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
-import { toggleTheme, useThemeMode } from '../ui/theme-switch'
+import { THEME_LABEL, toggleTheme, useThemeMode } from '../ui/theme-switch'
 import { cn } from '../lib/cn'
 import type { HeaderAction } from './app-header'
 
@@ -105,7 +105,7 @@ export function AccountMenu({
 }: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  const stone = useThemeMode() === 'stone'
+  const theme = useThemeMode()
   const close = () => setOpen(false)
 
   useEffect(() => {
@@ -182,8 +182,12 @@ export function AccountMenu({
           {/* Stays open on purpose: the point of the click is to watch the
               theme change, and closing would hide the very panel that changed. */}
           <MenuRow
-            action={{ icon: stone ? Sun : Moon, label: 'Giao diện', onClick: toggleTheme }}
-            trailing={stone ? 'Đá mịn' : 'Aurora'}
+            action={{
+              icon: theme === 'aurora' ? Moon : Sun,
+              label: 'Giao diện',
+              onClick: toggleTheme,
+            }}
+            trailing={THEME_LABEL[theme]}
             onSelect={() => {}}
           />
           {actions.map((action) => (

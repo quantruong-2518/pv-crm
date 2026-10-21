@@ -12,7 +12,7 @@ const badgeVariants = cva(
         /** Slate Gray is the tint only (law 2). The text is `--muted-foreground`,
          *  not `--glass-foreground`: over a 28% tint that older pairing measured
          *  4.41:1 on Aurora and 3.81:1 on the light theme, both under law 13. */
-        draft: 'bg-brand-slate/28 text-muted-foreground',
+        draft: 'bg-brand-slate/28 text-muted-foreground porcelain:bg-brand-slate/20',
         warning: 'bg-warning/20 text-on-tint-warning',
         success: 'bg-success/20 text-on-tint-success',
         running: 'bg-primary/24 text-accent-foreground',

@@ -47,7 +47,7 @@ export function KioskTile({
           <button
             type="button"
             onClick={action.onClick}
-            className="bg-warning text-brand-navy mt-auto h-12 rounded-md border-2 border-[var(--warning)] text-[14px] font-bold"
+            className="bg-warning text-brand-navy porcelain:text-primary-foreground mt-auto h-12 rounded-md border-2 border-[var(--warning)] text-[14px] font-bold"
           >
             {action.label}
           </button>

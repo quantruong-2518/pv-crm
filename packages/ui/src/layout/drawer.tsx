@@ -195,11 +195,11 @@ export function Drawer({
         sheet
           ? cn(
               'pointer-events-auto max-h-full',
-              anchor ? 'rounded-lg' : 'rounded-t-lg',
+              anchor ? 'porcelain:rounded-2xl rounded-lg' : 'porcelain:rounded-t-2xl rounded-t-lg',
               leaving ? 'animate-sheet-out' : 'animate-sheet-in',
             )
           : cn(
-              'h-dvh',
+              'porcelain:rounded-l-2xl h-dvh',
               width === 'lg' ? 'sm:w-[760px]' : 'sm:w-[560px]',
               leaving ? 'animate-drawer-out' : 'animate-drawer-in',
             ),

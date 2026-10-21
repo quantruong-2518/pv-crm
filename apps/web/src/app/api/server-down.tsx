@@ -174,7 +174,7 @@ export function ServerDown() {
     >
       <GlassCard className="flex w-full max-w-[420px] flex-col gap-6 p-8">
         <img
-          src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+          src={themeMode !== 'aurora' ? wordmarkBlue : wordmarkLight}
           alt="PV One"
           className="h-10 self-start object-contain"
         />

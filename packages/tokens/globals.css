@@ -1,5 +1,6 @@
 /* Pebble Vina — Pebble Aurora · shadcn/ui token layer (Tailwind v4)
-   Aurora (dark, default) + Đá mịn (data-theme="stone", light).
+   Aurora (dark, default) + Đá mịn (data-theme="stone", light)
+   + Sứ (data-theme="porcelain", light — its own table, ADR 0108).
 
    THIS IS THE ONE TOKEN FILE. No hex in any other file under src/.
    Source: the Pebble Aurora design system (tokens.json v2) — every value in
@@ -17,6 +18,7 @@
 @custom-variant dark (&:is(.dark *));
 /* Light-theme-only overrides where a shared tint fails contrast (law 13). */
 @custom-variant stone (&:where([data-theme='stone'] *));
+@custom-variant porcelain (&:where([data-theme='porcelain'] *));
 
 :root,
 .dark {
@@ -127,6 +129,18 @@
   /* motion — 180ms ease-out (F-09), inside the 150–250ms band of the system */
   --motion-duration: 180ms;
   --motion-ease: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Type families and corners live here, not as literals in @theme, so a
+     theme block can swap them. Pretendard sits after the Latin face, so it
+     draws what that face lacks (Hangul, chiefly); it is missing 101 Vietnamese
+     letters, and its stylesheet loads only for `ko`. */
+  --font-display: 'Be Vietnam Pro', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --font-sans: 'Be Vietnam Pro', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --font-num: 'Be Vietnam Pro', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --radius-sm: 3px; /* radius-xs · status label, lead code */
+  --radius-md: 4px; /* radius-sm · button, input */
+  --radius-lg: 6px; /* radius-md · panel, card, menu — the largest of the system */
+  --radius-2xl: 1rem; /* Tailwind's own value; only Sứ moves it */
 }
 
 @theme inline {
@@ -178,14 +192,15 @@
   /* One sans for text, headings and numbers — Pebble Aurora dropped the
      display and number families; Be Vietnam Pro carries the Vietnamese
      diacritics the old display face rendered badly. */
-  --font-display: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-sans: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-num: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-num: var(--font-num);
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --radius-sm: 3px; /* radius-xs · status label, lead code */
-  --radius-md: 4px; /* radius-sm · button, input */
-  --radius-lg: 6px; /* radius-md · panel, card, menu — the largest of the system */
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-2xl: var(--radius-2xl);
 
   --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -256,9 +271,14 @@
     background: var(--primary-strong);
     color: var(--foreground);
   }
-  :root[data-theme='stone'] ::selection {
+  :root[data-theme='stone'] ::selection,
+  :root[data-theme='porcelain'] ::selection {
     background: var(--primary);
     color: var(--primary-foreground);
+  }
+  /* Hangul breaks between syllables by default, splitting words mid-line. */
+  :lang(ko) {
+    word-break: keep-all;
   }
   * {
     border-color: transparent;
@@ -563,6 +583,87 @@
   --shadow-assistant: none;
 }
 
+/* Mode 3 · Sứ — light, rounded, bevelled; ADR 0108 and the PV One Sứ design
+   system. Greys and blues from Toss TDS, status tones from KRDS. Text on a
+   tint is one KRDS step darker (70) than the tone: @pv/ui paints tints as
+   `bg-<tone>/20`, and the 60 step on its own 20% tint measures 4.30–4.39:1. */
+:root[data-theme='porcelain'] {
+  color-scheme: light;
+  --surface-ink: #191f28;
+  --background: #f2f4f6;
+  --foreground: #191f28;
+  --card: #ffffff;
+  --card-foreground: #191f28;
+  --popover: #ffffff;
+  --popover-foreground: #191f28;
+  --primary: #1b64da; /* white on it 5.41:1 */
+  --primary-strong: #1957c2;
+  --avatar-to: var(--primary-strong);
+  --primary-foreground: #ffffff;
+  --secondary: #e5e8eb;
+  --secondary-hover: #d1d6db;
+  --secondary-foreground: #191f28;
+  --muted: #f9fafb;
+  --muted-foreground: #4e5968;
+  --glass-foreground: #5d6882; /* ≥ 4.53:1 on every light surface but secondary-hover */
+  --accent: #e8f3ff;
+  --accent-foreground: #194aa6; /* 5.24:1 on primary/24 over accent, the worst ground */
+  --destructive: #bd2c0f;
+  --destructive-foreground: #8a240f;
+  --warning: #8a5c00;
+  --warning-foreground: #8a5c00;
+  --success: #267337;
+  --border: transparent; /* borderless (law 4); edges come from the shadows */
+  --input: #f2f4f6;
+  --ring: #1b64da;
+  --on-tint-primary: #194aa6;
+  --on-tint-primary-muted: #4e5968;
+  --on-tint-success: #285d33;
+  --on-tint-success-strong: #285d33;
+  --on-tint-warning: #614100;
+  --on-tint-warning-strong: #614100;
+  --on-tint-destructive: #8a240f;
+  --channel-phone: #194aa6;
+  --channel-meeting: #0a6f68;
+  --sheen-a: transparent;
+  --sheen-b: transparent;
+  --sheen-ai: transparent;
+  --scrim: rgba(23, 23, 25, 0.52);
+  --hc-surface: #ffffff;
+  --hc-border: #4e5968;
+  --aurora-1: #c9e2ff;
+  --aurora-2: #c6ece8;
+  --aurora-3: #d9f1e6;
+  /* Elevation 1–4, ink-tinted: hairline edge + contact + spread. Card (2)
+     adds a 1px inner bottom shade — the bevel. */
+  --shadow-panel: 0 0 0 1px rgba(25, 31, 40, 0.05), 0 1px 2px rgba(25, 31, 40, 0.06);
+  --shadow-card:
+    0 0 0 1px rgba(25, 31, 40, 0.04), 0 1px 2px rgba(25, 31, 40, 0.06),
+    0 8px 24px -8px rgba(25, 31, 40, 0.12), inset 0 -1px 0 rgba(25, 31, 40, 0.05);
+  --shadow-pop:
+    0 0 0 1px rgba(25, 31, 40, 0.05), 0 4px 8px -2px rgba(25, 31, 40, 0.08),
+    0 16px 32px -8px rgba(25, 31, 40, 0.16);
+  --shadow-dock:
+    0 0 0 1px rgba(25, 31, 40, 0.05), 0 4px 8px -2px rgba(25, 31, 40, 0.08),
+    0 16px 32px -8px rgba(25, 31, 40, 0.16);
+  --shadow-frame: 0 0 0 1px rgba(25, 31, 40, 0.06), 0 24px 48px -12px rgba(25, 31, 40, 0.28);
+  --shadow-primary:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 1px 2px rgba(25, 31, 40, 0.12),
+    0 4px 12px -2px rgba(27, 100, 218, 0.32);
+  --shadow-control: 0 0 0 1px rgba(112, 115, 124, 0.22);
+  --shadow-control-soft: 0 0 0 1px rgba(112, 115, 124, 0.14);
+  --shadow-success: none;
+  --shadow-ai: 0 0 0 1px rgba(25, 31, 40, 0.05), 0 1px 2px rgba(25, 31, 40, 0.06);
+  --shadow-assistant: none;
+  --font-display: Inter, 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --font-sans: Inter, 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --font-num: Inter, 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-2xl: 24px;
+}
+
 @layer components {
   /* The panel classes already read `--card` and `--shadow-panel`, so the light
      mode needs no surface override any more — only the AI wash, which carries
@@ -571,17 +672,65 @@
     background: var(--accent);
     box-shadow: var(--shadow-ai);
   }
-  :where([data-theme='stone']) :is(input, textarea, select) {
+  :where([data-theme='stone'], [data-theme='porcelain']) :is(input, textarea, select) {
     font-size: 14px;
   }
-  :where([data-theme='stone']) :is(td, th) {
+  :where([data-theme='stone'], [data-theme='porcelain']) :is(td, th) {
     font-size: 13px;
+  }
+  /* Sứ: summary cards carry the sheen and the bevelled elevation 2; tables
+     stay flat on glass-b, where a sheen would fight head, hover and select. */
+  :where([data-theme='porcelain']) .glass-a {
+    background-image: linear-gradient(
+      180deg,
+      transparent 40%,
+      color-mix(in srgb, var(--surface-ink) 2.5%, transparent)
+    );
+    box-shadow: var(--shadow-card);
+  }
+  :where([data-theme='porcelain']) .glass-ai {
+    background: linear-gradient(135deg, var(--accent), var(--card));
+    box-shadow: var(--shadow-ai);
+  }
+  :where([data-theme='porcelain']) .glass-ai-panel {
+    background: linear-gradient(150deg, var(--accent), var(--card));
+    box-shadow: var(--shadow-ai);
   }
 }
 
 @layer utilities {
-  :where([data-theme='stone']) .shadow-primary {
+  :where([data-theme='stone'], [data-theme='porcelain']) .shadow-primary {
     --tw-shadow: var(--shadow-primary);
     box-shadow: var(--shadow-primary);
+  }
+  /* @theme inlines these three as Aurora's literals; Sứ re-points them. */
+  :where([data-theme='porcelain']) .shadow-card,
+  :root[data-theme='porcelain'] .hover\:shadow-card:hover {
+    --tw-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-card);
+  }
+  :where([data-theme='porcelain']) .shadow-panel {
+    --tw-shadow: var(--shadow-panel);
+    box-shadow: var(--shadow-panel);
+  }
+  :where([data-theme='porcelain']) .shadow-frame {
+    --tw-shadow: var(--shadow-frame);
+    box-shadow: var(--shadow-frame);
+  }
+  /* Sứ's type floor: the off-scale sizes the screens use land on its 12 · 13
+     · 14 steps, and Vietnamese is never letter-spaced. Uppercase stays: the
+     owner chose it for company names and titles. Raised specificity so the
+     remap wins over the utility it replaces. */
+  :root[data-theme='porcelain'] :is(.text-\[11px\], .text-\[11\.5px\]) {
+    font-size: 12px;
+  }
+  :root[data-theme='porcelain'] .text-\[12\.5px\] {
+    font-size: 13px;
+  }
+  :root[data-theme='porcelain'] .text-\[13\.5px\] {
+    font-size: 14px;
+  }
+  :root[data-theme='porcelain'] [class*='tracking-'] {
+    letter-spacing: 0;
   }
 }

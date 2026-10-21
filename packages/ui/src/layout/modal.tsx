@@ -127,7 +127,7 @@ export function Modal({
           if (event.target === event.currentTarget && leaving) setMounted(false)
         }}
         className={cn(
-          'glass-overlay relative flex h-dvh w-full flex-col overflow-hidden outline-none sm:h-[min(820px,calc(100dvh-48px))] sm:rounded-lg',
+          'glass-overlay porcelain:sm:rounded-2xl relative flex h-dvh w-full flex-col overflow-hidden outline-none sm:h-[min(820px,calc(100dvh-48px))] sm:rounded-lg',
           width === 'wide'
             ? 'sm:max-w-[min(1296px,90vw)]'
             : width === 'xl'

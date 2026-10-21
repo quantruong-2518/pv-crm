@@ -1,12 +1,25 @@
 import { useSyncExternalStore } from 'react'
 import { Button } from './button'
 
-export type ThemeMode = 'aurora' | 'stone'
+/** Cycle order of the switch; Aurora stays the default. The anti-FOUC script
+ *  in apps/web/index.html repeats this list — change both together. */
+const THEMES = ['aurora', 'stone', 'porcelain'] as const
+export type ThemeMode = (typeof THEMES)[number]
 const THEME_KEY = 'pv-theme'
 const CHANGE_EVENT = 'pv-theme-change'
 
+export const THEME_LABEL: Record<ThemeMode, string> = {
+  aurora: 'Aurora',
+  stone: 'Đá mịn',
+  porcelain: 'Sứ',
+}
+
+function asTheme(value: string | null | undefined): ThemeMode {
+  return THEMES.find((theme) => theme === value) ?? 'aurora'
+}
+
 function snapshot(): ThemeMode {
-  return document.documentElement.dataset.theme === 'stone' ? 'stone' : 'aurora'
+  return asTheme(document.documentElement.dataset.theme)
 }
 
 function applyTheme(theme: ThemeMode) {
@@ -24,7 +37,7 @@ function applyTheme(theme: ThemeMode) {
 function subscribe(onChange: () => void) {
   const onStorage = (event: StorageEvent) => {
     if (event.key === THEME_KEY || event.key === null) {
-      applyTheme(event.newValue === 'stone' ? 'stone' : 'aurora')
+      applyTheme(asTheme(event.newValue))
     }
   }
   window.addEventListener(CHANGE_EVENT, onChange)
@@ -39,10 +52,14 @@ export function useThemeMode() {
   return useSyncExternalStore(subscribe, snapshot, (): ThemeMode => 'aurora')
 }
 
+function nextTheme(theme: ThemeMode): ThemeMode {
+  return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? 'aurora'
+}
+
 /** Shared by the standalone switch and the account menu row, so both remember
- *  the choice the same way. */
+ *  the choice the same way. Steps to the next theme in `THEMES`. */
 export function toggleTheme() {
-  const next: ThemeMode = snapshot() === 'stone' ? 'aurora' : 'stone'
+  const next = nextTheme(snapshot())
   applyTheme(next)
   try {
     localStorage.setItem(THEME_KEY, next)
@@ -53,19 +70,17 @@ export function toggleTheme() {
 
 export function ThemeSwitch() {
   const theme = useThemeMode()
-  const stone = theme === 'stone'
   return (
     <Button
       className="focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2"
       size="sm"
       variant="ghost"
-      aria-label="Giao diện sáng Đá mịn"
-      aria-pressed={stone}
-      title={stone ? 'Chuyển sang Aurora tối' : 'Chuyển sang Đá mịn sáng'}
+      aria-label={`Giao diện ${THEME_LABEL[theme]}`}
+      title={`Chuyển sang ${THEME_LABEL[nextTheme(theme)]}`}
       onClick={toggleTheme}
     >
       <span aria-hidden="true" className="bg-accent shadow-control size-3 shrink-0 rounded-full" />
-      {stone ? 'Đá mịn' : 'Aurora'}
+      {THEME_LABEL[theme]}
     </Button>
   )
 }

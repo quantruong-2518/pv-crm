@@ -54,7 +54,7 @@ export function AuthCard({
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <img
-                src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+                src={themeMode !== 'aurora' ? wordmarkBlue : wordmarkLight}
                 alt="PV One"
                 className="h-10 object-contain"
               />

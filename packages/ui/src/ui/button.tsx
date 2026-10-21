@@ -11,7 +11,8 @@ import { cn } from '../lib/cn'
  *  on solid `--success` falls under law 13's 4.5:1 floor in the dark theme.
  *  `--on-tint-success-strong` is the token made for text on that tint. Re-
  *  measured on the flat-surface tokens (18/09): 6.6:1 dark · 4.6:1 stone —
- *  stone is only just over the floor, so re-measure on any token change.
+ *  stone is only just over the floor, so re-measure on any token change. Porcelain
+ *  holds 5.8:1 at rest but 4.4:1 on the /32 hover, so it keeps /20 like stone.
  *  It does NOT replace `default` for the primary action (law 3).
  *
  *  Ghi chú: padding ngang 18/24px lấy đúng từ theme kit; thang spacing 8 bậc
@@ -30,7 +31,7 @@ const buttonVariants = cva(
         destructive:
           'bg-destructive/20 text-destructive-foreground shadow-control-soft hover:bg-destructive/32 stone:hover:bg-destructive/20 stone:hover:shadow-control',
         success:
-          'bg-success/20 text-on-tint-success-strong shadow-control-soft hover:bg-success/32 stone:hover:bg-success/20 stone:hover:shadow-control',
+          'bg-success/20 text-on-tint-success-strong shadow-control-soft hover:bg-success/32 stone:hover:bg-success/20 stone:hover:shadow-control porcelain:hover:bg-success/20 porcelain:hover:shadow-control',
       },
       size: {
         sm: 'h-8 px-3 text-[11.5px]',

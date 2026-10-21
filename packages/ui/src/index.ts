@@ -90,4 +90,10 @@ export * from './layout/drawer'
 export * from './layout/modal'
 export * from './layout/screen-layout'
 
-export { ThemeSwitch, toggleTheme, useThemeMode, type ThemeMode } from './ui/theme-switch'
+export {
+  THEME_LABEL,
+  ThemeSwitch,
+  toggleTheme,
+  useThemeMode,
+  type ThemeMode,
+} from './ui/theme-switch'

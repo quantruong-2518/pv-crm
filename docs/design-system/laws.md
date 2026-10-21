@@ -24,7 +24,8 @@ Breaking one of these is a PR reject.
    brand palette, both in `packages/tokens/globals.css`. `#5AD49A` is the one
    permitted derived semantic color (the brand palette has no green). Text
    placed **inside an already-tinted block** uses the `--on-tint-*` token
-   group — do not invent a new tint.
+   group — do not invent a new tint. Sứ (`porcelain`) carries its own palette table
+   from Toss TDS and KRDS (`docs/decisions/0108-third-theme-porcelain.md` §2).
 2. **Pebble Blue `#133A8A` and Slate Gray `#5E6B80` are never text color** on a
    dark background — background, rule lines, glow only. Secondary text uses
    `#A3AEC8`, the third reading level `#8491B0`.
@@ -35,12 +36,14 @@ Breaking one of these is a PR reject.
    tablets, 2px border.
 5. **Corner radius**: card 6 · control 4 · tag 3 · `rounded-full` reserved for
    status dots, avatars and the floating AI Assistant button only (FAB, 60px,
-   bottom right corner).
+   bottom right corner). Sứ sets radius per theme: 8 · 12 · 16 · 24 (`docs/decisions/0108-third-theme-porcelain.md` §3).
 6. **Type**: Be Vietnam Pro carries text, headings and numbers alike · JetBrains
    Mono carries code and object codes. Numbers are always `tabular-nums`. Labels
    are sentence case — no uppercase, no letter-spacing, because Vietnamese
    diacritics stop reading. VN currency convention: comma for decimal, period
-   for thousands.
+   for thousands. Sứ sets text in Inter instead of Be Vietnam Pro, Pretendard is
+   the Hangul fallback in all three themes, and tracking is removed in Sứ
+   (`docs/decisions/0108-third-theme-porcelain.md` §6–7).
 7. **Spacing** — 8 steps only: 4 · 8 · 12 · 16 · 20 · 24 · 32 · 48.
 8. **Tables and long lists** always sit on `.glass-b`, never `.glass-a`.
 9. **AI never acts on its own.** Every AI block carries a `'Căn cứ: …'` line
@@ -61,7 +64,8 @@ Breaking one of these is a PR reject.
     over `--background`. Gradient is light, never pattern: no grid, no grain,
     no second layer. Placed on the outermost frame of the screen,
     `pointer-events: none`.
-13. **Text contrast ≥ 4.5:1** on both `.glass-a` and `.glass-b`. Tablet buttons
+13. **Text contrast ≥ 4.5:1** on both `.glass-a` and `.glass-b`, in all three
+    themes: Aurora, Đá mịn, Sứ. Tablet buttons
     ≥ 48px. Mobile keeps a 34px safe-area.
 14. **Display names**: the central product is called **PV One** on every
     screen. Branches keep their English names (Sales · Supply · Factory ·
@@ -72,7 +76,8 @@ Breaking one of these is a PR reject.
     `bot`). Number deltas use the Hugeicons `trending-up/down/minus` icons, never
     ▲▼▬. No emoji, no decorative gradient outside the background glow, the AI
     block and the primary button ramp, no
-    rounded-card-with-left-border-accent.
+    rounded-card-with-left-border-accent. Sứ adds one place: the sheen on
+    `.glass-a` only (`docs/decisions/0108-third-theme-porcelain.md` §5).
 16. **Object status is always a text pill**, never a naked color dot. Lead,
     opportunity and contract states use `Badge` with a semantic tone; the text
     names the exact state and colors may be shared by states in the same group.
@@ -101,8 +106,8 @@ already gates:
 Eyes-only — CI does **not** know these, a human must look:
 
 - **Law 12** — background is the glow and nothing else, no second layer
-- **Law 13** — contrast ≥ 4.5:1 on both `.glass-a` and `.glass-b`, in Aurora
-  **and** in Đá mịn; tablet buttons ≥ 48px
+- **Law 13** — contrast ≥ 4.5:1 on both `.glass-a` and `.glass-b`, in Aurora,
+  Đá mịn **and** Sứ; tablet buttons ≥ 48px
 - **Law 16** — object status is a text pill; dots are only markers or legends
 - **Mail templates** — no compiler renders them and no test runs them, so any
   change in `packages/mail-templates` must be checked with

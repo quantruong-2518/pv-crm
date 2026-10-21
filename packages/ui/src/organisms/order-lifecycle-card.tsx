@@ -34,7 +34,7 @@ function LifecycleTrack({
   labels: OrderLifecycleCardProps['milestoneLabels']
 }) {
   return (
-    <div className="rounded-md bg-black/20 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+    <div className="porcelain:bg-surface-ink/5 rounded-md bg-black/20 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
       <div className="flex items-center">
         {steps.map((step, i) => (
           <span key={i} className="contents">
@@ -85,7 +85,7 @@ export function OrderLifecycleCard({
       <Progress
         value={progress.value}
         label={progress.label}
-        className="rounded-md bg-black/20 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
+        className="porcelain:bg-surface-ink/5 rounded-md bg-black/20 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]"
       />
 
       <LifecycleTrack steps={milestones} labels={milestoneLabels} />

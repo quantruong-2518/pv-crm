@@ -1,4 +1,4 @@
-import { useThemeMode, wordmarkBlue, markBlue, ThemeSwitch } from '@pv/ui'
+import { THEME_LABEL, useThemeMode, wordmarkBlue, markBlue, ThemeSwitch } from '@pv/ui'
 import { AuroraField, markLight, wordmarkLight } from '@pv/ui'
 import { ZoneAtoms } from '@/kit/zone-atoms'
 import { ZoneFoundations } from '@/kit/zone-foundations'
@@ -47,13 +47,13 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
           <div className="max-w-[680px]">
             <div className="mb-5 flex items-center gap-4">
               <img
-                src={themeMode === 'stone' ? wordmarkBlue : wordmarkLight}
+                src={themeMode !== 'aurora' ? wordmarkBlue : wordmarkLight}
                 alt="Pebble Vina"
                 className="block h-[34px] w-auto"
               />
               <span className="bg-surface-ink/16 h-5 w-px" />
               <span className="text-muted-foreground font-mono text-[11px] font-semibold uppercase tracking-[.18em]">
-                {themeMode === 'stone' ? 'Đá mịn · sáng' : 'Aurora · v2.0'}
+                {themeMode === 'aurora' ? 'Aurora · v2.0' : `${THEME_LABEL[themeMode]} · sáng`}
               </span>
             </div>
             <h1 className="font-display m-0 text-[40px] font-semibold leading-[1.15] tracking-[-.8px]">
@@ -142,7 +142,7 @@ export function ThemeKit({ showChecklist = true }: { showChecklist?: boolean }) 
             tương phản cao.
           </div>
           <img
-            src={themeMode === 'stone' ? markBlue : markLight}
+            src={themeMode !== 'aurora' ? markBlue : markLight}
             alt=""
             className="size-10 object-contain opacity-70"
           />

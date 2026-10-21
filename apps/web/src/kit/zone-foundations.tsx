@@ -179,7 +179,7 @@ export function ZoneFoundations() {
                   {row.token}
                 </span>
                 <span className="text-muted-foreground text-[11.5px]">
-                  {theme === 'stone' ? values[row.token] : row.note}
+                  {theme === 'aurora' ? row.note : values[row.token]}
                 </span>
               </div>
             ))}

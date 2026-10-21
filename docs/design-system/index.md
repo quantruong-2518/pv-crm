@@ -16,16 +16,17 @@ goes missing:
 
 ## Files
 
-| File            | Content                                                                              |
-| --------------- | ------------------------------------------------------------------------------------ |
-| `laws.md`       | The fifteen hard laws, plus which are machine-gated vs. eyes-only                    |
-| `tokens.md`     | Real token names — the copy-paste source for `screen-builder`                        |
-| `devices.md`    | The three device frames, sizes, safe areas, button sizes                             |
-| `components.md` | The components already built in `@pv/ui`, in build order, with constraints           |
-| `screens.md`    | The five PV One screens — purpose, required states, the 03/09 rewrite of screen 01   |
-| `checklist.md`  | The pre-PR checklist — which lines CI runs, which line is eyes-only                  |
-| `stone-mode.md` | The light stone theme — how the light palette maps onto the same token names         |
-| `ui-copy.md`    | On-screen copy — who reads it, five faults with before/after, what the machine gates |
+| File                | Content                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `laws.md`           | The fifteen hard laws, plus which are machine-gated vs. eyes-only                    |
+| `tokens.md`         | Real token names — the copy-paste source for `screen-builder`                        |
+| `devices.md`        | The three device frames, sizes, safe areas, button sizes                             |
+| `components.md`     | The components already built in `@pv/ui`, in build order, with constraints           |
+| `screens.md`        | The five PV One screens — purpose, required states, the 03/09 rewrite of screen 01   |
+| `checklist.md`      | The pre-PR checklist — which lines CI runs, which line is eyes-only                  |
+| `stone-mode.md`     | The light stone theme — how the light palette maps onto the same token names         |
+| `porcelain-mode.md` | The Sứ theme — light, rounded, soft; how it is picked and what it changes            |
+| `ui-copy.md`        | On-screen copy — who reads it, five faults with before/after, what the machine gates |
 
 ## Old section → new file
 

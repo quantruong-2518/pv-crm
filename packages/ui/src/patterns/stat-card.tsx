@@ -88,7 +88,9 @@ export function StatCard({
         // px-5 py-[18px] của bản vẽ gốc không thuộc thang 8 bậc (luật 7) —
         // trả nợ luôn ở đây: p-5 = 20px, bậc gần nhất.
         compact ? 'px-4 py-3' : 'p-5',
-        !compact && sparkline && 'h-[150px]',
+        // Porcelain lifts the small lines to 12–13px, which pushes the sparkline caption
+        // out of 150px; the taller frame keeps it inside.
+        !compact && sparkline && 'porcelain:h-[166px] h-[150px]',
         className,
       )}
     >

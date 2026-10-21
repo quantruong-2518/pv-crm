@@ -1,6 +1,8 @@
 # Stone — the light mode
 
-The second mode — the `light` theme of Pebble Aurora, shipped under the name the header already uses. Asked for on 16/09/2026: a light, restrained, minimal surface for office sales users. Aurora is the default; the user switches with the Aurora / "Đá mịn" button in the app header or on the sign-in screen. The choice is stored under `pv-theme` in the browser and stays in sync across tabs.
+> A third theme, Sứ (`porcelain`), was added 21/10/2026: `docs/decisions/0108-third-theme-porcelain.md`.
+
+The second mode — the `light` theme of Pebble Aurora, shipped under the name the header already uses. Asked for on 16/09/2026: a light, restrained, minimal surface for office sales users. Aurora is the default; the user switches with the theme switch in the app header or on the sign-in screen, which cycles Aurora → Đá mịn → Sứ. The choice is stored under `pv-theme` in the browser and stays in sync across tabs.
 
 ## Material and colour
 
