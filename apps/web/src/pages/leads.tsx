@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Contact, ImagePlus, Plus } from '@pv/ui'
+import { Contact, EyeOff, ImagePlus, Pin, Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -14,14 +14,13 @@ import {
   SearchField,
   SegmentedControl,
 } from '@pv/ui'
-import { LEAD_ACTIVE_STATES, LeadBookQuery, OWNER_NONE } from '@pv/contracts'
+import { LeadBookQuery, OWNER_NONE } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { searchHint } from '@/lib/search-box'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { leadBookQuery, leadFacetsQuery, leadSearchQuery, leadsByCodesQuery } from '@/data/leads'
-import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { leadProfileQuery } from '@/data/lead-profile'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
@@ -44,21 +43,12 @@ import {
   DisabledAtCell,
   CreatedByCell,
   EnteredCell,
-  LabelFilterMenu,
   LeadPicCell,
   ScoreStrip,
   SourceCell,
   StatusCell,
 } from './leads-parts'
-import {
-  DISABLED,
-  PINNED,
-  STATE_TABS,
-  stateTabOf,
-  tabCount,
-  tabPatch,
-  useLeadFilterChips,
-} from './leads-model'
+import { STATE_TABS, stateTabOf, tabCount, tabPatch, useLeadFilterChips } from './leads-model'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
@@ -172,26 +162,29 @@ export function LeadsPage() {
      exactly the viewer's own leads, so a hand-picked owner list stays as is. */
   const mineOnly = meId !== undefined && query.owner === meId
   const disabledView = query.disabled === true
-  const heldView = !disabledView && !pinnedView && query.state === 'held'
+  const heldView = !disabledView && query.state === 'held'
 
   /* One read answers every tab — `byState` under the current search and source
      filter; `open` and `all` are sums the screen takes — and feeds the
      no-campaign half of the source select (`sourceKinds`). See `LeadFacets`. */
   /* Asked WITHOUT `disabled`, so the state tabs keep counting the live book
-     while the switched-off tab is open — and `LeadFacetsQuery.parse` takes the
+     while the switched-off view is on — and `LeadFacetsQuery.parse` takes the
      wire's 'true'/'false', not the boolean the URL parse already produced. */
   const { data: counts } = useQuery(leadFacetsQuery({ ...urlQuery, disabled: undefined }))
-  const byState = counts?.byState
-  const tabs = [
-    ...STATE_TABS.map((t) => ({ value: t.key, label: t.label, count: tabCount(counts, t.key) })),
-    { value: PINNED, label: 'Đã ghim', count: pinCount },
-    ...(canDisable ? [{ value: DISABLED, label: 'Đã vô hiệu', count: counts?.disabled }] : []),
-  ]
-  const tabValue = pinnedView ? PINNED : query.disabled ? DISABLED : stateTabOf(query.state)
-  const onTab = (value: string) => {
-    /* A selection never crosses the switched-off tab's edge: its action flips. */
-    if ((value === DISABLED) !== disabledView) clearSelection()
-    patch(tabPatch(value, query.states))
+  const tabs = STATE_TABS.map((t) => ({
+    value: t.key,
+    label: t.label,
+    count: tabCount(counts, t.key),
+  }))
+  const tabValue = stateTabOf(query.state)
+  const onTab = (value: string) => patch(tabPatch(value, query.states))
+  /* The switched-off view lists every state, and its action flips, so a
+     selection never crosses its edge. */
+  const onDisabledView = () => {
+    clearSelection()
+    patch(
+      disabledView ? { disabled: undefined } : { disabled: true, state: 'all', pinned: undefined },
+    )
   }
 
   /* Options come from the facets, so a filter never offers a value no lead
@@ -201,15 +194,11 @@ export function LeadsPage() {
     { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
     ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
   ]
-  const creatorOptions = [
-    { value: OWNER_NONE, label: 'Chưa ghi nhận' },
-    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
-  ]
   const originOptions = (counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name }))
   const csvOf = (v?: string) => (v ? v.split(',') : [])
   const listFilter = (
     label: string,
-    key: 'owner' | 'createdBy' | 'origin' | 'states',
+    key: 'owner' | 'origin',
     options: { value: string; label: string }[],
   ) => (
     <ColumnFilter label={label} active={Boolean(query[key])}>
@@ -223,15 +212,8 @@ export function LeadsPage() {
       )}
     </ColumnFilter>
   )
-  const stateOptions = LEAD_ACTIVE_STATES.map((state) => ({
-    value: state,
-    label:
-      byState === undefined
-        ? LEAD_STATE_FACE[state].label
-        : `${LEAD_STATE_FACE[state].label} · ${byState[state] ?? 0}`,
-  }))
   const dateFilter = (
-    <ColumnFilter label="Ngày tạo" active={Boolean(query.createdFrom || query.createdTo)}>
+    <ColumnFilter iconOnly label="Ngày tạo" active={Boolean(query.createdFrom || query.createdTo)}>
       {(close) => (
         <ColumnFilterRange
           from={query.createdFrom}
@@ -332,17 +314,16 @@ export function LeadsPage() {
 
   const table: BookTable = {
     minWidth: 'min-w-[960px]',
-    /* The arrow lights only while the book sorts by this column; the default
-       order (`createdAt desc`) is no column on the table. */
-    sort: query.sort === 'company' ? { key: 'company', dir: query.dir } : undefined,
+    /* The default order (`createdAt desc`) lights the entry-date arrow. */
+    sort: query.sort === 'daysHere' ? undefined : { key: query.sort, dir: query.dir },
     onSort: (key) => {
-      /* The only sortable column; any other key would die at the server's
+      /* Only these two columns sort; any other key would die at the server's
          zod gate as a 400. */
-      if (key !== 'company') return
+      if (key !== 'company' && key !== 'createdAt') return
       patch(
-        query.sort === 'company'
+        query.sort === key
           ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-          : { sort: 'company', dir: 'asc' },
+          : { sort: key, dir: key === 'company' ? 'asc' : 'desc' },
       )
     },
     columns: [
@@ -360,24 +341,21 @@ export function LeadsPage() {
       },
       { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
       { header: listFilter('Nguồn lead', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
-      {
-        header:
-          tabValue === 'active' ? listFilter('Trạng thái', 'states', stateOptions) : 'Trạng thái',
-        width: 'minmax(0,1.2fr)',
-      },
+      { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
       heldView
         ? { header: 'Ngày hẹn gặp lại', width: 'minmax(0,1fr)' }
-        : { header: dateFilter, width: 'minmax(0,0.8fr)' },
+        : {
+            header: 'Ngày tạo',
+            sortKey: 'createdAt',
+            filter: dateFilter,
+            width: 'minmax(0,0.9fr)',
+          },
       /* A switched-off lead takes no hand-over and no pin: the two action
          columns give way to the one fact that tab adds. */
       ...(disabledView
         ? [{ header: 'Ngày vô hiệu hóa', width: 'minmax(0,1.1fr)' }]
         : [
-            {
-              header: listFilter('Người tạo', 'createdBy', creatorOptions),
-              width: '140px',
-              align: 'center' as const,
-            },
+            { header: 'Người tạo', width: '140px', align: 'center' as const },
             {
               header: listFilter('Người phụ trách', 'owner', ownerOptions),
               width: '140px',
@@ -547,11 +525,22 @@ export function LeadsPage() {
                   onPress={() => patch({ owner: mineOnly ? undefined : meId })}
                 />
               )}
-              <LabelFilterMenu
-                labels={counts?.labels ?? []}
-                selected={csvOf(query.label)}
-                onApply={(v) => patch({ label: v.length ? v.join(',') : undefined })}
+              <BookQueueButton
+                icon={Pin}
+                label="Đã ghim"
+                count={undefined}
+                active={pinnedView}
+                onPress={() => patch({ pinned: pinnedView ? undefined : true })}
               />
+              {canDisable && (
+                <BookQueueButton
+                  icon={EyeOff}
+                  label="Đã vô hiệu"
+                  count={undefined}
+                  active={disabledView}
+                  onPress={onDisabledView}
+                />
+              )}
               {dirty && (
                 <Button
                   size="md"
