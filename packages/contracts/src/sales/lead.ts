@@ -1060,21 +1060,20 @@ export const LeadLabelOptionsResponse = z.object({ rows: z.array(LeadLabelOption
  *  signed? — and inventing an answer here would bake it in unread.
  *
  *  ------------------------------------------------------------------
- *  `firstMeetings` IS A DEFINITION CHANGE, ON PURPOSE
+ *  EVERY COUNT IS A COUNT OF LEADS
  *  ------------------------------------------------------------------
- *  It counts leads with AT LEAST ONE meeting (`sales.meeting`). The frozen
- *  fixture computed something else — MQL plus a reachable channel — which was
- *  never derivable from real columns, and that gap is exactly why the scorecard
- *  sat on frozen constants for two days after the book was cut over to Neon.
- *  The new definition is one the meeting book can actually answer, and it is
- *  the same fact the "Lần gặp đầu" label on the lead detail screen shows — so
- *  the number on the card and the label on the row cannot disagree. */
+ *  A lead with two deals or four contracts is one lead; counting rows printed
+ *  "6/6 signed" on a book where two leads had signed. "Contacted"
+ *  is the funnel's and the KPI's definition (`realExchanges`, ADR 0088 §21):
+ *  a booked meeting that has not happened yet does not count. */
 export const LeadScorecard = z.object({
   /** Every lead in the book, whatever its status — the denominator. */
   leads: z.number().int().nonnegative(),
-  /** Leads with at least one recorded meeting. */
-  firstMeetings: z.number().int().nonnegative(),
+  /** Leads with at least one real exchange. */
+  contacted: z.number().int().nonnegative(),
+  /** Leads with at least one deal, whatever became of it. */
   opportunities: z.number().int().nonnegative(),
+  /** Leads with at least one signed contract, terminated ones included. */
   contracts: z.number().int().nonnegative(),
 })
 

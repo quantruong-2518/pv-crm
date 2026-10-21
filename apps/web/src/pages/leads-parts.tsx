@@ -66,12 +66,12 @@ export function ScoreStrip() {
     {
       icon: CalendarCheck,
       label: 'Đã liên hệ lần đầu',
-      value: count(data?.firstMeetings),
+      value: count(data?.contacted),
       hint:
         total === 0
           ? 'Chưa có lead để tính tỷ lệ'
-          : `${count(data?.firstMeetings)}/${total} lead đã có buổi liên hệ đầu tiên`,
-      warn: zero(data?.firstMeetings),
+          : `${count(data?.contacted)}/${total} lead đã được liên hệ`,
+      warn: zero(data?.contacted),
     },
     {
       icon: Target,

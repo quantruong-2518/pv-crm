@@ -96,8 +96,8 @@ export function useAddMeeting() {
     onSuccess: (_row, { subject }) => {
       meetingsMoved(client, subject.code)
       if (subject.kind !== 'lead') return
-      /* `firstMeetings` counts leads with a meeting; a future `at` moves the
-         lead to `verifying`, a past one to `working` (ADR 0063 §2). */
+      /* A held meeting counts the lead as contacted on the card; a future `at`
+         moves the lead to `verifying`, a past one to `working` (ADR 0063 §2). */
       void client.invalidateQueries({ queryKey: SCORECARD_KEY })
       invalidateLeadState(client)
     },
@@ -134,8 +134,8 @@ export function useDropMeeting() {
       }),
     onSuccess: (_void, { subject }) => {
       meetingsMoved(client, subject.code)
-      /* Dropping a lead's LAST meeting takes it out of `firstMeetings`; the
-         screen cannot tell whether it was the last, so the card re-reads. */
+      /* Dropping a lead's only held meeting can take it out of "contacted"; the
+         screen cannot tell, so the card re-reads. */
       if (subject.kind === 'lead') void client.invalidateQueries({ queryKey: SCORECARD_KEY })
     },
   })

@@ -48,6 +48,7 @@ import { partner } from '../partner/partner.schema'
 import { leadDealHeldBy, leadSigned } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import { contact } from '../contact/contact.schema'
+import { realExchanges } from '../performance/real-exchange'
 import { lead, leadLabel } from './lead.schema'
 import { labelsOf, leadLabelledAny } from './lead-label.sql'
 import { leadHolderScope, leadLive, leadScope } from './lead-scope'
@@ -778,41 +779,34 @@ export class LeadRepository {
     ]
   }
 
-  /** Bốn con số của thẻ điểm, MỘT lượt đi tới database.
+  /** The scorecard's four counts in ONE round trip: four scalar subqueries in
+   *  one statement, because Neon bills per query.
    *
-   *  Bốn `SELECT count(*)` rời nhau là bốn vòng tới Neon cho một tấm thẻ, và
-   *  Neon tính tiền theo lượt hỏi. Bốn truy vấn con vô hướng trong một câu thì
-   *  planner chạy mỗi cái đúng một lần và trả về một dòng bốn cột.
-   *
-   *  `count(DISTINCT lead_code)` ở cột thứ hai là chỗ dễ viết sai nhất cả câu:
-   *  một lead họp bốn lần vẫn là MỘT lead đã gặp. Bỏ `DISTINCT` thì tỉ lệ
-   *  "first meeting / lead" vượt 100% ngay tuần đầu có người chăm ghi họp, và
-   *  nó sai theo hướng trông như một tin tốt.
-   *
-   *  Đếm THÔ, không lọc `exit_reason`: mẫu số là mọi lead từng vào sổ, đúng như
-   *  hằng `FUNNEL` đóng băng mà nó thay thế. Một lead đã rơi vẫn là một lead
-   *  từng được đầu tư — bỏ nó ra khỏi mẫu số là tự nâng mọi tỉ lệ. */
+   *  Not filtered by state or `exit_reason`: the denominator is every lead that
+   *  entered the book. A parked lead was still worked — dropping it from the
+   *  denominator would inflate every ratio. */
   async scorecard(): Promise<{
     leads: number
-    firstMeetings: number
+    contacted: number
     opportunities: number
     contracts: number
   }> {
+    /* Every count is of LEADS, not rows: a lead with two deals or four contracts
+       is one lead, or the ratios run past 100%. */
     const r = (await this.db.execute(sql`
       WITH live AS (SELECT "code" FROM "sales"."lead" WHERE "disabled_at" IS NULL)
       SELECT
         (SELECT count(*)::int FROM live)                                         AS leads,
-        (SELECT count(DISTINCT m."subject_code")::int FROM "sales"."meeting" m
-           JOIN live ON live."code" = m."subject_code"
-          WHERE m."subject_code" LIKE 'LD-%' AND m."cancelled_at" IS NULL)     AS first_meetings,
-        (SELECT count(*)::int FROM "sales"."opportunity" o
+        (SELECT count(*)::int FROM live
+          WHERE EXISTS (${realExchanges(sql`live."code"`)}))                     AS contacted,
+        (SELECT count(DISTINCT o."lead_code")::int FROM "sales"."opportunity" o
            JOIN live ON live."code" = o."lead_code")                            AS opportunities,
-        (SELECT count(*)::int FROM "sales"."contract" c
+        (SELECT count(DISTINCT c."lead_code")::int FROM "sales"."contract" c
            JOIN live ON live."code" = c."lead_code")                            AS contracts
     `)) as {
       rows: {
         leads: number
-        first_meetings: number
+        contacted: number
         opportunities: number
         contracts: number
       }[]
@@ -821,7 +815,7 @@ export class LeadRepository {
     const row = r.rows[0]
     return {
       leads: row?.leads ?? 0,
-      firstMeetings: row?.first_meetings ?? 0,
+      contacted: row?.contacted ?? 0,
       opportunities: row?.opportunities ?? 0,
       contracts: row?.contracts ?? 0,
     }
