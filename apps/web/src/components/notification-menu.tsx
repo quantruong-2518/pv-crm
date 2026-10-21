@@ -1,16 +1,18 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Button, Skeleton } from '@pv/ui'
+import { Button, SegmentedControl, Skeleton } from '@pv/ui'
 import type { NotificationRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import {
   NOTIFICATIONS_PATH,
   NOTIFICATION_PAGE_SIZE,
   notificationListQuery,
+  notificationPageQuery,
+  unreadIds,
   useMarkNotificationsRead,
 } from '@/data/notifications'
-import { NotificationLine } from './notification-line'
+import { NotificationList } from './notification-list'
 
 /** Body of the bell's dropdown — the reader's newest notifications.
  *
@@ -36,7 +38,13 @@ export function NotificationMenu({
   unread: number | undefined
 }) {
   const navigate = useNavigate()
-  const list = useInfiniteQuery(notificationListQuery())
+  const [tab, setTab] = useState<'all' | 'unread'>('all')
+  const everything = useInfiniteQuery(notificationListQuery())
+  const unreadOnly = useInfiniteQuery({
+    ...notificationPageQuery({ unread: '1' }),
+    enabled: tab === 'unread',
+  })
+  const list = tab === 'unread' ? unreadOnly : everything
   const markRead = useMarkNotificationsRead()
   const heading = useRef<HTMLHeadingElement>(null)
 
@@ -55,8 +63,9 @@ export function NotificationMenu({
     }
   }, [])
 
-  const press = (row: NotificationRow, path: string | null) => {
-    if (!row.readAt) markRead.mutate({ ids: [row.id] })
+  const press = (lines: NotificationRow[], path: string | null) => {
+    const ids = unreadIds(lines)
+    if (ids.length) markRead.mutate({ ids })
     if (!path) return
     close()
     navigate(path)
@@ -82,10 +91,24 @@ export function NotificationMenu({
             disabled={markRead.isPending}
             onClick={() => markRead.mutate({ all: true })}
           >
-            Đánh dấu đã đọc hết
+            Đọc hết
           </Button>
         ) : null}
       </div>
+
+      <SegmentedControl
+        label="Lọc"
+        hideLabel
+        tone="quiet"
+        size="sm"
+        className="px-2"
+        value={tab}
+        options={[
+          { value: 'all', label: 'Tất cả', count: everything.data?.total },
+          { value: 'unread', label: 'Chưa đọc', count: unread },
+        ]}
+        onChange={(value) => setTab(value === 'unread' ? 'unread' : 'all')}
+      />
 
       {list.isPending ? (
         <div className="glass-b flex flex-col gap-4 rounded-lg p-4" aria-busy="true">
@@ -109,14 +132,12 @@ export function NotificationMenu({
         </div>
       ) : rows.length === 0 ? (
         <p className="glass-b text-muted-foreground m-0 rounded-lg p-4 text-[12.5px] leading-[1.65]">
-          Chưa có thông báo nào.
+          {tab === 'unread' ? 'Bạn đã đọc hết thông báo.' : 'Chưa có thông báo nào.'}
         </p>
       ) : (
-        <ul className="glass-b m-0 flex min-h-0 flex-1 list-none flex-col gap-1 overflow-y-auto rounded-lg p-1">
-          {rows.map((row) => (
-            <NotificationLine key={row.id} row={row} onPress={press} />
-          ))}
-        </ul>
+        <div className="glass-b min-h-0 flex-1 overflow-y-auto rounded-lg p-2">
+          <NotificationList rows={rows} onPress={press} />
+        </div>
       )}
 
       <Button

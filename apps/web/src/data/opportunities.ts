@@ -425,7 +425,7 @@ export function stageClockOf(
 
 /* `en-CA` formats as YYYY-MM-DD; the zone is the server's day boundary, so a
    UTC slice cannot print yesterday before 07:00. */
-const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
+export const VN_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' })
 
 /** Today as a Vietnam calendar day — the day every `Day` on the wire is in. */
 export const vnToday = () => VN_DAY.format(Date.now())
@@ -492,6 +492,7 @@ export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draf
   open: 'running',
   lost: 'draft',
   won: 'success',
+  terminated: 'draft',
 }
 
 /** Ink for a pill whose tone ink falls short, born as a law 13 rescue when

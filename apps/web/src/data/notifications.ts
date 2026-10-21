@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-query'
 import {
   KpiPeriodKey,
+  NOTIFICATION_READ_MAX,
   NOTIFICATION_SUBJECT_PERMISSION,
   type NotificationListQuery,
   type NotificationListResponse,
@@ -190,6 +191,14 @@ export const notificationPageQuery = (filter: ListFilter) =>
     ),
     refetchOnWindowFocus: (q) => sessionIsLive() && (q.state.data?.pages.length ?? 0) <= 1,
   })
+
+/** The ids a press on one line marks read: its unread rows, capped at what one
+ *  request may carry. */
+export const unreadIds = (rows: NotificationRow[]): string[] =>
+  rows
+    .filter((row) => row.readAt === null)
+    .map((row) => row.id)
+    .slice(0, NOTIFICATION_READ_MAX)
 
 /** One row or everything. Invalidation and the failure toast sit on the hook,
  *  not on the call: a row press navigates away, and per-call callbacks die

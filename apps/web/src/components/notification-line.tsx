@@ -1,4 +1,4 @@
-import { Badge, ChevronRight, Icon, cn, vnd } from '@pv/ui'
+import { Badge, Chip, Icon, cn, vnd } from '@pv/ui'
 import {
   NOTIFICATION_DETAIL_CONTRACT,
   NOTIFICATION_DETAIL_COUNT,
@@ -6,70 +6,106 @@ import {
   NOTIFICATION_DETAIL_FAILED,
   NOTIFICATION_DETAIL_NO,
   NOTIFICATION_DETAIL_STAGE,
+  NOTIFICATION_GROUP_LABEL,
+  NOTIFICATION_KIND_GROUP,
   NOTIFICATION_KIND_LABEL,
   type NotificationRow,
   type NotificationSubject,
 } from '@pv/contracts'
-import { dm, dmhm } from '@/lib/date'
-import { overdueInstallment, useNotificationPath } from '@/data/notifications'
+import { dm, hm } from '@/lib/date'
+import { overdueInstallment } from '@/data/notifications'
 import { sentenceOf } from '@/data/notification-sentence'
+import { GROUP_ICON, GROUP_TONE, TONE_INK, type Tone } from './notification-group'
 
-/** One notification, as the `/notifications` screen draws it. The caller owns
- *  what a press does; the line only says whether there is a place to go.
+/** Kinds that say something went wrong or is late, whatever their group. */
+const TROUBLE = /overdue|failed|broken|late|about-to-miss/
+
+/** Only these subjects carry a code a person reads (`OP-5020`); the rest carry
+ *  an id. */
+const READABLE_CODE = new Set<NotificationSubject>(['lead', 'opportunity', 'contract'])
+
+/** One notification, as the bell and `/notifications` draw it. `rows` is a run
+ *  of identical ones the list folded together, newest first; the caller owns
+ *  what a press does, the line only says whether there is a place to go.
  *
- *  Unread is said three ways so colour is never the only one: a text
- *  pill, heavier type, and brighter ink. Read rows use `--muted-foreground`
- *  at full opacity; dimming with `opacity` falls under law 13. */
+ *  Unread is said three ways so colour is never the only one: a spoken label,
+ *  heavier type, and a tinted row. Read rows use `--muted-foreground` at full
+ *  opacity; dimming with `opacity` falls under law 13. The day sits in the
+ *  list heading, so the row carries the hour only. */
 export function NotificationLine({
-  row,
+  rows,
+  path,
   onPress,
 }: {
-  row: NotificationRow
-  onPress: (row: NotificationRow, path: string | null) => void
+  rows: NotificationRow[]
+  path: string | null
+  onPress: (rows: NotificationRow[], path: string | null) => void
 }) {
-  const path = useNotificationPath()(row)
-  const unread = row.readAt === null
+  const row = rows[0]!
+  const unread = rows.some((r) => r.readAt === null)
+  const group = NOTIFICATION_KIND_GROUP[row.kind]
+  const tone: Tone = TROUBLE.test(row.kind) ? 'danger' : GROUP_TONE[group]
   const installment = overdueInstallment(row)
   const sentence = sentenceOf(row)
+  const { code, label } = row.subject
+  /* An id inside the label already says it; saying it twice is noise. */
+  const showCode = READABLE_CODE.has(row.subject.kind) && !label?.includes(code)
   /* An overdue installment adds which one, how much and since when. A built
      sentence already says the name and the counts. */
-  const extra = sentence
-    ? ''
-    : [
-        row.subject.label,
-        ...detailFragments(row),
-        installment ? `Đợt ${installment.no}` : null,
-        typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
-        installment?.due ? `hạn ${dm(installment.due)}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · ')
+  const context = [
+    ...(sentence
+      ? []
+      : [
+          label,
+          ...detailFragments(row),
+          installment ? `Đợt ${installment.no}` : null,
+          typeof installment?.amount === 'number' ? vnd(installment.amount) : null,
+          installment?.due ? `hạn ${dm(installment.due)}` : null,
+        ]),
+    row.actor?.name,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const body = (
     <>
-      <span className="flex min-w-0 flex-1 flex-col gap-1">
-        <span
-          className={cn(
-            'text-[12.5px] leading-[1.5]',
-            unread ? 'text-foreground font-semibold' : 'text-muted-foreground',
-          )}
-        >
-          {sentence ?? NOTIFICATION_KIND_LABEL[row.kind]}
+      <Icon
+        icon={GROUP_ICON[group]}
+        size={20}
+        className={cn('mt-1', unread ? TONE_INK[tone] : 'text-muted-foreground')}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-2">
+        <span className="flex items-start gap-3">
+          <span
+            className={cn(
+              'line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.5]',
+              unread ? 'text-foreground font-semibold' : 'text-muted-foreground',
+            )}
+          >
+            {unread ? <span className="sr-only">Chưa đọc. </span> : null}
+            {sentence ?? NOTIFICATION_KIND_LABEL[row.kind]}
+          </span>
+          <time
+            dateTime={row.createdAt}
+            className="text-muted-foreground tnum shrink-0 text-[11.5px] leading-[1.5]"
+          >
+            {hm(row.createdAt)}
+          </time>
         </span>
-        {extra ? (
-          <span className="text-muted-foreground tnum text-[12.5px] leading-[1.5]">{extra}</span>
-        ) : null}
-        <span className="text-muted-foreground tnum flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] leading-[1.5]">
-          {unread ? <Badge tone="running">Chưa đọc</Badge> : null}
-          {row.actor ? <span>{row.actor.name}</span> : null}
-          <time dateTime={row.createdAt}>{dmhm(row.createdAt)}</time>
+        <span className="text-muted-foreground tnum flex flex-wrap items-center gap-2 text-[12px] leading-[1.5]">
+          <Badge tone={unread ? tone : 'draft'}>{NOTIFICATION_GROUP_LABEL[group]}</Badge>
+          {rows.length > 1 ? (
+            <span className="text-foreground font-semibold">{rows.length} lần</span>
+          ) : null}
+          {showCode ? <Chip>{code}</Chip> : null}
+          {context ? <span className="min-w-0">{context}</span> : null}
         </span>
       </span>
-      {path ? (
-        <Icon icon={ChevronRight} size={16} className="text-muted-foreground shrink-0" />
-      ) : null}
     </>
   )
-  const frame = 'pointer-coarse:min-h-12 flex w-full items-center gap-3 rounded-md p-3 text-left'
+  const frame = cn(
+    'pointer-coarse:min-h-12 flex w-full items-start gap-3 rounded-md p-3 text-left',
+    unread && 'bg-primary/10',
+  )
 
   /* Nothing to open and nothing left to mark: a button here would press into
      nothing, so the row is plain text. */
@@ -79,7 +115,7 @@ export function NotificationLine({
     <li>
       <button
         type="button"
-        onClick={() => onPress(row, path)}
+        onClick={() => onPress(rows, path)}
         className={cn(frame, 'motion-std hover:bg-surface-ink/10')}
       >
         {body}

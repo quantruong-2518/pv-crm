@@ -6,10 +6,11 @@ import { useAppChrome } from '@/app/chrome'
 import { useBookQuery } from '@/app/book-query'
 import {
   notificationPageQuery,
+  unreadIds,
   unreadNotificationsQuery,
   useMarkNotificationsRead,
 } from '@/data/notifications'
-import { NotificationFeed, NotificationToolbar } from './notifications-parts'
+import { NotificationFeed, NotificationNav, NotificationToolbar } from './notifications-parts'
 
 /** The bell's whole list — `/notifications`, one reader's own rows.
  *
@@ -37,8 +38,9 @@ export default function NotificationsPage() {
   /* The count can be a minute older than the list, so the rows vote too. */
   const anyUnread = unreadCount !== 0 || rows.some((row) => row.readAt === null)
 
-  const press = (row: NotificationRow, path: string | null) => {
-    if (!row.readAt) markRead.mutate({ ids: [row.id] })
+  const press = (lines: NotificationRow[], path: string | null) => {
+    const ids = unreadIds(lines)
+    if (ids.length) markRead.mutate({ ids })
     if (path) navigate(path)
   }
 
@@ -58,18 +60,22 @@ export default function NotificationsPage() {
       <ScreenLayout>
         <ScreenHeader title="Thông báo" />
 
-        {/* Law 8 — a long list sits on `.glass-b`, and nothing inside draws a
-            second surface. */}
-        <GlassCard variant="b" aria-label="Thông báo">
-          <NotificationToolbar book={book} total={list.data?.total} markAll={markAll} />
-          <NotificationFeed
-            list={list}
-            narrowed={Boolean(query.group || query.q)}
-            unreadOnly={query.unread === '1'}
-            onPress={press}
-            onClear={book.clear}
-          />
-        </GlassCard>
+        <div className="flex flex-wrap items-start gap-6">
+          <NotificationNav book={book} />
+
+          {/* Law 8 — a long list sits on `.glass-b`, and nothing inside draws a
+              second surface. */}
+          <GlassCard variant="b" aria-label="Thông báo" className="min-w-0 flex-[999_1_560px]">
+            <NotificationToolbar book={book} total={list.data?.total} markAll={markAll} />
+            <NotificationFeed
+              list={list}
+              narrowed={Boolean(query.group || query.q)}
+              unreadOnly={query.unread === '1'}
+              onPress={press}
+              onClear={book.clear}
+            />
+          </GlassCard>
+        </div>
       </ScreenLayout>
     </AppShell>
   )
