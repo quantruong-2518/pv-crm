@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { salesGrainOf, type SalesPerformanceResponse } from '@pv/contracts'
@@ -19,12 +19,9 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
-import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
+import { workstreamScorecardQuery } from '@/data/workstreams'
 import { ActivityTile } from './home-activity'
-import { FullestTile } from './home-fullest'
 import { FunnelTile } from './home-funnel'
-import { PriorityList } from './home-list'
-import { listQueryOf, type ListFilter } from './home-model'
 import {
   GRAINS,
   compareLabel,
@@ -46,7 +43,7 @@ import {
   WinRateTile,
 } from './home-tiles'
 
-/** Screen 01 · Overview — a bento of sales figures over a short live list.
+/** Screen 01 · Overview — a bento of sales figures.
  *
  *  Follows the canvas design. Header: bold title, how far the period has run,
  *  and one pill frame with the four grains and the ‹ period › stepper. Under
@@ -54,12 +51,12 @@ import {
  *  Bento: flex-wrap rows as in the design. Row one is the signed tile (7)
  *  beside a column of three tiles (5); row two is the week's activity or the
  *  funnel (7) beside the exit reasons (5). Each row stacks below its basis.
- *  Under the bento, one "fullest step now" tile (`home-fullest.tsx`) shows at every grain.
+ *  The "fullest step now" tile (`home-fullest.tsx`) is kept but not drawn for now.
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
- *  A tile filters the list and never the other tiles; the period picker moves
- *  the period-scoped tiles and never the list. No ContextRail (law 10 debt). */
+ *  The overdue tile links to the workstream book; the period picker moves the
+ *  period-scoped tiles. No ContextRail (law 10 debt). */
 
 /* Flex bases are the design's, and skeletons take the same ones. Each bento row
    is its own wrap, or a wide screen would pull row two up beside row one. */
@@ -363,14 +360,10 @@ export function HomePage() {
   const canLead = useCan('lead.edit')
   const canDeal = useCan('opportunity.create')
   const canLog = useCan('comm.view') && canRuns
-  const canLeads = useCan('lead.view')
-  const canDeals = useCan('opportunity.view')
 
   const [pick, setPick] = useState(() => currentPick())
-  const [filter, setFilter] = useState<ListFilter | null>(null)
-  const listRef = useRef<HTMLDivElement>(null)
 
-  /* Previous data stays on screen across a period or filter change, so marks
+  /* Previous data stays on screen across a period change, so marks
      slide to their new size instead of dropping to a skeleton and back. */
   const charts = useQuery({
     ...salesPerformanceQuery(keyOf(pick)),
@@ -383,35 +376,8 @@ export function HomePage() {
     placeholderData: keepPreviousData,
   })
   const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
-  const list = useQuery({
-    ...workstreamBookQuery(listQueryOf(filter)),
-    enabled: canRuns,
-    placeholderData: keepPreviousData,
-  })
 
-  /* The list sits under the whole bento, so a tile press brings it into view
-     or the press would look like it did nothing. */
-  const applyFilter = (next: ListFilter | null) => {
-    setFilter(next)
-    if (next === null) return
-    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    listRef.current?.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' })
-  }
-
-  /* The overdue tile's "within your scope" note must not flip with the filter,
-     so it remembers the unfiltered read's `hidden` and ignores kept placeholders. */
-  const [scopedBook, setScopedBook] = useState(false)
-  if (filter === null && list.data && !list.isPlaceholderData) {
-    const scoped = list.data.hidden > 0
-    if (scoped !== scopedBook) setScopedBook(scoped)
-  }
-
-  const hidden = [
-    !canCharts && 'số hiệu suất',
-    !canRuns && 'hành trình',
-    !canLeads && 'lead theo bước',
-    !canDeals && 'cơ hội theo bước',
-  ].filter(Boolean)
+  const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
 
   const overdueTile = (className: string) =>
     canRuns && (
@@ -419,9 +385,6 @@ export function HomePage() {
         score={score.data}
         failed={score.error !== null}
         onRetry={() => void score.refetch()}
-        scoped={scopedBook}
-        active={filter?.by === 'overdue'}
-        onToggle={() => applyFilter(filter?.by === 'overdue' ? null : { by: 'overdue' })}
         className={className}
       />
     )
@@ -479,22 +442,6 @@ export function HomePage() {
           overdueTile={overdueTile}
           exitsTile={exitsTile}
         />
-
-        {(canLeads || canDeals) && <FullestTile />}
-
-        {canRuns && (
-          <div ref={listRef}>
-            <PriorityList
-              data={list.data}
-              score={score.data}
-              error={list.error}
-              refreshing={list.isPlaceholderData}
-              onRetry={() => void list.refetch()}
-              filter={filter}
-              onFilter={setFilter}
-            />
-          </div>
-        )}
 
         {hidden.length > 0 && (
           <p className="text-muted-foreground text-[12px] leading-4">

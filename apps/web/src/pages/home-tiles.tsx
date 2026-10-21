@@ -1,7 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowDown,
   ArrowRight,
   Button,
   EmptyState,
@@ -21,7 +20,16 @@ import {
 } from '@pv/ui'
 import type { SalesPerformanceResponse, WorkstreamScorecard } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { dealsHref, deltaOf, money, num, rateOf, type Delta } from './home-model'
+import {
+  WORKSTREAM_BOOK_HREF,
+  dealsHref,
+  deltaOf,
+  money,
+  num,
+  overdueRunsHref,
+  rateOf,
+  type Delta,
+} from './home-model'
 
 /** Shared parts of the overview bento and its three compact cards.
  *
@@ -50,6 +58,12 @@ export const PILL_LINK = cn(
   'rounded-full px-3 py-1 text-[12px] font-semibold leading-4 transition-colors',
   'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
   'motion-reduce:transition-none',
+)
+
+/** Focus ring and the 48px coarse floor for a link that is not a pill. */
+const TILE_LINK = cn(
+  'pointer-coarse:min-h-12 inline-flex items-center transition-colors motion-reduce:transition-none',
+  'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
 )
 
 /* The card shell: lifts on hover and rises in on first paint (`starting:`). */
@@ -314,25 +328,18 @@ export function WinRateTile({ data, className }: Figures) {
   )
 }
 
-/** The live count of exactly the set its press opens in the list below, so
- *  the number and the rows cannot disagree. */
+/** The live overdue count, with two doors to the workstream book: the count
+ *  opens exactly the set it names, the button opens the book whole. */
 export function OverdueTile({
   score,
   failed,
   onRetry,
-  scoped,
-  active,
-  onToggle,
   className,
 }: {
   /** Undefined while loading, and after a failed read (`failed` tells which). */
   score: WorkstreamScorecard | undefined
   failed: boolean
   onRetry: () => void
-  /** The book cut rows for scope, so this count is the reader's own share. */
-  scoped: boolean
-  active: boolean
-  onToggle: () => void
   className?: string
 }) {
   if (score === undefined) {
@@ -360,25 +367,19 @@ export function OverdueTile({
   const late = score.overdue
 
   return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onToggle}
+    <section
       className={cn(
         CARD_SHELL,
-        'pointer-coarse:min-h-12 w-full cursor-pointer items-center justify-between gap-4 text-left',
+        'w-full items-center justify-between gap-4',
         'bg-linear-to-br from-warning/10 via-warning/15 to-warning/20',
-        'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
-        active && '[box-shadow:0_0_0_2px_var(--ring),var(--shadow-panel)]',
         className,
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
         <IconTile icon={Timer} className="text-warning bg-card/75" />
         <span className="flex min-w-0 flex-col gap-1">
-          {/* Spans, not `TileHead`: a heading may not sit inside a button. */}
           <span className="flex items-center gap-2">
-            <span className={CARD_TITLE}>Hành trình quá hạn</span>
+            <h3 className={CARD_TITLE}>Hành trình quá hạn</h3>
             <span aria-hidden className="relative flex size-2">
               <span className="bg-destructive absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:animate-none" />
               <span className="bg-destructive relative size-2 rounded-full" />
@@ -386,18 +387,33 @@ export function OverdueTile({
           </span>
           <span className={cn(NOTE, 'tnum font-num')}>
             Trên <strong className="text-foreground font-semibold">{num(open)}</strong> hành trình
-            đang chạy{scoped && ' trong phạm vi của bạn'}
+            đang chạy
           </span>
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-2">
-        <span className={cn(CARD_BIG, late > 0 && 'text-warning')}>{num(late)}</span>
-        <span className="bg-card/80 text-warning inline-flex items-center gap-1 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold leading-4">
-          {active ? 'Bỏ lọc' : `Xem ${num(late)} hành trình`}
-          <Icon icon={ArrowDown} size={14} />
-        </span>
+        {late > 0 ? (
+          <Link to={overdueRunsHref()} className={cn(TILE_LINK, 'flex-col items-end gap-1')}>
+            <span className={cn(CARD_BIG, 'text-warning')}>{num(late)}</span>
+            <span className="text-foreground text-[12px] font-semibold leading-4">
+              hành trình quá hạn
+            </span>
+          </Link>
+        ) : (
+          <span className={CARD_BIG}>{num(late)}</span>
+        )}
+        <Link
+          to={WORKSTREAM_BOOK_HREF}
+          className={cn(
+            TILE_LINK,
+            'bg-card/80 text-warning gap-1 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold leading-4',
+          )}
+        >
+          Xem tất cả hành trình
+          <Icon icon={ArrowRight} size={14} />
+        </Link>
       </span>
-    </button>
+    </section>
   )
 }
 

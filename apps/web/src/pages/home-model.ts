@@ -10,15 +10,13 @@ import {
   type SalesCohort,
   type SalesDayRange,
   type SalesStopReason,
-  type WorkstreamBookQuery,
 } from '@pv/contracts'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { DEFAULT_OPPORTUNITY_BOOK_QUERY, opportunityBookQueryToParams } from '@/data/opportunities'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQueryToParams } from '@/data/workstreams'
 
 /** Calculation behind the overview screen (`home.tsx`): how a figure compares
- *  with the period before, and which question the short list asks the
- *  workstream book. The overview's own four-grain picker lives in
+ *  with the period before, and the book addresses its tiles open. The overview's own four-grain picker lives in
  *  `home-period.ts`; the month/quarter picker below is the KPI and cost
  *  screens'. No render, no fetch. */
 
@@ -196,32 +194,16 @@ export const exitedLeadsHref = (reason: string, days: SalesDayRange): string =>
   })}`
 
 // ---------------------------------------------------------------------------
-// THE SHORT LIST — one filter at a time, set by a tile
+// THE WORKSTREAM BOOK — where the overdue tile sends the reader
 // ---------------------------------------------------------------------------
 
-/** The list has one narrowing, set by the overdue tile or tab; null shows every run, closed ones too. */
-export type ListFilter = { by: 'overdue' }
+/** The book at its default view. */
+export const WORKSTREAM_BOOK_HREF = '/sales/workstreams'
 
-/** Rows the overview shows before sending the reader to the book. */
-export const LIST_ROWS = 3
-
-/** The book's own priority ladder over every run, closed ones included, narrowed by the tile filter
- *  with the same params the book's score strip sends. */
-export function listQueryOf(filter: ListFilter | null): WorkstreamBookQuery {
-  return {
+/** The book on open runs past their deadline: the set the scorecard's overdue count names. */
+export const overdueRunsHref = (): string =>
+  `${WORKSTREAM_BOOK_HREF}?${workstreamBookQueryToParams({
     ...DEFAULT_WORKSTREAM_BOOK_QUERY,
-    status: 'all',
-    sort: 'priority',
-    size: LIST_ROWS,
-    ...(filter?.by === 'overdue' ? { overdue: true } : {}),
-  }
-}
-
-/** The book opened on the same filter, at the book's own page size. */
-export function bookHrefOf(filter: ListFilter | null): string {
-  const params = workstreamBookQueryToParams({
-    ...listQueryOf(filter),
-    size: DEFAULT_WORKSTREAM_BOOK_QUERY.size,
-  })
-  return params === '' ? '/sales/workstreams' : `/sales/workstreams?${params}`
-}
+    status: 'open',
+    overdue: true,
+  })}`
