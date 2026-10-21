@@ -8,8 +8,8 @@ import {
   Icon,
   Minus,
   Skeleton,
+  Route,
   Target,
-  Timer,
   TrendingDown,
   TrendingUp,
   TriangleAlert,
@@ -18,16 +18,18 @@ import {
   percent,
   type IconGlyph,
 } from '@pv/ui'
-import type { SalesPerformanceResponse, WorkstreamScorecard } from '@pv/contracts'
+import type { SalesDayRange, SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import {
   WORKSTREAM_BOOK_HREF,
   dealsHref,
   deltaOf,
+  liveRunsQuery,
   money,
   num,
-  overdueRunsHref,
   rateOf,
+  runsHref,
+  stoppedRunsQuery,
   type Delta,
 } from './home-model'
 
@@ -285,42 +287,18 @@ export function WinRateTile({ data, className }: Figures) {
           <div className="flex flex-col gap-1">
             <h3 className={CARD_TITLE}>Tỷ lệ thắng</h3>
             <span className={cn(NOTE, 'tnum font-num')}>
-              {rate === null ? (
-                'Chưa có cơ hội đóng trong kỳ'
-              ) : canView ? (
-                `${num(wonDeals + lostDeals)} cơ hội đã đóng`
-              ) : (
-                <>
-                  <strong className="text-foreground font-semibold">{num(wonDeals)} thắng</strong>{' '}
-                  trên {num(wonDeals + lostDeals)} cơ hội đã đóng
-                </>
-              )}
+              {rate === null
+                ? 'Chưa có cơ hội đóng trong kỳ'
+                : `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(wonDeals + lostDeals)})`}
             </span>
-            {canView && rate !== null && (
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['won', wonDeals, 'đã ký'],
-                    ['lost', lostDeals, 'đã dừng'],
-                  ] as const
-                ).map(
-                  ([state, count, word]) =>
-                    count > 0 && (
-                      <Link key={state} to={dealsHref(state, data.span)} className={PILL_LINK}>
-                        <span className="tnum font-num">{num(count)}</span> {word}
-                        <Icon icon={ArrowRight} size={14} />
-                      </Link>
-                    ),
-                )}
-              </div>
+            {canView && wonDeals > 0 && (
+              <Link to={dealsHref('won', data.span)} className={cn(PILL_LINK, 'self-start')}>
+                Xem hợp đồng đã ký
+                <Icon icon={ArrowRight} size={14} />
+              </Link>
             )}
           </div>
-          {rate !== null &&
-            (delta ? (
-              <DeltaLine delta={delta} />
-            ) : (
-              <span className={NOTE}>Kỳ trước chưa có cơ hội đóng</span>
-            ))}
+          {delta && <DeltaLine delta={delta} />}
         </div>
       </div>
       {rate === null ? <span className={CARD_BIG}>—</span> : <WinRing rate={rate} />}
@@ -328,24 +306,29 @@ export function WinRateTile({ data, className }: Figures) {
   )
 }
 
-/** The live overdue count, with two doors to the workstream book: the count
- *  opens exactly the set it names, the button opens the book whole. */
-export function OverdueTile({
-  score,
+/** Journeys stopped in the period over journeys running in it. Both counts
+ *  are the `total` of the book queries their links open, so the number always
+ *  equals the list; the button opens the book whole. */
+export function RunsTile({
+  stopped,
+  live,
+  span,
   failed,
   onRetry,
   className,
 }: {
   /** Undefined while loading, and after a failed read (`failed` tells which). */
-  score: WorkstreamScorecard | undefined
+  stopped: number | undefined
+  live: number | undefined
+  span: SalesDayRange
   failed: boolean
   onRetry: () => void
   className?: string
 }) {
-  if (score === undefined) {
+  if (stopped === undefined || live === undefined) {
     return (
       <GlassCard className={cn(TILE, 'rounded-3xl', className)}>
-        <TileHead title="Hành trình quá hạn" aside="hiện tại" />
+        <TileHead title="Hành trình đã dừng" />
         {failed ? (
           <div className="mt-auto flex flex-col items-start gap-2">
             <span className={cn(NOTE, 'text-destructive-foreground')}>Không tải được.</span>
@@ -363,50 +346,52 @@ export function OverdueTile({
     )
   }
 
-  const open = score.stages.reduce((n, s) => n + s.count, 0)
-  const late = score.overdue
+  /* A warning tint says "look at this": only a stop earns it. */
+  const warn = stopped > 0
+  const tone = warn ? 'text-on-tint-warning' : 'text-muted-foreground'
 
   return (
     <section
       className={cn(
         CARD_SHELL,
-        'w-full items-center justify-between gap-4',
-        'bg-linear-to-br from-warning/10 via-warning/15 to-warning/20',
+        'bg-linear-to-br w-full items-center justify-between gap-4',
+        warn ? 'from-warning/10 via-warning/15 to-warning/20' : 'from-card to-surface-ink/10',
         className,
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
-        <IconTile icon={Timer} className="text-warning bg-card/75" />
+        <IconTile icon={Route} className={cn(tone, 'bg-card/75')} />
         <span className="flex min-w-0 flex-col gap-1">
-          <span className="flex items-center gap-2">
-            <h3 className={CARD_TITLE}>Hành trình quá hạn</h3>
-            <span aria-hidden className="relative flex size-2">
-              <span className="bg-destructive absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:animate-none" />
-              <span className="bg-destructive relative size-2 rounded-full" />
-            </span>
-          </span>
-          <span className={cn(NOTE, 'tnum font-num')}>
-            Trên <strong className="text-foreground font-semibold">{num(open)}</strong> hành trình
-            đang chạy
+          <h3 className={CARD_TITLE}>Hành trình đã dừng</h3>
+          <span className={cn(NOTE, 'tnum font-num flex flex-wrap items-center gap-x-1')}>
+            trên
+            <Link
+              to={runsHref(liveRunsQuery(span))}
+              className={cn(TILE_LINK, 'text-foreground gap-1 font-semibold underline')}
+            >
+              {num(live)} hành trình đang chạy trong kỳ
+            </Link>
           </span>
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-2">
-        {late > 0 ? (
-          <Link to={overdueRunsHref()} className={cn(TILE_LINK, 'flex-col items-end gap-1')}>
-            <span className={cn(CARD_BIG, 'text-warning')}>{num(late)}</span>
-            <span className="text-foreground text-[12px] font-semibold leading-4">
-              hành trình quá hạn
-            </span>
+        {warn ? (
+          <Link
+            to={runsHref(stoppedRunsQuery(span))}
+            aria-label={`${num(stopped)} hành trình đã dừng`}
+            className={TILE_LINK}
+          >
+            <span className={cn(CARD_BIG, tone)}>{num(stopped)}</span>
           </Link>
         ) : (
-          <span className={CARD_BIG}>{num(late)}</span>
+          <span className={CARD_BIG}>{num(stopped)}</span>
         )}
         <Link
           to={WORKSTREAM_BOOK_HREF}
           className={cn(
             TILE_LINK,
-            'bg-card/80 text-warning gap-1 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold leading-4',
+            'bg-card/80 gap-1 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold leading-4',
+            warn && tone,
           )}
         >
           Xem tất cả hành trình

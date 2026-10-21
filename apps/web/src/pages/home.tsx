@@ -1,7 +1,11 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { salesGrainOf, type SalesPerformanceResponse } from '@pv/contracts'
+import {
+  salesGrainOf,
+  type SalesPerformanceResponse,
+  type WorkstreamBookQuery,
+} from '@pv/contracts'
 import {
   AppShell,
   ChevronLeft,
@@ -19,7 +23,7 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
-import { workstreamScorecardQuery } from '@/data/workstreams'
+import { workstreamBookQuery } from '@/data/workstreams'
 import { ActivityTile } from './home-activity'
 import { FunnelTile } from './home-funnel'
 import {
@@ -32,13 +36,14 @@ import {
   stepPick,
   type PeriodPick,
 } from './home-period'
+import { daysOfPeriod, liveRunsQuery, stoppedRunsQuery } from './home-model'
 import { ReasonsTile } from './home-reasons'
 import { SignedTile } from './home-signed'
 import {
   ChartsFailed,
   GROW_WIDTH,
   OpenValueTile,
-  OverdueTile,
+  RunsTile,
   TileSkeleton,
   WinRateTile,
 } from './home-tiles'
@@ -55,7 +60,7 @@ import {
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
- *  The overdue tile links to the workstream book; the period picker moves the
+ *  The runs tile links to the workstream book; the period picker moves the
  *  period-scoped tiles. No ContextRail (law 10 debt). */
 
 /* Flex bases are the design's, and skeletons take the same ones. Each bento row
@@ -273,7 +278,7 @@ type BentoProps = {
   stale: boolean
   canCharts: boolean
   canRuns: boolean
-  overdueTile: (className: string) => ReactNode
+  runsTile: (className: string) => ReactNode
   exitsTile: (className: string) => ReactNode
 }
 
@@ -285,7 +290,7 @@ function Bento({
   stale,
   canCharts,
   canRuns,
-  overdueTile,
+  runsTile,
   exitsTile,
 }: BentoProps) {
   /* The data's own period decides, not the picker's: a kept placeholder
@@ -301,7 +306,7 @@ function Bento({
       )}
     >
       {!canCharts ? (
-        <div className={ROW}>{overdueTile(SIDE)}</div>
+        <div className={ROW}>{runsTile(SIDE)}</div>
       ) : data ? (
         <>
           <div className={ROW}>
@@ -309,7 +314,7 @@ function Bento({
             <div className={SIDE_STACK}>
               <OpenValueTile data={data} className={SIDE_TILE} />
               <WinRateTile data={data} className={SIDE_TILE} />
-              {overdueTile(SIDE_TILE)}
+              {runsTile(SIDE_TILE)}
             </div>
           </div>
           <div className={ROW}>
@@ -329,7 +334,7 @@ function Bento({
               onRetry={onRetry}
               className={canRuns ? HERO : ROW_TWO_ALONE}
             />
-            {canRuns && <div className={SIDE_STACK}>{overdueTile(SIDE_TILE)}</div>}
+            {canRuns && <div className={SIDE_STACK}>{runsTile(SIDE_TILE)}</div>}
           </div>
           <div className={ROW}>{exitsTile(ROW_TWO_ALONE)}</div>
         </>
@@ -351,6 +356,15 @@ function Bento({
       )}
     </div>
   )
+}
+
+/** One page of one row: only the book's `total` is read. */
+function useRunsTotal(query: WorkstreamBookQuery, enabled: boolean) {
+  return useQuery({
+    ...workstreamBookQuery({ ...query, size: 1 }),
+    enabled,
+    placeholderData: keepPreviousData,
+  })
 }
 
 export function HomePage() {
@@ -375,16 +389,25 @@ export function HomePage() {
     enabled: canCharts,
     placeholderData: keepPreviousData,
   })
-  const score = useQuery({ ...workstreamScorecardQuery, enabled: canRuns })
+  /* The tile's span is the figures' own, so a kept placeholder moves both
+     together; before any figures it is the picked period. */
+  const runsSpan = charts.data?.span ?? daysOfPeriod(keyOf(pick))
+  const stoppedRead = useRunsTotal(stoppedRunsQuery(runsSpan), canRuns)
+  const liveRead = useRunsTotal(liveRunsQuery(runsSpan), canRuns)
 
   const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
 
-  const overdueTile = (className: string) =>
+  const runsTile = (className: string) =>
     canRuns && (
-      <OverdueTile
-        score={score.data}
-        failed={score.error !== null}
-        onRetry={() => void score.refetch()}
+      <RunsTile
+        stopped={stoppedRead.data?.total}
+        live={liveRead.data?.total}
+        span={runsSpan}
+        failed={stoppedRead.error !== null || liveRead.error !== null}
+        onRetry={() => {
+          void stoppedRead.refetch()
+          void liveRead.refetch()
+        }}
         className={className}
       />
     )
@@ -439,7 +462,7 @@ export function HomePage() {
           stale={stale}
           canCharts={canCharts}
           canRuns={canRuns}
-          overdueTile={overdueTile}
+          runsTile={runsTile}
           exitsTile={exitsTile}
         />
 

@@ -29,7 +29,7 @@ import {
   workstreamBookQuery,
 } from '@/data/workstreams'
 import { BookCount, BookPage } from '@/components/book-page'
-import type { ActiveFilter } from '@/components/active-filters'
+import { dayRangeChip, type ActiveFilter } from '@/components/active-filters'
 import { TableFooter } from '@/components/table-bits'
 import { ContactCell, CustomerCell, StandCell, StatusCell } from '@/components/workstream-cells'
 import { WorkstreamsBoard } from './workstreams-board'
@@ -63,6 +63,11 @@ const FILTER_KEYS = [
   'standKey',
   'closeReason',
   'overdue',
+  'stopped',
+  'liveFrom',
+  'liveTo',
+  'closedFrom',
+  'closedTo',
 ] as const
 
 /* Built from the shared label table, not typed out again: the board names the
@@ -82,8 +87,8 @@ const columns: TableColumn[] = [
   { header: 'Ngày bắt đầu', width: '128px', sortKey: 'openedAt' },
 ]
 
-/** The overdue card and an account link narrow the book with no control of
- *  their own on the toolbar, so each gets a removable chip. */
+/** The overdue card, the overview's runs tile and an account link narrow the
+ *  book with no control of their own on the toolbar, so each gets a removable chip. */
 function filterChips(
   query: WorkstreamBookQuery,
   patch: (next: Partial<WorkstreamBookQuery>) => void,
@@ -101,6 +106,22 @@ function filterChips(
           },
         ]
       : []),
+    ...(query.stopped === true
+      ? [
+          {
+            id: 'stopped',
+            label: 'Đã dừng',
+            aria: 'Bỏ lọc hành trình đã dừng',
+            onDrop: () => patch({ stopped: undefined }),
+          },
+        ]
+      : []),
+    ...dayRangeChip('live', 'Đang chạy trong', query.liveFrom, query.liveTo, () =>
+      patch({ liveFrom: undefined, liveTo: undefined }),
+    ),
+    ...dayRangeChip('closed', 'Ngày đóng', query.closedFrom, query.closedTo, () =>
+      patch({ closedFrom: undefined, closedTo: undefined }),
+    ),
     ...(query.accountCode !== undefined
       ? [
           {

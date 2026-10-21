@@ -63,6 +63,11 @@ export function workstreamBookQueryToParams(q: WorkstreamBookQuery): string {
   if (q.standKey !== undefined) p.set('standKey', q.standKey)
   if (q.closeReason !== undefined) p.set('closeReason', q.closeReason)
   if (q.overdue !== undefined) p.set('overdue', String(q.overdue))
+  if (q.stopped !== undefined) p.set('stopped', String(q.stopped))
+  if (q.liveFrom !== undefined) p.set('liveFrom', q.liveFrom)
+  if (q.liveTo !== undefined) p.set('liveTo', q.liveTo)
+  if (q.closedFrom !== undefined) p.set('closedFrom', q.closedFrom)
+  if (q.closedTo !== undefined) p.set('closedTo', q.closedTo)
   return p.toString()
 }
 

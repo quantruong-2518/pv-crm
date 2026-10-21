@@ -3,7 +3,7 @@ import { searchText } from '../search-text'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { PipelinePositionView } from '../position'
 import { ThreadChannel } from '../comms/thread'
-import { Bool, Moment, ObjectCode, textInput } from '../primitives'
+import { Bool, Day, Moment, ObjectCode, textInput } from '../primitives'
 import { type LeadState, WorkstreamCloseReason } from './enums'
 
 /** Workstream — `GET /sales/workstreams`. One row per CUSTOMER JOURNEY: the
@@ -191,6 +191,16 @@ export const WorkstreamBookQuery = PageQuery.extend({
   /** `true` = open runs whose current rung is past its deadline — the same
    *  set `WorkstreamScorecard.overdue` counts, so the card opens its own rows. */
   overdue: Bool.optional(),
+  /** `true` = closed LOST or CHURNED — the set `WorkstreamScorecard.stopped`
+   *  counts. Pair with `status` `closed` or `all`. */
+  stopped: Bool.optional(),
+  /** Runs open at any moment of the span: opened by its end, not closed before
+   *  its start. Vietnam days, both ends inclusive; pair with `status` `all`. */
+  liveFrom: Day.optional(),
+  liveTo: Day.optional(),
+  /** Close moment (`closedAt`) as Vietnam days, both ends inclusive. */
+  closedFrom: Day.optional(),
+  closedTo: Day.optional(),
   sort: WorkstreamSortKey.default('priority'),
   dir: SortDir.default('desc'),
 })

@@ -10,6 +10,7 @@ import {
   type SalesCohort,
   type SalesDayRange,
   type SalesStopReason,
+  type WorkstreamBookQuery,
 } from '@pv/contracts'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
 import { DEFAULT_OPPORTUNITY_BOOK_QUERY, opportunityBookQueryToParams } from '@/data/opportunities'
@@ -194,16 +195,28 @@ export const exitedLeadsHref = (reason: string, days: SalesDayRange): string =>
   })}`
 
 // ---------------------------------------------------------------------------
-// THE WORKSTREAM BOOK — where the overdue tile sends the reader
+// THE WORKSTREAM BOOK — where the runs tile sends the reader
 // ---------------------------------------------------------------------------
 
 /** The book at its default view. */
 export const WORKSTREAM_BOOK_HREF = '/sales/workstreams'
 
-/** The book on open runs past their deadline: the set the scorecard's overdue count names. */
-export const overdueRunsHref = (): string =>
-  `${WORKSTREAM_BOOK_HREF}?${workstreamBookQueryToParams({
-    ...DEFAULT_WORKSTREAM_BOOK_QUERY,
-    status: 'open',
-    overdue: true,
-  })}`
+/** The two questions the runs tile counts. The tile reads their `total` and
+ *  links the same params, so a number always equals the list it opens. */
+export const stoppedRunsQuery = (days: SalesDayRange): WorkstreamBookQuery => ({
+  ...DEFAULT_WORKSTREAM_BOOK_QUERY,
+  status: 'closed',
+  stopped: true,
+  closedFrom: days.first,
+  closedTo: days.last,
+})
+
+export const liveRunsQuery = (days: SalesDayRange): WorkstreamBookQuery => ({
+  ...DEFAULT_WORKSTREAM_BOOK_QUERY,
+  status: 'all',
+  liveFrom: days.first,
+  liveTo: days.last,
+})
+
+export const runsHref = (query: WorkstreamBookQuery): string =>
+  `${WORKSTREAM_BOOK_HREF}?${workstreamBookQueryToParams(query)}`

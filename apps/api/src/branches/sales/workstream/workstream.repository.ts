@@ -26,6 +26,7 @@ import {
   type WorkstreamStandKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { createdWithin } from '@api/platform/db/book-filter'
 import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
@@ -431,7 +432,11 @@ export class WorkstreamRepository {
    *  `leadLive` rides here, not in scope: a run whose lead is switched off is
    *  absent from every count, `hidden` included. */
   private filtersOf(
-    q: WorkstreamFilters & Pick<WorkstreamBookQuery, 'overdue'>,
+    q: WorkstreamFilters &
+      Pick<
+        WorkstreamBookQuery,
+        'overdue' | 'stopped' | 'liveFrom' | 'liveTo' | 'closedFrom' | 'closedTo'
+      >,
     stand: StandPair,
   ): (SQL | undefined)[] {
     return [
@@ -453,6 +458,15 @@ export class WorkstreamRepository {
       /* `false` does not filter: "not overdue" is not a card, and the contract
          only promises the set the overdue card counts. */
       q.overdue === true ? overdueOpen(stand.due) : undefined,
+      /* Same unset-means-no-filter rule as `overdue`; the set is the card's. */
+      q.stopped === true ? inArray(workstream.closeReason, STOPPED_REASONS) : undefined,
+      /* Open at ANY moment of the span: opened by its end, not closed before
+         its start. Each half rides the shared Vietnam-day fence. */
+      ...createdWithin(workstream.openedAt, undefined, q.liveTo),
+      q.liveFrom
+        ? or(isNull(workstream.closedAt), ...createdWithin(workstream.closedAt, q.liveFrom))
+        : undefined,
+      ...createdWithin(workstream.closedAt, q.closedFrom, q.closedTo),
     ]
   }
 
@@ -501,7 +515,7 @@ export class WorkstreamRepository {
         .select({
           overdue: sql<number>`count(*) FILTER (WHERE ${overdueOpen(stand.due)})::int`,
           won: closedWith('WON'),
-          stopped: closedWith('LOST', 'CHURNED'),
+          stopped: closedWith(...STOPPED_REASONS),
         })
         .from(workstream)
         .innerJoin(lead, ANCHOR_ON)
@@ -677,6 +691,9 @@ const OPENED_AT = sql`${workstream.openedAt}`
 const STAND_DEAL = sql`COALESCE(
   (SELECT ${contract.opportunityCode} FROM ${contract} WHERE ${contract.code} = ${workstream.standCode}),
   ${workstream.standCode})`
+
+/** What the `stopped` card counts and the book's `stopped` filter opens. */
+const STOPPED_REASONS: WorkstreamCloseReason[] = ['LOST', 'CHURNED']
 
 /** The deadline's calendar day: what `overdueBy` counts from, shared by the
  *  priority ladder below and by the overdue card and filter so "late" has one
