@@ -5,10 +5,13 @@ import {
   salesPeriodSpan,
   stepSalesPeriod,
   vnDayOf,
+  type LeadState,
   type SalesCohort,
   type SalesStopReason,
   type WorkstreamBookQuery,
 } from '@pv/contracts'
+import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
+import { DEFAULT_OPPORTUNITY_BOOK_QUERY, opportunityBookQueryToParams } from '@/data/opportunities'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQueryToParams } from '@/data/workstreams'
 
 /** Calculation behind the overview screen (`home.tsx`): how a figure compares
@@ -115,6 +118,33 @@ export function stopsByStage(stops: readonly SalesStopReason[]) {
     .map((stage) => ({ stage, reasons: stops.filter((s) => s.stage === stage) }))
     .filter((group) => group.reasons.length > 0)
 }
+
+// ---------------------------------------------------------------------------
+// WHERE WORK SITS NOW — the overview's own tile
+// ---------------------------------------------------------------------------
+
+/** The key holding the most; a tie keeps the earlier key, so pass them in flow order.
+ *  Null when every count is zero. `share` is against the sum of all the keys given. */
+export function fullestOf<K>(keys: readonly K[], countOf: (key: K) => number) {
+  let best: { key: K; count: number } | null = null
+  let total = 0
+  for (const key of keys) {
+    const count = countOf(key)
+    total += count
+    if (count > (best?.count ?? 0)) best = { key, count }
+  }
+  return best && { ...best, share: best.count / total }
+}
+
+/** The lead book narrowed to one state through `states`, which the server ANDs with
+ *  the default `active` tab, so the tab stays out of the address and the column
+ *  filter shows the pick. */
+export const leadStateHref = (state: LeadState): string =>
+  `/sales/leads?${leadBookQueryToParams({ ...DEFAULT_LEAD_BOOK_QUERY, states: state })}`
+
+/** The opportunity book narrowed to the open deals standing in one column. */
+export const openStageHref = (stage: StageKey): string =>
+  `/sales/opportunities?${opportunityBookQueryToParams({ ...DEFAULT_OPPORTUNITY_BOOK_QUERY, state: 'open', stage })}`
 
 // ---------------------------------------------------------------------------
 // THE SHORT LIST — one filter at a time, set by a tile

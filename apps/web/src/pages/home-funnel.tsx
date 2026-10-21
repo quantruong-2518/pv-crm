@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ArrowDown,
+  ArrowRight,
   Check,
   Filter,
   GlassCard,
   Icon,
-  TrendingDown,
   cn,
   percent,
   type IconGlyph,
@@ -20,10 +21,9 @@ import { IconTile } from './home-tiles'
  *  same cohort, so no bar is wider than the first.
  *
  *  It carries no delta: a young cohort always loses to a mature one, so the
- *  comparison would punish the running period. The two cells under the steps
- *  say instead where the cohort thins out and how well a deal closes. They
- *  carry no button: neither book can open "the leads that stopped between two
- *  steps" from an address. */
+ *  comparison would punish the running period. The cell under the steps says
+ *  instead how well a deal closes. Which step holds the most items right now is a snapshot,
+ *  not a period figure, so it has its own tile (`home-fullest.tsx`). */
 
 /** Card motion shared by the three chart tiles: a rise on mount and a lift on
  *  hover. Only transform and opacity move; reduced motion switches both off. */
@@ -44,7 +44,6 @@ export function ToneTile({ icon, tone }: { icon: IconGlyph; tone: keyof typeof T
 }
 
 type Step = ReturnType<typeof funnelOf>[number]
-type Drop = { from: Step; to: Step; lost: number }
 
 /* Chip, bar and glow per step: blue to teal to green, so the last step reads as the win. The
    first step starts at primary-strong, the darkest blue that still reads on the dark card. */
@@ -72,19 +71,7 @@ const STEP_LOOK = [
 ]
 
 const ROW = 'grid grid-cols-[172px_minmax(0,1fr)_72px] items-center gap-4'
-const SUB = 'text-muted-foreground text-[12px] leading-4'
-
-/** The adjacent pair that lost the most leads in absolute count, or null when none lost any. */
-function biggestDrop(steps: readonly Step[]): Drop | null {
-  let best: Drop | null = null
-  for (let i = 1; i < steps.length; i += 1) {
-    const from = steps[i - 1]!
-    const to = steps[i]!
-    const lost = from.count - to.count
-    if (lost > 0 && (best === null || lost > best.lost)) best = { from, to, lost }
-  }
-  return best
-}
+export const SUB = 'text-muted-foreground text-[12px] leading-4'
 
 function StepRow({ step, index, first }: { step: Step; index: number; first: number }) {
   const look = STEP_LOOK[index]!
@@ -158,60 +145,64 @@ function Connector({ before, step }: { before: Step; step: Step }) {
   )
 }
 
-function InsightCell({
+export function InsightCell({
   icon,
   title,
   tint,
+  to,
   children,
 }: {
   icon: IconGlyph
   title: string
   tint: string
+  /** Makes the whole cell a link to this address. */
+  to?: string
   children: ReactNode
 }) {
+  const className = cn('bg-linear-to-br flex flex-col gap-3 rounded-2xl p-4', tint)
+  const head = (
+    <div className="flex items-center gap-2 text-[12px] font-semibold leading-4">
+      <Icon icon={icon} size={14} />
+      {title}
+    </div>
+  )
+  if (to === undefined) {
+    return (
+      <div className={className}>
+        {head}
+        {children}
+      </div>
+    )
+  }
   return (
-    <div
+    <Link
+      to={to}
       className={cn(
-        'bg-linear-to-br flex flex-col gap-3 rounded-2xl p-4 transition-[translate] duration-300 hover:-translate-y-1 motion-reduce:transition-none',
-        tint,
+        className,
+        'focus-visible:outline-ring group transition-[translate] duration-300 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
       )}
     >
-      <div className="flex items-center gap-2 text-[12px] font-semibold leading-4">
-        <Icon icon={icon} size={14} />
-        {title}
-      </div>
+      {head}
       {children}
-    </div>
+      <span className="flex items-center gap-1 text-[12px] font-semibold leading-4">
+        Xem danh sách
+        <span className="duration-(--motion-duration) transition-[translate] group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0">
+          <Icon icon={ArrowRight} size={14} />
+        </span>
+      </span>
+    </Link>
   )
 }
 
-const FIGURE = 'tnum font-num text-[28px] font-bold leading-8 tracking-[-0.02em]'
+export const FIGURE = 'tnum font-num text-[28px] font-bold leading-8 tracking-[-0.02em]'
 
-function Insights({ steps, drop }: { steps: readonly Step[]; drop: Drop | null }) {
+function Insights({ steps }: { steps: readonly Step[] }) {
   const opportunities = steps[2]!.count
   const contracts = steps[3]!.count
   const close = rateOf(contracts, opportunities)
-  const share = drop ? rateOf(drop.lost, drop.from.count) : null
 
   return (
     <div className="mt-auto grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
-      <InsightCell
-        icon={TrendingDown}
-        title="Bước mất nhiều lead nhất"
-        tint="from-warning/20 to-warning/5 text-on-tint-warning"
-      >
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className={cn(FIGURE, 'text-foreground')}>
-            {drop ? `${num(drop.lost)} lead` : '—'}
-          </span>
-          {share !== null && (
-            <span className={cn(SUB, 'tnum font-num')}>· {percent(share)} chưa đi tiếp</span>
-          )}
-        </div>
-        <span className={SUB}>
-          {drop ? `Từ “${drop.from.label}” sang “${drop.to.label}”` : 'Chưa bước nào mất lead.'}
-        </span>
-      </InsightCell>
       <InsightCell
         icon={Check}
         title="Từ cơ hội tới hợp đồng"
@@ -278,7 +269,7 @@ export function FunnelTile({
       </div>
 
       {cohort.leads === 0 && <span className={SUB}>Kỳ này chưa có lead vào sổ.</span>}
-      <Insights steps={steps} drop={biggestDrop(steps)} />
+      <Insights steps={steps} />
     </GlassCard>
   )
 }

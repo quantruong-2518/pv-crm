@@ -653,6 +653,9 @@ export const OpportunityFacetsResponse = z.object({
   bdOwners: z.array(WorkstreamHolder),
   accounts: z.array(textInput(200)),
   byState: z.record(OpportunityStatus, z.number().int().nonnegative()),
+  /** Open deals per column, every `StageKey` present: the overview's "most
+   *  deals here" cell, so its number equals the `state=open&stage=` list. */
+  byStage: z.record(StageKey, z.number().int().nonnegative()),
   /** Open deals under a hold — left out of the book, the board and `byState`;
    *  the board links the held count to `/sales/holds` from it. */
   held: z.number().int().nonnegative(),

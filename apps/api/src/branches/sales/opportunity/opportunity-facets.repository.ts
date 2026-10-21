@@ -1,7 +1,7 @@
 import { and, asc, eq, sql, type SQL } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { type OpportunityFacetsQuery, type OpportunityOwnerRole } from '@pv/contracts'
+import { StageKey, type OpportunityFacetsQuery, type OpportunityOwnerRole } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
@@ -13,7 +13,7 @@ import { OpportunityRepository, opportunityProbe } from './opportunity.repositor
 /** `GET /sales/opportunities/facets` in SQL: the choices that occur among the
  *  deals the book would show — the book's own filters (`filtersOf`, minus
  *  `state`) and scope (`scopeOf`), so a facet never offers a choice the book
- *  then answers with nothing — plus a count per state, all DISTINCT in SQL.
+ *  then answers with nothing — plus counts per state and per open column.
  *  A held deal is off the book (`onBoard`), so it is counted in `held` alone. */
 @Injectable()
 export class OpportunityFacetsRepository {
@@ -29,6 +29,8 @@ export class OpportunityFacetsRepository {
     const signed = this.deals.signed()
     /* The state counts run on the book's deals, `held` on every filtered one: one scan. */
     const board = this.deals.onBoard(q) ?? sql`true`
+    const openIn = (stage: StageKey) =>
+      sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'open' AND NOT ${signed} AND ${opportunity.stage} = ${stage})::int`
     const [saleOwners, bdOwners, accounts, [counts]] = await readsUnderFloor(
       this.db,
       q.q,
@@ -50,6 +52,10 @@ export class OpportunityFacetsRepository {
               lost: sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'lost' AND NOT ${signed})::int`,
               won: sql<number>`count(*) FILTER (WHERE ${board} AND ${signed})::int`,
               held: sql<number>`count(*) FILTER (WHERE ${dealHeld(opportunity.code)})::int`,
+              new: openIn('new'),
+              assigned: openIn('assigned'),
+              engaged: openIn('engaged'),
+              quotation: openIn('quotation'),
             })
             .from(opportunity)
             .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -61,6 +67,7 @@ export class OpportunityFacetsRepository {
       bdOwners,
       accounts: accounts.map((a) => a.name),
       byState: { open: counts?.open ?? 0, lost: counts?.lost ?? 0, won: counts?.won ?? 0 },
+      byStage: Object.fromEntries(StageKey.options.map((k) => [k, counts?.[k] ?? 0])),
       held: counts?.held ?? 0,
     }
   }

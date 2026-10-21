@@ -21,6 +21,7 @@ import { useAppChrome } from '@/app/chrome'
 import { salesExitsQuery, salesPerformanceQuery } from '@/data/home-charts'
 import { workstreamBookQuery, workstreamScorecardQuery } from '@/data/workstreams'
 import { ActivityTile } from './home-activity'
+import { FullestTile } from './home-fullest'
 import { FunnelTile } from './home-funnel'
 import { PriorityList } from './home-list'
 import { listQueryOf, type ListFilter } from './home-model'
@@ -53,6 +54,7 @@ import {
  *  Bento: flex-wrap rows as in the design. Row one is the signed tile (7)
  *  beside a column of three tiles (5); row two is the week's activity or the
  *  funnel (7) beside the exit reasons (5). Each row stacks below its basis.
+ *  Under the bento, one "fullest step now" tile (`home-fullest.tsx`) shows at every grain.
  *
  *  `/` has no route permission, so each half is gated on its own permission
  *  and a half the reader may not open is dropped and named, not drawn empty.
@@ -361,6 +363,8 @@ export function HomePage() {
   const canLead = useCan('lead.edit')
   const canDeal = useCan('opportunity.create')
   const canLog = useCan('comm.view') && canRuns
+  const canLeads = useCan('lead.view')
+  const canDeals = useCan('opportunity.view')
 
   const [pick, setPick] = useState(() => currentPick())
   const [filter, setFilter] = useState<ListFilter | null>(null)
@@ -402,7 +406,12 @@ export function HomePage() {
     if (scoped !== scopedBook) setScopedBook(scoped)
   }
 
-  const hidden = [!canCharts && 'số hiệu suất', !canRuns && 'hành trình'].filter(Boolean)
+  const hidden = [
+    !canCharts && 'số hiệu suất',
+    !canRuns && 'hành trình',
+    !canLeads && 'lead theo bước',
+    !canDeals && 'cơ hội theo bước',
+  ].filter(Boolean)
 
   const overdueTile = (className: string) =>
     canRuns && (
@@ -470,6 +479,8 @@ export function HomePage() {
           overdueTile={overdueTile}
           exitsTile={exitsTile}
         />
+
+        {(canLeads || canDeals) && <FullestTile />}
 
         {canRuns && (
           <div ref={listRef}>
