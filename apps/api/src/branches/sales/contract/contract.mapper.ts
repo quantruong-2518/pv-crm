@@ -4,6 +4,7 @@ import type {
   ContractParticipant,
   ContractRow,
   ContractSign,
+  ContractTermination,
   InstallmentConditionRow,
   InstallmentDocRow,
   InstallmentDraft,
@@ -12,6 +13,8 @@ import type {
   InstallmentRow,
   InstallmentSummaryRow,
 } from '@pv/contracts'
+import { OPPORTUNITY_STOP_REASON_OTHER, OPPORTUNITY_STOP_REASON_OTHER_LABEL } from '@pv/contracts'
+import type { TerminationRead } from './contract-termination.repository'
 import type {
   contract,
   contractInstallment,
@@ -91,6 +94,7 @@ export function toContract(
   ownerName: string | null,
   customer: string,
   participants: ContractParticipant[],
+  termination: TerminationRead | null,
 ): ContractRow {
   return {
     code: row.code,
@@ -106,6 +110,23 @@ export function toContract(
        kèm `ownerName` rỗng là bày ra một người không có. */
     ...(row.ownerId && ownerName ? { ownerId: row.ownerId, ownerName } : {}),
     participants,
+    termination: termination && toTermination(termination),
+  }
+}
+
+/** The label falls back to the key: a catalogue row deleted outright must not
+ *  turn a recorded termination into an empty string the wire refuses. */
+function toTermination({ row, byName, reasonName }: TerminationRead): ContractTermination {
+  const other = row.reasonKey === OPPORTUNITY_STOP_REASON_OTHER
+  return {
+    terminatedAt: row.terminatedAt.toISOString(),
+    reasonKey: row.reasonKey,
+    reasonLabel: reasonName ?? (other ? OPPORTUNITY_STOP_REASON_OTHER_LABEL : row.reasonKey),
+    note: row.note,
+    collectedAmount: row.collectedAmount,
+    refundedAmount: row.refundedAmount,
+    byId: row.terminatedById,
+    byName,
   }
 }
 
@@ -140,10 +161,11 @@ export function toBookRow(read: {
   ownerName: string | null
   customer: string
   participants: ContractParticipant[]
+  termination: TerminationRead | null
   installments: ContractInstallmentRowDb[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer, read.participants),
+    ...toContract(read.row, read.ownerName, read.customer, read.participants, read.termination),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -155,6 +177,7 @@ export function toDetail(read: {
   ownerName: string | null
   customer: string
   participants: ContractParticipant[]
+  termination: TerminationRead | null
   contact: string
   contactRole: string | null
   installments: {
@@ -167,7 +190,7 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer, read.participants),
+    ...toContract(read.row, read.ownerName, read.customer, read.participants, read.termination),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back

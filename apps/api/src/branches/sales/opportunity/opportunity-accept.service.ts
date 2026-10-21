@@ -100,7 +100,14 @@ export class OpportunityAccept {
       const owner = await this.holderAfter(tx, fresh, by)
       const moved = await this.lifecycle.assigned(
         tx,
-        { row: fresh.row, owner, signed: false, pendingSign: false, held: fresh.held },
+        {
+          row: fresh.row,
+          owner,
+          signed: false,
+          pendingSign: false,
+          held: fresh.held,
+          terminated: false,
+        },
         by,
         at,
       )

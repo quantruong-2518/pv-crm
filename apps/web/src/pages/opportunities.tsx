@@ -274,10 +274,11 @@ function useCommitOps() {
   }
 }
 
-/** One row's eight cells, in `bookColumns` order. A lost deal is not mailed. */
+/** One row's eight cells, in `bookColumns` order. A lost or terminated deal is not mailed. */
 function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void) {
+  const final = op.state === 'lost' || op.state === 'terminated'
   return [
-    <DealCell key="deal" op={op} onEmail={op.state === 'lost' ? undefined : mail} />,
+    <DealCell key="deal" op={op} onEmail={final ? undefined : mail} />,
     <StageCell key="stage" op={op} />,
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,

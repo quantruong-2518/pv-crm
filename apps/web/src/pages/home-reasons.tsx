@@ -11,16 +11,18 @@ import { LIFT, ToneTile } from './home-funnel'
 import { daysOfPeriod, exitedLeadsHref, num, rateOf, stoppedDealsHref } from './home-model'
 import { periodLabel } from './home-period'
 
-/** Why leads and deals left in the picked period: one panel per group, each a
- *  donut and a legend of reasons, most frequent first, with the top reason
- *  named in one line underneath. Deal stops keep the column the deal stood in,
- *  because the same reason means something different at a different step.
+/** Why leads, deals and signed contracts left in the picked period: one panel
+ *  per group, each a donut and a legend of reasons, most frequent first, with
+ *  the top reason named in one line underneath. Deal stops keep the column the
+ *  deal stood in, because the same reason means something different at a
+ *  different step. Terminations count on the day they were made (ADR 0107).
  *
  *  A reason is neither good nor bad, so a group uses one hue at falling
  *  strength rather than a rainbow. The count and share beside every legend row
  *  carry the number, so no segment is read by colour alone. */
 
-/** Rows a group prints before folding the rest: the card shares a row with two others. */
+/** Rows a group prints before folding the rest: up to three groups stack in one
+ *  side card, so each group stays short. */
 const REASON_ROWS = 3
 /** Circumference of the donut's circle (r = 30 in an 80-unit box). */
 const RING = 188.5
@@ -46,6 +48,19 @@ const LOOK = {
       'stroke-destructive/25',
     ],
     fill: ['bg-destructive', 'bg-destructive/70', 'bg-destructive/45', 'bg-destructive/25'],
+  },
+  /* The terminated badge's grey: warning already means "late" on this screen.
+     Slate is never text (law 2), so the bulb takes the muted ink. */
+  contract: {
+    panel: 'from-surface-ink/8 to-surface-ink/4',
+    bulb: 'text-muted-foreground',
+    stroke: [
+      'stroke-brand-slate',
+      'stroke-brand-slate/70',
+      'stroke-brand-slate/45',
+      'stroke-brand-slate/25',
+    ],
+    fill: ['bg-brand-slate', 'bg-brand-slate/70', 'bg-brand-slate/45', 'bg-brand-slate/25'],
   },
 }
 
@@ -264,6 +279,8 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
   const canLeads = useCan('lead.view')
   const canDeals = useCan('opportunity.view')
   const days = daysOfPeriod(data.period)
+  const endedTotal = sumOf(data.contractTerminations)
+  const total = leadTotal + dealTotal + endedTotal
 
   return (
     <GlassCard className={cn('flex min-w-0 flex-col', LIFT, 'gap-4', className)}>
@@ -272,12 +289,21 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
           <ToneTile icon={Ban} tone="destructive" />
           <div className="flex min-w-0 flex-col">
             <h3 className="text-[16px] font-semibold leading-6">Lý do dừng</h3>
-            {leadTotal + dealTotal > 0 && (
+            {total > 0 && (
               <span className="text-muted-foreground tnum font-num text-[12px] leading-4">
                 <strong className="text-foreground font-semibold">{num(leadTotal)} lead</strong>{' '}
                 ngừng chăm sóc ·{' '}
                 <strong className="text-foreground font-semibold">{num(dealTotal)} cơ hội</strong>{' '}
                 đã dừng
+                {endedTotal > 0 && (
+                  <>
+                    {' · '}
+                    <strong className="text-foreground font-semibold">
+                      {num(endedTotal)} hợp đồng
+                    </strong>{' '}
+                    đã chấm dứt
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -286,9 +312,9 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
           {periodLabel(data.period)}
         </span>
       </div>
-      {leadTotal + dealTotal === 0 ? (
+      {total === 0 ? (
         <p className="text-muted-foreground my-auto py-8 text-center text-[12px] leading-4">
-          Kỳ này chưa có lead ngừng chăm sóc hay cơ hội dừng.
+          Kỳ này chưa có lead ngừng chăm sóc, cơ hội dừng hay hợp đồng chấm dứt.
         </p>
       ) : (
         <>
@@ -312,6 +338,16 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
                 canDeals && r.stage ? stoppedDealsHref(r.key, r.stage, days) : undefined
               }
               delay={600}
+            />
+          )}
+          {data.contractTerminations.length > 0 && (
+            <ReasonGroup
+              kind="contract"
+              title="Hợp đồng đã chấm dứt"
+              unit="hợp đồng"
+              rows={data.contractTerminations}
+              hrefOf={() => undefined}
+              delay={740}
             />
           )}
         </>

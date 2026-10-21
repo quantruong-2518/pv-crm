@@ -6,6 +6,7 @@ import {
   ContractBookResponse,
   ContractDetailResponse,
   ContractSummary,
+  ContractTerminationReasons,
   type ContractRow,
   type InstallmentConditionRow,
   type InstallmentRow,
@@ -118,6 +119,10 @@ export type ContractBookRow = {
 export function rowOf(contract: ContractRow, now = today()): ContractBookRow {
   const installments = contract.installments ?? []
   const collected = installments.filter((d) => d.paidAt).reduce((n, d) => n + d.amount, 0)
+  /* A terminated contract owes nothing more (ADR 0107), so no row reads it as receivable. */
+  if (contract.termination) {
+    return { contract, collected, remaining: 0, overdue: 0, next: null, urgent: false }
+  }
 
   const unpaid = installments.filter((d) => !d.paidAt).sort((a, b) => a.due.localeCompare(b.due))
 
@@ -211,6 +216,20 @@ export const contractSummaryQuery = queryOptions({
       signal,
     }),
   ...cacheTier.aggregate,
+})
+
+/** `GET /sales/contracts/termination-reasons` — the active
+ *  `CONTRACT_TERMINATION_REASON` list. Its own key, outside the book's, so a
+ *  book refresh does not re-read a reference list. */
+export const contractTerminationReasonsQuery = queryOptions({
+  queryKey: ['sales', 'contract-termination-reasons'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ContractTerminationReasons>('/sales/contracts/termination-reasons', {
+      need: { branch: 'Sales', permission: 'contract.terminate' },
+      schema: ContractTerminationReasons,
+      signal,
+    }),
+  ...cacheTier.reference,
 })
 
 // ---------------------------------------------------------------------------

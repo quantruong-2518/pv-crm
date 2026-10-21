@@ -464,3 +464,13 @@ owner the same day (ADR 0097 §8).
 102.  **Should the confirm line count only the meetings that will mail guests?**
       Default: it counts every meeting that will be cancelled, mailed or not.
       _(see ADR 0103 §7)_
+103.  **Should a kept deposit count toward revenue KPIs?** Default: no, it is
+      shown on the termination record only. _(see ADR 0107 §3)_
+104.  **Should terminating route the lead back to a waiting group, or stop it,
+      like the deal-stop door's `lead` choice?** Default: no this turn; the
+      lead stays converted. _(see ADR 0107, out of scope)_
+105.  **Should the reasons panel count terminations on `terminated_at` or on
+      the deal's close moment?** Default: `terminated_at`. _(see ADR 0107 §3,
+      §4)_
+106.  **Should the Sale who owns the deal be able to REQUEST termination for a
+      head to execute?** Default: no. _(see ADR 0107 §1)_

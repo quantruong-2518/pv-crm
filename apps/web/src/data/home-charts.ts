@@ -10,8 +10,8 @@ const NEED = { branch: 'Sales', permission: 'performance.view' } as const
 export const PERFORMANCE_KEY = ['sales', 'performance'] as const
 
 /** `GET /sales/performance/:period`. Its figures move with writes to three
- *  books and no local write invalidates this key; only a pushed `entity` event
- *  does (`entity-sync.ts`), otherwise it is up to a minute behind. */
+ *  books; only a pushed `entity` event (`entity-sync.ts`) and a contract
+ *  termination invalidate this key, otherwise it is up to a minute behind. */
 export const salesPerformanceQuery = (period: string) =>
   queryOptions({
     queryKey: [...PERFORMANCE_KEY, 'live', period] as const,

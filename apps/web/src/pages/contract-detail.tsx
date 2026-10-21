@@ -22,7 +22,8 @@ import { ActionBar, type BarContact } from '@/components/record/action-bar'
 import { RecordCard } from '@/components/record/record-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
-import { ContractStanding } from '@/components/contract-bits'
+import { ContractStanding, TerminatedBadge } from '@/components/contract-bits'
+import { TerminateDrawer, TerminationCard } from '@/components/contract-terminate'
 import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -81,6 +82,10 @@ function ContractScreen({ contract }: { contract: Contract }) {
   const [mailing, setMailing] = useState<BarContact | null>(null)
   const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
   const canRecord = useCan('comm.view')
+  const canTerminate = useCan('contract.terminate')
+  const [terminating, setTerminating] = useState(false)
+  /* Ended for good (ADR 0107): nothing is owed, so no next installment and no chase. */
+  const ended = contract.termination
 
   /* One clock read for the whole screen. Two reads either side of midnight give
      two levels for one contract, on one render. */
@@ -89,7 +94,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
     () => contract.installments.map((d) => viewInstallment(d, now)),
     [contract, now],
   )
-  const next = views.find((v) => !v.installment.paidAt)
+  const next = ended ? undefined : views.find((v) => !v.installment.paidAt)
   const subject = { kind: 'contract', code: contract.code } as const
   const openInstallment = (no: number) =>
     navigate(`/sales/contracts/${contract.code}/installments/${no}`)
@@ -111,15 +116,25 @@ function ContractScreen({ contract }: { contract: Contract }) {
           title={
             <>
               {run.title}
-              <ContractStanding views={views} className="ml-3 align-middle tracking-normal" />
+              {ended ? (
+                <TerminatedBadge className="ml-3 align-middle tracking-normal" />
+              ) : (
+                <ContractStanding views={views} className="ml-3 align-middle tracking-normal" />
+              )}
             </>
           }
         />
       }
       main={
         <>
+          {ended && <TerminationCard termination={ended} currency={contract.currency} />}
           <ContractTodo inside={run.inside} read={run.read} next={next} />
-          <ContractMoney contract={contract} views={views} onOpen={openInstallment} />
+          <ContractMoney
+            contract={contract}
+            views={views}
+            ended={Boolean(ended)}
+            onOpen={openInstallment}
+          />
           {run.inside && hasInside(run.inside) && (
             <RecordCard>
               <ContractInside contract={run.inside} />
@@ -160,9 +175,29 @@ function ContractScreen({ contract }: { contract: Contract }) {
           contacts={run.contacts}
           mailBlocked={mailBlocked}
           onCompose={() => setComposing(true)}
+          more={
+            !ended && canTerminate
+              ? [
+                  {
+                    key: 'terminate',
+                    label: 'Chấm dứt hợp đồng',
+                    tone: 'danger',
+                    onSelect: () => setTerminating(true),
+                  },
+                ]
+              : []
+          }
         />
       }
     >
+      {/* Mounted past the end too, so the closing drawer still slides out and toasts. */}
+      {canTerminate && (
+        <TerminateDrawer
+          contract={contract}
+          open={terminating}
+          onClose={() => setTerminating(false)}
+        />
+      )}
       <CommActionConfirm
         channel={mailing ? 'email' : null}
         subject={subject}

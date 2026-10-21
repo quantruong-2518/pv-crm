@@ -126,15 +126,16 @@ export class WorkstreamRepository {
    *  transaction, so a run's end is written with the row that caused it.
    *
    *  WON when the lead is signed (`leadSigned`, the lead book's rule) at its
-   *  latest signature; else LOST when every deal of a PARKED lead is lost with
-   *  nothing signed, or a lead with no deal is `disqualified`; else OPEN — which
+   *  latest live signature; else LOST when no deal is open and nothing live is
+   *  signed on a PARKED lead or one with a terminated contract (ADR 0107), or a
+   *  lead with no deal is `disqualified`; else OPEN — which
    *  also REOPENS a closed run. The statement is `./workstream-sync.ts`. The date is floored at `opened_at` for
    *  `workstream_closed_after_opened`; `CHURNED` is never derived. Only rows
    *  whose pair actually changes are written.
    *
    *  Called by every door that can move the answer: deal create, import, a
-   *  state change, sign; lead exit and reopen. No door deletes a contract
-   *  today — the day one does, it calls this too. */
+   *  state change, sign, contract termination; lead exit and reopen. No door
+   *  deletes a contract today — the day one does, it calls this too. */
   syncClosed(tx: Db, workstreamCodes: readonly string[]): Promise<void> {
     return syncClosed(tx, workstreamCodes)
   }

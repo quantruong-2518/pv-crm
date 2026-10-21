@@ -107,8 +107,9 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
 
   const canAccept = useCan('opportunity.accept')
   const canClose = useCan('opportunity.close')
-  /* Nothing is booked on a lost deal, the same rule that drops its bar. */
-  const canMeet = useCan('opportunity.edit') && op.state !== 'lost'
+  /* Nothing is booked on a lost or terminated deal, the rule that drops its bar. */
+  const final = op.state === 'lost' || op.state === 'terminated'
+  const canMeet = useCan('opportunity.edit') && !final
   /* The history card's own gate; the sign request's door points into it. */
   const historyOpen = useCan('workstream.view') && op.workstream !== null
   const primary = primaryStateOf(op, { accept: canAccept, close: canClose })
@@ -137,7 +138,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
       header={<DealHeader op={op} primary={primary} onSign={() => sign()} onQuote={quoteNew} />}
       main={
         <>
-          {op.state === 'lost' && <MeetingsDock subject={subject} canEdit={false} />}
+          {final && <MeetingsDock subject={subject} canEdit={false} />}
           <DealTodo op={op} />
           {op.state === 'lost' && <FailLogCard op={op} />}
           <SignRequestCard op={op} onView={historyOpen ? viewSignRequest : undefined} />
@@ -160,12 +161,12 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           onAssign={() => setAssigning(true)}
         />
       }
-      /* A lost deal has no bar: nothing is recorded on it, nobody is contacted
+      /* A lost or terminated deal has no bar: nothing is recorded on it, nobody is contacted
          from it, and its more menu is empty. Its meetings stay readable as a
          row at the top of the main column. */
       actionBarRows={dockRow ? 2 : 1}
       actionBar={
-        op.state !== 'lost' && (
+        !final && (
           <ActionBar
             label="Thao tác cơ hội"
             subject={{ code: op.code, kind: 'opportunity' }}

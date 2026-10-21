@@ -89,6 +89,9 @@ export const ConfigList = z.enum([
   /** Free tags on a lead, mostly for the waiting group (ADR 0088 §5). Joined by
    *  `sales.lead_label`, anchored on `config_id_list` like `PRODUCT`. */
   'WAITING_LABEL',
+  /** Why a signed contract was terminated. Not `LOSS_REASON`: that one explains
+   *  a deal that never signed. Virtual key `'other'` needs a note, same rule. */
+  'CONTRACT_TERMINATION_REASON',
 ])
 
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
@@ -111,6 +114,7 @@ export const CONFIG_LIST_LABEL: Record<ConfigList, string> = {
   QUOTE_REVISION_REASON: 'lý do báo giá lại',
   CONTRACT_KIND: 'loại hợp đồng',
   WAITING_LABEL: 'nhãn nhóm chờ',
+  CONTRACT_TERMINATION_REASON: 'lý do chấm dứt hợp đồng',
 }
 
 /** Tiền tố id của từng danh mục. Máy chủ sinh `<tiền tố>-<số thứ tự>`.
@@ -134,6 +138,8 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   QUOTE_REVISION_REASON: 'QR',
   CONTRACT_KIND: 'CK',
   WAITING_LABEL: 'WL',
+  /* Not 'CT': CATEGORY owns it, and `config_entry.id` alone is the primary key. */
+  CONTRACT_TERMINATION_REASON: 'TN',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -144,7 +150,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK|WL)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK|WL|TN)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 
@@ -261,6 +267,8 @@ export const ConfigUsage = z.object({
   CONTRACT_KIND: Tally,
   /** Keyed by config id — leads carrying that label in `sales.lead_label`. */
   WAITING_LABEL: Tally,
+  /** Keyed by config id — rows in `sales.contract_termination` with that reason. */
+  CONTRACT_TERMINATION_REASON: Tally,
 
   /** Required profile slots, keyed by SLOT NUMBER ('1'…'6') — the same numbering
    *  the generated column `sales.lead.required_filled` sums over and the config
@@ -302,6 +310,7 @@ export const ConfigBundle = z.object({
   QUOTE_REVISION_REASON: z.array(ConfigEntry),
   CONTRACT_KIND: z.array(ConfigEntry),
   WAITING_LABEL: z.array(ConfigEntry),
+  CONTRACT_TERMINATION_REASON: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 

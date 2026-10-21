@@ -31,6 +31,7 @@ import { LEAD_STATE_FACE, tierLabel } from '@/data/lead-state'
 import { DEFAULT_WORKSTREAM_BOOK_QUERY, workstreamBookQuery } from '@/data/workstreams'
 import { AccountFields } from '@/components/account-fields'
 import { CloseBadge } from '@/components/workstream-bits'
+import { TerminatedBadge } from '@/components/contract-bits'
 import { RecordCard } from '@/components/record/record-card'
 import { RecordShell } from '@/components/record/record-shell'
 import { RecordHeader } from '@/components/record/record-header'
@@ -366,7 +367,12 @@ function DealsCard({
                 className="motion-std pointer-coarse:min-h-12 flex w-full items-center justify-between gap-3 text-left text-[12px] hover:underline"
               >
                 <span className="truncate">{d.name}</span>
-                {d.signed && <Badge tone="success">Đã ký</Badge>}
+                {/* `state` is a plain string on the wire; terminated outranks the signed flag. */}
+                {d.state === 'terminated' ? (
+                  <TerminatedBadge />
+                ) : (
+                  d.signed && <Badge tone="success">Đã ký</Badge>
+                )}
               </button>
               <span className="text-muted-foreground tnum font-num text-[11px] leading-[1.5]">
                 {d.amountVnd === null ? 'Chưa có giá trị' : billions(d.amountVnd)} ·{' '}

@@ -57,10 +57,11 @@ export class PerformanceService {
   /** The selected period only: a reasons chart compares nothing with before. */
   async exits(period: SalesPeriodKey): Promise<SalesExitsResponse> {
     const { current } = spansOf(period)
-    const [leadExits, dealStops] = await Promise.all([
+    const [leadExits, dealStops, contractTerminations] = await Promise.all([
       this.exitsRepo.leadExits(current),
       this.exitsRepo.dealStops(current),
+      this.exitsRepo.contractTerminations(current),
     ])
-    return SalesExitsResponse.parse({ period, leadExits, dealStops })
+    return SalesExitsResponse.parse({ period, leadExits, dealStops, contractTerminations })
   }
 }

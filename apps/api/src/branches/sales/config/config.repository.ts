@@ -202,6 +202,14 @@ export class SalesConfigRepository {
         JOIN sales.lead l ON l.code = ll.lead_code AND l.disabled_at IS NULL
        GROUP BY ll.label_id
       UNION ALL
+      /* Terminations, keyed by the config id the door wrote; 'other' is virtual. */
+      SELECT 'CONTRACT_TERMINATION_REASON', t.reason_key, count(*)::int
+        FROM sales.contract_termination t
+        JOIN sales.contract c ON c.code = t.contract_code
+        JOIN sales.lead l ON l.code = c.lead_code AND l.disabled_at IS NULL
+       WHERE t.reason_key <> ${OPPORTUNITY_STOP_REASON_OTHER}
+       GROUP BY t.reason_key
+      UNION ALL
       SELECT 'roles', split_part(role, ' · ', 1), count(*)::int
         FROM platform.actor GROUP BY split_part(role, ' · ', 1)
       UNION ALL

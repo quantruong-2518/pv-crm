@@ -91,7 +91,7 @@ export class AccountService {
         dealRows: dealRows.map((r) => ({
           code: r.code,
           name: r.name,
-          state: r.state,
+          state: r.terminated ? 'terminated' : r.state,
           amountVnd: r.amountVnd === null ? null : Number(r.amountVnd),
           signed: r.contractCode !== null,
           createdAt: r.createdAt.toISOString(),

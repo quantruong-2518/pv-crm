@@ -6,7 +6,13 @@ import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
-import { dealLost, dealWon } from '../open-deal'
+import {
+  contractTerminated,
+  dealLost,
+  dealTerminated,
+  dealWon,
+  leadHasContract,
+} from '../open-deal'
 import type { PeriodSpan } from './performance-period'
 import { realExchanges } from './real-exchange'
 
@@ -21,12 +27,12 @@ type Row = {
   blank_amount: number
   won_deals: number
   lost_deals: number
+  terminated_deals: number
   reached_first_contacts?: number
   reached_opportunities?: number
 }
 
 /** The only SQL of the module: every span of one period read in ONE statement.
- *
  *  It reads the three books' tables directly, the ordinary thing inside one
  *  branch and the call `leaderboard.repository.ts` already made: no one of the
  *  three owns a figure that sets leads beside signatures.
@@ -34,8 +40,9 @@ type Row = {
  *  The signing side is the first query of `ContractRepository.summary` with a
  *  fence added. The cohort links a deal or contract to its lead the way
  *  `LeadRepository.scorecard` does, but counts LEADS where that one counts
- *  rows — `SalesCohort` says why the two differ. Won and lost are KPI
- *  `win-rate`'s predicates and its close-moment fence, over the whole room.
+ *  rows — `SalesCohort` says why the two differ. Won, lost and terminated are
+ *  KPI `win-rate`'s predicates and its close-moment fence, over the whole room;
+ *  signed figures count live contracts only (ADR 0107).
  *
  *  Span edges are Vietnam calendar days, the form `createdWithin` spells
  *  (`platform/db/book-filter.ts`): the tiles sit beside the lead and contract
@@ -83,9 +90,7 @@ export class PerformanceRepository {
                count(*) FILTER (WHERE EXISTS (
                  SELECT 1 FROM "sales"."opportunity" o
                   WHERE o."lead_code" = l."code"))::int                         AS opportunities,
-               count(*) FILTER (WHERE EXISTS (
-                 SELECT 1 FROM "sales"."contract" k
-                  WHERE k."lead_code" = l."code"))::int                         AS contracts
+               count(*) FILTER (WHERE ${leadHasContract(sql`l."code"`)})::int  AS contracts
           FROM "sales"."lead" l
          WHERE l."disabled_at" IS NULL
            AND l."created_at" >= s."lo" AND l."created_at" < s."hi"
@@ -97,11 +102,13 @@ export class PerformanceRepository {
                count(*) FILTER (WHERE ${contract.amount} IS NULL)::int          AS blank_amount
           FROM ${contract} JOIN ${lead} ON ${lead.code} = ${contract.leadCode} AND ${leadLive}
          WHERE ${contract.signedAt} >= s."lo" AND ${contract.signedAt} < s."hi"
+           AND NOT ${contractTerminated(contract.code)}
       ) g ON true
       LEFT JOIN LATERAL (
         SELECT count(*) FILTER (WHERE ${dealWon(sql`o."code"`)})::int            AS won_deals,
                count(*) FILTER (WHERE ${dealLost(sql`o."code"`, sql`o."state"`)})::int
-                                                                                AS lost_deals
+                                                                                AS lost_deals,
+               count(*) FILTER (WHERE ${dealTerminated(sql`o."code"`)})::int     AS terminated_deals
           FROM "sales"."opportunity" o
           JOIN "sales"."lead" dl ON dl."code" = o."lead_code" AND dl."disabled_at" IS NULL
          WHERE o."closed_at" >= s."lo" AND o."closed_at" < s."hi"
@@ -125,6 +132,7 @@ export class PerformanceRepository {
           blankAmount: row.blank_amount,
           wonDeals: row.won_deals,
           lostDeals: row.lost_deals,
+          terminatedDeals: row.terminated_deals,
           reached: {
             firstContacts: row.reached_first_contacts ?? 0,
             opportunities: row.reached_opportunities ?? 0,

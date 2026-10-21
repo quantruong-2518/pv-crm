@@ -11,6 +11,8 @@ import { ContractRepository } from './contract.repository'
 import { ContractService } from './contract.service'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 import { ContractScheduleService } from './contract-schedule.service'
+import { ContractTerminationRepository } from './contract-termination.repository'
+import { ContractTerminationService } from './contract-termination.service'
 
 /** Module 4 · The contract book and its schedule's write doors.
  *
@@ -40,6 +42,8 @@ import { ContractScheduleService } from './contract-schedule.service'
     ContractOverdueSweeper,
     ContractOverdueReasonService,
     ContractOverdueReasonRepository,
+    ContractTerminationService,
+    ContractTerminationRepository,
   ],
   exports: [ContractService],
 })

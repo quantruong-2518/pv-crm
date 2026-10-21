@@ -336,6 +336,7 @@ export const EDGE_OF: Record<JourneyDeal['outcome'], EdgeTone> = {
   won: 'won',
   open: 'open',
   lost: 'ghost',
+  terminated: 'ghost',
 }
 
 export function layoutTree(

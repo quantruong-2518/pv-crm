@@ -3,13 +3,17 @@ import type {
   ContractCode,
   ContractInstallmentsBody,
   ContractScheduleResponse,
+  ContractTerminateBody,
+  ContractTerminateResponse,
   InstallmentConditionBody,
   InstallmentPaidBody,
   InstallmentRecordBody,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { CONTRACT_BOOK_KEY, contractDetailQuery } from '@/data/contracts'
-import { vnToday } from '@/data/opportunities'
+import { PERFORMANCE_KEY } from '@/data/home-charts'
+import { invalidateLeadState } from '@/data/lead-exit'
+import { OPPORTUNITY_BOOK_KEY, vnToday } from '@/data/opportunities'
 import { WORKSTREAM_BOOK_KEY } from '@/data/workstreams'
 
 /** The six doors on a signed contract's schedule — contract and routes in
@@ -106,6 +110,40 @@ export const useAddCondition = (code: ContractCode) =>
       need: need('contract.edit'),
     }),
   )
+
+/** `POST /sales/contracts/:code/terminate` — final, no approval (ADR 0107).
+ *  Every count that read the contract as a sale moves: the deal leaves `won`,
+ *  the lead may lose "has bought", and the overview's win rate and reasons
+ *  shift. A refusal re-reads the contract, since a 409 usually means someone
+ *  else ended it first. */
+export function useTerminateContract(code: ContractCode) {
+  const client = useQueryClient()
+  const detailKey = contractDetailQuery(code).queryKey
+
+  return useMutation<ContractTerminateResponse, ApiError, ContractTerminateBody>({
+    mutationFn: (body) =>
+      api.write<ContractTerminateResponse>(
+        `/sales/contracts/${encodeURIComponent(code)}/terminate`,
+        {
+          method: 'POST',
+          body,
+          need: { branch: 'Sales', permission: 'contract.terminate', scoped: true },
+        },
+      ),
+    onSuccess: (row) => {
+      client.setQueryData(detailKey, row)
+      for (const key of [
+        CONTRACT_BOOK_KEY,
+        ['sales', 'ops'],
+        OPPORTUNITY_BOOK_KEY,
+        PERFORMANCE_KEY,
+      ])
+        void client.invalidateQueries({ queryKey: key })
+      invalidateLeadState(client)
+    },
+    onError: () => void client.invalidateQueries({ queryKey: detailKey }),
+  })
+}
 
 export const useDoneCondition = (code: ContractCode) =>
   useScheduleDoor<{ no: number; id: string }>(code, ({ no, id }) =>

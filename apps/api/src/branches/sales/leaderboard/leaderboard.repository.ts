@@ -1,4 +1,4 @@
-import { and, count, eq, exists, inArray, isNotNull, sql, type SQL } from 'drizzle-orm'
+import { and, count, eq, inArray, isNotNull, not, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { RoleId as EngineRoleId } from '@pv/engines'
 import { LEAD_OPEN_STATES } from '@pv/contracts'
@@ -7,7 +7,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { dealLost, dealOpen } from '../open-deal'
+import { contractTerminated, dealLost, dealOpen, dealWon } from '../open-deal'
 import { toVndSql } from '../money'
 import { opportunity, opportunityOwner } from '../opportunity/opportunity.schema'
 
@@ -50,10 +50,11 @@ export class LeaderboardRepository {
   async rows(): Promise<LeaderboardTally[]> {
     const opsVnd = toVndSql(opportunity.amount, opportunity.currency)
     const contractVnd = toVndSql(contract.amount, contract.currency)
-    /* Open and lost come from `../open-deal`, the one reading of both. */
+    /* Open, won and lost come from `../open-deal`, the one reading of each:
+       won is a LIVE contract, so a terminated deal leaves it (ADR 0107). */
     const open = dealOpen(opportunity.code, opportunity.state)
     const lost = dealLost(opportunity.code, opportunity.state)
-    const signed = this.dealSigned()
+    const signed = dealWon(opportunity.code)
 
     const [leads, ops, contracts] = await Promise.all([
       this.db
@@ -91,7 +92,7 @@ export class LeaderboardRepository {
         })
         .from(contract)
         .innerJoin(lead, eq(lead.code, contract.leadCode))
-        .where(and(isNotNull(contract.ownerId), leadLive))
+        .where(and(isNotNull(contract.ownerId), leadLive, not(contractTerminated(contract.code))))
         .groupBy(contract.ownerId),
     ])
 
@@ -133,24 +134,5 @@ export class LeaderboardRepository {
         }
       })
       .sort((a, b) => b.signedAmountVnd - a.signedAmountVnd || a.name.localeCompare(b.name, 'vi'))
-  }
-
-  /* The predicate is an SQL fragment riding inside the query that needs it:
-     calling across for it would be a second round trip per row. */
-
-  /** Does this deal have a contract behind it? Matches BOTH columns, the pair
-     `contract_opportunity_fk` anchors. */
-  private dealSigned(): SQL {
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(contract)
-        .where(
-          and(
-            eq(contract.opportunityCode, opportunity.code),
-            eq(contract.leadCode, opportunity.leadCode),
-          ),
-        ),
-    )
   }
 }

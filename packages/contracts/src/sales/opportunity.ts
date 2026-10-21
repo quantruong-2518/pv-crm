@@ -62,10 +62,10 @@ import { WorkstreamHolder } from './workstream'
 // ---------------------------------------------------------------------------
 
 /** Whether the deal is still on the board. The two values a COLUMN may hold —
- *  `won` is absent because no column spells it. Derived from `OpportunityStatus`
- *  (`./enums`) rather than retyped, so the stored half and the read half cannot
- *  drift apart by a letter. */
-export const OpportunityState = OpportunityStatus.exclude(['won'])
+ *  `won` and `terminated` are absent because no column spells them. Derived from
+ *  `OpportunityStatus` (`./enums`) rather than retyped, so the stored half and
+ *  the read half cannot drift apart by a letter. */
+export const OpportunityState = OpportunityStatus.exclude(['won', 'terminated'])
 
 /** Which half of the deal a person is on. UPPER_SNAKE — the naming law for
  *  enum VALUES here, same as `LeadSourceKind`. */
@@ -397,12 +397,13 @@ export const OpportunityRow = z.object({
   accountCode: ObjectCode.optional(),
 
   name: textInput(200),
-  /** The READ vocabulary — `open` · `lost` · `won`. The first two are the
-   *  column; `won` is resolved from the existence of a `sales.contract` row, in
-   *  the one mapper that folds it in. */
+  /** The READ vocabulary — `open` · `lost` · `won` · `terminated`. The first two
+   *  are the column; the last two are resolved from `sales.contract` and
+   *  `sales.contract_termination`, in the one mapper that folds them in. */
   state: OpportunityStatus,
   /** The papers that made `state` read `won`, oldest first — a won deal may
-   *  sign again (licence beside deployment). Empty exactly when not `won`.
+   *  sign again (licence beside deployment). Kept on `terminated`, since the
+   *  rows stay; empty exactly when neither.
    *  `ContractCode`, not `ObjectCode`: `Đ` is not in `A-Z`; see `primitives.ts`. */
   contractCodes: z.array(ContractCode),
   /** The accountable person: the SALE primary if a seller (`isSellerRole`), else
@@ -719,15 +720,18 @@ export const OpportunityScorecard = z.object({
   /** Every deal in the book, whatever its state — the denominator. */
   total: z.number().int().nonnegative(),
   /** Deals still standing in one of the four columns (`stage IS NOT NULL`).
-   *  Won deals and lost deals have left the board, so neither counts. */
+   *  Won, lost and terminated deals have left the board, so none counts. */
   open: z.number().int().nonnegative(),
   /** Sum of the open deals that HAVE an amount, converted to dong. */
   openAmountVnd: MoneyVnd,
   /** How many open deals carry no amount — the ones missing from the sum. */
   openBlank: z.number().int().nonnegative(),
+  /** Deals with a live contract; a terminated one is not counted here. */
   won: z.number().int().nonnegative(),
   /** Deals stopped — final; nurturing again starts from the lead. */
   lost: z.number().int().nonnegative(),
+  /** Deals whose contract was terminated — final, like `lost`. */
+  terminated: z.number().int().nonnegative(),
 })
 
 // ---------------------------------------------------------------------------

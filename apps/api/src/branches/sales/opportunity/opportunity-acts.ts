@@ -10,6 +10,7 @@ import {
   dealAtOf,
   holdVerdict,
   OpportunityLifecycle,
+  terminatedSentence,
   vnDay,
   type DealAt,
 } from './opportunity-lifecycle'
@@ -25,9 +26,10 @@ import type { OpportunityRowDb } from './opportunity.schema'
  *  `assignVerdict`, `editTermsVerdict`, `editDetailsVerdict`, `holdVerdict`. No rule is
  *  restated here; a door that changes its guard changes what the screen is told. */
 
-/** Contacts, description, attachments (ADR 0077 §5): editable until lost. Gates
- *  the profile save door and the contacts door. */
-export function editDetailsVerdict(row: OpportunityRowDb): OpportunityAct {
+/** Contacts, description, attachments (ADR 0077 §5): editable until lost or
+ *  terminated (ADR 0107 §2). Gates the profile save, contacts and meeting doors. */
+export function editDetailsVerdict(row: OpportunityRowDb, terminated: boolean): OpportunityAct {
+  if (terminated) return { ok: false, reason: terminatedSentence(row.code, 'sửa') }
   return row.state === 'lost'
     ? {
         ok: false,
@@ -41,7 +43,9 @@ export function editDetailsVerdict(row: OpportunityRowDb): OpportunityAct {
 export function editTermsVerdict(deal: DealAt): OpportunityAct {
   const code = deal.row.code
   const terms = 'giá trị, ngày dự kiến chốt và sản phẩm'
-  if (deal.row.state === 'lost') return editDetailsVerdict(deal.row)
+  if (deal.row.state === 'lost' || deal.terminated) {
+    return editDetailsVerdict(deal.row, deal.terminated)
+  }
   if (deal.signed) {
     return { ok: false, reason: `Cơ hội ${code} đã ký hợp đồng, ${terms} không sửa được.` }
   }
@@ -115,7 +119,7 @@ export class OpportunityActs {
       accept: gate('opportunity.accept', acceptVerdict(found, pendingSign), false),
       assign: gate('opportunity.assign', assignVerdict(deal, saleCountOf(found))),
       editTerms: gate('opportunity.edit', editTermsVerdict(deal)),
-      editDetails: gate('opportunity.edit', editDetailsVerdict(found.row)),
+      editDetails: gate('opportunity.edit', editDetailsVerdict(found.row, found.terminated)),
       hold: gate('opportunity.edit', holdVerdict(deal)),
     }
     return {

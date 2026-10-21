@@ -9,7 +9,7 @@ import { campaignTotalsQuery, sourcesQuery } from '@/data/campaigns'
 import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import { CONTACT_BOOK_KEY } from '@/data/contacts'
-import { CONTRACT_BOOK_KEY } from '@/data/contracts'
+import { CONTRACT_BOOK_KEY, contractTerminationReasonsQuery } from '@/data/contracts'
 import { DIRECTORY_KEY } from '@/data/directory'
 import { HOLD_LIST_KEY } from '@/data/holds'
 import { PERFORMANCE_KEY } from '@/data/home-charts'
@@ -86,6 +86,7 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
     leadMotionsQuery().queryKey,
     commVocabularyQuery.queryKey,
     opportunityStopReasonsQuery.queryKey,
+    contractTerminationReasonsQuery.queryKey,
     quotationReasonsQuery.queryKey,
     contractKindsQuery.queryKey,
     masTemplatesQuery.queryKey,

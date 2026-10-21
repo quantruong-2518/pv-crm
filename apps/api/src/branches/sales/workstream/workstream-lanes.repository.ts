@@ -7,7 +7,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { leadDealsAllLost } from '../open-deal'
+import { dealTerminated, dealWon, leadDealsAllLost } from '../open-deal'
 import { openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
@@ -90,6 +90,11 @@ export class WorkstreamLanesRepository {
               signedAt: contract.signedAt,
               ownerId: contract.ownerId,
               ownerName: actor.name,
+              terminatedAt:
+                sql<Date | null>`(SELECT t.terminated_at FROM sales.contract_termination t
+                WHERE t.contract_code = ${contract.code})`.mapWith(contract.signedAt),
+              dealWon: sql<boolean>`${dealWon(contract.opportunityCode)}`,
+              dealTerminated: sql<boolean>`${dealTerminated(contract.opportunityCode)}`,
             })
             .from(contract)
             .leftJoin(actor, eq(actor.id, contract.ownerId))
@@ -248,6 +253,11 @@ export type ContractLaneRow = {
   signedAt: Date
   ownerId: string | null
   ownerName: string | null
+  /** Set when the contract was terminated (ADR 0107); the row itself stays. */
+  terminatedAt: Date | null
+  /** The DEAL's reading (`dealWon` / `dealTerminated`), same on each of its rows. */
+  dealWon: boolean
+  dealTerminated: boolean
 }
 
 export type InstallmentLaneRow = {

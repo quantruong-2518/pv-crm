@@ -663,4 +663,24 @@ export const CONFIG_ENTRIES = [
     doNotContact: false,
     criterionId: null,
   },
+  // Migration 0128's six, mapped rather than spelled out to stay under max-lines.
+  ...[
+    'Khách rút lui',
+    'Khách không đủ khả năng thanh toán',
+    'Tranh chấp thanh toán',
+    'Tranh chấp nội dung hợp đồng',
+    'Bên mình không thực hiện được',
+    'Ký nhầm hoặc ký trùng',
+  ].map((name, i) => ({
+    id: `TN-0${i + 1}`,
+    list: 'CONTRACT_TERMINATION_REASON' as const,
+    name,
+    ord: i + 1,
+    active: true,
+    limitDays: null,
+    kind: null,
+    stage: null,
+    doNotContact: false,
+    criterionId: null,
+  })),
 ] as const

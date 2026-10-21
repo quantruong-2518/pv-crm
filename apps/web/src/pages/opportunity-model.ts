@@ -59,7 +59,7 @@ function stageStep(op: Profile, s: OpportunityStageSpan, i: number): TodoRung {
   }
   /* Never entered, yet a later column was: the deal went past it. */
   const passed = op.stages.slice(i + 1).some((later) => later.enteredAt !== null)
-  return passed || op.state === 'won'
+  return passed || op.state === 'won' || op.state === 'terminated'
     ? { ...base, mark: 'skipped', caption: 'bỏ qua' }
     : { ...base, mark: 'future', caption: null }
 }
@@ -150,8 +150,8 @@ export const SIGN_LABEL = { win: 'Chốt thắng', again: 'Ký thêm hợp đồ
 
 /** The floating bar's other moves: the activity record, the owners' drawer, the
  *  hold and the stop. Quoting and signing are the header's, and the seller swap
- *  is the rail's door, so neither repeats here. A stop is final, so a lost deal
- *  offers nothing. */
+ *  is the rail's door, so neither repeats here. A stop and a termination are
+ *  final, so a lost or terminated deal offers nothing. */
 export function dealMoreChoices(
   op: Profile,
   doors: {
@@ -161,7 +161,7 @@ export function dealMoreChoices(
     onHold: () => void
   },
 ): MenuChoice[] {
-  if (op.state === 'lost') return []
+  if (op.state === 'lost' || op.state === 'terminated') return []
   const choices: MenuChoice[] = []
   if (op.acts.activity.ok) {
     choices.push({

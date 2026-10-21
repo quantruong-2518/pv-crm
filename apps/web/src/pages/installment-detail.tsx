@@ -42,7 +42,7 @@ import {
 } from '@/data/contracts'
 import { useDoneCondition } from '@/data/contracts-write'
 import { opportunityProfileQuery } from '@/data/opportunities'
-import { DueBadge, SideTag } from '@/components/contract-bits'
+import { DueBadge, SideTag, TerminatedBadge } from '@/components/contract-bits'
 import { MAIL_BLOCKED, contractChain, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
 import { ActionBar } from '@/components/record/action-bar'
@@ -133,7 +133,9 @@ function InstallmentScreen({
   const verdict = useQuery(
     opportunityProfileQuery(contract.opportunityCode),
   ).data?.money.contracts.find((c) => c.code === contract.code)?.can.editSchedule
-  const canDone = (verdict ?? permitted) && !installment.paidAt
+  /* A terminated contract refuses every write (ADR 0107), so no door is offered. */
+  const ended = contract.termination !== null
+  const canDone = (verdict ?? permitted) && !installment.paidAt && !ended
   const done = useDoneCondition(contract.code)
   const { blocking } = view
 
@@ -151,9 +153,14 @@ function InstallmentScreen({
           title={
             <>
               {`Đợt ${installment.no} · ${installment.label}`}
-              <DueBadge level={view.level} className="ml-3 align-middle tracking-normal" />
+              {ended && !installment.paidAt ? (
+                <TerminatedBadge className="ml-3 align-middle tracking-normal" />
+              ) : (
+                <DueBadge level={view.level} className="ml-3 align-middle tracking-normal" />
+              )}
             </>
           }
+          note={ended && installment.paidAt ? 'Hợp đồng đã chấm dứt.' : null}
           actions={
             blocking &&
             canDone && (
@@ -179,12 +186,12 @@ function InstallmentScreen({
       }
       main={
         <>
-          <ConditionsTodo installment={installment} view={view} now={now} />
-          <InstallmentStats installment={installment} view={view} />
+          <ConditionsTodo installment={installment} view={view} now={now} ended={ended} />
+          <InstallmentStats installment={installment} view={view} ended={ended} />
           <OverdueReasonCard
             contract={contract}
             installment={installment}
-            overdue={overdue(view.level)}
+            overdue={!ended && overdue(view.level)}
           />
           <RecordsCard installment={installment} />
         </>
@@ -222,10 +229,24 @@ function InstallmentScreen({
 }
 
 /** One rung per checklist line, in contract order: the blocking line is the
- *  current one, any other late line waits. */
-function conditionRung(c: InstallmentCondition, blocking: boolean, now: string): TodoRung {
-  const late = !c.doneAt && daysUntil(c.due, now) < 0
-  const mark: RungMark = c.doneAt ? 'done' : blocking ? 'current' : late ? 'waiting' : 'future'
+ *  current one, any other late line waits. On a terminated contract nothing is
+ *  owed, so no line is current or late and the day count is dropped. */
+function conditionRung(
+  c: InstallmentCondition,
+  blocking: boolean,
+  now: string,
+  ended: boolean,
+): TodoRung {
+  const late = !ended && !c.doneAt && daysUntil(c.due, now) < 0
+  const mark: RungMark = c.doneAt
+    ? 'done'
+    : ended
+      ? 'future'
+      : blocking
+        ? 'current'
+        : late
+          ? 'waiting'
+          : 'future'
   return {
     key: c.id,
     label: c.what,
@@ -234,8 +255,10 @@ function conditionRung(c: InstallmentCondition, blocking: boolean, now: string):
       c.side === 'ours' ? 'bên ta' : 'bên khách',
       c.who,
       `hạn ${dm(c.due)}`,
-      c.doneAt ? `xong ${dm(c.doneAt)}` : daysPhrase(daysUntil(c.due, now)),
-    ].join(' · '),
+      c.doneAt ? `xong ${dm(c.doneAt)}` : !ended && daysPhrase(daysUntil(c.due, now)),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     late,
   }
 }
@@ -247,19 +270,22 @@ function ConditionsTodo({
   installment,
   view,
   now,
+  ended,
 }: {
   installment: Installment
   view: View
   now: string
+  ended: boolean
 }) {
   const { blocking } = view
   return (
     <TodoCard
-      rungs={installment.conditions.map((c) => conditionRung(c, blocking?.id === c.id, now))}
+      rungs={installment.conditions.map((c) => conditionRung(c, blocking?.id === c.id, now, ended))}
       rungsLabel="Điều kiện mở khoá"
       layout="list"
       next={
-        blocking && (
+        blocking &&
+        !ended && (
           <div className="flex flex-col items-start gap-2">
             <SideTag side={blocking.side} long />
             <p className="m-0 text-[12.5px] leading-[1.6]">
@@ -272,7 +298,15 @@ function ConditionsTodo({
   )
 }
 
-function InstallmentStats({ installment, view }: { installment: Installment; view: View }) {
+function InstallmentStats({
+  installment,
+  view,
+  ended,
+}: {
+  installment: Installment
+  view: View
+  ended: boolean
+}) {
   const invoice = installment.docs.find((d) => d.name.includes('Hoá đơn'))
   return (
     <RecordCard>
@@ -287,16 +321,24 @@ function InstallmentStats({ installment, view }: { installment: Installment; vie
           size="compact"
           label="Hạn thanh toán"
           value={dm(installment.due)}
-          source={installment.paidAt ? `về ${dm(installment.paidAt)}` : daysPhrase(view.daysLeft)}
+          source={
+            installment.paidAt
+              ? `về ${dm(installment.paidAt)}`
+              : ended
+                ? 'hợp đồng đã chấm dứt'
+                : daysPhrase(view.daysLeft)
+          }
         />
         <StatCard
           size="compact"
           label="Điều kiện mở khoá"
           value={`${view.doneConditions}/${view.totalConditions}`}
           source={
-            view.blocking
-              ? `còn 1 · bên ${view.blocking.side === 'ours' ? 'ta' : 'khách'}`
-              : 'xong cả hai bên'
+            ended
+              ? undefined
+              : view.blocking
+                ? `còn 1 · bên ${view.blocking.side === 'ours' ? 'ta' : 'khách'}`
+                : 'xong cả hai bên'
           }
         />
         <StatCard

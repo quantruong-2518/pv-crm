@@ -13,9 +13,20 @@ import { sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 export const dealOpen = (code: SQLWrapper, state: SQLWrapper): SQL =>
   sql`(${state} = 'open' AND NOT EXISTS (SELECT 1 FROM sales.contract od_k WHERE od_k.opportunity_code = ${code}))`
 
-/** Won = a contract row stands on the deal, whatever `state` still reads. */
+/** The contract was ended after signing (ADR 0107): the row stays for history
+ *  but is no longer a sale. `contractCode` is the OUTER contract code. */
+export const contractTerminated = (contractCode: SQLWrapper): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.contract_termination od_t WHERE od_t.contract_code = ${contractCode})`
+
+/** Won = a LIVE contract stands on the deal, whatever `state` still reads. A
+ *  deal signed twice with one contract terminated is still won (ADR 0107). */
 export const dealWon = (code: SQLWrapper): SQL =>
-  sql`EXISTS (SELECT 1 FROM sales.contract od_w WHERE od_w.opportunity_code = ${code})`
+  sql`EXISTS (SELECT 1 FROM sales.contract od_w WHERE od_w.opportunity_code = ${code} AND NOT ${contractTerminated(sql`od_w.code`)})`
+
+/** Terminated = it had a contract and none is live: a fourth bucket, neither
+ *  won nor lost nor open, because money may have moved before it fell apart. */
+export const dealTerminated = (code: SQLWrapper): SQL =>
+  sql`(EXISTS (SELECT 1 FROM sales.contract od_x WHERE od_x.opportunity_code = ${code}) AND NOT ${dealWon(code)})`
 
 /** Stopped for good (ADR 0069 §1) with nothing signed: won and lost never
  *  count one deal twice, a contract beats whatever `state` still reads. */
@@ -43,22 +54,26 @@ export const dealStoodBy = (code: SQLWrapper, actorId: string): SQL =>
 export const leadDealHeldBy = (leadCode: SQLWrapper, actorId: string): SQL =>
   sql`EXISTS (SELECT 1 FROM sales.opportunity od_h WHERE od_h.lead_code = ${leadCode} AND ${dealOpen(sql`od_h.code`, sql`od_h.state`)} AND ${dealStoodBy(sql`od_h.code`, actorId)})`
 
+/** The lead has bought: a LIVE contract. A lead whose only contract was
+ *  terminated has not, and may leave through the normal lead door (ADR 0107). */
 export const leadHasContract = (leadCode: SQLWrapper): SQL =>
-  sql`EXISTS (SELECT 1 FROM sales.contract od_c WHERE od_c.lead_code = ${leadCode})`
+  sql`EXISTS (SELECT 1 FROM sales.contract od_c WHERE od_c.lead_code = ${leadCode} AND NOT ${contractTerminated(sql`od_c.code`)})`
 
-/** The lead stands `converted`: a deal still open, or something signed. A lead
+/** The lead stands `converted`: a deal still open, or something signed, even
+ *  if that contract was later terminated (the lead did have a deal). A lead
  *  whose deals were all lost does not — reopen reads it (`stateOnReopen`). */
 export const leadConverted = (leadCode: SQLWrapper): SQL =>
-  sql`(${leadHasOpenDeal(leadCode)} OR ${leadHasContract(leadCode)})`
+  sql`(${leadHasOpenDeal(leadCode)} OR EXISTS (SELECT 1 FROM sales.contract od_v WHERE od_v.lead_code = ${leadCode}))`
 
 /** Signed = a contract AND no deal still open, so a lead with one deal signed
  *  and a sibling still being worked keeps running. */
 export const leadSigned = (leadCode: SQLWrapper): SQL =>
   sql`(${leadHasContract(leadCode)} AND NOT ${leadHasOpenDeal(leadCode)})`
 
-/** Lost = nothing signed, at least one deal, and every deal stopped (ADR 0069
- *  §3). A lead that never had a deal is not lost by this rule. */
+/** Lost = no live contract, at least one deal, and none still open (ADR 0069
+ *  §3): every deal stopped or terminated, both final (ADR 0107 §2). A lead
+ *  that never had a deal is not lost by this rule. */
 export const leadDealsAllLost = (leadCode: SQLWrapper): SQL =>
   sql`(NOT ${leadHasContract(leadCode)}
        AND EXISTS (SELECT 1 FROM sales.opportunity od_l WHERE od_l.lead_code = ${leadCode})
-       AND NOT EXISTS (SELECT 1 FROM sales.opportunity od_l WHERE od_l.lead_code = ${leadCode} AND od_l.state <> 'lost'))`
+       AND NOT ${leadHasOpenDeal(leadCode)})`

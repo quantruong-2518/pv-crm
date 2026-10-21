@@ -28,6 +28,7 @@ import { notification } from '@api/platform/notification/notification.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
+import { contractTerminated } from '../open-deal'
 import { fromDraft } from './contract.mapper'
 import { opportunityOwner } from '../opportunity/opportunity.schema'
 import { contractParticipant } from './contract-participant.schema'
@@ -46,6 +47,7 @@ import {
   type ContractRowDb,
 } from './contract.schema'
 import { seqCodes } from '../code-seq'
+import { terminationsOf, type TerminationRead } from './contract-termination.repository'
 
 /** Một dòng hợp đồng kèm tên người ăn hoa hồng. */
 export type ContractRead = {
@@ -63,6 +65,7 @@ export type ContractRead = {
  *  again says nothing to whoever reads an audit line. */
 export type ContractBookRead = ContractRead & {
   customer: string
+  termination: TerminationRead | null
   installments: ContractInstallmentRowDb[]
 }
 
@@ -101,6 +104,7 @@ export type InstallmentRead = {
 
 export type ContractDetailRead = ContractRead & {
   customer: string
+  termination: TerminationRead | null
   contact: string
   /** NULL when the lead never carried a job title — the mapper decides what to
    *  print, because that is a display decision. */
@@ -133,6 +137,10 @@ const TREND_MONTHS = 12
  *  FK `contract_opportunity_fk` keeps it equal to its deal's. Every read joins
  *  through here and cuts on `leadLive` — a contract is off when its lead is. */
 const ON_LEAD = eq(lead.code, contract.leadCode)
+
+/** A terminated contract's unpaid installments are owed by nobody (ADR 0107):
+ *  every money, status and overdue read below stands on live contracts only. */
+const LIVE = sql`NOT ${contractTerminated(contract.code)}`
 
 /** `EXISTS` over one contract's installments, optionally narrowed. A contract
  *  stores no state, so every status and the next-installment sort read these. */
@@ -329,15 +337,17 @@ export class ContractRepository {
     ] as const)
 
     const codes = rows.map((r) => r.row.code)
-    const [schedule, people] = await Promise.all([
+    const [schedule, people, ended] = await Promise.all([
       this.installmentsOf(codes),
       this.participantsOf(codes),
+      terminationsOf(this.db, codes),
     ])
 
     return {
       rows: rows.map((r) => ({
         ...r,
         participants: people.get(r.row.code) ?? [],
+        termination: ended.get(r.row.code) ?? null,
         installments: schedule.get(r.row.code) ?? [],
       })),
       total: scopedTotal,
@@ -372,9 +382,10 @@ export class ContractRepository {
     /* One query per child table for the WHOLE contract, then grouped in
        memory. Six installments times four tables is 24 round trips the other
        way, and every one of them rides the same index this one does. */
-    const [schedule, people, conditions, docs, records, notes] = await Promise.all([
+    const [schedule, people, ended, conditions, docs, records, notes] = await Promise.all([
       this.installmentsOf([code]),
       this.participantsOf([code]),
+      terminationsOf(this.db, [code]),
       this.db
         .select()
         .from(contractCondition)
@@ -421,6 +432,7 @@ export class ContractRepository {
     return {
       ...found,
       participants: people.get(code) ?? [],
+      termination: ended.get(code) ?? null,
       installments: rows.map((row) => ({
         row,
         paidByName: (row.paidById && payerNames.get(row.paidById)) || null,
@@ -465,7 +477,7 @@ export class ContractRepository {
         })
         .from(contract)
         .innerJoin(lead, ON_LEAD)
-        .where(leadLive),
+        .where(and(leadLive, LIVE)),
       /* Installments carry no currency column — the schedule is drafted in
          dong — so these four sums add the column itself. */
       this.db
@@ -486,7 +498,7 @@ export class ContractRepository {
         .from(contractInstallment)
         .innerJoin(contract, eq(contract.code, contractInstallment.contractCode))
         .innerJoin(lead, ON_LEAD)
-        .where(leadLive),
+        .where(and(leadLive, LIVE)),
       /* Late PAPERWORK, counted per CONDITION and not per contract: two unmet
          lines on one contract are two things to chase, which is what the tile
          has always printed. A separate question from `overdueCount` above —
@@ -504,6 +516,7 @@ export class ContractRepository {
             isNull(contractCondition.doneAt),
             sql`${contractCondition.due} < ${VN_TODAY_START}`,
             leadLive,
+            LIVE,
           ),
         ),
       this.trend(),
@@ -546,7 +559,7 @@ export class ContractRepository {
                date_trunc('month', now() AT TIME ZONE 'Asia/Ho_Chi_Minh') - ${back} * interval '1 month',
                date_trunc('month', now() AT TIME ZONE 'Asia/Ho_Chi_Minh'),
                interval '1 month') AS m(at)
-        LEFT JOIN (${contract} JOIN ${lead} ON ${ON_LEAD} AND ${leadLive})
+        LEFT JOIN (${contract} JOIN ${lead} ON ${ON_LEAD} AND ${leadLive} AND ${LIVE})
                ON date_trunc('month', ${contract.signedAt} AT TIME ZONE 'Asia/Ho_Chi_Minh') = m.at
        GROUP BY m.at
        ORDER BY m.at
@@ -579,7 +592,7 @@ export class ContractRepository {
 
   /** Overdue installments — `summary()`'s predicate, unpaid and due before
    *  `VN_TODAY_START` — whose contract owner holds no bell line for them yet,
-   *  on live leads and unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
+   *  on live leads, live contracts and unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
    *  (recipient, event key) is what refuses a duplicate. The key is spelled
    *  as E4's `plan` builds it (`<kind>/<code>/<occurrence>`): move both together.
    *  The occurrence carries the due day (ADR 0093 §5's anchor date), so a due
@@ -607,6 +620,7 @@ export class ContractRepository {
           isNull(ci.paidAt),
           sql`${ci.due} < ${VN_TODAY_START}`,
           leadLive,
+          LIVE,
           notExists(
             tx
               .select({ one: sql`1` })
@@ -632,16 +646,18 @@ export class ContractRepository {
 
   /** Every book filter, ANDed. Independent of the scope axis. */
   private filtersOf(q: ContractBookQuery): (SQL | undefined)[] {
+    const live = (status: SQL) => and(LIVE, status)
     return [
       q.status === 'overdue'
-        ? installmentExists(sql`${UNPAID} AND ci.due < ${VN_TODAY_START}`)
+        ? live(installmentExists(sql`${UNPAID} AND ci.due < ${VN_TODAY_START}`))
         : undefined,
       q.status === 'collected'
-        ? and(installmentExists(), sql`NOT ${installmentExists(UNPAID)}`)
+        ? live(sql`${installmentExists()} AND NOT ${installmentExists(UNPAID)}`)
         : undefined,
       q.status === 'open'
-        ? sql`NOT (${installmentExists()} AND NOT ${installmentExists(UNPAID)})`
+        ? live(sql`NOT (${installmentExists()} AND NOT ${installmentExists(UNPAID)})`)
         : undefined,
+      q.status === 'terminated' ? contractTerminated(contract.code) : undefined,
       q.owner ? this.byOwner(q.owner) : undefined,
       q.signedFrom
         ? sql`${contract.signedAt} >= (${q.signedFrom}::date)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'`

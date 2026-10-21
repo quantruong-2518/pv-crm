@@ -6,6 +6,7 @@ import { DB, type Db } from '@api/platform/db/db.module'
 import { readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { dealHeld } from '../hold/hold.sql'
+import { dealLost, dealOpen, dealTerminated } from '../open-deal'
 import { lead } from '../lead/lead.schema'
 import { opportunity, opportunityOwner } from './opportunity.schema'
 import { OpportunityRepository, opportunityProbe } from './opportunity.repository'
@@ -48,9 +49,10 @@ export class OpportunityFacetsRepository {
         (db) =>
           db
             .select({
-              open: sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'open' AND NOT ${signed})::int`,
-              lost: sql<number>`count(*) FILTER (WHERE ${board} AND ${opportunity.state} = 'lost' AND NOT ${signed})::int`,
+              open: sql<number>`count(*) FILTER (WHERE ${board} AND ${dealOpen(opportunity.code, opportunity.state)})::int`,
+              lost: sql<number>`count(*) FILTER (WHERE ${board} AND ${dealLost(opportunity.code, opportunity.state)})::int`,
               won: sql<number>`count(*) FILTER (WHERE ${board} AND ${signed})::int`,
+              terminated: sql<number>`count(*) FILTER (WHERE ${board} AND ${dealTerminated(opportunity.code)})::int`,
               held: sql<number>`count(*) FILTER (WHERE ${dealHeld(opportunity.code)})::int`,
               new: openIn('new'),
               assigned: openIn('assigned'),
@@ -66,7 +68,12 @@ export class OpportunityFacetsRepository {
       saleOwners,
       bdOwners,
       accounts: accounts.map((a) => a.name),
-      byState: { open: counts?.open ?? 0, lost: counts?.lost ?? 0, won: counts?.won ?? 0 },
+      byState: {
+        open: counts?.open ?? 0,
+        lost: counts?.lost ?? 0,
+        won: counts?.won ?? 0,
+        terminated: counts?.terminated ?? 0,
+      },
       byStage: Object.fromEntries(StageKey.options.map((k) => [k, counts?.[k] ?? 0])),
       held: counts?.held ?? 0,
     }

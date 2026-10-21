@@ -10,7 +10,7 @@ import { RolePermissionRepository } from '@api/platform/roles/role-permission.re
 import { movesLead } from '../lead/lead-exit.service'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
-import { leadHasContract } from '../open-deal'
+import { dealOpen, leadHasContract } from '../open-deal'
 import type { OpportunityRead } from './opportunity.repository'
 
 /** The stop of a lead's last live deal asks its stopper where the lead goes
@@ -41,7 +41,7 @@ export class LeadAfterStopRule {
           eq(lead.state, 'converted'),
           leadLive,
           sql`NOT ${leadHasContract(lead.code)}`,
-          sql`NOT EXISTS (SELECT 1 FROM sales.opportunity sl_o WHERE sl_o.lead_code = ${lead.code} AND sl_o.code <> ${found.row.code} AND sl_o.state <> 'lost')`,
+          sql`NOT EXISTS (SELECT 1 FROM sales.opportunity sl_o WHERE sl_o.lead_code = ${lead.code} AND sl_o.code <> ${found.row.code} AND ${dealOpen(sql`sl_o.code`, sql`sl_o.state`)})`,
         ),
       )
     if (!last) return null

@@ -21,6 +21,7 @@ import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity, type OpportunityRowDb } from '../opportunity/opportunity.schema'
+import { dealTerminated } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import {
   meeting,
@@ -141,9 +142,17 @@ export class MeetingRepository {
   }
 
   /** The deal a meeting on an `OP-` hangs off, for its edit rule. */
-  async dealOf(code: string, handle: Db = this.db): Promise<OpportunityRowDb | null> {
-    const [row] = await handle.select().from(opportunity).where(eq(opportunity.code, code)).limit(1)
-    return row ?? null
+  /** The deal and whether its contracts were all terminated (ADR 0107). */
+  async dealOf(
+    code: string,
+    handle: Db = this.db,
+  ): Promise<{ row: OpportunityRowDb; terminated: boolean } | null> {
+    const [found] = await handle
+      .select({ row: opportunity, terminated: sql<boolean>`${dealTerminated(opportunity.code)}` })
+      .from(opportunity)
+      .where(eq(opportunity.code, code))
+      .limit(1)
+    return found ?? null
   }
 
   async insert(tx: Db, values: MeetingValues): Promise<string> {

@@ -347,7 +347,16 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
   const { rows, now } = input
   const events = rows.events.filter((e) => e.deal === deal.code)
   const signed = rows.contracts.filter((c) => c.deal === deal.code)
-  const outcome = signed.length > 0 ? 'won' : deal.state === 'lost' ? 'lost' : 'open'
+  const live = signed.filter((c) => c.terminatedAt === null)
+  /* The deal's reading comes from SQL (`dealWon` / `dealTerminated`) on its rows. */
+  const outcome =
+    signed[0]?.dealWon === true
+      ? 'won'
+      : signed[0]?.dealTerminated === true
+        ? 'terminated'
+        : deal.state === 'lost'
+          ? 'lost'
+          : 'open'
   const entryOf = (key: StageKey): Entry => {
     const e = lastOf(events, (x) => x.to === key)
     return e ? { at: e.at, by: { id: e.byId, name: e.by } } : null
@@ -357,7 +366,7 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
   const rungs = rungsOf({
     keys: StageKey.options,
     index: stood === null ? -1 : StageKey.options.indexOf(stood),
-    closed: outcome === 'won' ? 'done' : outcome === 'lost' ? 'stopped' : 'current',
+    closed: outcome === 'lost' ? 'stopped' : outcome === 'open' ? 'current' : 'done',
     skipUnentered: true,
     entryOf,
     /* A closed deal's `stage_since` is nulled on close, so its clock falls
@@ -408,7 +417,14 @@ function dealOf(deal: OpportunityRowDb, input: JourneyInput): JourneyDeal {
     expectedClose: deal.expectedClose,
     outcome,
     outcomeAt: iso(
-      outcome === 'won' ? (signed[0]?.signedAt ?? null) : outcome === 'lost' ? deal.closedAt : null,
+      outcome === 'won'
+        ? (live[0]?.signedAt ?? null)
+        : outcome === 'lost'
+          ? deal.closedAt
+          : signed.reduce<Date | null>(
+              (at, c) => (c.terminatedAt && (!at || c.terminatedAt > at) ? c.terminatedAt : at),
+              null,
+            ),
     ),
     rungs,
     nextAction: step && outcome === 'open' ? toNextStep(step, input.today) : null,
@@ -518,17 +534,26 @@ function lastStageOf(events: readonly StageEventRow[]): StageKey | null {
 
 /** Only `signed` and `collect` have a source today; deploy, accept and done
  *  stay `upcoming` until their tables exist. `collect` reads the schedule:
- *  all paid → done, some → current. */
+ *  all paid → done, some → current; a terminated contract stops it there and
+ *  keeps only the paid installments, so none reads overdue (ADR 0107). */
 function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string): JourneyContract {
-  const schedule = rows.installments.filter((i) => i.contractCode === c.code)
+  const ended = c.terminatedAt !== null
+  const schedule = rows.installments.filter(
+    (i) => i.contractCode === c.code && (!ended || i.paidAt !== null),
+  )
   const paid = schedule
     .map((i) => i.paidAt)
     .filter((d): d is Date => d !== null)
     .sort((a, b) => a.getTime() - b.getTime())
   const firstPaid = paid[0] ?? null
-  const collect: JourneyRungState =
-    paid.length === 0 ? 'upcoming' : paid.length === schedule.length ? 'done' : 'current'
-  const collectEnd = collect === 'done' ? (paid[paid.length - 1] ?? null) : now
+  const collect: JourneyRungState = ended
+    ? 'stopped'
+    : paid.length === 0
+      ? 'upcoming'
+      : paid.length === schedule.length
+        ? 'done'
+        : 'current'
+  const collectEnd = collect === 'current' ? now : (paid[paid.length - 1] ?? c.terminatedAt)
 
   const rungs = ContractRungKey.options.map((key) => {
     if (key === 'signed') {

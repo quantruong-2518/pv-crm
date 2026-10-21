@@ -26,7 +26,7 @@ import { TouchService } from '../touch/touch.service'
 import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { announceSigned } from './deal-money.bell'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
-import { DEAL_HELD_REFUSAL } from './opportunity-lifecycle'
+import { DEAL_HELD_REFUSAL, terminatedSentence } from './opportunity-lifecycle'
 import { lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
@@ -341,6 +341,8 @@ export type SignFacts = {
   hasSeller: boolean
   /** A hold blocks the request, not the approval: none can be set while one waits. */
   held: boolean
+  /** Every contract terminated (ADR 0107 §2): final, a comeback is a new deal. */
+  terminated: boolean
 }
 
 export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts => ({
@@ -350,13 +352,15 @@ export const signFactsOf = (found: OpportunityRead, quoted: boolean): SignFacts 
   quoted,
   hasSeller: found.hasSeller,
   held: found.held,
+  terminated: found.terminated,
 })
 
-/** The two refusals the approval re-checks when it applies. A won deal passes
- *  (sign again). The second is the quotation gate (ADR 0064 §3): no FIRST
+/** The refusals the approval re-checks when it applies. A won deal passes
+ *  (sign again); a terminated one does not (ADR 0107 §2). The second is the quotation gate (ADR 0064 §3): no FIRST
  *  contract without a row in the quotation ledger — a fact, not `stage`, which a
  *  back-dated column could fake. */
 export function signableVerdict(f: SignFacts): OpportunityAct {
+  if (f.terminated) return refuse(terminatedSentence(f.code, 'ký'))
   if (f.lost)
     return refuse(`Cơ hội ${f.code} đã dừng, không ký được. Muốn chăm lại thì đi từ lead.`)
   if (!f.signed && !f.quoted) {

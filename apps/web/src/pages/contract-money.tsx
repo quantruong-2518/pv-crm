@@ -1,4 +1,5 @@
 import { Badge, Chip, ClipboardList, GlassCard, Icon, cn } from '@pv/ui'
+import { OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
 import { daysUntil, type DueLevel } from '@pv/engines'
 import { dm, dmy } from '@/lib/date'
 import {
@@ -19,7 +20,9 @@ import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/mone
 /** The contract's money block, drawn like the deal's (`PaperDetail`): one well
  *  with the paper's heading, then the installments as tiles that open level 2.
  *  Same tile, same badge, same acceptance line — the two screens read as one.
- * */
+ *
+ *  Ended for good (ADR 0107), an unpaid tile drops its due badge and its late
+ *  line: nothing is owed, so nothing is late. */
 
 const LABEL = 'text-muted-foreground text-[12px] font-medium'
 
@@ -43,10 +46,12 @@ function acceptanceOf(view: InstallmentView<Installment>): InstallmentCondition 
 export function ContractMoney({
   contract: c,
   views,
+  ended,
   onOpen,
 }: {
   contract: Contract
   views: InstallmentView<Installment>[]
+  ended: boolean
   onOpen: (no: number) => void
 }) {
   const resolveKind = useContractKindLabel()
@@ -63,7 +68,7 @@ export function ContractMoney({
             {kindLabel(c.kind, resolveKind)}
           </h2>
           <Chip>{c.code}</Chip>
-          <Badge tone={standing.tone}>{standing.label}</Badge>
+          {!ended && <Badge tone={standing.tone}>{standing.label}</Badge>}
           <span className="text-muted-foreground tnum text-[12px]">Ký {dmy(c.signedAt)}</span>
           <span className="tnum font-num ml-auto text-[20px] font-semibold">
             {c.amount === null ? NO_AMOUNT : compactMoney(c.amount, c.currency)}
@@ -90,6 +95,7 @@ export function ContractMoney({
                   key={v.installment.no}
                   view={v}
                   currency={c.currency}
+                  dropped={ended && !v.installment.paidAt}
                   onOpen={() => onOpen(v.installment.no)}
                 />
               ))}
@@ -104,16 +110,18 @@ export function ContractMoney({
 function InstallmentTile({
   view,
   currency,
+  dropped,
   onOpen,
 }: {
   view: InstallmentView<Installment>
   currency: Contract['currency']
+  dropped: boolean
   onOpen: () => void
 }) {
   const { installment: d, level } = view
   const line = acceptanceOf(view)
-  const lineLate = Boolean(line && !line.doneAt && daysUntil(line.due, today()) < 0)
-  const overdue = late(level)
+  const lineLate = Boolean(line && !line.doneAt && !dropped && daysUntil(line.due, today()) < 0)
+  const overdue = !dropped && late(level)
 
   return (
     <button
@@ -134,10 +142,15 @@ function InstallmentTile({
         {compactMoney(d.amount, currency)}
       </span>
       <span className="text-muted-foreground tnum text-[12px]">hạn {dm(d.due)}</span>
-      <TintBadge tone={LEVEL_TONE[level]} className={cn(level === 'upcoming' && BADGE_INK)}>
-        {d.paidAt
-          ? `${DUE_LABEL.done} ${dmy(d.paidAt)}`
-          : `${DUE_LABEL[level]} · ${daysPhrase(view.daysLeft)}`}
+      <TintBadge
+        tone={dropped ? 'draft' : LEVEL_TONE[level]}
+        className={cn((dropped || level === 'upcoming') && BADGE_INK)}
+      >
+        {dropped
+          ? OPPORTUNITY_STATE_LABEL.terminated
+          : d.paidAt
+            ? `${DUE_LABEL.done} ${dmy(d.paidAt)}`
+            : `${DUE_LABEL[level]} · ${daysPhrase(view.daysLeft)}`}
       </TintBadge>
       {line && (
         <span

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, not, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccountBookQuery, AccountFacetsQuery, LeadCategory } from '@pv/contracts'
@@ -11,6 +11,7 @@ import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contact } from '../contact/contact.schema'
 import { toVndSql } from '../money'
+import { contractTerminated, dealTerminated } from '../open-deal'
 import { account, type AccountRowDb } from './account.schema'
 import type { AccountValues } from './account.mapper'
 import { seqCodes } from '../code-seq'
@@ -73,6 +74,9 @@ const at = (column: AnyPgColumn): SQL => sql`${column.table}.${sql.identifier(co
  *  where the shared predicate's bare column would lose its table. */
 const LIVE = sql`${at(lead.disabledAt)} IS NULL`
 
+/** A terminated contract is no sale (ADR 0107): it leaves the signed figures. */
+const KEPT = sql`NOT ${contractTerminated(at(contract.code))}`
+
 const LEAD_COUNT = sql<number>`(
   SELECT count(*)::int FROM ${lead}
   WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
@@ -86,7 +90,7 @@ const OPEN_DEALS = sql<number>`(
     AND ${LIVE}
 )`
 
-/** Signed = a row exists in `sales.contract`. Counted from the contract side
+/** Signed = a live row in `sales.contract`. Counted from the contract side
  *  rather than from `opportunity.state`, because "won" is not a state of a deal
  *  in this schema — it is the existence of that row, and reading it any other
  *  way builds the second source of truth `opportunity.schema.ts` refuses. */
@@ -94,7 +98,7 @@ const SIGNED_DEALS = sql<number>`(
   SELECT count(*)::int
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE} AND ${KEPT}
 )`
 
 /** Everything signed, converted to dong with the same rate table the deal book
@@ -108,7 +112,7 @@ const SIGNED_AMOUNT_VND = sql<number>`(
   SELECT COALESCE(SUM(${toVndSql(at(contract.amount), at(contract.currency))}), 0)::bigint
   FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE} AND ${KEPT}
 )`
 
 /** EXISTS twins of `SIGNED_DEALS` and `OPEN_DEALS`, so a filter stops at the
@@ -116,7 +120,7 @@ const SIGNED_AMOUNT_VND = sql<number>`(
 export const HAS_SIGNED = sql`EXISTS (
   SELECT 1 FROM ${contract}
   JOIN ${lead} ON ${at(lead.code)} = ${at(contract.leadCode)}
-  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE}
+  WHERE ${at(lead.accountCode)} = ${at(account.code)} AND ${LIVE} AND ${KEPT}
 )`
 
 const HAS_OPEN_DEALS = sql`EXISTS (
@@ -284,11 +288,16 @@ export class AccountRepository {
         state: opportunity.state,
         amountVnd: toVndSql(opportunity.amount, opportunity.currency),
         contractCode: contract.code,
+        /* Read beside `state`: the column cannot say it (ADR 0107). */
+        terminated: sql<boolean>`${dealTerminated(opportunity.code)}`,
         createdAt: opportunity.createdAt,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
-      .leftJoin(contract, eq(contract.opportunityCode, opportunity.code))
+      .leftJoin(
+        contract,
+        and(eq(contract.opportunityCode, opportunity.code), not(contractTerminated(contract.code))),
+      )
       .where(and(eq(lead.accountCode, code), leadLive))
       .orderBy(desc(opportunity.createdAt))
   }

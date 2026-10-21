@@ -13,12 +13,13 @@ import type { PeriodSpan } from './performance-period'
 type ExitRow = { key: string; label: string; count: number }
 type StopRow = ExitRow & { stage: StageKey }
 
-/** Why leads and deals left in one span (ADR 0088 §22) — two grouped counts.
+/** Why leads, deals and contracts left in one span (ADR 0088 §22, 0107).
  *
  *  Leads are counted where they STAND, off `lead.exit_reason`: a lead that
  *  left and was reopened is not an exit any more, and a nurture park never
  *  writes that column. `ConfigRepository.usage` counts stop EVENTS instead,
- *  to weigh a catalogue row; the two differ by design.
+ *  to weigh a catalogue row; the two differ by design. A termination counts
+ *  on `terminated_at`, the event, not on the deal's close moment.
  *
  *  A label comes off the catalogue row whether or not it is still active, so
  *  a retired reason keeps its name. `other` has no row and takes the
@@ -57,6 +58,22 @@ export class PerformanceExitsRepository {
        GROUP BY o."stopped_at_stage", o."stop_reason"
        ORDER BY count(*) DESC, o."stop_reason" COLLATE "C", o."stopped_at_stage"
     `)) as { rows: StopRow[] }
+    return r.rows
+  }
+
+  async contractTerminations(span: PeriodSpan): Promise<ExitRow[]> {
+    const r = (await this.db.execute(sql`
+      SELECT t."reason_key" AS key, ${labelOf(sql`t."reason_key"`)} AS label,
+             count(*)::int AS count
+        FROM "sales"."contract_termination" t
+        JOIN "sales"."contract" k ON k."code" = t."contract_code"
+        JOIN "sales"."lead" l ON l."code" = k."lead_code" AND l."disabled_at" IS NULL
+        LEFT JOIN "sales"."config_entry" c
+          ON c."id" = t."reason_key" AND c."list" = 'CONTRACT_TERMINATION_REASON'
+       WHERE ${within(sql`t."terminated_at"`, span)}
+       GROUP BY t."reason_key"
+       ORDER BY count(*) DESC, t."reason_key" COLLATE "C"
+    `)) as { rows: ExitRow[] }
     return r.rows
   }
 }

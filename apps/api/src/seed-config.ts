@@ -193,6 +193,16 @@ const CONTRACT_KINDS = [
   'Đơn hàng (PO)',
 ]
 
+/* Same six names migration 0128 plants (prefix TN, ADR 0107). */
+const CONTRACT_TERMINATION_REASONS = [
+  'Khách rút lui',
+  'Khách không đủ khả năng thanh toán',
+  'Tranh chấp thanh toán',
+  'Tranh chấp nội dung hợp đồng',
+  'Bên mình không thực hiện được',
+  'Ký nhầm hoặc ký trùng',
+]
+
 export const configSeed = [
   ...configRows(
     'STAGE',
@@ -232,6 +242,10 @@ export const configSeed = [
   ...configRows(
     'CONTRACT_KIND',
     CONTRACT_KINDS.map((name) => ({ name })),
+  ),
+  ...configRows(
+    'CONTRACT_TERMINATION_REASON',
+    CONTRACT_TERMINATION_REASONS.map((name) => ({ name })),
   ),
   ...configRows(
     'STEP_KIND',

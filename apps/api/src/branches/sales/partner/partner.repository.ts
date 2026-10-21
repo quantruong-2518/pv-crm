@@ -7,7 +7,7 @@ import { motionPolicy } from '../config/motion.schema'
 import { leadOrigin, leadOriginMotion } from '../lead-origin/lead-origin.schema'
 import { lead } from '../lead/lead.schema'
 import { opportunity } from '../opportunity/opportunity.schema'
-import { contract } from '../contract/contract.schema'
+import { leadHasContract } from '../open-deal'
 import { partner, type PartnerRowDb } from './partner.schema'
 import { seqCodes } from '../code-seq'
 
@@ -83,7 +83,7 @@ export class PartnerRepository {
         code: lead.partnerCode,
         leads: sql<number>`count(*)::int`,
         opportunities: sql<number>`count(*) FILTER (WHERE EXISTS (SELECT 1 FROM ${opportunity} o WHERE o.lead_code = ${lead.code}))::int`,
-        contracts: sql<number>`count(*) FILTER (WHERE EXISTS (SELECT 1 FROM ${contract} c WHERE c.lead_code = ${lead.code}))::int`,
+        contracts: sql<number>`count(*) FILTER (WHERE ${leadHasContract(lead.code)})::int`,
       })
       .from(lead)
       .where(sql`${lead.partnerCode} IS NOT NULL`)

@@ -20,7 +20,12 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { assertKindUsable, kindLabel } from '../config/contract-kind'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
 import { announceRound, dealOwnerIds } from '../opportunity/deal-money.bell'
-import { OpportunityLifecycle, vnDay, type DealAt } from '../opportunity/opportunity-lifecycle'
+import {
+  OpportunityLifecycle,
+  terminatedSentence,
+  vnDay,
+  type DealAt,
+} from '../opportunity/opportunity-lifecycle'
 import { OpportunityMoves } from '../opportunity/opportunity-moves.service'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
@@ -89,7 +94,7 @@ export class QuotationService {
     body: QuotationPatchBody,
   ): Promise<QuotationRow> {
     return this.deals.run(async (tx) => {
-      await this.moves.locked(tx, who, code)
+      assertNotTerminated(await this.moves.locked(tx, who, code))
       const rows = await this.repo.byDeal(tx, code)
       const round = pendingOf(rows, id)
       assertValidUntil(body.validUntil, round.sentAt)
@@ -114,7 +119,7 @@ export class QuotationService {
     body: QuotationReason,
   ): Promise<QuotationRow> {
     return this.deals.run(async (tx) => {
-      await this.moves.locked(tx, who, code)
+      assertNotTerminated(await this.moves.locked(tx, who, code))
       const round = pendingOf(await this.repo.byDeal(tx, code), id)
       const written = await this.closeRound(tx, round, body, new Date())
       return this.settled(tx, who, written, 'closed')
@@ -195,9 +200,10 @@ export class QuotationService {
       this.access.check(who, { branch: 'Sales', permission }).ok
     const codes = signed.map((c) => c.row.code)
     const visible = await this.contracts.inScopeAmong(who, may('contract.view') ? codes : [])
-    const [rows, installments] = await Promise.all([
+    const [rows, installments, terminated] = await Promise.all([
       this.repo.byDeal(handle, deal.code),
       this.contracts.installmentsOf([...visible]),
+      this.deals.terminatedAmong(handle, codes),
     ])
     const shown = await this.shown(handle, rows, codes)
     return dealMoneyOf({
@@ -205,6 +211,7 @@ export class QuotationService {
       can: { editSchedule: may('contract.edit'), recordPayment: may('contract.record-payment') },
       dealCurrency: deal.currency,
       contracts: signed.map((c) => c.row),
+      terminated,
       installments,
       ...shown,
       today: vnDay(new Date()),
@@ -306,3 +313,8 @@ function assertValidUntil(validUntil: string | undefined, sentAt: Date): void {
 }
 
 const gone = () => conflict('Lần báo giá này không còn chờ khách. Tải lại rồi thử lại.')
+
+/** A terminated deal is final (ADR 0107 §2): its rounds are not edited or closed. */
+function assertNotTerminated(deal: DealAt): void {
+  if (deal.terminated) throw conflict(terminatedSentence(deal.row.code, 'sửa báo giá'))
+}

@@ -61,6 +61,8 @@ export type DealAt = {
   pendingSign: boolean
   /** An open hold (ADR 0097 §3), from the same in-transaction re-read. */
   held: boolean
+  /** Every contract terminated (ADR 0107 §2): final like `lost`, every door refuses. */
+  terminated: boolean
 }
 
 /** What every door refuses on a held deal but the stop and the hand-over. */
@@ -69,7 +71,13 @@ export const DEAL_HELD_REFUSAL = 'Cơ hội đang tạm hoãn. Bấm Bỏ tạm 
 /** A read deal → what a move needs. The mirror row names the deal's holder
  *  (`holderOf`, ADR 0071 §5), as every door that writes it does. */
 export const dealAtOf = (
-  found: { row: OpportunityRowDb; holder: RefOwner | null; signed: boolean; held: boolean },
+  found: {
+    row: OpportunityRowDb
+    holder: RefOwner | null
+    signed: boolean
+    held: boolean
+    terminated: boolean
+  },
   pendingSign: boolean,
 ): DealAt => ({
   row: found.row,
@@ -77,6 +85,7 @@ export const dealAtOf = (
   signed: found.signed,
   pendingSign,
   held: found.held,
+  terminated: found.terminated,
 })
 
 type By = { id: string; name: string }
@@ -432,6 +441,7 @@ const refuse = (reason: string): { ok: false; reason: string } => ({ ok: false, 
  *  the stop, accept and assign doors and the profile's `acts` all read it. */
 export function boardVerdict(deal: DealAt, action: string): StageVerdict<StageKey> {
   const code = deal.row.code
+  if (deal.terminated) return refuse(terminatedSentence(code, action))
   if (deal.signed) return refuse(`Cơ hội ${code} đã ký hợp đồng, không ${action} được.`)
   if (deal.pendingSign) return refuse(`Cơ hội ${code} đang chờ duyệt ký, không ${action} được.`)
   if (deal.row.state === 'lost') return refuse(lostSentence(code, action))
@@ -456,6 +466,7 @@ export function holdVerdict(deal: DealAt): StageVerdict<StageKey> {
 export function careVerdict(deal: DealAt, door: CareDoor): StageVerdict<StageKey | null> {
   const code = deal.row.code
   if (deal.row.state === 'lost') return refuse(lostSentence(code, 'ghi hoạt động hay báo giá'))
+  if (deal.terminated) return refuse(terminatedSentence(code, 'ghi hoạt động hay báo giá'))
   if (deal.signed) return { ok: true, stage: null }
   /* Its clock is stopped: an activity may move the column, a quotation does. */
   if (deal.held) return refuse(DEAL_HELD_REFUSAL)
@@ -473,6 +484,9 @@ export type CareFloors = Record<CareDoor, Date>
 
 const lostSentence = (code: string, action: string) =>
   `Cơ hội ${code} đã dừng, không ${action} được. Muốn chăm lại thì đi từ lead.`
+
+export const terminatedSentence = (code: string, action: string) =>
+  `Hợp đồng của cơ hội ${code} đã chấm dứt, không ${action} được.`
 
 /** A VN calendar day, `YYYY-MM-DD` — how the profile prints a floor. */
 export const vnDay = (at: Date): string => VN_DAY.format(at)

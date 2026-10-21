@@ -71,6 +71,7 @@ export const NotificationKind = z.enum([
   'overdue-reason-waiting',
   'overdue-reason-decided',
   'kpi-team-share-assigned',
+  'contract-terminated',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -156,6 +157,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'overdue-reason-waiting': 'Có lý do quá hạn chờ bạn duyệt',
   'overdue-reason-decided': 'Lý do quá hạn của bạn đã được xử lý',
   'kpi-team-share-assigned': 'Nhóm được giao chỉ tiêu',
+  'contract-terminated': 'Hợp đồng đã chấm dứt',
 }
 
 /** The filter chips on the bell screen. */
@@ -248,6 +250,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'overdue-reason-waiting': 'contract',
   'overdue-reason-decided': 'contract',
   'kpi-team-share-assigned': 'kpi',
+  'contract-terminated': 'contract',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -316,6 +319,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'overdue-reason-waiting': { important: true, locked: false },
   'overdue-reason-decided': { important: true, locked: false },
   'kpi-team-share-assigned': { important: true, locked: false },
+  'contract-terminated': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -425,6 +429,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'overdue-reason-waiting': ['contract'],
     'overdue-reason-decided': ['contract'],
     'kpi-team-share-assigned': ['kpi-team'],
+    'contract-terminated': ['contract'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

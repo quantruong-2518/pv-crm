@@ -47,6 +47,7 @@ const LABEL: Readonly<Record<string, string>> = {
   attended: 'Đã tham gia buổi họp',
   won: OPPORTUNITY_STATE_LABEL.won,
   lost: OPPORTUNITY_STATE_LABEL.lost,
+  terminated: OPPORTUNITY_STATE_LABEL.terminated,
   closed: COMM_RECORD_STATE_LABEL.done,
   overdue: 'Quá hạn chưa thu',
   collected: 'Đã thu',

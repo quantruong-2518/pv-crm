@@ -55,4 +55,44 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
     kind: 'conflict',
     message: LANE_MOVED,
   },
+
+  /** Two people ending one contract at once: the service checked first, so
+   *  only that race reaches the key. */
+  contract_termination_pkey: {
+    kind: 'conflict',
+    message: 'Hợp đồng này đã chấm dứt.',
+  },
+
+  contract_termination_other_has_note: {
+    kind: 'invalid',
+    fields: ['note'],
+    message: 'Chọn "Khác" thì phải ghi lý do.',
+  },
+
+  contract_termination_collected_nonneg: {
+    kind: 'invalid',
+    message: 'Số tiền đã thu không hợp lệ.',
+  },
+
+  contract_termination_refunded_nonneg: {
+    kind: 'invalid',
+    fields: ['refundedAmount'],
+    message: 'Số tiền hoàn lại không được âm.',
+  },
+
+  contract_termination_refund_within_collected: {
+    kind: 'conflict',
+    fields: ['refundedAmount'],
+    message: 'Số tiền hoàn lại không được lớn hơn số đã thu.',
+  },
+
+  contract_termination_contract_code_contract_code_fk: {
+    kind: 'invalid',
+    message: 'Không tìm thấy hợp đồng này.',
+  },
+
+  contract_termination_terminated_by_id_actor_id_fk: {
+    kind: 'invalid',
+    message: 'Không tìm thấy tài khoản của bạn. Đăng nhập lại.',
+  },
 }

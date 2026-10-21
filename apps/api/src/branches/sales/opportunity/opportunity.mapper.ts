@@ -554,9 +554,11 @@ export function toContract(input: {
   /** The customer's name, off `sales.lead` — the book prints names, not codes. */
   account: string
   owners: OpportunityOwner[]
-  /** Every contract of the deal, oldest first. At least one IS the whole
-   *  definition of "won" — see `opportunity.schema.ts`. */
+  /** Every contract of the deal, oldest first, terminated ones included. One
+   *  live paper makes it "won" — see `opportunity.schema.ts`, ADR 0107. */
   contractCodes: readonly string[]
+  /** Every one of those contracts terminated (ADR 0107): reads `terminated`. */
+  terminated: boolean
   /** Days in the current column, counted by the repository. */
   daysInStage: number | null
   /** `holderOf` over the stored owners, or over the ones a write just set. */
@@ -581,7 +583,7 @@ export function toContract(input: {
     ...(row.accountCode ? { accountCode: row.accountCode } : {}),
 
     name: row.name,
-    state: signed ? 'won' : row.state,
+    state: input.terminated ? 'terminated' : signed ? 'won' : row.state,
     contractCodes: [...input.contractCodes],
     holder: input.holder,
     hasSeller: input.hasSeller,

@@ -95,6 +95,8 @@ export const Permission = z.enum([
   'contract.edit',
   'contract.record-payment',
   'contract.approve-overdue-reason',
+  /** End a signed contract for good — the deal leaves `won` (no reopen). */
+  'contract.terminate',
   'performance.view',
   'kpi.view',
   'kpi.view-all',

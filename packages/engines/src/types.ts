@@ -167,6 +167,9 @@ export const PERMISSIONS = [
   /** Approve the reason a Sale gives for an overdue installment (ADR 0100). Head
    *  and director only, so the writer never clears their own overdue money. */
   'contract.approve-overdue-reason',
+  /** End a signed contract for good and say what happens to the money taken. Head
+   *  and director only: it undoes a signature, so no seller reaches it (ADR 0107). */
+  'contract.terminate',
   'performance.view',
   /** Own KPI readings, everyone-with-a-role's door (ADR 0082). */
   'kpi.view',

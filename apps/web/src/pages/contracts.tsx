@@ -18,7 +18,12 @@ import {
   vnd,
   millions,
 } from '@pv/ui'
-import { ContractBookQuery, OWNER_NONE, type ContractStatusFilter } from '@pv/contracts'
+import {
+  ContractBookQuery,
+  OPPORTUNITY_STATE_LABEL,
+  OWNER_NONE,
+  type ContractStatusFilter,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { searchHint } from '@/lib/search-box'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -37,7 +42,7 @@ import {
 import { BookCount, BookPage } from '@/components/book-page'
 import { dayRangeChip } from '@/components/active-filters'
 import { AvatarCell, TableFooter } from '@/components/table-bits'
-import { MoneySplit } from '@/components/contract-bits'
+import { MoneySplit, TerminatedBadge } from '@/components/contract-bits'
 import { MoneyCell } from '@/components/money-cell'
 import { useRowIntent } from '@/components/row-intent'
 
@@ -54,9 +59,17 @@ const STATUS_TABS: { value: ContractStatusFilter; label: string }[] = [
   { value: 'open', label: 'Đang thu' },
   { value: 'overdue', label: 'Quá hạn' },
   { value: 'collected', label: 'Đã thu đủ' },
+  { value: 'terminated', label: OPPORTUNITY_STATE_LABEL.terminated },
 ]
 
-function NextCell({ next }: { next: InstallmentView | null }) {
+function NextCell({ next, ended }: { next: InstallmentView | null; ended: boolean }) {
+  if (ended) {
+    return (
+      <span className="flex justify-end">
+        <TerminatedBadge />
+      </span>
+    )
+  }
   if (!next) {
     return <span className="text-success block text-right text-[11.5px]">Đã thu đủ</span>
   }
@@ -77,6 +90,8 @@ function rowCells(row: ContractBookRow) {
      answer: `GET /sales/contracts` ships the lean installment, checklist left
      out. The level is derived from the due date, which the row does carry. */
   const atRisk = row.urgent ? (row.next?.installment.amount ?? 0) : 0
+  /* Terminated: nothing is owed, so the money reads muted and the bar shows no gap to collect. */
+  const ended = row.contract.termination !== null
 
   return [
     <span key="code" className="text-accent-foreground font-mono text-[11.5px]">
@@ -89,22 +104,31 @@ function rowCells(row: ContractBookRow) {
       {dm(row.contract.signedAt)}
     </span>,
     <AvatarCell key="owner" name={row.contract.ownerName} empty="Chưa có người phụ trách" />,
-    <MoneyCell key="value" amount={row.contract.amount} missing="Hợp đồng chưa nhập giá trị" />,
+    <MoneyCell
+      key="value"
+      amount={row.contract.amount}
+      muted={ended}
+      missing="Hợp đồng chưa nhập giá trị"
+    />,
     <span key="collected" className="flex min-w-0 flex-col gap-1">
-      <MoneySplit
-        collected={row.collected}
-        atRisk={atRisk}
-        ahead={row.remaining - atRisk}
-        className="h-1.5"
-      />
+      {!ended && (
+        <MoneySplit
+          collected={row.collected}
+          atRisk={atRisk}
+          ahead={row.remaining - atRisk}
+          className="h-1.5"
+        />
+      )}
       <span className="flex min-w-0 items-baseline justify-end gap-2">
-        <span className="text-muted-foreground tnum font-num shrink-0 text-[11.5px]">
-          {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
-        </span>
-        <MoneyCell amount={row.collected} muted={row.collected === 0} />
+        {!ended && (
+          <span className="text-muted-foreground tnum font-num shrink-0 text-[11.5px]">
+            {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
+          </span>
+        )}
+        <MoneyCell amount={row.collected} muted={ended || row.collected === 0} />
       </span>
     </span>,
-    <NextCell key="next" next={row.next} />,
+    <NextCell key="next" next={row.next} ended={ended} />,
   ]
 }
 

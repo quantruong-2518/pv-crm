@@ -36,7 +36,7 @@ export class OpportunityContacts {
     await this.deals.run(async (tx) => {
       const found = await this.deals.lockedByCode(who, code, tx)
       if (!found || !found.inScope) throw notFound('cơ hội', code)
-      const verdict = editDetailsVerdict(found.row)
+      const verdict = editDetailsVerdict(found.row, found.terminated)
       if (!verdict.ok) throw conflict(verdict.reason)
 
       const names = await this.opening.replaceContacts(

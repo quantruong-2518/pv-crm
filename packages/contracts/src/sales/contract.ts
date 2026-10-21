@@ -3,7 +3,12 @@ import { searchText } from '../search-text'
 import { Day, MoneyVnd, ContractCode, ObjectCode, Moment, textInput } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ContractKind, CurrencyCode } from './enums'
-import { OpportunityOwner, OpportunityRow } from './opportunity'
+import {
+  OpportunityOwner,
+  OpportunityRow,
+  OpportunityStopReasons,
+  StopReasonBody,
+} from './opportunity'
 import { WorkstreamHolder } from './workstream'
 
 /** Signing a deal — the door that RAISES the request that makes a deal read `won`.
@@ -11,6 +16,9 @@ import { WorkstreamHolder } from './workstream'
  *      POST /sales/opportunities/:code/contract     permission `opportunity.close`
  *      -> 202 `ConfigProposalReceipt` (`./config`) — one inbox, one receipt shape,
  *         every propose door on this branch answers the same way.
+ *      POST /sales/contracts/:code/terminate         permission `contract.terminate` · scoped
+ *      -> `ContractTerminateResponse`; 409 when already terminated or refund > collected.
+ *      GET  /sales/contracts/termination-reasons     permission `contract.terminate`
  *
  *  This door no longer writes `sales.contract` itself — signing leaves the
  *  sales floor, and E3's chain gets to look before the number is final.
@@ -288,6 +296,22 @@ export const INSTALLMENT_STATUS_LABEL: Record<InstallmentStatus, string> = {
  *  snapshot cannot drift from the lanes it was copied from. */
 export const ContractParticipant = OpportunityOwner
 
+/** The one `sales.contract_termination` row of a contract. The contract and its
+ *  installments stay; this row alone moves the deal to `terminated` (final).
+ *  Amounts are in the contract's currency, like `ContractRow.amount`;
+ *  `collectedAmount` is what had landed when the paper was ended. */
+export const ContractTermination = z.object({
+  terminatedAt: Moment,
+  /** A `CONTRACT_TERMINATION_REASON` id or `other`; label resolved server-side. */
+  reasonKey: z.string().min(1),
+  reasonLabel: z.string().min(1),
+  note: z.string().nullable(),
+  collectedAmount: MoneyVnd,
+  refundedAmount: MoneyVnd,
+  byId: z.string().min(1).max(64),
+  byName: textInput(120),
+})
+
 /** One signed contract, as the book prints it — LEAN installments only.
  *  `ContractDetailRow` below extends this same row with the full nested
  *  schedule for the one-contract screen. */
@@ -322,6 +346,8 @@ export const ContractRow = z.object({
      answers before any schedule exists. Absent means "this response did not load
      the schedule"; an empty array would claim "this contract has none". */
   installments: z.array(InstallmentSummaryRow).optional(),
+  /** Null while the contract is live. */
+  termination: ContractTermination.nullable(),
 })
 
 /** One contract, FULL — `GET /sales/contracts/:code`. Adds the customer-side
@@ -335,13 +361,15 @@ export const ContractDetailRow = ContractRow.extend({
   installments: z.array(InstallmentRow),
 })
 
-/** What a contract book row is judged by. A contract stores no state: all three
- *  are read off its installments, so the server derives them in SQL.
+/** What a contract book row is judged by. A contract stores no state: all four
+ *  are derived in SQL — the first three off its installments, and only for a
+ *  contract with no termination row.
  *
  *   · `open` — not fully collected (includes a contract with no schedule yet)
  *   · `overdue` — an unpaid installment is already past its date
- *   · `collected` — a schedule exists and every installment is paid */
-export const ContractStatusFilter = z.enum(['all', 'open', 'overdue', 'collected'])
+ *   · `collected` — a schedule exists and every installment is paid
+ *   · `terminated` — carries a `sales.contract_termination` row */
+export const ContractStatusFilter = z.enum(['all', 'open', 'overdue', 'collected', 'terminated'])
 
 /** Sortable columns. Blank amounts and a missing next installment sort LAST in
  *  both directions: an unpriced contract is not the cheapest one. */
@@ -394,6 +422,27 @@ export const ContractSignResponse = z.object({
   contract: ContractRow,
 })
 
+/** `POST /sales/contracts/:code/terminate`. `StopReasonBody` via `safeExtend`
+ *  so "other needs a note" survives; `reasonKey` is checked against the
+ *  `CONTRACT_TERMINATION_REASON` catalogue by the server, like the deal stop.
+ *  `refundedAmount` is in the contract's currency; the server refuses one above
+ *  what was collected (409), which a body alone cannot know. */
+export const ContractTerminateBody = StopReasonBody.safeExtend({
+  refundedAmount: MoneyVnd.default(0),
+})
+
+/** The whole contract back: `termination` and the book status are recomputed. */
+export const ContractTerminateResponse = ContractDetailRow
+
+/** `GET /sales/contracts/termination-reasons` — ACTIVE entries, `other` not
+ *  listed. `OpportunityStopReasons`'s shape so one reason picker reads both;
+ *  `stage` is always null and `doNotContact` always false here. */
+export const ContractTerminationReasons = OpportunityStopReasons
+
+export type ContractTermination = z.infer<typeof ContractTermination>
+export type ContractTerminateBody = z.infer<typeof ContractTerminateBody>
+export type ContractTerminateResponse = z.infer<typeof ContractTerminateResponse>
+export type ContractTerminationReasons = z.infer<typeof ContractTerminationReasons>
 export type ContractSignedReceipt = z.infer<typeof ContractSignedReceipt>
 export type InstallmentDraft = z.infer<typeof InstallmentDraft>
 export type InstallmentStatus = z.infer<typeof InstallmentStatus>

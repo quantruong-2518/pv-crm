@@ -18,6 +18,7 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ContractOverdueReasonRepository } from './contract-overdue-reason.repository'
 import { ContractRepository } from './contract.repository'
 import { ContractScheduleRepository } from './contract-schedule.repository'
+import { ContractTerminationService } from './contract-termination.service'
 
 /** Bell `detail` keys of `overdue-reason-decided`, read by the web's line. */
 const DETAIL_DECISION = 'decision'
@@ -82,6 +83,7 @@ export class ContractOverdueReasonService {
     private readonly repo: ContractOverdueReasonRepository,
     private readonly audit: AuditRepository,
     private readonly hub: NotificationHub,
+    private readonly termination: ContractTerminationService,
   ) {}
 
   async list(who: Actor, code: ContractCode, no: number): Promise<OverdueReasonListResponse> {
@@ -102,6 +104,7 @@ export class ContractOverdueReasonService {
       this.schedule.run(async (tx) => {
         const row = await this.schedule.lock(tx, code)
         if (!row) throw notFound('hợp đồng', code)
+        await this.termination.assertLive(tx, code)
         const installment = (await this.schedule.installments(tx, code)).find((i) => i.no === no)
         if (!installment) throw notFound('đợt thanh toán', String(no))
         const before = await this.repo.ofInstallment(tx, code, no)
@@ -148,6 +151,9 @@ export class ContractOverdueReasonService {
       const found = await this.repo.lockById(tx, id)
       if (!found) throw notFound('lý do quá hạn', String(id))
       if (found.state !== 'waiting') throw conflict('Lý do này đã được xử lý.')
+      /* The contract's lock first, so a termination landing now is seen committed. */
+      await this.schedule.lock(tx, found.contractCode)
+      await this.termination.assertLive(tx, found.contractCode)
       if (found.writtenById === who.id) {
         throw conflict('Người ghi lý do không tự duyệt được lý do của mình.')
       }
@@ -219,9 +225,10 @@ export class ContractOverdueReasonService {
     const installment = (await this.schedule.installments(tx, code)).find((i) => i.no === no)
     if (!installment) throw notFound('đợt thanh toán', String(no))
     const reasons = await this.repo.ofInstallment(tx, code, no)
+    const live = !(await this.termination.isTerminated(tx, code))
     return OverdueReasonListResponse.parse({
       current: currentOf(reasons),
-      canWrite: refusalOf(who, ownerId, installment, reasons) === null,
+      canWrite: live && refusalOf(who, ownerId, installment, reasons) === null,
       reasons,
     })
   }

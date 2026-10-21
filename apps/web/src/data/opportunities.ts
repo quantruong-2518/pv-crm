@@ -492,6 +492,7 @@ export const STATE_TONE: Record<OpportunityStatus, 'success' | 'running' | 'draf
   open: 'running',
   lost: 'draft',
   won: 'success',
+  terminated: 'draft',
 }
 
 /** Ink for a pill whose tone ink falls short, born as a law 13 rescue when

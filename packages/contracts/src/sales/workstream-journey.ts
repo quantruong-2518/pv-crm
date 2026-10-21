@@ -62,6 +62,7 @@ export const JOURNEY_DEAL_OUTCOME_LABEL: Record<JourneyDealOutcome, string> = {
   open: OPPORTUNITY_STATE_LABEL.open,
   won: OPPORTUNITY_STATE_LABEL.won,
   lost: OPPORTUNITY_STATE_LABEL.lost,
+  terminated: OPPORTUNITY_STATE_LABEL.terminated,
 }
 
 /** One state set for all three ladders. `skipped` is a rung this object never

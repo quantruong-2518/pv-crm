@@ -411,7 +411,7 @@ export class MeetingService {
     if (!code.startsWith('OP-')) return
     const deal = await this.repo.dealOf(code, handle)
     if (!deal) throw notFound('cơ hội', code)
-    const verdict = editDetailsVerdict(deal)
+    const verdict = editDetailsVerdict(deal.row, deal.terminated)
     if (!verdict.ok) throw conflict(verdict.reason)
   }
 

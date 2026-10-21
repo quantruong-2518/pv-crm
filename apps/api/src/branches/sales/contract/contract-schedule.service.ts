@@ -27,6 +27,7 @@ import { toDetail } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
 import type { ContractInstallmentRowDb, ContractRowDb } from './contract.schema'
 import { ContractScheduleRepository } from './contract-schedule.repository'
+import { ContractTerminationService } from './contract-termination.service'
 
 /** What a door did: the audit note, and the bell it rings, if any. `occurrence`
  *  keeps two acts of one kind on one contract apart in the bell's ledger. */
@@ -48,6 +49,7 @@ export class ContractScheduleService {
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly hub: NotificationHub,
+    private readonly termination: ContractTerminationService,
   ) {}
 
   /** The UNPAID instalments become exactly the body's list; paid ones stay. A
@@ -207,6 +209,7 @@ export class ContractScheduleService {
     await this.schedule.run(async (tx) => {
       const row = await this.schedule.lock(tx, code)
       if (!row) throw notFound('hợp đồng', code)
+      await this.termination.assertLive(tx, code)
       const { note, bell } = await work(tx, row)
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
       if (bell) await this.ring(tx, who, code, bell)

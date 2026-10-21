@@ -53,13 +53,14 @@ export const OPPORTUNITY_STAGE_LABEL: Record<StageKey, string> = {
   quotation: 'Báo giá',
 }
 
-/** How a deal READS: the two stored values plus `won`, which is not stored at
- *  all — it is the existence of a `sales.contract` row, folded in on the way
- *  out. `lost` is final: a stopped deal never reopens; nurturing again starts
- *  from the lead. The stored half is `OpportunityState` in `./opportunity`,
- *  derived from this list so the two can never disagree on spelling. */
+/** How a deal READS: the two stored values plus two derived ones. `won` = a
+ *  live `sales.contract` row; `terminated` = its contract carries a
+ *  `sales.contract_termination` row. Both are folded in on the way out. `lost`
+ *  and `terminated` are final: nurturing again starts from the lead. The stored
+ *  half is `OpportunityState` in `./opportunity`, derived from this list so the
+ *  two can never disagree on spelling. */
 export const OpportunityStatus = z.enum(
-  ['open', 'lost', 'won'],
+  ['open', 'lost', 'won', 'terminated'],
   'Trạng thái cơ hội không có trong danh sách',
 )
 
@@ -67,6 +68,7 @@ export const OPPORTUNITY_STATE_LABEL: Record<OpportunityStatus, string> = {
   open: 'Đang chạy',
   lost: 'Đã dừng',
   won: 'Thành hợp đồng',
+  terminated: 'Đã chấm dứt',
 }
 
 /** What a signed contract is for: a `CONTRACT_KIND` config code ('CK-01').

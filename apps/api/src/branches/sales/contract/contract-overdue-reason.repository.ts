@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, isNull, lt, or } from 'drizzle-orm'
+import { and, desc, eq, gte, isNull, lt, not, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Injectable } from '@nestjs/common'
 import type { OverdueReasonRow } from '@pv/contracts'
@@ -6,6 +6,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
+import { contractTerminated } from '../open-deal'
 import {
   contract,
   contractInstallment,
@@ -96,7 +97,8 @@ export class ContractOverdueReasonRepository {
 
   /** The KPI's overdue rule as of the month's last Vietnam day D, for a waiting
    *  reason on its installment's present due: due before D's first instant,
-   *  unpaid by D's end (`dayEnd` = D+1 start), on a live lead. Oldest due first. */
+   *  unpaid by D's end (`dayEnd` = D+1 start), on a live lead and a contract not
+   *  terminated (ADR 0107). Oldest due first. */
   async waitingAsOf(tx: Db, lastDayStart: Date, dayEnd: Date): Promise<OverdueReasonRow[]> {
     const rows = await this.joined(tx)
       .innerJoin(contract, eq(contract.code, reason.contractCode))
@@ -108,6 +110,7 @@ export class ContractOverdueReasonRepository {
           lt(contractInstallment.due, lastDayStart),
           or(isNull(contractInstallment.paidAt), gte(contractInstallment.paidAt, dayEnd)),
           leadLive,
+          not(contractTerminated(contract.code)),
         ),
       )
       .orderBy(reason.due, reason.id)

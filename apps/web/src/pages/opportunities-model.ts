@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  OPPORTUNITY_STATE_LABEL,
   OpportunitySortKey,
   type OpportunityBookQuery,
   type OpportunityBookRow,
@@ -78,11 +79,12 @@ export const STICKY_LEAD = [
 ].join(' ')
 
 /** A deal's life in reading order — the enum puts `lost` before `won`. */
-const TAB_ORDER: readonly OpportunityStatus[] = ['open', 'won', 'lost']
+const TAB_ORDER: readonly OpportunityStatus[] = ['open', 'won', 'lost', 'terminated']
 const TAB_LABEL: Record<OpportunityStatus, string> = {
   open: 'Đang theo đuổi',
   won: 'Đã ký hợp đồng',
   lost: 'Đã dừng',
+  terminated: OPPORTUNITY_STATE_LABEL.terminated,
 }
 
 /** Tabs with counts; "all" is the sum of `byState` under the same filters. */

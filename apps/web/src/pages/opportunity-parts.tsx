@@ -34,7 +34,10 @@ export function DealHeader({
           {op.account}
           <Badge
             tone={STATE_TONE[op.state]}
-            className={cn('ml-3 align-middle tracking-normal', op.state === 'lost' && BADGE_INK)}
+            className={cn(
+              'ml-3 align-middle tracking-normal',
+              STATE_TONE[op.state] === 'draft' && BADGE_INK,
+            )}
           >
             {standingLabel(op)}
           </Badge>

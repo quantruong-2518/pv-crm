@@ -34,7 +34,15 @@ import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { LEAD_GONE_STATES } from '../lead/lead-state'
 import { toVndSql } from '../money'
-import { dealOpen, dealSignWaiting, leadDealsAllLost } from '../open-deal'
+import { terminationsOf } from '../contract/contract-termination.repository'
+import {
+  dealLost,
+  dealOpen,
+  dealSignWaiting,
+  dealTerminated,
+  dealWon,
+  leadDealsAllLost,
+} from '../open-deal'
 import { dealHeld, openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import {
   opportunity,
@@ -91,6 +99,8 @@ export type OpportunityRead = {
    *  (ADR 0069 §5). `signed` là "danh sách không rỗng": hai trường, MỘT nguồn. */
   contractCodes: string[]
   signed: boolean
+  /** Every contract terminated (ADR 0107): reads `terminated`, still final. */
+  terminated: boolean
   /** An open hold lies on the deal (ADR 0097 §3): its moves are refused. */
   held: boolean
   /** Số ngày đơn đã đứng trong cột hiện tại. `null` = đơn đã ra khỏi bảng. */
@@ -120,6 +130,10 @@ const CONTRACT_CODES = sql<string[]>`ARRAY(
    WHERE k.opportunity_code = ${opportunity.code} AND k.lead_code = ${opportunity.leadCode}
    ORDER BY k.signed_at, k.code)`
 
+/** Read beside `CONTRACT_CODES`: those papers stay, so only this tells a
+ *  terminated deal from a won one (ADR 0107). */
+const TERMINATED = sql<boolean>`${dealTerminated(opportunity.code)}`
+
 /** The deal's value in dong, converted in SQL: ordering by money and the scorecard
  *  sums both sit under `LIMIT`, so converting in Node would sort raw amounts (5,000
  *  USD under 10,000,000 VND). An unknown currency or a blank amount is NULL, not 0;
@@ -138,8 +152,8 @@ export type OpportunityBookPage = {
   hidden: number
 }
 
-/** Sáu con số của thẻ điểm, đúng như `OpportunityScorecard` của hợp đồng gọi
- *  tên chúng. Repository trả số thô; service mới là chỗ dán hợp đồng lên. */
+/** The scorecard's figures, named as `OpportunityScorecard` names them. Raw
+ *  numbers here; the service is where the contract is applied. */
 export type OpportunityScorecardRow = {
   total: number
   open: number
@@ -147,6 +161,7 @@ export type OpportunityScorecardRow = {
   openBlank: number
   won: number
   lost: number
+  terminated: number
 }
 
 /** Một số từ `sales.opportunity_code_seq`, in ra dạng `OP-%04d`.
@@ -210,6 +225,7 @@ export class OpportunityRepository {
           row: opportunity,
           account: lead.company,
           contractCodes: CONTRACT_CODES,
+          terminated: TERMINATED,
           held: HELD,
           daysInStage: DAYS_IN_STAGE,
           acceptorName: ACCEPTOR_NAME,
@@ -271,6 +287,7 @@ export class OpportunityRepository {
         row: opportunity,
         account: lead.company,
         contractCodes: CONTRACT_CODES,
+        terminated: TERMINATED,
         held: HELD,
         daysInStage: DAYS_IN_STAGE,
         acceptorName: ACCEPTOR_NAME,
@@ -416,6 +433,7 @@ export class OpportunityRepository {
         row: opportunity,
         account: lead.company,
         contractCodes: CONTRACT_CODES,
+        terminated: TERMINATED,
         /* Số ngày đơn sống. Tính trong câu truy vấn chứ không đọc từ cột: đây
            là con số đổi theo thời gian ngay cả khi không ai chạm vào dòng. Qua
            `epoch` để không phụ thuộc cách Postgres cắt interval. */
@@ -588,6 +606,12 @@ export class OpportunityRepository {
       })
       .from(sql`(SELECT 1) AS one`)
     return state ? { ...state, lost: locked.state === 'lost' } : null
+  }
+
+  /** The contracts among `codes` that were terminated (ADR 0107): the money
+   *  panel stops counting them and the edit door stops rewriting them. */
+  async terminatedAmong(handle: Db, codes: readonly string[]): Promise<Set<string>> {
+    return new Set((await terminationsOf(handle, codes)).keys())
   }
 
   /** Every deal of the lead is lost and nothing is signed (`../open-deal.ts`),
@@ -870,19 +894,16 @@ export class OpportunityRepository {
     return q.leadCode ? undefined : not(dealHeld(opportunity.code))
   }
 
-  /** Lọc theo trạng thái, và trạng thái thứ BA không có cột.
-   *
-   *  `won` là SỰ TỒN TẠI của một dòng `sales.contract` — cột `state` chỉ chở hai
-   *  giá trị, đúng như `opportunity_state_known` ép. Nên lọc "đơn đã thắng" là
-   *  hỏi `EXISTS`, và lọc hai giá trị kia phải kèm `NOT EXISTS`: một đơn đã ký
-   *  vẫn lưu `state = 'open'` và ra sổ dưới nhãn `won` (đường đọc gấp lại như
-   *  thế ở `opportunity.mapper.ts#toContract`), nên để nó lọt vào lượt lọc
-   *  `open` là in ra một dòng mang nhãn người dùng vừa bảo đừng hiện. Bộ lọc
-   *  phải gấp giống hệt đường đọc, nếu không sổ tự cãi mình. */
+  /** Filter by read state; two of the four have no column. `won` is a live
+   *  contract, `terminated` a deal whose contracts were all terminated (ADR
+   *  0107). A signed deal still stores `state = 'open'`, so `open` and `lost`
+   *  exclude any contract: the filter folds exactly as the read path does
+   *  (`opportunity.mapper.ts#toContract`), or the book contradicts itself. */
   private stateFilter(state: OpportunityStatus | undefined): SQL | undefined {
     if (!state) return undefined
     if (state === 'won') return this.signed()
-    return and(eq(opportunity.state, state), not(this.signed()))
+    if (state === 'terminated') return dealTerminated(opportunity.code)
+    return state === 'open' ? this.live() : dealLost(opportunity.code, opportunity.state)
   }
 
   /** Sáu con số của thẻ điểm, MỘT lượt đi tới database.
@@ -909,7 +930,7 @@ export class OpportunityRepository {
    *  một pipeline vài nghìn tỷ đồng tràn `int4` và câu truy vấn nổ. */
   async scorecard(): Promise<OpportunityScorecardRow> {
     /* A held deal is off the board (ADR 0097 §3), so off its open count and
-       the total too: total stays open + won + lost. */
+       the total too: total stays open + won + lost + terminated. */
     const open = sql`${opportunity.stage} IS NOT NULL AND NOT ${dealHeld(opportunity.code)}`
 
     const [r] = await this.db
@@ -924,7 +945,8 @@ export class OpportunityRepository {
         /* Đã dừng = cột `state` nói `lost` VÀ chưa ký. Vế thứ hai giữ cho `won`
            và `lost` không cùng đếm một dòng — đường đọc gấp `signed` đè lên
            `state`, nên thẻ điểm đếm mỗi đơn đúng một lần, ở đúng ô của nó. */
-        lost: sql<number>`count(*) FILTER (WHERE ${opportunity.state} = 'lost' AND NOT ${this.signed()})::int`,
+        lost: sql<number>`count(*) FILTER (WHERE ${dealLost(opportunity.code, opportunity.state)})::int`,
+        terminated: sql<number>`count(*) FILTER (WHERE ${dealTerminated(opportunity.code)})::int`,
       })
       .from(opportunity)
       .innerJoin(lead, eq(lead.code, opportunity.leadCode))
@@ -937,6 +959,7 @@ export class OpportunityRepository {
       openBlank: r?.openBlank ?? 0,
       won: r?.won ?? 0,
       lost: r?.lost ?? 0,
+      terminated: r?.terminated ?? 0,
     }
   }
 
@@ -1009,31 +1032,14 @@ export class OpportunityRepository {
       .orderBy(asc(configEntry.ord))
   }
 
-  /* "Đã thắng" có hai hình, cố ý: ĐỌC RA là `CONTRACT_CODES` (một mảng, vì đơn
-     thắng ký thêm được và một `LEFT JOIN` sẽ nhân dòng sổ lên), ĐEM ĐI LỌC là
-     `signed` (`EXISTS`). Cả hai khớp CẢ HAI cột mà `contract_opportunity_fk` neo. */
-
-  /** Mệnh đề khớp `contract` với đơn, cho vị từ `signed` bên dưới. */
-  private signedOn(): SQL {
-    return and(
-      eq(contract.opportunityCode, opportunity.code),
-      eq(contract.leadCode, opportunity.leadCode),
-    ) as SQL
-  }
-
   /** "Still open": not lost, not signed — the branch's one rule, `../open-deal.ts`. */
   private live(): SQL {
     return dealOpen(opportunity.code, opportunity.state)
   }
 
-  /** Same question in PREDICATE shape, for `WHERE` and `FILTER`: `stateFilter`
-   *  (the fifth state) and `scorecard` (won deals) need a boolean, not a code. */
+  /** Won as a PREDICATE, for `WHERE` and `FILTER` (`stateFilter`, `scorecard`,
+   *  the facets): `dealWon`, the one reading — a live contract stands. */
   signed(): SQL {
-    return exists(
-      this.db
-        .select({ one: sql`1` })
-        .from(contract)
-        .where(this.signedOn()),
-    )
+    return dealWon(opportunity.code)
   }
 }

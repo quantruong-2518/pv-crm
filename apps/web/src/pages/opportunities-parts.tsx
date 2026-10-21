@@ -159,6 +159,7 @@ export function ScoreCards() {
   const openBlank = data?.openBlank ?? 0
   const won = data?.won ?? 0
   const lost = data?.lost ?? 0
+  const terminated = data?.terminated ?? 0
 
   /* No denominator, no ratio: "—", never "0%". */
   const per = (n: number) => (total === 0 ? '—' : percent(n / total))
@@ -169,7 +170,7 @@ export function ScoreCards() {
       label: 'Tổng cơ hội',
       value: String(total),
       tone: total === 0 ? ('warning' as const) : ('default' as const),
-      hint: 'Gồm đang theo đuổi, đã ký và đã dừng',
+      hint: 'Gồm đang theo đuổi, đã ký, đã dừng và đã chấm dứt',
     },
     {
       icon: Wallet,
@@ -187,7 +188,14 @@ export function ScoreCards() {
       label: 'Đã ký hợp đồng',
       value: per(won),
       tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
-      hint: total === 0 ? 'Chưa có cơ hội để tính tỷ lệ' : `${won}/${total} cơ hội đã ký hợp đồng`,
+      /* Terminated deals have no card of their own (the row holds four); they
+         ride here because each one was signed first (ADR 0107). */
+      hint:
+        total === 0
+          ? 'Chưa có cơ hội để tính tỷ lệ'
+          : terminated === 0
+            ? `${won}/${total} cơ hội đã ký hợp đồng`
+            : `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`,
     },
     {
       icon: CircleX,

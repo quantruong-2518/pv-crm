@@ -492,6 +492,7 @@ export class OpportunityService {
         account: lead.company,
         owners: ownersOfIds(body, names, salePrimary),
         contractCodes: [],
+        terminated: false,
         holder: owner,
         acceptedBy: acceptor,
         hasSeller: sellerAmong(body.saleOwners, roles),
@@ -529,7 +530,7 @@ export class OpportunityService {
   ): Promise<OpportunityUpdateResponse> {
     const found = await this.repo.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
-    const details = editDetailsVerdict(found.row)
+    const details = editDetailsVerdict(found.row, found.terminated)
     if (!details.ok) throw conflict(details.reason)
     const pendingSign = found.pendingSign
     const terms = editTermsVerdict(dealAtOf(found, pendingSign))
@@ -558,6 +559,11 @@ export class OpportunityService {
       const now = await this.repo.lockedByCode(who, code, tx)
       if (!now || !now.inScope) throw notFound('cơ hội', code)
       assertLockedAsRead(now, found, pendingSign)
+      /* Under the deal lock the terminate door also takes, so this is final. */
+      const ended = await this.repo.terminatedAmong(
+        tx,
+        signedContracts.map((c) => c.row.code),
+      )
       const { owner, salePrimary } = ownersUnderLock(now, body, actors)
       const written = await this.repo.updateOpportunity(tx, code, write.values)
       await this.repo.replaceOwners(tx, code, ownerRowsOf(code, write, salePrimary))
@@ -578,7 +584,9 @@ export class OpportunityService {
       await announceOwners(tx, this.hub, people)
       const primary = { from: primaryOf(now.owners), to: salePrimary, at: new Date() }
       await announcePrimary(tx, this.hub, { ...people, ...primary })
-      for (const signed of signedContracts) await this.syncContract(tx, found, body, signed, owner)
+      for (const signed of signedContracts) {
+        await this.syncContract(tx, found, body, signed, owner, ended.has(signed.row.code))
+      }
 
       /* Dòng gương cập nhật theo — `put` là upsert, và nó đọc từ dòng ĐÃ GHI.
          Không cập nhật thì ContextRail vẫn in tên đơn cũ sau khi người dùng đã
@@ -596,6 +604,7 @@ export class OpportunityService {
            `contract`, và lượt sửa vừa rồi không chạm bảng đó. Chở lại đúng câu
            trả lời đã đọc cùng dòng, thay vì hỏi lần thứ hai. */
         contractCodes: found.contractCodes,
+        terminated: found.terminated,
         holder: owner,
         acceptedBy,
         hasSeller: sellerAmong(body.saleOwners, roles),
@@ -688,8 +697,17 @@ export class OpportunityService {
     body: OpportunityUpdate,
     signed: ContractRead,
     holder: RefOwner | null,
+    terminated: boolean,
   ): Promise<void> {
     if (signed.row.ownerId !== null && body.saleOwners.includes(signed.row.ownerId)) return
+    /* A terminated paper is final (ADR 0107 §2): with no holder it stays
+       empty; removing its holder refuses the whole edit. */
+    if (terminated) {
+      if (signed.row.ownerId === null || signed.row.ownerId === holder?.id) return
+      throw conflict(
+        `Hợp đồng ${signed.row.code} đã chấm dứt nên không đổi được người hưởng hoa hồng. Giữ ${signed.ownerName ?? 'người này'} trong Sale đứng đơn.`,
+      )
+    }
 
     const row = await this.contracts.updateTerms(tx, signed.row.code, {
       ownerId: holder?.id ?? null,
@@ -738,11 +756,12 @@ function assertLockedAsRead(
 ): void {
   if (
     now.signed !== found.signed ||
+    now.terminated !== found.terminated ||
     now.pendingSign !== pendingSign ||
     (now.row.state === 'lost') !== (found.row.state === 'lost')
   ) {
     throw conflict(
-      `Cơ hội ${now.row.code} vừa được ký, gửi duyệt ký hoặc dừng. Tải lại rồi thử lại.`,
+      `Cơ hội ${now.row.code} vừa được ký, gửi duyệt ký, dừng hoặc chấm dứt hợp đồng. Tải lại rồi thử lại.`,
     )
   }
 }

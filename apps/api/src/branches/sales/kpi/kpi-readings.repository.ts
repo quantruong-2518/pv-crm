@@ -10,7 +10,7 @@ import {
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { toVndSql } from '../money'
-import { dealLost, dealWon } from '../open-deal'
+import { contractTerminated, dealLost, dealTerminated, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
@@ -49,11 +49,17 @@ const within = (column: SQL): SQL =>
   sql`${column} >= (SELECT lo FROM span) AND ${column} < (SELECT hi FROM span)`
 
 const LIVE = sql`JOIN sales.lead l ON l.code = k.lead_code AND l.disabled_at IS NULL`
+/** A terminated contract is no sale (ADR 0107): out of signed, collected and
+ *  overdue. Only live readings move; a closed month reads its frozen copy. */
+const KEPT = sql`NOT ${contractTerminated(sql`k.code`)}`
 const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`)
 const installmentVnd = toVndSql(sql`i.amount`, sql`k.currency`)
-/** "Won" has ONE reading in KPI: the deal has a contract row. */
+/** "Won" has ONE reading in KPI: the deal has a live contract. Terminated sits
+ *  in the win-rate denominator beside lost (ADR 0107 §3). */
 const WON = dealWon(sql`k.code`)
 const LOST = dealLost(sql`k.code`, sql`k.state`)
+const TERMINATED = dealTerminated(sql`k.code`)
+const CLOSED = sql`(${WON} OR ${LOST} OR ${TERMINATED})`
 const seconds = (span: SQL, per: number): SQL =>
   sql`EXTRACT(EPOCH FROM ${span}) / ${sql.raw(String(per))}`
 
@@ -64,13 +70,16 @@ const worth = (value: SQL, tag: string): SQL => sql`${value} AS value, ${tag}::t
 const flag = (yes: SQL, on: string, off: string): SQL =>
   sql`CASE WHEN ${yes} THEN 1 ELSE 0 END::float8 AS value,
       CASE WHEN ${yes} THEN ${on}::text ELSE ${off}::text END AS tag`
+/** A closed deal as a share row: won counts 1, lost and terminated 0. */
+const OUTCOME = sql`CASE WHEN ${WON} THEN 1 ELSE 0 END::float8 AS value,
+  CASE WHEN ${WON} THEN 'won' WHEN ${TERMINATED} THEN 'terminated' ELSE 'lost' END AS tag`
 
 /** Overdue AS OF the span's `as_of` day (`spanned`): due on a Vietnam day
  *  strictly before it (`dueLevelOf`: due today is not overdue), and not paid by
  *  the end of it. An approved reason for THIS due date lifts the installment. */
 const OVERDUE = sql`FROM sales.contract_installment i
   JOIN sales.contract k ON k.code = i.contract_code ${LIVE}
-  WHERE (i.due AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < (SELECT as_of FROM span)
+  WHERE ${KEPT} AND (i.due AT TIME ZONE 'Asia/Ho_Chi_Minh')::date < (SELECT as_of FROM span)
     AND (i.paid_at IS NULL
          OR i.paid_at >= (((SELECT as_of FROM span) + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh'))
     AND NOT EXISTS (
@@ -105,7 +114,7 @@ const signed =
     SELECT ${credit ?? sql`NULL`} AS actor_id, 'contract' AS kind, k.code, k.signed_at AS at,
            ${worth(contractVnd, 'signed')}
     FROM sales.contract k ${LIVE}
-    WHERE ${credit ? sql`${credit} IS NOT NULL AND ` : sql``}${within(sql`k.signed_at`)}${credit ? only(credit) : sql``}`
+    WHERE ${KEPT} AND ${credit ? sql`${credit} IS NOT NULL AND ` : sql``}${within(sql`k.signed_at`)}${credit ? only(credit) : sql``}`
 
 /** Accepted at birth (ADR 0088 §18): the deal ENTERED the board at `assigned`,
  *  by the person recorded as its acceptor — the row both the create and the
@@ -204,7 +213,7 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
   },
   'signed-value': { basis: signed(sql`k.owner_id`), total: SUM },
   'win-rate': {
-    basis: onLane('SALE', sql`k.closed_at`, flag(WON, 'won', 'lost'), sql`(${WON} OR ${LOST})`),
+    basis: onLane('SALE', sql`k.closed_at`, OUTCOME, CLOSED),
     total: SHARE,
   },
   /* A comm closed as "unreached" talked to nobody (owner's call 15/10/2026);
@@ -242,9 +251,9 @@ const ROOM: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
   'win-rate': {
     basis: () => sql`
       SELECT NULL AS actor_id, 'opportunity' AS kind, k.code, k.closed_at AS at,
-             ${flag(WON, 'won', 'lost')}
+             ${OUTCOME}
       FROM sales.opportunity k ${LIVE}
-      WHERE (${WON} OR ${LOST}) AND ${within(sql`k.closed_at`)}`,
+      WHERE ${CLOSED} AND ${within(sql`k.closed_at`)}`,
     total: SHARE,
   },
   'overdue-receivables': {
@@ -258,7 +267,7 @@ const ROOM: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
       SELECT NULL AS actor_id, ${INSTALLMENT}, i.paid_at AS at, ${worth(installmentVnd, 'collected')}
       FROM sales.contract_installment i
       JOIN sales.contract k ON k.code = i.contract_code ${LIVE}
-      WHERE ${within(sql`i.paid_at`)}`,
+      WHERE ${KEPT} AND ${within(sql`i.paid_at`)}`,
     total: SUM,
   },
   'approval-turnaround-hours': {

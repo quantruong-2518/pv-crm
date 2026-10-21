@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
+import { OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, InstallmentView } from '@/data/contracts'
 import { DUE_LABEL, standingOf } from '@/data/contracts'
@@ -47,6 +48,16 @@ export function DueBadge({ level, className }: { level: DueLevel; className?: st
   return (
     <Badge tone={TONE[level]} className={cn(BADGE_INK, className)}>
       {DUE_LABEL[level]}
+    </Badge>
+  )
+}
+
+/** In place of a standing or level badge once the contract was terminated
+ *  (ADR 0107): muted, since nothing is owed any more. Same ink rescue as above. */
+export function TerminatedBadge({ className }: { className?: string }) {
+  return (
+    <Badge tone="draft" className={cn(BADGE_INK, className)}>
+      {OPPORTUNITY_STATE_LABEL.terminated}
     </Badge>
   )
 }

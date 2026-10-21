@@ -222,8 +222,11 @@ export function OpenValueTile({ data, className }: Figures) {
   )
 }
 
-const winRate = ({ wonDeals, lostDeals }: SalesPerformanceResponse['current']) =>
-  rateOf(wonDeals, wonDeals + lostDeals)
+/** Closed = won + lost + terminated (ADR 0107): a broken contract is not a win. */
+const closedOf = (f: SalesPerformanceResponse['current']) =>
+  f.wonDeals + f.lostDeals + f.terminatedDeals
+
+const winRate = (f: SalesPerformanceResponse['current']) => rateOf(f.wonDeals, closedOf(f))
 
 /** The 80px ring: the arc draws in on first paint and eases when the rate moves. */
 function WinRing({ rate }: { rate: number }) {
@@ -263,10 +266,10 @@ function WinRing({ rate }: { rate: number }) {
   )
 }
 
-/** Won over won plus lost, by the day each deal closed in the period
- *  (ADR 0088 §7) — the KPI definition. A dash when nothing closed. */
+/** Won over every deal closed in the period, by the day each closed
+ *  (ADR 0088 §7, 0107) — the KPI definition. A dash when nothing closed. */
 export function WinRateTile({ data, className }: Figures) {
-  const { wonDeals, lostDeals } = data.current
+  const { wonDeals } = data.current
   const canView = useCan('opportunity.view')
   const rate = winRate(data.current)
   const delta = deltaOf(rate, winRate(data.compare.figures), 'points')
@@ -289,7 +292,7 @@ export function WinRateTile({ data, className }: Figures) {
             <span className={cn(NOTE, 'tnum font-num')}>
               {rate === null
                 ? 'Chưa có cơ hội đóng trong kỳ'
-                : `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(wonDeals + lostDeals)})`}
+                : `Tỷ lệ ký hợp đồng / cơ hội (${num(wonDeals)}/${num(closedOf(data.current))})`}
             </span>
             {canView && wonDeals > 0 && (
               <Link to={dealsHref('won', data.span)} className={cn(PILL_LINK, 'self-start')}>

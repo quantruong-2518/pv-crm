@@ -121,8 +121,11 @@ export function StageCell({ op }: { op: OpportunityBookRow }) {
   return (
     <Badge
       tone={overdue ? 'warning' : STATE_TONE[op.state]}
-      /* `BADGE_INK` only where the pill wears the lost tone — law 13. */
-      className={cn('min-w-0 max-w-full', !overdue && op.state === 'lost' && BADGE_INK)}
+      /* `BADGE_INK` only where the pill wears the grey tone (lost, terminated) — law 13. */
+      className={cn(
+        'min-w-0 max-w-full',
+        !overdue && STATE_TONE[op.state] === 'draft' && BADGE_INK,
+      )}
       title={stage && clock ? `Giai đoạn "${stage}" · ${clock.label}` : 'Cơ hội đã kết thúc'}
     >
       <span className="min-w-0 truncate">

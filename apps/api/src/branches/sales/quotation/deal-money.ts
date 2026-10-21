@@ -24,6 +24,8 @@ export type DealMoneyInput = {
   dealCurrency: CurrencyCode | null
   /** Oldest signature first, as `ContractRepository.byOpportunity` answers. */
   contracts: readonly ContractRowDb[]
+  /** Codes of `contracts` that were terminated (ADR 0107): listed, never summed. */
+  terminated: ReadonlySet<string>
   installments: ReadonlyMap<string, readonly ContractInstallmentRowDb[]>
   /** Every round of the deal, newest first. */
   rounds: readonly QuotationRow[]
@@ -58,7 +60,11 @@ function installmentOf(row: ContractInstallmentRowDb, today: string): Opportunit
 
 function contractOf(row: ContractRowDb, input: DealMoneyInput): OpportunityMoneyContract {
   const paymentsVisible = input.visible.has(row.code)
+  const ended = input.terminated.has(row.code)
+  /* A terminated paper keeps the money that came in; what was still due will
+     never be collected, so it is no installment and never overdue. */
   const installments = (paymentsVisible ? (input.installments.get(row.code) ?? []) : [])
+    .filter((i) => !ended || i.paidAt !== null)
     .map((i) => installmentOf(i, input.today))
     .sort(
       (a, b) =>
@@ -80,8 +86,8 @@ function contractOf(row: ContractRowDb, input: DealMoneyInput): OpportunityMoney
     collectedShare: paymentsVisible ? shareOf(collected, row.amount) : null,
     paymentsVisible,
     can: {
-      editSchedule: paymentsVisible && input.can.editSchedule,
-      recordPayment: paymentsVisible && input.can.recordPayment,
+      editSchedule: paymentsVisible && !ended && input.can.editSchedule,
+      recordPayment: paymentsVisible && !ended && input.can.recordPayment,
     },
     installments,
     rounds,
@@ -123,7 +129,7 @@ export function dealMoneyOf(input: DealMoneyInput): OpportunityMoney {
      any other currency is listed and never summed. Collection figures count
      the visible papers only — a hidden one has no instalments here. */
   const currency = input.dealCurrency ?? input.contracts[0]?.currency ?? 'VND'
-  const counted = papers.filter((p) => p.currency === currency)
+  const counted = papers.filter((p) => p.currency === currency && !input.terminated.has(p.code))
   const having = (status: InstallmentStatus) =>
     counted.flatMap((p) => p.installments.filter((i) => i.status === status))
   const overdue = having('overdue')

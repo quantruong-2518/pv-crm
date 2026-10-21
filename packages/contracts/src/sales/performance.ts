@@ -26,7 +26,7 @@ const count = z.number().int().nonnegative()
  *
  *  `contracts / opportunities` is the LEAD-TO-CONTRACT rate — cohort leads with
  *  a contract over cohort leads with a deal. It is not a win rate: that one is
- *  `wonDeals` and `lostDeals` on `SalesPeriodFigures`. */
+ *  read off the three closed-deal counts on `SalesPeriodFigures`. */
 export const SalesCohort = z.object({
   leads: count,
   /** Leads with any real exchange: a confirmed call, a message, a mail sent or
@@ -38,16 +38,19 @@ export const SalesCohort = z.object({
 
 export const SalesPeriodFigures = z.object({
   cohort: SalesCohort,
-  /** Contracts SIGNED in the span — by the day it happened, unlike `cohort.contracts`. */
+  /** Contracts SIGNED in the span — by the day it happened, unlike `cohort.contracts`.
+   *  LIVE contracts only: a terminated one leaves both figures. */
   signedCount: count,
   signedAmountVnd: MoneyVnd,
   /** Signed contracts carrying no amount — missing from the sum above. */
   blankAmount: count,
-  /** DEALS closed in the span, by their close moment: won = has a contract,
-   *  lost = stopped. Win rate is `wonDeals / (wonDeals + lostDeals)`, the KPI
+  /** DEALS closed in the span, by their close moment: won = has a live
+   *  contract (terminated EXCLUDED), lost = stopped, terminated = its contract
+   *  was terminated. Win rate is `won / (won + lost + terminated)`, the KPI
    *  `win-rate` reading over the whole room. A deal signing twice is one deal. */
   wonDeals: count,
   lostDeals: count,
+  terminatedDeals: count,
   /** Leads that reached a step IN the span, by the day they reached it,
    *  whatever span they entered in: the week view's activity. A lead counts
    *  once, on its first real exchange and on its first deal. Zeros outside a
@@ -116,6 +119,9 @@ export const SalesExitsResponse = z.object({
   leadExits: z.array(SalesExitReason),
   /** Deals stopped in the span, by stage and `LOSS_REASON`. */
   dealStops: z.array(SalesStopReason),
+  /** Contracts terminated in the span, by `CONTRACT_TERMINATION_REASON`. Counted
+   *  on `terminated_at` — the event — so a termination shows the day it is made. */
+  contractTerminations: z.array(SalesExitReason),
 })
 
 export type SalesPeriodKey = z.infer<typeof SalesPeriodKey>

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Badge, Button, Skeleton, Textarea } from '@pv/ui'
+import { Badge, Button, Skeleton, Textarea, cn } from '@pv/ui'
 import {
   OVERDUE_REASON_STATE_LABEL,
   OVERDUE_REASON_TEXT_MAX,
@@ -13,6 +13,7 @@ import { useCan, useSession } from '@/app/auth'
 import { toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import type { Contract, Installment } from '@/data/contracts'
+import { BADGE_INK } from '@/data/opportunities'
 import {
   overdueReasonsQuery,
   useDecideOverdueReason,
@@ -44,7 +45,9 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
   const data = query.data
   const latest = data?.reasons[0] ?? null
   const live = latest !== null && !latest.stale
-  const mayWrite = data?.canWrite === true && me !== undefined && me === contract.ownerId
+  /* A terminated contract answers 409 to both doors (ADR 0107): read only. */
+  const open = contract.termination === null
+  const mayWrite = open && data?.canWrite === true && me !== undefined && me === contract.ownerId
 
   if (query.isPending) return overdue ? <Skeleton className="h-24 w-full" /> : null
   if (!data)
@@ -63,8 +66,8 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
 
   return (
     <Frame>
-      {latest && <Reason row={latest} />}
-      {live && latest.state === 'waiting' && canDecide && latest.writtenBy.id !== me && (
+      {latest && <Reason row={latest} ended={!open} />}
+      {open && live && latest.state === 'waiting' && canDecide && latest.writtenBy.id !== me && (
         <Decide code={code} no={no} row={latest} />
       )}
       {(!live || latest.state === 'rejected') && mayWrite && <Write code={code} no={no} />}
@@ -77,8 +80,10 @@ function Frame({ children }: { children: ReactNode }) {
   return <RecordCard title="Lý do quá hạn">{children}</RecordCard>
 }
 
-function Reason({ row }: { row: OverdueReasonRow }) {
+function Reason({ row, ended }: { row: OverdueReasonRow; ended: boolean }) {
   const tone = { waiting: 'warning', approved: 'success', rejected: 'danger' } as const
+  /* Nobody can decide on a terminated contract, so a waiting reason stops looking pending. */
+  const parked = ended && row.state === 'waiting'
   const decided = row.decidedBy && row.decidedAt
   return (
     <div className="flex flex-col gap-2">
@@ -86,7 +91,9 @@ function Reason({ row }: { row: OverdueReasonRow }) {
         {row.stale ? (
           <Badge tone="draft">Hết hiệu lực</Badge>
         ) : (
-          <Badge tone={tone[row.state]}>{OVERDUE_REASON_STATE_LABEL[row.state]}</Badge>
+          <Badge tone={parked ? 'draft' : tone[row.state]} className={cn(parked && BADGE_INK)}>
+            {OVERDUE_REASON_STATE_LABEL[row.state]}
+          </Badge>
         )}
         <span className="text-muted-foreground tnum text-[12px]">
           {row.writtenBy.name} · {dmhm(row.writtenAt)}

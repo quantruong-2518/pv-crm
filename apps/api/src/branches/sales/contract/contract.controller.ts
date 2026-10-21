@@ -6,6 +6,7 @@ import {
   ContractConditionParams,
   ContractInstallmentParams,
   ContractInstallmentsBody,
+  ContractTerminateBody,
   InstallmentConditionBody,
   InstallmentPaidBody,
   InstallmentRecordBody,
@@ -15,6 +16,7 @@ import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
 import { ContractService } from './contract.service'
 import { ContractScheduleService } from './contract-schedule.service'
+import { ContractTerminationService } from './contract-termination.service'
 
 /** `/sales/contracts` — the contract book, plus the write doors of a signed
  *  contract's schedule (`contracts/sales/contract-schedule.ts`, ADR 0090).
@@ -46,6 +48,7 @@ export class ContractController {
   constructor(
     private readonly contracts: ContractService,
     private readonly schedule: ContractScheduleService,
+    private readonly termination: ContractTerminationService,
   ) {}
 
   @Get()
@@ -71,6 +74,14 @@ export class ContractController {
     return this.contracts.summary()
   }
 
+  /** The terminate drawer's picker. Before `:code` for `summary`'s reason; asks
+   *  the terminate permission because nobody else opens that drawer. */
+  @Get('termination-reasons')
+  @Need({ branch: 'Sales', permission: 'contract.terminate' })
+  terminationReasons() {
+    return this.termination.reasons()
+  }
+
   /** One contract, fully nested.
    *
    *  `ContractCode` rather than `ObjectCode` is the first fence, and it is not
@@ -82,6 +93,18 @@ export class ContractController {
   @Need({ branch: 'Sales', permission: 'contract.view', scoped: true })
   profile(@CurrentActor() who: Actor, @Param('code', zod(ContractCode)) code: ContractCode) {
     return this.contracts.profile(who, code)
+  }
+
+  /** ADR 0107: a direct door, final. Answers the contract re-read. */
+  @Post(':code/terminate')
+  @HttpCode(200)
+  @Need({ branch: 'Sales', permission: 'contract.terminate', scoped: true })
+  terminate(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ContractCode)) code: ContractCode,
+    @Body(zod(ContractTerminateBody)) body: ContractTerminateBody,
+  ) {
+    return this.termination.terminate(who, code, body)
   }
 
   @Put(':code/installments')
