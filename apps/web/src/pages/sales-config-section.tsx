@@ -38,7 +38,7 @@ export type AreaProps = {
 }
 
 /** Clears the sticky app header (two rows at its tallest), so a section
- *  scrolled to from the nav lands below it instead of under it. */
+ *  scrolled to by its `#id` lands below it instead of under it. */
 export const SECTION_ANCHOR = 'scroll-mt-[128px]'
 
 /** One configuration section, named by its entry in `CONFIG_AREAS`. The number

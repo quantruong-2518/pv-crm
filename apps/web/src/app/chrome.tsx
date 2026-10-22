@@ -15,9 +15,9 @@ import {
   Handshake,
   House,
   Inbox,
-  KeyRound,
   ListChecks,
   LogOut,
+  Mail,
   Megaphone,
   Route,
   ShieldCheck,
@@ -32,7 +32,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
 import type { Permission } from '@pv/engines'
-import { access, CHANGE_PASSWORD_PATH, useSession } from './auth'
+import { access, useSession } from './auth'
 import { isParked } from './parked'
 import { cacheTier } from './query-client'
 import { pendingApprovalsQuery } from '@/data/approvals'
@@ -124,8 +124,43 @@ const ONE_CORE: NavEntry[] = [
   { icon: Bell, label: 'Thông báo', path: NOTIFICATIONS_PATH, slot: 'notifications' },
 ]
 
-/** Screens behind the avatar's single "Cài đặt & quản trị" door, listed on
- *  `/settings`. Each `permission` mirrors its route in `routes.tsx`. */
+export const SETTINGS_PATH = '/settings'
+
+/** "My account" — open to every signed-in person, so it has no permission.
+ *  `data/notifications.ts` repeats the literal: importing it there is a cycle. */
+export const ACCOUNT_PATH = '/account'
+
+export type SettingsGroup = 'mine' | 'admin' | 'sales'
+
+/** The settings nav's groups; key order is the order they are drawn in. */
+export const SETTINGS_GROUP_LABEL: Record<SettingsGroup, string> = {
+  mine: 'Của tôi',
+  admin: 'Quản trị',
+  sales: 'Bán hàng',
+}
+
+export type SettingsEntry = {
+  icon: IconGlyph
+  label: string
+  description?: string
+  path: string
+  group: SettingsGroup
+  /** Absent only on the reader's own account, which everyone may open. */
+  permission?: Permission
+  /** The licence its route carries, so the menu asks what the door asks. */
+  branch?: 'Sales'
+}
+
+/** Every role has this one, so the settings nav is never empty. */
+const ACCOUNT_ENTRY: SettingsEntry = {
+  icon: Contact,
+  label: 'Tài khoản của tôi',
+  description: 'Thông tin cá nhân, mật khẩu, Google và yêu cầu đã gửi',
+  path: ACCOUNT_PATH,
+  group: 'mine',
+}
+
+/** Each `permission` and `branch` mirrors its route in `routes.tsx`. */
 const ADMIN_ENTRIES: SettingsEntry[] = [
   {
     icon: ShieldCheck,
@@ -133,6 +168,7 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Mở tài khoản và gán vai trò cho từng người',
     path: '/admin/users',
     permission: 'user.manage',
+    group: 'admin',
   },
   {
     icon: ListChecks,
@@ -140,6 +176,7 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Mỗi vai trò được làm những việc gì',
     path: '/admin/roles',
     permission: 'role.manage',
+    group: 'admin',
   },
   {
     icon: Bell,
@@ -147,13 +184,7 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Vai trò nào nhận loại thông báo nào, loại nào hiện lên ngay',
     path: '/admin/notifications',
     permission: 'setting.manage',
-  },
-  {
-    icon: Route,
-    label: 'Nguồn lead',
-    description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
-    path: '/admin/lead-origins',
-    permission: 'lead-origin.manage',
+    group: 'admin',
   },
   {
     icon: Coins,
@@ -161,22 +192,30 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
     description: 'Chi phí dùng AI theo tháng và bảng giá',
     path: '/admin/costs',
     permission: 'cost.view',
+    group: 'admin',
   },
 ]
 
-export const SETTINGS_PATH = '/settings'
-
-/** "My account" — open to every signed-in person, so it has no permission.
- *  `data/notifications.ts` repeats the literal: importing it there is a cycle. */
-export const ACCOUNT_PATH = '/account'
-
-export type SettingsEntry = {
-  icon: IconGlyph
-  label: string
-  description: string
-  path: string
-  permission: Permission
-}
+/** Drawn after the Sales setup module, which `SALES_MODULES` declares. */
+const SALES_SETUP_ENTRIES: SettingsEntry[] = [
+  {
+    icon: Route,
+    label: 'Nguồn lead',
+    description: 'Danh mục nguồn lead và chính sách theo hình thức bán',
+    path: '/admin/lead-origins',
+    permission: 'lead-origin.manage',
+    branch: 'Sales',
+    group: 'sales',
+  },
+  {
+    icon: Mail,
+    label: 'Mẫu thư',
+    path: '/sales/config/mail-templates',
+    permission: 'campaign.view',
+    branch: 'Sales',
+    group: 'sales',
+  },
+]
 
 /** BottomNav (< lg) — bốn mục CHỐT theo docs/design-system/devices.md, không cấu hình
  *  được danh sách. Bảng này là nguồn duy nhất của cả ba câu hỏi về chúng: mục
@@ -213,8 +252,8 @@ export type SalesModule = {
   group: NavGroup
 }
 
-/** `primary` is the left-to-right daily work; the other groups collapse or
- *  move into the account menu. */
+/** `primary` is the left-to-right daily work; `customer` and `manage`
+ *  collapse into named menus, and `setup` lives in the settings frame. */
 type NavGroup = 'primary' | 'customer' | 'manage' | 'setup'
 
 /** BẢY module Pebble Sales — bảng CHỐT.
@@ -510,34 +549,40 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const menuOf = (label: string, icon: IconGlyph, description: string, items: HeaderApp[]) =>
     items.length ? [{ icon, label, description, active: items.some((i) => i.active), items }] : []
 
+  const grantedSetting = (entry: SettingsEntry) =>
+    !isParked(entry.permission) &&
+    (!entry.permission ||
+      access.check(actor, { branch: entry.branch ?? null, permission: entry.permission }).ok)
   const settings: SettingsEntry[] = [
-    ...ADMIN_ENTRIES.filter((e) => granted(e)),
-    ...modulesIn('setup').map((m) => ({
+    ACCOUNT_ENTRY,
+    ...ADMIN_ENTRIES.filter(grantedSetting),
+    ...modulesIn('setup').map((m): SettingsEntry => ({
       icon: m.icon,
       label: m.label,
       description: m.question,
       path: m.path,
       permission: m.permission,
+      branch: 'Sales',
+      group: 'sales',
     })),
+    ...SALES_SETUP_ENTRIES.filter(grantedSetting),
   ]
   const inSettings = [SETTINGS_PATH, ...settings.map((e) => e.path)].some(inModule)
 
   const header: AppShellProps['header'] = {
     product: 'PV One',
     org: 'Pebble Vina',
-    /* One account-menu door for every configuration screen; it vanishes for a
-       role that may open none of them. */
+    /* Both open the settings frame from the avatar menu; the account entry is
+       its own row because every role has it and the bell links straight to it. */
     core: [
       ...ONE_CORE.filter(granted).map(plain),
-      ...(settings.length
+      plain(ACCOUNT_ENTRY),
+      /* A role whose only entry is its account would get two rows to one screen. */
+      ...(settings.length > 1
         ? [
             {
-              ...plain({
-                icon: SlidersHorizontal,
-                label: 'Cài đặt & quản trị',
-                path: SETTINGS_PATH,
-              }),
-              active: inSettings,
+              ...plain({ icon: SlidersHorizontal, label: 'Cài đặt', path: SETTINGS_PATH }),
+              active: inSettings && pathname !== ACCOUNT_PATH,
             },
           ]
         : []),
@@ -563,20 +608,6 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       records,
     },
     accountActions: [
-      {
-        icon: Contact,
-        label: 'Tài khoản của tôi',
-        active: pathname === ACCOUNT_PATH,
-        onClick: () => navigate(ACCOUNT_PATH),
-      },
-      {
-        /* The VOLUNTARY way to the change-password screen. Somebody forced to
-           change is already held there by `RequireAccess`; everyone else would
-           otherwise have only the forgotten-password letter. */
-        icon: KeyRound,
-        label: 'Đổi mật khẩu',
-        onClick: () => navigate(CHANGE_PASSWORD_PATH),
-      },
       {
         /* "Đăng xuất", not "Đổi vai": sign-in has had no role picker since
            23/08, so leaving the session is the only thing this can do. */

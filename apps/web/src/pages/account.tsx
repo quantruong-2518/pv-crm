@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, ScreenHeader, ScreenLayout } from '@pv/ui'
+import { ScreenHeader } from '@pv/ui'
 import { useSession } from '@/app/auth'
-import { useAppChrome } from '@/app/chrome'
 import { myApprovalsQuery } from '@/data/approvals'
 import { googleLinkQuery } from '@/data/google'
-import { GoogleBlock, IdentityBlock, PasswordBlock, RequestsBlock } from './account-parts'
+import { SettingsShell } from '@/components/settings-shell'
+import { IdentityBlock, PermissionBlock, RequestsBlock, SignInBlock } from './account-parts'
 
 /** One Core · "my account" — the one place for what is about the reader, and
  *  where the bell sends "your access changed", "your password was reset",
@@ -15,11 +15,9 @@ import { GoogleBlock, IdentityBlock, PasswordBlock, RequestsBlock } from './acco
  *  Every read is real and asked again on arrival, the session included: the
  *  reader comes here because something just changed elsewhere.
  *
- *  No ContextRail (law 10), like `/settings` and `/approvals`: the screen is
- *  about a person, not an E1 object with a story to chain. The background is
- *  the shell's own glow (law 12); nothing here paints another. */
+ *  Lives inside the settings frame, which owns the ContextRail question (law 10)
+ *  and the background (law 12); nothing here paints either. */
 export default function AccountScreen() {
-  const chrome = useAppChrome()
   const { hash } = useLocation()
   /* One actor: the store's. It is re-asked on arrival, so the menu, the gates
      and this screen change together when the reader's access has changed. */
@@ -43,19 +41,12 @@ export default function AccountScreen() {
   }, [hash, settled])
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <ScreenHeader
-          title="Tài khoản của tôi"
-          description="Thông tin cá nhân, mật khẩu, Google và yêu cầu đã gửi."
-        />
-        {actor ? <IdentityBlock actor={actor} /> : null}
-        <div className="grid items-start gap-4 md:grid-cols-2">
-          <PasswordBlock />
-          <GoogleBlock link={link} />
-        </div>
-        <RequestsBlock requests={requests} />
-      </ScreenLayout>
-    </AppShell>
+    <SettingsShell>
+      <ScreenHeader title="Tài khoản của tôi" />
+      {actor ? <IdentityBlock actor={actor} /> : null}
+      <SignInBlock link={link} />
+      {actor ? <PermissionBlock actor={actor} /> : null}
+      <RequestsBlock requests={requests} />
+    </SettingsShell>
   )
 }

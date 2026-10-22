@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { UserPlus } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, Button, Icon, ScreenLayout, cn } from '@pv/ui'
+import { Button, Icon, cn } from '@pv/ui'
 import type { UserRow } from '@pv/contracts'
-import { useAppChrome } from '@/app/chrome'
+import { SettingsShell } from '@/components/settings-shell'
 import { useSession } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { scopeLabel, tallyLine, userTally, usersQuery } from '@/data/users'
@@ -75,13 +75,6 @@ const TABLE_MIN_WIDTH = 'min-w-[960px]'
 const NO_USERS: UserRow[] = []
 
 export function UsersPage() {
-  /* No `searchPlaceholder` override: the string passed here was character-for-
-     character the default in `chrome.tsx`, so it changed nothing — and it was
-     Sales vocabulary ("khách hàng, cơ hội, báo giá") sitting on a One Core
-     screen. That box is Tìm toàn cục, not a filter for this table; a screen
-     that wants its own wording says something true, the way `sales-config.tsx`
-     does. */
-  const chrome = useAppChrome()
   const me = useSession((s) => s.actor)
 
   /* `error` is read, not dropped. Without it a dead server renders as "Chưa có
@@ -121,101 +114,99 @@ export function UsersPage() {
       : tallyLine(tally)
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <BookPage
-          title="Người dùng"
-          actions={
-            <Button size="md" onClick={openCreate} className="max-sm:flex-1">
-              <Icon icon={UserPlus} size={16} />
-              Thêm người dùng
-            </Button>
-          }
-          /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
+    <SettingsShell>
+      <BookPage
+        title="Người dùng"
+        actions={
+          <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
+            <Icon icon={UserPlus} size={16} />
+            Thêm người dùng
+          </Button>
+        }
+        /* `tnum` vì cả ba con số đổi mỗi lần mời hoặc khoá một người, và chữ
              số không đều bề rộng làm cả dòng nhảy ngang sau mỗi lần refetch. */
-          count={
-            <span
-              className={cn(
-                'tnum text-[11.5px]',
-                error ? 'text-destructive-foreground' : 'text-muted-foreground',
-              )}
-            >
-              {summary}
-            </span>
-          }
-          pending={isPending}
-          failure={
-            error
-              ? {
-                  /* Ask again — do not offer to open an account. The book is not
+        count={
+          <span
+            className={cn(
+              'tnum text-[11.5px]',
+              error ? 'text-destructive-foreground' : 'text-muted-foreground',
+            )}
+          >
+            {summary}
+          </span>
+        }
+        pending={isPending}
+        failure={
+          error
+            ? {
+                /* Ask again — do not offer to open an account. The book is not
                      what is broken, and a button that fixes the wrong thing costs
                      the user more than no button at all. `userMessage` prints the
                      server's own sentence when it wrote one, so "mất mạng" and
                      "phiên hết hạn" read differently. */
-                  message: `Không tải được danh sách người dùng. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
-                  onRetry: () => void refetch(),
-                }
-              : undefined
-          }
-          empty={
-            rows.length === 0
-              ? {
-                  message: 'Chưa có người dùng nào.',
-                  action: { label: 'Thêm người dùng', onClick: openCreate },
-                }
-              : undefined
-          }
-          table={{
-            minWidth: TABLE_MIN_WIDTH,
-            columns: [
-              { header: 'Họ và tên', width: '1.4fr' },
-              { header: 'Email', width: '1.7fr' },
-              { header: 'Vai trò', width: '1.5fr' },
-              { header: 'Nhánh sản phẩm', width: '1.2fr' },
-              { header: 'Phạm vi dữ liệu', width: '124px' },
-              { header: 'Trạng thái', width: '168px' },
-            ],
-            rows: rows.map((user) => ({
-              id: user.id,
-              /* Whole row opens the panel — the house pattern for both
+                message: `Không tải được danh sách người dùng. ${
+                  isApiError(error) ? userMessage(error) : 'Thử lại.'
+                }`,
+                onRetry: () => void refetch(),
+              }
+            : undefined
+        }
+        empty={
+          rows.length === 0
+            ? {
+                message: 'Chưa có người dùng nào.',
+                action: { label: 'Thêm người dùng', onClick: openCreate },
+              }
+            : undefined
+        }
+        table={{
+          minWidth: TABLE_MIN_WIDTH,
+          columns: [
+            { header: 'Họ và tên', width: '1.4fr' },
+            { header: 'Email', width: '1.7fr' },
+            { header: 'Vai trò', width: '1.5fr' },
+            { header: 'Nhánh sản phẩm', width: '1.2fr' },
+            { header: 'Phạm vi dữ liệu', width: '124px' },
+            { header: 'Trạng thái', width: '168px' },
+          ],
+          rows: rows.map((user) => ({
+            id: user.id,
+            /* Whole row opens the panel — the house pattern for both
                  sales books. The sketch drew a `⋯` menu per row instead;
                  `@pv/ui` has no menu, and adding one would be a new
                  component with a kit page to match. A clickable row does
                  the same job with what already exists, and the panel it
                  opens holds every action the menu was going to list. */
-              onOpen: () => openEdit(user),
-              cells: [
-                <UserNameCell key="n" name={user.name} isMe={user.id === me?.id} />,
-                /* Mono, like every mailbox in the app: an address is read
+            onOpen: () => openEdit(user),
+            cells: [
+              <UserNameCell key="n" name={user.name} isMe={user.id === me?.id} />,
+              /* Mono, like every mailbox in the app: an address is read
                    character by character when somebody is checking it
                    against another system, and a proportional font makes
                    `rn` and `m` the same shape. */
-                <span key="e" className="block truncate font-mono text-[11px]" title={user.email}>
-                  {user.email}
-                </span>,
-                <UserRoleCell key="r" label={user.role} roleIds={user.roleIds} />,
-                /* Branch names stay English — luật 14 fixes them as product
+              <span key="e" className="block truncate font-mono text-[11px]" title={user.email}>
+                {user.email}
+              </span>,
+              <UserRoleCell key="r" label={user.role} roleIds={user.roleIds} />,
+              /* Branch names stay English — luật 14 fixes them as product
                    names, so there is nothing here to translate. */
-                <span key="b" className="block truncate" title={user.branches.join(' · ')}>
-                  {user.branches.join(' · ')}
-                </span>,
-                <span key="s" className="block truncate">
-                  {scopeLabel(user.ownOnly)}
-                </span>,
-                <UserStatusCell key="t" user={user} />,
-              ],
-            })),
-          }}
-        />
+              <span key="b" className="block truncate" title={user.branches.join(' · ')}>
+                {user.branches.join(' · ')}
+              </span>,
+              <span key="s" className="block truncate">
+                {scopeLabel(user.ownOnly)}
+              </span>,
+              <UserStatusCell key="t" user={user} />,
+            ],
+          })),
+        }}
+      />
 
-        {/* One panel, both jobs. `editing === null` is "thêm người"; a row is
+      {/* One panel, both jobs. `editing === null` is "thêm người"; a row is
             "sửa <tên>". Two panels would be two copies of one form, and the
             second copy is where the branch checkboxes stop matching. */}
-        <UserDrawer open={open} onClose={() => setOpen(false)} user={editing} meId={me?.id} />
-      </ScreenLayout>
-    </AppShell>
+      <UserDrawer open={open} onClose={() => setOpen(false)} user={editing} meId={me?.id} />
+    </SettingsShell>
   )
 }
 

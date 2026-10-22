@@ -1,19 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RotateCcw, Save, TriangleAlert } from '@pv/ui'
-import {
-  AppShell,
-  Button,
-  EmptyState,
-  GlassCard,
-  Icon,
-  MetaPill,
-  ScreenHeader,
-  ScreenLayout,
-  Skeleton,
-} from '@pv/ui'
+import { Button, EmptyState, GlassCard, Icon, MetaPill, ScreenHeader, Skeleton } from '@pv/ui'
 import type { NotificationKind } from '@pv/contracts'
-import { useAppChrome } from '@/app/chrome'
+import { SettingsShell } from '@/components/settings-shell'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import {
@@ -41,7 +31,6 @@ import { PolicyGrid } from './admin-notifications-parts'
 const NO_KINDS: NotificationKind[] = []
 
 export function AdminNotificationsPage() {
-  const chrome = useAppChrome()
   const { data, isPending, error, refetch } = useQuery(notificationPolicyQuery)
   const save = useSavePolicy()
 
@@ -85,94 +74,91 @@ export function AdminNotificationsPage() {
   }
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <ScreenHeader
-          kicker="One Core · Quản trị"
-          title="Thông báo theo vai trò"
-          description="Chọn vai trò nhận từng loại thông báo; loại quan trọng hiện ngay ở góc màn hình."
-          meta={
-            failure || dirty.length > 0 ? (
-              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {failure ? (
-                  <span
-                    role="alert"
-                    className="text-destructive-foreground text-[11.5px] leading-[1.5]"
-                  >
-                    {failure}
-                  </span>
-                ) : null}
-                {dirty.length > 0 ? (
-                  <MetaPill tone="warning">
-                    <span className="tnum">{`Chưa lưu ${dirty.length} loại thông báo`}</span>
-                  </MetaPill>
-                ) : null}
-              </span>
-            ) : undefined
-          }
-          actions={
-            <>
-              <Button
-                size="lg"
-                variant="ghost"
-                type="button"
-                disabled={dirty.length === 0 || save.isPending}
-                onClick={() => {
-                  setEdited(null)
-                  setFailure('')
-                }}
-              >
-                <Icon icon={RotateCcw} size={16} />
-                Hoàn tác
-              </Button>
-              <Button
-                size="lg"
-                type="button"
-                disabled={dirty.length === 0 || save.isPending}
-                onClick={() => void saveDirty()}
-              >
-                <Icon icon={Save} size={16} />
-                {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
-              </Button>
-            </>
-          }
-        />
+    <SettingsShell>
+      <ScreenHeader
+        title="Thông báo theo vai trò"
+        description="Chọn vai trò nhận từng loại thông báo; loại quan trọng hiện ngay ở góc màn hình."
+        meta={
+          failure || dirty.length > 0 ? (
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {failure ? (
+                <span
+                  role="alert"
+                  className="text-destructive-foreground text-[11.5px] leading-[1.5]"
+                >
+                  {failure}
+                </span>
+              ) : null}
+              {dirty.length > 0 ? (
+                <MetaPill tone="warning">
+                  <span className="tnum">{`Chưa lưu ${dirty.length} loại thông báo`}</span>
+                </MetaPill>
+              ) : null}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Button
+              size="lg"
+              variant="ghost"
+              type="button"
+              disabled={dirty.length === 0 || save.isPending}
+              onClick={() => {
+                setEdited(null)
+                setFailure('')
+              }}
+            >
+              <Icon icon={RotateCcw} size={16} />
+              Hoàn tác
+            </Button>
+            <Button
+              size="lg"
+              type="button"
+              disabled={dirty.length === 0 || save.isPending}
+              onClick={() => void saveDirty()}
+            >
+              <Icon icon={Save} size={16} />
+              {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+            </Button>
+          </>
+        }
+      />
 
-        {/* Law 8: the grid is a long table, so the card draws glass-b. */}
-        <GlassCard variant="b" className="overflow-hidden">
-          <div className="p-4 lg:p-5">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-              </div>
-            ) : error || !draft || !index ? (
-              <EmptyState
-                tone="danger"
-                icon={TriangleAlert}
-                message={`Không tải được cài đặt thông báo. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
+      {/* Law 8: the grid is a long table, so the card draws glass-b. */}
+      <GlassCard variant="b" className="overflow-hidden">
+        <div className="p-4 lg:p-5">
+          {isPending ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton height={48} className="w-full" />
+              <Skeleton height={48} className="w-full" />
+              <Skeleton height={48} className="w-full" />
+            </div>
+          ) : error || !draft || !index ? (
+            <EmptyState
+              tone="danger"
+              icon={TriangleAlert}
+              message={`Không tải được cài đặt thông báo. ${
+                isApiError(error) ? userMessage(error) : 'Thử lại.'
+              }`}
+              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              className="py-12"
+            />
+          ) : (
+            /* The grid scrolls sideways here, never the page (tablet). */
+            <div className="overflow-x-auto">
+              <PolicyGrid
+                draft={draft}
+                index={index}
+                saving={save.isPending}
+                onHears={(kind, roleId, hears) => edit((d) => setHears(d, kind, roleId, hears))}
+                onImportant={(kind, on) => edit((d) => setImportant(d, kind, on))}
               />
-            ) : (
-              /* The grid scrolls sideways here, never the page (tablet). */
-              <div className="overflow-x-auto">
-                <PolicyGrid
-                  draft={draft}
-                  index={index}
-                  saving={save.isPending}
-                  onHears={(kind, roleId, hears) => edit((d) => setHears(d, kind, roleId, hears))}
-                  onImportant={(kind, on) => edit((d) => setImportant(d, kind, on))}
-                />
-              </div>
-            )}
-          </div>
-        </GlassCard>
-      </ScreenLayout>
-    </AppShell>
+            </div>
+          )}
+        </div>
+      </GlassCard>
+    </SettingsShell>
   )
 }
 

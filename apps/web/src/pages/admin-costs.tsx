@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  AppShell,
   Button,
   EmptyState,
   GlassCard,
@@ -9,12 +8,11 @@ import {
   Inbox,
   Plus,
   ScreenHeader,
-  ScreenLayout,
   SectionTitle,
 } from '@pv/ui'
 import type { AiPrice } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { useAppChrome } from '@/app/chrome'
+import { SettingsShell } from '@/components/settings-shell'
 import {
   aiCostsQuery,
   aiPricesQuery,
@@ -53,7 +51,6 @@ const seedOf = (row: AiPrice): PriceSeed => ({
 })
 
 export function AdminCostsPage() {
-  const chrome = useAppChrome()
   const canSet = useCan('cost.view')
 
   const [pick, setPick] = useState<PeriodPick>(() => ({ ...currentPick(), grain: 'month' }))
@@ -78,85 +75,82 @@ export function AdminCostsPage() {
   const earlier = stepPick(pick, -1)
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <ScreenHeader
-          kicker="One Core · Quản trị"
-          title="Chi phí"
-          description="Tính theo bảng giá bên dưới, có thể khác hoá đơn của nhà cung cấp."
-          actions={<CostMonthPicker pick={pick} onPick={setPick} />}
-        />
+    <SettingsShell>
+      <ScreenHeader
+        title="Chi phí"
+        description="Tính theo bảng giá bên dưới, có thể khác hoá đơn của nhà cung cấp."
+        actions={<CostMonthPicker pick={pick} onPick={setPick} />}
+      />
 
-        <QueryBlock query={report} what="chi phí của tháng">
-          {(data) =>
-            data.totals.calls === 0 ? (
-              <GlassCard>
-                <EmptyState
-                  icon={Inbox}
-                  message="Tháng này chưa dùng AI lần nào."
-                  action={{
-                    label: 'Xem tháng trước',
-                    onClick: earlier ? () => setPick(earlier) : undefined,
-                  }}
-                  className="py-12"
-                />
-              </GlassCard>
-            ) : (
-              <>
-                {/* A price from the month's first day is what clears its warning. */}
-                <UnpricedNotice
-                  models={unpricedModelsOf(data)}
-                  canSet={canSet}
-                  onPrice={(model) => openWith(blank(model, firstDayOf(month)))}
-                />
-                <CostTotals line={data.totals} />
-                <section className="flex flex-col gap-3">
-                  <SectionTitle size="md">Chi phí theo ngày</SectionTitle>
-                  <CostByDay days={data.byDay} />
-                </section>
-                <CostBreakdown report={data} />
-              </>
+      <QueryBlock query={report} what="chi phí của tháng">
+        {(data) =>
+          data.totals.calls === 0 ? (
+            <GlassCard>
+              <EmptyState
+                icon={Inbox}
+                message="Tháng này chưa dùng AI lần nào."
+                action={{
+                  label: 'Xem tháng trước',
+                  onClick: earlier ? () => setPick(earlier) : undefined,
+                }}
+                className="py-12"
+              />
+            </GlassCard>
+          ) : (
+            <>
+              {/* A price from the month's first day is what clears its warning. */}
+              <UnpricedNotice
+                models={unpricedModelsOf(data)}
+                canSet={canSet}
+                onPrice={(model) => openWith(blank(model, firstDayOf(month)))}
+              />
+              <CostTotals line={data.totals} />
+              <section className="flex flex-col gap-3">
+                <SectionTitle size="md">Chi phí theo ngày</SectionTitle>
+                <CostByDay days={data.byDay} />
+              </section>
+              <CostBreakdown report={data} />
+            </>
+          )
+        }
+      </QueryBlock>
+
+      <section className="flex flex-col gap-3">
+        <SectionTitle
+          size="md"
+          actions={
+            canSet && (
+              <Button size="md" className="pointer-coarse:h-12" onClick={() => openWith(blank())}>
+                <Icon icon={Plus} size={16} />
+                Đặt giá
+              </Button>
             )
           }
+        >
+          Bảng giá
+        </SectionTitle>
+        <QueryBlock query={prices} what="bảng giá" variant="b">
+          {(data) => (
+            <PriceTable
+              rows={data.rows}
+              canSet={canSet}
+              onAdd={() => openWith(blank())}
+              onEdit={(row) => openWith(seedOf(row))}
+            />
+          )}
         </QueryBlock>
+      </section>
 
-        <section className="flex flex-col gap-3">
-          <SectionTitle
-            size="md"
-            actions={
-              canSet && (
-                <Button size="md" className="pointer-coarse:h-12" onClick={() => openWith(blank())}>
-                  <Icon icon={Plus} size={16} />
-                  Đặt giá
-                </Button>
-              )
-            }
-          >
-            Bảng giá
-          </SectionTitle>
-          <QueryBlock query={prices} what="bảng giá" variant="b">
-            {(data) => (
-              <PriceTable
-                rows={data.rows}
-                canSet={canSet}
-                onAdd={() => openWith(blank())}
-                onEdit={(row) => openWith(seedOf(row))}
-              />
-            )}
-          </QueryBlock>
-        </section>
-
-        {drawer && (
-          <PriceDrawer
-            key={drawer.key}
-            open={open}
-            seed={drawer.seed}
-            models={knownModelsOf(report.data, prices.data)}
-            onClose={() => setOpen(false)}
-          />
-        )}
-      </ScreenLayout>
-    </AppShell>
+      {drawer && (
+        <PriceDrawer
+          key={drawer.key}
+          open={open}
+          seed={drawer.seed}
+          models={knownModelsOf(report.data, prices.data)}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </SettingsShell>
   )
 }
 

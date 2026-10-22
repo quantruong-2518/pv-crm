@@ -126,7 +126,7 @@ export function sectionOf(id: SectionId) {
   return found
 }
 
-/** Lives beside `SectionId` because the nav and the page both call it. The
+/** Lives beside `SectionId`, the type it scrolls to. The
  *  global reduced-motion rule stops CSS motion only; a scripted scroll has
  *  to ask for itself. */
 export function scrollToSection(id: SectionId) {

@@ -4,6 +4,7 @@ import {
   GlassCard,
   Icon,
   ListChecks,
+  NavItem,
   Phone,
   Route,
   Target,
@@ -11,7 +12,12 @@ import {
   cn,
   type IconGlyph,
 } from '@pv/ui'
-import { CONFIG_AREAS, OVERVIEW, scrollToSection, type ConfigView } from './sales-config-model'
+import { CONFIG_AREAS, OVERVIEW, type ConfigArea, type ConfigView } from './sales-config-model'
+
+/** The screen's views, drawn twice from ONE list: nested under the Sales setup
+ *  entry of the settings nav from `lg` up, and as a wrapping bar on the page
+ *  below it, where the settings nav is hidden. Sections are reached by `#id`
+ *  links, so a section can be linked to and Back returns from it. */
 
 const VIEW_ICON: Record<ConfigView, IconGlyph> = {
   [OVERVIEW]: ListChecks,
@@ -31,69 +37,73 @@ const ENTRIES = [
 const TAB =
   'motion-std pointer-coarse:h-12 flex h-10 items-center gap-2 whitespace-nowrap rounded-sm px-3 text-[12px] font-semibold'
 const IDLE = 'text-muted-foreground hover:bg-surface-ink/8 hover:text-foreground'
-/* Section titles are sentences: in a 240px rail they must wrap, so these grow
-   from a minimum height instead of holding a fixed one. */
-const JUMP = cn(
-  'motion-std pointer-coarse:min-h-12 flex min-h-10 items-center rounded-sm px-3 py-2 text-left text-[12px] font-medium',
-  IDLE,
-)
 
-/** The screen's views, and under the open one its sections. A rail from `xl`
- *  up, a wrapping bar below it. Not a `SegmentedControl` — `ConfigBooks` sits
- *  right above, and stacked segmented controls read as one control. The sticky
- *  offset is the app header at its tallest, the number `SECTION_ANCHOR` uses. */
-export function ConfigNav({
-  view,
-  onOpen,
-}: {
-  view: ConfigView
-  onOpen: (view: ConfigView) => void
-}) {
-  /* A single-section area has nothing to jump between. */
-  const open = ENTRIES.find((e) => e.key === view)
-  const jumps =
-    open && open.sections.length > 1
-      ? open.sections.map((s) => (
-          <button key={s.id} type="button" onClick={() => scrollToSection(s.id)} className={JUMP}>
-            {s.title}
-          </button>
-        ))
-      : null
+type NavProps = { view: ConfigView; onOpen: (view: ConfigView) => void }
 
+/** The `subNav` of `SettingsShell`: one indented row per view. */
+export function ConfigSubNav({ view, onOpen }: NavProps) {
   return (
-    <nav aria-label="Khu cấu hình" className="min-w-0 xl:sticky xl:top-[128px] xl:self-start">
-      <GlassCard className="flex flex-col overflow-hidden">
-        <div className="flex flex-wrap gap-1 p-2 xl:flex-col xl:flex-nowrap">
-          {ENTRIES.map((e) => {
-            const active = e.key === view
-            return (
-              <div key={e.key} className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => onOpen(e.key)}
-                  className={cn(
-                    TAB,
-                    active ? 'bg-surface-ink/12 text-foreground shadow-control' : IDLE,
-                  )}
-                >
-                  <Icon icon={VIEW_ICON[e.key]} size={16} />
-                  {e.step !== null && <span className="tnum font-num">{e.step}</span>}
-                  {e.label}
-                </button>
-                {active && jumps && (
-                  <div className="hidden flex-col gap-1 pl-6 xl:flex">{jumps}</div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        {/* Below `xl` the entries wrap as a bar, so the open area's sections
-            cannot nest under their entry: they take a second row. */}
-        {jumps && (
-          <div className="bg-surface-ink/5 flex flex-wrap gap-1 px-2 py-1 xl:hidden">{jumps}</div>
-        )}
+    <div role="group" aria-label="Khu cấu hình" className="flex flex-col gap-1">
+      {ENTRIES.map((e) => (
+        <NavItem
+          key={e.key}
+          depth={1}
+          icon={VIEW_ICON[e.key]}
+          label={e.step === null ? e.label : `${e.step} · ${e.label}`}
+          active={e.key === view}
+          onClick={() => onOpen(e.key)}
+          className="pointer-coarse:h-12"
+        />
+      ))}
+    </div>
+  )
+}
+
+/** Below `lg` only. A wrapping bar, not a `SegmentedControl`: seven labelled
+ *  views do not fit one row on a phone, and a segmented control cannot wrap. */
+export function ConfigNav({ view, onOpen }: NavProps) {
+  return (
+    <nav aria-label="Khu cấu hình" className="min-w-0 xl:hidden">
+      <GlassCard className="flex flex-wrap gap-1 p-2">
+        {ENTRIES.map((e) => {
+          const active = e.key === view
+          return (
+            <button
+              key={e.key}
+              type="button"
+              aria-current={active ? 'page' : undefined}
+              onClick={() => onOpen(e.key)}
+              className={cn(
+                TAB,
+                active ? 'bg-surface-ink/12 text-foreground shadow-control' : IDLE,
+              )}
+            >
+              <Icon icon={VIEW_ICON[e.key]} size={16} />
+              {e.step !== null && <span className="tnum font-num">{e.step}</span>}
+              {e.label}
+            </button>
+          )
+        })}
       </GlassCard>
+    </nav>
+  )
+}
+
+/** The open area's sections as plain `#id` links: the browser keeps each jump
+ *  in history and the page scrolls to the hash. A single-section area has
+ *  nothing to jump between. */
+export function SectionLinks({ area }: { area: ConfigArea }) {
+  if (area.sections.length < 2) return null
+  return (
+    <nav aria-labelledby={`${area.key}-jump`} className="flex flex-wrap items-center gap-2">
+      <span id={`${area.key}-jump`} className="text-muted-foreground text-[11.5px]">
+        Trong phần này
+      </span>
+      {area.sections.map((s) => (
+        <a key={s.id} href={`#${s.id}`} className={cn(TAB, 'bg-surface-ink/5 font-medium', IDLE)}>
+          {s.title}
+        </a>
+      ))}
     </nav>
   )
 }

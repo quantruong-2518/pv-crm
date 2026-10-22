@@ -1,18 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  Button,
-  Checkbox,
-  Icon,
-  Plus,
-  ScreenLayout,
-  SearchField,
-  Select,
-  type TableRowModel,
-} from '@pv/ui'
+import { Button, Checkbox, Icon, Plus, SearchField, Select, type TableRowModel } from '@pv/ui'
 import { LeadMotion, type LeadOrigin } from '@pv/contracts'
-import { useAppChrome } from '@/app/chrome'
+import { SettingsShell } from '@/components/settings-shell'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { leadOriginsQuery } from '@/data/lead-origins'
@@ -47,7 +37,6 @@ const SEARCH_DELAY_MS = 300
 const NO_ORIGINS: LeadOrigin[] = []
 
 export function LeadOriginsPage() {
-  const chrome = useAppChrome()
   const canSeeMotions = useCan('config.view')
 
   const [text, setText] = useState('')
@@ -113,92 +102,87 @@ export function LeadOriginsPage() {
   }))
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <BookPage
-          title="Nguồn lead"
-          actions={
-            <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
-              <Icon icon={Plus} size={16} />
-              Thêm nguồn lead
-            </Button>
-          }
-          count={<BookCount total={rows.length} noun="nguồn lead" />}
-          tools={
-            <>
-              <SearchField
-                placeholder="Tìm theo tên nguồn hoặc tên gọi khác…"
-                value={text}
-                meta={searchHint(text)}
-                onChange={setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
+    <SettingsShell>
+      <BookPage
+        title="Nguồn lead"
+        actions={
+          <Button size="md" className="pointer-coarse:h-12 max-sm:flex-1" onClick={openAdd}>
+            <Icon icon={Plus} size={16} />
+            Thêm nguồn lead
+          </Button>
+        }
+        count={<BookCount total={rows.length} noun="nguồn lead" />}
+        tools={
+          <>
+            <SearchField
+              placeholder="Tìm theo tên nguồn hoặc tên gọi khác…"
+              value={text}
+              meta={searchHint(text)}
+              onChange={setText}
+              className="min-w-0 flex-1 sm:max-w-[320px]"
+            />
+            <FilterMenu label="Bộ lọc nguồn lead" active={(motion ? 1 : 0) + (showHidden ? 1 : 0)}>
+              <Select
+                label="Phương án tiếp cận"
+                value={motion ?? ANY}
+                neutralValue={ANY}
+                onChange={(v) => setMotion(v === ANY ? undefined : (v as LeadMotion))}
+                className="w-full max-w-none"
+                options={[
+                  { value: ANY, label: 'Tất cả phương án' },
+                  ...LeadMotion.options.map((m) => ({ value: m, label: motionLabel(m) })),
+                ]}
               />
-              <FilterMenu
-                label="Bộ lọc nguồn lead"
-                active={(motion ? 1 : 0) + (showHidden ? 1 : 0)}
-              >
-                <Select
-                  label="Phương án tiếp cận"
-                  value={motion ?? ANY}
-                  neutralValue={ANY}
-                  onChange={(v) => setMotion(v === ANY ? undefined : (v as LeadMotion))}
-                  className="w-full max-w-none"
-                  options={[
-                    { value: ANY, label: 'Tất cả phương án' },
-                    ...LeadMotion.options.map((m) => ({ value: m, label: motionLabel(m) })),
-                  ]}
-                />
-                <Checkbox
-                  checked={showHidden}
-                  onChange={setShowHidden}
-                  label="Hiển thị nguồn đã ẩn"
-                />
-              </FilterMenu>
-            </>
-          }
-          pending={isPending}
-          failure={
-            error
+              <Checkbox
+                checked={showHidden}
+                onChange={setShowHidden}
+                label="Hiển thị nguồn đã ẩn"
+              />
+            </FilterMenu>
+          </>
+        }
+        pending={isPending}
+        failure={
+          error
+            ? {
+                message: `Không tải được danh sách nguồn lead. ${
+                  isApiError(error) ? userMessage(error) : 'Thử lại.'
+                }`,
+                onRetry: () => void refetch(),
+              }
+            : undefined
+        }
+        empty={
+          rows.length === 0
+            ? filtering
               ? {
-                  message: `Không tải được danh sách nguồn lead. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
-                  onRetry: () => void refetch(),
+                  message: 'Không có nguồn lead nào khớp bộ lọc.',
+                  action: { label: 'Bỏ hết bộ lọc', onClick: clear },
                 }
-              : undefined
-          }
-          empty={
-            rows.length === 0
-              ? filtering
-                ? {
-                    message: 'Không có nguồn lead nào khớp bộ lọc.',
-                    action: { label: 'Bỏ hết bộ lọc', onClick: clear },
-                  }
-                : {
-                    message: 'Chưa có nguồn lead nào.',
-                    action: { label: 'Thêm nguồn lead', onClick: openAdd },
-                  }
-              : undefined
-          }
-          table={{
-            minWidth: 'min-w-[880px]',
-            columns: [
-              { header: 'Tên nguồn', width: 'minmax(0,1.6fr)' },
-              { header: 'Phương án tiếp cận', width: 'minmax(0,1.6fr)' },
-              { header: 'Tên gọi khác', width: 'minmax(0,1.2fr)' },
-              { header: 'Số lead', width: '0.6fr', align: 'right' },
-              { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
-            ],
-            rows: tableRows,
-          }}
-        />
+              : {
+                  message: 'Chưa có nguồn lead nào.',
+                  action: { label: 'Thêm nguồn lead', onClick: openAdd },
+                }
+            : undefined
+        }
+        table={{
+          minWidth: 'min-w-[880px]',
+          columns: [
+            { header: 'Tên nguồn', width: 'minmax(0,1.6fr)' },
+            { header: 'Phương án tiếp cận', width: 'minmax(0,1.6fr)' },
+            { header: 'Tên gọi khác', width: 'minmax(0,1.2fr)' },
+            { header: 'Số lead', width: '0.6fr', align: 'right' },
+            { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
+          ],
+          rows: tableRows,
+        }}
+      />
 
-        {canSeeMotions && <MotionPickerSection />}
+      {canSeeMotions && <MotionPickerSection />}
 
-        <AddOriginModal key={addSeq} open={adding} onClose={() => setAdding(false)} />
-        <EditOriginModal origin={editing} onClose={() => setEditingId(null)} />
-      </ScreenLayout>
-    </AppShell>
+      <AddOriginModal key={addSeq} open={adding} onClose={() => setAdding(false)} />
+      <EditOriginModal origin={editing} onClose={() => setEditingId(null)} />
+    </SettingsShell>
   )
 }
 

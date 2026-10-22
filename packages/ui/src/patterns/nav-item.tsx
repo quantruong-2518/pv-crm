@@ -61,7 +61,7 @@ export function NavItem({
         size={16}
         className={cn(locked && 'opacity-55', active && !locked && 'text-accent-foreground')}
       />
-      {label}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {locked ? (
         <>
           <Icon icon={Lock} size={14} className="ml-auto opacity-55" />

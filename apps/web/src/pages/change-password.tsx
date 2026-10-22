@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '@pv/ui'
 import { AuthCard, AuthField, PasswordInput } from '@/components/auth-card'
 import { useSession } from '@/app/auth'
+import { ACCOUNT_PATH } from '@/app/chrome'
 import { useLang } from '@/app/i18n'
 import { PASSWORD_MIN, changePassword, type AuthError } from '@/data/auth'
 import { authErrorText, changePasswordText, t } from '@/data/auth-i18n'
@@ -12,7 +13,7 @@ import { authErrorText, changePasswordText, t } from '@/data/auth-i18n'
  *  ------------------------------------------------------------------
  *  ONE SCREEN, TWO WAYS TO ARRIVE
  *  ------------------------------------------------------------------
- *  Voluntarily, from the account menu in the header. Or forced: the account is
+ *  Voluntarily, from the account screen. Or forced: the account is
  *  holding the default password, and `RequireAccess` put the person here and
  *  lets them go nowhere else until they are done.
  *
@@ -59,7 +60,7 @@ export function ChangePasswordPage() {
       lead={t(lang, forced ? changePasswordText.forcedLead : changePasswordText.normalLead)}
       /* No way back while forced: a "return" link on the screen a guard has
          just redirected somebody to only leads where they were bounced from. */
-      back={forced ? undefined : { to: '/', label: t(lang, changePasswordText.back) }}
+      back={forced ? undefined : { to: ACCOUNT_PATH, label: t(lang, changePasswordText.back) }}
     >
       <form
         noValidate
@@ -77,7 +78,7 @@ export function ChangePasswordPage() {
              for one more tick means the guard bounces the person who just
              finished straight back to this screen. */
           clearDebt()
-          navigate('/', { replace: true })
+          navigate(forced ? '/' : ACCOUNT_PATH, { replace: true })
         }}
         className="flex flex-col gap-5"
       >

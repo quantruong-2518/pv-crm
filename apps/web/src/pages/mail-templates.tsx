@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from '@pv/ui'
-import { AppShell, Badge, Button, Icon, ScreenLayout, cn } from '@pv/ui'
+import { Badge, Button, Icon, cn } from '@pv/ui'
 import { MAIL_DOOR_LABEL, type MailTemplateRow } from '@pv/contracts'
-import { useAppChrome } from '@/app/chrome'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { masTemplatesQuery } from '@/data/mas'
 import { BookPage } from '@/components/book-page'
-import { ConfigBooks } from '@/components/config-books'
+import { SettingsShell } from '@/components/settings-shell'
 import { MilestonePill } from './mail-templates-doors'
 import { MailTemplateDrawer } from './mail-templates-parts'
 
@@ -61,7 +60,6 @@ function DoorTags({ row }: { row: MailTemplateRow }) {
 }
 
 export function MailTemplatesPage() {
-  const chrome = useAppChrome()
   const canWrite = useCan('campaign.edit')
 
   /* `error` is read, not dropped: a dead server drawn as "the book is empty",
@@ -94,104 +92,101 @@ export function MailTemplatesPage() {
       : `${rows.length} mẫu · ${live} đang dùng`
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <BookPage
-          title="Sổ mẫu thư"
-          actions={
-            /* HIDDEN, not greyed out — for a read-only role "not yet" never
-               arrives. The real gate is in `app/api/client.ts`, not here. */
-            canWrite ? (
-              <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
-                <Icon icon={Plus} size={16} />
-                Thêm mẫu thư
-              </Button>
-            ) : undefined
-          }
-          nav={<ConfigBooks />}
-          /* `tnum` because both numbers change whenever a template is added or
-             retired, and uneven digit widths make the line jump sideways. */
-          count={
-            <span
-              className={cn(
-                'tnum text-[11.5px]',
-                error ? 'text-destructive-foreground' : 'text-muted-foreground',
-              )}
-            >
-              {summary}
-            </span>
-          }
-          pending={isPending}
-          failure={
-            error
-              ? {
-                  message: `Không tải được danh sách mẫu thư. ${
-                    isApiError(error) ? userMessage(error) : 'Thử lại.'
-                  }`,
-                  onRetry: () => void refetch(),
-                }
-              : undefined
-          }
-          empty={
-            /* `EmptyState` (M-08) always demands a button, so the question is
-               not whether to draw one but which one is true. Offering a
-               read-only role the create button is an invitation straight to a
-               403, so they get the one button that does something: ask again. */
-            rows.length === 0
-              ? {
-                  message: EMPTY_MESSAGE,
-                  action: canWrite
-                    ? { label: 'Thêm mẫu thư', onClick: openCreate }
-                    : { label: 'Tải lại', onClick: () => void refetch() },
-                }
-              : undefined
-          }
-          table={{
-            minWidth: 'min-w-[1120px]',
-            columns: [
-              { header: 'Mã', width: '1fr' },
-              { header: 'Tên mẫu', width: '1.4fr' },
-              { header: 'Tiêu đề email', width: '1.9fr' },
-              { header: 'Nút trong email', width: '160px' },
-              { header: 'Dùng khi', width: '1.4fr' },
-              { header: 'Trạng thái', width: '128px' },
+    <SettingsShell>
+      <BookPage
+        title="Sổ mẫu thư"
+        actions={
+          /* HIDDEN, not greyed out — for a read-only role "not yet" never
+             arrives. The real gate is in `app/api/client.ts`, not here. */
+          canWrite ? (
+            <Button size="md" onClick={openCreate} className="pointer-coarse:h-12 max-sm:flex-1">
+              <Icon icon={Plus} size={16} />
+              Thêm mẫu thư
+            </Button>
+          ) : undefined
+        }
+        /* `tnum` because both numbers change whenever a template is added or
+           retired, and uneven digit widths make the line jump sideways. */
+        count={
+          <span
+            className={cn(
+              'tnum text-[11.5px]',
+              error ? 'text-destructive-foreground' : 'text-muted-foreground',
+            )}
+          >
+            {summary}
+          </span>
+        }
+        pending={isPending}
+        failure={
+          error
+            ? {
+                message: `Không tải được danh sách mẫu thư. ${
+                  isApiError(error) ? userMessage(error) : 'Thử lại.'
+                }`,
+                onRetry: () => void refetch(),
+              }
+            : undefined
+        }
+        empty={
+          /* `EmptyState` (M-08) always demands a button, so the question is
+             not whether to draw one but which one is true. Offering a
+             read-only role the create button is an invitation straight to a
+             403, so they get the one button that does something: ask again. */
+          rows.length === 0
+            ? {
+                message: EMPTY_MESSAGE,
+                action: canWrite
+                  ? { label: 'Thêm mẫu thư', onClick: openCreate }
+                  : { label: 'Tải lại', onClick: () => void refetch() },
+              }
+            : undefined
+        }
+        table={{
+          minWidth: 'min-w-[1120px]',
+          columns: [
+            { header: 'Mã', width: '1fr' },
+            { header: 'Tên mẫu', width: '1.4fr' },
+            { header: 'Tiêu đề email', width: '1.9fr' },
+            { header: 'Nút trong email', width: '160px' },
+            { header: 'Dùng khi', width: '1.4fr' },
+            { header: 'Trạng thái', width: '128px' },
+          ],
+          rows: rows.map((row) => ({
+            id: row.code,
+            /* The whole row opens the panel — the house pattern for every
+               book. A read-only role opens nothing: this panel is an EDIT
+               panel, and opening it to eat a 403 on save is making
+               somebody type the whole form to learn they may not. */
+            ...(canWrite ? { onOpen: () => openEdit(row) } : {}),
+            cells: [
+              <span key="c" className="block truncate font-mono text-[11px]" title={row.code}>
+                {row.code}
+              </span>,
+              <span key="n" className="block truncate" title={row.name}>
+                {row.name}
+              </span>,
+              <span key="s" className="text-muted-foreground block truncate" title={row.subject}>
+                {row.subject}
+              </span>,
+              /* The CTA only: a legacy booking link no longer reaches a
+                 letter (Calendly retired), so it is not a button here. */
+              <span key="b" className="block truncate" title={row.cta?.label}>
+                {row.cta?.label ?? '—'}
+              </span>,
+              <DoorTags key="d" row={row} />,
+              <Badge key="t" tone={row.active ? 'success' : 'draft'}>
+                {row.active ? 'Đang dùng' : 'Ngừng dùng'}
+              </Badge>,
             ],
-            rows: rows.map((row) => ({
-              id: row.code,
-              /* The whole row opens the panel — the house pattern for every
-                 book. A read-only role opens nothing: this panel is an EDIT
-                 panel, and opening it to eat a 403 on save is making
-                 somebody type the whole form to learn they may not. */
-              ...(canWrite ? { onOpen: () => openEdit(row) } : {}),
-              cells: [
-                <span key="c" className="block truncate font-mono text-[11px]" title={row.code}>
-                  {row.code}
-                </span>,
-                <span key="n" className="block truncate" title={row.name}>
-                  {row.name}
-                </span>,
-                <span key="s" className="text-muted-foreground block truncate" title={row.subject}>
-                  {row.subject}
-                </span>,
-                /* The CTA only: a legacy booking link no longer reaches a
-                   letter (Calendly retired), so it is not a button here. */
-                <span key="b" className="block truncate" title={row.cta?.label}>
-                  {row.cta?.label ?? '—'}
-                </span>,
-                <DoorTags key="d" row={row} />,
-                <Badge key="t" tone={row.active ? 'success' : 'draft'}>
-                  {row.active ? 'Đang dùng' : 'Ngừng dùng'}
-                </Badge>,
-              ],
-            })),
-          }}
-        />
+          })),
+        }}
+      />
 
-        {/* One panel, both jobs: `editing === null` adds a template, a row
-            edits that row. */}
-        <MailTemplateDrawer open={open} onClose={() => setOpen(false)} template={editing} />
-      </ScreenLayout>
-    </AppShell>
+      {/* One panel, both jobs: `editing === null` adds a template, a row
+          edits that row. */}
+      <MailTemplateDrawer open={open} onClose={() => setOpen(false)} template={editing} />
+    </SettingsShell>
   )
 }
 

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Lock, Moon, Orbit, Sun } from '../icons'
+import { ChevronDown, Lock, Orbit } from '../icons'
 import { Avatar } from '../ui/avatar'
 import { Icon } from '../ui/icon'
-import { THEME_LABEL, toggleTheme, useThemeMode } from '../ui/theme-switch'
+import { THEME_LABEL, THEMES, setTheme, useThemeMode, type ThemeMode } from '../ui/theme-switch'
 import { cn } from '../lib/cn'
 import type { HeaderAction } from './app-header'
 
@@ -95,6 +95,38 @@ export function MenuRow({
   )
 }
 
+/** Menu radios rather than a SegmentedControl: inside `role="menu"` only menu
+ *  items are announced, and the quiet ground keeps the lit cell at 4.5:1 in
+ *  Aurora where white on primary does not reach it. */
+function ThemePicker({ theme }: { theme: ThemeMode }) {
+  return (
+    <div role="group" aria-label="Giao diện" className="flex flex-col gap-1 px-3 py-1">
+      <span aria-hidden className="text-muted-foreground text-[12px]">
+        Giao diện
+      </span>
+      <div className="bg-surface-ink/5 grid grid-cols-3 gap-1 rounded-md p-1">
+        {THEMES.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="menuitemradio"
+            aria-checked={mode === theme}
+            onClick={() => setTheme(mode)}
+            className={cn(
+              'motion-std pointer-coarse:h-12 h-8 rounded-sm text-[12px] font-semibold',
+              mode === theme
+                ? 'bg-surface-ink/12 text-foreground'
+                : 'text-muted-foreground hover:bg-surface-ink/8',
+            )}
+          >
+            {THEME_LABEL[mode]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function AccountMenu({
   user,
   org,
@@ -181,15 +213,8 @@ export function AccountMenu({
           <Divider />
           {/* Stays open on purpose: the point of the click is to watch the
               theme change, and closing would hide the very panel that changed. */}
-          <MenuRow
-            action={{
-              icon: theme === 'aurora' ? Moon : Sun,
-              label: 'Giao diện',
-              onClick: toggleTheme,
-            }}
-            trailing={THEME_LABEL[theme]}
-            onSelect={() => {}}
-          />
+          <ThemePicker theme={theme} />
+          <Divider />
           {actions.map((action) => (
             <MenuRow key={action.label} action={action} onSelect={close} />
           ))}

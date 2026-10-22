@@ -3,7 +3,7 @@ import { Button } from './button'
 
 /** Cycle order of the switch; Aurora stays the default. The anti-FOUC script
  *  in apps/web/index.html repeats this list — change both together. */
-const THEMES = ['aurora', 'stone', 'porcelain'] as const
+export const THEMES = ['aurora', 'stone', 'porcelain'] as const
 export type ThemeMode = (typeof THEMES)[number]
 const THEME_KEY = 'pv-theme'
 const CHANGE_EVENT = 'pv-theme-change'
@@ -56,16 +56,21 @@ function nextTheme(theme: ThemeMode): ThemeMode {
   return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length] ?? 'aurora'
 }
 
-/** Shared by the standalone switch and the account menu row, so both remember
- *  the choice the same way. Steps to the next theme in `THEMES`. */
-export function toggleTheme() {
-  const next = nextTheme(snapshot())
-  applyTheme(next)
+/** Shared by the standalone switch and the account menu picker, so both
+ *  remember the choice the same way. */
+export function setTheme(value: string) {
+  const theme = asTheme(value)
+  applyTheme(theme)
   try {
-    localStorage.setItem(THEME_KEY, next)
+    localStorage.setItem(THEME_KEY, theme)
   } catch {
     // Still switch for this visit when browser storage is unavailable.
   }
+}
+
+/** Steps to the next theme in `THEMES`. */
+export function toggleTheme() {
+  setTheme(nextTheme(snapshot()))
 }
 
 export function ThemeSwitch() {

@@ -91,10 +91,11 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/users'),
   },
   {
-    /** One Core · the index of configuration screens. No permission: the page
-     *  lists only what the role may open, and shows an empty state otherwise. */
+    /** One Core · the phone's list of settings screens; a wide screen opens the
+     *  reader's account instead, since the settings nav is the list there. No
+     *  permission: it lists only what the role may open, account always first. */
     path: '/settings',
-    name: 'Cài đặt & quản trị',
+    name: 'Cài đặt',
     load: () => import('@/pages/settings'),
   },
   {

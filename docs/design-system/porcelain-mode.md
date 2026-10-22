@@ -4,7 +4,7 @@ The third mode — `data-theme="porcelain"`, display name "Sứ". Light, rounded
 
 ## How users pick it
 
-The header theme switch and the "Giao diện" row of the account menu cycle Aurora → Đá mịn → Sứ. The choice is stored under `pv-theme`. The script in `apps/web/index.html` reads it before first paint.
+The header theme switch cycles Aurora → Đá mịn → Sứ; the "Giao diện" picker in the account menu sets one directly. The choice is stored under `pv-theme`. The script in `apps/web/index.html` reads it before first paint.
 
 ## Material
 

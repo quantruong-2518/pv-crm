@@ -250,7 +250,7 @@ export const changePasswordText = {
     'Set a new password. Every other session of yours will be signed out; this one won’t be.',
     '새 비밀번호를 설정하세요. 현재 세션을 제외한 다른 모든 세션은 로그아웃됩니다.',
   ),
-  back: tr('Về trang chủ', 'Back to home', '홈으로'),
+  back: tr('Về tài khoản của tôi', 'Back to my account', '내 계정으로'),
   currentPassword: tr('Mật khẩu hiện tại', 'Current password', '현재 비밀번호'),
   currentPasswordPlaceholder: tr(
     'Mật khẩu bạn đang dùng',

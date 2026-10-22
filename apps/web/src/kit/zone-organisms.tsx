@@ -8,7 +8,6 @@ import {
   FileCheck,
   Gauge,
   House,
-  KeyRound,
   LogOut,
   Megaphone,
   Route,
@@ -38,13 +37,11 @@ const HEADER_CORE = [
   { icon: House, label: 'Trang chủ', active: true, slot: 'home' as const },
   { icon: SquareCheckBig, label: 'Phê duyệt', count: 7, slot: 'approvals' as const },
   { icon: Bell, label: 'Thông báo', count: 3, slot: 'notifications' as const },
-  { icon: SlidersHorizontal, label: 'Thiết lập' },
+  { icon: Contact, label: 'Tài khoản của tôi' },
+  { icon: SlidersHorizontal, label: 'Cài đặt' },
 ]
 
-const HEADER_ACCOUNT = [
-  { icon: KeyRound, label: 'Đổi mật khẩu' },
-  { icon: LogOut, label: 'Đăng xuất' },
-]
+const HEADER_ACCOUNT = [{ icon: LogOut, label: 'Đăng xuất' }]
 
 const HEADER_CUSTOMER = [
   { icon: Building, label: 'Công ty', active: true },

@@ -1,20 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RotateCcw, Save, TriangleAlert } from '@pv/ui'
-import {
-  AppShell,
-  Button,
-  EmptyState,
-  GlassCard,
-  Icon,
-  MetaPill,
-  ScreenHeader,
-  ScreenLayout,
-  Skeleton,
-  cn,
-} from '@pv/ui'
+import { Button, EmptyState, GlassCard, Icon, MetaPill, ScreenHeader, Skeleton, cn } from '@pv/ui'
 import type { Permission, RoleId } from '@pv/contracts'
-import { useAppChrome } from '@/app/chrome'
+import { SettingsShell } from '@/components/settings-shell'
 import { useSession } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
@@ -70,7 +59,6 @@ const NO_ROLES: RoleId[] = []
 const FAILED_INK = 'text-destructive-foreground'
 
 export function RolesPage() {
-  const chrome = useAppChrome()
   const me = useSession((s) => s.actor)
 
   const { data, isPending, error, refetch } = useQuery(roleMatrixQuery)
@@ -143,117 +131,114 @@ export function RolesPage() {
       : matrixLine(grants)
 
   return (
-    <AppShell {...chrome.shell}>
-      <ScreenLayout>
-        <ScreenHeader
-          kicker="One Core · Quản trị"
-          title="Vai trò"
-          description={<span className={cn('tnum', unread && FAILED_INK)}>{summary}</span>}
-          /* BOTH, never one instead of the other. A refusal that replaced the
+    <SettingsShell>
+      <ScreenHeader
+        title="Vai trò"
+        description={<span className={cn('tnum', unread && FAILED_INK)}>{summary}</span>}
+        /* BOTH, never one instead of the other. A refusal that replaced the
              unsaved list left the reader with a sentence about one role and no
              sign that the others are still pending — the docblock above
              promised "beside", and a ternary delivered "instead". */
-          meta={
-            failure || dirty.length > 0 ? (
-              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {failure ? (
-                  <span
-                    role="alert"
-                    className="text-destructive-foreground text-[11.5px] leading-[1.5]"
-                  >
-                    {failure}
-                  </span>
-                ) : null}
-                {dirty.length > 0 ? (
-                  <MetaPill tone="warning">
-                    Chưa lưu thay đổi cho: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
-                  </MetaPill>
-                ) : null}
-              </span>
-            ) : undefined
-          }
-          actions={
-            <>
-              {/* `lg` (48px) and not `md`, at every width: rule 13 puts the
+        meta={
+          failure || dirty.length > 0 ? (
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {failure ? (
+                <span
+                  role="alert"
+                  className="text-destructive-foreground text-[11.5px] leading-[1.5]"
+                >
+                  {failure}
+                </span>
+              ) : null}
+              {dirty.length > 0 ? (
+                <MetaPill tone="warning">
+                  Chưa lưu thay đổi cho: {dirty.map((id) => ROLE_LABEL[id]).join(' · ')}
+                </MetaPill>
+              ) : null}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            {/* `lg` (48px) and not `md`, at every width: rule 13 puts the
                   touch floor at 48px on tablet, and these two are the actions
                   the screen exists for. The role picker already made this
                   choice for the same reason. */}
-              <Button
-                size="lg"
-                variant="ghost"
-                type="button"
-                disabled={dirty.length === 0 || save.isPending}
-                onClick={() => {
-                  setEdited(null)
-                  setFailure('')
-                }}
-              >
-                <Icon icon={RotateCcw} size={16} />
-                Hoàn tác
-              </Button>
-              <Button
-                size="lg"
-                type="button"
-                disabled={dirty.length === 0 || save.isPending}
-                onClick={() => void saveDirty()}
-              >
-                <Icon icon={Save} size={16} />
-                {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
-              </Button>
-            </>
-          }
-        />
+            <Button
+              size="lg"
+              variant="ghost"
+              type="button"
+              disabled={dirty.length === 0 || save.isPending}
+              onClick={() => {
+                setEdited(null)
+                setFailure('')
+              }}
+            >
+              <Icon icon={RotateCcw} size={16} />
+              Hoàn tác
+            </Button>
+            <Button
+              size="lg"
+              type="button"
+              disabled={dirty.length === 0 || save.isPending}
+              onClick={() => void saveDirty()}
+            >
+              <Icon icon={Save} size={16} />
+              {save.isPending ? 'Đang lưu…' : 'Lưu thay đổi'}
+            </Button>
+          </>
+        }
+      />
 
-        {/* Rule 8 — the grid is a long table, so it sits on glass-b and the
+      {/* Rule 8 — the grid is a long table, so it sits on glass-b and the
             card draws the surface the table refuses to draw for itself. */}
-        <GlassCard variant="b" className="overflow-hidden">
-          <div className="p-4 lg:p-5">
-            {isPending ? (
-              <div className="flex flex-col gap-3">
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-                <Skeleton height={48} className="w-full" />
-              </div>
-            ) : error || !grants ? (
-              /* Ask again — there is nothing on this screen to create. The
+      <GlassCard variant="b" className="overflow-hidden">
+        <div className="p-4 lg:p-5">
+          {isPending ? (
+            <div className="flex flex-col gap-3">
+              <Skeleton height={48} className="w-full" />
+              <Skeleton height={48} className="w-full" />
+              <Skeleton height={48} className="w-full" />
+            </div>
+          ) : error || !grants ? (
+            /* Ask again — there is nothing on this screen to create. The
                  matrix is seeded by the server, so an empty answer is still an
                  answer and only a failed read lands here. */
-              <EmptyState
-                tone="danger"
-                icon={TriangleAlert}
-                message={`Không tải được bảng phân quyền. ${
-                  isApiError(error) ? userMessage(error) : 'Thử lại.'
-                }`}
-                action={{ label: 'Thử lại', onClick: () => void refetch() }}
-                className="py-12"
-              />
-            ) : (
-              <>
-                <div className="hidden overflow-x-auto xl:block">
-                  <RoleMatrix
-                    grants={grants}
-                    onToggle={toggle}
-                    meRoleIds={me?.roleIds}
-                    saving={save.isPending}
-                  />
-                </div>
-                <div className="xl:hidden">
-                  <RoleSheet
-                    grants={grants}
-                    roleId={shown}
-                    dirty={dirty}
-                    onPick={setPicked}
-                    onToggle={toggle}
-                    meRoleIds={me?.roleIds}
-                    saving={save.isPending}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </GlassCard>
-      </ScreenLayout>
-    </AppShell>
+            <EmptyState
+              tone="danger"
+              icon={TriangleAlert}
+              message={`Không tải được bảng phân quyền. ${
+                isApiError(error) ? userMessage(error) : 'Thử lại.'
+              }`}
+              action={{ label: 'Thử lại', onClick: () => void refetch() }}
+              className="py-12"
+            />
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto xl:block">
+                <RoleMatrix
+                  grants={grants}
+                  onToggle={toggle}
+                  meRoleIds={me?.roleIds}
+                  saving={save.isPending}
+                />
+              </div>
+              <div className="xl:hidden">
+                <RoleSheet
+                  grants={grants}
+                  roleId={shown}
+                  dirty={dirty}
+                  onPick={setPicked}
+                  onToggle={toggle}
+                  meRoleIds={me?.roleIds}
+                  saving={save.isPending}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </GlassCard>
+    </SettingsShell>
   )
 }
 
