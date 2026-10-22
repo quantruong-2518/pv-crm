@@ -195,6 +195,36 @@ export class ContactRepository {
     return { rows, total: tally?.n ?? 0 }
   }
 
+  /** The newest touch per contact: a recorded chat or call (the person's
+   *  identity on a message) or a letter the mail server accepted. Platform
+   *  tables are read by SQL, as the letter timeline does. */
+  async lastContacts(
+    rows: readonly { code: string; email: string | null }[],
+  ): Promise<Map<string, { channel: string; at: Date }>> {
+    if (rows.length === 0) return new Map()
+    const codes = sql.join(
+      rows.map((r) => sql`${r.code}`),
+      sql`, `,
+    )
+    const r = (await this.db.execute(sql`
+      SELECT DISTINCT ON (t.code) t.code, t.channel, t.at
+        FROM (
+          SELECT i."object_code" AS code, i."channel" AS channel, m."at" AS at
+            FROM "comms"."message_party" p
+            JOIN "comms"."message" m ON m."id" = p."message_id"
+            JOIN "comms"."identity" i ON i."id" = p."identity_id"
+           WHERE i."object_code" IN (${codes})
+          UNION ALL
+          SELECT c."code", 'email', d."accepted_at"
+            FROM "sales"."contact" c
+            JOIN "platform"."email_delivery" d ON lower(d."recipient") = lower(c."email")
+           WHERE c."code" IN (${codes}) AND d."accepted_at" IS NOT NULL
+        ) t
+       ORDER BY t.code, t.at DESC
+    `)) as { rows: { code: string; channel: string; at: Date | string }[] }
+    return new Map(r.rows.map((x) => [x.code, { channel: x.channel, at: new Date(x.at) }]))
+  }
+
   /** One contact, read with the EXACT same joins the book uses.
    *
    *  Same `select` and same two `JOIN`s as `book()` right above, plus a

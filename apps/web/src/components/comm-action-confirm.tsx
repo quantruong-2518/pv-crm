@@ -40,9 +40,12 @@ export type CommContact = {
 }
 
 /** The page's own composer, and why it is shut when it is. */
-export type CommMail = { onCompose: () => void; blocked?: string }
+export type CommMail = { onCompose: (contact: CommContact) => void; blocked?: string }
 
-const COPY: Record<CommActionChannel, { verb: string; cta: string; opens: string }> = {
+const COPY: Record<
+  Exclude<CommActionChannel, 'email'>,
+  { verb: string; cta: string; opens: string }
+> = {
   phone: { verb: 'Gọi', cta: 'Xác nhận và gọi', opens: 'mở cuộc gọi trên thiết bị này' },
   'zalo-oa': {
     verb: 'Liên hệ Zalo với',
@@ -59,7 +62,6 @@ const COPY: Record<CommActionChannel, { verb: string; cta: string; opens: string
     cta: 'Xác nhận và mở WhatsApp',
     opens: 'mở WhatsApp tới người này',
   },
-  email: { verb: 'Gửi mail cho', cta: 'Xác nhận và soạn mail', opens: 'mở trình soạn thư' },
 }
 
 export function CommActionConfirm({
@@ -79,7 +81,10 @@ export function CommActionConfirm({
   const navigate = useNavigate()
   /* Fetched when the dialog opens, never per row: a comm this caller could not
      confirm is refused here, before anything is written. */
-  const target = useQuery({ ...commTargetQuery(subject.code), enabled: channel !== null })
+  const target = useQuery({
+    ...commTargetQuery(subject.code),
+    enabled: channel !== null && channel !== 'email',
+  })
   const refused = target.data?.confirmable === false
   /* A disabled confirm always says why: a failed create, a failed check, or a refusal. */
   const problem = create.error
@@ -98,15 +103,24 @@ export function CommActionConfirm({
     if (channel) reset()
   }, [channel, reset])
 
-  const shown = channel ?? 'phone'
+  /* A mail writes no comm: the letter's own send or schedule files it. The
+     press opens the composer at once, with nothing to confirm. */
+  useEffect(() => {
+    if (channel !== 'email') return
+    mail?.onCompose(contact)
+    onClose()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per press
+  }, [channel])
+
+  const shown = channel && channel !== 'email' ? channel : 'phone'
   const copy = COPY[shown]
-  const reach = shown === 'email' ? contact.email : phoneText(contact.phone)
+  const reach = phoneText(contact.phone)
 
   const confirm = () => {
-    if (!channel || create.isPending || refused || !target.data) return
+    if (!channel || channel === 'email' || create.isPending || refused || !target.data) return
     /* Opened inside the press: a tab opened after the await is a popup the
        browser blocks. It is pointed at the chat only once the record exists. */
-    const tab = channel === 'phone' || channel === 'email' ? null : window.open('', '_blank')
+    const tab = channel === 'phone' ? null : window.open('', '_blank')
     create.mutate(
       {
         channel,
@@ -116,7 +130,7 @@ export function CommActionConfirm({
       {
         onSuccess: (written) => {
           onClose()
-          const copied = launch(channel, contact, tab, mail)
+          const copied = launch(channel, contact, tab)
           const label = `Đã ghi lượt liên hệ ${COMMS_CHANNEL_LABEL[channel]}`
           toast(copied ? `${label} · đã chép số ${copied}` : label, {
             tone: 'success',
@@ -133,7 +147,7 @@ export function CommActionConfirm({
 
   return (
     <Modal
-      open={channel !== null}
+      open={channel !== null && channel !== 'email'}
       onClose={onClose}
       className="h-auto max-h-[90dvh] self-end rounded-t-lg sm:h-auto sm:max-h-[calc(100dvh-48px)] sm:max-w-[480px] sm:self-center"
       title={`${copy.verb} ${contact.name}?`}
@@ -176,15 +190,10 @@ export function CommActionConfirm({
 
 /** The action itself, only ever after 201. Returns the number it copied, if any. */
 function launch(
-  channel: CommActionChannel,
+  channel: Exclude<CommActionChannel, 'email'>,
   contact: CommContact,
   tab: Window | null,
-  mail: CommMail | undefined,
 ): string | null {
-  if (channel === 'email') {
-    mail?.onCompose()
-    return null
-  }
   /* Older rows hold the number as typed ('0395 928 069'); every link below
      needs the E.164 one, the same fold the server applies before recording. */
   const phone = contact.phone ? normalisePhone(contact.phone) : ''

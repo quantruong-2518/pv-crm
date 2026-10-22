@@ -46,6 +46,10 @@ import type { ContactRowDb } from './contact.schema'
  *  never reveals that the code exists under a different lead. */
 export type ContactSeed = Pick<ContactCreate, 'name' | 'title' | 'email' | 'phone' | 'channel'>
 
+/** The book's `lastContact` field, or nothing for a person never reached. */
+const lastContactOf = (found: { channel: string; at: Date } | undefined) =>
+  found ? { lastContact: { channel: found.channel, at: found.at.toISOString() } } : {}
+
 @Injectable()
 export class ContactService {
   constructor(
@@ -74,10 +78,12 @@ export class ContactService {
    *  itself a leak. Return 0 and say so here. */
   async book(who: Actor, q: ContactBookQuery): Promise<ContactBookResponse> {
     const page = await this.repo.book(who, q, true)
+    const last = await this.repo.lastContacts(page.rows.map((r) => r.row))
 
     return ContactBookResponse.parse({
       rows: page.rows.map((r) => ({
         ...toContract(r.row),
+        ...lastContactOf(last.get(r.row.code)),
         ...(r.accountCode ? { accountCode: r.accountCode } : {}),
         ...(r.accountName ? { accountName: r.accountName } : {}),
         company: r.company,
@@ -110,8 +116,10 @@ export class ContactService {
     const found = await this.repo.oneWithContext(who, code, true)
     if (!found) throw notFound('người liên hệ', code)
 
+    const last = await this.repo.lastContacts([found.row])
     return ContactBookRow.parse({
       ...toContract(found.row),
+      ...lastContactOf(last.get(found.row.code)),
       ...(found.accountCode ? { accountCode: found.accountCode } : {}),
       ...(found.accountName ? { accountName: found.accountName } : {}),
       company: found.company,

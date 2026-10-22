@@ -23,9 +23,9 @@ import { MenuButton, type MenuChoice } from './menu-button'
  *  screen may pull its own move out through `extra`; the product owner chose
  *  that for terminating a contract, which nobody found behind "⋯".
  *
- *  Every channel asks which contact, primary first, then goes through the
- *  comm confirm, which records first and opens the channel second (ADR 0075).
- *  Under `sm` they fold into one contact button; the bar may wrap to two rows.
+ *  Every channel asks which contact, primary first. A chat goes through the
+ *  comm confirm (records first, opens second, ADR 0075); a mail opens the
+ *  composer at once. Under `sm` they fold into one contact button.
  *  A screen nobody is reached from (campaign, company, contact) passes no
  *  `subject`: the bar is those buttons alone. 48px buttons (law 13). `top`
  *  adds a first row (meetings). */
@@ -248,9 +248,10 @@ function useContactChoices(
 
   /* The screen's mail reason shuts every mail row, ahead of a missing address. */
   const blocked = (channel: CommActionChannel, c: BarContact): string | undefined => {
+    /* A mail records no comm, so it needs neither the comm role nor a confirmable record. */
+    if (channel === 'email') return mailBlocked ?? (c.email ? undefined : 'Chưa có email.')
     if (!canRecord) return 'Vai của bạn không tạo được lượt liên hệ.'
     if (known && !known.confirmable && subject) return notConfirmableReason(subject.kind)
-    if (channel === 'email') return mailBlocked ?? (c.email ? undefined : 'Chưa có email.')
     return c.phone ? undefined : 'Chưa có số điện thoại.'
   }
 

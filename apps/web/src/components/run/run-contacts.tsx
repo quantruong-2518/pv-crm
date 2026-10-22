@@ -1,10 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
-import { OPPORTUNITY_CONTACT_ROLE_LABEL, type OpportunityProfileResponse } from '@pv/contracts'
+import {
+  OPPORTUNITY_CONTACT_ROLE_LABEL,
+  type ContactRow,
+  type OpportunityProfileResponse,
+} from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
-import { ContactsCard } from '@/components/contacts-card'
+import { ContactEditDrawer, ContactsCard } from '@/components/contacts-card'
 import { NO_ROLE_LABEL } from '@/components/open-deal-contacts'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
@@ -36,6 +40,8 @@ type Person = {
   reach?: string | null
   /** Where the name leads. */
   to?: string
+  /** Opens the person's edit drawer; absent = no pencil. */
+  edit?: () => void
 }
 
 const NOTE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
@@ -112,11 +118,12 @@ function DealContacts({ code }: { code: string }) {
   const { data: op, isPending, error } = useQuery(opportunityProfileQuery(code))
   const [editing, setEditing] = useState({ open: false, session: 0 })
   const open = () => setEditing((prev) => ({ open: true, session: prev.session + 1 }))
+  const { pencil, drawer } = useContactEdit(op?.leadCode ?? '')
 
   return (
     <RunBlock title="Người liên hệ">
       <PeopleBody
-        people={op && dealPeople(op)}
+        people={op && pencil(dealPeople(op))}
         loading={isPending}
         error={error}
         required
@@ -130,8 +137,33 @@ function DealContacts({ code }: { code: string }) {
           onClose={() => setEditing((prev) => ({ ...prev, open: false }))}
         />
       )}
+      {drawer}
     </RunBlock>
   )
+}
+
+/** Pencils for the people of a deal or contract, opening the lead's one drawer.
+ *  Rows come from the lead's list, read only with 'lead.edit'; a name the lead
+ *  does not hold, and the signer, get no pencil. */
+function useContactEdit(leadCode: string) {
+  const canEdit = useCan('lead.edit')
+  const { data } = useQuery({ ...leadContactsQuery(leadCode), enabled: canEdit && leadCode !== '' })
+  const [edit, setEdit] = useState<{ open: boolean; row: ContactRow } | null>(null)
+
+  const pencil = (people: Person[]): Person[] =>
+    people.map((p) => {
+      const row = data?.rows.find((r) => r.code === p.code)
+      return row ? { ...p, edit: () => setEdit({ open: true, row }) } : p
+    })
+  const drawer = edit && (
+    <ContactEditDrawer
+      open={edit.open}
+      onClose={() => setEdit({ ...edit, open: false })}
+      leadCode={leadCode}
+      row={edit.row}
+    />
+  )
+  return { pencil, drawer }
 }
 
 /** The signer the contract names, then its deal's people — the ones the
@@ -146,6 +178,7 @@ function ContractContacts({ code }: { code: string }) {
     ...opportunityProfileQuery(dealCode),
     enabled: canViewDeal && dealCode !== '',
   })
+  const { pencil, drawer } = useContactEdit(deal.data?.leadCode ?? '')
 
   if (!canView) {
     return (
@@ -160,7 +193,7 @@ function ContractContacts({ code }: { code: string }) {
     primary: false,
     line: `${contract.data.contactRole} · ${SIGNER}`,
   }
-  const others = deal.data ? dealPeople(deal.data) : []
+  const others = deal.data ? pencil(dealPeople(deal.data)) : []
   const people =
     signer &&
     (others.some((p) => p.name === signer.name)
@@ -174,6 +207,7 @@ function ContractContacts({ code }: { code: string }) {
         loading={contract.isLoading || deal.isLoading}
         error={contract.error}
       />
+      {drawer}
     </RunBlock>
   )
 }
@@ -247,6 +281,7 @@ function PeopleBody({
           key={p.code}
           name={p.name}
           to={p.to}
+          edit={p.edit && { label: `Sửa ${p.name}`, onClick: p.edit }}
           tag={p.primary && 'Chính'}
           lines={[p.line, p.reach]}
           door={

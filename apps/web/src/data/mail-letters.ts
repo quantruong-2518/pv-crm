@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react'
-import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import type {
   MailGroupPreflightRequest,
   MailGroupPreflightResponse,
@@ -14,6 +20,7 @@ import type {
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { untilPushed } from '@/app/query-client'
+import { toast } from '@/app/toast'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { leadProfileQuery } from '@/data/lead-profile'
@@ -199,6 +206,31 @@ export function useLetterPreview(body: MailGroupPreviewRequest | null) {
 /** File the run and queue the one letter. Resolves to QUEUED, never to sent —
  *  see `useMasSend`. A retry carries the same `letterId`, and the server
  *  answers with the run it already filed instead of mailing twice. */
+/** A letter leaves seconds after the press, so the person who sent it is told
+ *  when it has: a toast, never a bell row. Polled here rather than read off a
+ *  mounted list, so it still lands after they leave the screen. A scheduled
+ *  letter is not watched, and a failed one rings the bell on its own. */
+const SENT_STATES = new Set(['SENT', 'OPENED', 'REPLIED'])
+const WATCH_EVERY_MS = 4_000
+const WATCH_FOR_MS = 3 * 60_000
+
+function watchLetterSent(client: QueryClient, door: MailSubjectKind, code: string, runId: string) {
+  const stop = Date.now() + WATCH_FOR_MS
+  const look = async () => {
+    const answer = await client
+      .fetchQuery({ ...subjectLettersQuery(door, code), staleTime: 0 })
+      .catch(() => undefined)
+    const row = answer?.rows.find((r) => r.runId === runId)
+    if (row && SENT_STATES.has(row.state)) {
+      const first = row.to[0]
+      toast(`Đã gửi email tới ${first?.name ?? first?.email ?? 'người nhận'}`, { tone: 'success' })
+    } else if ((!row || row.state === 'SENDING') && Date.now() < stop) {
+      setTimeout(() => void look(), WATCH_EVERY_MS)
+    }
+  }
+  setTimeout(() => void look(), WATCH_EVERY_MS)
+}
+
 export function useLetterSend() {
   const client = useQueryClient()
 
@@ -209,8 +241,9 @@ export function useLetterSend() {
         body,
         need: SEND_NEED,
       }),
-    onSuccess: (_answer, body) => {
+    onSuccess: (answer, body) => {
       void client.invalidateQueries({ queryKey: [...LETTERS_KEY, body.door, body.subjectCode] })
+      if (!body.scheduledAt) watchLetterSent(client, body.door, body.subjectCode, answer.mailRunId)
       void client.invalidateQueries({ queryKey: ['sales', 'mail-runs'] })
       /* A letter the owner schedules at the lead door is planned care: the
          lead moves to `verifying` (ADR 0063). */

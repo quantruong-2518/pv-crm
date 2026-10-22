@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Avatar, Badge, Icon, Mail, Phone, cn, type IconGlyph } from '@pv/ui'
 import type { ContactBookRow } from '@pv/contracts'
+import { dmhm } from '@/lib/date'
 import { phoneText } from '@/lib/phone'
+import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { CommActionConfirm } from './comm-action-confirm'
 import { LetterComposer } from './mail-letter/letter-composer'
 import { BOOK_CARD } from './book-cards'
@@ -11,9 +13,9 @@ import { CARD_GRID, CardFoot, CardHead, CardPerson, CardTitle } from './book-car
  *  book's question is "who do I call at this customer", and the default sort
  *  (`best`) puts those people first, so the wide cards lead the grid.
  *
- *  The phone opens Zalo and the mail opens the system's letter composer, both
- *  through `CommActionConfirm` — the comm is recorded on the person's lead
- *  first, as on the lead profile's action bar (ADR 0075). */
+ *  The phone opens Zalo through `CommActionConfirm` — the comm is recorded on
+ *  the person's lead first, as on the lead profile's action bar (ADR 0075). The
+ *  mail opens the letter composer at once, addressed to that person. */
 
 type Ask = { channel: 'zalo-oa' | 'email'; contact: ContactBookRow }
 
@@ -54,6 +56,23 @@ function Reach({
       <Icon icon={icon} size={large ? 16 : 14} className="text-muted-foreground shrink-0" />
       <span className="tnum min-w-0 truncate">{value}</span>
     </button>
+  )
+}
+
+/** The newest time this person was reached, on every card so the book shows
+ *  who has gone cold. */
+function LastContact({ last }: { last: ContactBookRow['lastContact'] }) {
+  return (
+    <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
+      {last ? (
+        <>
+          <Icon icon={COMMS_CHANNEL_ICON[last.channel]} size={14} className="shrink-0" />
+          <span className="tnum truncate">{`${COMMS_CHANNEL_LABEL[last.channel]} · ${dmhm(last.at)}`}</span>
+        </>
+      ) : (
+        'Chưa liên hệ lần nào'
+      )}
+    </span>
   )
 }
 
@@ -106,6 +125,7 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
         <CardFoot className="gap-x-6 gap-y-1">
           {phone}
           {mail}
+          <LastContact last={c.lastContact} />
           <CardPerson name={c.ownerName} />
         </CardFoot>
       ) : (
@@ -113,6 +133,7 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
           <span className="flex min-w-0 flex-col">
             {phone}
             {mail}
+            <LastContact last={c.lastContact} />
           </span>
           <CardFoot>
             <CardPerson name={c.ownerName} />
@@ -126,7 +147,7 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
 /** Dense flow fills the hole a wide card leaves at a row's end. */
 export function ContactCardGrid({ rows }: { rows: ContactBookRow[] }) {
   const [ask, setAsk] = useState<Ask | null>(null)
-  const [composing, setComposing] = useState<string | null>(null)
+  const [composing, setComposing] = useState<ContactBookRow | null>(null)
   return (
     <>
       <div className={CARD_GRID}>
@@ -139,15 +160,16 @@ export function ContactCardGrid({ rows }: { rows: ContactBookRow[] }) {
           channel={ask.channel}
           subject={{ code: ask.contact.leadCode, kind: 'lead' }}
           contact={ask.contact}
-          mail={{ onCompose: () => setComposing(ask.contact.leadCode) }}
+          mail={{ onCompose: () => setComposing(ask.contact) }}
           onClose={() => setAsk(null)}
         />
       )}
       {composing && (
         <LetterComposer
           door="lead"
-          code={composing}
-          leadCode={composing}
+          code={composing.leadCode}
+          leadCode={composing.leadCode}
+          to={composing.code}
           onClose={() => setComposing(null)}
         />
       )}

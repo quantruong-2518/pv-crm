@@ -115,7 +115,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const [converting, setConverting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
   const [holding, setHolding] = useState(false)
-  const [composing, setComposing] = useState(false)
+  const [composing, setComposing] = useState<{ to: string | null } | null>(null)
   const [assigning, setAssigning] = useState(false)
   const [disabling, setDisabling] = useState(false)
 
@@ -203,7 +203,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             subject={{ code: lead.code, kind: 'lead' }}
             contacts={people}
             mailBlocked={mailBlocked}
-            onCompose={() => setComposing(true)}
+            onCompose={(contact) => setComposing({ to: contact.code ?? null })}
             more={more}
             top={<MeetingsDock subject={{ kind: 'lead', code: lead.code }} canEdit={canWrite} />}
           />
@@ -235,7 +235,8 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
           door="lead"
           code={lead.code}
           leadCode={lead.code}
-          onClose={() => setComposing(false)}
+          to={composing.to}
+          onClose={() => setComposing(null)}
         />
       )}
     </RecordShell>

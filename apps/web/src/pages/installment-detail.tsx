@@ -126,7 +126,7 @@ function InstallmentScreen({
 }) {
   const navigate = useNavigate()
   const run = useContractRun(contract)
-  const [composing, setComposing] = useState(false)
+  const [composing, setComposing] = useState<{ to: string | null } | null>(null)
   const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
   const now = useMemo(() => today(), [])
   const view = viewInstallment(installment, now)
@@ -241,7 +241,7 @@ function InstallmentScreen({
           subject={subject}
           contacts={run.contacts}
           mailBlocked={mailBlocked}
-          onCompose={() => setComposing(true)}
+          onCompose={(contact) => setComposing({ to: contact.code ?? null })}
         />
       }
     >
@@ -250,7 +250,8 @@ function InstallmentScreen({
           door="contract"
           code={contract.code}
           leadCode={contract.leadCode}
-          onClose={() => setComposing(false)}
+          to={composing.to}
+          onClose={() => setComposing(null)}
         />
       )}
     </RecordShell>

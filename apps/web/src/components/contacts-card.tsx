@@ -426,3 +426,19 @@ function ContactDrawer({
     </Drawer>
   )
 }
+
+/** The edit drawer alone, for screens outside the lead card. Same form, so a
+ *  person is edited in one place; `row` is always a stored person, never add mode. */
+export function ContactEditDrawer({
+  open,
+  onClose,
+  leadCode,
+  row,
+}: {
+  open: boolean
+  onClose: () => void
+  leadCode: string
+  row: ContactRow
+}) {
+  return <ContactDrawer open={open} onClose={onClose} leadCode={leadCode} row={row} first={false} />
+}

@@ -4,25 +4,24 @@ import { useDirectory } from '@/data/directory'
 import { useLetterContacts, useLetterPreflight } from '@/data/mail-letters'
 import { seedTo, toCell } from './letter-model'
 
-/** Who the letter goes to: the To picks (contact codes), the CC colleagues
+/** Who the letter goes to: the one To contact (fixed, a code), the CC colleagues
  *  (actor ids) and the server's verdict on exactly this To list (G2). Split
  *  from the shell so the shell only assembles. */
 export function useLetterRecipients(
   door: MailSubjectKind,
   code: string,
   leadCode: string,
-  dealPrimary?: string | null,
+  contactCode?: string | null,
 ) {
   const contacts = useLetterContacts(leadCode)
   const directory = useDirectory()
-  /* `null` until the contact book lands, then seeded ONCE — a refetch must not
-     throw away a list somebody has already edited. */
+  /* `null` until the contact book lands, then seeded ONCE. */
   const [to, setTo] = useState<string[] | null>(null)
   const [ccIds, setCcIds] = useState<string[]>([])
 
   useEffect(() => {
-    if (to === null && contacts.rows) setTo(seedTo(contacts.rows, leadCode, dealPrimary))
-  }, [to, contacts.rows, leadCode, dealPrimary])
+    if (to === null && contacts.rows) setTo(seedTo(contacts.rows, leadCode, contactCode))
+  }, [to, contacts.rows, leadCode, contactCode])
 
   const pool = useMemo(
     () => new Map((contacts.rows ?? []).map((row) => [row.code, row])),
@@ -42,8 +41,6 @@ export function useLetterRecipients(
     cells: toCodes.map((c) => toCell(c, pool, verdicts.get(c), preflight.checking)),
     ccIds,
     cc: ccIds.flatMap((id) => directory.filter((person) => person.id === id)),
-    addTo: (c: string) => setTo([...toCodes, c]),
-    dropTo: (c: string) => setTo(toCodes.filter((x) => x !== c)),
     addCc: (id: string) => setCcIds((ids) => [...ids, id]),
     dropCc: (id: string) => setCcIds((ids) => ids.filter((x) => x !== id)),
   }

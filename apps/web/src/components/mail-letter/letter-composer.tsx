@@ -27,16 +27,16 @@ import {
   queuedToast,
   withGroupHint,
 } from './letter-model'
-import { RecipientPicker, RecipientsCard } from './letter-recipients'
+import { RecipientsCard } from './letter-recipients'
 import { useLetterRecipients } from './letter-recipients-state'
 import { LetterSenderLine } from './letter-sender'
 
-/** An activity or the next quotation round, or the reason nothing is recorded;
- *  `primaryContact` is the deal's own addressee (contact code), seeded into To. */
-type DealRecord = { offer: EventOffer | null; block: string | null; primaryContact?: string | null }
+/** An activity or the next quotation round, or the reason nothing is recorded. */
+type DealRecord = { offer: EventOffer | null; block: string | null }
 
 /** THE ONE-SCREEN COMPOSER (G1) — a detail door (lead · opportunity · contract)
- *  writes ONE letter every recipient reads in To/CC, with `sales@` locked in CC.
+ *  writes ONE letter to ONE fixed person in To (the contact it was opened
+ *  from), with `sales@` locked in CC.
  *
  *  Mounted per opening by its page, so `letterId` is minted exactly once per
  *  letter: a retried send carries the same id and the server answers with the
@@ -54,19 +54,21 @@ export function LetterComposer({
   door,
   code,
   leadCode,
+  to,
   deal,
   onClose,
 }: LetterSubject & {
+  /** The contact (code) the letter goes to; absent = the lead's primary person. */
+  to?: string | null
   /** What a template's milestone does on THIS deal (ADR 0072 §5). */
   deal?: DealRecord
   onClose: () => void
 }) {
   const [letterId] = useState(() => crypto.randomUUID())
-  const [picking, setPicking] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [failure, setFailure] = useState('')
 
-  const people = useLetterRecipients(door, code, leadCode, deal?.primaryContact)
+  const people = useLetterRecipients(door, code, leadCode, to)
   const { toCodes, cells, cc, preflight } = people
   const report = preflight.report
   const { data: catalogue } = useQuery(doorTemplatesQuery(door))
@@ -153,7 +155,7 @@ export function LetterComposer({
         <div className="flex min-w-0 flex-col gap-5">
           {people.contacts.failed && (
             <p className="text-destructive-foreground m-0 text-[12px] leading-5">
-              Không đọc được danh sách người liên hệ. Chưa thêm người nhận được.
+              Không đọc được danh sách người liên hệ. Chưa chọn được người nhận.
             </p>
           )}
           <LetterSenderLine line={from.line} />
@@ -161,8 +163,6 @@ export function LetterComposer({
             cells={cells}
             cc={cc}
             colleagues={people.directory}
-            onOpenPicker={() => setPicking(true)}
-            onDropTo={people.dropTo}
             onAddCc={people.addCc}
             onDropCc={people.dropCc}
           />
@@ -184,16 +184,6 @@ export function LetterComposer({
         </div>
       </Modal>
 
-      <RecipientPicker
-        open={picking}
-        onClose={() => setPicking(false)}
-        company={people.contacts.company}
-        pool={people.contacts.rows}
-        cells={cells}
-        badge={badge}
-        onAdd={people.addTo}
-        onDrop={people.dropTo}
-      />
       <MailGuideDrawer
         open={guideOpen}
         onClose={() => setGuideOpen(false)}

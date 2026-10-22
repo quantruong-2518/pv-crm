@@ -1,4 +1,5 @@
-import { Check, Factory, Mail, Phone } from '@pv/ui'
+import { useState } from 'react'
+import { Check, Factory, Mail, Phone, Pencil } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, GlassCard, Icon, SectionTitle, type RailObject } from '@pv/ui'
@@ -7,6 +8,7 @@ import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { toast } from '@/app/toast'
 import { dm } from '@/lib/date'
+import { ContactEditDrawer } from '@/components/contacts-card'
 import { contactProfileQuery, useSetPrimaryContact } from '@/data/contacts'
 import { RecordShell } from '@/components/record/record-shell'
 import { RecordHeader } from '@/components/record/record-header'
@@ -15,19 +17,17 @@ import { ContextStrip } from '@/components/record/run-strip'
 /** A contact's profile — `/sales/contacts/:code`, on the record shell without
  *  the run parts (ADR 0078): the body says how to reach them, the rail where.
  *
- *  NO EDIT FORM, ON PURPOSE. Editing a contact has exactly one place: the
- *  contacts card on the lead profile, next to the company's whole set of
- *  people. A second form here would be two forms for one row — the thing
- *  `ops-fields.tsx` exists to avoid. The edit path is the lead chip in the strip.
- *
- *  So this is a READ screen plus one operation that needs no form, "set as
- *  primary": the contact's one move, so it sits in the header (ADR 0078,
- *  amendment 14/10). No floating bar: nobody is reached from here. */
+ *  ONE EDIT FORM, REUSED. The form is the lead card's drawer (`ContactDrawer`
+ *  in contacts-card.tsx), opened here through `ContactEditDrawer`: a second
+ *  form would be two forms for one row. The header holds the two moves, edit
+ *  and "set as primary"; the second needs no form (ADR 0078, amendment 14/10).
+ *  No floating bar: nobody is reached from here. */
 export default function ContactDetailPage() {
   const chrome = useAppChrome()
   const navigate = useNavigate()
   const { code = '' } = useParams()
   const canEdit = useCan('lead.edit')
+  const [editing, setEditing] = useState(false)
 
   const { data: contact, isPending, error } = useQuery(contactProfileQuery(code))
   const promote = useSetPrimaryContact(code, contact?.leadCode)
@@ -77,25 +77,32 @@ export default function ContactDetailPage() {
           <RecordHeader
             title={contact.name}
             actions={
-              canEdit &&
-              !contact.isPrimary && (
-                <Button
-                  size="lg"
-                  disabled={promote.isPending}
-                  onClick={() =>
-                    promote.mutate(undefined, {
-                      onSuccess: () =>
-                        toast('Đã đổi người liên hệ chính', {
-                          tone: 'success',
-                          detail: contact.name,
-                        }),
-                      onError: (e) => toast(userMessage(e), { tone: 'danger' }),
-                    })
-                  }
-                >
-                  <Icon icon={Check} size={16} />
-                  {promote.isPending ? 'Đang lưu…' : 'Đặt làm người chính'}
-                </Button>
+              canEdit && (
+                <>
+                  <Button size="lg" variant="ghost" onClick={() => setEditing(true)}>
+                    <Icon icon={Pencil} size={16} />
+                    Sửa
+                  </Button>
+                  {!contact.isPrimary && (
+                    <Button
+                      size="lg"
+                      disabled={promote.isPending}
+                      onClick={() =>
+                        promote.mutate(undefined, {
+                          onSuccess: () =>
+                            toast('Đã đổi người liên hệ chính', {
+                              tone: 'success',
+                              detail: contact.name,
+                            }),
+                          onError: (e) => toast(userMessage(e), { tone: 'danger' }),
+                        })
+                      }
+                    >
+                      <Icon icon={Check} size={16} />
+                      {promote.isPending ? 'Đang lưu…' : 'Đặt làm người chính'}
+                    </Button>
+                  )}
+                </>
               )
             }
           />
@@ -151,6 +158,12 @@ export default function ContactDetailPage() {
             </p>
           </GlassCard>
         }
+      />
+      <ContactEditDrawer
+        open={editing}
+        onClose={() => setEditing(false)}
+        leadCode={contact.leadCode}
+        row={contact}
       />
     </AppShell>
   )

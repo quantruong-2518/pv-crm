@@ -87,8 +87,9 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
   const [stopping, setStopping] = useState(false)
   const [assigning, setAssigning] = useState(false)
   const [holding, setHolding] = useState(false)
-  /* Which contact the letter is addressed to; `null` = composer closed. */
-  const [mailTo, setMailTo] = useState<string | null>(null)
+  /* Which contact the letter is addressed to (`null` code = the lead's primary
+     person); `null` = composer closed. */
+  const [mailTo, setMailTo] = useState<{ code: string | null } | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
   const [recording, setRecording] = useState<Recording>({ open: false, session: 0 })
   const [quoting, setQuoting] = useState<Quoting>({ negotiation: null, open: false, session: 0 })
@@ -174,7 +175,7 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
               ...c,
               role: c.role && OPPORTUNITY_CONTACT_ROLE_LABEL[c.role],
             }))}
-            onCompose={(contact) => setMailTo(contact.code ?? null)}
+            onCompose={(contact) => setMailTo({ code: contact.code ?? null })}
             more={more}
             top={<MeetingsDock subject={subject} canEdit={canMeet} />}
           />
@@ -223,10 +224,10 @@ function DealScreen({ op }: { op: OpportunityProfileResponse }) {
           door="opportunity"
           code={op.code}
           leadCode={op.leadCode}
+          to={mailTo.code}
           deal={{
             offer: eventOfferOf(op, 'quotation'),
             block: refusalOf(op.acts.quotation),
-            primaryContact: mailTo,
           }}
           onClose={() => setMailTo(null)}
         />

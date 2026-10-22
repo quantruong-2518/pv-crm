@@ -16,7 +16,6 @@ import {
   type Installment,
   type InstallmentView,
 } from '@/data/contracts'
-import { CommActionConfirm } from '@/components/comm-action-confirm'
 import { InstallmentModal, type ModalInstallment } from '@/components/deal-money/installment-modal'
 import { ContractInside } from '@/components/contract-inside'
 import { MAIL_BLOCKED, contractChain, hasInside, useContractRun } from '@/components/contract-run'
@@ -79,9 +78,7 @@ export default ContractDetailPage
 function ContractScreen({ contract }: { contract: Contract }) {
   const navigate = useNavigate()
   const run = useContractRun(contract)
-  const [composing, setComposing] = useState(false)
-  /* The assistant's letter asks the same question the bar's mail button asks. */
-  const [mailing, setMailing] = useState<BarContact | null>(null)
+  const [composing, setComposing] = useState<{ to: string | null } | null>(null)
   const mailBlocked = useCan('lead.send-email') ? undefined : MAIL_BLOCKED
   const canRecord = useCan('comm.view')
   /* Only an explicit `false` shuts the doors: an API one deploy behind sends none. */
@@ -163,7 +160,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
               basis={aiBasis(next, now)}
               empty="Chưa tạo gì. Trợ lý chờ bạn bấm."
               confirmLabel="Soạn thư"
-              onConfirm={() => setMailing(addressee)}
+              onConfirm={() => setComposing({ to: addressee.code ?? null })}
               onInspect={() => openInstallment(next.installment.no)}
               inspectLabel="Mở đợt"
             />
@@ -189,7 +186,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
           subject={subject}
           contacts={run.contacts}
           mailBlocked={mailBlocked}
-          onCompose={() => setComposing(true)}
+          onCompose={(contact) => setComposing({ to: contact.code ?? null })}
           extra={
             /* Named on the bar, not tucked in the overflow menu: the owner could not find it there. */
             !ended &&
@@ -215,20 +212,14 @@ function ContractScreen({ contract }: { contract: Contract }) {
           onClose={() => setTerminating(false)}
         />
       )}
-      <CommActionConfirm
-        channel={mailing ? 'email' : null}
-        subject={subject}
-        contact={mailing ?? { name: '' }}
-        mail={{ onCompose: () => setComposing(true) }}
-        onClose={() => setMailing(null)}
-      />
       {installmentModal}
       {composing && (
         <LetterComposer
           door="contract"
           code={contract.code}
           leadCode={contract.leadCode}
-          onClose={() => setComposing(false)}
+          to={composing.to}
+          onClose={() => setComposing(null)}
         />
       )}
     </RecordShell>

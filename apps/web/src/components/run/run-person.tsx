@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Avatar, Button, Icon, MetaPill, UserRoundPlus, cn, type IconGlyph } from '@pv/ui'
+import { Avatar, Button, Icon, MetaPill, Pencil, UserRoundPlus, cn, type IconGlyph } from '@pv/ui'
 
 /** One person in a profile rail — the owners, the contacts and the signers
  *  read alike: avatar, name with its tag pill, muted lines under it, and at
@@ -19,6 +19,7 @@ export function PersonRow({
   tag,
   lines = [],
   door,
+  edit,
 }: {
   /** `null` = the seat is empty; `empty` says why, muted, beside a blank avatar. */
   name: string | null
@@ -27,6 +28,8 @@ export function PersonRow({
   tag?: string | false | null | undefined
   lines?: (string | null | undefined | false)[]
   door?: { label: string; icon: IconGlyph; onClick: () => void } | undefined
+  /** An edit pencil beside the name, for a person the reader may change. */
+  edit?: { label: string; onClick: () => void } | undefined
 }) {
   const face = 'text-foreground truncate text-[13px] font-semibold leading-[1.5]'
   return (
@@ -62,6 +65,18 @@ export function PersonRow({
             </span>
           )}
           {tag && <MetaPill className="shrink-0">{tag}</MetaPill>}
+          {edit && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="pointer-coarse:size-12 size-8 shrink-0 px-0"
+              title={edit.label}
+              aria-label={edit.label}
+              onClick={edit.onClick}
+            >
+              <Icon icon={Pencil} size={16} />
+            </Button>
+          )}
         </span>
         {lines.filter(Boolean).map((line) => (
           <span key={line as string} className={LINE}>

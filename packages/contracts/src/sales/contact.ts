@@ -10,6 +10,7 @@ import {
   textInputOptional,
   Day,
 } from '../primitives'
+import { CommsChannel } from '../comms/identity'
 import { ContactChannel } from './enums'
 
 /** People on the CUSTOMER'S side — the book that did not exist until now.
@@ -294,6 +295,9 @@ export const ContactBookRow = ContactRow.extend({
    *  can show and filter by who holds the customer. Absent = nobody yet. */
   ownerName: z.string().min(1).optional(),
   ownerEmail: z.string().min(1).optional(),
+  /** The newest time we reached this person (a chat or call recorded on them,
+   *  or a letter the mail server accepted). Absent = never reached. */
+  lastContact: z.object({ channel: CommsChannel, at: Moment }).optional(),
 })
 
 export const ContactBookResponse = paged(ContactBookRow)
