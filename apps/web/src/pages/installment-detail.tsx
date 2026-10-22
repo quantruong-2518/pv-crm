@@ -214,6 +214,7 @@ function InstallmentScreen({
             canPay={doors.pay}
             canUndo={doors.undo}
             leads={Boolean(blocking && canDone)}
+            late={!ended && overdue(view.level)}
           />
           <InstallmentStats installment={installment} view={view} ended={ended} />
           <OverdueReasonCard

@@ -1,36 +1,43 @@
 import { useState } from 'react'
 import { Button, Check, Icon, Input, RotateCcw, SegmentedControl } from '@pv/ui'
 import type { ContractDetailRow, InstallmentRow } from '@pv/contracts'
-import { userMessage } from '@/app/api'
+import { userMessage, type ApiError } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { momentOfDay, useRecordPaid } from '@/data/contracts-write'
 import { RecordCard } from '@/components/record/record-card'
 import { UndoPaidDialog } from './installment-dialogs'
+import { useLateReason } from './use-late-reason'
 import { usePayDay, type DayPick } from './use-pay-day'
 
 /** The collection card of one installment: the day to record and the one
  *  button while unpaid, the fact once paid with its undo. Both doors are the
  *  contract's own (`can.recordPayment`, undo only for whoever recorded) and
  *  an absent door is an absent button. `leads` is true when another primary
- *  already stands on the screen, so this one steps down to secondary. */
+ *  already stands on the screen, so this one steps down to secondary. `late`
+ *  = overdue, so collecting asks for the reason first. */
 export function CollectCard({
   contract,
   installment,
   canPay,
   canUndo,
   leads,
+  late,
 }: {
   contract: ContractDetailRow
   installment: InstallmentRow
   canPay: boolean
   canUndo: boolean
   leads: boolean
+  late: boolean
 }) {
   const pay = usePayDay(true, contract.signedAt)
   const record = useRecordPaid(contract.code)
   const [undoing, setUndoing] = useState(false)
   const paid = installment.paidAt !== undefined
+  const reason = useLateReason(contract.code, installment.no, late && canPay && !paid)
+  const blocker = pay.blocker || reason.blocker
+  const failed = (e: ApiError) => toastFail('Không ghi thu được.', userMessage(e))
 
   if (!paid && !canPay) return null
 
@@ -78,22 +85,27 @@ export function CollectCard({
               onChange={(e) => pay.setOther(e.target.value)}
             />
           )}
-          {pay.blocker !== '' && (
+          {reason.field && <div className="w-full">{reason.field}</div>}
+          {blocker !== '' && (
             <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]" aria-live="polite">
-              {pay.blocker}
+              {blocker}
             </p>
           )}
           <Button
             size="lg"
             variant={leads ? 'secondary' : 'default'}
-            disabled={record.isPending || pay.blocker !== ''}
+            disabled={record.isPending || reason.busy || blocker !== ''}
             onClick={() =>
-              record.mutate(
-                { no: installment.no, body: { paidAt: momentOfDay(pay.day) } },
-                {
-                  onSuccess: () => toastDone(`Đã ghi thu ${installment.label}.`),
-                  onError: (e) => toastFail('Không ghi thu được.', userMessage(e)),
-                },
+              reason.submit(
+                () =>
+                  record.mutate(
+                    { no: installment.no, body: { paidAt: momentOfDay(pay.day) } },
+                    {
+                      onSuccess: () => toastDone(`Đã ghi thu ${installment.label}.`),
+                      onError: failed,
+                    },
+                  ),
+                failed,
               )
             }
           >
