@@ -8,10 +8,11 @@ import {
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
-import { leadsOver, rosterOf } from './kpi-allocation-team'
 import { KpiAllocationRepository, type KpiCounterRow } from './kpi-allocation.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { KpiConfigRepository } from './kpi-config.repository'
+import { readsPerson } from './kpi-person-access'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
 
@@ -34,10 +35,11 @@ export class KpiHistoryService {
     private readonly config: KpiConfigRepository,
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   /** Someone else's line needs `kpi.view-all` — the allocation read's cut — or
-   *  to lead that person's team in the roster of the month (ADR 0101). The
+   *  to read that person's team in the roster of the month (`readsPerson`). The
    *  role target is not: `GET targets` shows it, names included, on `kpi.view`.
    *  A switched-off metric keeps its history readable, so membership is the code catalog's. */
   async history(
@@ -47,14 +49,14 @@ export class KpiHistoryService {
   ): Promise<KpiTargetHistoryResponse> {
     const { role, metricKey } = query
     const actorId = query.actorId ?? null
-    if (actorId && actorId !== caller.id && !this.access.allows(caller, 'kpi.view-all')) {
-      const roster = rosterOf(await this.teams.rosterAt(period))
-      if (!leadsOver(roster, caller.id, actorId)) {
-        throw denied(
-          'permission-denied',
-          'Bạn chỉ xem được lịch sử chỉ tiêu của mình và của thành viên nhóm bạn phụ trách.',
-        )
-      }
+    if (
+      actorId &&
+      !(await readsPerson(this.access, this.teams, this.seats, caller, period, actorId))
+    ) {
+      throw denied(
+        'permission-denied',
+        'Bạn chỉ xem được lịch sử chỉ tiêu của mình và của thành viên nhóm bạn phụ trách.',
+      )
     }
     if (!catalogDef(role, metricKey)) {
       throw invalid({ metricKey: ['Vai này không có chỉ số này.'] })

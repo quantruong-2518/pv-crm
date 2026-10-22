@@ -111,3 +111,6 @@ export function assertTargetValues(
     throw invalid({ [field]: [`Chỉ tiêu dạng tỷ lệ không vượt quá 100%: ${names(over)}.`] })
   }
 }
+
+/** An away setter drops out of the pool and its doors (ADR 0117 §5). */
+export const awayRefusal = () => conflict('Bạn đang trong kỳ vắng nên việc này do người khác làm.')

@@ -5,10 +5,13 @@ import {
   KPI_COUNTER_PROPOSED,
   KPI_COUNTER_RESOLVED,
   KPI_MONTH_UNCLOSED,
+  KPI_STAND_IN,
   KPI_TEAM_SHARE_ASSIGNED,
   type Actor,
 } from '@pv/engines'
 import {
+  NOTIFICATION_DETAIL_COUNT,
+  NOTIFICATION_DETAIL_FOR,
   KPI_COUNTER_STATUS_LABEL,
   KPI_METRIC_LABEL,
   ROLE_LABEL,
@@ -21,7 +24,16 @@ import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { KpiAllocationRepository, type KpiCounterRow } from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { rosterOf } from './kpi-allocation-team'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTeamRepository } from './kpi-team.repository'
+
+export type StandInLine = {
+  to: string[]
+  forName: string
+  waiting: number
+  occurrence: string
+  subject: { kind: 'kpi-team' | 'kpi-allocation'; code: string; label: string }
+}
 
 /** The month as a bell line prints it after the subject: month number, slash, year. */
 export const monthLabel = (period: string): string =>
@@ -40,13 +52,15 @@ const OUTCOME: Record<KpiCounterResolveBody['resolution'], KpiCounterStatus> = {
  *  forecast alerts and the close reminder ride `KpiAlertSweeper`. Every event key carries the
  *  package's tier and version or the counter id, so a retried write is told
  *  once and a team's v2 is not mistaken for the room's. A `kpi-allocation`
- *  line's code is `packageCode`, so the link can open the role and team. */
+ *  line's code is `packageCode`, so the link can open the role and team.
+ *  Every recipient is a seat read through `KpiSeatService` (ADR 0117). */
 @Injectable()
 export class KpiAlertService {
   constructor(
     private readonly repo: KpiAllocationRepository,
     private readonly hub: NotificationHub,
     private readonly teams: KpiTeamRepository,
+    private readonly seats: KpiSeatService,
   ) {}
 
   /** Only holders with a line still to confirm: a re-sent version keeps the
@@ -68,33 +82,46 @@ export class KpiAlertService {
       subject: { kind: 'kpi-target', code: pkg.period, label },
     })
     await this.hub.announce(tx, {
-      event: { ...event, audiences: { approvers: await this.setters(tx) } },
+      event: { ...event, audiences: { approvers: await this.setters(tx, pkg.period) } },
       subject: { kind: 'kpi-allocation', code: packageCode(pkg), label },
     })
   }
 
+  /** A team package goes back to whoever acts for the team now; a room one to
+   *  whoever acts for its sender (ADR 0117 §3). */
   async returned(tx: Db, who: Actor, pkg: KpiAllocationRowDb, reason: string): Promise<void> {
+    const seat = pkg.teamId
+      ? ({ kind: 'team-lead', teamId: pkg.teamId } as const)
+      : ({ kind: 'sender', actorId: pkg.submittedBy } as const)
     await this.hub.announce(tx, {
       event: {
         name: KPI_ALLOCATION_RETURNED,
         ref: { code: pkg.period },
         occurrence: occurrenceOf(pkg),
         actorId: who.id,
-        audiences: { sender: [pkg.submittedBy] },
+        audiences: { sender: await this.seats.seatActors(seat, pkg.period, undefined, tx) },
       },
       subject: await this.returnedSubject(tx, pkg),
       detail: { reason, period: pkg.period },
     })
   }
 
-  /** A room package that gives teams a share was agreed: each team's lead is
-   *  told once per team and version, and the line opens the team page. */
+  /** A room package that gives teams a share was agreed: whoever acts for each
+   *  team's lead is told once per team and version, and the line opens the
+   *  team page — never dropped on a lead who cannot act (ADR 0117). */
   async shareAssigned(
     tx: Db,
     who: Actor,
     pkg: KpiAllocationRowDb,
-    teams: readonly { id: string; name: string; leadId: string }[],
+    teams: readonly { id: string; name: string }[],
   ): Promise<void> {
+    const roster = rosterOf(await this.teams.rosterAt(pkg.period, tx))
+    const acting = await this.seats.leadSeats(
+      roster,
+      teams.map((t) => t.id),
+      undefined,
+      tx,
+    )
     for (const team of teams) {
       await this.hub.announce(tx, {
         event: {
@@ -102,7 +129,7 @@ export class KpiAlertService {
           ref: { code: pkg.period },
           occurrence: `${pkg.role}/${pkg.version}/${team.id}`,
           actorId: who.id,
-          audiences: { lead: [team.leadId] },
+          audiences: { lead: acting.get(team.id) ?? [] },
         },
         subject: {
           kind: 'kpi-team',
@@ -123,9 +150,10 @@ export class KpiAlertService {
       : { kind: 'kpi-allocation' as const, code: packageCode(pkg), label }
   }
 
-  /** A team counter is the lead's to answer (ADR 0101), on the team page; the
-   *  setters take it when there is no lead to ask: a room counter, the lead's
-   *  own line, or a lead locked out. Keyed on the counter id. */
+  /** A team counter is for whoever acts for the lead (ADR 0101, 0117), on the
+   *  team page; the setters take it when nobody else is there to ask: a room
+   *  counter, the roster lead's own line, or the acting person's own line.
+   *  Keyed on the counter id. */
   async countered(
     tx: Db,
     who: Actor,
@@ -140,27 +168,29 @@ export class KpiAlertService {
       occurrence: counterId,
       actorId: who.id,
     }
-    const lead = pkg.teamId ? await this.answeringLead(tx, pkg.teamId, pkg.period, who.id) : null
-    if (lead && pkg.teamId) {
+    const acting = pkg.teamId ? await this.answering(tx, pkg.teamId, pkg.period, who.id) : []
+    if (acting.length > 0 && pkg.teamId) {
       return this.hub.announce(tx, {
-        event: { ...event, audiences: { lead: [lead] } },
+        event: { ...event, audiences: { lead: acting } },
         subject: { kind: 'kpi-team', code: pkg.teamId, label },
         detail: { period: pkg.period },
       })
     }
     await this.hub.announce(tx, {
-      event: { ...event, audiences: { setters: await this.setters(tx) } },
+      event: { ...event, audiences: { setters: await this.setters(tx, pkg.period) } },
       subject: { kind: 'kpi-allocation', code: packageCode(pkg), label },
     })
   }
 
-  /** The team's lead in that month's roster, unless it is the proposer or locked
-   *  out. A failed read falls back to the setters rather than abort the counter. */
-  private answeringLead(tx: Db, teamId: string, period: string, proposer: string) {
-    return this.hub.bellRead(tx, 'team lead', null, async (s) => {
-      const lead = rosterOf(await this.teams.rosterAt(period, s)).leadOf(teamId)
-      if (!lead || lead === proposer) return null
-      return (await this.teams.disabledAmong([lead], s)).has(lead) ? null : lead
+  /** Who acts for the team's lead, less the proposer. A failed read falls back
+   *  to the setters rather than abort the counter. */
+  private answering(tx: Db, teamId: string, period: string, proposer: string) {
+    return this.hub.bellRead(tx, 'team lead', [], async (s) => {
+      const roster = rosterOf(await this.teams.rosterAt(period, s))
+      /* The roster lead's own counter is the setters' (ADR 0101), even while a member stands in. */
+      if (roster.leadOf(teamId) === proposer) return []
+      const acting = await this.seats.leadSeats(roster, [teamId], undefined, s)
+      return (acting.get(teamId) ?? []).filter((id) => id !== proposer)
     })
   }
 
@@ -170,20 +200,34 @@ export class KpiAlertService {
       event: {
         name: KPI_MONTH_UNCLOSED,
         ref: { code: period },
-        audiences: { setters: await this.setters(tx) },
+        audiences: { setters: await this.setters(tx, period) },
       },
       subject: { kind: 'kpi-allocation', code: period, label: monthLabel(period) },
     })
   }
 
-  /** Setters who can also open a `kpi-allocation` subject (it needs
-   *  `kpi.view-all`); otherwise the hub would drop their line silently. */
-  private async setters(tx: Db): Promise<string[]> {
-    const [setters, viewers] = await Promise.all([
-      this.hub.holding(tx, 'kpi.set-target', 'Sales'),
-      this.hub.holding(tx, 'kpi.view-all', 'Sales'),
-    ])
-    return setters.filter((id) => viewers.includes(id))
+  /** Whoever now acts for `forName` hears it once per `occurrence` (ADR 0117
+   *  §4): an absence's id, or a lead and the day they were locked. No actor —
+   *  the system speaks, so a declarer naming themself is still told. */
+  async standIn(tx: Db, line: StandInLine): Promise<void> {
+    await this.hub.announce(tx, {
+      event: {
+        name: KPI_STAND_IN,
+        ref: { code: line.subject.code },
+        occurrence: line.occurrence,
+        audiences: { standIn: line.to },
+      },
+      subject: line.subject,
+      detail: {
+        [NOTIFICATION_DETAIL_FOR]: line.forName,
+        [NOTIFICATION_DETAIL_COUNT]: line.waiting,
+      },
+    })
+  }
+
+  /** The setters' pool today (`KpiSeatService`): one definition for every bell. */
+  private setters(tx: Db, period: string): Promise<string[]> {
+    return this.seats.seatActors({ kind: 'setters' }, period, undefined, tx)
   }
 
   /** The package's label, with the team's name when it is a team package. */

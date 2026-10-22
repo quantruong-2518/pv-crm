@@ -12,6 +12,8 @@ import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { KpiReadingsRepository } from './kpi-readings.repository'
+import { rosterOf } from './kpi-allocation-team'
+import { KpiSeatService } from './kpi-seat.service'
 import { memberOf, teamsOf } from './kpi-team.mapper'
 import { KpiTeamRepository, type ActorFace } from './kpi-team.repository'
 
@@ -36,6 +38,7 @@ export class KpiTeamService {
     private readonly readings: KpiReadingsRepository,
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   /** Without `kpi.view-all`: only the caller's own team and no unassigned list. */
@@ -49,7 +52,15 @@ export class KpiTeamService {
     const faces = new Map(
       (await this.repo.actors([...new Set(entries.map((e) => e.actorId))])).map((a) => [a.id, a]),
     )
-    const teams = teamsOf(entries, faces).filter((t) => all || t.id === mine?.teamId)
+    const roster = rosterOf(entries)
+    const acting = await this.seats.actingFor(roster, [...new Set(entries.map((e) => e.teamId))])
+    const teams = teamsOf(entries, faces, acting).filter((t) => all || t.id === mine?.teamId)
+    /* "Acts for my team" (ADR 0117), as the team page's: a stand-in member is true, an away lead false. */
+    const actsForLead = mine
+      ? ((await this.seats.leadSeats(roster, [mine.teamId])).get(mine.teamId) ?? []).includes(
+          who.id,
+        )
+      : false
     const inTeam = new Set(entries.map((e) => e.actorId))
     const unassigned = all
       ? (await this.eligible()).filter((a) => !inTeam.has(a.id)).map((a) => memberOf(a, false))
@@ -60,7 +71,7 @@ export class KpiTeamService {
       teams,
       unassigned,
       myTeamId: mine?.teamId ?? null,
-      iLead: mine?.lead ?? false,
+      actsForLead,
     })
   }
 

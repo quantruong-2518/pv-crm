@@ -12,7 +12,6 @@ import { toContractRole } from '@api/platform/auth/auth.mapper'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
-import { leadsOver, rosterOf } from './kpi-allocation-team'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import {
@@ -21,7 +20,9 @@ import {
   type KpiContributionRow,
 } from './kpi-contributions.repository'
 import { KpiReadingsRepository, seriesKey, type KpiSeat } from './kpi-readings.repository'
+import { readsPerson } from './kpi-person-access'
 import { monthClock } from './kpi-rules'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTeamRepository } from './kpi-team.repository'
 
 /** The records counted into one person's KPI figures (ADR 0099 §5).
@@ -80,17 +81,15 @@ export class KpiContributionsService {
     private readonly closes: KpiCloseRepository,
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async of(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiContributionsResponse> {
-    if (actorId !== who.id && !this.access.allows(who, 'kpi.view-all')) {
-      const roster = rosterOf(await this.teams.rosterAt(period))
-      if (!leadsOver(roster, who.id, actorId)) {
-        throw denied(
-          'permission-denied',
-          'Bạn chỉ xem được bản ghi tính vào KPI của mình và của thành viên nhóm bạn phụ trách.',
-        )
-      }
+    if (!(await readsPerson(this.access, this.teams, this.seats, who, period, actorId))) {
+      throw denied(
+        'permission-denied',
+        'Bạn chỉ xem được bản ghi tính vào KPI của mình và của thành viên nhóm bạn phụ trách.',
+      )
     }
     const person = await this.readings.person(actorId)
     if (!person) throw notFound('người này')

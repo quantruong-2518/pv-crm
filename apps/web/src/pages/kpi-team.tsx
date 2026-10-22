@@ -23,7 +23,7 @@ import { monthQuery } from './kpi-allocate-model'
 import { COMPANY_PATH, ME_PATH, MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { TeamCounters } from './kpi-team-counters'
-import { holdersOf, isClosed, packageOf, sharedRoles } from './kpi-team-model'
+import { actingLine, holdersOf, isClosed, packageOf, sharedRoles } from './kpi-team-model'
 import { TeamSplit } from './kpi-team-split'
 import { TeamMembers, TeamReadings } from './kpi-team-stats'
 
@@ -32,9 +32,10 @@ import { TeamMembers, TeamReadings } from './kpi-team-stats'
  *  members' counter-proposals. Read live from `GET /sales/kpi/:period/teams/:teamId`;
  *  no fixture, no scenario.
  *
- *  Only the team's lead or a `kpi.view-all` holder is let in; the head reads and
- *  never edits here. The split is the lead's alone, judged by the roster, so a
- *  lead who also holds `kpi.set-target` still splits from this page.
+ *  Only whoever acts for the lead (the lead, or their stand-in, ADR 0117) or a
+ *  `kpi.view-all` holder is let in; the head reads and never edits here. The split
+ *  is the acting lead's alone (`actsForLead`), so a lead who also holds `kpi.set-target`
+ *  still splits from this page.
  *
  *  No ContextRail (law 10 debt, as on the other KPI screens): a team's month is
  *  a sum over many records and opens no single object a chain could anchor on. */
@@ -52,7 +53,7 @@ function Body({
 }) {
   const closed = isClosed(view)
   const roles = sharedRoles(view.shares)
-  const canEdit = view.iLead && !closed
+  const canEdit = view.actsForLead && !closed
   const statusOf = (role: RoleId) => packageOf(view.allocations, role)?.status
 
   return (
@@ -104,7 +105,7 @@ function Body({
           teamId={view.team.id}
           counters={view.counters}
           statusOf={statusOf}
-          may={view.iLead}
+          may={view.actsForLead}
           closed={closed}
           me={me}
         />
@@ -126,6 +127,8 @@ export function KpiTeamPage() {
   const view = useQuery(kpiTeamViewQuery(period, teamId))
   const catalog = useQuery(kpiCatalogQuery)
   const day = dayOfMonth(period)
+  /* The lead is away (ADR 0117): name who answers in their place. */
+  const about = [day, view.data && actingLine(view.data.team, me)].filter(Boolean)
   /* An index above 0 means this page was reached from another one inside the app. */
   const from = seesAll
     ? { label: 'KPI công ty', path: COMPANY_PATH }
@@ -140,7 +143,9 @@ export function KpiTeamPage() {
         <ScreenHeader
           back={{ label: from.label, onClick: goBack }}
           title={view.data ? `KPI nhóm ${view.data.team.name}` : 'KPI nhóm'}
-          description={day && <span className="tnum font-num">{day}</span>}
+          description={
+            about.length > 0 && <span className="tnum font-num">{about.join(' · ')}</span>
+          }
           actions={
             <MonthPicker
               pick={pick}

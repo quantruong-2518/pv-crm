@@ -32,7 +32,8 @@ import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type Actors } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
-import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
+import { assertTargetValues, awayRefusal, monthClock, stillOpen, vietnamToday } from './kpi-rules'
+import { KpiSeatService } from './kpi-seat.service'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
 
 type Holder = { id: string; roleIds: readonly RoleId[] }
@@ -56,6 +57,7 @@ export class KpiService {
     private readonly closes: KpiCloseRepository,
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -125,7 +127,7 @@ export class KpiService {
 
   /** One element of `people`, read through it so the card cannot differ. */
   async person(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiPersonResponse> {
-    await assertReadsPerson(this.access, this.teams, who, period, actorId)
+    await assertReadsPerson(this.access, this.teams, this.seats, who, period, actorId)
     const { monthClose, people } = await this.people(period, new Set([actorId]))
     if (!people[0]) throw notFound('người này')
     return KpiPersonResponse.parse({ period, monthClose, person: people[0] })
@@ -177,7 +179,7 @@ export class KpiService {
         throw conflict('Chỉ tiêu này vừa được duyệt. Tải lại rồi gửi đề nghị mới.')
       }
       await this.note(tx, who, { kpi: 'target-proposed', period, role, targets: body.targets })
-      const setters = await this.hub.holding(tx, 'kpi.set-target', 'Sales')
+      const setters = await this.seats.seatActors({ kind: 'setters' }, period, undefined, tx)
       await this.ring(tx, who, period, role, KPI_TARGET_PROPOSED, { setters }, proposedAt)
     })
     return this.targetsOf(period)
@@ -199,6 +201,7 @@ export class KpiService {
     stillOpen(period)
     const stale = conflict('Chỉ tiêu đang chờ duyệt đã thay đổi. Tải lại rồi duyệt lại.')
     await this.targets.run(async (tx) => {
+      if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()
       const live = new Set((await this.config.effectiveCatalog(tx))[role].map((d) => d.key))
       const pending = (await this.targets.ofPeriod(period, tx)).filter(
         (r) => r.role === role && r.agreedAt === null && live.has(r.metricKey),

@@ -13,7 +13,7 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, notFound } from '@api/platform/http/problem'
+import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
 import { KpiAlertService } from './kpi-alert.service'
 import { rosterOf, shareTargetOf, shareValues } from './kpi-allocation-team'
@@ -32,12 +32,14 @@ import {
   ackStateOf,
   assertNotLapsed,
   assertTargetValues,
+  awayRefusal,
   lapseOf,
   monthClock,
   type AckLine,
   stillOpen,
   vietnamToday,
 } from './kpi-rules'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
 
@@ -58,6 +60,9 @@ const PENDING = { ackStatus: 'pending' as const, ackedAt: null, ackedByDefault: 
  *
  *  On a team package a counter on the lead's own line leaves the lead as
  *  sender (ADR 0101 default 9). A holder's line is found in whichever tier has it. */
+const leadsOwn = () =>
+  denied('permission-denied', 'Đề xuất của trưởng nhóm do người giao chỉ tiêu xử lý.')
+
 @Injectable()
 export class KpiAllocationCounterService {
   constructor(
@@ -67,6 +72,7 @@ export class KpiAllocationCounterService {
     private readonly alerts: KpiAlertService,
     private readonly config: KpiConfigService,
     private readonly teams: KpiTeamRepository,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async acknowledge(
@@ -258,13 +264,16 @@ export class KpiAllocationCounterService {
       await this.packages.assertActsFor(who, rosterOf(await this.teams.rosterAt(period)), leadOf)
     }
     await this.repo.run(async (tx) => {
-      if (leadOf) {
-        const roster = rosterOf(await this.teams.rosterAt(period, tx))
-        await this.packages.assertActsFor(who, roster, leadOf, tx)
-      }
+      /* The room door is a pool item (ADR 0117 §5); the team door judges the seat below. */
+      if (!leadOf && (await this.seats.isAway(who.id, undefined, tx))) throw awayRefusal()
+      const roster = leadOf ? rosterOf(await this.teams.rosterAt(period, tx)) : null
+      if (leadOf && roster) await this.packages.assertActsFor(who, roster, leadOf, tx)
       /* Matched in JS first: the id comes off the URL and need not be a uuid. */
       const c = (await this.repo.counters(period, tx)).find((x) => x.id === counterId)
       if (!c || (leadOf && c.teamId !== leadOf)) throw notFound('đề xuất chỉ tiêu')
+      /* The roster lead's own counter is the setters' (ADR 0101), on the room door,
+         even while a member stands in: nobody settles their own lead's target. */
+      if (leadOf && roster?.leadOf(leadOf) === c.actorId) throw leadsOwn()
       const pkg = await this.repo.lockPackage(tx, c.allocationId)
       if ((await this.repo.lockCounter(tx, c.id))?.status !== 'open') {
         throw conflict('Đề xuất này đã được xử lý.')

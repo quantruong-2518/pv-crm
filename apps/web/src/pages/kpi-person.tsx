@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { AppShell, GlassCard, Icon, Lock, ScreenHeader, ScreenLayout, SectionTitle } from '@pv/ui'
 import type { KpiForecastResponse, KpiPerson } from '@pv/contracts'
 import { isApiError } from '@/app/api'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { kpiPersonQuery } from '@/data/kpi'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
@@ -17,6 +17,8 @@ import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { COMPANY_PATH, ME_PATH, acknowledgementOf, dayOfMonth, useMonthParam } from './kpi-model'
 import { MonthPicker, QueryBlock, Scoreboard } from './kpi-parts'
 import { PersonForecast } from './kpi-person-forecast'
+import { teamsActedFor } from './kpi-team-model'
+import { AbsenceBlock } from './kpi-absence'
 
 /** One person's KPI — `/sales/kpi/company/:actorId`, opened from a name on the
  *  company screen. Read live from `GET /sales/kpi/:period/people/:actorId` and
@@ -98,10 +100,10 @@ export function KpiPersonPage() {
   const catalog = useQuery(kpiCatalogQuery)
   const forecast = useQuery(kpiPersonForecastQuery(period, actorId))
   const roster = useQuery(kpiTeamRosterQuery(period))
+  const me = useSession((s) => s.actor?.id)
+  const canSet = useCan('kpi.set-target')
   const team = roster.data?.teams.find((t) => t.members.some((m) => m.actorId === actorId))
-  const led = roster.data?.iLead
-    ? roster.data.teams.find((t) => t.id === roster.data.myTeamId)
-    : undefined
+  const led = teamsActedFor(roster.data?.teams ?? [], me)[0]
   const back = seesAll
     ? { label: 'KPI công ty', path: `${COMPANY_PATH}${monthQuery(period)}` }
     : led
@@ -124,6 +126,10 @@ export function KpiPersonPage() {
           }
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
+
+        {canSet && me && person.data && (
+          <AbsenceBlock me={me} actorId={actorId} who={person.data.person.name} />
+        )}
 
         {failed === 'forbidden' ? (
           <Refusal locked text="Bạn không có quyền xem KPI của người này." />

@@ -14,6 +14,7 @@ import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/da
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
+import { AbsenceBlock } from './kpi-absence'
 import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { DESCRIPTION, acknowledgementOf, needsAcknowledgement, useMonthParam } from './kpi-model'
 import {
@@ -25,6 +26,7 @@ import {
 } from './kpi-me-parts'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { ReceivePackage } from './kpi-receive-parts'
+import { teamsActedFor } from './kpi-team-model'
 
 /** The personal KPI screen — what the reader is short of, per role they hold,
  *  read live from `GET /sales/kpi/:period/me`, with the ADR 0098 reads beside
@@ -148,10 +150,8 @@ export function KpiMePage() {
     .filter((l) => l.ackState === 'pending').length
   const allocatedRoles = new Set(packs.map((p) => p.role))
   const seen = forecast.data
-  /* The roster is a side read: without it the link is simply absent. */
-  const ledTeam = roster.data?.iLead
-    ? roster.data.teams.find((t) => t.id === roster.data.myTeamId)
-    : undefined
+  /* The roster is a side read: without it the links are simply absent. */
+  const ledTeams = teamsActedFor(roster.data?.teams ?? [], actorId)
 
   return (
     <AppShell {...chrome.shell}>
@@ -162,7 +162,10 @@ export function KpiMePage() {
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
-        {ledTeam && <TeamLeadLink team={ledTeam} period={period} />}
+        {ledTeams.map((team) => (
+          <TeamLeadLink key={team.id} team={team} period={period} />
+        ))}
+        {actorId && <AbsenceBlock me={actorId} />}
 
         <QueryBlock query={withCatalog(me, catalog)} what="KPI của bạn">
           {([data, defs]) => {

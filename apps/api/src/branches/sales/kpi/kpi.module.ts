@@ -5,6 +5,9 @@ import { NotificationModule } from '@api/platform/notification/notification.modu
 import { SettingModule } from '@api/platform/setting/setting.module'
 import { SalesConfigModule } from '../config/config.module'
 import { ContractModule } from '../contract/contract.module'
+import { KpiAbsenceController } from './kpi-absence.controller'
+import { KpiAbsenceRepository } from './kpi-absence.repository'
+import { KpiAbsenceService } from './kpi-absence.service'
 import { KpiAlertRepository } from './kpi-alert.repository'
 import { KpiAlertService } from './kpi-alert.service'
 import { KpiAlertSweeper } from './kpi-alert.sweeper'
@@ -29,6 +32,7 @@ import { KpiHistoryService } from './kpi-history.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiReconcileRepository } from './kpi-reconcile.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamController } from './kpi-team.controller'
@@ -69,6 +73,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiContributionsController,
     KpiTeamController,
     KpiTeamViewController,
+    KpiAbsenceController,
   ],
   providers: [
     KpiService,
@@ -94,6 +99,9 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiTeamViewService,
     KpiReconcileRepository,
     KpiReconcileService,
+    KpiAbsenceRepository,
+    KpiAbsenceService,
+    KpiSeatService,
   ],
   exports: [KpiReconcileService],
 })

@@ -41,8 +41,9 @@ export const KpiTeam = z.object({
   id: teamId,
   name: z.string().min(1),
   lead: KpiTargetActor,
-  /** A locked lead's counters go to the target setters (ADR 0101 default 16). */
-  leadLocked: z.boolean(),
+  /** Who acts for the lead today (`seatActors`, ADR 0117); empty = the lead acts. A list,
+   *  because with no stand-in declared every active target setter acts. */
+  actingFor: z.array(KpiTargetActor),
   members: z.array(KpiTeamMember),
 })
 
@@ -57,7 +58,9 @@ export const KpiTeamRosterResponse = z.object({
   /** Eligible people in no team; filled only for a `kpi.view-all` caller. */
   unassigned: z.array(KpiTeamMember),
   myTeamId: teamId.nullable(),
-  iLead: z.boolean(),
+  /** The reader acts for `myTeamId`'s lead today (the lead, or their stand-in, or a
+   *  target setter when neither can — ADR 0117). */
+  actsForLead: z.boolean(),
 })
 
 /** Answers for period `editableFrom`, so the screen needs no second read. */
@@ -105,8 +108,9 @@ export const KpiTeamViewResponse = z.object({
   period: KpiPeriodKey,
   monthClose: KpiMonthClose,
   team: KpiTeam,
-  /** The reader acts for the lead: the lead, or a stand-in while the lead is locked. */
-  iLead: z.boolean(),
+  /** The reader acts for this team's lead today (the lead, or their stand-in, or a
+   *  target setter when neither can — ADR 0117). */
+  actsForLead: z.boolean(),
   shares: z.array(KpiTeamShare),
   readings: z.array(KpiTeamReading),
   people: z.array(KpiPerson),

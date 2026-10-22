@@ -53,8 +53,9 @@ import {
   type KpiKnown,
   type KpiPerson,
 } from './kpi-readings.repository'
-import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
+import { assertTargetValues, awayRefusal, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository, type KpiTargetRow } from './kpi-targets.repository'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
 import { agreedIn, slotsOf, toReadings } from './kpi.mapper'
 
@@ -132,6 +133,7 @@ export class KpiAllocationService {
     private readonly alerts: KpiAlertService,
     private readonly closes: KpiCloseRepository,
     private readonly teams: KpiTeamRepository,
+    private readonly seats: KpiSeatService,
   ) {}
 
   /** Without `kpi.view-all`: only packages handed down — or, while the next
@@ -422,6 +424,7 @@ export class KpiAllocationService {
     stillOpen(period)
     const teamId = body.teamId ?? null
     await this.repo.run(async (tx) => {
+      if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()
       const live = await this.repo.lockLive(tx, period, role, teamId)
       if (live?.status !== 'submitted') {
         throw conflict('Vai này không có gói chỉ tiêu nào đang chờ duyệt.')
@@ -454,11 +457,8 @@ export class KpiAllocationService {
     const shares = await this.repo.shares([pkg.id], tx)
     const roster = rosterOf(await this.teams.rosterAt(pkg.period, tx))
     const told = new Map(shares.map((s) => [s.teamId, s.teamName]))
-    const leads = [...told].flatMap(([id, name]) => {
-      const leadId = roster.leadOf(id)
-      return leadId ? [{ id, name, leadId }] : []
-    })
-    await this.alerts.shareAssigned(tx, who, pkg, leads)
+    const teams = [...told].flatMap(([id, name]) => (roster.team(id) ? [{ id, name }] : []))
+    await this.alerts.shareAssigned(tx, who, pkg, teams)
   }
 
   /** The shares of every room package in force, with the role each belongs to. */
@@ -493,17 +493,12 @@ export class KpiAllocationService {
     return { tier, catalog, targetRows, shares, tolerance, monthClose }
   }
 
-  /** The team's lead, judged by the roster of the month and not by a
-   *  permission (amendment A1) — or, while that lead is locked out, a
-   *  `kpi.set-target` holder, so the team is not stranded (ADR 0101 default). */
+  /** Whoever acts for the team's lead today under `roster` (`seatActors`,
+   *  ADR 0117): the lead of the month's roster, not a permission (amendment A1),
+   *  else their stand-in, else the target setters. */
   async actsFor(who: Actor, roster: Roster, teamId: string, handle?: Db): Promise<boolean> {
-    const lead = roster.leadOf(teamId)
-    if (lead === who.id) return true
-    return (
-      lead !== null &&
-      this.access.allows(who, 'kpi.set-target') &&
-      (await this.teams.disabledAmong([lead], handle)).has(lead)
-    )
+    const acting = await this.seats.leadSeats(roster, [teamId], undefined, handle)
+    return acting.get(teamId)?.includes(who.id) ?? false
   }
 
   async assertActsFor(who: Actor, roster: Roster, teamId: string, handle?: Db): Promise<void> {

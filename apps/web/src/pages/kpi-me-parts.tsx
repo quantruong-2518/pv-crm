@@ -10,6 +10,7 @@ import {
   type KpiUnit,
   type RoleId,
 } from '@pv/contracts'
+import { useSession } from '@/app/auth'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf } from '@/data/kpi-forecast'
 import { weeklyMetricOf } from '@/data/kpi-personal'
@@ -19,7 +20,7 @@ import { NOTE } from './home-tiles'
 import { teamPath } from './kpi-allocate-model'
 import { boardOf, printTile, printValue } from './kpi-model'
 import { ReadingTile } from './kpi-parts'
-import { isClosed, packageOf, sharedRoles } from './kpi-team-model'
+import { counterActors, isClosed, packageOf, sharedRoles } from './kpi-team-model'
 import { WeeklyChart } from './kpi-weekly-chart'
 
 /** The blocks the personal KPI screen adds to the role board for ADR 0098: the
@@ -31,20 +32,23 @@ import { WeeklyChart } from './kpi-weekly-chart'
  *  person screens. Its thresholds are printed once per screen from the
  *  response, never typed here. */
 
-/** What waits on the lead: a member's open counter, and a shared role whose
- *  split is not yet sent, was returned, or no longer matches the team's share.
- *  The lead's own counter is the head's to answer, so it is not counted. */
-function leadWaiting(view: KpiTeamViewResponse): number {
+/** What waits on whoever acts for the lead: an open counter they answer
+ *  (`counterActors`, never their own), and a shared role whose split is not yet
+ *  sent, was returned, or no longer matches the team's share. */
+function leadWaiting(view: KpiTeamViewResponse, me: string | undefined): number {
   if (isClosed(view)) return 0
   const splits = sharedRoles(view.shares).filter((role) => {
     const pkg = packageOf(view.allocations, role)
     return !pkg || pkg.status === 'draft' || pkg.status === 'returned' || pkg.shareChanged
   }).length
-  const lead = view.team.lead.actorId
-  return splits + view.counters.filter((c) => c.status === 'open' && c.actorId !== lead).length
+  const mine = view.counters.filter(
+    (c) =>
+      c.status === 'open' && me !== undefined && counterActors(view.team, c.actorId).includes(me),
+  )
+  return splits + mine.length
 }
 
-/** The way to the team page, for the reader who leads a team that month (ADR 0101).
+/** The way to the team page, for the reader acting for its lead that month (ADR 0101, 0117).
  *  The count is a side read: without it the button stands alone. */
 export function TeamLeadLink({
   team,
@@ -55,7 +59,8 @@ export function TeamLeadLink({
 }) {
   const navigate = useNavigate()
   const view = useQuery(kpiTeamViewQuery(period, team.id))
-  const waiting = view.data ? leadWaiting(view.data) : 0
+  const me = useSession((s) => s.actor?.id)
+  const waiting = view.data ? leadWaiting(view.data, me) : 0
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Button

@@ -18,7 +18,8 @@ import type { KpiMonthValueValues } from './kpi-close.schema'
 import { KpiConfigService } from './kpi-config.service'
 import { KpiReadingsRepository, type KpiPerson, type KpiValues } from './kpi-readings.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
-import { monthClock } from './kpi-rules'
+import { awayRefusal, monthClock } from './kpi-rules'
+import { KpiSeatService } from './kpi-seat.service'
 import { toReadings, type ScoreContext } from './kpi.mapper'
 
 /** The month close (ADR 0100 §C2, 0115 §1): freezes every reading the month's
@@ -43,12 +44,14 @@ export class KpiCloseService {
     private readonly audit: AuditRepository,
     private readonly reconcile: KpiReconcileService,
     private readonly gate: KpiCloseGateService,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async close(who: Actor, period: KpiPeriodKey): Promise<KpiCloseResponse> {
     if (monthClock(period).phase !== 'closed') {
       throw conflict('Tháng này chưa kết thúc nên chưa chốt được.')
     }
+    if (await this.seats.isAway(who.id)) throw awayRefusal()
     const already = conflict('Tháng này đã được chốt.')
     if (await this.closes.of(period)) throw already
 

@@ -52,6 +52,8 @@ export const KPI_TEAM_SHARE_ASSIGNED = 'sales.kpi.team-share-assigned'
 export const KPI_COUNTER_PROPOSED = 'sales.kpi.counter-proposed'
 /** A month ended and nobody closed it; the daily KPI sweep is the only emitter. */
 export const KPI_MONTH_UNCLOSED = 'sales.kpi.month-unclosed'
+/** Someone now acts for a person away or locked (ADR 0117); the absence door and the daily sweep emit it. */
+export const KPI_STAND_IN = 'sales.kpi.stand-in'
 /** An overdue installment's reason was sent, or decided (ADR 0100). */
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
@@ -169,6 +171,7 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-allocation-returned', KPI_ALLOCATION_RETURNED, 'sender'),
   bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
   bell('kpi-team-share-assigned', KPI_TEAM_SHARE_ASSIGNED, 'lead'),
+  bell('kpi-stand-in', KPI_STAND_IN, 'standIn'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
   bell('overdue-reason-waiting', OVERDUE_REASON_SENT, 'approvers'),

@@ -3,6 +3,7 @@ import { KPI_FORECAST_FLAGGED } from '@pv/engines'
 import { KPI_METRIC_LABEL, type KpiForecast, type KpiPeriodKey } from '@pv/contracts'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
+import { KpiAbsenceService } from './kpi-absence.service'
 import { KpiAlertService, monthLabel } from './kpi-alert.service'
 import { KpiAlertRepository, type KpiAlertKey } from './kpi-alert.repository'
 import { additive } from './kpi-allocation.mapper'
@@ -52,6 +53,7 @@ export class KpiAlertSweeper {
     private readonly closes: KpiCloseRepository,
     private readonly targets: KpiTargetsRepository,
     private readonly reconcile: KpiReconcileService,
+    private readonly absences: KpiAbsenceService,
   ) {}
 
   /** Called on every worker tick. `null` = this tick was not a pass. The clock
@@ -74,6 +76,11 @@ export class KpiAlertSweeper {
          alerts did; an alert failure is still thrown to the worker's log after. */
       const [alerts] = await Promise.allSettled([this.ring(month)])
       await this.reconcileClosed()
+      /* Stand-in bells (ADR 0117 §4), on their own catch like the reconcile. */
+      /* Two cadences back: a tick that runs late must not miss a lock; the occurrence key keeps it once. */
+      await this.absences.sweep(2 * SWEEP_EVERY_MS).catch((error: unknown) => {
+        this.log.error(`KPI stand-in bells failed: ${String(error)}`)
+      })
       if (alerts.status === 'rejected') throw alerts.reason
       /* Announced, not written: the hub drops a failed or duplicate line silently. */
       if (alerts.value > 0)

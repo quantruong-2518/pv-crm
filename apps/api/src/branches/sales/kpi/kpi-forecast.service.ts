@@ -22,6 +22,7 @@ import { KpiConfigService } from './kpi-config.service'
 import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type KpiSeat } from './kpi-readings.repository'
 import { monthClock, vietnamToday } from './kpi-rules'
+import { KpiSeatService } from './kpi-seat.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
 import { elapsedOf } from './kpi-verdict'
@@ -92,6 +93,7 @@ export class KpiForecastService {
     private readonly closes: KpiCloseRepository,
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async everyone(period: KpiPeriodKey): Promise<KpiForecastResponse> {
@@ -109,7 +111,7 @@ export class KpiForecastService {
 
   /** `mine` for someone else, behind `assertReadsPerson`. */
   async ofPerson(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiForecastResponse> {
-    await assertReadsPerson(this.access, this.teams, who, period, actorId)
+    await assertReadsPerson(this.access, this.teams, this.seats, who, period, actorId)
     const person = await this.readings.person(actorId)
     if (!person) throw notFound('người này')
     return this.forecast(

@@ -16,6 +16,8 @@ import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationService, notLead } from './kpi-allocation.service'
 import { additive, defOf } from './kpi-allocation.mapper'
 import { monthClock } from './kpi-rules'
+import { rosterOf } from './kpi-allocation-team'
+import { KpiSeatService } from './kpi-seat.service'
 import { teamsOf } from './kpi-team.mapper'
 import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
 import { expectedOf, verdictOf } from './kpi-verdict'
@@ -36,15 +38,16 @@ export class KpiTeamViewService {
     private readonly counters: KpiAllocationCounterService,
     private readonly kpi: KpiService,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async view(who: Actor, period: KpiPeriodKey, teamId: string): Promise<KpiTeamViewResponse> {
     const ctx = await this.packages.periodContext(period)
     const { roster, entries } = ctx.tier
     const all = this.access.allows(who, 'kpi.view-all')
-    /* A stand-in for a locked lead edits too, so `iLead` is "acts for the lead". */
-    const iLead = await this.packages.actsFor(who, roster, teamId)
-    if (!all && !iLead) throw notLead()
+    /* Reading follows the seat (ADR 0117 §6): the lead even while away, or whoever acts for them. */
+    const actsForLead = await this.packages.actsFor(who, roster, teamId)
+    if (!all && !actsForLead && !(await this.seats.readsTeam(who, roster, teamId))) throw notLead()
     if (!roster.team(teamId)) throw notFound('nhóm')
 
     const members = new Set(roster.membersOf(teamId))
@@ -93,7 +96,7 @@ export class KpiTeamViewService {
       period,
       monthClose: cards.monthClose,
       team,
-      iLead,
+      actsForLead,
       shares: mine.map((s) => ({ role: s.role, metricKey: s.metricKey, value: Number(s.value) })),
       readings,
       people: cards.people,
@@ -150,7 +153,8 @@ export class KpiTeamViewService {
     const faces = new Map(
       (await this.teams.actors(mine.map((e) => e.actorId))).map((a) => [a.id, a]),
     )
-    const team = teamsOf(mine, faces).find((t) => t.id === teamId)
+    const acting = await this.seats.actingFor(rosterOf(entries), [teamId])
+    const team = teamsOf(mine, faces, acting).find((t) => t.id === teamId)
     if (!team) throw notFound('nhóm')
     return team
   }

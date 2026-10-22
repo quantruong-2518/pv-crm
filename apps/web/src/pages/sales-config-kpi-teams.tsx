@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { Button, GlassCard, Icon, Pencil, Plus, Skeleton, Trash2, cn } from '@pv/ui'
 import type { KpiTeam } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { monthPick, monthText } from './kpi-model'
+import { actingLine } from './kpi-team-model'
 import { TeamFormDrawer, TeamRemoveDrawer } from './sales-config-kpi-teams-parts'
 import { Section } from './sales-config-section'
 
@@ -36,6 +37,8 @@ function TeamLine({
   onEdit: () => void
   onRemove: () => void
 }) {
+  const me = useSession((s) => s.actor?.id)
+  const acting = actingLine(team, me)
   return (
     <li className="flex min-h-14 flex-wrap items-center justify-between gap-3 px-5 py-3">
       <div className="flex min-w-0 flex-col gap-1">
@@ -44,6 +47,7 @@ function TeamLine({
           Trưởng nhóm {team.lead.name} · {team.members.length} thành viên ·{' '}
           {rolesOf(team).join(', ')}
         </span>
+        {acting && <span className={NOTE}>{acting}</span>}
         <span className={NOTE}>{team.members.map((m) => m.name).join(', ')}</span>
       </div>
       {canSet && (

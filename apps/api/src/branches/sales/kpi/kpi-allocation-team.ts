@@ -37,12 +37,6 @@ export function rosterOf(entries: readonly RosterEntry[]): Roster {
   }
 }
 
-/** True when `lead` leads the team `actorId` sits in. */
-export const leadsOver = (roster: Roster, lead: string, actorId: string): boolean => {
-  const team = roster.teamOf(actorId)
-  return team !== null && roster.leadOf(team.id) === lead
-}
-
 export type Faults = { lines: string[]; shares: string[] }
 
 type FaultInput = {

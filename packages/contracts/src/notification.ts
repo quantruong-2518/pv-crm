@@ -73,6 +73,7 @@ export const NotificationKind = z.enum([
   'kpi-team-share-assigned',
   'contract-terminated',
   'contract-collector-changed',
+  'kpi-stand-in',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -161,6 +162,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-team-share-assigned': 'Nhóm được giao chỉ tiêu',
   'contract-terminated': 'Hợp đồng đã chấm dứt',
   'contract-collector-changed': 'Đã đổi người thu tiền hợp đồng',
+  'kpi-stand-in': 'Bạn đang làm thay việc KPI của người khác',
 }
 
 /** The filter chips on the bell screen. */
@@ -256,6 +258,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-team-share-assigned': 'kpi',
   'contract-terminated': 'contract',
   'contract-collector-changed': 'contract',
+  'kpi-stand-in': 'kpi',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -327,6 +330,8 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-team-share-assigned': { important: true, locked: false },
   'contract-terminated': { important: false, locked: false },
   'contract-collector-changed': { important: true, locked: false },
+  /* ADR 0117 default 3: work now waits on someone who did not ask for it. */
+  'kpi-stand-in': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -439,6 +444,9 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-team-share-assigned': ['kpi-team'],
     'contract-terminated': ['contract'],
     'contract-collector-changed': ['contract'],
+    /* The seat's own waiting list: a team page for a lead's stand-in (who may hold
+       only `kpi.view`), the allocations screen for a target setter's. */
+    'kpi-stand-in': ['kpi-team', 'kpi-allocation'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
@@ -461,6 +469,8 @@ export const NOTIFICATION_DETAIL_TITLE = 'title'
 /** Code of the lead or opportunity a `comm-record-late` line is about; the
  *  line's own subject is the record. */
 export const NOTIFICATION_DETAIL_OBJECT = 'object'
+/** Name of the person a `kpi-stand-in` line stands in for; `count` is what waits. */
+export const NOTIFICATION_DETAIL_FOR = 'for'
 
 /** `detail` holds small display facts only (a count, a reason sentence), so
  *  its values are flat strings or numbers; anything bigger belongs on the
@@ -492,9 +502,15 @@ export function notificationSentence(
     const v = row.detail?.[key]
     return typeof v === 'number' ? v : 0
   }
+  const num = (v: number) => v.toLocaleString('vi-VN')
+  const standsFor = row.detail?.[NOTIFICATION_DETAIL_FOR]
+  if (row.kind === 'kpi-stand-in' && typeof standsFor === 'string') {
+    const waiting = n(NOTIFICATION_DETAIL_COUNT)
+    const tail = waiting > 0 ? ` · ${num(waiting)} mục đang chờ` : ''
+    return `Bạn đang làm thay việc KPI của ${standsFor}${tail}`
+  }
   const name = row.subject.label
   if (!name) return null
-  const num = (v: number) => v.toLocaleString('vi-VN')
   if (row.kind === 'lead-received' && row.detail?.[NOTIFICATION_DETAIL_STEPS] !== undefined) {
     const parts = [
       [n(NOTIFICATION_DETAIL_COUNT), 'lead'],

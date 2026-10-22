@@ -13,6 +13,7 @@ import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { stepPick } from './home-model'
 import type { Recipient } from './kpi-allocate-table'
 import { monthEnded, monthPick } from './kpi-model'
+import { counterActors } from './kpi-team-model'
 
 /** What the month's targets screen works out before it draws: what waits on
  *  the reader, a role's holders, and which step an address lands on. No
@@ -89,12 +90,18 @@ export function queueOf(
   return [...targets, ...sent, ...returned, ...open].sort((a, b) => a.at.localeCompare(b.at))
 }
 
-/** A team counter is the lead's to answer, on the team page; the head takes the
- *  room's, a lead's own, a locked lead's, and one whose team has no lead in the
- *  month's roster (the roster drops such a team), as the bell does. */
-export function waitsOnHead(c: KpiCounter, teams: readonly KpiTeam[]): boolean {
+/** Whether a counter is on this target setter's list, as the server decides (ADR 0117):
+ *  a room counter, the roster lead's own, or one whose team the roster dropped, is
+ *  the setters'; any other team counter goes to `counterActors`, else the setters. */
+export function waitsOnHead(
+  c: KpiCounter,
+  teams: readonly KpiTeam[],
+  me: string | undefined,
+): boolean {
   const team = c.team ? teams.find((t) => t.id === c.team?.id) : undefined
-  return team === undefined || team.leadLocked || team.lead.actorId === c.actorId
+  if (team === undefined) return true
+  const acting = counterActors(team, c.actorId)
+  return acting.length === 0 || (me !== undefined && acting.includes(me))
 }
 
 /** The month a head closes from the targets screen: the picked one once it is
@@ -126,7 +133,7 @@ export function waitingOf(input: {
   closingClose: KpiMonthClose | undefined
 }): Waiting {
   const { catalog, targets, packages, counters, teams, me, canSet } = input
-  const forHead = counters.filter((c) => waitsOnHead(c, teams))
+  const forHead = counters.filter((c) => waitsOnHead(c, teams, me))
   return {
     items: canSet && !targets.closed ? queueOf(catalog, targets.roles, packages, me, forHead) : [],
     reasons: input.reasons.filter((r) => me === undefined || r.writtenBy.id !== me),

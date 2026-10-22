@@ -1,4 +1,4 @@
-import type { KpiTeam, KpiTeamMember } from '@pv/contracts'
+import type { KpiTargetActor, KpiTeam, KpiTeamMember } from '@pv/contracts'
 import type { ActorFace, RosterEntry, RosterFace } from './kpi-team.repository'
 
 /** Roster rows → the team as the wire prints it. One copy, so the roster
@@ -11,10 +11,12 @@ export const memberOf = (a: ActorFace, lead: boolean): KpiTeamMember => ({
   lead,
 })
 
-/** Rows of a roster grouped by team, the lead first and the rest by name. */
+/** Rows of a roster grouped by team, the lead first and the rest by name;
+ *  `acting` is `KpiSeatService.actingFor`'s answer. */
 export function teamsOf(
   entries: readonly RosterEntry[],
   faces: Map<string, RosterFace>,
+  acting: ReadonlyMap<string, KpiTargetActor[]>,
 ): KpiTeam[] {
   const byTeam = new Map<string, { name: string; members: KpiTeamMember[] }>()
   for (const e of entries) {
@@ -33,7 +35,7 @@ export function teamsOf(
         id,
         name,
         lead: { actorId: lead.actorId, name: lead.name },
-        leadLocked: faces.get(lead.actorId)?.locked ?? false,
+        actingFor: acting.get(id) ?? [],
         members,
       })
   }
