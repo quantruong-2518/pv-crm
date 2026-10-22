@@ -10,6 +10,7 @@ import { KpiAllocationRepository, type KpiAgreedLine } from './kpi-allocation.re
 import { KpiCloseRepository } from './kpi-close.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { KpiForecastService } from './kpi-forecast.service'
+import { KpiReconcileService } from './kpi-reconcile.service'
 import { monthClock, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 
@@ -50,6 +51,7 @@ export class KpiAlertSweeper {
     private readonly alerts: KpiAlertService,
     private readonly closes: KpiCloseRepository,
     private readonly targets: KpiTargetsRepository,
+    private readonly reconcile: KpiReconcileService,
   ) {}
 
   /** Called on every worker tick. `null` = this tick was not a pass. The clock
@@ -68,12 +70,27 @@ export class KpiAlertSweeper {
           this.log.error(`KPI close reminder failed: ${String(error)}`),
         )
       }
-      const rung = await this.ring(month)
+      /* Closed months reconcile on this daily pass too (ADR 0115 §2), whatever the
+         alerts did; an alert failure is still thrown to the worker's log after. */
+      const [alerts] = await Promise.allSettled([this.ring(month)])
+      await this.reconcileClosed()
+      if (alerts.status === 'rejected') throw alerts.reason
       /* Announced, not written: the hub drops a failed or duplicate line silently. */
-      if (rung > 0) this.log.log(`Announced ${rung} KPI forecast alerts to the bell.`)
-      return rung
+      if (alerts.value > 0)
+        this.log.log(`Announced ${alerts.value} KPI forecast alerts to the bell.`)
+      return alerts.value
     } finally {
       this.running = false
+    }
+  }
+
+  /** Its own catch: a failed reconcile waits for tomorrow's pass, alone. */
+  private async reconcileClosed(): Promise<void> {
+    try {
+      const adjusted = await this.reconcile.run()
+      if (adjusted > 0) this.log.log(`Wrote ${adjusted} KPI adjustments from closed months.`)
+    } catch (error: unknown) {
+      this.log.error(`KPI reconcile failed: ${String(error)}`)
     }
   }
 

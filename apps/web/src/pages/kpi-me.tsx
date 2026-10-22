@@ -14,7 +14,7 @@ import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/da
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
-import { ContributionsPanel } from './kpi-contributions'
+import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { DESCRIPTION, acknowledgementOf, needsAcknowledgement, useMonthParam } from './kpi-model'
 import {
   ForecastFlags,
@@ -185,6 +185,9 @@ export function KpiMePage() {
               <>
                 {data.closed && (
                   <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
+                )}
+                {actorId && data.scorecards.length > 0 && (
+                  <FrozenNote period={data.period} actorId={actorId} />
                 )}
                 {allocations.error && (
                   <SideFailure what="chỉ tiêu được giao" retry={() => void allocations.refetch()} />

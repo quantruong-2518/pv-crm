@@ -57,7 +57,12 @@ nhóm → chỉ trưởng nhóm nhận; ngày 1 → `kpi-month-unclosed` đúng 
 ngoài nhóm bị 403; trên Neon CHECK có đủ kind của origin (không rơi `contract-terminated`).
 `leadLocked` để sang Đợt 1c (người tạm thay giải luôn).
 
-### Đợt 1 · Khoá dữ liệu — không cần Q nào; cần duyệt 2 ngưỡng đột biến (5× trung bình · 40% trong 3 ngày cuối)
+### Đợt 1 · Khoá dữ liệu
+
+**Đã chốt 22/10 (người dùng):** 1a cho ghi ngày thật, tự sinh điều chỉnh (ADR 0115, migration 0136); 1b ngưỡng 5× · 40%;
+1c người vắng tự khai khoảng ngày + người thay, GĐ/TP khai thay được, không khai thì về người giữ `kpi.set-target`;
+phạm vi chỉ việc chờ KPI (E3 để sau). Trạng thái: Đợt 0 commit 82662d2 (chờ migrate 0133); 1d commit 0799042
+(ADR 0114, migration 0135 — chỉ lên Neon SAU 0134 của phiên cây chính).
 
 | Lát | Việc                                                                                                                                                                                   | Nghiệm thu chính                                                                                                                                                                                                                               | Sync       |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |

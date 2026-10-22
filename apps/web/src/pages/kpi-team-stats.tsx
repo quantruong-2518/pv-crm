@@ -13,7 +13,7 @@ import { ROLE_LABEL } from '@/data/users'
 import { NOTE } from './home-tiles'
 import { NAME_LINK } from './kpi-company-forecast'
 import { DASH, acknowledgementOf, personHref, printCell, roleGroups } from './kpi-model'
-import { VerdictBadge } from './kpi-parts'
+import { AdjustmentNote, VerdictBadge } from './kpi-parts'
 
 /** The team's figures and its members' scorecards (ADR 0101 D5, rule 8).
  *
@@ -94,6 +94,7 @@ function memberCell(
   return (
     <span key={def.key} className={TWO_LINES}>
       <span className={cn(FIGURE, 'font-semibold')}>{printCell(def.unit, reading.value)}</span>
+      <AdjustmentNote unit={def.unit} reading={reading} form="cell" />
       <VerdictBadge verdict={reading.verdict} />
     </span>
   )

@@ -1,10 +1,13 @@
 import { useSearchParams } from 'react-router-dom'
-import { billions, millions, vnd } from '@pv/ui'
+import { PlusMinus, billions, millions, vnd } from '@pv/ui'
 import {
   KPI_VERDICT_LABEL,
   KpiLayer,
   KpiPeriodKey,
   RoleId,
+  type KpiAdjustmentCause,
+  type KpiContribution,
+  type KpiContributionKind,
   type KpiMetricDef,
   type KpiPerson,
   type KpiReading,
@@ -83,8 +86,9 @@ export function monthText(period: string, today = new Date()): string {
     : `${month}/${period.slice(0, 4)}`
 }
 
-/** Under a closed month's contributions and weekly series: they stay live data. */
-export const FROZEN_NOTE = 'Số theo dữ liệu hiện tại, có thể khác số đã chốt.'
+/** Once per screen on a closed month whose lists and weekly series read the copy
+ *  frozen at close; later changes land in the running month (ADR 0115). */
+export const FROZEN_NOTE = 'Theo số lúc chốt. Thay đổi sau đó tính vào tháng đang chạy.'
 
 /** Day of month over days in month, for the running month only: in any other
  *  month today is not inside it, so the line is left out. */
@@ -142,7 +146,7 @@ const BILLION = 1_000_000_000
 export function printValue(unit: KpiUnit, value: number, compact = false): string {
   if (unit === 'money') {
     if (!compact) return vnd(value)
-    return value >= BILLION ? billions(value, 1) : millions(value)
+    return Math.abs(value) >= BILLION ? billions(value, 1) : millions(value)
   }
   if (unit === 'ratio') return `${num(value * 100)}%`
   if (unit === 'hours') return `${oneDecimal(value)} giờ`
@@ -162,6 +166,64 @@ export const printCell = (unit: KpiUnit, value: number | null) =>
 /** A table cell short enough to sit beside a second figure, value over target. */
 export const printShort = (unit: KpiUnit, value: number | null) =>
   value === null ? DASH : printValue(unit, value, true)
+
+// ---------------------------------------------------------------------------
+// ADJUSTMENTS — a closed month's later changes, carried into the open one (ADR 0115)
+// ---------------------------------------------------------------------------
+
+/** One glyph for every adjustment, on a figure or a row, always beside words. */
+export const ADJUSTMENT_ICON = PlusMinus
+
+/** A delta always carries its sign; the minus is U+2212, the width of the plus. */
+export function printSigned(unit: KpiUnit, value: number, compact = false): string {
+  const sign = value > 0 ? '+' : value < 0 ? '\u2212' : ''
+  return `${sign}${printValue(unit, Math.abs(value), compact)}`
+}
+
+/** How the line prints: `tile` and `cell` differ in number format only (a table
+ *  prints every dong, as its figure does); `heat` is the short form for a narrow cell. */
+export type AdjustmentForm = 'tile' | 'cell' | 'heat'
+
+/** The line under a figure: what the running month took from closed months, or
+ *  what a closed month reads after its own adjustments. Null when neither applies. */
+export function adjustmentLine(
+  unit: KpiUnit,
+  { adjustedBy, afterAdjustments }: Pick<KpiReading, 'adjustedBy' | 'afterAdjustments'>,
+  form: AdjustmentForm,
+): string | null {
+  const compact = form !== 'cell'
+  if (afterAdjustments !== null) {
+    return `Sau điều chỉnh: ${printValue(unit, afterAdjustments, compact)}`
+  }
+  if (adjustedBy === null) return null
+  const signed = printSigned(unit, adjustedBy, compact)
+  return form === 'heat' ? `Điều chỉnh ${signed}` : `Gồm điều chỉnh ${signed} từ tháng đã chốt`
+}
+
+/* A meeting row's code cell already names the kind, so its sentence starts at the cause. */
+const KIND_WORD: Record<KpiContributionKind, string | null> = {
+  lead: 'Lead',
+  opportunity: 'Cơ hội',
+  contract: 'Hợp đồng',
+  installment: 'Đợt thanh toán',
+  meeting: null,
+}
+
+const CAUSE_WORDS: Record<KpiAdjustmentCause, string> = {
+  appeared: 'thêm vào',
+  vanished: 'bị loại khỏi',
+  changed: 'đổi giá trị ở',
+}
+
+/** What happened to an adjustment row's record: its kind, the cause, the source month. */
+export function adjustmentSentence(
+  kind: KpiContributionKind,
+  { cause, sourcePeriod }: NonNullable<KpiContribution['adjustment']>,
+): string {
+  const what = `${CAUSE_WORDS[cause]} tháng ${monthText(sourcePeriod)}`
+  const head = KIND_WORD[kind]
+  return head === null ? what.charAt(0).toUpperCase() + what.slice(1) : `${head} ${what}`
+}
 
 /** The figure as a share of its target, unclamped, for "% done". Null for a
  *  lower-is-better metric (a share of a ceiling is not progress) and for a

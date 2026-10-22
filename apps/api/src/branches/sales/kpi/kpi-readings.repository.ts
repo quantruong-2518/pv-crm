@@ -14,7 +14,7 @@ import { contractTerminated, dealLost, dealTerminated, dealWon } from '../open-d
 import type { PeriodSpan } from '../performance/performance-period'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
-import { cumulativeByEnd } from './kpi-weekly.sql'
+import { adjustedByEnd, cumulativeByEnd } from './kpi-weekly.sql'
 
 /** Every KPI figure, computed on read from the books' own tables, except a
  *  closed month's, which `monthValues` reads from its frozen copy (ADR 0100).
@@ -312,6 +312,25 @@ export const valueKey = (seat: KpiSeat, actorId: string): string =>
 /** Seats with one key read one series: the unit a read deduplicates on. */
 export const seriesKey = (seat: KpiSeat): string => `${seriesOf(seat)}|${seat.def.scope}`
 
+/** THE one answer to "does a closed month's change to this series become an
+ *  adjustment" (ADR 0115 §3), read off the seat's own fold: a count or a sum
+ *  splits record by record, a share or a median does not. The snapshot is out
+ *  because its frozen figure is an as-of reading, not a sum of the month. */
+export function additiveMeasure(seat: KpiSeat): 'count' | 'sum' | null {
+  if (seat.def.snapshot) return null
+  const { total } = metricSql(seat)
+  return total === COUNT ? 'count' : total === SUM ? 'sum' : null
+}
+
+/** A seat's basis as its month's close froze it, in the live basis's shape.
+ *  `value` stays numeric, so a sum folds exactly and is cast once after. */
+export const frozenBasis =
+  (period: string, seat: KpiSeat): Basis =>
+  (only) => sql`
+    SELECT fb.actor_id, fb.kind, fb.code, fb.at, fb.value, fb.tag
+    FROM sales.kpi_month_basis fb
+    WHERE fb.period = ${period} AND fb.series = ${seriesKey(seat)}${only(sql`fb.actor_id`)}`
+
 /** The basis and total of a seat. A metric added to the catalog without a
  *  definition is a bug to hear about, not a figure to print as zero. */
 export function metricSql(seat: KpiSeat): KpiMetricSql {
@@ -352,8 +371,28 @@ export const spanned = (span: PeriodSpan, body: SQL): SQL => sql`
 
 export type KpiValues = ReadonlyMap<string, number | null>
 
+/** Σ adjustment delta per `valueKey`: `applied` landed in the month, `sourced`
+ *  came out of it (only a closed month has those). */
+export type KpiAdjustmentSums = {
+  applied: ReadonlyMap<string, number>
+  sourced: ReadonlyMap<string, number>
+}
+
 /** What a caller already read, so `monthValues` need not read it again. */
-export type KpiKnown = { closed?: boolean; people?: readonly { id: string }[] }
+export type KpiKnown = {
+  closed?: boolean
+  people?: readonly { id: string }[]
+  adjustments?: KpiAdjustmentSums
+}
+
+/** `values` plus what adjustments landed in the month: a tally absent from
+ *  `values` is a zero (`toReadings`' rule), so a delta alone is the figure. */
+const plusApplied = (values: KpiValues, applied: ReadonlyMap<string, number>): KpiValues => {
+  if (applied.size === 0) return values
+  const sum = new Map(values)
+  for (const [key, delta] of applied) sum.set(key, (sum.get(key) ?? 0) + delta)
+  return sum
+}
 
 export type KpiPerson = Pick<typeof actor.$inferSelect, 'id' | 'name' | 'roleIds'>
 
@@ -365,12 +404,19 @@ export class KpiReadingsRepository {
   constructor(@Inject(DB) private readonly db: Db) {}
 
   /** The figures behind `defs` for one month, in one statement. An actor with
-   *  no row is absent from the map — what absence means is the mapper's call. */
-  async values(seats: readonly KpiSeat[], span: PeriodSpan, actors?: Actors): Promise<KpiValues> {
+   *  no row is absent from the map — what absence means is the mapper's call.
+   *  `frozen` folds the month's frozen basis instead of the books. */
+  async values(
+    seats: readonly KpiSeat[],
+    span: PeriodSpan,
+    actors?: Actors,
+    { frozen = false, handle = this.db }: { frozen?: boolean; handle?: Db } = {},
+  ): Promise<KpiValues> {
     const only = onlyFor(actors)
     const wanted = new Map(seats.map((s) => [seriesKey(s), s]))
     const parts = [...wanted.values()].map((s) => {
-      const { basis, total } = metricSql(s)
+      const { basis: live, total } = metricSql(s)
+      const basis = frozen ? frozenBasis(span.key, s) : live
       const fold =
         s.def.scope === 'own'
           ? sql`SELECT b.actor_id, ${total} AS value FROM (${basis(only)}) b GROUP BY 1`
@@ -381,7 +427,7 @@ export class KpiReadingsRepository {
     })
     if (parts.length === 0) return new Map()
 
-    const r = (await this.db.execute(spanned(span, sql.join(parts, sql` UNION ALL `)))) as {
+    const r = (await handle.execute(spanned(span, sql.join(parts, sql` UNION ALL `)))) as {
       rows: { series: string; scope: KpiScope; actor_id: string | null; value: number | null }[]
     }
 
@@ -390,27 +436,100 @@ export class KpiReadingsRepository {
     )
   }
 
+  /** What a close freezes, inside its transaction: the basis it has just
+   *  stored, folded, plus what adjustments landed in the month while it ran —
+   *  so the frozen card is exactly what its frozen list adds up to. */
+  async closingValues(tx: Db, seats: readonly KpiSeat[], span: PeriodSpan): Promise<KpiValues> {
+    const values = await this.values(seats, span, undefined, { frozen: true, handle: tx })
+    return plusApplied(values, (await this.adjustments(seats, span.key, undefined, tx)).applied)
+  }
+
+  /** Σ adjustments landed in or sourced from `period`, per `valueKey`. A room
+   *  series' rows carry no actor, so they pass any actor filter. */
+  async adjustments(
+    seats: readonly KpiSeat[],
+    period: string,
+    actors?: Actors,
+    handle: Db = this.db,
+  ): Promise<KpiAdjustmentSums> {
+    const series = [...new Set(seats.map(seriesKey))]
+    if (series.length === 0) return { applied: new Map(), sourced: new Map() }
+    const r = (await handle.execute(sql`
+      SELECT a.series, a.actor_id,
+             COALESCE(sum(a.delta) FILTER (WHERE a.applied_period = ${period}), 0)::float8 AS applied,
+             COALESCE(sum(a.delta) FILTER (WHERE a.source_period = ${period}), 0)::float8 AS sourced,
+             count(*) FILTER (WHERE a.applied_period = ${period})::int AS applied_n,
+             count(*) FILTER (WHERE a.source_period = ${period})::int AS sourced_n
+      FROM sales.kpi_adjustment a
+      WHERE (a.applied_period = ${period} OR a.source_period = ${period})
+        AND a.series IN (${sql.join(
+          series.map((s) => sql`${s}`),
+          sql`, `,
+        )})
+        AND (a.actor_id IS NULL OR (true${onlyFor(actors)(sql`a.actor_id`)}))
+      GROUP BY 1, 2`)) as {
+      rows: {
+        series: string
+        actor_id: string | null
+        applied: number
+        sourced: number
+        applied_n: number
+        sourced_n: number
+      }[]
+    }
+    const applied = new Map<string, number>()
+    const sourced = new Map<string, number>()
+    for (const row of r.rows) {
+      const key = `${row.series}|${row.actor_id ?? ''}`
+      if (row.applied_n > 0) applied.set(key, row.applied)
+      if (row.sourced_n > 0) sourced.set(key, row.sourced)
+    }
+    return { applied, sourced }
+  }
+
+  /** Whether `period`'s close froze its basis — even an empty one. A month
+   *  closed before 0136 did not, and its lists keep reading the books
+   *  (ADR 0115, default 1). */
+  async basisFrozen(period: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ frozen: kpiMonthClose.basisFrozen })
+      .from(kpiMonthClose)
+      .where(eq(kpiMonthClose.period, period))
+    return row?.frozen === true
+  }
+
   /** The month-to-date figure of one cumulative seat at each Vietnam-day end in
-   *  `ends` (the weekly chart), in one statement. An end with no row is absent. */
+   *  `ends` (the weekly chart), plus the adjustments landed in the month by then,
+   *  as the card adds them. An end with no row is absent. `frozen` reads the
+   *  month's frozen basis, as a closed month's list does. */
   async cumulativeAt(
     seat: KpiSeat,
     span: PeriodSpan,
     ends: readonly string[],
     actors?: Actors,
+    frozen = false,
   ): Promise<ReadonlyMap<string, number | null>> {
     if (!isCumulative(seat.def)) throw new Error(`kpi: ${seat.def.key} has no running total`)
     if (ends.length === 0) return new Map()
-    const body = cumulativeByEnd(metricSql(seat), onlyFor(actors), ends)
-    const r = (await this.db.execute(spanned(span, body))) as {
-      rows: { day: string; value: number | null }[]
-    }
-    return new Map(r.rows.map((row) => [row.day, row.value]))
+    const metric = metricSql(seat)
+    const basis = frozen ? frozenBasis(span.key, seat) : metric.basis
+    const only = onlyFor(actors)
+    const body = cumulativeByEnd({ basis, total: metric.total }, only, ends)
+    type Rows = { rows: { day: string; value: number | null }[] }
+    const [r, adjusted] = (await Promise.all([
+      this.db.execute(spanned(span, body)),
+      this.db.execute(adjustedByEnd(span.key, seriesKey(seat), only, ends)),
+    ])) as [Rows, Rows]
+    const totals = new Map(r.rows.map((row) => [row.day, row.value]))
+    for (const row of adjusted.rows)
+      totals.set(row.day, (totals.get(row.day) ?? 0) + (row.value ?? 0))
+    return totals
   }
 
   /** `values`, except that a closed month answers from its frozen copy, which
    *  is why every reader of a month's cards uses this one. A seat with no
    *  stored row reads null (no-data), never the zero a live tally defaults to.
-   *  The weekly series and the close itself call `values`: they need live data. */
+   *  A month still open adds the adjustments that landed in it (ADR 0115 §4). */
   async monthValues(
     seats: readonly KpiSeat[],
     span: PeriodSpan,
@@ -426,7 +545,13 @@ export class KpiReadingsRepository {
           .from(kpiMonthClose)
           .where(eq(kpiMonthClose.period, span.key))
       ).length > 0
-    if (!closed) return this.values(seats, span, actors)
+    if (!closed) {
+      const [values, sums] = await Promise.all([
+        this.values(seats, span, actors),
+        known.adjustments ?? this.adjustments(seats, span.key, actors),
+      ])
+      return plusApplied(values, sums.applied)
+    }
 
     const ids = idsOf(actors)
     const rows = await this.db

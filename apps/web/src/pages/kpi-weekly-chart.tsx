@@ -9,7 +9,7 @@ import {
 import { kpiWeeklyQuery } from '@/data/kpi-personal'
 import { dm } from '@/lib/date'
 import { GROW_HEIGHT, NEUTRAL_MARK, NOTE, TILE, TileHead } from './home-tiles'
-import { FROZEN_NOTE, printTile } from './kpi-model'
+import { printTile } from './kpi-model'
 import { QueryBlock } from './kpi-parts'
 
 /** The primary metric's running total, one column per week of the month,
@@ -35,10 +35,12 @@ function lastDayOf(weekStart: string, period: string): string {
   return sunday < monthEnd ? sunday : monthEnd
 }
 
-const share = (value: number, top: number) => `${Math.min(value / top, 1) * 100}%`
+/* A total can fall below zero once a closed month's record is taken back (ADR 0115):
+   the column then draws empty, its printed figure says the rest. */
+const share = (value: number, top: number) => `${Math.min(Math.max(value / top, 0), 1) * 100}%`
 
 const gapOf = ({ cumulative, expected }: KpiWeeklyPoint) =>
-  cumulative === null || expected === null ? 0 : Math.max(expected - cumulative, 0)
+  cumulative === null || expected === null ? 0 : Math.max(expected - Math.max(cumulative, 0), 0)
 
 function Swatch({ className, label }: { className: string; label: string }) {
   return (
@@ -144,7 +146,7 @@ export function WeeklyChart({
 
   return (
     <QueryBlock query={weekly} what="số theo tuần">
-      {({ points, frozen }) => {
+      {({ points }) => {
         const figures = points.flatMap((p) => [p.cumulative ?? 0, p.expected ?? 0])
         const top = Math.max(1, ...figures)
         /* Started weeks are a prefix of the series, so this is the latest one. */
@@ -186,7 +188,6 @@ export function WeeklyChart({
                 </ol>
               </div>
             )}
-            {frozen && <p className={NOTE}>{FROZEN_NOTE}</p>}
           </GlassCard>
         )
       }}

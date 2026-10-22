@@ -16,8 +16,8 @@ import { elapsedOf, phaseOf } from './kpi-verdict'
  *  is what keeps the verdict pure. */
 
 /** Vietnam is UTC+7 all year, so its calendar day is a fixed shift. */
-export const vietnamToday = (): string =>
-  new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
+export const vietnamToday = (at = Date.now()): string =>
+  new Date(at + 7 * 3_600_000).toISOString().slice(0, 10)
 
 const DAY_MS = 86_400_000
 const VIETNAM_MS = 7 * 3_600_000

@@ -25,6 +25,8 @@ import { KpiForecastService } from './kpi-forecast.service'
 import { KpiHistoryController } from './kpi-history.controller'
 import { KpiHistoryService } from './kpi-history.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
+import { KpiReconcileRepository } from './kpi-reconcile.repository'
+import { KpiReconcileService } from './kpi-reconcile.service'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamController } from './kpi-team.controller'
@@ -46,7 +48,8 @@ import { KpiTeamViewService } from './kpi-team-view.service'
  *  config gate the metric overlay and alert pair are proposed through
  *  (ADR 0099 §2). `NotificationModule` for the bell: target proposals and
  *  agreements (ADR 0093) and the KPI kinds (ADR 0099 §4).
- *  `exports` is empty. */
+ *  `exports` names the reconcile pass (ADR 0115): callable from an application
+ *  context (acceptance runs call it). */
 @Module({
   imports: [AuditModule, EnginesModule, SettingModule, SalesConfigModule, NotificationModule],
   controllers: [
@@ -80,6 +83,9 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiTeamRepository,
     KpiTeamService,
     KpiTeamViewService,
+    KpiReconcileRepository,
+    KpiReconcileService,
   ],
+  exports: [KpiReconcileService],
 })
 export class KpiModule {}

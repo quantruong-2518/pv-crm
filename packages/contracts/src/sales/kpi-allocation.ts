@@ -222,8 +222,9 @@ export const KpiCounterListResponse = z.object({
   counters: z.array(KpiCounter),
 })
 
-/** `projected` = value ÷ share of the month's Vietnam days elapsed (the same
- *  share the pace verdict uses), so a closed month projects its own value.
+/** `projected` = the live part ÷ share of the month's Vietnam days elapsed (the
+ *  same share the pace verdict uses) + adjustments from closed months, unscaled
+ *  (ADR 0115); a closed month projects its own value. Both can be negative.
  *  `null` for an unpaced metric, a missing value, a missing target for the
  *  ratio, or before day one. `flag` is `slip` when `projectedRatio` is under
  *  `slipRatio`, `hit` when the figure already reached `hitRatio` of target
@@ -234,7 +235,7 @@ export const KpiForecast = KpiTargetActor.extend({
   value: z.number().nullable(),
   target: amount.nullable(),
   projected: z.number().nullable(),
-  projectedRatio: z.number().nonnegative().nullable(),
+  projectedRatio: z.number().nullable(),
   flag: z.enum(['slip', 'hit']).nullable(),
 })
 
@@ -256,8 +257,8 @@ export const KpiWeeklyPoint = z.object({
 
 export const KpiWeeklyResponse = z.object({
   period: KpiPeriodKey,
-  /** `true` for a closed month: the series is still live data and may differ
-   *  from the frozen figure. */
+  /** `true` when the month is closed and the series is read from its frozen basis (ADR 0115);
+   *  a month closed before that basis existed reads live data and says `false`. */
   frozen: z.boolean(),
   role: RoleId,
   metricKey: KpiMetricKey,

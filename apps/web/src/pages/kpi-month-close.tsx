@@ -82,7 +82,7 @@ function CloseDialog({
     >
       <div className="flex flex-col gap-3">
         <p className="m-0 text-[13px] leading-[1.6]">
-          Sau khi chốt, số liệu tháng này không đổi nữa.
+          Sau khi chốt, số liệu tháng này không đổi nữa. Thay đổi sau đó tính vào tháng đang chạy.
         </p>
         {checking && <Skeleton className="h-10 w-full" />}
         {waiting.error && <p className={ALERT}>Không tải được lý do quá hạn chờ duyệt.</p>}

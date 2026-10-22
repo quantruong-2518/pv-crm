@@ -7,7 +7,12 @@ import {
   type KpiScorecard,
 } from '@pv/contracts'
 import type { KpiCatalog } from './kpi-config.overlay'
-import { valueKey, type KpiSeat, type KpiValues } from './kpi-readings.repository'
+import {
+  valueKey,
+  type KpiAdjustmentSums,
+  type KpiSeat,
+  type KpiValues,
+} from './kpi-readings.repository'
 import type { KpiTargetRow } from './kpi-targets.repository'
 import { expectedOf, verdictOf } from './kpi-verdict'
 
@@ -86,6 +91,9 @@ export type ScoreContext = {
   running: boolean
   /** Ratio 0–0.99 of the pace a figure may fall short of and still be on track. */
   tolerance: number
+  /** Only the doors that print `adjustedBy`/`afterAdjustments` read them; `values`
+   *  already carries the applied sums (`monthValues`). */
+  adjustments?: KpiAdjustmentSums
 }
 
 /** A tally nobody appears in is a real zero; a ratio or a median over nothing
@@ -111,6 +119,9 @@ export function toReadings(
     const agreed = agreedIn(ctx.slots, role, def.key)
     const value = valueOf({ role, def }, actorId, ctx)
     const target = agreed ? Number(agreed.value) : null
+    /* Only additive series have adjustment rows, so an absent sum is "not adjusted". */
+    const key = valueKey({ role, def }, actorId)
+    const sourced = ctx.adjustments?.sourced.get(key)
     return {
       key: def.key,
       value,
@@ -119,6 +130,8 @@ export function toReadings(
       targetAck: own.find((l) => l.metricKey === def.key)?.ackState ?? null,
       expected: expectedOf(target, def, ctx.elapsed),
       verdict: verdictOf(value, target, def, ctx.elapsed, ctx.tolerance),
+      adjustedBy: ctx.adjustments?.applied.get(key) ?? null,
+      afterAdjustments: sourced === undefined || value === null ? null : value + sourced,
     }
   })
 }

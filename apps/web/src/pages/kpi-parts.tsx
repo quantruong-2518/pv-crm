@@ -18,6 +18,7 @@ import {
   KPI_METRIC_LABEL,
   KPI_VERDICT_LABEL,
   type KpiReading,
+  type KpiUnit,
   type KpiVerdict,
   type RoleId,
 } from '@pv/contracts'
@@ -28,6 +29,8 @@ import { ACK_LABEL } from './kpi-allocate-model'
 import { GROW_WIDTH } from '@/components/period-picker-style'
 import { NOTE, TILE } from './home-tiles'
 import {
+  ADJUSTMENT_ICON,
+  adjustmentLine,
   boardOf,
   BAR_FILL,
   itemsOf,
@@ -36,6 +39,7 @@ import {
   printValue,
   shortfallOf,
   stepMonth,
+  type AdjustmentForm,
   type KpiItem,
 } from './kpi-model'
 
@@ -151,6 +155,27 @@ export function ByDefaultMark({
   )
 }
 
+/** Under a figure that adjustments touched (ADR 0115): one short line, icon
+ *  plus words; the icon stays on the first line when the words wrap. */
+export function AdjustmentNote({
+  unit,
+  reading,
+  form = 'tile',
+}: {
+  unit: KpiUnit
+  reading: Pick<KpiReading, 'adjustedBy' | 'afterAdjustments'>
+  form?: AdjustmentForm
+}) {
+  const line = adjustmentLine(unit, reading, form)
+  if (line === null) return null
+  return (
+    <span className={cn(NOTE, 'tnum font-num inline-flex items-start gap-1')}>
+      <Icon icon={ADJUSTMENT_ICON} size={14} className="shrink-0" />
+      {line}
+    </span>
+  )
+}
+
 const FIGURE = 'tnum font-num font-semibold leading-none'
 
 export function ReadingTile({
@@ -190,6 +215,7 @@ export function ReadingTile({
         >
           {printTile(def.unit, reading.value)}
         </span>
+        <AdjustmentNote unit={def.unit} reading={reading} />
         <PaceBar item={item} />
         {(target || def.snapshot) && (
           <span className={cn(NOTE, 'tnum font-num')}>
@@ -277,6 +303,7 @@ function StripTile({ item }: { item: KpiItem }) {
           </span>
         )}
       </p>
+      <AdjustmentNote unit={def.unit} reading={reading} />
       <PaceBar item={item} />
       {note && <span className={cn(NOTE, 'tnum font-num')}>{note}</span>}
     </GlassCard>

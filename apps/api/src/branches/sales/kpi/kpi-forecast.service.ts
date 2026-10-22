@@ -50,10 +50,17 @@ const mondayOf = (day: string): string =>
 
 /** `elapsed` is 1 once the month closes, so a closed month projects its own
  *  value; 0 before the month and on its first day, where nothing can be
- *  extrapolated yet. */
-function projectedOf(value: number | null, def: KpiMetricDef, elapsed: number): number | null {
+ *  extrapolated yet. Adjustments from closed months are one-off lumps, not a
+ *  daily rate, so only the live part is scaled (ADR 0115). */
+function projectedOf(
+  value: number | null,
+  adjusted: number | null,
+  def: KpiMetricDef,
+  elapsed: number,
+): number | null {
   if (!def.paced || value === null || elapsed === 0) return null
-  return value / elapsed
+  const lump = adjusted ?? 0
+  return (value - lump) / elapsed + lump
 }
 
 /** Slip reads the forecast, hit reads what is already done: ADR 0098 §6 and
@@ -136,7 +143,8 @@ export class KpiForecastService {
       this.targetOf(period, who.id, role, metricKey),
       this.closes.of(period),
     ])
-    const frozen = close !== null
+    /* A closed month charts its frozen basis, unless it closed before 0136 froze one. */
+    const frozen = close !== null && (await this.readings.basisFrozen(period))
     const weeks = this.weeksOf(from, to).map((weekStart) => ({
       weekStart,
       end: addDays(weekStart, 7) < to ? addDays(weekStart, 7) : to,
@@ -148,6 +156,7 @@ export class KpiForecastService {
       { key: period, from, to },
       weeks.filter((w) => w.started).map((w) => w.end),
       who.id,
+      frozen,
     )
     const points = weeks.map(({ weekStart, end, started }) => ({
       weekStart,
@@ -189,10 +198,14 @@ export class KpiForecastService {
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
     const { from, to } = spansOf(period).current
-    const monthClose = await this.closes.of(period)
+    const [monthClose, adjustments] = await Promise.all([
+      this.closes.of(period),
+      this.readings.adjustments(seats, period, only),
+    ])
     const [values, rows, lines, thresholds] = await Promise.all([
       this.readings.monthValues(seats, { key: period, from, to }, only, {
         closed: monthClose !== null,
+        adjustments,
       }),
       this.targets.ofPeriod(period),
       this.allocations.agreedLines(period, only),
@@ -213,6 +226,7 @@ export class KpiForecastService {
           elapsed,
           running,
           tolerance: 0,
+          adjustments,
         }
         /* `toReadings` is the card's own value and target rule: zero for an
            empty tally, nothing for a snapshot of a month not begun. */
@@ -220,7 +234,7 @@ export class KpiForecastService {
           const def = defs.get(r.key)
           if (!def?.paced) return []
           const target = r.target
-          const projected = projectedOf(r.value, def, elapsed)
+          const projected = projectedOf(r.value, r.adjustedBy, def, elapsed)
           return [
             {
               actorId: h.id,

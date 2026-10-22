@@ -927,10 +927,17 @@
       "breakpoints": true
     },
     {
-      "idx": 134,
+      "idx": 135,
       "version": "7",
       "when": 1794899160000,
       "tag": "0135_kpi_line_acked_by_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1794985560000,
+      "tag": "0136_kpi_month_basis_and_adjustment",
       "breakpoints": true
     }
   ]

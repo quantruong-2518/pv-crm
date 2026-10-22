@@ -43,6 +43,8 @@ export const KpiUnit = z.enum(['count', 'money', 'ratio', 'hours', 'days'])
 export const KpiVerdict = z.enum(['no-data', 'unset', 'met', 'on-track', 'behind', 'missed'])
 /** `own` filters on the actor; `room` is the whole Sales book. */
 export const KpiScope = z.enum(['own', 'room'])
+/** Why a closed month's record moved (ADR 0115 §2): new, gone, or a new value. */
+export const KpiAdjustmentCause = z.enum(['appeared', 'vanished', 'changed'])
 
 export const KpiMetricDef = z.object({
   key: KpiMetricKey,
@@ -66,6 +68,7 @@ export type KpiLayer = z.infer<typeof KpiLayer>
 export type KpiUnit = z.infer<typeof KpiUnit>
 export type KpiVerdict = z.infer<typeof KpiVerdict>
 export type KpiScope = z.infer<typeof KpiScope>
+export type KpiAdjustmentCause = z.infer<typeof KpiAdjustmentCause>
 export type KpiMetricDef = z.infer<typeof KpiMetricDef>
 export type KpiAckStatus = z.infer<typeof KpiAckStatus>
 export type KpiAckState = z.infer<typeof KpiAckState>
@@ -201,6 +204,12 @@ export const KpiReading = z.object({
   /** What pace asks for by today; `null` with no target. */
   expected: z.number().nonnegative().nullable(),
   verdict: KpiVerdict,
+  /** Running month: adjustments from closed months, already inside `value` (ADR 0115).
+   *  `null` when the metric is not adjusted or none applies. */
+  adjustedBy: z.number().nullable(),
+  /** Closed month: frozen `value` plus adjustments sourced from it, shown beside it.
+   *  `null` when the metric is not adjusted or none was written. */
+  afterAdjustments: z.number().nullable(),
 })
 
 export const KpiScorecard = z.object({

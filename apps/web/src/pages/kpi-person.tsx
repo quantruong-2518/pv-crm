@@ -13,7 +13,7 @@ import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { TILE } from './home-tiles'
 import { monthQuery, teamPath } from './kpi-allocate-model'
-import { ContributionsPanel } from './kpi-contributions'
+import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { COMPANY_PATH, ME_PATH, acknowledgementOf, dayOfMonth, useMonthParam } from './kpi-model'
 import { MonthPicker, QueryBlock, Scoreboard } from './kpi-parts'
 import { PersonForecast } from './kpi-person-forecast'
@@ -51,6 +51,7 @@ function PersonBody({
   }
   return (
     <>
+      <FrozenNote period={period} actorId={person.actorId} />
       {person.scorecards.map((card) => (
         <section key={card.role} className="flex flex-col gap-4">
           <SectionTitle

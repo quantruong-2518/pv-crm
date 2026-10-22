@@ -4,6 +4,7 @@ import { RoleId } from '../auth'
 import { SETTING_REGISTRY } from '../setting'
 import {
   KPI_CATALOG,
+  KpiAdjustmentCause,
   KpiMetricDef,
   KpiMetricKey,
   KpiPeriodKey,
@@ -152,6 +153,10 @@ export const KpiContribution = z.object({
   label: z.string().min(1),
   at: Moment.nullable(),
   value: z.number().nullable(),
+  /** A closed month's change; `value` is the signed delta (ADR 0115 §4). In the month it
+   *  applies to it is inside the figure; with `sourcePeriod` = the listed month it is
+   *  only in "after adjustments". */
+  adjustment: z.object({ sourcePeriod: KpiPeriodKey, cause: KpiAdjustmentCause }).nullable(),
 })
 
 /** `truncated`: the list is capped server-side; the figure still counts all. */
@@ -165,7 +170,8 @@ export const KpiPersonContributions = z.object({
 
 export const KpiContributionsResponse = z.object({
   period: KpiPeriodKey,
-  /** `true` for a closed month: the list is today's data, not the frozen figure. */
+  /** `true` when the month is closed and the list is read from its frozen basis (ADR 0115);
+   *  a month closed before that basis existed reads today's data and says `false`. */
   frozen: z.boolean(),
   actorId,
   groups: z.array(KpiPersonContributions),

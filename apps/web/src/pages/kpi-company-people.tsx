@@ -31,7 +31,7 @@ import {
   type PersonRow,
   type RoleGroup,
 } from './kpi-model'
-import { ByDefaultMark, VerdictBadge } from './kpi-parts'
+import { AdjustmentNote, ByDefaultMark, VerdictBadge } from './kpi-parts'
 
 /** The two blocks a `kpi.view-all` holder sees under the role table, both fed
  *  by `GET /sales/kpi/:period/people`: what needs handling, and a heat map of
@@ -190,6 +190,7 @@ function heatCell(def: KpiMetricDef, reading: KpiReading | undefined) {
         {share !== null && `${num(Math.round(share * 100))}% · `}
         {KPI_VERDICT_LABEL[reading.verdict]}
       </span>
+      <AdjustmentNote unit={def.unit} reading={reading} form="heat" />
     </span>
   )
 }

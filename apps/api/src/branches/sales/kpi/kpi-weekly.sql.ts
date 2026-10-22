@@ -22,3 +22,26 @@ export function cumulativeByEnd(metric: KpiMetricSql, only: Only, ends: readonly
     JOIN (VALUES ${days}) e(day) ON b.at < (e.day::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
     GROUP BY e.day`
 }
+
+/** Σ adjustments landed in `period` on `series` by each Vietnam-day end in
+ *  `ends`, dated by when the pass found them — so the chart's last point is
+ *  the card, which counts them too (ADR 0115 §4). A room series' rows carry no
+ *  actor and pass any actor filter. */
+export function adjustedByEnd(
+  period: string,
+  series: string,
+  only: Only,
+  ends: readonly string[],
+): SQL {
+  const days = sql.join(
+    ends.map((d) => sql`(${d}::date)`),
+    sql`, `,
+  )
+  return sql`
+    SELECT e.day::text AS day, sum(a.delta)::float8 AS value
+    FROM sales.kpi_adjustment a
+    JOIN (VALUES ${days}) e(day) ON a.detected_at < (e.day::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')
+    WHERE a.applied_period = ${period} AND a.series = ${series}
+      AND (a.actor_id IS NULL OR (true${only(sql`a.actor_id`)}))
+    GROUP BY e.day`
+}

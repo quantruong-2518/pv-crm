@@ -74,15 +74,19 @@ export class KpiService {
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
     const catalog = await this.config.effectiveCatalog()
     const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
-    const monthClose = await this.closes.of(period)
+    const [monthClose, adjustments] = await Promise.all([
+      this.closes.of(period),
+      this.readings.adjustments(seats, period),
+    ])
     const [values, rows, tolerance] = await Promise.all([
       this.readings.monthValues(seats, spansOf(period).current, undefined, {
         closed: monthClose !== null,
+        adjustments,
       }),
       this.targets.ofPeriod(period),
       this.config.tolerance(),
     ])
-    const ctx = this.context(period, catalog, values, rows, tolerance)
+    const ctx = { ...this.context(period, catalog, values, rows, tolerance), adjustments }
     return KpiCompanyResponse.parse({
       period,
       monthClose,
@@ -246,17 +250,19 @@ export class KpiService {
     const seats = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => catalog[role].map((def) => ({ role, def }))),
     )
+    const adjustments = await this.readings.adjustments(seats, period, only)
     const [values, rows, acks, lines, tolerance] = await Promise.all([
       this.readings.monthValues(seats, spansOf(period).current, only, {
         closed: monthClose !== null,
         people: holders,
+        adjustments,
       }),
       loaded?.targetRows ?? this.targets.ofPeriod(period),
       this.targets.acknowledgements(period),
       this.allocations.agreedLines(period, only),
       loaded?.tolerance ?? this.config.tolerance(),
     ])
-    const base = this.context(period, catalog, values, rows, tolerance)
+    const base = { ...this.context(period, catalog, values, rows, tolerance), adjustments }
     const today = vietnamToday()
     const sources = targetSources(rows, lines)
     const ackAt = new Map(acks.map((a) => [`${a.actorId}|${a.role}`, a.acknowledgedAt]))

@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Accordion, GlassCard, SectionTitle, cn } from '@pv/ui'
+import { Accordion, GlassCard, Icon, SectionTitle, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
+  type KpiContribution,
   type KpiContributionKind,
   type KpiContributionsResponse,
   type KpiMetricDef,
@@ -18,7 +19,14 @@ import { ROLE_LABEL } from '@/data/users'
 import { dmy } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import { DASH, FROZEN_NOTE, printCell } from './kpi-model'
+import {
+  ADJUSTMENT_ICON,
+  adjustmentSentence,
+  DASH,
+  FROZEN_NOTE,
+  printCell,
+  printSigned,
+} from './kpi-model'
 import { QueryBlock } from './kpi-parts'
 
 /** The records each KPI figure of one person counted — shared by the person
@@ -27,7 +35,8 @@ import { QueryBlock } from './kpi-parts'
  *  Grouped by (role, metric) in the effective catalog's order; a group whose
  *  metric is no longer in force is dropped, as on every card. Only the
  *  primary metric opens by default. The heading counts records; the figure
- *  itself is on the card above, and nothing here adds the records up. */
+ *  itself is on the card above, and nothing here adds the records up.
+ *  A row carrying a closed month's change is marked and signed (ADR 0115). */
 
 type Group = { def: KpiMetricDef; group: KpiPersonContributions }
 type RoleBlock = { role: RoleId; groups: Group[] }
@@ -44,8 +53,10 @@ function blocksOf(catalog: KpiCatalog, data: KpiContributionsResponse): RoleBloc
 }
 
 function summaryOf({ group }: Group): string {
-  const n = num(group.items.length)
-  return group.truncated ? `Hơn ${n} bản ghi` : `${n} bản ghi`
+  const adjusted = group.items.filter((i) => i.adjustment !== null).length
+  const n = num(group.items.length - adjusted)
+  const records = group.truncated ? `Hơn ${n} bản ghi` : `${n} bản ghi`
+  return adjusted > 0 ? `${records} · ${num(adjusted)} điều chỉnh` : records
 }
 
 /** Which kinds the reader may open; the route gate would refuse the rest anyway. */
@@ -65,19 +76,29 @@ const VALUE_COLUMN: StackColumn = { header: 'Giá trị', width: 'minmax(0,1fr)'
 
 const FIGURE = 'tnum font-num'
 
-function GroupBody({
-  entry: { def, group },
-  openTo,
-}: {
-  entry: Group
-  /** The open action for a record, or undefined where it opens nothing. */
-  openTo: (kind: KpiContributionKind, code: string) => (() => void) | undefined
-}) {
-  if (group.items.length === 0) {
-    return <p className="py-2 text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số này.</p>
-  }
-  const valued = group.items.some((i) => i.value !== null)
-  const rows: StackRow[] = group.items.map((item, i) => {
+/** What the record says, or for an adjustment the mark and what happened to it. */
+function ContentCell({ item }: { item: KpiContribution }) {
+  if (item.adjustment === null) return <span>{item.label}</span>
+  return (
+    <span className="flex min-w-0 flex-col items-start gap-1">
+      <span className="inline-flex items-center gap-1 font-semibold">
+        <Icon icon={ADJUSTMENT_ICON} size={14} className="shrink-0" />
+        Điều chỉnh
+      </span>
+      <span className={cn(NOTE, FIGURE)}>{adjustmentSentence(item.kind, item.adjustment)}</span>
+    </span>
+  )
+}
+
+type OpenTo = (kind: KpiContributionKind, code: string) => (() => void) | undefined
+
+function rowsOf(
+  items: readonly KpiContribution[],
+  def: KpiMetricDef,
+  valued: boolean,
+  openTo: OpenTo,
+): StackRow[] {
+  return items.map((item, i) => {
     const onOpen = openTo(item.kind, item.code)
     /* A meeting's code is a bare id: it names nothing a reader could look up. */
     const code =
@@ -93,31 +114,63 @@ function GroupBody({
       )
     const cells = [
       code,
-      <span key="label">{item.label}</span>,
+      <ContentCell key="label" item={item} />,
       <span key="at" className={FIGURE}>
         {item.at ? dmy(item.at) : DASH}
       </span>,
     ]
     if (valued) {
       cells.push(
-        <span key="value" className={FIGURE}>
-          {printCell(def.unit, item.value)}
+        <span key="value" className={cn(FIGURE, item.adjustment && 'font-semibold')}>
+          {item.adjustment && item.value !== null
+            ? printSigned(def.unit, item.value)
+            : printCell(def.unit, item.value)}
         </span>,
       )
     }
     return { id: `${item.kind}/${item.code}/${i}`, cells, onOpen }
   })
+}
+
+/** In a closed month, adjustments sourced from it are outside its frozen figure
+ *  (ADR 0115 §4): they sit apart, so the rows above add up to that figure. */
+function GroupBody({
+  entry: { def, group },
+  period,
+  openTo,
+}: {
+  entry: Group
+  period: string
+  /** The open action for a record, or undefined where it opens nothing. */
+  openTo: OpenTo
+}) {
+  if (group.items.length === 0) {
+    return <p className="py-2 text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số này.</p>
+  }
+  const after = group.items.filter((i) => i.adjustment?.sourcePeriod === period)
+  const inside = group.items.filter((i) => i.adjustment?.sourcePeriod !== period)
+  const records = group.items.filter((i) => i.adjustment === null).length
+  const valued = group.items.some((i) => i.value !== null)
+  const table = (items: readonly KpiContribution[]) => (
+    <StackTable
+      from="md"
+      rowHeight="min-h-12 py-2"
+      tableClassName="min-w-md"
+      columns={valued ? [...COLUMNS, VALUE_COLUMN] : COLUMNS}
+      rows={rowsOf(items, def, valued, openTo)}
+    />
+  )
   return (
     <div className="flex flex-col gap-2">
-      <StackTable
-        from="md"
-        rowHeight="min-h-12 py-2"
-        tableClassName="min-w-md"
-        columns={valued ? [...COLUMNS, VALUE_COLUMN] : COLUMNS}
-        rows={rows}
-      />
+      {inside.length > 0 && table(inside)}
       {group.truncated && (
-        <p className={cn(NOTE, FIGURE)}>Chỉ hiện {num(group.items.length)} bản ghi mới nhất.</p>
+        <p className={cn(NOTE, FIGURE)}>Chỉ hiện {num(records)} bản ghi mới nhất.</p>
+      )}
+      {after.length > 0 && (
+        <>
+          <p className="m-0 pt-2 text-[12.5px] font-semibold leading-5">Sau điều chỉnh</p>
+          {table(after)}
+        </>
       )}
     </div>
   )
@@ -125,10 +178,12 @@ function GroupBody({
 
 function Blocks({
   blocks,
+  period,
   openTo,
 }: {
   blocks: RoleBlock[]
-  openTo: (kind: KpiContributionKind, code: string) => (() => void) | undefined
+  period: string
+  openTo: OpenTo
 }) {
   if (blocks.length === 0) {
     return <p className="text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số.</p>
@@ -147,7 +202,7 @@ function Blocks({
                 summary={summaryOf(entry)}
                 defaultOpen={entry.def.primary}
               >
-                <GroupBody entry={entry} openTo={openTo} />
+                <GroupBody entry={entry} period={period} openTo={openTo} />
               </Accordion>
             ))}
           </GlassCard>
@@ -155,6 +210,13 @@ function Blocks({
       ))}
     </div>
   )
+}
+
+/** The frozen-copy note, once per screen: the contributions read says whether
+ *  this month's lists and weekly series come from the copy frozen at close. */
+export function FrozenNote({ period, actorId }: { period: string; actorId: string }) {
+  const query = useQuery(kpiContributionsQuery(period, actorId))
+  return query.data?.frozen ? <p className={NOTE}>{FROZEN_NOTE}</p> : null
 }
 
 export function ContributionsPanel({
@@ -184,10 +246,7 @@ export function ContributionsPanel({
       ) : (
         <QueryBlock query={query} what="bản ghi tính vào chỉ số" variant="b">
           {(data) => (
-            <>
-              {data.frozen && <p className={NOTE}>{FROZEN_NOTE}</p>}
-              <Blocks blocks={blocksOf(catalog, data)} openTo={openTo} />
-            </>
+            <Blocks blocks={blocksOf(catalog, data)} period={data.period} openTo={openTo} />
           )}
         </QueryBlock>
       )}

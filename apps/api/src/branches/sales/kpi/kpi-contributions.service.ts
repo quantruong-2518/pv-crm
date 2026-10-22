@@ -15,7 +15,11 @@ import { spansOf } from '../performance/performance-period'
 import { leadsOver, rosterOf } from './kpi-allocation-team'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
-import { KpiContributionsRepository } from './kpi-contributions.repository'
+import {
+  KpiContributionsRepository,
+  type KpiAdjustmentRow,
+  type KpiContributionRow,
+} from './kpi-contributions.repository'
 import { KpiReadingsRepository, seriesKey, type KpiSeat } from './kpi-readings.repository'
 import { monthClock } from './kpi-rules'
 import { KpiTeamRepository } from './kpi-team.repository'
@@ -53,6 +57,13 @@ const LABEL: Readonly<Record<string, string>> = {
   collected: 'Đã thu',
   took: 'Đã nhận cơ hội',
 }
+
+const at = (r: { at: Date | string | null }): string | null =>
+  r.at === null ? null : new Date(r.at).toISOString()
+
+/** Newest first, the order each half already came in; an undated row sinks. */
+const newestFirst = (a: { at: string | null }, b: { at: string | null }): number =>
+  (b.at ?? '').localeCompare(a.at ?? '')
 
 const labelOf = (tag: string): string => {
   const label = LABEL[tag]
@@ -94,29 +105,59 @@ export class KpiContributionsService {
           .filter((def) => !UNLISTED.has(def.key) && (begun || !def.snapshot))
           .map((def) => ({ role, def })),
       )
-    const rows = await this.repo.rows(seats, spansOf(period).current, actorId, CAP)
+    /* A month closed before 0136 has no frozen basis, reads the books and says so. */
+    const frozen =
+      (await this.closes.of(period)) !== null && (await this.readings.basisFrozen(period))
+    const [rows, adjusted] = await Promise.all([
+      this.repo.rows(seats, spansOf(period).current, actorId, CAP, frozen),
+      this.repo.adjustments(seats, period, actorId, CAP),
+    ])
 
     return KpiContributionsResponse.parse({
       period,
-      frozen: (await this.closes.of(period)) !== null,
+      frozen,
       actorId,
       groups: seats.map((seat) => {
-        const mine = rows.filter((r) => r.series === seriesKey(seat))
+        const key = seriesKey(seat)
+        const mine = rows.filter((r) => r.series === key)
+        const changes = adjusted.filter((r) => r.series === key)
         return {
           actorId,
           role: seat.role,
           metricKey: seat.def.key,
-          items: mine.map((r) => ({
-            kind: r.kind,
-            code: r.code,
-            label: labelOf(r.tag),
-            at: r.at === null ? null : new Date(r.at).toISOString(),
-            /* A share's 1/0 is the label's yes/no, not an amount to print. */
-            value: seat.def.unit === 'ratio' ? null : r.value,
-          })),
+          items: [
+            ...changes.map(toAdjustmentItem),
+            ...mine.map((r) => toItem(r, seat.def.unit === 'ratio')),
+          ].sort(newestFirst),
+          /* Records only: the screen counts records, and the adjustments are few. */
           truncated: (mine[0]?.total ?? 0) > mine.length,
         }
       }),
     })
+  }
+}
+
+/** A share's 1/0 is the label's yes/no, not an amount to print. */
+function toItem(r: KpiContributionRow, share: boolean) {
+  return {
+    kind: r.kind,
+    code: r.code,
+    label: labelOf(r.tag),
+    at: at(r),
+    value: share ? null : r.value,
+    adjustment: null,
+  }
+}
+
+/** `value` is the signed delta, so the list sums to the adjusted figure. */
+function toAdjustmentItem(r: KpiAdjustmentRow) {
+  return {
+    kind: r.kind,
+    code: r.code,
+    /* Every basis row carries a tag, so a NULL here is a bug for `labelOf` to throw. */
+    label: labelOf(r.tag ?? ''),
+    at: at(r),
+    value: r.value,
+    adjustment: { sourcePeriod: r.sourcePeriod, cause: r.cause },
   }
 }
