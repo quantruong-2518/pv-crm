@@ -12,6 +12,7 @@ import {
 import { userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
+import { collectorNote, useCollectorCandidates } from '@/data/contract-collector'
 import { useDirectory, useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
@@ -21,7 +22,7 @@ import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/mone
 import { ScheduleEditor } from '@/components/deal-pay'
 import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
 import { Field } from './ops-fields'
-import { SignAmount, SignFooter, SignNotice, SignWhenWho } from './sign-drawer-parts'
+import { SignAmount, SignCollector, SignFooter, SignNotice, SignWhenWho } from './sign-drawer-parts'
 
 /** A request to sign a contract on a deal — a panel over the deal's profile.
  *
@@ -46,6 +47,8 @@ type SignForm = {
   signedDate: string
   /** The closer: the signed-in seller, else the row's `holder`; `''` = no override is sent. */
   ownerId: string
+  /** The payment PIC the reader picked; `''` = not picked yet, and the press stays shut. */
+  collectorId: string
   /** The pending quotation round this signature wins; `''` = none picked. */
   quotationId: string
   /** The payment schedule proposed with the signature; empty = none. */
@@ -63,8 +66,9 @@ function signedAtOf(day: string): string {
 }
 
 /** Form → body, or `null` while a required box is empty. Optional boxes left
- *  empty are ABSENT, never `null`. */
-function bodyOf(form: SignForm): ContractSign | null {
+ *  empty are ABSENT, never `null`. The collector is added by the caller, so the
+ *  footer can tell "the rest is filled" from "the collector is missing". */
+function bodyOf(form: SignForm): Omit<ContractSign, 'collectorId'> | null {
   const { kind, amount, currency } = form
   if (kind === '' || currency === '' || amount === null || amount <= 0) return null
   return {
@@ -109,6 +113,19 @@ function lend(form: SignForm, op: OpportunityProfileResponse, pendingId: string)
   }
 }
 
+/** What the footer says while nothing is under way: the press, or what is missing. */
+function idleNote(
+  direct: boolean,
+  ready: boolean,
+  noKind: boolean,
+  restFilled: boolean,
+  collector: string,
+): string {
+  if (ready) return direct ? '' : 'Gửi xong, đề nghị chờ duyệt.'
+  if (restFilled || collector !== '') return collector
+  return noKind ? '' : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'
+}
+
 type Props = {
   op: OpportunityProfileResponse
   open: boolean
@@ -138,6 +155,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
       currency: op.currency ?? '',
       signedDate: localDay(new Date()),
       ownerId: (meSells && meId) || (op.holder?.id ?? ''),
+      collectorId: '',
       quotationId: '',
       installments: [],
     }),
@@ -162,7 +180,9 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
   const set = <K extends keyof SignForm>(key: K, value: SignForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
-  const body = bodyOf(form)
+  const collectors = useCollectorCandidates(open)
+  const base = bodyOf(form)
+  const body = base && form.collectorId !== '' ? { ...base, collectorId: form.collectorId } : null
   const check = body ? ContractSign.safeParse(body) : null
   const blocked = check !== null && !check.success
   const waiting = waitingOptions(op, resolveKind)
@@ -176,6 +196,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
     !scheduleSummary(form.installments, form.amount, currency).balanced
   const issue = blocked && !unbalanced ? scheduleIssue(check.error) : ''
   const busy = sign.isPending
+  const collectorFault = collectorNote(collectors.isError, collectors.data, base !== null)
   const note = sign.error
     ? userMessage(sign.error)
     : busy
@@ -184,13 +205,7 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
         : 'Đang gửi đề nghị ký…'
       : blocked
         ? issue
-        : body
-          ? direct
-            ? 'Ký xong là có hợp đồng.'
-            : 'Gửi xong, đề nghị chờ duyệt.'
-          : noKind
-            ? ''
-            : 'Chọn loại hợp đồng, nhập số tiền và đồng tiền.'
+        : idleNote(direct, body !== null, noKind, base !== null, collectorFault)
 
   return (
     <Drawer
@@ -200,12 +215,11 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
       title={again ? 'Ký thêm hợp đồng' : direct ? 'Ký hợp đồng' : 'Đề nghị ký'}
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account}.{' '}
-          {direct
-            ? 'Bấm ký là hợp đồng được tạo ngay.'
-            : again
-              ? 'Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
-              : 'Được duyệt thì đơn thành hợp đồng.'}
+          <span className="font-mono">{op.code}</span> · {op.account}
+          {!direct &&
+            (again
+              ? '. Một hợp đồng mới bên cạnh hợp đồng đã ký, được duyệt thì cộng vào giá trị đơn.'
+              : '. Được duyệt thì đơn thành hợp đồng.')}
         </>
       }
       meta={<Chip>{op.code}</Chip>}
@@ -267,6 +281,12 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
             onChange={(next) => set('installments', next)}
           />
         </Field>
+
+        <SignCollector
+          value={form.collectorId}
+          candidates={collectors.data}
+          onChange={(id) => set('collectorId', id)}
+        />
 
         <SignWhenWho
           signedDate={form.signedDate}

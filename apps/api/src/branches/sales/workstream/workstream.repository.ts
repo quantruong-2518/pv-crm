@@ -277,6 +277,7 @@ export class WorkstreamRepository {
         code: contract.code,
         deal: contract.opportunityCode,
         ownerId: contract.ownerId,
+        collectorId: contract.collectorId,
         ownerName: actor.name,
         terminated: sql<boolean>`${contractTerminated(contract.code)}`,
       })
@@ -381,7 +382,8 @@ export class WorkstreamRepository {
   }
 
   /** "My run" (ADR 0110 §3): I hold the lead that opened it, OR I stand on
-   *  any of its deals (`dealStoodBy`), OR I closed any of its contracts.
+   *  any of its deals (`dealStoodBy`), OR I closed or collect any of its
+   *  contracts.
    *
    *  The lead arm stays first and alone covers a run with no deal yet — most
    *  of the funnel. The other two key on `workstream_code`, the column
@@ -437,6 +439,7 @@ export class WorkstreamRepository {
     const paper = contractReadBy(
       {
         ownerId: sql`ws_s.owner_id`,
+        collectorId: sql`ws_s.collector_id`,
         leadOwnerId: lead.ownerId,
         opportunityCode: sql`ws_s.opportunity_code`,
       },
@@ -648,6 +651,7 @@ export type RunContract = {
   code: string
   deal: string
   ownerId: string | null
+  collectorId: string
   ownerName: string | null
   terminated: boolean
 }
@@ -769,7 +773,7 @@ const ANCHOR_ON = eq(lead.workstreamCode, workstream.code)
 const runReachedBy = (actorId: string): SQL =>
   sql`(${eq(lead.ownerId, actorId)}
     OR EXISTS (SELECT 1 FROM sales.opportunity ws_o WHERE ws_o.workstream_code = ${workstream.code} AND ${dealStoodBy(sql`ws_o.code`, actorId)})
-    OR EXISTS (SELECT 1 FROM sales.contract ws_k WHERE ws_k.workstream_code = ${workstream.code} AND ws_k.owner_id = ${actorId}))`
+    OR EXISTS (SELECT 1 FROM sales.contract ws_k WHERE ws_k.workstream_code = ${workstream.code} AND (ws_k.owner_id = ${actorId} OR ws_k.collector_id = ${actorId})))`
 
 /** The customer name on the row: the COMPANY once somebody has said which
  *  company this run belongs to, and the lead's own wording until then.

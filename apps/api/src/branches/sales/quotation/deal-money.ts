@@ -23,6 +23,8 @@ export type DealMoneyInput = {
   can: OpportunityMoneyContract['can']
   /** `mayWriteContract` bound to the reader (ADR 0110 §2), keyed by closer. */
   writes: (ownerId: string | null) => boolean
+  /** `mayCollect` bound to the reader, keyed by the paper's own collector. */
+  collects: (collectorId: string | null) => boolean
   dealCurrency: CurrencyCode | null
   /** Oldest signature first, as `ContractRepository.byOpportunity` answers. */
   contracts: readonly ContractRowDb[]
@@ -63,7 +65,8 @@ function installmentOf(row: ContractInstallmentRowDb, today: string): Opportunit
 function contractOf(row: ContractRowDb, input: DealMoneyInput): OpportunityMoneyContract {
   const paymentsVisible = input.visible.has(row.code)
   const ended = input.terminated.has(row.code)
-  const open = paymentsVisible && !ended && input.writes(row.ownerId)
+  const live = paymentsVisible && !ended
+  const open = live && input.writes(row.ownerId)
   /* A terminated paper keeps the money that came in; what was still due will
      never be collected, so it is no installment and never overdue. */
   const installments = (paymentsVisible ? (input.installments.get(row.code) ?? []) : [])
@@ -90,7 +93,7 @@ function contractOf(row: ContractRowDb, input: DealMoneyInput): OpportunityMoney
     paymentsVisible,
     can: {
       editSchedule: open && input.can.editSchedule,
-      recordPayment: open && input.can.recordPayment,
+      recordPayment: live && input.collects(row.collectorId) && input.can.recordPayment,
     },
     installments,
     rounds,

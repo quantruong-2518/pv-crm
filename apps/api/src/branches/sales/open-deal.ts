@@ -49,14 +49,20 @@ export const dealStoodBy = (code: SQLWrapper, actorId: string): SQL =>
   sql`(EXISTS (SELECT 1 FROM sales.opportunity_owner od_s WHERE od_s.opportunity_code = ${code} AND od_s.actor_id = ${actorId})
        OR EXISTS (SELECT 1 FROM sales.opportunity od_a WHERE od_a.code = ${code} AND od_a.accepted_by_id = ${actorId}))`
 
-/** A contract an `ownOnly` reader may OPEN (ADR 0110 §2): they closed it, hold
- *  its run's lead, or stand on its deal. Reading only — writing is
- *  `mayWriteContract`. All three are the OUTER query's columns. */
+/** A contract an `ownOnly` reader may OPEN (ADR 0110 §2): they closed it,
+ *  collect its money, hold its run's lead, or stand on its deal. Reading only —
+ *  writing is `mayWriteContract` and `mayCollect`. All four are the OUTER
+ *  query's columns. */
 export const contractReadBy = (
-  c: { ownerId: SQLWrapper; leadOwnerId: SQLWrapper; opportunityCode: SQLWrapper },
+  c: {
+    ownerId: SQLWrapper
+    collectorId: SQLWrapper
+    leadOwnerId: SQLWrapper
+    opportunityCode: SQLWrapper
+  },
   actorId: string,
 ): SQL =>
-  sql`(${c.ownerId} = ${actorId} OR ${c.leadOwnerId} = ${actorId} OR ${dealStoodBy(c.opportunityCode, actorId)})`
+  sql`(${c.ownerId} = ${actorId} OR ${c.collectorId} = ${actorId} OR ${c.leadOwnerId} = ${actorId} OR ${dealStoodBy(c.opportunityCode, actorId)})`
 
 /** `actorId` stands on (`dealStoodBy`) an open deal of the lead — the reach a
  *  deal's people get over the lead it hangs off. `leadCode` is the OUTER column. */

@@ -64,7 +64,8 @@ export const PIC_RULES = {
       primary: false,
     },
   ],
-  // OWNER = `sales.contract.owner_id`, whose commission. The SALE/BD snapshot
+  // OWNER = `sales.contract.owner_id`, whose commission; COLLECTOR =
+  // `collector_id`, who chases payment. The SALE/BD snapshot
   // (`ContractRow.participants`) is copied from the deal, not a lane of its own.
   contract: [
     {
@@ -72,6 +73,13 @@ export const PIC_RULES = {
       label: 'Người phụ trách',
       cardinality: 'one',
       mayBeEmpty: true,
+      primary: false,
+    },
+    {
+      role: 'COLLECTOR',
+      label: 'Người thu tiền',
+      cardinality: 'one',
+      mayBeEmpty: false,
       primary: false,
     },
   ],

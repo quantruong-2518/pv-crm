@@ -12,6 +12,7 @@ import {
   MetaPill,
   Paperclip,
   PenLine,
+  Plus,
   SectionTitle,
   StatCard,
   StatusDot,
@@ -24,7 +25,7 @@ import { DOC_STATE_LABEL } from '@pv/contracts'
 import { daysUntil } from '@pv/engines'
 import { userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { dm, dmhm } from '@/lib/date'
 import {
@@ -43,6 +44,8 @@ import {
 } from '@/data/contracts'
 import { useDoneCondition } from '@/data/contracts-write'
 import { opportunityProfileQuery } from '@/data/opportunities'
+import { CollectCard, installmentDoorsOf } from '@/components/deal-pay'
+import { ReminderForm } from '@/components/deal-money/installment-sections'
 import { DueBadge, SideTag, TerminatedBadge } from '@/components/contract-bits'
 import { MAIL_BLOCKED, contractChain, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
@@ -134,12 +137,20 @@ function InstallmentScreen({
   const verdict = useQuery(
     opportunityProfileQuery(contract.opportunityCode),
   ).data?.money.contracts.find((c) => c.code === contract.code)?.can.editSchedule
+  /* Collecting has its own verdict, read off this contract: the payment PIC,
+     the head of sales or the director. */
+  const me = useSession((st) => st.actor?.id)
   /* A terminated contract refuses every write (ADR 0107), so no door is offered. */
   const ended = contract.termination !== null
-  const canDone =
-    (verdict ?? permitted) && contract.canEdit !== false && !installment.paidAt && !ended
+  const editable = (verdict ?? permitted) && contract.canEdit !== false && !ended
+  const canDone = editable && !installment.paidAt
   const done = useDoneCondition(contract.code)
   const { blocking } = view
+  const doors = installmentDoorsOf(
+    installment,
+    { editSchedule: editable, recordPayment: contract.canCollect === true && !ended },
+    me,
+  )
 
   return (
     <RecordShell
@@ -163,10 +174,12 @@ function InstallmentScreen({
             </>
           }
           note={
-            ended && installment.paidAt
-              ? 'Hợp đồng đã chấm dứt.'
+            ended
+              ? installment.paidAt
+                ? 'Hợp đồng đã chấm dứt.'
+                : null
               : contract.canEdit === false
-                ? contractReadOnlyNote(contract.ownerName)
+                ? contractReadOnlyNote(contract.ownerName, contract.canCollect === true)
                 : null
           }
           actions={
@@ -195,13 +208,20 @@ function InstallmentScreen({
       main={
         <>
           <ConditionsTodo installment={installment} view={view} now={now} ended={ended} />
+          <CollectCard
+            contract={contract}
+            installment={installment}
+            canPay={doors.pay}
+            canUndo={doors.undo}
+            leads={Boolean(blocking && canDone)}
+          />
           <InstallmentStats installment={installment} view={view} ended={ended} />
           <OverdueReasonCard
             contract={contract}
             installment={installment}
             overdue={!ended && overdue(view.level)}
           />
-          <RecordsCard installment={installment} />
+          <RecordsCard code={contract.code} installment={installment} canRemind={doors.remind} />
         </>
       }
       railLabel="Lịch sử liên hệ, người liên hệ, giấy tờ và ghi chú của đợt"
@@ -331,7 +351,7 @@ function InstallmentStats({
           value={dm(installment.due)}
           source={
             installment.paidAt
-              ? `về ${dm(installment.paidAt)}`
+              ? undefined
               : ended
                 ? 'hợp đồng đã chấm dứt'
                 : daysPhrase(view.daysLeft)
@@ -387,12 +407,40 @@ function DocsCard({ installment }: { installment: Installment }) {
 
 /** The installment's own touches — the chase cadence, sent and queued. Kept:
  *  they live in their own table, so the rail's comm list never shows them. */
-function RecordsCard({ installment }: { installment: Installment }) {
+function RecordsCard({
+  code,
+  installment,
+  canRemind,
+}: {
+  code: string
+  installment: Installment
+  canRemind: boolean
+}) {
+  const [adding, setAdding] = useState(false)
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 p-4 sm:p-5">
-      <SectionTitle size="detail" hint="Gồm lượt đã nhắc, khách trả lời và lượt sắp nhắc.">
+      <SectionTitle
+        size="detail"
+        hint="Gồm lượt đã nhắc, khách trả lời và lượt sắp nhắc."
+        actions={
+          canRemind && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              aria-expanded={adding}
+              onClick={() => setAdding((was) => !was)}
+            >
+              <Icon icon={Plus} size={16} />
+              Ghi lần nhắc
+            </Button>
+          )
+        }
+      >
         {installment.records.length} lượt chạm
       </SectionTitle>
+
+      {adding && <ReminderForm code={code} no={installment.no} onClose={() => setAdding(false)} />}
 
       {installment.records.length === 0 ? (
         <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">

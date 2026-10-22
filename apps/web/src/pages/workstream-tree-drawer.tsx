@@ -87,7 +87,10 @@ function pickOf(
     rungs: railOf('contract', contract.rungs, contractLate(contract)),
     hold: null,
     next: null,
-    readOnly: contract.canEdit === false ? contractReadOnlyNote(contract.holder?.name) : null,
+    readOnly:
+      contract.canEdit === false
+        ? contractReadOnlyNote(contract.holder?.name, contract.canCollect === true)
+        : null,
   }
 }
 

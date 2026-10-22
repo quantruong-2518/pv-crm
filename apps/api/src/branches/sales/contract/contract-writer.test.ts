@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Actor } from '@pv/engines'
-import { closerOnDealEdit, mayWriteContract } from './contract-writer'
+import { closerOnDealEdit, mayCollect, mayWriteContract } from './contract-writer'
 
 const actor = (id: string, roleIds: Actor['roleIds']): Actor =>
   ({ id, name: id, email: `${id}@pv.test`, role: id, roleIds, ownOnly: true }) as Actor
@@ -15,6 +15,19 @@ describe('mayWriteContract (ADR 0110 §2)', () => {
   it('refuses a co-seller and an ownerless paper to a seller', () => {
     expect(mayWriteContract(actor('u-am', ['account-executive']), 'u-sale')).toBe(false)
     expect(mayWriteContract(actor('u-sale', ['sale']), null)).toBe(false)
+  })
+})
+
+describe('mayCollect', () => {
+  it('lets the collector, the head of sales and the director record money', () => {
+    expect(mayCollect(actor('u-ae', ['account-executive']), 'u-ae')).toBe(true)
+    expect(mayCollect(actor('u-grace', ['head-of-sales']), 'u-ae')).toBe(true)
+    expect(mayCollect(actor('u-boss', ['director']), 'u-ae')).toBe(true)
+  })
+
+  it('refuses the closer once somebody else collects', () => {
+    expect(mayCollect(actor('u-sale', ['sale']), 'u-ae')).toBe(false)
+    expect(mayCollect(actor('u-ae', ['account-executive']), null)).toBe(false)
   })
 })
 

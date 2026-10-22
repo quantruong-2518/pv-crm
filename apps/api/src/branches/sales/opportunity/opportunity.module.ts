@@ -9,6 +9,7 @@ import { NotificationModule } from '@api/platform/notification/notification.modu
 import { RolesModule } from '@api/platform/roles/roles.module'
 import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
+import { ContractCollectors } from '../contract/contract-collector.service'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
@@ -123,6 +124,7 @@ import { OpportunityService } from './opportunity.service'
     OpportunityImport,
     OpportunitySign,
     ContractRepository,
+    ContractCollectors,
     /* The quotation ledger (ADR 0090). Providers here, not a module of their
        own: the lifecycle closes rounds on a stop and the ledger's writer moves
        the stage, so the two halves would import each other. */

@@ -4,6 +4,7 @@ import {
   type ContractBookQuery,
   type ConditionSide,
   ContractBookResponse,
+  ContractCollectorCandidates,
   ContractDetailResponse,
   ContractSummary,
   ContractTerminationReasons,
@@ -232,6 +233,20 @@ export const contractTerminationReasonsQuery = queryOptions({
   ...cacheTier.reference,
 })
 
+/** `GET /sales/contracts/collector-candidates` — who may be picked as the
+ *  payment PIC. Gated by the signer's permission (`opportunity.close`), not the
+ *  PIC's, because the reader is whoever creates the contract. */
+export const contractCollectorCandidatesQuery = queryOptions({
+  queryKey: ['sales', 'contract-collector-candidates'] as const,
+  queryFn: ({ signal }) =>
+    api.read<ContractCollectorCandidates>('/sales/contracts/collector-candidates', {
+      need: { branch: 'Sales', permission: 'opportunity.close' },
+      schema: ContractCollectorCandidates,
+      signal,
+    }),
+  ...cacheTier.reference,
+})
+
 // ---------------------------------------------------------------------------
 // How a level reads on screen
 // ---------------------------------------------------------------------------
@@ -248,11 +263,15 @@ export const DUE_LABEL: Record<DueLevel, string> = {
 }
 
 /** The one sentence a reader without write rights gets on a contract (ADR 0110).
- *  With nobody holding it, only the head of sales and the director are named. */
-export function contractReadOnlyNote(holder: string | null | undefined): string {
+ *  With nobody holding it, only the head of sales and the director are named.
+ *  `collects` is the payment PIC: they do get the collect button, so the line
+ *  says what they may do instead of "view only". */
+export function contractReadOnlyNote(holder: string | null | undefined, collects = false): string {
+  if (collects) return 'Bạn được ghi thu tiền, không sửa được hợp đồng này.'
+  const who = holder ? `${holder}, trưởng phòng hoặc giám đốc` : 'Trưởng phòng hoặc giám đốc'
   return holder
-    ? `Bạn chỉ xem được hợp đồng này. ${holder}, trưởng phòng hoặc giám đốc mới sửa được.`
-    : 'Chỉ trưởng phòng hoặc giám đốc mới sửa được hợp đồng này.'
+    ? `Bạn chỉ xem được hợp đồng này. ${who} mới sửa được.`
+    : `${who} mới sửa được hợp đồng này.`
 }
 
 /** How many days, said the way a person would say it. */

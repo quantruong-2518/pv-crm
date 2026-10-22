@@ -27,10 +27,10 @@ import { CONDITION_SIDE_LABEL, RECORD_CHANNEL_LABEL } from '@/data/contracts'
 import { PAY_TEXT_MAX, useAddReminder } from '@/data/contracts-write'
 import { BADGE_INK } from '@/data/opportunities'
 import { Field } from '@/components/ops-fields'
-import type { DayPick, PayDay } from './use-pay-day'
 
-/** The four sections of the installment modal. Each one only words what the
- *  server sent and calls the door the shell or its own form owns. */
+/** The sections of the installment modal. Each one only words what the
+ *  server sent and calls the door the shell or its own form owns. Collecting
+ *  is not here: it lives on the installment screen, under its contract. */
 
 const LINE = 'text-muted-foreground m-0 text-[12.5px] leading-[1.6]'
 
@@ -156,56 +156,6 @@ export function AcceptSection({
   )
 }
 
-/** The collection: the day to record while unpaid, the fact once paid. */
-export function PaySection({
-  installment,
-  canPay,
-  pay,
-}: {
-  installment: InstallmentRow
-  canPay: boolean
-  pay: PayDay
-}) {
-  const paid = installment.paidAt !== undefined
-  return (
-    <Section title="Thu tiền">
-      {paid ? (
-        <p className="text-success tnum m-0 text-[13px]">
-          Đã thu {dmy(installment.paidAt ?? '')}
-          {installment.paidBy && ` · ${installment.paidBy.name} ghi nhận`}
-        </p>
-      ) : canPay ? (
-        <>
-          <SegmentedControl
-            label="Ngày nhận tiền"
-            tone="quiet"
-            value={pay.pick}
-            onChange={(v) => pay.setPick(v as DayPick)}
-            options={[
-              { value: 'today', label: 'Hôm nay' },
-              { value: 'yesterday', label: 'Hôm qua', disabled: !pay.yesterdayOk },
-              { value: 'other', label: 'Chọn ngày…' },
-            ]}
-          />
-          {pay.pick === 'other' && (
-            <Input
-              type="date"
-              aria-label="Ngày nhận tiền"
-              className="pointer-coarse:h-12 max-w-[200px]"
-              value={pay.other}
-              min={pay.min}
-              max={pay.today}
-              onChange={(e) => pay.setOther(e.target.value)}
-            />
-          )}
-        </>
-      ) : (
-        <p className={LINE}>Chưa thu.</p>
-      )}
-    </Section>
-  )
-}
-
 const CHANNELS = RecordChannel.options.map((c) => ({ value: c, label: RECORD_CHANNEL_LABEL[c] }))
 
 /** Past reminders, and the form that records another — inline, not a layer. */
@@ -219,19 +169,6 @@ export function ReminderSection({
   canRemind: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [channel, setChannel] = useState('')
-  const [what, setWhat] = useState('')
-  const [detail, setDetail] = useState('')
-  const add = useAddReminder(code)
-  const picked = RecordChannel.safeParse(channel)
-  const ready = picked.success && what.trim() !== '' && detail.trim() !== ''
-
-  const reset = () => {
-    setOpen(false)
-    setChannel('')
-    setWhat('')
-    setDetail('')
-  }
 
   return (
     <Section
@@ -269,70 +206,88 @@ export function ReminderSection({
           ))}
         </ul>
       )}
-      {open && (
-        <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4">
-          <Field label="Kênh nhắc" required plain>
-            <SegmentedControl
-              label="Kênh nhắc"
-              hideLabel
-              tone="quiet"
-              value={channel}
-              onChange={setChannel}
-              options={CHANNELS}
-            />
-          </Field>
-          <Field label="Nội dung đã nhắc" required>
-            <Input
-              aria-label="Nội dung đã nhắc"
-              className="pointer-coarse:h-12"
-              maxLength={PAY_TEXT_MAX.what}
-              value={what}
-              onChange={(e) => setWhat(e.target.value)}
-            />
-          </Field>
-          <Field label="Kết quả" required>
-            <Input
-              aria-label="Kết quả"
-              className="pointer-coarse:h-12"
-              maxLength={PAY_TEXT_MAX.detail}
-              value={detail}
-              onChange={(e) => setDetail(e.target.value)}
-            />
-          </Field>
-          <div className="flex items-center justify-end gap-2">
-            <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={reset}>
-              Bỏ
-            </Button>
-            <Button
-              size="md"
-              variant="secondary"
-              className="pointer-coarse:h-12"
-              disabled={!ready || add.isPending}
-              onClick={() => {
-                if (!picked.success) return
-                add.mutate(
-                  {
-                    no: installment.no,
-                    body: { channel: picked.data, what: what.trim(), detail: detail.trim() },
-                  },
-                  {
-                    onSuccess: () => {
-                      toastDone('Đã ghi lần nhắc.')
-                      reset()
-                    },
-                  },
-                )
-              }}
-            >
-              <Icon icon={Bell} size={16} />
-              Lưu lần nhắc
-            </Button>
-          </div>
-          {add.error && (
-            <p className="text-destructive-foreground m-0 text-[12px]">{userMessage(add.error)}</p>
-          )}
-        </div>
-      )}
+      {open && <ReminderForm code={code} no={installment.no} onClose={() => setOpen(false)} />}
     </Section>
+  )
+}
+
+/** The form that records one reminder. Mounted only while open, so closing
+ *  it (saved or dropped) clears every box. */
+export function ReminderForm({
+  code,
+  no,
+  onClose,
+}: {
+  code: ContractCode
+  no: number
+  onClose: () => void
+}) {
+  const [channel, setChannel] = useState('')
+  const [what, setWhat] = useState('')
+  const [detail, setDetail] = useState('')
+  const add = useAddReminder(code)
+  const picked = RecordChannel.safeParse(channel)
+  const ready = picked.success && what.trim() !== '' && detail.trim() !== ''
+
+  return (
+    <div className="bg-surface-ink/5 flex flex-col gap-4 rounded-md p-4">
+      <Field label="Kênh nhắc" required plain>
+        <SegmentedControl
+          label="Kênh nhắc"
+          hideLabel
+          tone="quiet"
+          value={channel}
+          onChange={setChannel}
+          options={CHANNELS}
+        />
+      </Field>
+      <Field label="Nội dung đã nhắc" required>
+        <Input
+          aria-label="Nội dung đã nhắc"
+          className="pointer-coarse:h-12"
+          maxLength={PAY_TEXT_MAX.what}
+          value={what}
+          onChange={(e) => setWhat(e.target.value)}
+        />
+      </Field>
+      <Field label="Kết quả" required>
+        <Input
+          aria-label="Kết quả"
+          className="pointer-coarse:h-12"
+          maxLength={PAY_TEXT_MAX.detail}
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+        />
+      </Field>
+      <div className="flex items-center justify-end gap-2">
+        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClose}>
+          Bỏ
+        </Button>
+        <Button
+          size="md"
+          variant="secondary"
+          className="pointer-coarse:h-12"
+          disabled={!ready || add.isPending}
+          onClick={() => {
+            if (!picked.success) return
+            add.mutate(
+              { no, body: { channel: picked.data, what: what.trim(), detail: detail.trim() } },
+              {
+                onSuccess: () => {
+                  toastDone('Đã ghi lần nhắc.')
+                  onClose()
+                },
+              },
+            )
+          }}
+        >
+          <Icon icon={Bell} size={16} />
+          Lưu lần nhắc
+        </Button>
+      </div>
+      {add.error && (
+        <p className="text-destructive-foreground m-0 text-[12px]">{userMessage(add.error)}</p>
+      )}
+    </div>
   )
 }

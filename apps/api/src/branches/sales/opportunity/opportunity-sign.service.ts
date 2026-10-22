@@ -17,6 +17,7 @@ import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/ap
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { ApprovalRowDb } from '@api/platform/approval/approval.schema'
 import { assertKindUsable, kindLabel } from '../config/contract-kind'
+import { ContractCollectors } from '../contract/contract-collector.service'
 import { ContractRepository } from '../contract/contract.repository'
 import { fromSign } from '../contract/contract.mapper'
 import { dropStep } from '../next-step/next-step.handover'
@@ -57,6 +58,7 @@ export class OpportunitySign implements ApprovalApplier {
   constructor(
     private readonly deals: OpportunityRepository,
     private readonly contracts: ContractRepository,
+    private readonly collectors: ContractCollectors,
     private readonly workstreams: WorkstreamRepository,
     private readonly touch: TouchService,
     private readonly mirror: ObjectMirror,
@@ -101,9 +103,15 @@ export class OpportunitySign implements ApprovalApplier {
         opportunityCode: code,
         sign: { ...body, signedAt: body.signedAt ?? new Date().toISOString() },
       }
+      const [collector] = await actorsByIds(tx, [body.collectorId])
       const draft = {
         kind: 'contract-sign' as const,
-        consequence: consequenceOf(fresh, body, await kindLabel(tx, body.kind)),
+        consequence: consequenceOf(
+          fresh,
+          body,
+          await kindLabel(tx, body.kind),
+          collector?.name ?? body.collectorId,
+        ),
         payload: proposal,
         chain,
         links: [{ objectCode: code, objectLabel: fresh.row.name }],
@@ -168,6 +176,7 @@ export class OpportunitySign implements ApprovalApplier {
       adoptedPlace(rounds, body.kind, await kindLabel(handle, body.kind))
     }
     await assertCloser(handle, body.ownerId)
+    await this.collectors.assertPick(handle, body.collectorId)
   }
 
   /** `ApprovalApplier` for `contract-sign`. Everything is checked again against
@@ -183,6 +192,7 @@ export class OpportunitySign implements ApprovalApplier {
     if (!verdict.ok) throw conflict(verdict.reason)
     /* The closer frozen into the request may have left or changed role since. */
     await assertCloser(tx, sign.ownerId)
+    await this.collectors.assertPick(tx, sign.collectorId)
 
     /* The bell's actor is the decider; the raiser already hears `approval-approved`. */
     const decider = [...request.chain].reverse().find((l) => l.state === 'approved')?.personId
@@ -417,8 +427,13 @@ const SIGN_DIRECT: RoleId[] = ['director', 'head-of-sales']
 export const signsDirect = (who: Actor): boolean =>
   who.roleIds.some((role) => SIGN_DIRECT.includes(role))
 
-/** What the approver reads instead of the payload: deal, customer, kind, amount. */
-function consequenceOf(found: OpportunityRead, body: ContractSign, kind: string): string {
+/** What the approver reads instead of the payload: deal, customer, kind, amount, collector. */
+function consequenceOf(
+  found: OpportunityRead,
+  body: ContractSign,
+  kind: string,
+  collectorName: string,
+): string {
   const money = `${body.amount.toLocaleString('vi-VN')} ${body.currency}`
-  return `Ký hợp đồng ${kind} cho cơ hội ${found.row.code} · ${found.account} · ${money}`
+  return `Ký hợp đồng ${kind} cho cơ hội ${found.row.code} · ${found.account} · ${money} · ${collectorName} thu tiền`
 }

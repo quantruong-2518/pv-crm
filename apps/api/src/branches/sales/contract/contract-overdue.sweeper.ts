@@ -6,11 +6,11 @@ import { ContractScheduleRepository } from './contract-schedule.repository'
 
 const SWEEP_EVERY_MS = 60 * 60_000
 
-/** Rings a contract's owner once per installment that went past due unpaid,
+/** Rings a contract's owner and payment PIC once per installment that went past due unpaid,
  *  through the bell's one door (ADR 0085, ADR 0096). The occurrence is the
  *  installment number and its due day, so the event key is
  *  `<kind>/<contract>/<no>/<day>` and the ledger's UNIQUE keeps it to one line
- *  per owner per due date.
+ *  per person per due date.
  *
  *  Rides the worker's existing tick (`worker.ts`), no clock of its own (ADR
  *  0082 §2), throttled to one pass an hour the `HoldReminderSweeper` way. Only
@@ -45,7 +45,7 @@ export class ContractOverdueSweeper {
               name: CONTRACT_INSTALLMENT_OVERDUE,
               ref: { code: item.contractCode },
               occurrence: item.occurrence,
-              audiences: { owner: [item.ownerId] },
+              audiences: { owner: [item.recipientId] },
             },
             subject: { kind: 'contract', code: item.contractCode, label: item.label },
             detail: {

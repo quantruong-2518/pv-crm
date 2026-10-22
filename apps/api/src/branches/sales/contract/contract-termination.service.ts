@@ -109,6 +109,7 @@ export class ContractTerminationService {
     return ContractTerminateResponse.parse({
       ...toDetail(found),
       canEdit: mayWriteContract(who, found.row.ownerId),
+      canCollect: false,
     })
   }
 
@@ -143,7 +144,10 @@ export class ContractTerminationService {
         audiences: {
           director: await this.hub.sharedInRoles(tx, ['director'], 'Sales'),
           owners: heard?.participants ?? [],
-          'commission-owner': heard?.ownerId ? [heard.ownerId] : [],
+          /* The collector rides the closer's line: whoever chases the money must hear it stopped. */
+          'commission-owner': [
+            ...new Set([heard?.ownerId, heard?.collectorId].filter((id): id is string => !!id)),
+          ],
         },
       },
       subject: { kind: 'contract', code, label: heard?.label ?? code },

@@ -18,7 +18,13 @@ import { WorkstreamHolder } from './workstream'
  *         every propose door on this branch answers the same way.
  *      POST /sales/contracts/:code/terminate         permission `contract.terminate` · scoped
  *      -> `ContractTerminateResponse`; 409 when already terminated or refund > collected.
+ *      PUT  /sales/contracts/:code/collector         permission `contract.edit` · scoped
+ *      -> `ContractDetailResponse`; the server also limits it to head of sales / director.
  *      GET  /sales/contracts/termination-reasons     permission `contract.terminate`
+ *      GET  /sales/contracts/collector-candidates    permission `contract.view` floor;
+ *         the service asks `opportunity.close` OR `contract.edit`
+ *      -> `ContractCollectorCandidates`: active actors holding `contract.record-payment`.
+ *         Either opens it: the signer picks a PIC, head or director swaps one.
  *
  *  This door no longer writes `sales.contract` itself — signing leaves the
  *  sales floor, and E3's chain gets to look before the number is final.
@@ -140,6 +146,10 @@ export const ContractSignShape = z.object({
 
   /** Whose commission. Absent = the deal's holder, i.e. its SALE primary. */
   ownerId: z.string().trim().min(1).max(64).optional(),
+
+  /** Who chases the money. Required and separate from `ownerId`: the closer
+   *  keeps commission and KPI, the collector owns the payment follow-up. */
+  collectorId: z.string().trim().min(1).max(64),
 
   /** The pending round this signature wins (`sales.quotation.id`). Absent on a
    *  negotiation with no ledger row; the sign gate then only asks that the deal
@@ -335,6 +345,9 @@ export const ContractRow = z.object({
   /** Present together or not at all — an unassigned contract has neither. */
   ownerId: z.string().min(1).max(64).optional(),
   ownerName: textInput(120).optional(),
+  /** The payment PIC, present together or not at all like the owner pair. */
+  collectorId: z.string().min(1).max(64).optional(),
+  collectorName: textInput(120).optional(),
   /** The deal's SALE/BD lanes as they stood at signing — written once by the
    *  server, so no request body carries it and a later lane edit never moves it. */
   participants: z.array(ContractParticipant),
@@ -363,6 +376,12 @@ export const ContractDetailRow = ContractRow.extend({
    *  head of sales or the director (ADR 0110). Optional so a screen reads an
    *  API one deploy behind; absent keeps the screen's old gate. */
   canEdit: z.boolean().optional(),
+  /** Whether the reader may record or undo payments on THIS contract (server
+   *  `mayCollect`). Optional for an API one deploy behind. */
+  canCollect: z.boolean().optional(),
+  /** Whether the reader may swap the collector PIC: head of sales or director
+   *  on a contract not yet terminated (ADR 0111). Optional like its siblings. */
+  canChangeCollector: z.boolean().optional(),
 })
 
 /** What a contract book row is judged by. A contract stores no state: all four
@@ -417,6 +436,22 @@ export const ContractBookResponse = paged(ContractRow)
 /** `GET /sales/contracts/:code` — one contract, fully nested. */
 export const ContractDetailResponse = ContractDetailRow
 
+/** `PUT /sales/contracts/:code/collector` body — same bound as `collectorId`
+ *  at signing; the server re-checks the candidate holds `contract.record-payment`. */
+export const ContractCollectorBody = z.object({
+  collectorId: z.string().trim().min(1).max(64),
+})
+
+/** One person who may be picked as `collectorId`; `role` is a display label. */
+export const ContractCollectorCandidate = z.object({
+  id: z.string().min(1).max(64),
+  name: textInput(120),
+  role: z.string().min(1),
+})
+
+/** `GET /sales/contracts/collector-candidates` — the server applies no limit. */
+export const ContractCollectorCandidates = z.array(ContractCollectorCandidate)
+
 /** What the sign door answers when the signer needs no approval (director,
  *  head of sales — ADR 0091): the contract already exists. Everyone else gets
  *  the approval receipt (`ConfigProposalReceipt`) instead. */
@@ -459,6 +494,8 @@ export const ContractTerminateResponse = ContractDetailRow
 export const ContractTerminationReasons = OpportunityStopReasons
 
 export type ContractTermination = z.infer<typeof ContractTermination>
+export type ContractCollectorCandidate = z.infer<typeof ContractCollectorCandidate>
+export type ContractCollectorCandidates = z.infer<typeof ContractCollectorCandidates>
 export type ContractTerminateBody = z.infer<typeof ContractTerminateBody>
 export type ContractTerminateResponse = z.infer<typeof ContractTerminateResponse>
 export type ContractTerminationReasons = z.infer<typeof ContractTerminationReasons>
@@ -486,6 +523,7 @@ export type ContractStatusFilter = z.infer<typeof ContractStatusFilter>
 export type ContractBookQuery = z.infer<typeof ContractBookQuery>
 export type ContractBookResponse = z.infer<typeof ContractBookResponse>
 export type ContractDetailResponse = z.infer<typeof ContractDetailResponse>
+export type ContractCollectorBody = z.infer<typeof ContractCollectorBody>
 
 // ---------------------------------------------------------------------------
 // THE SUMMARY — `GET /sales/contracts/summary`

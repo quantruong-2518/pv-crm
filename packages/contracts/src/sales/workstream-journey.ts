@@ -239,10 +239,14 @@ export const JourneyContract = z.object({
   /** The closer: `sales.contract.owner_id`, who holds commission, KPI and the
    *  contract's bells (ADR 0110). Never the lead's PIC by inheritance. */
   holder: WorkstreamHolder.nullable(),
+  /** Who collects payment: `sales.contract.collector_id`, apart from the closer. */
+  collector: WorkstreamHolder.nullable().optional(),
   implementer: WorkstreamHolder.nullable(),
   /** The reader may write this contract (closer, head of sales, director).
    *  Optional for an API one deploy behind; absent keeps the screen's old gate. */
   canEdit: z.boolean().optional(),
+  /** The reader may record or undo payments on this contract (`mayCollect`). */
+  canCollect: z.boolean().optional(),
   rungs: z.array(JourneyContractRung).length(ContractRungKey.options.length),
   milestones: z.array(JourneySubStep),
   acceptance: z.array(JourneyAcceptance),

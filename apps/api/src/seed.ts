@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { normalisePhone, type LeadState, type TouchKind } from '@pv/contracts'
-import { normalisePhone as phoneKeyOf } from '@pv/engines'
+import { DEFAULT_ROLE_PERMISSIONS, normalisePhone as phoneKeyOf, type RoleId } from '@pv/engines'
 import { createDb } from '@api/platform/db/create-db'
 import { loadEnv } from '@api/platform/config/env'
 import { actor, edge, objectRef } from '@api/platform/db/platform.schema'
@@ -592,6 +592,13 @@ const TERMS = [
   { label: 'Hết bảo hành năm đầu', share: 20, dueDays: 365 },
 ]
 
+/** Roles that hold `contract.record-payment`, read off E2's default matrix so
+ *  the seed cannot drift from it; a closer outside them hands the money to the
+ *  head of sales, like a seller does on a live book. */
+const COLLECTS = (Object.keys(DEFAULT_ROLE_PERMISSIONS) as RoleId[]).filter((r) =>
+  DEFAULT_ROLE_PERMISSIONS[r].includes('contract.record-payment'),
+)
+
 function plantContract(
   ld: string,
   op: string,
@@ -620,6 +627,7 @@ function plantContract(
     currency: 'VND',
     signedAt,
     ownerId: owner.id,
+    collectorId: owner.roleIds.some((r) => COLLECTS.includes(r)) ? owner.id : HEAD.id,
     workstreamCode: ws,
   })
   TERMS.forEach((t, n) => {

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import {
   CONDITION_DONE,
+  CONTRACT_COLLECTOR_CHANGED,
   INSTALLMENT_PAID,
   INSTALLMENT_UNDONE,
   SCHEDULE_REPLACED,
@@ -12,6 +13,7 @@ import {
   ContractScheduleResponse,
   NOTIFICATION_DETAIL_NO,
   type ContractCode,
+  type ContractCollectorBody,
   type ContractInstallmentsBody,
   type InstallmentConditionBody,
   type InstallmentPaidBody,
@@ -26,15 +28,40 @@ import { vnDay } from '../opportunity/opportunity-lifecycle'
 import { toDetail } from './contract.mapper'
 import { ContractRepository } from './contract.repository'
 import type { ContractInstallmentRowDb, ContractRowDb } from './contract.schema'
+import { ContractCollectors } from './contract-collector.service'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 import { ContractTerminationService } from './contract-termination.service'
-import { assertMayWriteContract, mayWriteContract } from './contract-writer'
+import {
+  assertMayChangeCollector,
+  assertMayCollect,
+  assertMayWriteContract,
+  mayChangeCollector,
+  mayCollect,
+  mayRecordPayment,
+  mayWriteContract,
+} from './contract-writer'
 
 /** What a door did: the audit note, and the bell it rings, if any. `occurrence`
- *  keeps two acts of one kind on one contract apart in the bell's ledger. */
+ *  keeps two acts of one kind on one contract apart in the bell's ledger; `to`
+ *  replaces the default owner/participants audiences. */
 type Done = {
   note: string
-  bell?: { name: string; occurrence: string; no?: number }
+  bell?: { name: string; occurrence: string; no?: number; to?: Record<string, string[]> }
+}
+
+/** Who a door lets in once it holds the row: the closer's gate by default, the
+ *  collector's for the two payment doors. */
+type Gate = (who: Actor, row: ContractRowDb) => void
+const WRITE_GATE: Gate = (who, row) => assertMayWriteContract(who, row.ownerId)
+const COLLECT_GATE: Gate = (who, row) => assertMayCollect(who, row.collectorId)
+const COLLECTOR_GATE: Gate = (who) => assertMayChangeCollector(who)
+const REMIND_GATE: Gate = (who, row) => {
+  if (!mayWriteContract(who, row.ownerId) && !mayCollect(who, row.collectorId)) {
+    throw denied(
+      'permission-denied',
+      'Chỉ người chốt, người thu tiền, trưởng phòng hoặc giám đốc được ghi lần nhắc.',
+    )
+  }
 }
 
 /** The write doors of a signed contract's schedule (ADR 0090). Every door takes
@@ -51,6 +78,7 @@ export class ContractScheduleService {
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly hub: NotificationHub,
     private readonly termination: ContractTerminationService,
+    private readonly collectors: ContractCollectors,
   ) {}
 
   /** The UNPAID instalments become exactly the body's list; paid ones stay. A
@@ -104,54 +132,94 @@ export class ContractScheduleService {
   }
 
   markPaid(who: Actor, code: ContractCode, no: number, body: InstallmentPaidBody) {
-    return this.write(who, code, async (tx, row) => {
-      const installment = await this.installmentOf(tx, code, no)
-      if (installment.paidAt) throw conflict('Đợt này đã ghi thu.')
+    return this.write(
+      who,
+      code,
+      async (tx, row) => {
+        const installment = await this.installmentOf(tx, code, no)
+        if (installment.paidAt) throw conflict('Đợt này đã ghi thu.')
 
-      const now = new Date()
-      const at = new Date(body.paidAt)
-      if (Number.isNaN(at.getTime())) {
-        throw invalid({ paidAt: ['Thời điểm không đúng định dạng.'] })
-      }
-      const day = vnDay(at)
-      if (day < vnDay(row.signedAt)) {
-        throw invalid({ paidAt: ['Ngày thu không được trước ngày ký hợp đồng.'] })
-      }
-      if (day > vnDay(now)) throw invalid({ paidAt: ['Ngày thu không được sau hôm nay.'] })
+        const now = new Date()
+        const at = new Date(body.paidAt)
+        if (Number.isNaN(at.getTime())) {
+          throw invalid({ paidAt: ['Thời điểm không đúng định dạng.'] })
+        }
+        const day = vnDay(at)
+        if (day < vnDay(row.signedAt)) {
+          throw invalid({ paidAt: ['Ngày thu không được trước ngày ký hợp đồng.'] })
+        }
+        if (day > vnDay(now)) throw invalid({ paidAt: ['Ngày thu không được sau hôm nay.'] })
 
-      /* The day is what the screen picks, so a later hour on today is clamped to now. */
-      const landed = at > now ? now : at
-      const written = await this.schedule.markPaid(tx, code, no, {
-        at: landed,
-        by: who.id,
-        recordedAt: now,
-      })
-      if (!written) throw conflict('Đợt này vừa được ghi thu. Tải lại trang.')
-      return {
-        note: `installment ${no} marked paid (${vnDay(landed)})`,
-        bell: { name: INSTALLMENT_PAID, occurrence: `${no}@${now.getTime()}`, no },
-      }
-    })
+        /* The day is what the screen picks, so a later hour on today is clamped to now. */
+        const landed = at > now ? now : at
+        const written = await this.schedule.markPaid(tx, code, no, {
+          at: landed,
+          by: who.id,
+          recordedAt: now,
+        })
+        if (!written) throw conflict('Đợt này vừa được ghi thu. Tải lại trang.')
+        return {
+          note: `installment ${no} marked paid (${vnDay(landed)})`,
+          bell: { name: INSTALLMENT_PAID, occurrence: `${no}@${now.getTime()}`, no },
+        }
+      },
+      COLLECT_GATE,
+    )
   }
 
   undoPaid(who: Actor, code: ContractCode, no: number) {
-    return this.write(who, code, async (tx) => {
-      const installment = await this.installmentOf(tx, code, no)
-      if (!installment.paidAt) throw conflict('Đợt này chưa ghi thu.')
-      if (!installment.paidById) {
-        throw conflict('Đợt này đã thu từ trước khi có nhật ký ghi thu, chưa hoàn tác ở đây được.')
-      }
-      if (installment.paidById !== who.id) {
-        throw denied('permission-denied', 'Chỉ người đã ghi thu mới hoàn tác được.')
-      }
-      if (!(await this.schedule.undoPaid(tx, code, no, who.id))) {
-        throw conflict('Đợt này vừa thay đổi. Tải lại trang.')
-      }
-      return {
-        note: `installment ${no} payment undone`,
-        bell: { name: INSTALLMENT_UNDONE, occurrence: `${no}@${Date.now()}`, no },
-      }
-    })
+    return this.write(
+      who,
+      code,
+      async (tx) => {
+        const installment = await this.installmentOf(tx, code, no)
+        if (!installment.paidAt) throw conflict('Đợt này chưa ghi thu.')
+        if (!installment.paidById) {
+          throw conflict(
+            'Đợt này đã thu từ trước khi có nhật ký ghi thu, chưa hoàn tác ở đây được.',
+          )
+        }
+        if (installment.paidById !== who.id) {
+          throw denied('permission-denied', 'Chỉ người đã ghi thu mới hoàn tác được.')
+        }
+        if (!(await this.schedule.undoPaid(tx, code, no, who.id))) {
+          throw conflict('Đợt này vừa thay đổi. Tải lại trang.')
+        }
+        return {
+          note: `installment ${no} payment undone`,
+          bell: { name: INSTALLMENT_UNDONE, occurrence: `${no}@${Date.now()}`, no },
+        }
+      },
+      COLLECT_GATE,
+    )
+  }
+
+  /** Swap the payment PIC (ADR 0111): the new one passes the signing-day
+   *  check; the old and the new PIC hear it, the closer does not. */
+  changeCollector(who: Actor, code: ContractCode, body: ContractCollectorBody) {
+    return this.write(
+      who,
+      code,
+      async (tx, row) => {
+        const from = row.collectorId
+        const to = body.collectorId
+        if (to === from) throw conflict('Người này đang là người thu tiền của hợp đồng.')
+        await this.collectors.assertPick(tx, to)
+        await this.schedule.setCollector(tx, code, to)
+        /* An ownOnly ex-PIC who is not the closer can no longer open the
+           contract (`bellAudience`'s rule), so a bell to them would dead-end. */
+        const exCannotOpen = from !== row.ownerId && (await this.schedule.isOwnOnly(tx, from))
+        return {
+          note: `collector changed from ${from} to ${to}`,
+          bell: {
+            name: CONTRACT_COLLECTOR_CHANGED,
+            occurrence: `${to}@${Date.now()}`,
+            to: { 'previous-collector': exCannotOpen ? [] : [from], 'new-collector': [to] },
+          },
+        }
+      },
+      COLLECTOR_GATE,
+    )
   }
 
   /** Either permission opens this door, and `@Need` names one — the controller
@@ -163,17 +231,22 @@ export class ContractScheduleService {
     ) {
       throw denied('permission-denied', 'Bạn không có quyền ghi lần nhắc.')
     }
-    return this.write(who, code, async (tx) => {
-      await this.installmentOf(tx, code, no)
-      const at = body.at ? new Date(body.at) : new Date()
-      await this.schedule.addRecord(tx, code, no, {
-        at,
-        channel: body.channel,
-        what: body.what,
-        detail: body.detail,
-      })
-      return { note: `installment ${no} reminder recorded (${body.channel})` }
-    })
+    return this.write(
+      who,
+      code,
+      async (tx) => {
+        await this.installmentOf(tx, code, no)
+        const at = body.at ? new Date(body.at) : new Date()
+        await this.schedule.addRecord(tx, code, no, {
+          at,
+          channel: body.channel,
+          what: body.what,
+          detail: body.detail,
+        })
+        return { note: `installment ${no} reminder recorded (${body.channel})` }
+      },
+      REMIND_GATE,
+    )
   }
 
   addCondition(who: Actor, code: ContractCode, no: number, body: InstallmentConditionBody) {
@@ -204,13 +277,14 @@ export class ContractScheduleService {
     who: Actor,
     code: ContractCode,
     work: (tx: Db, contract: ContractRowDb) => Promise<Done>,
+    gate: Gate = WRITE_GATE,
   ): Promise<ContractScheduleResponse> {
     if (!(await this.contracts.inScope(who, code))) throw notFound('hợp đồng', code)
 
     await this.schedule.run(async (tx) => {
       const row = await this.schedule.lock(tx, code)
       if (!row) throw notFound('hợp đồng', code)
-      assertMayWriteContract(who, row.ownerId)
+      gate(who, row)
       await this.termination.assertLive(tx, code)
       const { note, bell } = await work(tx, row)
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
@@ -222,6 +296,13 @@ export class ContractScheduleService {
     return ContractScheduleResponse.parse({
       ...toDetail(found),
       canEdit: mayWriteContract(who, found.row.ownerId),
+      canCollect: mayRecordPayment(
+        this.access,
+        who,
+        found.row.collectorId,
+        found.termination !== null,
+      ),
+      canChangeCollector: mayChangeCollector(this.access, who, found.termination !== null),
     })
   }
 
@@ -241,8 +322,10 @@ export class ContractScheduleService {
         name: bell.name,
         ref: { code },
         actorId: who.id,
-        audiences: {
-          owner: heard.ownerId ? [heard.ownerId] : [],
+        audiences: bell.to ?? {
+          owner: [...new Set([heard.ownerId, heard.collectorId])].filter(
+            (id): id is string => id !== null,
+          ),
           participants: heard.participants,
         },
         occurrence: bell.occurrence,

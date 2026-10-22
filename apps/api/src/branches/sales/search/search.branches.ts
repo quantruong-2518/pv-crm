@@ -135,6 +135,7 @@ function branchOf(kind: SearchKind, who: Scope, q?: string): Branch {
             ? contractReadBy(
                 {
                   ownerId: contract.ownerId,
+                  collectorId: contract.collectorId,
                   leadOwnerId: lead.ownerId,
                   opportunityCode: contract.opportunityCode,
                 },

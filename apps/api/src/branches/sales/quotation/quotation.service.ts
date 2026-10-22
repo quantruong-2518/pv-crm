@@ -19,7 +19,7 @@ import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { assertKindUsable, kindLabel } from '../config/contract-kind'
 import { ContractRepository, type ContractRead } from '../contract/contract.repository'
-import { mayWriteContract } from '../contract/contract-writer'
+import { mayCollect, mayWriteContract } from '../contract/contract-writer'
 import { announceRound, dealOwnerIds } from '../opportunity/deal-money.bell'
 import {
   OpportunityLifecycle,
@@ -211,6 +211,7 @@ export class QuotationService {
       visible,
       can: { editSchedule: may('contract.edit'), recordPayment: may('contract.record-payment') },
       writes: (ownerId) => mayWriteContract(who, ownerId),
+      collects: (collectorId) => mayCollect(who, collectorId),
       dealCurrency: deal.currency,
       contracts: signed.map((c) => c.row),
       terminated,

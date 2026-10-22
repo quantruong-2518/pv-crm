@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   ContractBookQuery,
   ContractCode,
+  ContractCollectorBody,
   ContractConditionParams,
   ContractInstallmentParams,
   ContractInstallmentsBody,
@@ -82,6 +83,16 @@ export class ContractController {
     return this.termination.reasons()
   }
 
+  /** The collector picker of the sign form (`opportunity.close`) and of the
+   *  change drawer (`contract.edit`). Before `:code` for `summary`'s reason;
+   *  `@Need` holds one permission, so it asks the view floor and the service
+   *  checks the either/or. */
+  @Get('collector-candidates')
+  @Need({ branch: 'Sales', permission: 'contract.view' })
+  collectorCandidates(@CurrentActor() who: Actor) {
+    return this.contracts.collectorCandidates(who)
+  }
+
   /** One contract, fully nested.
    *
    *  `ContractCode` rather than `ObjectCode` is the first fence, and it is not
@@ -105,6 +116,18 @@ export class ContractController {
     @Body(zod(ContractTerminateBody)) body: ContractTerminateBody,
   ) {
     return this.termination.terminate(who, code, body)
+  }
+
+  /** ADR 0111: swap the payment PIC. `contract.edit` is the floor; the service
+   *  narrows to head of sales and director. Answers the contract re-read. */
+  @Put(':code/collector')
+  @Need({ branch: 'Sales', permission: 'contract.edit', scoped: true })
+  changeCollector(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ContractCode)) code: ContractCode,
+    @Body(zod(ContractCollectorBody)) body: ContractCollectorBody,
+  ) {
+    return this.schedule.changeCollector(who, code, body)
   }
 
   @Put(':code/installments')

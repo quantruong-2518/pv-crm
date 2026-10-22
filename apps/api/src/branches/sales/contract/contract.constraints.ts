@@ -39,6 +39,12 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
     message: 'Không tìm thấy người hưởng hoa hồng. Chọn lại.',
   },
 
+  contract_collector_id_actor_id_fk: {
+    kind: 'invalid',
+    fields: ['collectorId'],
+    message: 'Không tìm thấy người thu tiền. Chọn lại.',
+  },
+
   /** The signing-day snapshot (ADR 0086) is copied from `opportunity_owner`,
    *  whose own fences already hold — only a deal changed mid-sign trips these. */
   contract_participant_role_known: {

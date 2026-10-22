@@ -86,10 +86,13 @@ export class ContractOverdueReasonRepository {
     return found ?? null
   }
 
-  /** The contract's owner, read without a lock (`null` = no such contract). */
-  async ownerOf(tx: Db, code: string): Promise<{ ownerId: string | null } | null> {
+  /** The contract's closer and payment PIC, read without a lock (`null` = no such contract). */
+  async seatsOf(
+    tx: Db,
+    code: string,
+  ): Promise<{ ownerId: string | null; collectorId: string } | null> {
     const [found] = await tx
-      .select({ ownerId: contract.ownerId })
+      .select({ ownerId: contract.ownerId, collectorId: contract.collectorId })
       .from(contract)
       .where(eq(contract.code, code))
     return found ?? null

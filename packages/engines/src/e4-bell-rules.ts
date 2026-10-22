@@ -22,6 +22,8 @@ export const OPPORTUNITY_STAGE_MOVED = 'sales.opportunity.stage-moved'
 export const OPPORTUNITY_PRIMARY_CHANGED = 'sales.opportunity.primary-changed'
 export const CONTRACT_SIGNED = 'sales.contract.signed'
 export const CONTRACT_TERMINATED = 'sales.contract.terminated'
+/** The payment PIC was swapped after signing (ADR 0111); the old and the new PIC hear it. */
+export const CONTRACT_COLLECTOR_CHANGED = 'sales.contract.collector-changed'
 /** `data.superseded` tells a round that replaced a waiting one from a plain new round. */
 export const QUOTATION_RECORDED = 'sales.quotation.recorded'
 export const INSTALLMENT_PAID = 'sales.contract.installment-paid'
@@ -120,6 +122,8 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('contract-terminated', CONTRACT_TERMINATED, 'director'),
   bell('contract-terminated', CONTRACT_TERMINATED, 'owners'),
   bell('contract-terminated', CONTRACT_TERMINATED, 'commission-owner'),
+  bell('contract-collector-changed', CONTRACT_COLLECTOR_CHANGED, 'previous-collector'),
+  bell('contract-collector-changed', CONTRACT_COLLECTOR_CHANGED, 'new-collector'),
 
   /* The four schedule events share one audience pair; a person who is both
      owner and participant is told once because the event key ignores audience. */

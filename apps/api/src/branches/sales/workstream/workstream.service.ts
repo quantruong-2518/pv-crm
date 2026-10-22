@@ -31,7 +31,7 @@ import { ApprovalService } from '@api/platform/approval/approval.service'
 import { notFound } from '@api/platform/http/problem'
 import { phasesOf, stageConfigOf, tierConfigOf, type PhaseConfig } from '../ladder'
 import { toRef as leadRef } from '../lead/lead.mapper'
-import { mayWriteContract } from '../contract/contract-writer'
+import { mayRecordPayment, mayWriteContract } from '../contract/contract-writer'
 import { NextStepRepository } from '../next-step/next-step.repository'
 import { scopeRefOf, toRef as dealRef, type OwnerRow } from '../opportunity/opportunity.mapper'
 import type { OpportunityRowDb } from '../opportunity/opportunity.schema'
@@ -205,6 +205,7 @@ export class WorkstreamService {
         now: new Date(),
         today,
         canEdit: (ownerId) => mayWriteContract(who, ownerId),
+        canCollect: (collectorId, ended) => mayRecordPayment(this.access, who, collectorId, ended),
       }),
     )
   }

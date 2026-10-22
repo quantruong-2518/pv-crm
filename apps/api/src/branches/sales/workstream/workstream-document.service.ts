@@ -12,7 +12,7 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { StorageService } from '@api/platform/storage/storage.service'
-import { assertMayWriteContract } from '../contract/contract-writer'
+import { mayCollect, mayWriteContract } from '../contract/contract-writer'
 import { toAttachment } from '../lead/lead-scan.mapper'
 import { WorkstreamDocumentRepository } from './workstream-document.repository'
 import { WorkstreamRepository } from './workstream.repository'
@@ -58,9 +58,15 @@ export class WorkstreamDocumentService {
     if (step && !(await this.repo.stepInRun(code, step))) {
       throw invalid({ step: ['Mục gắn tệp không thuộc hành trình này.'] })
     }
-    /* A contract's or instalment's file is a contract write (ADR 0110 §2). */
+    /* A contract's or instalment's file is a contract write (ADR 0110 §2), or the collector's. */
     if (step && step.kind !== 'quotation') {
-      assertMayWriteContract(who, (await this.repo.closerOf(step.contractCode)) ?? null)
+      const seats = await this.repo.seatsOf(step.contractCode)
+      if (
+        !mayWriteContract(who, seats?.ownerId ?? null) &&
+        !mayCollect(who, seats?.collectorId ?? null)
+      ) {
+        throw denied('permission-denied', NOT_CONTRACT_SEAT)
+      }
     }
     const { kept, pending } = await this.repo.load(code, who.id)
     if (kept >= MAX_DOCUMENTS || pending >= MAX_PENDING) {
@@ -151,7 +157,10 @@ function stepFor(at: Arm, step: WorkstreamDocumentStep | undefined) {
   return { kind: 'contract' as const, contractCode: only }
 }
 
-const CLOSER_ONLY = 'Bạn chỉ thêm được tệp vào hợp đồng mình chốt. Mở hợp đồng đó rồi thêm tệp.'
+const CLOSER_ONLY =
+  'Bạn chỉ thêm được tệp vào hợp đồng mình chốt hoặc phụ trách thu. Mở hợp đồng đó rồi thêm tệp.'
+const NOT_CONTRACT_SEAT =
+  'Chỉ người chốt, người thu tiền, trưởng phòng hoặc giám đốc được thêm tệp vào hợp đồng này.'
 
 /** A listed file belongs to one of the closer's contracts. */
 const ownsStep = (papers: readonly string[], step: { contractCode: string | null } | null) =>

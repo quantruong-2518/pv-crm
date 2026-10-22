@@ -14,21 +14,21 @@ import {
 } from '@/components/comm-action-confirm'
 import { MenuButton, type MenuChoice } from './menu-button'
 
-/** The floating bar of every profile — reach a contact, and buttons for
- *  the rarer doors (ADR 0078 §1). A record's primary moves live in its
- *  header, never here.
+/** The floating bar of every profile — reach a contact, plus the rarer doors
+ *  (ADR 0078 §1). A record's primary moves live in its header, never here.
  *
  *  The record's other moves split by kind, the same rule on every screen: an
  *  everyday move with an icon (hand over, pin) sits on the bar; state changes
- *  and destructive ones go behind "⋯", the destructive last, one click away
- *  from a thumb, and the bar keeps one shape whatever the record's state.
+ *  and destructive ones go behind "⋯", the destructive last. One exception: a
+ *  screen may pull its own move out through `extra`; the product owner chose
+ *  that for terminating a contract, which nobody found behind "⋯".
  *
  *  Every channel asks which contact, primary first, then goes through the
  *  comm confirm, which records first and opens the channel second (ADR 0075).
- *  Under `sm` they fold into one contact button; the bar may still wrap to two rows.
+ *  Under `sm` they fold into one contact button; the bar may wrap to two rows.
  *  A screen nobody is reached from (campaign, company, contact) passes no
- *  `subject`: the bar is those buttons alone. 48px buttons (law 13). The
- *  shell keeps the room it floats over. `top` adds a first row (meetings). */
+ *  `subject`: the bar is those buttons alone. 48px buttons (law 13). `top`
+ *  adds a first row (meetings). */
 
 /* No call button: a call is placed from the phone itself, not from this bar. */
 const CHANNELS: { channel: CommActionChannel; label: string }[] = [
@@ -82,7 +82,7 @@ export function ActionBar({
   label: string
   /** The record's other moves, one button each — none drawn when empty. */
   more?: MenuChoice[]
-  /** A screen's own control, drawn before the other moves — the run overview's key. */
+  /** A screen's own control, drawn before the other moves: the run overview's key, terminating a contract. */
   extra?: ReactNode
   /** A full-width row above the buttons — the meeting row of a lead or a deal. */
   top?: ReactNode

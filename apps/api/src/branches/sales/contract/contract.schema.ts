@@ -57,6 +57,16 @@ export const contract = sales.table(
     currency: text('currency').$type<CurrencyCode>(),
     signedAt: timestamp('signed_at', { withTimezone: true }).notNull(),
     ownerId: text('owner_id').references(() => actor.id),
+    /** PIC who collects the money, apart from `owner_id` (who closed the deal,
+     *  earns the commission): the two stop being one person once collection is
+     *  handed over. Added by 0131, backfilled from `owner_id` when the owner
+     *  may collect, else the signing-day primary participant if they may, else
+     *  the first person who may. `notNull` is the target: 0131 leaves the column
+     *  nullable so the build running during the migrate keeps signing, and a
+     *  follow-up migration sets NOT NULL. A real FK: a signed-in actor. */
+    collectorId: text('collector_id')
+      .notNull()
+      .references(() => actor.id),
 
     /** The RUN this signature ended. Copied from the deal's own workstream,
      *  which is copied from the lead's — one key, three places, no opinion.
@@ -91,6 +101,9 @@ export const contract = sales.table(
     index('contract_opportunity_idx').on(t.opportunityCode),
     /** "My contracts" — the contract book's own-only scopes filter on the owner. */
     index('contract_owner_idx').on(t.ownerId),
+    /** "Contracts I collect" — the own-only reach (`scopeOf`, `contractReadBy`) and
+     *  the overdue bell's recipient join. */
+    index('contract_collector_idx').on(t.collectorId),
     /** "Did this run end in a signature, and when" — the book screen groups
      *  by run, and this is the join that answers it without a scan. */
     index('contract_workstream_idx').on(t.workstreamCode),

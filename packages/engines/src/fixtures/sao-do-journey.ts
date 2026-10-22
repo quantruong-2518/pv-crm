@@ -179,6 +179,7 @@ function licenceContract(c: {
     amount: c.amount,
     signedAt: c.signedAt,
     holder: c.holder,
+    collector: c.holder,
     implementer: null,
     rungs: walk(
       ContractRungKey.options,
@@ -353,6 +354,7 @@ function hd2607(dealCode: string): JourneyContract {
     amount: hd.amount,
     signedAt: hd.signedAt,
     holder,
+    collector: holder,
     implementer,
     rungs: walk(
       ContractRungKey.options,
@@ -398,6 +400,8 @@ function hd2609(dealCode: string, holder: WorkstreamHolder): JourneyContract {
     amount: HD_2609_AMOUNT,
     signedAt,
     holder,
+    // Head of sales collects what Huy signed: closer and collector differ here.
+    collector: actor('u-ha'),
     implementer: trainer,
     rungs: walk(
       ContractRungKey.options,

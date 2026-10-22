@@ -4,17 +4,56 @@ import { Button, Icon, Input, MetaPill, Select, billions, cn, vnd } from '@pv/ui
 import {
   CURRENCIES,
   toMoneyVnd,
+  type ContractCollectorCandidates,
   type CurrencyCode,
   type OpportunityProfileResponse,
 } from '@pv/contracts'
+import { NO_COLLECTOR } from '@/data/contract-collector'
 import { peopleIdOptions, type useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { dmy } from '@/lib/date'
 import { Field } from './ops-fields'
 
-/** Two pieces of the sign drawer, split out to keep it under the function
- *  ceiling: the footer, and the one-line fold for the signing day and the
- *  closer. */
+/** Pieces of the sign drawer, split out to keep it under the function
+ *  ceiling: the footer, the payment PIC, and the one-line fold for the signing
+ *  day and the closer. */
+
+/** Who collects the money. The closer is not the collector by nature: the box
+ *  always starts empty and the press stays shut until someone is picked. */
+export function SignCollector({
+  value,
+  candidates,
+  onChange,
+}: {
+  value: string
+  candidates: ContractCollectorCandidates | undefined
+  onChange: (id: string) => void
+}) {
+  const options = [
+    { value: '', label: 'Chọn người thu tiền…' },
+    ...(candidates ?? []).map((c) => ({ value: c.id, label: `${c.name} · ${c.role}` })),
+  ]
+
+  return (
+    <Field
+      label="Người thu tiền"
+      required
+      plain
+      hint={candidates?.length === 0 ? NO_COLLECTOR : undefined}
+    >
+      <Select
+        label="Người thu tiền"
+        hideLabel
+        size="lg"
+        value={value}
+        neutralValue=""
+        onChange={onChange}
+        options={options}
+        className="w-full"
+      />
+    </Field>
+  )
+}
 
 /** The signing day and who closes the contract, folded into one row that
  *  says both while the defaults stand; its change link opens the two fields.
@@ -82,7 +121,7 @@ export function SignWhenWho({
           <Field
             label="Người chốt hợp đồng"
             plain
-            hint="Người này nhận hoa hồng, nhận nhắc thu tiền và sửa được hợp đồng."
+            hint="Người này nhận hoa hồng và sửa được hợp đồng."
           >
             <Select
               label="Người chốt hợp đồng"

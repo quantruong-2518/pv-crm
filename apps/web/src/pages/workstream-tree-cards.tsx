@@ -430,6 +430,9 @@ export function ContractCard({
 }: Track & { contract: JourneyContract; box: Box; open: boolean; onToggle: () => void }) {
   const late = contractLate(contract)
   const kindLabel = useContractKindLabel()
+  /* One person closing and collecting is one line, never the same face twice. */
+  const sameHand =
+    contract.collector?.id !== undefined && contract.collector.id === contract.holder?.id
   return (
     <Card
       id={contract.code}
@@ -459,15 +462,21 @@ export function ContractCard({
       <Rail rungs={railOf('contract', contract.rungs, late)} />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-muted-foreground text-[12px]">Người chốt</span>
+          <span className="text-muted-foreground text-[12px]">
+            {sameHand ? 'Người chốt, thu tiền' : 'Người chốt'}
+          </span>
           <Holder person={contract.holder} />
         </span>
-        {contract.canEdit === false && (
+        {contract.collector && !sameHand && (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-muted-foreground text-[12px]">Người thu tiền</span>
+            <Holder person={contract.collector} />
+          </span>
+        )}
+        {contract.canEdit === false && contract.canCollect !== true && (
           <span className="text-muted-foreground flex items-center gap-2 text-[12px]">
             <Icon icon={Lock} size={14} className="shrink-0" />
-            <span className="min-w-0 break-words">
-              Chỉ xem{contract.holder && ` · ${contract.holder.name} phụ trách`}
-            </span>
+            Chỉ xem
           </span>
         )}
       </span>

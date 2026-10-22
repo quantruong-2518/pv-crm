@@ -24,10 +24,11 @@ import { RecordCard } from '@/components/record/record-card'
 
 /** The overdue-reason card of the installment page (ADR 0100).
  *
- *  Who sees what: the contract's owner writes, a holder of
+ *  Who sees what: whoever the server lets write (`canWrite`: the closer, the
+ *  payment PIC, the head of sales, the director) writes, a holder of
  *  `contract.approve-overdue-reason` other than the writer decides, everyone
- *  else reads. The server judges "overdue" (`canWrite`) and "no longer applies"
- *  (`stale`); this card only draws what it is told.
+ *  else reads. The server judges "overdue" and "no longer applies" (`stale`);
+ *  this card only draws what it is told.
  *
  *  Hidden when the installment is not overdue and nothing was ever written. */
 
@@ -47,7 +48,7 @@ export function OverdueReasonCard({ contract, installment, overdue }: Props) {
   const live = latest !== null && !latest.stale
   /* A terminated contract answers 409 to both doors (ADR 0107): read only. */
   const open = contract.termination === null
-  const mayWrite = open && data?.canWrite === true && me !== undefined && me === contract.ownerId
+  const mayWrite = open && data?.canWrite === true
 
   if (query.isPending) return overdue ? <Skeleton className="h-24 w-full" /> : null
   if (!data)

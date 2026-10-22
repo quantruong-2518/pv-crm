@@ -1,17 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccessControl, Actor } from '@pv/engines'
+import type { AccessControl, Actor, ObjectRef } from '@pv/engines'
 import {
   ContractBookResponse,
+  ContractCollectorCandidates,
   ContractDetailResponse,
   ContractSummary,
   type ContractBookQuery,
   type ContractCode,
 } from '@pv/contracts'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { notFound } from '@api/platform/http/problem'
+import { denied, notFound } from '@api/platform/http/problem'
 import { toBookRow, toDetail, toRef } from './contract.mapper'
-import { ContractRepository } from './contract.repository'
-import { mayWriteContract } from './contract-writer'
+import { ContractCollectors } from './contract-collector.service'
+import { ContractRepository, type ContractBookRead } from './contract.repository'
+import { mayChangeCollector, mayRecordPayment, mayWriteContract } from './contract-writer'
 
 /** The contract book — read only, and the only place that holds both the
  *  repository and an engine.
@@ -24,25 +26,16 @@ import { mayWriteContract } from './contract-writer'
 export class ContractService {
   constructor(
     private readonly repo: ContractRepository,
+    private readonly collectors: ContractCollectors,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async book(who: Actor, q: ContractBookQuery): Promise<ContractBookResponse> {
     const page = await this.repo.book(who, q, true)
 
-    /* Second net. SQL already cut by scope, so normally E2 cuts nothing more —
-       and that is the point: two fences reading ONE axis, the inner one only
-       has work when the outer one was written wrong. Drop it and the day
-       somebody adds a door without `scoped: true` there is nothing left. The
-       two ask the same question here, because the owner name on the ref comes
-       from the very row whose `owner_id` the predicate matched. */
-    const items = page.rows.map((r) => ({
-      ...r,
-      ref: toRef(r.row, {
-        label: r.customer,
-        owner: r.row.ownerId && r.ownerName ? { id: r.row.ownerId, name: r.ownerName } : null,
-      }),
-    }))
+    /* Second net over the SQL one: it only has work when a door forgot
+       `scoped: true`. `bookRef` makes both nets ask the same question. */
+    const items = page.rows.map((r) => ({ ...r, ref: bookRef(who, r) }))
     const { visible, hidden } = this.access.visible(who, items)
 
     /* Check what we are about to send against the contract itself. A column
@@ -62,6 +55,18 @@ export class ContractService {
    *  book's own permission. */
   async summary(): Promise<ContractSummary> {
     return ContractSummary.parse(await this.repo.summary())
+  }
+
+  /** The picker of who collects the money, for the sign form and the change
+   *  drawer: either permission opens it, the controller asked only the floor. */
+  async collectorCandidates(who: Actor): Promise<ContractCollectorCandidates> {
+    if (
+      !this.access.allows(who, 'opportunity.close') &&
+      !this.access.allows(who, 'contract.edit')
+    ) {
+      throw denied('permission-denied', 'Bạn không có quyền xem danh sách người thu tiền.')
+    }
+    return ContractCollectorCandidates.parse(await this.collectors.candidates())
   }
 
   /** One contract. Two ways to fail, and they answer with the SAME 404.
@@ -89,6 +94,27 @@ export class ContractService {
     return ContractDetailResponse.parse({
       ...toDetail(found),
       canEdit: mayWriteContract(who, found.row.ownerId),
+      canCollect: mayRecordPayment(
+        this.access,
+        who,
+        found.row.collectorId,
+        found.termination !== null,
+      ),
+      canChangeCollector: mayChangeCollector(this.access, who, found.termination !== null),
     })
   }
+}
+
+/** The book row's ref for E2's second grid. The SQL fence (`scopeOf`) lets in
+ *  the closer OR the payment PIC; the ref names one owner, so a PIC reading
+ *  their own collection is named as owner — the move `runRef` makes for a run —
+ *  or axis 3 hides a row the SQL already let through. */
+function bookRef(who: Actor, r: ContractBookRead): ObjectRef {
+  const owner =
+    r.row.collectorId === who.id
+      ? { id: who.id, name: who.name }
+      : r.row.ownerId && r.ownerName
+        ? { id: r.row.ownerId, name: r.ownerName }
+        : null
+  return toRef(r.row, { label: r.customer, owner })
 }

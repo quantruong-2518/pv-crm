@@ -164,18 +164,34 @@ export class ContractScheduleRepository {
       .where(and(eq(contractCondition.id, id), isNull(contractCondition.doneAt)))
   }
 
-  /** Who hears about a schedule change: the commission owner, and the signing
-   *  day's participants who can open the contract. An `ownOnly` participant
+  async setCollector(tx: Db, code: string, collectorId: string): Promise<void> {
+    await tx.update(contract).set({ collectorId }).where(eq(contract.code, code))
+  }
+
+  /** The actor is `ownOnly` (`bellAudience` reads the same flag). */
+  async isOwnOnly(tx: Db, id: string): Promise<boolean> {
+    const [row] = await tx.select({ ownOnly: actor.ownOnly }).from(actor).where(eq(actor.id, id))
+    return row?.ownOnly ?? false
+  }
+
+  /** Who hears about a schedule change:the commission owner, the payment PIC
+   *  (`collectorId`, the caller dedupes), and the signing day's participants who can open the contract. An `ownOnly` participant
    *  sees only contracts they own (`ContractRepository.scopeOf`), so the join
    *  drops them; the filter sits in the ON clause so no participant still
    *  returns the owner. */
   async bellAudience(
     tx: Db,
     code: string,
-  ): Promise<{ ownerId: string | null; label: string; participants: string[] } | null> {
+  ): Promise<{
+    ownerId: string | null
+    collectorId: string
+    label: string
+    participants: string[]
+  } | null> {
     const [row] = await tx
       .select({
         ownerId: contract.ownerId,
+        collectorId: contract.collectorId,
         label: objectRef.label,
         participants: sql<
           string[]
@@ -193,7 +209,7 @@ export class ContractScheduleRepository {
         ),
       )
       .where(eq(contract.code, code))
-      .groupBy(contract.ownerId, objectRef.label)
+      .groupBy(contract.ownerId, contract.collectorId, objectRef.label)
     return row ?? null
   }
 }

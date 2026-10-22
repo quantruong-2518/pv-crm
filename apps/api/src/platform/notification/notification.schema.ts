@@ -98,7 +98,8 @@ export const notification = platform.table(
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
                      'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided',
                      'kpi-team-share-assigned', 'meeting-cancelled',
-                     'meeting-calendar-failed', 'contract-terminated')`,
+                     'meeting-calendar-failed', 'contract-terminated',
+                     'contract-collector-changed')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -170,7 +171,8 @@ export const notificationKindPolicy = platform.table(
                      'kpi-counter-resolved', 'kpi-allocation-returned', 'kpi-about-to-miss',
                      'kpi-about-to-hit', 'overdue-reason-waiting', 'overdue-reason-decided',
                      'kpi-team-share-assigned', 'meeting-cancelled',
-                     'meeting-calendar-failed', 'contract-terminated')`,
+                     'meeting-calendar-failed', 'contract-terminated',
+                     'contract-collector-changed')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

@@ -150,6 +150,8 @@ export type JourneyInput = {
   today: string
   /** `mayWriteContract` bound to the reader: the fold stays reader-blind. */
   canEdit: (ownerId: string | null) => boolean
+  /** `mayRecordPayment` bound to the reader, keyed by the contract's payment PIC. */
+  canCollect: (collectorId: string, terminated: boolean) => boolean
 }
 
 export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
@@ -179,6 +181,7 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
     contracts: rows.contracts.map((c) => ({
       ...contractOf(c, rows, input.now, input.today),
       canEdit: input.canEdit(c.ownerId),
+      canCollect: input.canCollect(c.collectorId, c.terminatedAt !== null),
     })),
     doors: lead.door ? [lead.door] : [],
   }
@@ -573,6 +576,7 @@ function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string
     amount: vndOf(c.amount, c.currency),
     signedAt: c.signedAt.toISOString(),
     holder: personOf(c.ownerId, c.ownerName),
+    collector: personOf(c.collectorId, c.collectorName),
     implementer: null,
     rungs,
     milestones: [],

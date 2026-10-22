@@ -122,15 +122,19 @@ export function opensStand(
 }
 
 /** `contractReadBy` (ADR 0110 §2) over rows in hand: the reader closed it,
- *  holds the run's lead, or stands on its deal. */
+ *  collects its money, holds the run's lead, or stands on its deal. */
 export const contractOpens = (
   read: WorkstreamRead,
   paper: SignedPaper,
   stands: (dealCode: string) => boolean,
   readerId: string,
-): boolean => paper.ownerId === readerId || read.lead.ownerId === readerId || stands(paper.deal)
+): boolean =>
+  paper.ownerId === readerId ||
+  paper.collectorId === readerId ||
+  read.lead.ownerId === readerId ||
+  stands(paper.deal)
 
-type SignedPaper = { code: string; deal: string; ownerId: string | null }
+type SignedPaper = { code: string; deal: string; ownerId: string | null; collectorId: string }
 
 /** Which object of the run this reader OPENS — what E3's inbox is asked
  *  about. The one thing `live` still decides: `stand` is off the row now. */

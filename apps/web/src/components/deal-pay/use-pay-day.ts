@@ -33,7 +33,7 @@ export function usePayDay(open: boolean, signedAt: string) {
     day === ''
       ? 'Chọn ngày nhận tiền.'
       : day < min || day > today
-        ? `Từ ${dmy(min)} đến hôm nay.`
+        ? `Chọn ngày từ ${dmy(min)} đến hôm nay.`
         : ''
 
   return { pick, setPick, other, setOther, day, blocker, today, min, yesterdayOk: yesterday >= min }

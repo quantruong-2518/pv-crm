@@ -11,6 +11,7 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { DUE_NEAR_DAYS, type Actor } from '@pv/engines'
 import {
@@ -49,10 +50,14 @@ import {
 import { seqCodes } from '../code-seq'
 import { terminationsOf, type TerminationRead } from './contract-termination.repository'
 
-/** Một dòng hợp đồng kèm tên người ăn hoa hồng. */
+/** The payment PIC's name, joined beside the commission holder's. */
+const collector = alias(actor, 'collector')
+
+/** One contract row with the names of its commission owner and payment PIC. */
 export type ContractRead = {
   row: ContractRowDb
   ownerName: string | null
+  collectorName: string | null
   /** The deal's lanes frozen at signing (ADR 0086), SALE primary first. */
   participants: ContractParticipant[]
 }
@@ -69,13 +74,14 @@ export type ContractBookRead = ContractRead & {
   installments: ContractInstallmentRowDb[]
 }
 
-/** One installment past due and unpaid, with the one person to tell. */
+/** One installment past due and unpaid, with one person to tell. */
 export type OverdueInstallment = {
   contractCode: string
   no: number
   /** E4's occurrence, `<no>/<due day>`: spelled once, in the SQL that also reads it. */
   occurrence: string
-  ownerId: string
+  /** The recipient: the closer or the payment PIC, one row per person. */
+  recipientId: string
   /** `<code> · <company>`: the bell copies a label at write time, never joins. */
   label: string
   due: Date
@@ -141,6 +147,7 @@ const ON_LEAD = eq(lead.code, contract.leadCode)
 /** `contractReadBy` over this file's joins: the lead joined is the run's lead. */
 const CONTRACT_REACH = {
   ownerId: contract.ownerId,
+  collectorId: contract.collectorId,
   leadOwnerId: lead.ownerId,
   opportunityCode: contract.opportunityCode,
 }
@@ -301,9 +308,10 @@ export class ContractRepository {
    *  đang giữ (cùng lý lẽ với `OpportunityRepository.signed`). */
   async byOpportunity(opportunityCode: string, leadCode: string): Promise<ContractRead[]> {
     const rows = await this.db
-      .select({ row: contract, ownerName: actor.name })
+      .select({ row: contract, ownerName: actor.name, collectorName: collector.name })
       .from(contract)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
+      .leftJoin(collector, eq(collector.id, contract.collectorId))
       .where(and(eq(contract.opportunityCode, opportunityCode), eq(contract.leadCode, leadCode)))
       .orderBy(asc(contract.signedAt), asc(contract.code))
     const people = await this.participantsOf(rows.map((r) => r.row.code))
@@ -333,10 +341,16 @@ export class ContractRepository {
     const wide = (db: Db) => (scope && !valued ? this.count(filters, db) : Promise.resolve(null))
     const page = (db: Db) =>
       db
-        .select({ row: contract, ownerName: actor.name, customer: lead.company })
+        .select({
+          row: contract,
+          ownerName: actor.name,
+          collectorName: collector.name,
+          customer: lead.company,
+        })
         .from(contract)
         .innerJoin(lead, ON_LEAD)
         .leftJoin(actor, eq(actor.id, contract.ownerId))
+        .leftJoin(collector, eq(collector.id, contract.collectorId))
         .where(and(scope, filters, leadLive))
         .orderBy(...this.orderBy(q))
         .limit(q.size)
@@ -378,6 +392,7 @@ export class ContractRepository {
       .select({
         row: contract,
         ownerName: actor.name,
+        collectorName: collector.name,
         customer: lead.company,
         contact: lead.contactName,
         contactRole: lead.contactTitle,
@@ -386,6 +401,7 @@ export class ContractRepository {
       .from(contract)
       .innerJoin(lead, ON_LEAD)
       .leftJoin(actor, eq(actor.id, contract.ownerId))
+      .leftJoin(collector, eq(collector.id, contract.collectorId))
       .where(and(eq(contract.code, code), leadLive))
       .limit(1)
 
@@ -603,8 +619,9 @@ export class ContractRepository {
   }
 
   /** Overdue installments — `summary()`'s predicate, unpaid and due before
-   *  `VN_TODAY_START` — whose contract owner holds no bell line for them yet,
-   *  on live leads, live contracts and unlocked owners only. The anti-join is a saving; the ledger's UNIQUE
+   *  `VN_TODAY_START` — whose contract owner or payment PIC holds no bell line
+   *  for them yet (one row per person, one when they are the same), on live
+   *  leads, live contracts and unlocked actors only. The anti-join is a saving; the ledger's UNIQUE
    *  (recipient, event key) is what refuses a duplicate. The key is spelled
    *  as E4's `plan` builds it (`<kind>/<code>/<occurrence>`): move both together.
    *  The occurrence carries the due day (ADR 0093 §5's anchor date), so a due
@@ -618,7 +635,7 @@ export class ContractRepository {
         contractCode: ci.contractCode,
         no: ci.no,
         occurrence,
-        ownerId: actor.id,
+        recipientId: actor.id,
         label: sql<string>`${contract.code} || ' · ' || ${lead.company}`,
         due: ci.due,
         amount: ci.amount,
@@ -626,7 +643,13 @@ export class ContractRepository {
       .from(ci)
       .innerJoin(contract, eq(contract.code, ci.contractCode))
       .innerJoin(lead, ON_LEAD)
-      .innerJoin(actor, and(eq(actor.id, contract.ownerId), isNull(actor.disabledAt)))
+      .innerJoin(
+        actor,
+        and(
+          or(eq(actor.id, contract.ownerId), eq(actor.id, contract.collectorId)),
+          isNull(actor.disabledAt),
+        ),
+      )
       .where(
         and(
           isNull(ci.paidAt),
@@ -707,16 +730,15 @@ export class ContractRepository {
   }
 
   /** E2 axis 3 on this book: someone marked `ownOnly` sees only the contracts
-   *  whose commission is theirs. The BOOK stays owner-only on purpose (ADR 0110
-   *  §2, "my contracts"); one contract opens wider, see `inScopeValue`.
+   *  whose commission is theirs, or whose money they collect. One contract
+   *  opens wider, see `inScopeValue`.
    *
-   *  One column, no join table — a contract has exactly one owner, unlike an
-   *  opportunity where Sale and BD both stand on the row. A contract with no
-   *  owner at all matches nobody, which is the honest reading: an unassigned
-   *  contract is not "everybody's". */
+   *  Two columns, no join table — a contract has one owner and one collector,
+   *  unlike an opportunity where Sale and BD both stand on the row. A contract
+   *  with neither matches nobody: an unassigned contract is not "everybody's". */
   private scopeOf(who: Actor, scoped: boolean): SQL | undefined {
     if (!scoped || !who.ownOnly) return undefined
-    return eq(contract.ownerId, who.id)
+    return or(eq(contract.ownerId, who.id), eq(contract.collectorId, who.id))
   }
 
   /** One contract's verdict, SELECTed instead of filtered on — see `byCode`.

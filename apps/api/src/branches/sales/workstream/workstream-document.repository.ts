@@ -65,23 +65,31 @@ export class WorkstreamDocumentRepository {
     return !!installment
   }
 
-  /** The contracts of the run the actor closed (`owner_id`, ADR 0110 §1). */
+  /** The contracts of the run the actor closed (`owner_id`, ADR 0110 §1) or
+   *  collects (`collector_id`). */
   async closedInRun(who: Actor, code: string): Promise<string[]> {
     const rows = await this.db
       .select({ code: contract.code })
       .from(contract)
-      .where(and(eq(contract.workstreamCode, code), eq(contract.ownerId, who.id)))
+      .where(
+        and(
+          eq(contract.workstreamCode, code),
+          or(eq(contract.ownerId, who.id), eq(contract.collectorId, who.id)),
+        ),
+      )
     return rows.map((r) => r.code)
   }
 
-  /** The closer of one contract; `undefined` when no such contract. */
-  async closerOf(contractCode: string): Promise<string | null | undefined> {
+  /** The closer and the collector of one contract; `undefined` when no such contract. */
+  async seatsOf(
+    contractCode: string,
+  ): Promise<{ ownerId: string | null; collectorId: string } | undefined> {
     const [row] = await this.db
-      .select({ ownerId: contract.ownerId })
+      .select({ ownerId: contract.ownerId, collectorId: contract.collectorId })
       .from(contract)
       .where(eq(contract.code, contractCode))
       .limit(1)
-    return row?.ownerId
+    return row
   }
 
   /** The actor stands (`dealStoodBy`) on some deal of the run — a lane or the

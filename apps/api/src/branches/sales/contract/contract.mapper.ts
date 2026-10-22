@@ -55,6 +55,8 @@ export function fromDraft(
  *   · `signedAt` — absent = now; typing it is for a late entry.
  *   · `ownerId` — absent = `fallbackOwnerId`, the deal's holder (`holderOf`):
  *     commission follows the holder unless somebody names another Sale.
+ *   · `collectorId` — always from the body, required: no default, not even the
+ *     closer, so a contract never starts with an implied person chasing money.
  *
  *  `leadCode` comes off the deal row, never the body: `contract_opportunity_fk`
  *  anchors the `(opportunity_code, lead_code)` pair, so a caller's value is
@@ -79,6 +81,7 @@ export function fromSign(
     amount: body.amount,
     currency: body.currency,
     signedAt: body.signedAt === undefined ? now : new Date(body.signedAt),
+    collectorId: body.collectorId,
     ...(ownerId === null ? {} : { ownerId }),
   }
 }
@@ -91,11 +94,12 @@ export function fromSign(
  *  which is the same company by construction. */
 export function toContract(
   row: ContractRowDb,
-  ownerName: string | null,
+  names: { ownerName: string | null; collectorName: string | null },
   customer: string,
   participants: ContractParticipant[],
   termination: TerminationRead | null,
 ): ContractRow {
+  const { ownerName, collectorName } = names
   return {
     code: row.code,
     opportunityCode: row.opportunityCode,
@@ -109,6 +113,7 @@ export function toContract(
        `owner_id` NULL, và lúc đó cái tên cũng không tồn tại — trả `ownerId`
        kèm `ownerName` rỗng là bày ra một người không có. */
     ...(row.ownerId && ownerName ? { ownerId: row.ownerId, ownerName } : {}),
+    ...(collectorName ? { collectorId: row.collectorId, collectorName } : {}),
     participants,
     termination: termination && toTermination(termination),
   }
@@ -159,13 +164,14 @@ export function toRef(
 export function toBookRow(read: {
   row: ContractRowDb
   ownerName: string | null
+  collectorName: string | null
   customer: string
   participants: ContractParticipant[]
   termination: TerminationRead | null
   installments: ContractInstallmentRowDb[]
 }): ContractRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer, read.participants, read.termination),
+    ...toContract(read.row, read, read.customer, read.participants, read.termination),
     installments: read.installments.map(toInstallmentSummary),
   }
 }
@@ -175,6 +181,7 @@ export function toBookRow(read: {
 export function toDetail(read: {
   row: ContractRowDb
   ownerName: string | null
+  collectorName: string | null
   customer: string
   participants: ContractParticipant[]
   termination: TerminationRead | null
@@ -190,7 +197,7 @@ export function toDetail(read: {
   }[]
 }): ContractDetailRow {
   return {
-    ...toContract(read.row, read.ownerName, read.customer, read.participants, read.termination),
+    ...toContract(read.row, read, read.customer, read.participants, read.termination),
     contact: read.contact,
     /* The lead may carry no job title, and the wire field is required because
        the header prints the contact and the role as one phrase. Falling back

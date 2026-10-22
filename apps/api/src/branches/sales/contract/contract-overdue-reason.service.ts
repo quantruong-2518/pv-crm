@@ -19,6 +19,7 @@ import { ContractOverdueReasonRepository } from './contract-overdue-reason.repos
 import { ContractRepository } from './contract.repository'
 import { ContractScheduleRepository } from './contract-schedule.repository'
 import { ContractTerminationService } from './contract-termination.service'
+import { mayCollect, mayWriteContract } from './contract-writer'
 
 /** Bell `detail` keys of `overdue-reason-decided`, read by the web's line. */
 const DETAIL_DECISION = 'decision'
@@ -43,16 +44,21 @@ function currentOf(reasons: readonly OverdueReasonRow[]): OverdueReasonCurrent {
   return newest.stale ? 'stale' : newest.state
 }
 
+type Seats = { ownerId: string | null; collectorId: string | null }
+
 /** What stops `who` writing on this installment, in the order the door checks
  *  it. One copy: `write` throws it and `read` shows `canWrite = no refusal`. */
 function refusalOf(
   who: Actor,
-  ownerId: string | null,
+  seats: Seats,
   installment: { due: Date; paidAt: Date | null },
   reasons: readonly OverdueReasonRow[],
 ): PvError | null {
-  if (ownerId !== who.id) {
-    return denied('permission-denied', 'Chỉ người phụ trách hợp đồng mới ghi được lý do.')
+  if (!mayWriteContract(who, seats.ownerId) && !mayCollect(who, seats.collectorId)) {
+    return denied(
+      'permission-denied',
+      'Chỉ người chốt, người thu tiền, trưởng phòng hoặc giám đốc ghi được lý do.',
+    )
   }
   if (!isOverdue(installment.due, installment.paidAt)) {
     return conflict('Đợt này chưa quá hạn nên chưa cần lý do.')
@@ -89,11 +95,11 @@ export class ContractOverdueReasonService {
   async list(who: Actor, code: ContractCode, no: number): Promise<OverdueReasonListResponse> {
     await this.fence(who, code)
     const handle = this.schedule.readonlyHandle
-    const owner = await this.repo.ownerOf(handle, code)
-    return this.read(handle, who, code, no, owner?.ownerId ?? null)
+    const seats = await this.repo.seatsOf(handle, code)
+    return this.read(handle, who, code, no, seats ?? { ownerId: null, collectorId: null })
   }
 
-  /** The contract's owner only: the desk may see the reason, not speak for the Sale. */
+  /** The closer, the payment PIC and the two seats over every contract; the desk may see the reason. */
   write(
     who: Actor,
     code: ContractCode,
@@ -108,7 +114,7 @@ export class ContractOverdueReasonService {
         const installment = (await this.schedule.installments(tx, code)).find((i) => i.no === no)
         if (!installment) throw notFound('đợt thanh toán', String(no))
         const before = await this.repo.ofInstallment(tx, code, no)
-        const refusal = refusalOf(who, row.ownerId, installment, before)
+        const refusal = refusalOf(who, row, installment, before)
         if (refusal) throw refusal
 
         const id = await this.repo.insert(tx, {
@@ -140,7 +146,7 @@ export class ContractOverdueReasonService {
           subject: { kind: 'contract', code, label: await this.repo.labelOf(tx, code) },
           detail: { [NOTIFICATION_DETAIL_NO]: no },
         })
-        return this.read(tx, who, code, no, row.ownerId)
+        return this.read(tx, who, code, no, row)
       }),
     )
   }
@@ -220,7 +226,7 @@ export class ContractOverdueReasonService {
     who: Actor,
     code: string,
     no: number,
-    ownerId: string | null,
+    seats: Seats,
   ): Promise<OverdueReasonListResponse> {
     const installment = (await this.schedule.installments(tx, code)).find((i) => i.no === no)
     if (!installment) throw notFound('đợt thanh toán', String(no))
@@ -228,7 +234,7 @@ export class ContractOverdueReasonService {
     const live = !(await this.termination.isTerminated(tx, code))
     return OverdueReasonListResponse.parse({
       current: currentOf(reasons),
-      canWrite: live && refusalOf(who, ownerId, installment, reasons) === null,
+      canWrite: live && refusalOf(who, seats, installment, reasons) === null,
       reasons,
     })
   }

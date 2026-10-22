@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common'
 import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
+import { RolesModule } from '@api/platform/roles/roles.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
+import { ContractCollectors } from './contract-collector.service'
 import { ContractController } from './contract.controller'
 import { ContractOverdueReasonController } from './contract-overdue-reason.controller'
 import { ContractOverdueReasonRepository } from './contract-overdue-reason.repository'
@@ -23,8 +25,9 @@ import { ContractTerminationService } from './contract-termination.service'
  *  asks E2. `EnginesModule` is here for the second grid in `book()` — SQL has
  *  already cut by scope, so the engine's job is to still be standing the day a
  *  new door forgets to declare it. `NotificationModule` for the overdue
- *  sweeper's bell line. `LeadStateModule` and `MeetingModule` for the lead
- *  park a termination may cause (ADR 0109).
+ *  sweeper's bell line, `RolesModule` for the collector picker's grants.
+ *  `LeadStateModule` and `MeetingModule` for the lead park a termination may
+ *  cause (ADR 0109).
  *
  *  `ContractRepository` is ALSO a provider of `OpportunityModule`, and that is
  *  deliberate for now: the sign door was written before this module existed
@@ -35,10 +38,18 @@ import { ContractTerminationService } from './contract-termination.service'
  *  `exports` carries the service only. Another module may ask "give me this
  *  person's contract book"; it does not get to reach into the table. */
 @Module({
-  imports: [AuditModule, EnginesModule, NotificationModule, LeadStateModule, MeetingModule],
+  imports: [
+    AuditModule,
+    EnginesModule,
+    NotificationModule,
+    RolesModule,
+    LeadStateModule,
+    MeetingModule,
+  ],
   controllers: [ContractController, ContractOverdueReasonController],
   providers: [
     ContractService,
+    ContractCollectors,
     ContractRepository,
     ContractScheduleService,
     ContractScheduleRepository,

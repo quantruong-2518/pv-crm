@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import type { ApprovalState, ContractKind, CurrencyCode, StageKey, TouchKind } from '@pv/contracts'
 import { approval } from '@api/platform/approval/approval.schema'
@@ -13,6 +14,8 @@ import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
 import { quotation } from '../quotation/quotation.schema'
 import { touch } from '../touch/touch.schema'
+
+const collector = alias(actor, 'collector')
 
 /** The extra SQL of ONE journey's detail. Every read takes the whole run's
  *  codes at once, so the statement count is fixed, not one per rung.
@@ -90,6 +93,8 @@ export class WorkstreamLanesRepository {
               signedAt: contract.signedAt,
               ownerId: contract.ownerId,
               ownerName: actor.name,
+              collectorId: contract.collectorId,
+              collectorName: collector.name,
               terminatedAt:
                 sql<Date | null>`(SELECT t.terminated_at FROM sales.contract_termination t
                 WHERE t.contract_code = ${contract.code})`.mapWith(contract.signedAt),
@@ -98,6 +103,7 @@ export class WorkstreamLanesRepository {
             })
             .from(contract)
             .leftJoin(actor, eq(actor.id, contract.ownerId))
+            .leftJoin(collector, eq(collector.id, contract.collectorId))
             .where(inArray(contract.opportunityCode, deals))
             .orderBy(asc(contract.signedAt), asc(contract.code)),
       deals.length === 0
@@ -253,6 +259,8 @@ export type ContractLaneRow = {
   signedAt: Date
   ownerId: string | null
   ownerName: string | null
+  collectorId: string
+  collectorName: string | null
   /** Set when the contract was terminated (ADR 0107); the row itself stays. */
   terminatedAt: Date | null
   /** The DEAL's reading (`dealWon` / `dealTerminated`), same on each of its rows. */

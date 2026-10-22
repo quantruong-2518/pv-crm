@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AiAction, AppShell } from '@pv/ui'
+import { AiAction, AppShell, Ban, Button, Icon } from '@pv/ui'
 import { daysUntil } from '@pv/engines'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -28,7 +28,7 @@ import { TerminateDrawer, TerminationCard } from '@/components/contract-terminat
 import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
-import { RunOwners } from '@/components/run/run-owners'
+import { ContractOwners } from '@/components/contract-owners'
 import { RunContacts } from '@/components/run/run-contacts'
 import { ContractMoney } from './contract-money'
 import { ContractTodo } from './contract-todo'
@@ -125,7 +125,11 @@ function ContractScreen({ contract }: { contract: Contract }) {
               )}
             </>
           }
-          note={readOnly ? contractReadOnlyNote(contract.ownerName) : null}
+          note={
+            !ended && readOnly
+              ? contractReadOnlyNote(contract.ownerName, contract.canCollect === true)
+              : null
+          }
         />
       }
       main={
@@ -164,12 +168,12 @@ function ContractScreen({ contract }: { contract: Contract }) {
       railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của hợp đồng"
       rail={
         <>
-          <RunOwners workstreamCode={run.workstreamCode} focus={contract.code} />
+          <ContractOwners contract={contract} workstreamCode={run.workstreamCode} />
           <RunContacts subject={subject} />
           <CommJourney workstreamCode={run.workstreamCode} subject={subject} />
           <RunDocuments
             workstreamCode={run.workstreamCode}
-            canEdit={contract.canEdit}
+            canEdit={contract.canEdit !== false || contract.canCollect === true}
             contractCode={contract.code}
           />
         </>
@@ -181,17 +185,19 @@ function ContractScreen({ contract }: { contract: Contract }) {
           contacts={run.contacts}
           mailBlocked={mailBlocked}
           onCompose={() => setComposing(true)}
-          more={
-            !ended && canTerminate
-              ? [
-                  {
-                    key: 'terminate',
-                    label: 'Chấm dứt hợp đồng',
-                    tone: 'danger',
-                    onSelect: () => setTerminating(true),
-                  },
-                ]
-              : []
+          extra={
+            /* Named on the bar, not tucked in the overflow menu: the owner could not find it there. */
+            !ended &&
+            canTerminate && (
+              <Button
+                variant="destructive"
+                className="pointer-coarse:h-12"
+                onClick={() => setTerminating(true)}
+              >
+                <Icon icon={Ban} size={16} />
+                Chấm dứt hợp đồng
+              </Button>
+            )
           }
         />
       }

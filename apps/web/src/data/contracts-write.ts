@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type {
   ContractCode,
+  ContractCollectorBody,
+  ContractDetailResponse,
   ContractInstallmentsBody,
   ContractScheduleResponse,
   ContractTerminateBody,
@@ -152,3 +154,26 @@ export const useDoneCondition = (code: ContractCode) =>
       { method: 'POST', need: need('contract.edit') },
     ),
   )
+
+/** `PUT /sales/contracts/:code/collector` — head of sales or director swap the
+ *  payment PIC after signing (ADR 0111). The contract's own people move, so
+ *  the detail is replaced and the journey, the deal profile and the book re-read. */
+export function useChangeCollector(code: ContractCode) {
+  const client = useQueryClient()
+
+  return useMutation<ContractDetailResponse, ApiError, ContractCollectorBody>({
+    mutationFn: (body) =>
+      api.write<ContractDetailResponse>(`/sales/contracts/${encodeURIComponent(code)}/collector`, {
+        method: 'PUT',
+        body,
+        need: need('contract.edit'),
+      }),
+    onSuccess: (row) => {
+      client.setQueryData(contractDetailQuery(code).queryKey, row)
+      for (const key of [CONTRACT_BOOK_KEY, ['sales', 'ops'], WORKSTREAM_BOOK_KEY])
+        void client.invalidateQueries({ queryKey: key })
+    },
+    /* A 409 usually means someone else just swapped the PIC: re-read so the list marks the new one. */
+    onError: () => void client.invalidateQueries({ queryKey: contractDetailQuery(code).queryKey }),
+  })
+}

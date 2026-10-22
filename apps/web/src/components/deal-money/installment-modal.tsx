@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Badge, Modal, Skeleton, cn } from '@pv/ui'
 import type { OpportunityMoneyContract, OpportunityMoneyInstallment } from '@pv/contracts'
@@ -7,23 +8,23 @@ import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { contractDetailQuery, viewInstallment } from '@/data/contracts'
-import { momentOfDay, useDoneCondition, useRecordPaid } from '@/data/contracts-write'
+import { useDoneCondition } from '@/data/contracts-write'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
-import { ConditionDialog, UndoPaidDialog, installmentDoorsOf } from '@/components/deal-pay'
+import { ConditionDialog, installmentDoorsOf } from '@/components/deal-pay'
 import { StepDocuments } from '@/components/run/step-documents'
 import { InstallmentFooter } from './installment-footer'
-import { usePayDay } from './use-pay-day'
 import { INSTALLMENT_TONE, compactMoney, installmentStatusLine, kindLabel } from './money'
-import { AcceptSection, PaySection, ReminderSection, Section } from './installment-sections'
+import { AcceptSection, ReminderSection, Section } from './installment-sections'
 
-/** One installment, opened from its tile: acceptance, collection, reminders
- *  and papers, with ONE primary in the footer chosen by the step the
- *  installment is at. The two facts in the header are the profile's own row, so
+/** One installment, opened from its tile: acceptance, reminders and papers,
+ *  with ONE primary in the footer chosen by the step the installment is at.
+ *  Money is recorded and undone on the installment's own screen, which the
+ *  footer opens. The two facts in the header are the profile's own row, so
  *  they stand even when the contract's detail is refused (that door is scoped
  *  to the contract's owner, who may not be this reader); the sections and the
  *  buttons need the detail. Every press goes through the contract's own doors
- *  (record paid, done condition, reminder, undo) and the server judges each. */
+ *  (done condition, reminder) and the server judges each. */
 
 export function InstallmentModal({
   contract,
@@ -42,48 +43,46 @@ export function InstallmentModal({
   const resolveKind = useContractKindLabel()
   const detail = useQuery({ ...contractDetailQuery(contract.code), enabled: open })
   const full = detail.data?.installments.find((row) => row.no === i.no)
-  const doors = full && installmentDoorsOf(full, contract.can, me)
-  const record = useRecordPaid(contract.code)
+  /* The contract's own flag when the API sends it, the deal's verdict before. */
+  const collects = detail.data?.canCollect ?? contract.can.recordPayment
+  const doors =
+    full &&
+    installmentDoorsOf(
+      full,
+      { editSchedule: contract.can.editSchedule, recordPayment: collects },
+      me,
+    )
+  const navigate = useNavigate()
   const done = useDoneCondition(contract.code)
   const [adding, setAdding] = useState(false)
-  const [undoing, setUndoing] = useState(false)
-  const payDay = usePayDay(open, contract.signedAt)
-  const { day, blocker } = payDay
 
   /* The same line the installment screen ticks: the one holding it up. */
   const blocking = full ? viewInstallment(full).blocking : null
   const hasOpen = full?.conditions.some((c) => !c.doneAt) === true
   const canTick = doors?.condition === true && blocking !== null
-  const canPay = doors?.pay === true
-  const failure = done.error ?? record.error
-  const busy = record.isPending || done.isPending
+  const failure = done.error
+  const busy = done.isPending
 
   const tick = (id: string) =>
     done.mutate({ no: i.no, id }, { onSuccess: () => toastDone('Đã đánh dấu xong.') })
-  const pay = () =>
-    record.mutate(
-      { no: i.no, body: { paidAt: momentOfDay(day) } },
-      {
-        onSuccess: () => {
-          toastDone(`Đã ghi thu ${i.label}.`)
-          onClose()
-        },
-      },
-    )
+  const openInstallment = () => {
+    onClose()
+    navigate(`/sales/contracts/${encodeURIComponent(contract.code)}/installments/${i.no}`)
+  }
 
   const hint = failure
     ? userMessage(failure)
     : !full
       ? ''
       : full.paidAt !== undefined
-        ? 'Chỉ người ghi mới hoàn tác được.'
-        : canPay && blocker && !canTick
-          ? blocker
-          : blocking
-            ? `Bước tiếp theo: ${blocking.what}.`
-            : hasOpen
-              ? 'Bước tiếp theo: nghiệm thu.'
-              : 'Bước tiếp theo: thu tiền.'
+        ? ''
+        : blocking
+          ? `Bước tiếp theo: ${blocking.what}.`
+          : hasOpen
+            ? 'Bước tiếp theo: nghiệm thu.'
+            : collects
+              ? 'Ghi thu ở trang đợt.'
+              : ''
 
   return (
     <Modal
@@ -110,13 +109,9 @@ export function InstallmentModal({
           hint={hint}
           failed={failure !== null}
           busy={busy}
-          canUndo={doors?.undo === true}
-          canPay={canPay}
-          payBlocked={blocker !== ''}
           canTick={canTick}
           onClose={onClose}
-          onUndo={() => setUndoing(true)}
-          onPay={pay}
+          onOpen={openInstallment}
           onTick={() => blocking && tick(blocking.id)}
         />
       }
@@ -131,13 +126,12 @@ export function InstallmentModal({
             onTick={tick}
             onAdd={doors.condition ? () => setAdding(true) : undefined}
           />
-          <PaySection installment={full} canPay={canPay} pay={payDay} />
           <ReminderSection code={contract.code} installment={full} canRemind={doors.remind} />
           <Section title="Chứng từ của đợt">
             <StepDocuments
               workstreamCode={workstreamCode}
               step={{ kind: 'installment', contractCode: contract.code, installmentNo: i.no }}
-              canEdit={contract.can.editSchedule || contract.can.recordPayment}
+              canEdit={contract.can.editSchedule || collects}
             />
           </Section>
         </div>
@@ -155,12 +149,6 @@ export function InstallmentModal({
             installment={full}
             open={adding}
             onClose={() => setAdding(false)}
-          />
-          <UndoPaidDialog
-            contract={detail.data}
-            installment={full}
-            open={undoing}
-            onClose={() => setUndoing(false)}
           />
         </>
       )}
