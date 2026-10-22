@@ -1,0 +1,12 @@
+-- 0137 - `sales.kpi_month_close.gate`: a snapshot of what the close gate listed
+-- (pending items and flagged codes, as counts and codes) at the moment the month
+-- was closed (ADR 0116 §3). Written once with the close row and never rewritten,
+-- like the rest of the close.
+--
+-- Nullable, no backfill: months closed before 0137 had no gate, and inventing one
+-- from today's data would show what the closer never saw. The old api never names
+-- the column, so its closes take NULL. Additive. ORDER: migrate BEFORE deploy.
+-- Re-runnable: IF NOT EXISTS on the column.
+--
+-- Hand-written for 0047's reason: `generate`'s baseline is still stuck at 0026.
+ALTER TABLE "sales"."kpi_month_close" ADD COLUMN IF NOT EXISTS "gate" jsonb;

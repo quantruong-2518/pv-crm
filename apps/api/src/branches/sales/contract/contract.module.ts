@@ -35,8 +35,9 @@ import { ContractTerminationService } from './contract-termination.service'
  *  over one pool cost nothing; folding the sign door onto this module is a
  *  change to the opportunity side, not to this one.
  *
- *  `exports` carries the service only. Another module may ask "give me this
- *  person's contract book"; it does not get to reach into the table. */
+ *  `exports` carries services only. Another module may ask "give me this
+ *  person's contract book" or "which overdue reasons wait" (the KPI close
+ *  gate); it does not get to reach into the table. */
 @Module({
   imports: [
     AuditModule,
@@ -59,6 +60,6 @@ import { ContractTerminationService } from './contract-termination.service'
     ContractTerminationService,
     ContractTerminationRepository,
   ],
-  exports: [ContractService],
+  exports: [ContractService, ContractOverdueReasonService],
 })
 export class ContractModule {}

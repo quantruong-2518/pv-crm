@@ -2,6 +2,7 @@ import {
   boolean,
   check,
   index,
+  jsonb,
   numeric,
   text,
   timestamp,
@@ -9,7 +10,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
-import type { KpiMetricKey, RoleId } from '@pv/contracts'
+import type { KpiCloseGateSnapshot, KpiMetricKey, RoleId } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 
@@ -47,6 +48,10 @@ export const kpiMonthClose = sales.table(
      *  quiet month has no basis rows yet must not pass for a close made before
      *  0136, which is never reconciled (ADR 0115 default 1). */
     basisFrozen: boolean('basis_frozen').notNull().default(false),
+    /** What the close gate showed when the month was closed (ADR 0116 §3):
+     *  counts and flagged codes, frozen with the close and never rewritten.
+     *  NULL = closed before 0137. */
+    gate: jsonb('gate').$type<KpiCloseGateSnapshot>(),
   },
   () => [check('kpi_month_close_period_shape', periodShape())],
 )

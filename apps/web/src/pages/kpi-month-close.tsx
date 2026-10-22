@@ -1,24 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
 import { Button, Modal, Skeleton, cn } from '@pv/ui'
 import type { KpiMonthClose } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toastDone } from '@/app/toast'
-import { useCloseKpiMonth, waitingReasonsQuery } from '@/data/kpi-close'
+import { kpiCloseGateQuery, useCloseKpiMonth } from '@/data/kpi-close'
 import { dm } from '@/lib/date'
-import { num } from './home-model'
 import { NOTE } from './home-tiles'
+import { CloseGate, GateAtClose } from './kpi-close-gate'
 import { monthEnded, monthText } from './kpi-model'
 
 /** The month-close control (ADR 0100): the closed line for everyone, on the
  *  company and targets screens; the note and button for a head only on the
  *  targets screen's waiting list, once the month has ended. Closing is final,
- *  so it asks first and names what it leaves out.
- *
- *  The waiting-reason count comes from a read only an approver may make; a
- *  closer without that permission is asked the base question alone. */
+ *  so it asks first and shows the close gate (ADR 0116) above the button: what
+ *  is pending and what looks unusual, asking for nothing more. */
 
 const ALERT = 'text-destructive-foreground m-0 text-[12.5px] leading-[1.5]'
 
@@ -31,13 +28,11 @@ function CloseDialog({
   open: boolean
   onClose: () => void
 }) {
-  const canSee = useCan('contract.approve-overdue-reason')
-  const waiting = useQuery(waitingReasonsQuery(period, open && canSee))
+  const gate = useQuery(kpiCloseGateQuery(period, open))
   const close = useCloseKpiMonth(period)
   const { reset } = close
-  const reasons = waiting.data?.reasons ?? []
-  /* Confirm waits for the count, so nobody presses it before the warning appears. */
-  const checking = canSee && waiting.isPending
+  /* Confirm waits for the gate, so nobody presses it before the list appears. */
+  const checking = gate.isPending
 
   /* A refusal belongs to the press that earned it, not to the next opening. */
   useEffect(() => {
@@ -85,27 +80,8 @@ function CloseDialog({
           Sau khi chốt, số liệu tháng này không đổi nữa. Thay đổi sau đó tính vào tháng đang chạy.
         </p>
         {checking && <Skeleton className="h-10 w-full" />}
-        {waiting.error && <p className={ALERT}>Không tải được lý do quá hạn chờ duyệt.</p>}
-        {reasons.length > 0 && (
-          <>
-            <p className="m-0 text-[13px] leading-[1.6]">
-              Còn <span className="tnum font-num">{num(reasons.length)}</span> đợt quá hạn có lý do
-              chưa duyệt. Chốt bây giờ thì tiền các đợt này tính là quá hạn.
-            </p>
-            <ul className="m-0 flex list-none flex-col p-0">
-              {reasons.map((r) => (
-                <li key={r.id}>
-                  <Link
-                    to={`/sales/contracts/${encodeURIComponent(r.contractCode)}/installments/${r.installmentNo}`}
-                    className="text-foreground tnum font-num pointer-coarse:min-h-12 inline-flex min-h-8 items-center text-[13px] underline underline-offset-2"
-                  >
-                    Hợp đồng {r.contractCode} · đợt {r.installmentNo}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        {gate.error && <p className={ALERT}>Không tải được các mục chờ xử lý.</p>}
+        {gate.data && <CloseGate gate={gate.data} onNavigate={onClose} />}
       </div>
     </Modal>
   )
@@ -124,9 +100,12 @@ export function MonthCloseBar({
 
   if (monthClose) {
     return (
-      <p className={cn(NOTE, 'tnum font-num')}>
-        Đã chốt {dm(monthClose.closedAt)} · {monthClose.closedBy.name}
-      </p>
+      <div className="flex flex-col gap-1">
+        <p className={cn(NOTE, 'tnum font-num m-0')}>
+          Đã chốt {dm(monthClose.closedAt)} · {monthClose.closedBy.name}
+        </p>
+        {canClose && <GateAtClose period={period} />}
+      </div>
     )
   }
   if (monthClose === undefined || !canClose || !monthEnded(period)) return null

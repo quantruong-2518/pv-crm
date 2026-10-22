@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
-import { Inject, Injectable } from '@nestjs/common'
-import type { KpiMonthClose } from '@pv/contracts'
+import { Inject, Injectable, Logger } from '@nestjs/common'
+import { KpiCloseGateSnapshot, type KpiMonthClose } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import type { PeriodSpan } from '../performance/performance-period'
@@ -12,6 +12,8 @@ import { holdReconcileLock } from './kpi-reconcile.repository'
  *  its frozen basis. Decides nothing — whether a month may close is the service's. */
 @Injectable()
 export class KpiCloseRepository {
+  private readonly log = new Logger('sales.kpi')
+
   constructor(@Inject(DB) private readonly db: Db) {}
 
   /** Under the reconcile's lock: the close folds the month's adjustments. */
@@ -32,11 +34,37 @@ export class KpiCloseRepository {
     return row ? { closedAt: row.at.toISOString(), closedBy: { id: row.id, name: row.name } } : null
   }
 
+  /** The gate a close stored. jsonb is typed, not checked, so it is parsed
+   *  here; a shape this build cannot read is logged and read as none — an old
+   *  snapshot must never turn the gate read into a 500. */
+  async gateOf(period: string, handle: Db = this.db): Promise<KpiCloseGateSnapshot | null> {
+    const [row] = await handle
+      .select({ gate: kpiMonthClose.gate })
+      .from(kpiMonthClose)
+      .where(eq(kpiMonthClose.period, period))
+    if (!row || row.gate === null) return null
+    const parsed = KpiCloseGateSnapshot.safeParse(row.gate)
+    if (parsed.success) return parsed.data
+    this.log.error(`KPI close gate of ${period} unreadable: ${parsed.error.message}`)
+    return null
+  }
+
+  /** A savepoint inside `tx`: a failure in `work` rolls back to it and is
+   *  thrown, while `tx` itself stays usable. */
+  nested<T>(tx: Db, work: (inner: Db) => Promise<T>): Promise<T> {
+    return tx.transaction((inner) => work(inner))
+  }
+
   /** `false` when another close landed first — the primary key answers it. */
-  async insertClose(tx: Db, period: string, closedById: string): Promise<boolean> {
+  async insertClose(
+    tx: Db,
+    period: string,
+    closedById: string,
+    gate: KpiCloseGateSnapshot | null,
+  ): Promise<boolean> {
     const made = await tx
       .insert(kpiMonthClose)
-      .values({ period, closedById, basisFrozen: true })
+      .values({ period, closedById, basisFrozen: true, gate })
       .onConflictDoNothing()
       .returning({ period: kpiMonthClose.period })
     return made.length === 1

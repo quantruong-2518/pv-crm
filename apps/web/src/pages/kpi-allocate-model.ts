@@ -77,6 +77,19 @@ export const teamPath = (teamId: string, period: string) =>
 
 export const monthQuery = (period: string) => `?${MONTH_PARAM}=${period}`
 
+/** Navigation state a link puts on `targetsPath` to land on the role's step even
+ *  when the targets screen is already open. */
+export const LAND_ON_STEP = { landOnStep: true } as const
+export const landsOnStep = (state: unknown) =>
+  typeof state === 'object' && state !== null && 'landOnStep' in state
+
+/** The targets screen opened on a role, and on a team's package of it when given. */
+export function targetsPath(period: string, role: RoleId, teamId?: string): string {
+  const q = new URLSearchParams({ [MONTH_PARAM]: period, role })
+  if (teamId) q.set('team', teamId)
+  return `${TARGETS_PATH}?${q.toString()}`
+}
+
 /** The team's name after a role, for a package or counter that sits on a team. */
 export const teamSuffix = (team: KpiTeamRef | null) => (team ? ` · Nhóm ${team.name}` : '')
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import { AppShell, ScreenHeader, ScreenLayout, SectionTitle, Skeleton } from '@pv/ui'
 import type { RoleId } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
@@ -11,6 +11,7 @@ import { kpiCatalogQuery } from '@/data/kpi-catalog'
 import { waitingReasonsQuery } from '@/data/kpi-close'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { keyOf } from './home-model'
+import { landsOnStep } from './kpi-allocate-model'
 import { NOTE } from './home-tiles'
 import { CounterDrawer, type CounterOwner } from './kpi-counter-detail'
 import { MonthCloseBar } from './kpi-month-close'
@@ -70,6 +71,14 @@ export function KpiTargetsPage() {
   const [owner, setOwner] = useState<CounterOwner | null>(null)
   const [jump, setJump] = useState<string[] | null>(null)
   const [landing, setLanding] = useState(() => params.get(ROLE_PARAM) !== null)
+  /* A link from inside this screen (the close gate) re-arms the landing jump;
+     the page stays mounted, so the first-render read above would miss it. */
+  const location = useLocation()
+  const [arrived, setArrived] = useState(location.key)
+  if (arrived !== location.key) {
+    setArrived(location.key)
+    if (landsOnStep(location.state)) setLanding(true)
+  }
 
   const catalog = useQuery(kpiCatalogQuery)
   const targets = useQuery(kpiTargetsQuery(period))

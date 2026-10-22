@@ -210,10 +210,18 @@ export class ContractOverdueReasonService {
   }
 
   async waiting(q: OverdueReasonWaitingQuery): Promise<OverdueReasonWaitingResponse> {
-    const dayEnd = monthEnd(q.period)
-    const lastDayStart = new Date(dayEnd.getTime() - DAY_MS)
-    const reasons = await this.repo.waitingAsOf(this.schedule.readonlyHandle, lastDayStart, dayEnd)
+    const reasons = await this.waitingIn(q.period)
     return OverdueReasonWaitingResponse.parse({ period: q.period, reasons })
+  }
+
+  /** `waiting`'s rows for the KPI close gate (ADR 0116), on the caller's
+   *  handle so a close can read them inside its own transaction. */
+  waitingIn(
+    period: string,
+    handle: Db = this.schedule.readonlyHandle,
+  ): Promise<OverdueReasonRow[]> {
+    const dayEnd = monthEnd(period)
+    return this.repo.waitingAsOf(handle, new Date(dayEnd.getTime() - DAY_MS), dayEnd)
   }
 
   /** Out of scope answers the same 404 as the contract read. */

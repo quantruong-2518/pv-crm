@@ -4,6 +4,7 @@ import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { SettingModule } from '@api/platform/setting/setting.module'
 import { SalesConfigModule } from '../config/config.module'
+import { ContractModule } from '../contract/contract.module'
 import { KpiAlertRepository } from './kpi-alert.repository'
 import { KpiAlertService } from './kpi-alert.service'
 import { KpiAlertSweeper } from './kpi-alert.sweeper'
@@ -12,6 +13,7 @@ import { KpiAllocationController } from './kpi-allocation.controller'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAllocationService } from './kpi-allocation.service'
 import { KpiCloseRepository } from './kpi-close.repository'
+import { KpiCloseGateService } from './kpi-close-gate.service'
 import { KpiCloseService } from './kpi-close.service'
 import { KpiConfigController } from './kpi-config.controller'
 import { KpiConfigRepository } from './kpi-config.repository'
@@ -42,16 +44,22 @@ import { KpiTeamViewService } from './kpi-team-view.service'
  *  targets, and the allocation packages with their lines and counters. The
  *  forecast owns no table: it reads through the first three.
  *
- *  `AuditModule` for every target and allocation write. `EnginesModule` for
- *  one question: whether the allocation reader also holds `kpi.view-all`.
- *  `SettingModule` for the forecast thresholds. `SalesConfigModule` for the
- *  config gate the metric overlay and alert pair are proposed through
- *  (ADR 0099 §2). `NotificationModule` for the bell: target proposals and
- *  agreements (ADR 0093) and the KPI kinds (ADR 0099 §4).
- *  `exports` names the reconcile pass (ADR 0115): callable from an application
- *  context (acceptance runs call it). */
+ *  `AuditModule` for every write. `EnginesModule` for permission questions
+ *  (`kpi.view-all`, who approves overdue reasons). `SettingModule` for the
+ *  forecast thresholds. `SalesConfigModule` for the config gate (ADR 0099 §2).
+ *  `NotificationModule` for the bell (ADR 0093, 0099 §4). `ContractModule` for
+ *  the overdue reasons the close gate lists (ADR 0116). `exports` names the
+ *  reconcile pass (ADR 0115): callable from an application context (acceptance
+ *  runs call it). */
 @Module({
-  imports: [AuditModule, EnginesModule, SettingModule, SalesConfigModule, NotificationModule],
+  imports: [
+    AuditModule,
+    EnginesModule,
+    SettingModule,
+    SalesConfigModule,
+    NotificationModule,
+    ContractModule,
+  ],
   controllers: [
     KpiController,
     KpiAllocationController,
@@ -67,6 +75,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiReadingsRepository,
     KpiCloseRepository,
     KpiCloseService,
+    KpiCloseGateService,
     KpiTargetsRepository,
     KpiAllocationRepository,
     KpiAllocationService,

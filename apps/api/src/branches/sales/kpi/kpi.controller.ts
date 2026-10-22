@@ -10,12 +10,13 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { KpiCloseGateService } from './kpi-close-gate.service'
 import { KpiCloseService } from './kpi-close.service'
 import { KpiService } from './kpi.service'
 
 /** `/sales/kpi/:period/…` — scorecards per role and the agreed monthly targets.
  *
- *  Nine doors, one permission each (ADR 0004): your own card, the company card
+ *  Ten doors, one permission each (ADR 0004): your own card, the company card
  *  and everyone's cards are three permissions, so three routes. One person's
  *  card sits on `kpi.view`; whose card it may be is the service's check (ADR 0101).
  *
@@ -27,6 +28,7 @@ export class KpiController {
   constructor(
     private readonly kpi: KpiService,
     private readonly month: KpiCloseService,
+    private readonly gate: KpiCloseGateService,
   ) {}
 
   @Get(':period/me')
@@ -94,6 +96,14 @@ export class KpiController {
   @Need({ branch: 'Sales', permission: 'kpi.view' })
   acknowledge(@CurrentActor() who: Actor, @Param(zod(KpiRoleParams)) params: KpiRoleParams) {
     return this.kpi.acknowledge(who, params.period, params.role)
+  }
+
+  /** What is pending and unusual before a close (ADR 0116) — the closer's
+   *  permission; a month not yet over reads as a preview. */
+  @Get(':period/close-gate')
+  @Need({ branch: 'Sales', permission: 'kpi.set-target' })
+  closeGate(@CurrentActor() who: Actor, @Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
+    return this.gate.read(who, params.period)
   }
 
   /** 201: it files the close. No body — the month is the whole input. */

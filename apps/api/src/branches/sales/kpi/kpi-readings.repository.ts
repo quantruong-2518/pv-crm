@@ -371,6 +371,18 @@ export const spanned = (span: PeriodSpan, body: SQL): SQL => sql`
 
 export type KpiValues = ReadonlyMap<string, number | null>
 
+/** A basis folded to its mean and size, `basisAverage`'s answer. */
+export type KpiBasisAverage = { average: number; count: number }
+
+/** One basis record as `basisRows` returns it. */
+export type KpiBasisRow = {
+  actorId: string | null
+  name: string | null
+  code: string
+  at: Date
+  value: number | null
+}
+
 /** Σ adjustment delta per `valueKey`: `applied` landed in the month, `sourced`
  *  came out of it (only a closed month has those). */
 export type KpiAdjustmentSums = {
@@ -485,6 +497,40 @@ export class KpiReadingsRepository {
       if (row.sourced_n > 0) sourced.set(key, row.sourced)
     }
     return { applied, sourced }
+  }
+
+  /** One seat's live basis rows over `span`, every actor, with the actor's
+   *  name — for a reader that judges records one by one (the close gate). */
+  async basisRows(seat: KpiSeat, span: PeriodSpan, handle: Db = this.db): Promise<KpiBasisRow[]> {
+    const r = (await handle.execute(
+      spanned(
+        span,
+        sql`SELECT b.actor_id::text AS "actorId", a.name, b.code::text AS code, b.at,
+                   b.value::float8 AS value
+            FROM (${metricSql(seat).basis(onlyFor())}) b
+            LEFT JOIN platform.actor a ON a.id = b.actor_id
+            ORDER BY b.at, b.code`,
+      ),
+    )) as { rows: (Omit<KpiBasisRow, 'at'> & { at: Date | string })[] }
+    return r.rows.map((row) => ({ ...row, at: new Date(row.at) }))
+  }
+
+  /** The mean value and the row count of one seat's live basis over `span`,
+   *  folded in SQL so a long history never travels to Node. */
+  async basisAverage(
+    seat: KpiSeat,
+    span: PeriodSpan,
+    handle: Db = this.db,
+  ): Promise<KpiBasisAverage> {
+    const r = (await handle.execute(
+      spanned(
+        span,
+        sql`SELECT COALESCE(avg(b.value), 0)::float8 AS average, count(*)::int AS count
+            FROM (${metricSql(seat).basis(onlyFor())}) b`,
+      ),
+    )) as { rows: KpiBasisAverage[] }
+    const row = r.rows[0]
+    return { average: Number(row?.average ?? 0), count: Number(row?.count ?? 0) }
   }
 
   /** Whether `period`'s close froze its basis — even an empty one. A month
