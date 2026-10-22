@@ -925,6 +925,13 @@
       "when": 1794726360000,
       "tag": "0133_notification_kpi_loop_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1794899160000,
+      "tag": "0135_kpi_line_acked_by_default",
+      "breakpoints": true
     }
   ]
 }

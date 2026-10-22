@@ -4,7 +4,6 @@ import {
   KPI_METRIC_LABEL,
   KpiCounterListResponse,
   type KpiAcknowledgeBody,
-  type KpiAckStatus,
   type KpiAllocationResponse,
   type KpiCounter,
   type KpiCounterBody,
@@ -33,8 +32,9 @@ import {
   ackStateOf,
   assertNotLapsed,
   assertTargetValues,
-  lapsedAt,
+  lapseOf,
   monthClock,
+  type AckLine,
   stillOpen,
   vietnamToday,
 } from './kpi-rules'
@@ -42,7 +42,7 @@ import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
 
 const RESOLVED = { accept: 'accepted', keep: 'kept', counter: 'countered' } as const
-const PENDING = { ackStatus: 'pending' as const, ackedAt: null }
+const PENDING = { ackStatus: 'pending' as const, ackedAt: null, ackedByDefault: false }
 
 /** A holder's answer to their lines, and a manager's answer to that (ADR 0098 §3).
  *
@@ -92,7 +92,9 @@ export class KpiAllocationCounterService {
    *  acknowledgement and the caller's lines in the package handed down, so the
    *  scorecard door and this one answer the same question.
    *
-   *  `keys === null` takes every line not countered. `strict` is the allocation
+   *  `keys === null` takes every line still `pending`: a lapsed one can no longer
+   *  be answered and must not block the rest (ADR 0114 §2); named explicitly, it
+   *  is refused. `strict` is the allocation
    *  door: no package handed down, or nothing to confirm, is then a refusal. */
   async receive(
     tx: Db,
@@ -112,9 +114,10 @@ export class KpiAllocationCounterService {
       return []
     }
     const mine = (await this.repo.lines([live.id], tx)).filter((l) => l.actorId === who.id)
+    const states = this.statesOf(live, mine)
     const wanted = keys
       ? mine.filter((l) => keys.includes(l.metricKey))
-      : mine.filter((l) => l.ackStatus !== 'countered')
+      : mine.filter((_, i) => states[i] === 'pending')
     if (keys && wanted.length !== keys.length) {
       throw conflict('Có chỉ tiêu không được giao cho bạn trong gói này.')
     }
@@ -222,9 +225,9 @@ export class KpiAllocationCounterService {
   }
 
   /** The states of `lines` under `pkg`'s deadline, as of today in Vietnam. */
-  private statesOf(pkg: KpiAllocationRowDb, lines: readonly { ackStatus: KpiAckStatus }[]) {
+  private statesOf(pkg: KpiAllocationRowDb, lines: readonly AckLine[]) {
     const dueOn = ackDueOn(pkg)
-    return lines.map((l) => ackStateOf(l.ackStatus, dueOn, vietnamToday()))
+    return lines.map((l) => ackStateOf(l, dueOn, vietnamToday()))
   }
 
   /** The holder never settles their own counter: refused here with a
@@ -351,13 +354,15 @@ export class KpiAllocationCounterService {
     if (!id) throw stale()
     if (!pkg.teamId) await this.repo.copyShares(tx, pkg.id, id)
     const same = (l: LineKey) => l.actorId === at.actorId && l.metricKey === at.metricKey
-    /* A lapsed line is copied answered, at its lapse: the new version's own
-       deadline must not reopen a deadline already missed. */
+    /* A lapsed line is copied answered at its lapse and flagged, so the new
+       version's deadline neither reopens it nor reads it as confirmed (ADR 0114). */
     const dueOn = ackDueOn(pkg)
-    const carried = (l: (typeof lines)[number]) =>
-      dueOn !== null && ackStateOf(l.ackStatus, dueOn, vietnamToday()) === 'lapsed'
-        ? { ackStatus: 'acknowledged' as const, ackedAt: lapsedAt(dueOn) }
-        : { ackStatus: l.ackStatus, ackedAt: l.ackedAt }
+    const carried = (l: (typeof lines)[number]) => {
+      const lapse = lapseOf(l, dueOn, vietnamToday())
+      return lapse
+        ? { ackStatus: 'acknowledged' as const, ackedAt: lapse, ackedByDefault: true }
+        : { ackStatus: l.ackStatus, ackedAt: l.ackedAt, ackedByDefault: false }
+    }
     await this.repo.insertLines(
       tx,
       lines.map((l) => ({

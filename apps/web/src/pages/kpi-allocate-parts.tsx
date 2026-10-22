@@ -1,16 +1,31 @@
 import { Badge, Check, GlassCard, Icon, Stepper, cn } from '@pv/ui'
-import type { KpiAllocation } from '@pv/contracts'
+import type { KpiAllocation, KpiAllocationLine } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
+import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import { PACKAGE_LABEL, actedAt, failText } from './kpi-allocate-model'
+import { ACK_LABEL, PACKAGE_LABEL, ackCounts, actedAt, failText } from './kpi-allocate-model'
 
-/** Small blocks the KPI screens share: a package's status pill, its four-step
- *  bar, and a refused write said in place. */
+/** Small blocks the KPI screens share: a package's status pill, its lines'
+ *  answers, its four-step bar, and a refused write said in place. */
 
 export function PackageBadge({ pkg }: { pkg: KpiAllocation | undefined }) {
   if (!pkg) return <Badge tone="draft">Chưa phân bổ</Badge>
   const label = PACKAGE_LABEL[pkg.status]
   return <Badge tone={label.tone}>{label.text}</Badge>
+}
+
+/** One badge per answer; counts only when the lines differ. */
+export function AckCounts({ lines }: { lines: readonly Pick<KpiAllocationLine, 'ackState'>[] }) {
+  const counts = ackCounts(lines)
+  return (
+    <span className="flex flex-wrap gap-2">
+      {counts.map(({ state, count }) => (
+        <Badge key={state} tone={ACK_LABEL[state].tone}>
+          {counts.length === 1 ? ACK_LABEL[state].text : `${ACK_LABEL[state].text} · ${num(count)}`}
+        </Badge>
+      ))}
+    </span>
+  )
 }
 
 export function FailLine({

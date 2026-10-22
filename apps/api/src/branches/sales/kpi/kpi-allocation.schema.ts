@@ -1,4 +1,5 @@
 import {
+  boolean,
   check,
   foreignKey,
   integer,
@@ -151,6 +152,10 @@ export const kpiAllocationLine = sales.table(
       .default('pending'),
     /** When the holder answered, either way. NULL exactly while `pending`. */
     ackedAt: timestamp('acked_at', { withTimezone: true }),
+    /** A lapsed line carried into a reissued package (ADR 0114 §1). The new
+     *  version has a fresh deadline, so without this mark the derived state
+     *  `lapsed` would read as a confirmation nobody gave. */
+    ackedByDefault: boolean('acked_by_default').notNull().default(false),
   },
   (t) => [
     /* No index beyond the key: "my lines this month" finds the live package
@@ -168,6 +173,12 @@ export const kpiAllocationLine = sales.table(
     check(
       'kpi_allocation_line_acked_stamp',
       sql`("ack_status" = 'pending') = ("acked_at" IS NULL)`,
+    ),
+    /** Accepted by default is still accepted: a flagged pending or countered
+     *  line would be two answers at once. */
+    check(
+      'kpi_allocation_line_default_is_acked',
+      sql`NOT "acked_by_default" OR "ack_status" = 'acknowledged'`,
     ),
   ],
 )

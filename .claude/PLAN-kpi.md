@@ -74,7 +74,15 @@ so toàn bộ số KPI tháng 9–10 trước và sau lát (phải giống hệt
 thanh lý (tháng chốt giữ nguyên, tháng hiện tại còn mất luôn tiền đã thu của hợp đồng đó); ghi thu lùi ngày vào tháng
 đã chốt; duyệt yêu cầu ký sau chốt (`signedAt` lấy lúc gửi, không giới hạn ngày); huỷ thu rồi thu lại (đếm hai lần);
 vô hiệu/khôi phục lead (lệch lớn nhất); đổi làn BD/SALE trên cơ hội đã thắng (PATCH không có dòng audit).
-**Hướng thiết kế đề xuất:** đóng băng các dòng nền `(actor, kind, code, at, value)` lúc chốt rồi so với live, thay vì
+**Kết quả truy 1c (22/10):** chưa có khái niệm "vắng mặt" hay uỷ quyền; người thay duy nhất là ADR 0101 default 16
+(trưởng nhóm bị khoá → mọi người giữ `kpi.set-target`), chép hai nơi (`actsFor` ở cửa, `answeringLead` ở chuông).
+Lỗ: chuông "phần nhóm được giao" và "gói nhóm bị trả" gửi tới trưởng nhóm đã khoá rồi bị hub bỏ, không danh sách nào
+hiện (H1, H2); `iLead` hai nghĩa (H3); cửa rộng hơn chuông (H4); `kpi-target-proposed` dùng tập người nhận khác
+(H5); bốn mắt với nhóm 2 người tắc khi một người vắng (H7); duyệt E3 kẹt khi người duyệt bị khoá sau (H10).
+Hướng: một hàm `seatActors(seat, period)` thay cả hai bản chép + 3 chỗ chuông; server trả `actingFor` thay `leadLocked`.
+Câu hỏi chủ dự án: ai khai báo vắng/người thay, có khoảng ngày không; phạm vi chỉ KPI hay cả duyệt E3.
+
+**Hướng thiết kế đề xuất 1a:** đóng băng các dòng nền `(actor, kind, code, at, value)` lúc chốt rồi so với live, thay vì
 cài ghi tại ~7 cửa. Câu hỏi cho chủ dự án: có chặn luôn ngày ký/ngày thu rơi vào tháng đã chốt không.
 
 ### Đợt 2 · Giao theo cấp — cần Q1–Q4, Q10, Q11 + duyệt canvas 11 màn

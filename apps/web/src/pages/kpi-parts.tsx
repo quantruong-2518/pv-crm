@@ -4,6 +4,7 @@ import {
   Button,
   ChevronLeft,
   ChevronRight,
+  CircleDashed,
   EmptyState,
   GlassCard,
   Icon,
@@ -23,6 +24,7 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import type { BlockQuery, KpiCatalog } from '@/data/kpi-catalog'
 import { keyOf, periodLabel, type PeriodPick } from './home-model'
+import { ACK_LABEL } from './kpi-allocate-model'
 import { GROW_WIDTH } from '@/components/period-picker-style'
 import { NOTE, TILE } from './home-tiles'
 import {
@@ -130,6 +132,25 @@ function targetLine({ def, reading }: KpiItem): string | null {
   return paced ? `${target} · cần đạt đến hôm nay ${printTile(def.unit, reading.expected)}` : target
 }
 
+/** Beside a target nobody confirmed: the holder let the deadline pass, so the
+ *  level applies as given (ADR 0114). Icon plus words, since a touch screen has
+ *  no hover to name a bare icon; every other answer state shows nothing. */
+export function ByDefaultMark({
+  reading,
+  className,
+}: {
+  reading: Pick<KpiReading, 'targetAck'>
+  className?: string
+}) {
+  if (reading.targetAck !== 'lapsed') return null
+  return (
+    <span className={cn(NOTE, 'inline-flex items-center gap-1 whitespace-nowrap', className)}>
+      <Icon icon={CircleDashed} size={14} />
+      {ACK_LABEL.lapsed.text}
+    </span>
+  )
+}
+
 const FIGURE = 'tnum font-num font-semibold leading-none'
 
 export function ReadingTile({
@@ -173,6 +194,7 @@ export function ReadingTile({
         {(target || def.snapshot) && (
           <span className={cn(NOTE, 'tnum font-num')}>
             {[target, def.snapshot && 'Số tại thời điểm hiện tại'].filter(Boolean).join(' · ')}
+            {target && <ByDefaultMark reading={reading} className="ml-2 align-middle" />}
           </span>
         )}
         {shortfall && (

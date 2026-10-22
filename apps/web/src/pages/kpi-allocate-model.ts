@@ -5,6 +5,7 @@ import {
   KPI_METRIC_LABEL,
   type KpiAckState,
   type KpiAllocation,
+  type KpiAllocationLine,
   type KpiAllocationStatus,
   type KpiCounter,
   type KpiCounterStatus,
@@ -15,7 +16,7 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
-import { dmhm } from '@/lib/date'
+import { dm, dmhm } from '@/lib/date'
 import { MONTH_PARAM, printValue } from './kpi-model'
 
 /** What the targets, team and receipt screens share and is not a component:
@@ -41,8 +42,25 @@ export const ACK_LABEL: Record<KpiAckState, { text: string; tone: Tone }> = {
   pending: { text: 'Chưa xác nhận', tone: 'warning' },
   countered: { text: 'Xin đổi mức', tone: 'running' },
   acknowledged: { text: 'Đã xác nhận', tone: 'success' },
-  lapsed: { text: 'Hết hạn trả lời', tone: 'draft' },
+  lapsed: { text: 'Nhận mặc định', tone: 'draft' },
 }
+
+/** What still waits on someone first, so the holder reads their own move first. */
+const ACK_ORDER: readonly KpiAckState[] = ['pending', 'countered', 'acknowledged', 'lapsed']
+
+/** Lines per answer, non-zero only: a holder with mixed answers is never read as one (ADR 0114). */
+export const ackCounts = (lines: readonly Pick<KpiAllocationLine, 'ackState'>[]) =>
+  ACK_ORDER.map((state) => ({
+    state,
+    count: lines.filter((l) => l.ackState === state).length,
+  })).filter((c) => c.count > 0)
+
+/** The deadline a `lapsed` line missed, as `dd/mm`. The server names the day:
+ *  a line carried into a reissue missed an older deadline than the package's. */
+export const missedDueOf = (line: Pick<KpiAllocationLine, 'lapsedOn'>): string | null =>
+  line.lapsedOn ? dm(line.lapsedOn) : null
+
+export const missedText = (days: readonly string[]) => `Hạn trả lời ${days.join(', ')} đã qua`
 
 export const COUNTER_LABEL: Record<KpiCounterStatus, { text: string; tone: Tone }> = {
   open: { text: KPI_COUNTER_STATUS_LABEL.open, tone: 'warning' },

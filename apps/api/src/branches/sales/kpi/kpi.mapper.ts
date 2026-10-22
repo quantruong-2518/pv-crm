@@ -98,7 +98,15 @@ function valueOf(seat: KpiSeat, actorId: string, ctx: ScoreContext): number | nu
   return seat.def.unit === 'count' || seat.def.unit === 'money' ? 0 : null
 }
 
-export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): KpiReading[] {
+/** `own` are the holder's personal lines of `role`: a personal line beats the
+ *  role target (`targetSources`), so a slot with one reads that line's answer.
+ *  Callers without lines get `targetAck: null`, the role-target reading. */
+export function toReadings(
+  role: RoleId,
+  actorId: string,
+  ctx: ScoreContext,
+  own: readonly LineAck[] = [],
+): KpiReading[] {
   return ctx.catalog[role].map((def) => {
     const agreed = agreedIn(ctx.slots, role, def.key)
     const value = valueOf({ role, def }, actorId, ctx)
@@ -108,6 +116,7 @@ export function toReadings(role: RoleId, actorId: string, ctx: ScoreContext): Kp
       value,
       target,
       targetVersion: agreed?.version ?? null,
+      targetAck: own.find((l) => l.metricKey === def.key)?.ackState ?? null,
       expected: expectedOf(target, def, ctx.elapsed),
       verdict: verdictOf(value, target, def, ctx.elapsed, ctx.tolerance),
     }
@@ -141,8 +150,9 @@ export function toScorecard(
     })
   return {
     role,
-    readings: toReadings(role, actorId, ctx),
+    readings: toReadings(role, actorId, ctx, own),
     acknowledgedAt: at?.toISOString() ?? null,
     acknowledgementStale: stale,
+    acceptedByDefault: own.some((l) => l.ackState === 'lapsed'),
   }
 }

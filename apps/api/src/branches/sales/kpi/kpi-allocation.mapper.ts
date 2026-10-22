@@ -17,7 +17,7 @@ import type {
   KpiShareRow,
 } from './kpi-allocation.repository'
 import { catalogDef } from './kpi-config.overlay'
-import { ackDueOn, ackStateOf, lapsedAt } from './kpi-rules'
+import { ackDueOn, ackStateOf, lapsedOnOf, lapseOf } from './kpi-rules'
 import type { KpiTargetRow } from './kpi-targets.repository'
 import { verdictOf } from './kpi-verdict'
 import { slotsOf, type LineAck, type TargetSlots } from './kpi.mapper'
@@ -161,8 +161,9 @@ export function toAllocation(
       metricKey: l.metricKey,
       value: Number(l.value),
       ackStatus: l.ackStatus,
-      ackState: ackStateOf(l.ackStatus, dueOn, today),
+      ackState: ackStateOf(l, dueOn, today),
       ackedAt: l.ackedAt?.toISOString() ?? null,
+      lapsedOn: lapsedOnOf(l, dueOn, today),
       roleValue: roleTarget(pkg.role, l.metricKey),
       lastMonth: lastMonth(pkg.role, l.actorId, l.metricKey),
     })),
@@ -292,11 +293,10 @@ export function targetSources(rows: readonly KpiTargetRow[], lines: readonly Kpi
         .filter((l) => l.actorId === actorId && l.package.role === role)
         .map((l) => {
           const dueOn = ackDueOn(l.package)
-          const ackState = ackStateOf(l.ackStatus, dueOn, today)
           return {
             metricKey: l.metricKey,
-            ackState,
-            lapsedAt: ackState === 'lapsed' && dueOn ? lapsedAt(dueOn) : null,
+            ackState: ackStateOf(l, dueOn, today),
+            lapsedAt: lapseOf(l, dueOn, today),
           }
         }),
   }

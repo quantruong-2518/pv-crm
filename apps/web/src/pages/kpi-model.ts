@@ -243,14 +243,18 @@ export function shortfallOf({ def, reading }: KpiItem, compact = false): string 
 // ACKNOWLEDGEMENT — one rule for both screens, so they cannot disagree
 // ---------------------------------------------------------------------------
 
+/** `by-default`: answered, as `done` is, but by a missed deadline rather than
+ *  the holder, so it is never worded as received (ADR 0114). */
 export type Acknowledgement = {
-  state: 'done' | 'missing' | 'stale' | 'no-target'
+  state: 'done' | 'by-default' | 'missing' | 'stale' | 'no-target'
   text: string
 }
 
 export function acknowledgementOf(card: KpiScorecard): Acknowledgement {
   if (card.acknowledgedAt !== null && !card.acknowledgementStale) {
-    return { state: 'done', text: `Đã nhận chỉ tiêu lúc ${dmhm(card.acknowledgedAt)}` }
+    return card.acceptedByDefault
+      ? { state: 'by-default', text: 'Có chỉ tiêu nhận mặc định' }
+      : { state: 'done', text: `Đã nhận chỉ tiêu lúc ${dmhm(card.acknowledgedAt)}` }
   }
   if (!card.readings.some((r) => r.target !== null)) {
     return { state: 'no-target', text: 'Tháng này chưa có chỉ tiêu nào được duyệt' }

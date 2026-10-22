@@ -1,12 +1,13 @@
 import { Badge, GlassCard, Icon, Minus, SectionTitle, TrendingDown, TrendingUp, cn } from '@pv/ui'
-import { KPI_METRIC_LABEL, type KpiAckState } from '@pv/contracts'
+import { KPI_METRIC_LABEL } from '@pv/contracts'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import { answerable, type MyLine, type MyPackage } from '@/data/kpi-personal'
 import { ROLE_LABEL } from '@/data/users'
 import { dm, dmhm } from '@/lib/date'
 import { num } from './home-model'
 import { NOTE } from './home-tiles'
-import { ACK_LABEL, PACKAGE_LABEL } from './kpi-allocate-model'
+import { ACK_LABEL, PACKAGE_LABEL, missedDueOf, missedText } from './kpi-allocate-model'
+import { AckCounts } from './kpi-allocate-parts'
 import { TargetHistoryButton } from './kpi-history'
 import { printCell, printValue } from './kpi-model'
 import { AnswerBlock } from './kpi-receive-form'
@@ -18,7 +19,8 @@ import { AnswerBlock } from './kpi-receive-form'
  *  column is labelled as achieved and the change is against what was done. A line under
  *  an open counter is answered by the manager, so it leaves the answer block.
  *  A superseded package is the one in force while the next is drafted: it is
- *  read-only, and its lines' answers belong to no live question, so none is shown. */
+ *  read-only, and its lines' answers belong to no live question, so none is shown,
+ *  except "accepted by default": that target still applies unconfirmed (ADR 0114). */
 
 const DIRECTION_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus }
 
@@ -63,6 +65,7 @@ const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 
 function cellsOf(line: MyLine, live: boolean) {
   const { def, value, lastMonth, ackState, ackedAt } = line
+  const missed = missedDueOf(line)
   const cells = [
     <span key="metric" className={TWO_LINES}>
       <span className="font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
@@ -74,6 +77,7 @@ function cellsOf(line: MyLine, live: boolean) {
     <span key="now" className={cn(TWO_LINES, 'items-end')}>
       <span className="tnum font-num font-semibold">{printValue(def.unit, value)}</span>
       <Change line={line} />
+      {!live && ackState === 'lapsed' && <span className={NOTE}>{ACK_LABEL.lapsed.text}</span>}
     </span>,
   ]
   if (!live) return cells
@@ -81,21 +85,15 @@ function cellsOf(line: MyLine, live: boolean) {
     ...cells,
     <span key="ack" className={cn(TWO_LINES, 'items-start')}>
       <Badge tone={ACK_LABEL[ackState].tone}>{ACK_LABEL[ackState].text}</Badge>
-      {ackedAt && (
+      {/* A carried lapsed line's stamp is when its deadline ran out, not an answer. */}
+      {ackedAt && ackState !== 'lapsed' && (
         <span className={cn(NOTE, 'tnum font-num')}>
           {ackState === 'countered' ? 'Đề xuất gửi lúc' : 'Lúc'} {dmhm(ackedAt)}
         </span>
       )}
-      {ackState === 'lapsed' && <span className={NOTE}>Áp dụng mức đã giao.</span>}
+      {missed && <span className={cn(NOTE, 'tnum font-num')}>{missedText([missed])}</span>}
     </span>,
   ]
-}
-
-/** The package's state, worded for the holder: their own move first. */
-function packageAck(lines: readonly MyLine[]): KpiAckState {
-  if (lines.some((l) => l.ackState === 'pending')) return 'pending'
-  if (lines.some((l) => l.ackState === 'countered')) return 'countered'
-  return lines.some((l) => l.ackState === 'lapsed') ? 'lapsed' : 'acknowledged'
 }
 
 export function ReceivePackage({
@@ -115,7 +113,7 @@ export function ReceivePackage({
 }) {
   const live = answerable(pack)
   const [firstOpen, ...moreOpen] = live ? pack.lines.filter((l) => l.ackState === 'pending') : []
-  const state = live ? ACK_LABEL[packageAck(pack.lines)] : PACKAGE_LABEL[pack.status]
+  const state = PACKAGE_LABEL[pack.status]
 
   return (
     <section className="flex flex-col gap-4">
@@ -146,7 +144,7 @@ export function ReceivePackage({
 
       <GlassCard variant="b" className="flex flex-col gap-3 py-4">
         <div className="px-5">
-          <Badge tone={state.tone}>{state.text}</Badge>
+          {live ? <AckCounts lines={pack.lines} /> : <Badge tone={state.tone}>{state.text}</Badge>}
         </div>
         <StackTable
           from="lg"

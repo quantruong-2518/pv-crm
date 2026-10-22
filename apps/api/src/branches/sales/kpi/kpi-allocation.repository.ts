@@ -206,6 +206,7 @@ export class KpiAllocationRepository {
         value: kpiAllocationLine.value,
         ackStatus: kpiAllocationLine.ackStatus,
         ackedAt: kpiAllocationLine.ackedAt,
+        ackedByDefault: kpiAllocationLine.ackedByDefault,
         name: actor.name,
       })
       .from(kpiAllocationLine)
@@ -335,6 +336,7 @@ export class KpiAllocationRepository {
           value: sql`excluded.value`,
           ackStatus: sql`CASE WHEN ${kept} THEN ${kpiAllocationLine.ackStatus} ELSE 'pending' END`,
           ackedAt: sql`CASE WHEN ${kept} THEN ${kpiAllocationLine.ackedAt} ELSE NULL END`,
+          ackedByDefault: sql`CASE WHEN ${kept} THEN ${kpiAllocationLine.ackedByDefault} ELSE false END`,
         },
       })
   }
@@ -367,7 +369,9 @@ export class KpiAllocationRepository {
     tx: Db,
     pkg: Lock,
     keys: readonly Omit<LineKey, 'allocationId'>[],
-    set: Partial<Pick<KpiAllocationLineValues, 'ackStatus' | 'ackedAt' | 'value'>>,
+    set: Partial<
+      Pick<KpiAllocationLineValues, 'ackStatus' | 'ackedAt' | 'ackedByDefault' | 'value'>
+    >,
   ): Promise<number> {
     if (keys.length === 0) return 0
     const still = tx

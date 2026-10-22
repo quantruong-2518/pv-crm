@@ -1,0 +1,27 @@
+# Nghiệm thu Đợt 1d · nhận mặc định giữ nguyên dấu (ADR 0114, migration 0135)
+
+Cùng luật an toàn với `kpi-d0.md`: PGlite mới trong scratchpad, không Neon, không worker, `PV_TRUST_ACTOR_HEADER=true`.
+Người: A `director`, B `head-of-sales`, P, Q, R, S `sale` (không nhóm). Kỳ `2026-12`. Hai chỉ số đếm/tiền own của `sale`
+(gọi là K1, K2). Thời gian: lùi `decided_at` của gói bằng SQL để giả lập quá hạn (không đổi giờ máy).
+
+| #   | Bước                                                                                                                                  | Kỳ vọng                                                                                                                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Áp migration                                                                                                                          | Có cột `acked_by_default` trên `sales.kpi_allocation_line`; chèn tay một dòng `ack_status='pending', acked_by_default=true` bị CHECK từ chối                  |
+| 2   | B đặt chỉ tiêu `sale` K1 = 20, K2 = 20; A duyệt. B lập gói phòng: P K1 = 10, K2 = 10; Q K1 = 10, K2 = 10; `ackDays = 1`; gửi; A duyệt | 2xx                                                                                                                                                           |
+| 3   | P xác nhận K1 (chưa trả lời K2). Q đề xuất K1 = 8 có lý do (chưa trả lời K2)                                                          | 2xx. P·K1 `acknowledged`; Q·K1 `countered`                                                                                                                    |
+| 4   | SQL: lùi `decided_at` của gói về 5 ngày trước                                                                                         | —                                                                                                                                                             |
+| 5   | A đọc `GET /sales/kpi/2026-12/allocations` (P chỉ thấy dòng của mình)                                                                 | P·K1 `acknowledged`; P·K2 `lapsed`; Q·K1 `countered` (đề xuất không hết hạn); Q·K2 `lapsed`                                                                   |
+| 6   | P đọc `GET /sales/kpi/2026-12/me`                                                                                                     | Reading K1 `targetAck = acknowledged`; K2 `targetAck = lapsed`; thẻ báo có dòng nhận mặc định                                                                 |
+| 7   | P thử xác nhận K2                                                                                                                     | 409 (đã quá hạn)                                                                                                                                              |
+| 8   | B nhận đề xuất của Q (K1 = 8) sau khi đã quá hạn                                                                                      | 2xx; một gói phiên bản mới (nháp) được mở (reissue)                                                                                                           |
+| 9   | SQL: đọc các dòng của gói mới                                                                                                         | P·K2 và Q·K2 có `ack_status='acknowledged'`, `acked_by_default=true`; P·K1 `acknowledged`, `acked_by_default=false`; Q·K1 `pending`, `acked_by_default=false` |
+| 10  | B bù 2 đơn vị K1 cho một `sale` thứ ba R (để tổng K1 lại bằng 20, ADR 0098 §2), gửi gói mới, A duyệt; P đọc `/allocations`            | Trong gói mới P·K2 vẫn `lapsed` (không thành `acknowledged`); P·K1 `acknowledged`                                                                             |
+| 11  | Q xác nhận K1 trong gói mới                                                                                                           | 2xx. Không bị chặn bởi dòng mặc định nào                                                                                                                      |
+| 12  | A đọc `GET /sales/kpi/2026-12/people/P`                                                                                               | Reading K2 `targetAck = lapsed`; K1 `acknowledged`                                                                                                            |
+| 13  | Một `sale` S không có dòng nào đọc `/me`                                                                                              | `targetAck = null`                                                                                                                                            |
+
+`notLooked` có chủ ý: chữ trên màn ("Nhận mặc định", ghi chú hạn đã lỡ) — nghiệm thu bằng mắt.
+
+Bước thêm sau 11: Q xác nhận tất cả (`{}`) khi không còn dòng chờ → 409 "Bạn không có chỉ tiêu nào cần xác nhận."; khi K1 còn chờ cạnh K2 có cờ → 200, K2 giữ cờ và `acked_at`. Mỗi dòng `lapsed` có `lapsedOn` = ngày hạn đã lỡ, giữ nguyên qua gói phát hành lại.
+
+Lần chạy 22/10: lần 1 khớp sau khi sửa kịch bản bước 5 và 10; lần 2 (code có `lapsedOn`) khớp toàn bộ, kể cả các bước thêm.

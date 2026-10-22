@@ -37,15 +37,34 @@ export function ackDueOn(pkg: {
   return new Date(decided + pkg.ackDays * DAY_MS).toISOString().slice(0, 10)
 }
 
+/** What `ackStateOf` reads off a stored line. */
+export type AckLine = { ackStatus: KpiAckStatus; ackedAt: Date | null; ackedByDefault: boolean }
+
 /** A line nobody answered by the end of `dueOn` counts as acknowledged at the
  *  deadline: derived on every read, so there is no sweep to fail. A countered
- *  line never lapses; its counter is in the manager's hands. */
-export function ackStateOf(status: KpiAckStatus, dueOn: string | null, today: string): KpiAckState {
-  return status === 'pending' && dueOn !== null && today > dueOn ? 'lapsed' : status
+ *  line never lapses; its counter is in the manager's hands. A line carried
+ *  lapsed into a reissue keeps reading lapsed under the new deadline (ADR 0114). */
+export function ackStateOf(line: AckLine, dueOn: string | null, today: string): KpiAckState {
+  if (line.ackedByDefault) return 'lapsed'
+  return line.ackStatus === 'pending' && dueOn !== null && today > dueOn ? 'lapsed' : line.ackStatus
 }
 
 /** The instant a deadline ran out: the next Vietnam midnight after `dueOn`. */
 export const lapsedAt = (dueOn: string): Date => new Date(Date.parse(dueOn) + DAY_MS - VIETNAM_MS)
+
+/** When `line` lapsed, `null` if it did not. A carried line lapsed under an
+ *  older package, whose deadline only its stored stamp still remembers. */
+export function lapseOf(line: AckLine, dueOn: string | null, today: string): Date | null {
+  if (line.ackedByDefault) return line.ackedAt
+  return ackStateOf(line, dueOn, today) === 'lapsed' && dueOn ? lapsedAt(dueOn) : null
+}
+
+/** The Vietnam day whose deadline `line` missed: `lapsedAt` run backwards, so
+ *  a live lapse gives `dueOn` and a carried one the day its stamp closed. */
+export function lapsedOnOf(line: AckLine, dueOn: string | null, today: string): string | null {
+  const at = lapseOf(line, dueOn, today)
+  return at && new Date(at.getTime() + VIETNAM_MS - DAY_MS).toISOString().slice(0, 10)
+}
 
 /** A holder cannot answer a line whose deadline has gone. */
 export function assertNotLapsed(states: readonly KpiAckState[]): void {

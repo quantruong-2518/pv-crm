@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Badge, Button, GlassCard, Textarea, cn } from '@pv/ui'
+import { Button, GlassCard, Textarea, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDecideBody,
-  type KpiAckState,
   type KpiAllocation,
   type KpiCounter,
   type RoleId,
@@ -11,18 +10,18 @@ import {
 import { toastDone } from '@/app/toast'
 import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useDecideKpiAllocation } from '@/data/kpi-allocation'
-import { dm, dmhm } from '@/lib/date'
+import { dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { ACK_LABEL } from './kpi-allocate-model'
-import { FailLine } from './kpi-allocate-parts'
+import { missedDueOf, missedText } from './kpi-allocate-model'
+import { AckCounts, FailLine } from './kpi-allocate-parts'
 import type { Recipient } from './kpi-allocate-table'
 
 /** What happens after a package is sent: each holder's answer, the second
  *  manager's decision, and a returned package's reason.
  *
- *  A holder's answer is read across all their lines in the role: one counter
- *  outweighs any confirmation, and "received" needs every line confirmed or
- *  lapsed (the head's level applies once the deadline passes). */
+ *  A holder's answer is counted per state across their lines in the role, so
+ *  two confirmed lines and one accepted by default never read as one state
+ *  (ADR 0114). A lapsed line is answered: the head's level applies. */
 
 const COLUMNS: StackColumn[] = [
   { header: 'Người nhận', width: 'minmax(0,1.2fr)' },
@@ -33,25 +32,19 @@ const COLUMNS: StackColumn[] = [
 /** `KpiAllocationDecideBody`'s ceiling on a return reason. */
 const REASON_MAX = KpiAllocationDecideBody.options[1].shape.reason.maxLength ?? undefined
 
-type Answer = { status: KpiAckState; detail: string }
-
-function answerOf(lines: KpiAllocation['lines'], dueOn: KpiAllocation['ackDueOn']): Answer {
+/** Beside the per-answer badges: what was countered, else which deadline was
+ *  missed, else when the last line was confirmed. */
+function detailOf(lines: KpiAllocation['lines']): string {
   const countered = lines.filter((l) => l.ackState === 'countered')
-  if (countered.length > 0) {
-    const names = countered.map((l) => KPI_METRIC_LABEL[l.metricKey]).join(', ')
-    return { status: 'countered', detail: names }
-  }
-  const stamps = lines.flatMap((l) => (l.ackedAt ? [l.ackedAt] : [])).sort()
-  const settled = (l: KpiAllocation['lines'][number]) =>
-    l.ackState === 'acknowledged' || l.ackState === 'lapsed'
-  if (lines.length > 0 && lines.every(settled)) {
-    if (lines.some((l) => l.ackState === 'lapsed')) {
-      return { status: 'lapsed', detail: dueOn ? `Hạn trả lời: ${dm(dueOn)}` : '' }
-    }
-    const last = stamps[stamps.length - 1]
-    return { status: 'acknowledged', detail: last ? `Lúc ${dmhm(last)}` : '' }
-  }
-  return { status: 'pending', detail: '' }
+  if (countered.length > 0) return countered.map((l) => KPI_METRIC_LABEL[l.metricKey]).join(', ')
+  const missed = [...new Set(lines.flatMap((l) => missedDueOf(l) ?? []))]
+  if (missed.length > 0) return missedText(missed)
+  if (!lines.every((l) => l.ackState === 'acknowledged')) return ''
+  const last = lines
+    .flatMap((l) => (l.ackedAt ? [l.ackedAt] : []))
+    .sort()
+    .at(-1)
+  return last ? `Lúc ${dmhm(last)}` : ''
 }
 
 export function AnswersBlock({
@@ -69,7 +62,7 @@ export function AnswersBlock({
 }) {
   const rows = holders.flatMap((h) => {
     const lines = pkg.lines.filter((l) => l.actorId === h.actorId)
-    return lines.length > 0 ? [{ holder: h, answer: answerOf(lines, pkg.ackDueOn) }] : []
+    return lines.length > 0 ? [{ holder: h, lines, detail: detailOf(lines) }] : []
   })
   const asked = new Set(counters.map((c) => c.actorId))
 
@@ -81,17 +74,15 @@ export function AnswersBlock({
         rowHeight="min-h-12 py-2"
         tableClassName="min-w-xl"
         columns={COLUMNS}
-        rows={rows.map(({ holder, answer }) => ({
+        rows={rows.map(({ holder, lines, detail }) => ({
           id: holder.actorId,
           cells: [
             <span key="who" className="truncate font-semibold">
               {holder.name}
             </span>,
-            <Badge key="state" tone={ACK_LABEL[answer.status].tone}>
-              {ACK_LABEL[answer.status].text}
-            </Badge>,
+            <AckCounts key="state" lines={lines} />,
             <span key="detail" className="flex min-w-0 flex-wrap items-center gap-3">
-              <span className={cn(NOTE, 'tnum font-num')}>{answer.detail}</span>
+              <span className={cn(NOTE, 'tnum font-num')}>{detail}</span>
               {asked.has(holder.actorId) && (
                 <Button
                   variant="secondary"

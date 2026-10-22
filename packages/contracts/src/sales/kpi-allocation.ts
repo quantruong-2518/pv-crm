@@ -1,7 +1,15 @@
 import { z } from 'zod'
 import { Day, Moment } from '../primitives'
 import { RoleId } from '../auth'
-import { KpiMetricKey, KpiMonthClose, KpiPeriodKey, KpiPeriodParams, KpiTargetActor } from './kpi'
+import {
+  KpiAckState,
+  KpiAckStatus,
+  KpiMetricKey,
+  KpiMonthClose,
+  KpiPeriodKey,
+  KpiPeriodParams,
+  KpiTargetActor,
+} from './kpi'
 
 /** `/sales/kpi/:period/…` — a role's agreed target split per person.
  *
@@ -37,10 +45,6 @@ export const KpiAllocationStatus = z.enum([
   'agreed',
   'superseded',
 ])
-export const KpiAckStatus = z.enum(['pending', 'acknowledged', 'countered'])
-/** `lapsed` is derived from the package's deadline, never stored: the head's
- *  level applies as accepted (ADR 0100). `KpiAckStatus` stays the stored value. */
-export const KpiAckState = z.enum([...KpiAckStatus.options, 'lapsed'])
 export const KpiCounterStatus = z.enum(['open', 'accepted', 'kept', 'countered'])
 
 /** Declared once: the proposals screen and the bell line both print it. */
@@ -57,9 +61,12 @@ export const KpiWeeklyQuery = z.object({ metricKey: KpiMetricKey })
 export const KpiAllocationLine = KpiTargetActor.extend({
   metricKey: KpiMetricKey,
   value: amount,
+  /** Stored value only: a line accepted by default stores `acknowledged`. Display reads `ackState`. */
   ackStatus: KpiAckStatus,
   ackState: KpiAckState,
   ackedAt: Moment.nullable(),
+  /** The Vietnam day whose answer deadline was missed; set only when `ackState` is `lapsed`. */
+  lapsedOn: Day.nullable(),
   /** The role's agreed target for this metric; `null` while none is agreed. */
   roleValue: amount.nullable(),
   /** Last month's actual; `null` when it could not be read, not when it was 0. */
@@ -258,8 +265,6 @@ export const KpiWeeklyResponse = z.object({
 })
 
 export type KpiAllocationStatus = z.infer<typeof KpiAllocationStatus>
-export type KpiAckStatus = z.infer<typeof KpiAckStatus>
-export type KpiAckState = z.infer<typeof KpiAckState>
 export type KpiCounterStatus = z.infer<typeof KpiCounterStatus>
 export type KpiCounterParams = z.infer<typeof KpiCounterParams>
 export type KpiWeeklyQuery = z.infer<typeof KpiWeeklyQuery>

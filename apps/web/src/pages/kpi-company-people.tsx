@@ -31,7 +31,7 @@ import {
   type PersonRow,
   type RoleGroup,
 } from './kpi-model'
-import { VerdictBadge } from './kpi-parts'
+import { ByDefaultMark, VerdictBadge } from './kpi-parts'
 
 /** The two blocks a `kpi.view-all` holder sees under the role table, both fed
  *  by `GET /sales/kpi/:period/people`: what needs handling, and a heat map of
@@ -127,8 +127,9 @@ function attentionCells(row: PersonRow, period: string, teamOf?: TeamOf): ReactN
     <span key="value" className={cn(FIGURE, 'font-semibold')}>
       {printCell(def.unit, reading.value)}
     </span>,
-    <span key="target" className={FIGURE}>
-      {printCell(def.unit, reading.target)}
+    <span key="target" className="flex min-w-0 flex-col items-end gap-1">
+      <span className={FIGURE}>{printCell(def.unit, reading.target)}</span>
+      <ByDefaultMark reading={reading} />
     </span>,
     <VerdictBadge key="state" verdict={reading.verdict} />,
   ]

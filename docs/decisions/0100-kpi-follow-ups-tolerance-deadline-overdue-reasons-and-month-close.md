@@ -28,6 +28,8 @@ answered by then can no longer confirm or counter. A line the person has
 already countered is not lapsed: its counter stays in the manager's hands.
 Packages made before this decision have no deadline.
 
+> Amended by ADR 0114: a line accepted this way is shown as "Nhận mặc định", never as confirmed.
+
 ### C1 · An overdue instalment needs a reason from the contract's Sale
 
 The owner: the Sale on the contract must give a reason for an overdue
@@ -94,6 +96,7 @@ Taken by the implementer; change them by amending this ADR.
 - The month-close dialog's count of waiting reasons is shown only to people who
   hold the approve permission (head and director by default).
 - A reissued package keeps a missed deadline: lines that lapsed stay accepted.
+  > Amended by ADR 0114: a carried line stays marked as accepted by default, not confirmed.
 
 ## Consequences
 

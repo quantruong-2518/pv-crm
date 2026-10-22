@@ -67,6 +67,8 @@ export type KpiUnit = z.infer<typeof KpiUnit>
 export type KpiVerdict = z.infer<typeof KpiVerdict>
 export type KpiScope = z.infer<typeof KpiScope>
 export type KpiMetricDef = z.infer<typeof KpiMetricDef>
+export type KpiAckStatus = z.infer<typeof KpiAckStatus>
+export type KpiAckState = z.infer<typeof KpiAckState>
 
 type KpiTraits = Partial<Pick<KpiMetricDef, 'higherIsBetter' | 'paced' | 'snapshot' | 'primary'>>
 
@@ -178,6 +180,12 @@ export const KPI_VERDICT_LABEL: Record<KpiVerdict, string> = {
   missed: 'Không đạt',
 }
 
+export const KpiAckStatus = z.enum(['pending', 'acknowledged', 'countered'])
+/** `lapsed` is derived, not a stored status: it reads from the stored status, the
+ *  package deadline and the carried flag `acked_by_default` (ADR 0100, 0114). It
+ *  lives here, not in kpi-allocation.ts, because that file imports this one. */
+export const KpiAckState = z.enum([...KpiAckStatus.options, 'lapsed'])
+
 const targetValue = z.number().nonnegative()
 const targetVersion = z.number().int().min(1)
 
@@ -188,6 +196,8 @@ export const KpiReading = z.object({
   /** The effective (highest agreed) target; `null` while none is agreed. */
   target: targetValue.nullable(),
   targetVersion: targetVersion.nullable(),
+  /** Answer state of the personal line behind `target`; `null` for a role target. */
+  targetAck: KpiAckState.nullable(),
   /** What pace asks for by today; `null` with no target. */
   expected: z.number().nonnegative().nullable(),
   verdict: KpiVerdict,
@@ -199,12 +209,15 @@ export const KpiScorecard = z.object({
   acknowledgedAt: Moment.nullable(),
   /** The acknowledgement is older than the newest agreed target. */
   acknowledgementStale: z.boolean(),
+  /** At least one personal line of this role reads `lapsed` (ADR 0114). */
+  acceptedByDefault: z.boolean(),
 })
 
 /** Room figures belong to no one person, so there is nothing to acknowledge. */
 export const KpiCompanyScorecard = KpiScorecard.omit({
   acknowledgedAt: true,
   acknowledgementStale: true,
+  acceptedByDefault: true,
 })
 
 /** Month close: once set, every reading of the period is the stored one
