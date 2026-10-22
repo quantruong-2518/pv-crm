@@ -2,6 +2,7 @@ import type { BadgeProps } from '@pv/ui'
 import {
   KPI_CATALOG,
   KPI_COUNTER_STATUS_LABEL,
+  KPI_METRIC_LABEL,
   type KpiAckState,
   type KpiAllocation,
   type KpiAllocationStatus,
@@ -15,11 +16,11 @@ import {
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { dmhm } from '@/lib/date'
-import { MONTH_PARAM } from './kpi-model'
+import { MONTH_PARAM, printValue } from './kpi-model'
 
-/** What the allocation, proposal and receipt screens share and is not a
- *  component: the status words, the two paths, a role carried in the address,
- *  and how a refused write is told. No render, no fetch.
+/** What the targets, team and receipt screens share and is not a component:
+ *  the status words, the targets path, a month carried in the address, a
+ *  counter told in words, and how a refused write is told. No render, no fetch.
  *
  *  The label maps live here rather than in `@pv/contracts` only because no
  *  other screen prints them yet. */
@@ -50,8 +51,6 @@ export const COUNTER_LABEL: Record<KpiCounterStatus, { text: string; tone: Tone 
   countered: { text: KPI_COUNTER_STATUS_LABEL.countered, tone: 'running' },
 }
 
-export const ALLOCATE_PATH = '/sales/kpi/allocation'
-export const PROPOSALS_PATH = '/sales/kpi/proposals'
 export const TARGETS_PATH = '/sales/kpi/targets'
 
 /** The team page reads the month from the same query name as every KPI screen. */
@@ -59,10 +58,6 @@ export const teamPath = (teamId: string, period: string) =>
   `/sales/kpi/team/${encodeURIComponent(teamId)}?${MONTH_PARAM}=${period}`
 
 export const monthQuery = (period: string) => `?${MONTH_PARAM}=${period}`
-export const roleQuery = (period: string, role: RoleId, teamId?: string) =>
-  `${monthQuery(period)}&role=${encodeURIComponent(role)}${
-    teamId ? `&team=${encodeURIComponent(teamId)}` : ''
-  }`
 
 /** The team's name after a role, for a package or counter that sits on a team. */
 export const teamSuffix = (team: KpiTeamRef | null) => (team ? ` · Nhóm ${team.name}` : '')
@@ -138,3 +133,47 @@ export function failText(error: ApiError): string {
  *  and answered — the server reads it the same way (`catalogDef`). */
 export const defOfCounter = (c: KpiCounter): KpiMetricDef | undefined =>
   KPI_CATALOG[c.role].find((d) => d.key === c.metricKey)
+
+const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
+
+/** What a holder asked for, in one sentence: only an open counter carries its "from".
+ *  `named: false` drops the holder's name, for a place already headed with it. */
+export function headlineOf(c: KpiCounter, def: KpiMetricDef, named = true): string {
+  const metric = lower(KPI_METRIC_LABEL[c.metricKey])
+  const to = printValue(def.unit, c.proposed, true)
+  const from = printValue(def.unit, c.assigned, true)
+  const said =
+    c.status !== 'open'
+      ? `đề xuất ${metric} ${to}`
+      : c.proposed === c.assigned
+        ? `đề xuất giữ ${metric} ở ${to}`
+        : c.proposed < c.assigned
+          ? `xin giảm ${metric} từ ${from} xuống ${to}`
+          : `xin tăng ${metric} từ ${from} lên ${to}`
+  return named ? `${c.name} ${said}` : said.charAt(0).toUpperCase() + said.slice(1)
+}
+
+/** What accepting an open counter would do to the split, as the server worked it out.
+ *  On a team package the target it balances against is the team's share. */
+export function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
+  const { allocatedAfter, roleTarget, shortfall, compensators } = c.effect
+  const target = c.team ? 'phần của nhóm' : 'chỉ tiêu vai trò'
+  const print = (v: number) => printValue(def.unit, v)
+  if (allocatedAfter === null) {
+    return [`Chỉ số này không cộng dồn, tổng của ${c.team ? 'nhóm' : 'vai trò'} không đổi.`]
+  }
+  const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
+  if (roleTarget === null) {
+    return [
+      `${after}. ${c.team ? 'Nhóm chưa được giao phần.' : 'Vai trò chưa có chỉ tiêu được duyệt.'}`,
+    ]
+  }
+  if (allocatedAfter > roleTarget) {
+    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với ${target}.`]
+  }
+  if (!shortfall) return [`${after} · vẫn khớp ${target}.`]
+  const gap = `${after} · thiếu ${print(shortfall)} so với ${target}.`
+  if (compensators.length === 0) return [gap, 'Chưa có ai đúng tiến độ để bù phần thiếu.']
+  const who = compensators.map((p) => `${p.name} thêm ${print(p.delta)}`).join(' · ')
+  return [gap, `Gợi ý bù từ người đang đúng tiến độ: ${who}.`]
+}

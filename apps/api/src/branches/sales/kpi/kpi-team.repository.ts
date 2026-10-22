@@ -11,6 +11,7 @@ import { kpiTeam, kpiTeamMember, kpiTeamRoster, type KpiTeamMemberValues } from 
 /** One person in one team of one roster; the shape the allocation side reads. */
 export type RosterEntry = { teamId: string; teamName: string; actorId: string; lead: boolean }
 export type ActorFace = { id: string; name: string; roleIds: RoleId[] }
+export type RosterFace = ActorFace & { locked: boolean }
 
 const nextMonth = (period: KpiPeriodKey): KpiPeriodKey => spansOf(period).current.to.slice(0, 7)
 
@@ -67,10 +68,15 @@ export class KpiTeamRepository {
 
   /** Names and roles of the given actors, enabled or not: a roster keeps showing
    *  someone who has since left. */
-  actors(ids: readonly string[], handle: Db = this.db): Promise<ActorFace[]> {
+  actors(ids: readonly string[], handle: Db = this.db): Promise<RosterFace[]> {
     if (ids.length === 0) return Promise.resolve([])
     return handle
-      .select({ id: actor.id, name: actor.name, roleIds: actor.roleIds })
+      .select({
+        id: actor.id,
+        name: actor.name,
+        roleIds: actor.roleIds,
+        locked: sql<boolean>`${actor.disabledAt} IS NOT NULL`,
+      })
       .from(actor)
       .where(inArray(actor.id, [...ids]))
   }

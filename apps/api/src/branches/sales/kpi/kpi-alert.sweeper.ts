@@ -2,13 +2,16 @@ import { Injectable, Logger } from '@nestjs/common'
 import { KPI_FORECAST_FLAGGED } from '@pv/engines'
 import { KPI_METRIC_LABEL, type KpiForecast, type KpiPeriodKey } from '@pv/contracts'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
-import { monthLabel } from './kpi-alert.service'
+import { spansOf } from '../performance/performance-period'
+import { KpiAlertService, monthLabel } from './kpi-alert.service'
 import { KpiAlertRepository, type KpiAlertKey } from './kpi-alert.repository'
 import { additive } from './kpi-allocation.mapper'
 import { KpiAllocationRepository, type KpiAgreedLine } from './kpi-allocation.repository'
+import { KpiCloseRepository } from './kpi-close.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { KpiForecastService } from './kpi-forecast.service'
 import { monthClock, vietnamToday } from './kpi-rules'
+import { KpiTargetsRepository } from './kpi-targets.repository'
 
 const SWEEP_EVERY_MS = 24 * 60 * 60_000
 
@@ -44,6 +47,9 @@ export class KpiAlertSweeper {
     private readonly repo: KpiAlertRepository,
     private readonly allocations: KpiAllocationRepository,
     private readonly hub: NotificationHub,
+    private readonly alerts: KpiAlertService,
+    private readonly closes: KpiCloseRepository,
+    private readonly targets: KpiTargetsRepository,
   ) {}
 
   /** Called on every worker tick. `null` = this tick was not a pass. The clock
@@ -54,13 +60,34 @@ export class KpiAlertSweeper {
     this.notBefore = now + SWEEP_EVERY_MS
     this.running = true
     try {
-      const rung = await this.ring(vietnamToday().slice(0, 7))
+      const today = vietnamToday()
+      const month = today.slice(0, 7)
+      /* Owner: once, on day 1 (ADR 0112 §C), so deploy day never rings a catch-up. */
+      if (today.endsWith('-01')) {
+        await this.remindClose(spansOf(month).previous.key).catch((error: unknown) =>
+          this.log.error(`KPI close reminder failed: ${String(error)}`),
+        )
+      }
+      const rung = await this.ring(month)
       /* Announced, not written: the hub drops a failed or duplicate line silently. */
       if (rung > 0) this.log.log(`Announced ${rung} KPI forecast alerts to the bell.`)
       return rung
     } finally {
       this.running = false
     }
+  }
+
+  /** Last month left unclosed rings every setter, on the new month's first
+   *  day only (`sweep` gates it), not `ALERT_FROM_DAY`. A month with no
+   *  agreed role target did not run on KPI, so it is never asked to close. The
+   *  event key is the month alone: each setter is rung once, the UNIQUE says. */
+  async remindClose(period: KpiPeriodKey): Promise<void> {
+    const [closed, targets] = await Promise.all([
+      this.closes.of(period),
+      this.targets.ofPeriod(period),
+    ])
+    if (closed || !targets.some((t) => t.agreedAt)) return
+    await this.repo.run((tx) => this.alerts.monthUnclosed(tx, period))
   }
 
   /** Lines announced for `period`. A closed month has a verdict and a future

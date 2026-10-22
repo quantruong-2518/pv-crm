@@ -4,7 +4,6 @@ import {
   BriefcaseDollar,
   Building,
   CalendarClock,
-  ChartAnalysis,
   ChartColumn,
   CircleCheck,
   ClipboardList,
@@ -14,7 +13,6 @@ import {
   Gauge,
   Handshake,
   House,
-  Inbox,
   ListChecks,
   LogOut,
   Mail,
@@ -26,7 +24,6 @@ import {
   Target,
   Timer,
   Users,
-  UsersRound,
 } from '@pv/ui'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
@@ -418,37 +415,10 @@ export const SALES_MODULES: SalesModule[] = [
   {
     no: 0,
     icon: ClipboardList,
-    label: 'Đặt chỉ tiêu và duyệt',
+    label: 'Chỉ tiêu tháng',
     path: '/sales/kpi/targets',
     permission: 'kpi.view-all',
-    question: 'Chỉ tiêu nào đang chờ tôi duyệt',
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: UsersRound,
-    label: 'Phân bổ chỉ tiêu',
-    path: '/sales/kpi/allocation',
-    permission: 'kpi.view-all',
-    question: 'Chia chỉ tiêu vai trò cho từng người và gửi duyệt',
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: Inbox,
-    label: 'Xử lý đề xuất',
-    path: '/sales/kpi/proposals',
-    permission: 'kpi.view-all',
-    question: 'Ai xin đổi chỉ tiêu, gói nào bị trả lại',
-    group: 'manage',
-  },
-  {
-    no: 0,
-    icon: ChartAnalysis,
-    label: 'Thống kê phòng',
-    path: '/sales/kpi/department',
-    permission: 'kpi.view-all',
-    question: 'Ai trong phòng cần kèm tháng này',
+    question: 'Việc nào về chỉ tiêu đang chờ tôi',
     group: 'manage',
   },
   {

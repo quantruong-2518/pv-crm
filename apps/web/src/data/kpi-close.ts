@@ -2,12 +2,13 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { KpiCloseResponse, OverdueReasonWaitingResponse } from '@pv/contracts'
 import { api, type ApiError } from '@/app/api'
 
-/** The month-close write and the check before it (ADR 0100). The close freezes every
- *  KPI reading of the month, so a settled write refetches the whole month key.
+/** The month-close write, made from the targets screen only, and the check before
+ *  it (ADR 0100). The close freezes every KPI reading of the month, so a settled
+ *  write refetches the whole month key.
  *
- *  The waiting reasons are asked only while the dialog is open and only of a
- *  reader who may approve them: that read needs its own permission, which the
- *  close button's `kpi.set-target` does not imply. */
+ *  The waiting reasons are asked only of a reader who may approve them (their
+ *  own permission, which `kpi.set-target` does not imply): by the close dialog
+ *  while it is open, and by the targets list and the company door's count. */
 
 const monthKey = (period: string) => ['sales', 'kpi', period] as const
 

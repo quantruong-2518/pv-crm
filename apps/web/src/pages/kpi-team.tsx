@@ -20,7 +20,7 @@ import { dm } from '@/lib/date'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { monthQuery } from './kpi-allocate-model'
-import { MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
+import { COMPANY_PATH, ME_PATH, MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { TeamCounters } from './kpi-team-counters'
 import { holdersOf, isClosed, packageOf, sharedRoles } from './kpi-team-model'
@@ -68,7 +68,7 @@ function Body({
       <section className="flex flex-col gap-3">
         <SectionTitle size="lg">Thống kê nhóm</SectionTitle>
         {view.readings.length > 0 && <TeamReadings catalog={catalog} readings={view.readings} />}
-        <TeamMembers catalog={catalog} people={view.people} />
+        <TeamMembers period={view.period} catalog={catalog} people={view.people} />
       </section>
 
       {roles.length === 0 && (
@@ -128,8 +128,8 @@ export function KpiTeamPage() {
   const day = dayOfMonth(period)
   /* An index above 0 means this page was reached from another one inside the app. */
   const from = seesAll
-    ? { label: 'Thống kê phòng', path: '/sales/kpi/department' }
-    : { label: 'KPI của tôi', path: '/sales/kpi/me' }
+    ? { label: 'KPI công ty', path: COMPANY_PATH }
+    : { label: 'KPI của tôi', path: ME_PATH }
   const goBack = () =>
     window.history.state?.idx > 0 ? navigate(-1) : navigate(`${from.path}${monthQuery(period)}`)
   const refused = isApiError(view.error) && view.error.kind === 'forbidden'

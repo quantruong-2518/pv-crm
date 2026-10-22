@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Button, DataTable, GlassCard, Input, cn, type TableColumn } from '@pv/ui'
+import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDraftBody,
@@ -13,6 +13,7 @@ import {
 import type { ApiError } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { Field } from '@/components/field-bits'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useDraftKpiAllocation, useSubmitKpiAllocation } from '@/data/kpi-allocation'
 import { NEUTRAL_MARK, NOTE } from './home-tiles'
 import { savedShare, teamCellKey, typedOf, type TeamRow } from './kpi-allocate-model'
@@ -239,12 +240,14 @@ function SaveBar({
   )
 }
 
-const columnsOf = (defs: readonly KpiMetricDef[]): TableColumn[] => [
+/* On a card a field takes the full width, so the box is wide enough to type in. */
+const columnsOf = (defs: readonly KpiMetricDef[], editable: boolean): StackColumn[] => [
   { header: 'Người nhận', width: 'minmax(160px,1.2fr)' },
   ...defs.map((def) => ({
     header: KPI_METRIC_LABEL[def.key],
     width: 'minmax(168px,1fr)',
     align: 'right' as const,
+    stack: editable ? ('wide' as const) : undefined,
   })),
 ]
 
@@ -370,36 +373,31 @@ export function AllocationTable({
       {holders.length === 0 && teams.length === 0 ? (
         <p className={cn(NOTE, 'px-5')}>Chưa có ai giữ vai trò này.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <DataTable
-            flush
-            rowHeight="min-h-16 py-2"
-            className={defs.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
-            columns={columnsOf(defs)}
-            rows={[
-              ...teams.map((t) => ({
-                id: teamCellKey(t.id, 'row'),
-                cells: [
-                  <TeamNameCell
-                    key="who"
-                    team={t}
-                    pkg={teamPkgs.find((p) => p.team?.id === t.id)}
-                  />,
-                  ...defs.map((def) => teamCell(t, def)),
-                ],
-              })),
-              ...holders.map((h) => ({
-                id: h.actorId,
-                cells: [
-                  <span key="who" className="truncate font-semibold">
-                    {h.name}
-                  </span>,
-                  ...defs.map((def) => cell(h, def)),
-                ],
-              })),
-            ]}
-          />
-        </div>
+        <StackTable
+          from="lg"
+          flush
+          rowHeight="min-h-16 py-2"
+          tableClassName={defs.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
+          columns={columnsOf(defs, editable)}
+          rows={[
+            ...teams.map((t) => ({
+              id: teamCellKey(t.id, 'row'),
+              cells: [
+                <TeamNameCell key="who" team={t} pkg={teamPkgs.find((p) => p.team?.id === t.id)} />,
+                ...defs.map((def) => teamCell(t, def)),
+              ],
+            })),
+            ...holders.map((h) => ({
+              id: h.actorId,
+              cells: [
+                <span key="who" className="truncate font-semibold">
+                  {h.name}
+                </span>,
+                ...defs.map((def) => cell(h, def)),
+              ],
+            })),
+          ]}
+        />
       )}
 
       {checks.length > 0 && (

@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -16,55 +15,50 @@ import {
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { kpiCompanyQuery, kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
-import { kpiAllocationsQuery } from '@/data/kpi-allocation'
+import { kpiAllocationsQuery, kpiCountersQuery } from '@/data/kpi-allocation'
 import { kpiCatalogQuery, withCatalog } from '@/data/kpi-catalog'
+import { waitingReasonsQuery } from '@/data/kpi-close'
 import { kpiForecastQuery } from '@/data/kpi-forecast'
+import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { keyOf, num } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { TARGETS_PATH, monthQuery } from './kpi-allocate-model'
 import { KpiForecastBlock } from './kpi-company-forecast'
-import { AttentionBlock, PeopleHeatmap } from './kpi-company-people'
+import { AttentionBlock, RankedHeatmap, type TeamOf } from './kpi-company-people'
 import { RolesBlock } from './kpi-company-roles'
 import { MonthCloseBar } from './kpi-month-close'
-import { dayOfMonth, monthPick } from './kpi-model'
+import { dayOfMonth, monthPick, roomPeople, useMonthParam } from './kpi-model'
 import { CompanyStrip, MonthPicker, QueryBlock } from './kpi-parts'
-import { queueOf } from './kpi-targets-model'
+import { closingOf, waitingCount, waitingOf } from './kpi-targets-model'
+import { NOTHING_WAITING } from './kpi-targets-queue'
 
 /** The company KPI screen, read live from `/sales/kpi/:period/…`. No fixture
- *  and no scenario.
+ *  and no scenario. It answers "how is the room doing, who needs coaching".
  *
- *  Figures before words: the room's strip, who is about to miss or hit, the
- *  roles, what needs handling, every person as a heat map, then the door to
- *  the targets desk — the targets themselves live there, not twice.
- *  The route asks for `performance.view` only, so each block that needs more
- *  is gated on its own permission and a block the reader may not open is
- *  dropped and named, never drawn as a failure.
+ *  Figures before words: the month close, the room's strip, who is about to miss
+ *  or hit, the roles, who is behind target, every person as a heat map heaviest
+ *  first, then the door to the targets desk. The people lists leave the director's
+ *  card out (`roomPeople`): it is the room's own card, already on the strip.
+ *  The route asks for `performance.view` only, so each block that needs more is
+ *  gated on its own permission and a block the reader may not open is dropped
+ *  and named, never drawn as a failure. The month lives in the address.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
 
-/** The door to `/sales/kpi/targets`, counting with the desk's own `queueOf`
- *  so the two screens never disagree; until both reads land it shows no count. */
-function TargetsDoor({
-  period,
-  waiting,
-  onMe,
-}: {
-  period: string
-  waiting: number | undefined
-  /** The reader may approve: the count is what waits on them. */
-  onMe: boolean
-}) {
+/** The door to the targets desk. Its count is `waitingOf` over the desk's own
+ *  reads, so it is the length of the desk's waiting list; no count until
+ *  they land, and none for a reader with nothing to decide there. */
+function TargetsDoor({ period, waiting }: { period: string; waiting: number | undefined }) {
   const navigate = useNavigate()
-  const whom = onMe ? 'chờ bạn duyệt' : 'chờ duyệt'
   return (
     <GlassCard className={cn(TILE, 'sm:flex-row sm:items-center')}>
       <Icon icon={ClipboardList} size={20} className="text-accent-foreground shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <h2 className="text-[13px] font-semibold leading-5">Đặt chỉ tiêu và duyệt</h2>
+        <h2 className="text-[13px] font-semibold leading-5">Chỉ tiêu tháng</h2>
         {waiting !== undefined && (
           <p className={cn(NOTE, 'tnum font-num')}>
-            {waiting > 0 ? `${num(waiting)} mục ${whom}.` : `Không có mục nào ${whom}.`}
+            {waiting > 0 ? `${num(waiting)} mục chờ bạn xử lý.` : NOTHING_WAITING}
           </p>
         )}
       </div>
@@ -73,7 +67,7 @@ function TargetsDoor({
         className="pointer-coarse:h-12 shrink-0 self-start sm:self-center"
         onClick={() => navigate(`${TARGETS_PATH}${monthQuery(period)}`)}
       >
-        Mở bảng chỉ tiêu
+        Mở Chỉ tiêu tháng
         <Icon icon={ArrowRight} size={16} />
       </Button>
     </GlassCard>
@@ -85,9 +79,10 @@ export function KpiCompanyPage() {
   const canTargets = useCan('kpi.view')
   const canAll = useCan('kpi.view-all')
   const canSet = useCan('kpi.set-target')
+  const canApprove = useCan('contract.approve-overdue-reason')
   const me = useSession((s) => s.actor?.id)
 
-  const [pick, setPick] = useState(monthPick)
+  const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
   const day = dayOfMonth(period)
 
@@ -97,23 +92,47 @@ export function KpiCompanyPage() {
   const people = useQuery({ ...kpiPeopleQuery(period), enabled: canAll })
   const forecast = useQuery({ ...kpiForecastQuery(period), enabled: canAll })
   const allocations = useQuery({ ...kpiAllocationsQuery(period), enabled: canAll })
+  const counters = useQuery({ ...kpiCountersQuery(period), enabled: canAll })
+  /* Optional: without the roster the tables still read, only the team line goes. */
+  const roster = useQuery({ ...kpiTeamRosterQuery(period), enabled: canAll })
+  const closing = closingOf(period)
+  const reasons = useQuery(waitingReasonsQuery(monthPick().month, canAll && canApprove))
+  const toClose = useQuery({ ...kpiAllocationsQuery(closing), enabled: canAll && canSet })
+  const teams = roster.data?.teams ?? []
+  const teamByActor = new Map(teams.flatMap((t) => t.members.map((m) => [m.actorId, t] as const)))
+  const teamOf: TeamOf = (actorId) => teamByActor.get(actorId)
   /* Nobody holds a KPI role: the role table says so once; an empty
      exceptions block would read as an all-clear. */
-  const nobody = people.data?.people.length === 0
-  const onMe = canSet && targets.data?.closed === false
+  const nobody = people.data !== undefined && roomPeople(people.data.people).length === 0
+  /* The targets desk's own readiness: a count that lands early would jump. */
+  const settled =
+    !roster.isPending && (!canApprove || !reasons.isPending) && (!canSet || !toClose.isPending)
   const waiting =
-    targets.data && allocations.data && catalog.data
-      ? queueOf(
-          catalog.data,
-          targets.data.roles,
-          allocations.data.allocations,
-          onMe ? me : undefined,
-        ).length
+    (canSet || canApprove) &&
+    settled &&
+    catalog.data &&
+    targets.data &&
+    allocations.data &&
+    counters.data
+      ? waitingCount(
+          waitingOf({
+            catalog: catalog.data,
+            targets: targets.data,
+            packages: allocations.data.allocations,
+            counters: counters.data.counters,
+            teams,
+            me,
+            canSet,
+            reasons: reasons.data?.reasons ?? [],
+            closing,
+            closingClose: toClose.data?.monthClose,
+          }),
+        )
       : undefined
 
   const hidden = canAll
     ? []
-    : ['dự báo cuối tháng', 'KPI theo vai trò', 'mục cần xử lý', 'chi tiết từng người']
+    : ['dự báo cuối tháng', 'KPI theo vai trò', 'người đang hụt chỉ tiêu', 'chi tiết từng người']
 
   return (
     <AppShell {...chrome.shell}>
@@ -124,7 +143,10 @@ export function KpiCompanyPage() {
           actions={<MonthPicker pick={pick} onPick={setPick} />}
         />
 
-        <MonthCloseBar period={period} monthClose={company.data?.monthClose} />
+        {/* Closing is a task on the targets desk; here only the closed line shows. */}
+        {company.data?.monthClose && (
+          <MonthCloseBar period={period} monthClose={company.data.monthClose} />
+        )}
 
         <section className="flex flex-col gap-3">
           <SectionTitle size="lg">Chỉ số phòng Kinh doanh</SectionTitle>
@@ -163,15 +185,20 @@ export function KpiCompanyPage() {
 
             {!nobody && (
               <section className="flex flex-col gap-3">
-                <SectionTitle size="lg">Cần xử lý</SectionTitle>
+                <SectionTitle size="lg">Đang hụt chỉ tiêu</SectionTitle>
                 <QueryBlock
                   query={withCatalog(people, catalog)}
-                  what="danh sách cần xử lý"
+                  what="danh sách đang hụt chỉ tiêu"
                   variant="b"
                   quiet
                 >
                   {([data, defs]) => (
-                    <AttentionBlock catalog={defs} people={data.people} period={data.period} />
+                    <AttentionBlock
+                      catalog={defs}
+                      people={roomPeople(data.people)}
+                      period={data.period}
+                      teamOf={teamOf}
+                    />
                   )}
                 </QueryBlock>
               </section>
@@ -187,13 +214,18 @@ export function KpiCompanyPage() {
                   quiet
                 >
                   {([data, defs]) => (
-                    <PeopleHeatmap catalog={defs} people={data.people} period={data.period} />
+                    <RankedHeatmap
+                      catalog={defs}
+                      people={roomPeople(data.people)}
+                      period={data.period}
+                      teamOf={teamOf}
+                    />
                   )}
                 </QueryBlock>
               </section>
             )}
 
-            <TargetsDoor period={period} waiting={waiting} onMe={onMe} />
+            <TargetsDoor period={period} waiting={waiting} />
           </>
         )}
 

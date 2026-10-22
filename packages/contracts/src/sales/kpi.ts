@@ -250,6 +250,13 @@ export const KpiPeopleResponse = z.object({
   people: z.array(KpiPerson),
 })
 
+/** `GET /sales/kpi/:period/people/:actorId` — one element of the people list. */
+export const KpiPersonResponse = z.object({
+  period: KpiPeriodKey,
+  monthClose: KpiMonthClose,
+  person: KpiPerson,
+})
+
 /** Who proposed or agreed a target — id plus the name the table prints. */
 export const KpiTargetActor = z.object({
   actorId: z.string().min(1).max(64),
@@ -315,6 +322,7 @@ export type KpiMeResponse = z.infer<typeof KpiMeResponse>
 export type KpiCompanyResponse = z.infer<typeof KpiCompanyResponse>
 export type KpiPerson = z.infer<typeof KpiPerson>
 export type KpiPeopleResponse = z.infer<typeof KpiPeopleResponse>
+export type KpiPersonResponse = z.infer<typeof KpiPersonResponse>
 export type KpiTargetActor = z.infer<typeof KpiTargetActor>
 export type KpiAgreedTarget = z.infer<typeof KpiAgreedTarget>
 export type KpiPendingTarget = z.infer<typeof KpiPendingTarget>

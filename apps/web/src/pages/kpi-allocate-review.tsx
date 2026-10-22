@@ -1,18 +1,19 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Badge, Button, DataTable, GlassCard, Textarea, cn, type TableColumn } from '@pv/ui'
+import { Badge, Button, GlassCard, Textarea, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDecideBody,
   type KpiAckState,
   type KpiAllocation,
+  type KpiCounter,
   type RoleId,
 } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useDecideKpiAllocation } from '@/data/kpi-allocation'
 import { dm, dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { ACK_LABEL, PROPOSALS_PATH, monthQuery } from './kpi-allocate-model'
+import { ACK_LABEL } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
 import type { Recipient } from './kpi-allocate-table'
 
@@ -23,10 +24,10 @@ import type { Recipient } from './kpi-allocate-table'
  *  outweighs any confirmation, and "received" needs every line confirmed or
  *  lapsed (the head's level applies once the deadline passes). */
 
-const COLUMNS: TableColumn[] = [
+const COLUMNS: StackColumn[] = [
   { header: 'Người nhận', width: 'minmax(0,1.2fr)' },
   { header: 'Trạng thái', width: 'minmax(0,1fr)' },
-  { header: 'Chi tiết', width: 'minmax(0,2fr)' },
+  { header: 'Chi tiết', width: 'minmax(0,2fr)', stack: 'action' },
 ]
 
 /** `KpiAllocationDecideBody`'s ceiling on a return reason. */
@@ -54,57 +55,57 @@ function answerOf(lines: KpiAllocation['lines'], dueOn: KpiAllocation['ackDueOn'
 }
 
 export function AnswersBlock({
-  period,
   pkg,
   holders,
+  counters,
+  onOpenCounters,
 }: {
-  period: string
   pkg: KpiAllocation
   holders: readonly Recipient[]
+  /** The package's counters this month, any status. */
+  counters: readonly KpiCounter[]
+  /** Opens the holder's counters on this package. */
+  onOpenCounters: (actorId: string) => void
 }) {
-  const navigate = useNavigate()
   const rows = holders.flatMap((h) => {
     const lines = pkg.lines.filter((l) => l.actorId === h.actorId)
     return lines.length > 0 ? [{ holder: h, answer: answerOf(lines, pkg.ackDueOn) }] : []
   })
-  const open = rows.filter((r) => r.answer.status === 'countered').length
+  const asked = new Set(counters.map((c) => c.actorId))
 
   return (
-    <GlassCard variant="b" className="flex flex-col gap-3 py-4">
-      {open > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5">
-          <p className="text-[12.5px] font-semibold">{open} người đề xuất mức khác.</p>
-          <Button
-            variant="secondary"
-            className="pointer-coarse:h-12"
-            onClick={() => navigate(`${PROPOSALS_PATH}${monthQuery(period)}`)}
-          >
-            Mở danh sách đề xuất
-          </Button>
-        </div>
-      )}
-      <div className="overflow-x-auto">
-        <DataTable
-          flush
-          rowHeight="min-h-12 py-2"
-          className="min-w-xl"
-          columns={COLUMNS}
-          rows={rows.map(({ holder, answer }) => ({
-            id: holder.actorId,
-            cells: [
-              <span key="who" className="truncate font-semibold">
-                {holder.name}
-              </span>,
-              <Badge key="state" tone={ACK_LABEL[answer.status].tone}>
-                {ACK_LABEL[answer.status].text}
-              </Badge>,
-              <span key="detail" className={cn(NOTE, 'tnum font-num')}>
-                {answer.detail}
-              </span>,
-            ],
-          }))}
-        />
-      </div>
+    <GlassCard variant="b" className="py-2 max-md:py-4">
+      <StackTable
+        from="md"
+        flush
+        rowHeight="min-h-12 py-2"
+        tableClassName="min-w-xl"
+        columns={COLUMNS}
+        rows={rows.map(({ holder, answer }) => ({
+          id: holder.actorId,
+          cells: [
+            <span key="who" className="truncate font-semibold">
+              {holder.name}
+            </span>,
+            <Badge key="state" tone={ACK_LABEL[answer.status].tone}>
+              {ACK_LABEL[answer.status].text}
+            </Badge>,
+            <span key="detail" className="flex min-w-0 flex-wrap items-center gap-3">
+              <span className={cn(NOTE, 'tnum font-num')}>{answer.detail}</span>
+              {asked.has(holder.actorId) && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="pointer-coarse:h-12 ml-auto"
+                  onClick={() => onOpenCounters(holder.actorId)}
+                >
+                  Xem đề xuất
+                </Button>
+              )}
+            </span>,
+          ],
+        }))}
+      />
     </GlassCard>
   )
 }

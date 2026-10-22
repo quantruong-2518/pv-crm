@@ -227,6 +227,16 @@ export function useMarkNotificationsRead() {
 export const NOTIFICATIONS_PATH = '/notifications'
 const ACCOUNT = '/account'
 const RUN_BOOK = '/sales/campaigns/mail-runs'
+const KPI_ME = '/sales/kpi/me'
+const KPI_TARGETS = '/sales/kpi/targets'
+
+/** The KPI screens read `month`, then `role` and `team` (the targets desk's open package). */
+function kpiQuery(month: string, role?: string, team?: string): string {
+  const q = new URLSearchParams({ month })
+  if (role) q.set('role', role)
+  if (role && team) q.set('team', team)
+  return `?${q.toString()}`
+}
 
 /** Where a press on a row goes, by what the row points at. Things about the
  *  reader land on "my account", at the block that shows them. `approval` is
@@ -246,18 +256,19 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
      agreement, a bare `<period>` from a person's own line (ADR 0098 §3). */
   'kpi-target': (code) => {
     const [month = '', role] = code.split(':')
-    const q = `?month=${encodeURIComponent(month)}`
-    return role
-      ? `/sales/kpi/targets${q}&role=${encodeURIComponent(role)}`
-      : `/sales/kpi/receive${q}`
+    return role ? `${KPI_TARGETS}${kpiQuery(month, role)}` : `${KPI_ME}${kpiQuery(month)}`
   },
   comm: (code) => `/comms/${encodeURIComponent(code)}`,
   /* The leads book has no batch filter in its address yet; a batch lands on the book. */
   'lead-batch': () => '/sales/leads',
   'opportunity-batch': () => '/sales/opportunities',
   'comm-record': (code) => `/comms/${encodeURIComponent(code)}`,
-  'kpi-scorecard': (code) => `/sales/kpi/me?month=${encodeURIComponent(code)}`,
-  'kpi-allocation': (code) => `/sales/kpi/proposals?month=${encodeURIComponent(code)}`,
+  'kpi-scorecard': (code) => `${KPI_ME}${kpiQuery(code)}`,
+  /* `<period>[:<role>[:<teamId>]]`; rows written before the role was added carry a bare period. */
+  'kpi-allocation': (code) => {
+    const [month = '', role, team] = code.split(':')
+    return `${KPI_TARGETS}${kpiQuery(month, role, team)}`
+  },
   'kpi-team': (code) => `/sales/kpi/team/${encodeURIComponent(code)}`,
 }
 

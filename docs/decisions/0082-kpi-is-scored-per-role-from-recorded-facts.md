@@ -149,6 +149,8 @@ result close · quarterly target renegotiation.
 
 ### 7 · Screens
 
+> Amended by ADR 0112: the KPI menu is now three items; "Chỉ tiêu tháng" is the third.
+
 "KPI của tôi" (`/sales/kpi/me`) and "KPI công ty" (`/sales/kpi/company`). Both read
 the live API only — no fixture, no scenario.
 

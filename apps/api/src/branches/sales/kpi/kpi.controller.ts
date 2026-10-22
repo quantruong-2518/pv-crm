@@ -1,6 +1,12 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { KpiAgreeBody, KpiPeriodParams, KpiProposeBody, KpiRoleParams } from '@pv/contracts'
+import {
+  KpiAgreeBody,
+  KpiContributionsParams,
+  KpiPeriodParams,
+  KpiProposeBody,
+  KpiRoleParams,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -9,9 +15,9 @@ import { KpiService } from './kpi.service'
 
 /** `/sales/kpi/:period/…` — scorecards per role and the agreed monthly targets.
  *
- *  Eight doors, one permission each (ADR 0004): reading your own card, the
- *  company card and everyone's cards are three different permissions, so they
- *  are three routes rather than one route that reads a query flag.
+ *  Nine doors, one permission each (ADR 0004): your own card, the company card
+ *  and everyone's cards are three permissions, so three routes. One person's
+ *  card sits on `kpi.view`; whose card it may be is the service's check (ADR 0101).
  *
  *  None is `scoped`: `own` and `room` are properties of each METRIC
  *  (`KPI_CATALOG`), not an `ownOnly` cut over rows. `:period` is a month key;
@@ -40,6 +46,15 @@ export class KpiController {
   @Need({ branch: 'Sales', permission: 'kpi.view-all' })
   people(@Param(zod(KpiPeriodParams)) params: KpiPeriodParams) {
     return this.kpi.people(params.period)
+  }
+
+  @Get(':period/people/:actorId')
+  @Need({ branch: 'Sales', permission: 'kpi.view' })
+  person(
+    @CurrentActor() who: Actor,
+    @Param(zod(KpiContributionsParams)) params: KpiContributionsParams,
+  ) {
+    return this.kpi.person(who, params.period, params.actorId)
   }
 
   /** Everyone who has a card reads the targets it is judged against. */

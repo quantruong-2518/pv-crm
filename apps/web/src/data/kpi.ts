@@ -3,6 +3,7 @@ import {
   KpiCompanyResponse,
   KpiMeResponse,
   KpiPeopleResponse,
+  KpiPersonResponse,
   KpiTargetsResponse,
   type KpiAgreeBody,
   type KpiProposeBody,
@@ -63,6 +64,20 @@ export const kpiPeopleQuery = (period: string) =>
       api.read<KpiPeopleResponse>(`/sales/kpi/${period}/people`, {
         need: need('kpi.view-all'),
         schema: KpiPeopleResponse,
+        signal,
+      }),
+  })
+
+/** One person's scorecards. `kpi.view` opens the door; the server lets in a
+ *  `kpi.view-all` holder or the lead of the person's team, and refuses the rest. */
+export const kpiPersonQuery = (period: string, actorId: string) =>
+  queryOptions({
+    queryKey: [...monthKey(period), 'people', actorId] as const,
+    ...cacheTier.aggregate,
+    queryFn: ({ signal }) =>
+      api.read<KpiPersonResponse>(`/sales/kpi/${period}/people/${encodeURIComponent(actorId)}`, {
+        need: need('kpi.view'),
+        schema: KpiPersonResponse,
         signal,
       }),
   })

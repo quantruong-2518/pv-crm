@@ -1,5 +1,5 @@
 import type { KpiTeam, KpiTeamMember } from '@pv/contracts'
-import type { ActorFace, RosterEntry } from './kpi-team.repository'
+import type { ActorFace, RosterEntry, RosterFace } from './kpi-team.repository'
 
 /** Roster rows → the team as the wire prints it. One copy, so the roster
  *  screen and the team page list the same people in the same order. */
@@ -12,7 +12,10 @@ export const memberOf = (a: ActorFace, lead: boolean): KpiTeamMember => ({
 })
 
 /** Rows of a roster grouped by team, the lead first and the rest by name. */
-export function teamsOf(entries: readonly RosterEntry[], faces: Map<string, ActorFace>): KpiTeam[] {
+export function teamsOf(
+  entries: readonly RosterEntry[],
+  faces: Map<string, RosterFace>,
+): KpiTeam[] {
   const byTeam = new Map<string, { name: string; members: KpiTeamMember[] }>()
   for (const e of entries) {
     const face = faces.get(e.actorId)
@@ -26,7 +29,13 @@ export function teamsOf(entries: readonly RosterEntry[], faces: Map<string, Acto
     members.sort((a, b) => Number(b.lead) - Number(a.lead) || a.name.localeCompare(b.name, 'vi'))
     const [lead] = members
     if (lead?.lead)
-      teams.push({ id, name, lead: { actorId: lead.actorId, name: lead.name }, members })
+      teams.push({
+        id,
+        name,
+        lead: { actorId: lead.actorId, name: lead.name },
+        leadLocked: faces.get(lead.actorId)?.locked ?? false,
+        members,
+      })
   }
   return teams.sort((a, b) => a.name.localeCompare(b.name, 'vi'))
 }

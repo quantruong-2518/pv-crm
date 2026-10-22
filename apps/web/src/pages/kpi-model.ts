@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router-dom'
 import { billions, millions, vnd } from '@pv/ui'
 import {
   KPI_VERDICT_LABEL,
@@ -13,11 +14,12 @@ import {
 } from '@pv/contracts'
 import { primaryOf, type KpiCatalog } from '@/data/kpi-catalog'
 import { dmhm } from '@/lib/date'
-import { VN_OFFSET_MS, currentPick, num, stepPick, type PeriodPick } from './home-model'
+import { VN_OFFSET_MS, currentPick, keyOf, num, stepPick, type PeriodPick } from './home-model'
 
-/** Calculation behind the two KPI screens: how a reading prints, what is
+/** Calculation behind the KPI screens: how a reading prints, what is
  *  missing against pace, who needs attention, and what a role adds up to.
- *  No render, no fetch; the catalog arrives as an argument (`data/kpi-catalog.ts`).
+ *  No render and no fetch, except the router hook `useMonthParam`: react-refresh
+ *  forbids exporting it from a component file. The catalog arrives as an argument.
  *
  *  Nothing here judges a figure. The verdict is the server's; this file only
  *  formats it, and subtracts two numbers the server sent to say how far off
@@ -40,8 +42,28 @@ export function pickFromUrl(month: string | null): PeriodPick {
   return month && KpiPeriodKey.safeParse(month).success ? { ...pick, month } : pick
 }
 
+/** The month a KPI screen reads, kept in the address so a bell link or a hop
+ *  between screens lands on the same month; other params survive a pick. */
+export function useMonthParam(): [PeriodPick, (p: PeriodPick) => void] {
+  const [params, setParams] = useSearchParams()
+  const pick = pickFromUrl(params.get(MONTH_PARAM))
+  const setPick = (p: PeriodPick) =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.set(MONTH_PARAM, keyOf(p))
+        return next
+      },
+      { replace: true },
+    )
+  return [pick, setPick]
+}
+
+export const COMPANY_PATH = '/sales/kpi/company'
+export const ME_PATH = '/sales/kpi/me'
+
 export const personHref = (actorId: string, period: string) =>
-  `/sales/kpi/person/${encodeURIComponent(actorId)}?${MONTH_PARAM}=${period}`
+  `${COMPANY_PATH}/${encodeURIComponent(actorId)}?${MONTH_PARAM}=${period}`
 
 const monthAfter = (key: string) => {
   const year = Number(key.slice(0, 4))
@@ -364,6 +386,35 @@ export const unjudgedRoles = (people: readonly KpiPerson[]): number =>
   ).size
 
 // ---------------------------------------------------------------------------
+// ROOM — the people lists without the director's card, heaviest first
+// ---------------------------------------------------------------------------
+
+/* The director's card is the room's own scorecard, already on the strip;
+   listing it again among people would print the same figures twice. */
+const DIRECTOR: RoleId = 'director'
+
+type Weight = readonly [missed: number, behind: number, unreceived: number]
+
+/** Missed readings first, then behind, then a target not yet received. */
+export function weightOf(cards: readonly KpiScorecard[]): Weight {
+  const verdicts = cards.flatMap((c) => c.readings.map((r) => r.verdict))
+  const count = (v: KpiVerdict) => verdicts.filter((x) => x === v).length
+  const unreceived = cards.filter((c) => needsAcknowledgement(acknowledgementOf(c))).length
+  return [count('missed'), count('behind'), unreceived]
+}
+
+/** Ties keep the order the server sent (the sort is stable). */
+export const heavierFirst = (a: Weight, b: Weight) => b[0] - a[0] || b[1] - a[1] || b[2] - a[2]
+
+/** Every person without their director card, dropped if nothing is left, heaviest first. */
+export function roomPeople(people: readonly KpiPerson[]): KpiPerson[] {
+  return people
+    .map((p) => ({ ...p, scorecards: p.scorecards.filter((c) => c.role !== DIRECTOR) }))
+    .filter((p) => p.scorecards.length > 0)
+    .sort((a, b) => heavierFirst(weightOf(a.scorecards), weightOf(b.scorecards)))
+}
+
+// ---------------------------------------------------------------------------
 // VERDICT COLOUR — class names only; the label is always printed beside it
 // ---------------------------------------------------------------------------
 
@@ -377,13 +428,13 @@ export const BAR_FILL: Record<KpiVerdict, string> = {
 }
 
 /** A heat-map cell: the badge's tint and on-tint text pairs. The stone theme takes
- *  a lighter green and red so the on-tint text keeps law 13. On track stays
+ *  a lighter green, amber and red so the on-tint text keeps law 13. On track stays
  *  bare, or a full table turns into a field of brand blue (law 3). */
 export const VERDICT_TINT: Record<KpiVerdict, { tint: string; text: string }> = {
   'no-data': { tint: '', text: 'text-muted-foreground' },
   unset: { tint: '', text: 'text-muted-foreground' },
   met: { tint: 'bg-success/20 stone:bg-success/14', text: 'text-on-tint-success' },
   'on-track': { tint: '', text: 'text-on-tint-primary' },
-  behind: { tint: 'bg-warning/20', text: 'text-on-tint-warning' },
+  behind: { tint: 'bg-warning/20 stone:bg-warning/14', text: 'text-on-tint-warning' },
   missed: { tint: 'bg-destructive/20 stone:bg-destructive/14', text: 'text-on-tint-destructive' },
 }

@@ -1,5 +1,6 @@
-import { DataTable, GlassCard, cn, type TableColumn } from '@pv/ui'
+import { GlassCard, cn } from '@pv/ui'
 import { KPI_METRIC_LABEL, type KpiForecastResponse } from '@pv/contracts'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { forecastItems, type ForecastItem } from '@/data/kpi-forecast'
 import { ROLE_LABEL } from '@/data/users'
@@ -15,7 +16,7 @@ import { DASH, printShort } from './kpi-model'
  *  both thresholds from the response. */
 
 /* Value and target are on the scoreboard above; this table adds only where the month heads. */
-const COLUMNS: TableColumn[] = [
+const COLUMNS: StackColumn[] = [
   { header: 'Chỉ số', width: 'minmax(0,1.6fr)' },
   { header: 'Dự báo cuối tháng', width: 'minmax(0,1.1fr)', align: 'right' },
   { header: 'Cảnh báo', width: 'minmax(0,1fr)' },
@@ -63,18 +64,17 @@ export function PersonForecast({
       {items.length === 0 ? (
         <p className="px-5 text-[12.5px] leading-5">Chưa có chỉ số nào để dự báo.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <DataTable
-            flush
-            rowHeight="min-h-12 py-2"
-            className="min-w-md"
-            columns={COLUMNS}
-            rows={items.map((item) => ({
-              id: `${item.forecast.role}/${item.def.key}`,
-              cells: cellsOf(item, withRole),
-            }))}
-          />
-        </div>
+        <StackTable
+          from="md"
+          flush
+          rowHeight="min-h-12 py-2"
+          tableClassName="min-w-md"
+          columns={COLUMNS}
+          rows={items.map((item) => ({
+            id: `${item.forecast.role}/${item.def.key}`,
+            cells: cellsOf(item, withRole),
+          }))}
+        />
       )}
     </GlassCard>
   )

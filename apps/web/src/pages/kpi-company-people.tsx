@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { Badge, CircleCheck, DataTable, GlassCard, Icon, cn, type TableColumn } from '@pv/ui'
+import { Badge, CircleCheck, GlassCard, Icon, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   KPI_VERDICT_LABEL,
@@ -9,6 +9,7 @@ import {
   type KpiReading,
   type KpiTeamRef,
 } from '@pv/contracts'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { ROLE_LABEL } from '@/data/users'
 import { num } from './home-model'
@@ -18,6 +19,7 @@ import { NAME_LINK } from './kpi-company-forecast'
 import {
   DASH,
   exceptionRows,
+  heavierFirst,
   personHref,
   printCell,
   roleGroups,
@@ -25,6 +27,7 @@ import {
   shortfallOf,
   unjudgedRoles,
   VERDICT_TINT,
+  weightOf,
   type PersonRow,
   type RoleGroup,
 } from './kpi-model'
@@ -36,11 +39,12 @@ import { VerdictBadge } from './kpi-parts'
  *
  *  The heat map is one table per role because roles carry different metrics;
  *  one shared column set would leave most cells empty. Each cell prints its
- *  verdict in words under the figure, so the tint is never the only signal.
- *  A person's name opens their own KPI screen on the same month. */
+ *  verdict in words under the figure, so the tint is never the only signal;
+ *  below `lg` each person is a card listing those cells. A person's name
+ *  opens their own KPI screen on the same month. */
 
-const ATTENTION_COLUMNS: TableColumn[] = [
-  { header: 'Nhân sự', width: 'minmax(0,1.2fr)' },
+const ATTENTION_COLUMNS: StackColumn[] = [
+  { header: 'Người', width: 'minmax(0,1.2fr)' },
   { header: 'Vai trò', width: 'minmax(0,1.2fr)' },
   { header: 'Chỉ số', width: 'minmax(0,1.8fr)' },
   { header: 'Thực tế', width: 'minmax(0,1fr)', align: 'right' },
@@ -59,8 +63,7 @@ const TWO_LINES = 'flex min-w-0 flex-col items-start gap-1'
 const FIGURE = 'tnum font-num'
 const LINE = 'text-[12.5px] leading-5'
 
-/** A person's team in the roster of the month; only the department screen
- *  passes one, so the company screen stays as it was. */
+/** A person's team in the roster of the month; absent when the roster read failed. */
 export type TeamOf = (actorId: string) => KpiTeamRef | undefined
 
 const TEAM_LINK = cn(
@@ -154,20 +157,19 @@ export function AttentionBlock({
         </p>
       )}
       {rows.length > 0 && (
-        <div className="overflow-x-auto">
-          <DataTable
-            flush
-            rowHeight="min-h-12 py-2"
-            className="min-w-3xl"
-            columns={ATTENTION_COLUMNS}
-            rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period, teamOf) }))}
-          />
-        </div>
+        <StackTable
+          from="lg"
+          flush
+          rowHeight="min-h-12 py-2"
+          tableClassName="min-w-3xl"
+          columns={ATTENTION_COLUMNS}
+          rows={rows.map((row) => ({ id: row.id, cells: attentionCells(row, period, teamOf) }))}
+        />
       )}
       {rows.length === 0 && unjudged === 0 && (
         <p className={cn(LINE, 'flex items-center gap-2 px-5')}>
           <Icon icon={CircleCheck} size={16} className="text-success shrink-0" />
-          Không có mục cần xử lý.
+          Không ai đang hụt chỉ tiêu.
         </p>
       )}
     </GlassCard>
@@ -203,8 +205,8 @@ function RoleHeat({
   period: string
   teamOf?: TeamOf
 }) {
-  const columns: TableColumn[] = [
-    { header: 'Nhân sự', width: `minmax(${HEAT_CELL}px,1.2fr)` },
+  const columns: StackColumn[] = [
+    { header: 'Người', width: `minmax(${HEAT_CELL}px,1.2fr)` },
     ...defs.map((def) => ({
       header: KPI_METRIC_LABEL[def.key],
       width: `minmax(${HEAT_CELL}px,1fr)`,
@@ -216,34 +218,33 @@ function RoleHeat({
         {ROLE_LABEL[group.role]}{' '}
         <span className={cn(NOTE, FIGURE, 'font-normal')}>· {num(group.holders.length)} người</span>
       </h3>
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: heatWidth(defs.length) }}>
-          <DataTable
-            flush
-            rowHeight="min-h-14 py-2"
-            columns={columns}
-            rows={group.holders.map(({ person, card }) => ({
-              id: `${person.actorId}/${card.role}`,
-              cells: [
-                <NameCell key="person" person={person} period={period} teamOf={teamOf} />,
-                ...defs.map((def) =>
-                  heatCell(
-                    def,
-                    card.readings.find((r) => r.key === def.key),
-                  ),
-                ),
-              ],
-            }))}
-          />
-        </div>
-      </div>
+      <StackTable
+        from="lg"
+        flush
+        rowHeight="min-h-14 py-2"
+        tableStyle={{ minWidth: heatWidth(defs.length) }}
+        columns={columns}
+        rows={group.holders.map(({ person, card }) => ({
+          id: `${person.actorId}/${card.role}`,
+          cells: [
+            <NameCell key="person" person={person} period={period} teamOf={teamOf} />,
+            ...defs.map((def) =>
+              heatCell(
+                def,
+                card.readings.find((r) => r.key === def.key),
+              ),
+            ),
+          ],
+        }))}
+      />
     </GlassCard>
   )
 }
 
-/** Every person's readings, one heat map per role. The page leaves this out
- *  when nobody holds a role, so the role table carries the one empty line. */
-export function PeopleHeatmap({
+/** Every person's readings, one heat map per role, each table ordered by that
+ *  role's own card rather than by the person's whole load. The page leaves this
+ *  out when nobody holds a role, so the role table carries the one empty line. */
+export function RankedHeatmap({
   catalog,
   people,
   period,
@@ -256,11 +257,16 @@ export function PeopleHeatmap({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      {roleGroups(people).map((group) => (
+      {roleGroups(people).map(({ role, holders }) => (
         <RoleHeat
-          key={group.role}
-          defs={catalog[group.role]}
-          group={group}
+          key={role}
+          defs={catalog[role]}
+          group={{
+            role,
+            holders: [...holders].sort((a, b) =>
+              heavierFirst(weightOf([a.card]), weightOf([b.card])),
+            ),
+          }}
           period={period}
           teamOf={teamOf}
         />

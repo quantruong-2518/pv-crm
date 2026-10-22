@@ -1,7 +1,6 @@
 import { useId, useState } from 'react'
 import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
 import {
-  KPI_METRIC_LABEL,
   type KpiAllocationStatus,
   type KpiCounter,
   type KpiCounterResolveBody,
@@ -12,45 +11,17 @@ import { useResolveTeamCounter } from '@/data/kpi-team-view'
 import { ROLE_LABEL } from '@/data/users'
 import { dmhm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
-import { COUNTER_LABEL, MOVED, defOfCounter } from './kpi-allocate-model'
+import { COUNTER_LABEL, MOVED, defOfCounter, effectLines, headlineOf } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
 import { UNIT_WORD, parseTyped, printValue } from './kpi-model'
 
 /** The team's counter-proposals (ADR 0101 D6): a member asks for another
  *  value, the lead answers. The lead cannot answer their own; the head does,
- *  on the proposals screen. Open ones come first, oldest first.
+ *  on the targets screen. Open ones come first, oldest first.
  *
- *  Own copy of the proposals pane: that one posts to the head's door and
- *  locks for anyone without `kpi.set-target`. Every figure is the server's. */
-
-const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
-
-function headlineOf(c: KpiCounter, def: KpiMetricDef): string {
-  const metric = lower(KPI_METRIC_LABEL[c.metricKey])
-  const to = printValue(def.unit, c.proposed, true)
-  if (c.status !== 'open') return `${c.name} đề xuất ${metric} ${to}`
-  const from = printValue(def.unit, c.assigned, true)
-  if (c.proposed === c.assigned) return `${c.name} đề xuất giữ ${metric} ở ${to}`
-  return c.proposed < c.assigned
-    ? `${c.name} xin giảm ${metric} từ ${from} xuống ${to}`
-    : `${c.name} xin tăng ${metric} từ ${from} lên ${to}`
-}
-
-function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
-  const { allocatedAfter, roleTarget, shortfall, compensators } = c.effect
-  const print = (v: number) => printValue(def.unit, v)
-  if (allocatedAfter === null) return ['Chỉ số này không cộng dồn, tổng của nhóm không đổi.']
-  const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
-  if (roleTarget === null) return [`${after}.`]
-  if (allocatedAfter > roleTarget) {
-    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với phần của nhóm.`]
-  }
-  if (!shortfall) return [`${after} · vẫn khớp phần của nhóm.`]
-  const gap = `${after} · thiếu ${print(shortfall)} so với phần của nhóm.`
-  if (compensators.length === 0) return [gap, 'Chưa có ai đúng tiến độ để bù phần thiếu.']
-  const who = compensators.map((p) => `${p.name} thêm ${print(p.delta)}`).join(' · ')
-  return [gap, `Gợi ý bù từ người đang đúng tiến độ: ${who}.`]
-}
+ *  Own copy of the counter drawer's answers (`kpi-counter-detail`): that one
+ *  posts to the head's door and locks for anyone without `kpi.set-target`.
+ *  Every figure is the server's. */
 
 function Answers({
   period,
@@ -148,7 +119,7 @@ function noteOf(c: KpiCounter, def: KpiMetricDef, closed: boolean, me: string | 
     return `Xử lý lúc ${dmhm(c.resolvedAt)}${after}`
   }
   if (closed) return 'Tháng đã kết thúc, không xử lý được nữa.'
-  return c.actorId === me ? 'Quản lý xử lý đề xuất của bạn ở màn Xử lý đề xuất.' : null
+  return c.actorId === me ? 'Quản lý xử lý đề xuất của bạn.' : null
 }
 
 function CounterCard({

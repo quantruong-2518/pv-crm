@@ -26,6 +26,7 @@ KPI only: lead, opportunity and contract access are unchanged.
 - D5 · The lead sees a team page: team figures against the team's share, every
   member's scorecard. Nobody outside the team sees it, except `kpi.view-all`
   holders.
+  > Amended by ADR 0112: the lead may also open each member's own KPI page.
 - D6 · Counter-proposals on a team package are resolved by the team lead (not
   their own); the head sees them and resolves the lead's own counters.
 - D7 · Team changes made after a month's packages were sent apply from the next
@@ -118,7 +119,7 @@ Taken by the implementer; change them by amending this ADR.
 6. When the head re-splits and a team's share changes, the team's agreed package
    stays in force (cards keep scoring it) until the lead sends a new version
    that matches; the team page says so.
-7. One new bell only, as above.
+7. One new bell only, as above. (Amended by ADR 0112: three more kinds; a team lead can open a member's KPI page.)
 8. Team figures on the team page: the sum of member values for count and money
    metrics; ratio, hours and days metrics show no team total (members only).
 9. (Amendment A2.) When the head resolves the lead's OWN counter on a team

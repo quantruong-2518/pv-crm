@@ -163,6 +163,7 @@ export class KpiAllocationCounterService {
       })
       if (!id) throw already
       await this.repo.setLines(tx, live, [line], { ackStatus: 'countered', ackedAt: new Date() })
+      await this.alerts.countered(tx, who, live, body.metricKey, id)
       await this.packages.note(tx, who, { kpi: 'allocation-countered', period, role, counter: id })
     })
     return this.packages.read(who, period)

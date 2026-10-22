@@ -1,16 +1,7 @@
 import { Link } from 'react-router-dom'
-import {
-  Badge,
-  DataTable,
-  GlassCard,
-  Icon,
-  TrendingDown,
-  TrendingUp,
-  cn,
-  percent,
-  type TableColumn,
-} from '@pv/ui'
+import { Badge, GlassCard, Icon, TrendingDown, TrendingUp, cn, percent } from '@pv/ui'
 import { KPI_METRIC_LABEL, type KpiForecastResponse } from '@pv/contracts'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import {
   flagged,
@@ -73,7 +64,7 @@ export function FlagBadge({ flag }: { flag: Flag }) {
   return <Badge tone={flag === 'slip' ? 'warning' : 'success'}>{FACE[flag].title}</Badge>
 }
 
-function columnsOf(flag: Flag): TableColumn[] {
+function columnsOf(flag: Flag): StackColumn[] {
   return [
     { header: 'Người', width: 'minmax(0,1.3fr)' },
     { header: 'Chỉ số', width: 'minmax(0,1.4fr)' },
@@ -136,18 +127,17 @@ function FlagCard({
       {rows.length === 0 ? (
         <p className="px-5 text-[12.5px] leading-5">{face.empty}</p>
       ) : (
-        <div className="overflow-x-auto">
-          <DataTable
-            flush
-            rowHeight="min-h-12 py-2"
-            className="min-w-lg"
-            columns={columnsOf(flag)}
-            rows={rows.map((item) => ({
-              id: `${item.forecast.actorId}/${item.forecast.role}/${item.def.key}`,
-              cells: cellsOf(flag, item, data.period),
-            }))}
-          />
-        </div>
+        <StackTable
+          from="md"
+          flush
+          rowHeight="min-h-12 py-2"
+          tableClassName="min-w-lg"
+          columns={columnsOf(flag)}
+          rows={rows.map((item) => ({
+            id: `${item.forecast.actorId}/${item.forecast.role}/${item.def.key}`,
+            cells: cellsOf(flag, item, data.period),
+          }))}
+        />
       )}
     </GlassCard>
   )

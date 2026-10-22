@@ -48,6 +48,10 @@ export const KPI_COUNTER_RESOLVED = 'sales.kpi.counter-resolved'
 export const KPI_FORECAST_FLAGGED = 'sales.kpi.forecast-flagged'
 /** A room package giving a team its share was agreed (ADR 0101). */
 export const KPI_TEAM_SHARE_ASSIGNED = 'sales.kpi.team-share-assigned'
+/** A holder countered a line; a team counter rings its lead, a room one the setters. */
+export const KPI_COUNTER_PROPOSED = 'sales.kpi.counter-proposed'
+/** A month ended and nobody closed it; the daily KPI sweep is the only emitter. */
+export const KPI_MONTH_UNCLOSED = 'sales.kpi.month-unclosed'
 /** An overdue installment's reason was sent, or decided (ADR 0100). */
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
@@ -158,6 +162,10 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('hold-due', HOLD_DUE, 'setter'),
 
   bell('kpi-target-allocated', KPI_ALLOCATION_SUBMITTED, 'holders'),
+  bell('kpi-allocation-waiting', KPI_ALLOCATION_SUBMITTED, 'approvers'),
+  bell('kpi-counter-proposed', KPI_COUNTER_PROPOSED, 'lead'),
+  bell('kpi-counter-proposed', KPI_COUNTER_PROPOSED, 'setters'),
+  bell('kpi-month-unclosed', KPI_MONTH_UNCLOSED, 'setters'),
   bell('kpi-allocation-returned', KPI_ALLOCATION_RETURNED, 'sender'),
   bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
   bell('kpi-team-share-assigned', KPI_TEAM_SHARE_ASSIGNED, 'lead'),

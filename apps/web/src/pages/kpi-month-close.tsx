@@ -12,9 +12,10 @@ import { num } from './home-model'
 import { NOTE } from './home-tiles'
 import { monthEnded, monthText } from './kpi-model'
 
-/** The month-close control on the two screens that show a whole month (ADR 0100): the
- *  closed line for everyone, and for a head the note and button once the month
- *  has ended. Closing is final, so it asks first and names what it leaves out.
+/** The month-close control (ADR 0100): the closed line for everyone, on the
+ *  company and targets screens; the note and button for a head only on the
+ *  targets screen's waiting list, once the month has ended. Closing is final,
+ *  so it asks first and names what it leaves out.
  *
  *  The waiting-reason count comes from a read only an approver may make; a
  *  closer without that permission is asked the base question alone. */

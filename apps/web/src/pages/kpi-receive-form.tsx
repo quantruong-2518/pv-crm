@@ -133,7 +133,7 @@ export function AnswerBlock({
             Lý do
           </label>
           {REASON_MAX !== undefined && (
-            <span className="text-muted-foreground font-mono text-[10.5px]">
+            <span className="text-muted-foreground font-mono text-[11px]">
               {num(reason.length)}/{num(REASON_MAX)}
             </span>
           )}

@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, GlassCard, ScreenHeader, ScreenLayout, SectionTitle, cn } from '@pv/ui'
-import type { KpiForecastResponse, KpiScorecard } from '@pv/contracts'
+import type { KpiAllocation, KpiForecastResponse, KpiScorecard, RoleId } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -11,31 +10,33 @@ import { kpiAllocationsQuery } from '@/data/kpi-allocation'
 import { kpiCatalogQuery, withCatalog, type KpiCatalog } from '@/data/kpi-catalog'
 import { flagsOf } from '@/data/kpi-forecast'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
-import { answerable, kpiForecastMeQuery, myPackages } from '@/data/kpi-personal'
+import { answerable, kpiForecastMeQuery, myPackages, type MyPackage } from '@/data/kpi-personal'
 import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { ContributionsPanel } from './kpi-contributions'
-import { DESCRIPTION, acknowledgementOf, monthPick, needsAcknowledgement } from './kpi-model'
+import { DESCRIPTION, acknowledgementOf, needsAcknowledgement, useMonthParam } from './kpi-model'
 import {
   ForecastFlags,
-  NewTargetsCard,
   PersonalBoard,
   SideFailure,
   TeamLeadLink,
   ThresholdNote,
 } from './kpi-me-parts'
 import { MonthPicker, QueryBlock } from './kpi-parts'
+import { ReceivePackage } from './kpi-receive-parts'
 
 /** The personal KPI screen — what the reader is short of, per role they hold,
  *  read live from `GET /sales/kpi/:period/me`, with the ADR 0098 reads beside
- *  it: new allocation lines to answer, slip / hit flags, the weekly chart.
- *  No fixture and no scenario; every figure and every verdict is the server's.
+ *  it: the allocation lines to confirm or counter, slip / hit flags, the weekly
+ *  chart. No fixture and no scenario; every figure and every verdict is the server's.
  *
- *  The two side reads never block the board: their failure is one line. A
- *  role with a package is received through the receipt screen, which records
- *  both books; the role-target button is for a role without one, and shows
- *  only while an agreed target is unreceived or changed, never on a closed month.
+ *  The month lives in the address, so a bell line opens the month it counted.
+ *  Lines still to confirm put the assigned-targets section first.
+ *  The side reads never block the board: their failure is one line. A role with
+ *  a package is answered in the assigned-targets section, which records both books; the
+ *  role-target button is for a role without one, and shows only while an agreed
+ *  target is unreceived or changed, never on a closed month.
  *
  *  No ContextRail (law 10 debt, as on the overview): a scorecard is a sum over
  *  many records and opens no single object a chain could be anchored on. */
@@ -93,9 +94,44 @@ function RoleBoard({
   )
 }
 
+/** A holder has lines of a role in one tier only, so the first package holding one names their team, if any. */
+const teamOf = (packages: readonly KpiAllocation[], role: RoleId, me: string | undefined) =>
+  packages.find((a) => a.role === role && a.lines.some((l) => l.actorId === me))?.team?.name
+
+/** The reader's allocation lines per package, to confirm or counter (ADR 0098 §3). */
+function AssignedTargets({
+  period,
+  closed,
+  packs,
+  packages,
+  me,
+}: {
+  period: string
+  closed: boolean
+  packs: readonly MyPackage[]
+  packages: readonly KpiAllocation[]
+  me: string | undefined
+}) {
+  return (
+    <section className="flex flex-col gap-6">
+      <SectionTitle size="lg">Chỉ tiêu được giao</SectionTitle>
+      {packs.map((pack) => (
+        <ReceivePackage
+          key={`${pack.role}/${pack.status}`}
+          period={period}
+          closed={closed}
+          pack={pack}
+          me={me}
+          team={teamOf(packages, pack.role, me)}
+        />
+      ))}
+    </section>
+  )
+}
+
 export function KpiMePage() {
   const chrome = useAppChrome()
-  const [pick, setPick] = useState(monthPick)
+  const [pick, setPick] = useMonthParam()
   const period = keyOf(pick)
   const me = useQuery(kpiMeQuery(period))
   const catalog = useQuery(kpiCatalogQuery)
@@ -135,16 +171,23 @@ export function KpiMePage() {
               !data.closed &&
               seen &&
               data.scorecards.some((c) => flagsOf(defs, c.role, seen).length > 0)
+            const assigned = allocations.data && packs.length > 0 && (
+              <AssignedTargets
+                period={data.period}
+                closed={data.closed}
+                packs={packs}
+                packages={allocations.data.allocations}
+                me={actorId}
+              />
+            )
+            const first = !data.closed && pending > 0
             return (
               <>
                 {data.closed && (
                   <p className={NOTE}>Tháng đã kết thúc, chỉ tiêu không đổi được nữa.</p>
                 )}
-                {!data.closed && pending > 0 && (
-                  <NewTargetsCard period={period} pending={pending} />
-                )}
                 {allocations.error && (
-                  <SideFailure what="chỉ tiêu mới giao" retry={() => void allocations.refetch()} />
+                  <SideFailure what="chỉ tiêu được giao" retry={() => void allocations.refetch()} />
                 )}
                 {forecast.error && (
                   <SideFailure
@@ -152,8 +195,9 @@ export function KpiMePage() {
                     retry={() => void forecast.refetch()}
                   />
                 )}
+                {first && assigned}
                 {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
-                {data.scorecards.length === 0 && (
+                {data.scorecards.length === 0 && packs.length === 0 && (
                   <GlassCard className={cn(TILE, 'text-[12.5px]')}>
                     Bạn chưa được giao chỉ tiêu KPI nào.
                   </GlassCard>
@@ -169,6 +213,7 @@ export function KpiMePage() {
                     forecast={forecast.data}
                   />
                 ))}
+                {!first && assigned}
                 {actorId && data.scorecards.length > 0 && (
                   <ContributionsPanel catalog={defs} period={data.period} actorId={actorId} />
                 )}

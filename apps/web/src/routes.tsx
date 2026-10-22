@@ -477,38 +477,10 @@ export const SCREENS: ScreenDef[] = [
   },
   {
     path: '/sales/kpi/targets',
-    name: 'Đặt chỉ tiêu và duyệt',
+    name: 'Chỉ tiêu tháng',
     branch: 'Sales',
     permission: 'kpi.view-all',
     load: () => import('@/pages/kpi-targets'),
-  },
-  {
-    path: '/sales/kpi/department',
-    name: 'Thống kê phòng',
-    branch: 'Sales',
-    permission: 'kpi.view-all',
-    load: () => import('@/pages/kpi-department'),
-  },
-  {
-    path: '/sales/kpi/allocation',
-    name: 'Phân bổ chỉ tiêu',
-    branch: 'Sales',
-    permission: 'kpi.view-all',
-    load: () => import('@/pages/kpi-allocate'),
-  },
-  {
-    path: '/sales/kpi/proposals',
-    name: 'Xử lý đề xuất',
-    branch: 'Sales',
-    permission: 'kpi.view-all',
-    load: () => import('@/pages/kpi-proposals'),
-  },
-  {
-    path: '/sales/kpi/receive',
-    name: 'Nhận chỉ tiêu',
-    branch: 'Sales',
-    permission: 'kpi.view',
-    load: () => import('@/pages/kpi-receive'),
   },
   {
     /* Not in the nav: a team lead holds `kpi.view` only, and the door checks the lead. */
@@ -519,10 +491,11 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/kpi-team'),
   },
   {
-    path: '/sales/kpi/person/:actorId',
+    /* `kpi.view`, not view-all: a team lead opens a member here; the API checks who. */
+    path: '/sales/kpi/company/:actorId',
     name: 'KPI nhân sự',
     branch: 'Sales',
-    permission: 'kpi.view-all',
+    permission: 'kpi.view',
     load: () => import('@/pages/kpi-person'),
   },
   {
@@ -626,6 +599,13 @@ const LEGACY_PATHS: Record<string, string> = {
   '/quen-mat-khau': '/forgot-password',
   '/dat-lai-mat-khau': '/reset-password',
   '/doi-mat-khau': CHANGE_PASSWORD_PATH,
+  /* 20/10/2026 — KPI screens merged by job (ADR 0112). Kept with no end date:
+     old bell rows link here, so these outlive the Vietnamese paths above. */
+  '/sales/kpi/receive': '/sales/kpi/me',
+  '/sales/kpi/department': '/sales/kpi/company',
+  '/sales/kpi/allocation': '/sales/kpi/targets',
+  '/sales/kpi/proposals': '/sales/kpi/targets',
+  '/sales/kpi/person/:actorId': '/sales/kpi/company/:actorId',
 }
 
 /** `replace` so the Back button cannot fall onto the old path and bounce. */

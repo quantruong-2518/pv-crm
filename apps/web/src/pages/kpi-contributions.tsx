@@ -1,14 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import {
-  Accordion,
-  DataTable,
-  GlassCard,
-  SectionTitle,
-  cn,
-  type TableColumn,
-  type TableRowModel,
-} from '@pv/ui'
+import { Accordion, GlassCard, SectionTitle, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   type KpiContributionKind,
@@ -19,6 +11,7 @@ import {
 } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
+import { StackTable, type StackColumn, type StackRow } from '@/components/stack-table'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { contributionHref, kpiContributionsQuery } from '@/data/kpi-contributions'
 import { ROLE_LABEL } from '@/data/users'
@@ -63,12 +56,12 @@ function useOpenable(): Record<KpiContributionKind, boolean> {
   return { lead, opportunity, contract, installment: contract, meeting: false }
 }
 
-const COLUMNS: TableColumn[] = [
+const COLUMNS: StackColumn[] = [
   { header: 'Bản ghi', width: 'minmax(0,1fr)' },
   { header: 'Nội dung', width: 'minmax(0,1.4fr)' },
   { header: 'Ngày', width: 'minmax(0,.8fr)' },
 ]
-const VALUE_COLUMN: TableColumn = { header: 'Giá trị', width: 'minmax(0,1fr)', align: 'right' }
+const VALUE_COLUMN: StackColumn = { header: 'Giá trị', width: 'minmax(0,1fr)', align: 'right' }
 
 const FIGURE = 'tnum font-num'
 
@@ -84,7 +77,7 @@ function GroupBody({
     return <p className="py-2 text-[12.5px] leading-5">Chưa có bản ghi nào tính vào chỉ số này.</p>
   }
   const valued = group.items.some((i) => i.value !== null)
-  const rows: TableRowModel[] = group.items.map((item, i) => {
+  const rows: StackRow[] = group.items.map((item, i) => {
     const onOpen = openTo(item.kind, item.code)
     /* A meeting's code is a bare id: it names nothing a reader could look up. */
     const code =
@@ -116,14 +109,13 @@ function GroupBody({
   })
   return (
     <div className="flex flex-col gap-2">
-      <div className="overflow-x-auto">
-        <DataTable
-          rowHeight="min-h-12 py-2"
-          className="min-w-md"
-          columns={valued ? [...COLUMNS, VALUE_COLUMN] : COLUMNS}
-          rows={rows}
-        />
-      </div>
+      <StackTable
+        from="md"
+        rowHeight="min-h-12 py-2"
+        tableClassName="min-w-md"
+        columns={valued ? [...COLUMNS, VALUE_COLUMN] : COLUMNS}
+        rows={rows}
+      />
       {group.truncated && (
         <p className={cn(NOTE, FIGURE)}>Chỉ hiện {num(group.items.length)} bản ghi mới nhất.</p>
       )}

@@ -1,76 +1,40 @@
 import { useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
-import {
-  KPI_METRIC_LABEL,
-  type KpiAllocation,
-  type KpiAllocationStatus,
-  type KpiCounter,
-  type KpiCounterResolveBody,
-  type KpiMetricDef,
+import { Badge, Button, Drawer, Input, cn } from '@pv/ui'
+import type {
+  KpiAllocation,
+  KpiAllocationStatus,
+  KpiCounter,
+  KpiCounterResolveBody,
+  KpiMetricDef,
+  RoleId,
 } from '@pv/contracts'
 import { toast, toastDone } from '@/app/toast'
 import { useResolveKpiCounter } from '@/data/kpi-allocation'
 import { ROLE_LABEL } from '@/data/users'
 import { dmhm } from '@/lib/date'
-import { NOTE, TILE } from './home-tiles'
+import { NOTE } from './home-tiles'
 import {
-  ALLOCATE_PATH,
   COUNTER_LABEL,
   MOVED,
   defOfCounter,
-  roleQuery,
+  effectLines,
+  headlineOf,
   teamPath,
   teamSuffix,
 } from './kpi-allocate-model'
 import { FailLine } from './kpi-allocate-parts'
 import { UNIT_WORD, parseTyped, printValue } from './kpi-model'
 
-/** The right pane of the proposals screen: one counter or one returned package.
+/** One holder's counters on one package, opened in a drawer from the targets screen.
  *
  *  A counter opens on what happened, then the reason in the holder's words,
  *  last month's actual (the assigned and proposed values are already in the
- *  headline and on the buttons), what accepting would do to the role's split,
- *  and the three answers. Every figure is the server's. Only an open counter
- *  carries its "from": once settled, `assigned` reads the line as it now stands. */
+ *  headline and on the buttons), what accepting would do to the split, and the
+ *  three answers. Every figure is the server's. Only an open counter carries
+ *  its "from": once settled, `assigned` reads the line as it now stands. */
 
-const lower = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
 const FIGURE = 'tnum font-num font-semibold'
-
-function headlineOf(c: KpiCounter, def: KpiMetricDef): string {
-  const metric = lower(KPI_METRIC_LABEL[c.metricKey])
-  const to = printValue(def.unit, c.proposed, true)
-  if (c.status !== 'open') return `${c.name} đề xuất ${metric} ${to}`
-  const from = printValue(def.unit, c.assigned, true)
-  if (c.proposed === c.assigned) return `${c.name} đề xuất giữ ${metric} ở ${to}`
-  return c.proposed < c.assigned
-    ? `${c.name} xin giảm ${metric} từ ${from} xuống ${to}`
-    : `${c.name} xin tăng ${metric} từ ${from} lên ${to}`
-}
-
-function effectLines(c: KpiCounter, def: KpiMetricDef): string[] {
-  const { allocatedAfter, roleTarget, shortfall, compensators } = c.effect
-  /* On a team package the target it balances against is the team's share. */
-  const target = c.team ? 'phần của nhóm' : 'chỉ tiêu vai trò'
-  const print = (v: number) => printValue(def.unit, v)
-  if (allocatedAfter === null) {
-    return [`Chỉ số này không cộng dồn, tổng của ${c.team ? 'nhóm' : 'vai trò'} không đổi.`]
-  }
-  const after = `Tổng sau khi đồng ý: ${print(allocatedAfter)}`
-  if (roleTarget === null) {
-    return [
-      `${after}. ${c.team ? 'Nhóm chưa được giao phần.' : 'Vai trò chưa có chỉ tiêu được duyệt.'}`,
-    ]
-  }
-  if (allocatedAfter > roleTarget) {
-    return [`${after} · thừa ${print(allocatedAfter - roleTarget)} so với ${target}.`]
-  }
-  if (!shortfall) return [`${after} · vẫn khớp ${target}.`]
-  const gap = `${after} · thiếu ${print(shortfall)} so với ${target}.`
-  if (compensators.length === 0) return [gap, 'Chưa có ai đúng tiến độ để bù phần thiếu.']
-  const who = compensators.map((p) => `${p.name} thêm ${print(p.delta)}`).join(' · ')
-  return [gap, `Gợi ý bù từ người đang đúng tiến độ: ${who}.`]
-}
 
 function Answers({
   period,
@@ -90,7 +54,8 @@ function Answers({
   const otherValue = parseTyped(def.unit, other)
   const unit = UNIT_WORD[def.unit]
   const reopens = pkgStatus === 'agreed'
-  /* On an agreed package a change opens a new draft: the toast says so and leads there. */
+  const team = counter.team
+  /* On an agreed package a change opens a new draft: the toast says so, and a team's leads to its page. */
   const run = (body: KpiCounterResolveBody, done: string) =>
     resolve.mutate(
       { counterId: counter.id, body },
@@ -98,20 +63,11 @@ function Answers({
         onSuccess: () => {
           setOther('')
           if (!reopens || body.resolution === 'keep') return toastDone(done)
+          if (!team) return toastDone(done, 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.')
           toast(done, {
             tone: 'success',
-            detail: counter.team
-              ? 'Bản nháp mới đã mở. Trưởng nhóm chia lại rồi gửi duyệt.'
-              : 'Bản nháp mới đã mở, gửi duyệt lại để áp dụng.',
-            action: {
-              label: counter.team ? 'Mở trang nhóm' : 'Mở phân bổ',
-              onClick: () =>
-                navigate(
-                  counter.team
-                    ? teamPath(counter.team.id, period)
-                    : `${ALLOCATE_PATH}${roleQuery(period, counter.role)}`,
-                ),
-            },
+            detail: 'Bản nháp mới đã mở. Trưởng nhóm chia lại rồi gửi duyệt.',
+            action: { label: 'Mở trang nhóm', onClick: () => navigate(teamPath(team.id, period)) },
           })
         },
       },
@@ -122,7 +78,7 @@ function Answers({
     <div className="flex flex-col gap-3">
       {reopens && (
         <p className={NOTE}>
-          {counter.team
+          {team
             ? 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới. Trưởng nhóm chia lại rồi gửi duyệt.'
             : 'Gói đã duyệt: đổi mức sẽ mở bản nháp mới, bạn gửi duyệt lại.'}
         </p>
@@ -195,7 +151,7 @@ function lockedReason(
   return null
 }
 
-export function CounterDetail({
+function CounterDetail({
   period,
   counter,
   lastMonth,
@@ -216,21 +172,17 @@ export function CounterDetail({
   const def = defOfCounter(counter)
   if (!def) return null
   const label = COUNTER_LABEL[counter.status]
-  const open = counter.status === 'open'
   const print = (v: number) => printValue(def.unit, v)
   const locked = lockedReason(counter, print, closed, canSet, me)
 
   return (
-    <GlassCard className={cn(TILE, 'gap-4')}>
+    <section className="flex min-w-0 flex-col gap-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <h3 className="tnum font-num text-[15px] font-semibold leading-6">
-            {headlineOf(counter, def)}
+            {headlineOf(counter, def, false)}
           </h3>
-          <p className={cn(NOTE, 'tnum font-num')}>
-            {ROLE_LABEL[counter.role]}
-            {teamSuffix(counter.team)} · gửi lúc {dmhm(counter.createdAt)}
-          </p>
+          <p className={cn(NOTE, 'tnum font-num')}>Gửi lúc {dmhm(counter.createdAt)}</p>
         </div>
         <Badge tone={label.tone}>{label.text}</Badge>
       </div>
@@ -243,7 +195,7 @@ export function CounterDetail({
           <span className={cn(FIGURE, 'text-[18px]')}>{print(lastMonth)}</span>
         </p>
       )}
-      {open && (
+      {counter.status === 'open' && (
         <div className="flex flex-col gap-1">
           {effectLines(counter, def).map((line) => (
             <p key={line} className="tnum font-num text-[12.5px] leading-5">
@@ -257,54 +209,76 @@ export function CounterDetail({
       ) : (
         <Answers period={period} counter={counter} def={def} pkgStatus={pkgStatus} />
       )}
-    </GlassCard>
+    </section>
   )
 }
 
-export function ReturnedDetail({
+/** Whose counters the drawer shows: one holder on one package (a role, and a team or the room). */
+export type CounterOwner = { actorId: string; role: RoleId; teamId: string | null }
+
+const onPackage = (c: { role: RoleId; team: { id: string } | null }, who: CounterOwner) =>
+  c.role === who.role && (c.team?.id ?? null) === who.teamId
+
+/** Open counters first, oldest first; then the settled ones, latest first. */
+function ownedBy(counters: readonly KpiCounter[], who: CounterOwner): KpiCounter[] {
+  const own = counters.filter((c) => c.actorId === who.actorId && onPackage(c, who))
+  const open = own.filter((c) => c.status === 'open')
+  const settled = own.filter((c) => c.status !== 'open')
+  open.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  settled.sort((a, b) => (b.resolvedAt ?? '').localeCompare(a.resolvedAt ?? ''))
+  return [...open, ...settled]
+}
+
+export function CounterDrawer({
+  who,
+  onClose,
   period,
-  pkg,
-  canFix,
+  counters,
+  packages,
+  closed,
+  canSet,
+  me,
 }: {
+  /** `null`: the drawer is shut. */
+  who: CounterOwner | null
+  onClose: () => void
   period: string
-  pkg: KpiAllocation
-  /** `kpi.set-target` on an open month. */
-  canFix: boolean
+  /** The month's counters, every holder and package. */
+  counters: readonly KpiCounter[]
+  packages: readonly KpiAllocation[]
+  closed: boolean
+  canSet: boolean
+  me: string | undefined
 }) {
-  const navigate = useNavigate()
+  const list = who ? ownedBy(counters, who) : []
+  const pkg = who ? packages.find((a) => onPackage(a, who)) : undefined
+  const lastMonthOf = (c: KpiCounter) =>
+    pkg?.lines.find((l) => l.actorId === c.actorId && l.metricKey === c.metricKey)?.lastMonth ??
+    null
+  const first = list[0]
+
   return (
-    <GlassCard className={cn(TILE, 'gap-4')}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h3 className="text-[15px] font-semibold leading-6">
-            {pkg.decidedBy?.name ?? 'Quản lý'} trả lại gói chỉ tiêu {ROLE_LABEL[pkg.role]}
-            {teamSuffix(pkg.team)}
-          </h3>
-          {pkg.decidedAt && <p className={cn(NOTE, 'tnum font-num')}>Lúc {dmhm(pkg.decidedAt)}</p>}
-        </div>
-        <Badge tone="danger">Bị trả lại</Badge>
+    <Drawer
+      open={first !== undefined}
+      onClose={onClose}
+      title={first ? `Đề xuất của ${first.name}` : ''}
+      subtitle={first ? `${ROLE_LABEL[first.role]}${teamSuffix(first.team)}` : undefined}
+    >
+      {/* Plain sections, not cards: a white card on the white drawer of the light theme vanishes. */}
+      <div className="divide-surface-ink/6 flex flex-col divide-y">
+        {list.map((c) => (
+          <CounterDetail
+            key={c.id}
+            period={period}
+            counter={c}
+            lastMonth={lastMonthOf(c)}
+            pkgStatus={pkg?.status}
+            closed={closed}
+            canSet={canSet}
+            me={me}
+          />
+        ))}
       </div>
-      <blockquote className="bg-surface-ink/5 rounded-md px-4 py-3 text-[13px] leading-5">
-        {pkg.returnReason}
-      </blockquote>
-      {pkg.team ? (
-        <Button
-          variant="secondary"
-          className="pointer-coarse:h-12 self-start"
-          onClick={() => pkg.team && navigate(teamPath(pkg.team.id, period))}
-        >
-          Mở trang nhóm
-        </Button>
-      ) : (
-        canFix && (
-          <Button
-            className="pointer-coarse:h-12 self-start"
-            onClick={() => navigate(`${ALLOCATE_PATH}${roleQuery(period, pkg.role)}`)}
-          >
-            Mở phân bổ để sửa
-          </Button>
-        )
-      )}
-    </GlassCard>
+    </Drawer>
   )
 }

@@ -1,14 +1,5 @@
 import { useState } from 'react'
-import {
-  Badge,
-  Button,
-  DataTable,
-  GlassCard,
-  Input,
-  SectionTitle,
-  cn,
-  type TableColumn,
-} from '@pv/ui'
+import { Badge, Button, GlassCard, Input, SectionTitle, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   KpiAllocationDraftBody,
@@ -23,6 +14,7 @@ import type { ApiError } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { Field } from '@/components/field-bits'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useDraftTeamAllocation, useSubmitTeamAllocation } from '@/data/kpi-team-view'
 import { ROLE_LABEL } from '@/data/users'
 import { NOTE } from './home-tiles'
@@ -199,12 +191,13 @@ function SplitTable({
   textOf: (key: string, def: KpiMetricDef) => string
   onEdit: (key: string, text: string) => void
 }) {
-  const tableColumns: TableColumn[] = [
+  const tableColumns: StackColumn[] = [
     { header: 'Thành viên', width: 'minmax(160px,1.2fr)' },
     ...columns.map((def) => ({
       header: KPI_METRIC_LABEL[def.key],
       width: 'minmax(168px,1fr)',
       align: 'right' as const,
+      stack: editable ? ('wide' as const) : undefined,
     })),
   ]
 
@@ -240,23 +233,22 @@ function SplitTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <DataTable
-        flush
-        rowHeight="min-h-16 py-2"
-        className={columns.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
-        columns={tableColumns}
-        rows={holders.map((h) => ({
-          id: h.actorId,
-          cells: [
-            <span key="who" className="truncate font-semibold">
-              {h.name}
-            </span>,
-            ...columns.map((def) => cell(h, def)),
-          ],
-        }))}
-      />
-    </div>
+    <StackTable
+      from="lg"
+      flush
+      rowHeight="min-h-16 py-2"
+      tableClassName={columns.length > 3 ? 'min-w-5xl' : 'min-w-3xl'}
+      columns={tableColumns}
+      rows={holders.map((h) => ({
+        id: h.actorId,
+        cells: [
+          <span key="who" className="truncate font-semibold">
+            {h.name}
+          </span>,
+          ...columns.map((def) => cell(h, def)),
+        ],
+      }))}
+    />
   )
 }
 

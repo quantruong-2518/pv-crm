@@ -41,6 +41,8 @@ export const KpiTeam = z.object({
   id: teamId,
   name: z.string().min(1),
   lead: KpiTargetActor,
+  /** A locked lead's counters go to the target setters (ADR 0101 default 16). */
+  leadLocked: z.boolean(),
   members: z.array(KpiTeamMember),
 })
 

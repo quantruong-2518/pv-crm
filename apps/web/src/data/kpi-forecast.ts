@@ -28,6 +28,23 @@ export const kpiForecastQuery = (period: string) =>
       }),
   })
 
+/** One person's lines of the same forecast; the server checks who may read them,
+ *  as for `kpiPersonQuery`. */
+export const kpiPersonForecastQuery = (period: string, actorId: string) =>
+  queryOptions({
+    queryKey: ['sales', 'kpi', period, 'forecast', 'people', actorId] as const,
+    ...cacheTier.aggregate,
+    queryFn: ({ signal }) =>
+      api.read<KpiForecastResponse>(
+        `/sales/kpi/${period}/forecast/people/${encodeURIComponent(actorId)}`,
+        {
+          need: { branch: 'Sales', permission: 'kpi.view' },
+          schema: KpiForecastResponse,
+          signal,
+        },
+      ),
+  })
+
 /** A forecast line beside the catalog row that says how to print it. */
 export type ForecastItem = { def: KpiMetricDef; forecast: KpiForecast }
 

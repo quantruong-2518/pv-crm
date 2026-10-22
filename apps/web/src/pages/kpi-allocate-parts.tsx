@@ -4,8 +4,8 @@ import type { ApiError } from '@/app/api'
 import { NOTE } from './home-tiles'
 import { PACKAGE_LABEL, actedAt, failText } from './kpi-allocate-model'
 
-/** Small blocks the allocation and proposal screens share: a package's status
- *  pill, its four-step bar, and a refused write said in place. */
+/** Small blocks the KPI screens share: a package's status pill, its four-step
+ *  bar, and a refused write said in place. */
 
 export function PackageBadge({ pkg }: { pkg: KpiAllocation | undefined }) {
   if (!pkg) return <Badge tone="draft">Chưa phân bổ</Badge>
@@ -32,7 +32,7 @@ export function FailLine({
 }
 
 const STEPS = [
-  { key: 'total', label: 'Đặt chỉ tiêu vai trò' },
+  { key: 'total', label: 'Chỉ tiêu vai trò' },
   { key: 'split', label: 'Phân bổ' },
   { key: 'ack', label: 'Người nhận xác nhận' },
   { key: 'lock', label: 'Duyệt và khoá' },

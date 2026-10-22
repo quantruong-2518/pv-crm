@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { Inject, Injectable } from '@nestjs/common'
+import type { AccessControl, Actor } from '@pv/engines'
 import {
   isCumulative,
   KpiForecastResponse,
@@ -11,16 +11,19 @@ import {
   type RoleId,
 } from '@pv/contracts'
 import { toContractRole } from '@api/platform/auth/auth.mapper'
-import { denied, invalid } from '@api/platform/http/problem'
+import { ACCESS } from '@api/platform/engines/tokens'
+import { denied, invalid, notFound } from '@api/platform/http/problem'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { spansOf } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
+import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type KpiSeat } from './kpi-readings.repository'
 import { monthClock, vietnamToday } from './kpi-rules'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamRepository } from './kpi-team.repository'
 import { elapsedOf } from './kpi-verdict'
 import { agreedIn, toReadings } from './kpi.mapper'
 
@@ -80,6 +83,8 @@ export class KpiForecastService {
     private readonly settings: SettingService,
     private readonly config: KpiConfigService,
     private readonly closes: KpiCloseRepository,
+    private readonly teams: KpiTeamRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async everyone(period: KpiPeriodKey): Promise<KpiForecastResponse> {
@@ -93,6 +98,18 @@ export class KpiForecastService {
   async mine(who: Actor, period: KpiPeriodKey): Promise<KpiForecastResponse> {
     const holder = { id: who.id, name: who.name, roleIds: who.roleIds.map(toContractRole) }
     return this.forecast(period, [holder], who.id)
+  }
+
+  /** `mine` for someone else, behind `assertReadsPerson`. */
+  async ofPerson(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiForecastResponse> {
+    await assertReadsPerson(this.access, this.teams, who, period, actorId)
+    const person = await this.readings.person(actorId)
+    if (!person) throw notFound('người này')
+    return this.forecast(
+      period,
+      [{ ...person, roleIds: person.roleIds.map(toContractRole) }],
+      actorId,
+    )
   }
 
   /** The caller's own series: a room metric reads the room fragment, which

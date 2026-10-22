@@ -65,6 +65,8 @@ holder without the performance screens still hears about their line. A code
 `<period>:<role>` opens the role on "Đặt chỉ tiêu và duyệt"; a bare `<period>`
 opens "Nhận chỉ tiêu".
 
+> Amended by ADR 0112: those screens are merged ("Nhận chỉ tiêu" into "KPI của tôi", the role steps into "Chỉ tiêu tháng"); three more bell kinds exist.
+
 ### 4a · A role whose configuration is off falls back to the code default
 
 A role without exactly one primary metric after the overlay is a bad

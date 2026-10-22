@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common'
-import { KPI_TARGET_AGREED, KPI_TARGET_PROPOSED, type Actor } from '@pv/engines'
+import { Inject, Injectable } from '@nestjs/common'
+import { KPI_TARGET_AGREED, KPI_TARGET_PROPOSED, type AccessControl, type Actor } from '@pv/engines'
 import {
   ROLE_LABEL,
   KpiCompanyResponse,
   KpiMeResponse,
   KpiPeopleResponse,
+  KpiPersonResponse,
   KpiTargetsResponse,
   type KpiAgreeBody,
   type KpiMonthClose,
@@ -16,7 +17,8 @@ import {
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { toContractRole } from '@api/platform/auth/auth.mapper'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, denied } from '@api/platform/http/problem'
+import { ACCESS } from '@api/platform/engines/tokens'
+import { conflict, denied, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
 import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
@@ -26,8 +28,10 @@ import { targetSources } from './kpi-allocation.mapper'
 import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
+import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type Actors } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
+import { KpiTeamRepository } from './kpi-team.repository'
 import { assertTargetValues, monthClock, stillOpen, vietnamToday } from './kpi-rules'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
 
@@ -50,6 +54,8 @@ export class KpiService {
     private readonly lines: KpiAllocationCounterService,
     private readonly config: KpiConfigService,
     private readonly closes: KpiCloseRepository,
+    private readonly teams: KpiTeamRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -111,6 +117,14 @@ export class KpiService {
         scorecards: cards.get(p.id),
       })),
     })
+  }
+
+  /** One element of `people`, read through it so the card cannot differ. */
+  async person(who: Actor, period: KpiPeriodKey, actorId: string): Promise<KpiPersonResponse> {
+    await assertReadsPerson(this.access, this.teams, who, period, actorId)
+    const { monthClose, people } = await this.people(period, new Set([actorId]))
+    if (!people[0]) throw notFound('người này')
+    return KpiPersonResponse.parse({ period, monthClose, person: people[0] })
   }
 
   async targetsOf(period: KpiPeriodKey): Promise<KpiTargetsResponse> {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Button, DataTable, GlassCard, Input, cn, type TableColumn } from '@pv/ui'
+import { Badge, Button, GlassCard, Input, cn } from '@pv/ui'
 import {
   KPI_LAYER_LABEL,
   KPI_METRIC_LABEL,
@@ -12,6 +12,7 @@ import {
 } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import { useAgreeKpiTargets, useProposeKpiTargets } from '@/data/kpi'
 import type { KpiCatalog } from '@/data/kpi-catalog'
 import { ROLE_LABEL } from '@/data/users'
@@ -29,14 +30,18 @@ import { DASH, UNIT_WORD, parseTyped, printValue } from './kpi-model'
  *  one metric and leave the others as approved. Approving sends the pending
  *  rows as they stand on screen, so the server never locks an unseen value. */
 
-const READ_COLUMNS: TableColumn[] = [
+const READ_COLUMNS: StackColumn[] = [
   { header: 'Chỉ số', width: 'minmax(0,1.6fr)' },
   { header: 'Chỉ tiêu đã duyệt', width: 'minmax(0,1.2fr)' },
   { header: 'Người duyệt', width: 'minmax(0,1.2fr)' },
   { header: 'Đề nghị chờ duyệt', width: 'minmax(0,1.4fr)' },
 ]
 /* The floor fits a full dong figure ("1.500.000.000") beside its unit word. */
-const WRITE_COLUMN: TableColumn = { header: 'Đề nghị mới', width: 'minmax(168px,1.2fr)' }
+const WRITE_COLUMN: StackColumn = {
+  header: 'Đề nghị mới',
+  width: 'minmax(168px,1.2fr)',
+  stack: 'wide',
+}
 
 const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 const NOTE_NUM = cn(NOTE, 'tnum font-num')
@@ -151,18 +156,17 @@ export function RoleTargets({
         {seen.length > 0 && <Badge tone="warning">Chờ duyệt</Badge>}
       </div>
 
-      <div className="overflow-x-auto">
-        <DataTable
-          flush
-          rowHeight="min-h-14 py-2"
-          className={canSet ? 'min-w-5xl' : 'min-w-3xl'}
-          columns={canSet ? [...READ_COLUMNS, WRITE_COLUMN] : READ_COLUMNS}
-          rows={lines.map((line) => ({
-            id: line.def.key,
-            cells: canSet ? [...readCells(line), field(line)] : readCells(line),
-          }))}
-        />
-      </div>
+      <StackTable
+        from="lg"
+        flush
+        rowHeight="min-h-14 py-2"
+        tableClassName={canSet ? 'min-w-5xl' : 'min-w-3xl'}
+        columns={canSet ? [...READ_COLUMNS, WRITE_COLUMN] : READ_COLUMNS}
+        rows={lines.map((line) => ({
+          id: line.def.key,
+          cells: canSet ? [...readCells(line), field(line)] : readCells(line),
+        }))}
+      />
 
       {canSet && (
         <div className="flex flex-wrap items-center justify-end gap-3 px-5">

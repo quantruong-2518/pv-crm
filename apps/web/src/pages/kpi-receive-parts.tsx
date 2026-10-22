@@ -1,16 +1,6 @@
-import {
-  Badge,
-  DataTable,
-  GlassCard,
-  Icon,
-  Minus,
-  SectionTitle,
-  TrendingDown,
-  TrendingUp,
-  cn,
-  type TableColumn,
-} from '@pv/ui'
+import { Badge, GlassCard, Icon, Minus, SectionTitle, TrendingDown, TrendingUp, cn } from '@pv/ui'
 import { KPI_METRIC_LABEL, type KpiAckState } from '@pv/contracts'
+import { StackTable, type StackColumn } from '@/components/stack-table'
 import { answerable, type MyLine, type MyPackage } from '@/data/kpi-personal'
 import { ROLE_LABEL } from '@/data/users'
 import { dm, dmhm } from '@/lib/date'
@@ -62,12 +52,12 @@ function Change({ line }: { line: MyLine }) {
   )
 }
 
-const COLUMNS: TableColumn[] = [
+const COLUMNS: StackColumn[] = [
   { header: 'Chỉ số', width: 'minmax(0,1.6fr)' },
   { header: 'Tháng trước đạt', width: 'minmax(0,1fr)', align: 'right' },
   { header: 'Giao tháng này', width: 'minmax(0,1.4fr)', align: 'right' },
 ]
-const ACK_COLUMN: TableColumn = { header: 'Trạng thái', width: 'minmax(0,1.2fr)' }
+const ACK_COLUMN: StackColumn = { header: 'Trạng thái', width: 'minmax(0,1.2fr)' }
 
 const TWO_LINES = 'flex min-w-0 flex-col gap-1'
 
@@ -130,7 +120,7 @@ export function ReceivePackage({
   return (
     <section className="flex flex-col gap-4">
       <SectionTitle
-        size="lg"
+        size="md"
         hint={
           pack.status === 'submitted' ? 'Mức này chưa được duyệt, có thể còn thay đổi.' : undefined
         }
@@ -158,15 +148,14 @@ export function ReceivePackage({
         <div className="px-5">
           <Badge tone={state.tone}>{state.text}</Badge>
         </div>
-        <div className="overflow-x-auto">
-          <DataTable
-            flush
-            rowHeight="min-h-14 py-2"
-            className="min-w-3xl"
-            columns={live ? [...COLUMNS, ACK_COLUMN] : COLUMNS}
-            rows={pack.lines.map((line) => ({ id: line.metricKey, cells: cellsOf(line, live) }))}
-          />
-        </div>
+        <StackTable
+          from="lg"
+          flush
+          rowHeight="min-h-14 py-2"
+          tableClassName="min-w-3xl"
+          columns={live ? [...COLUMNS, ACK_COLUMN] : COLUMNS}
+          rows={pack.lines.map((line) => ({ id: line.metricKey, cells: cellsOf(line, live) }))}
+        />
       </GlassCard>
 
       {!closed && firstOpen && (
