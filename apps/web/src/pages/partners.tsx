@@ -1,18 +1,17 @@
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   AppShell,
   Badge,
   Button,
-  Check,
   ColumnFilter,
   ColumnFilterList,
-  Copy,
   Icon,
   Plus,
   ScreenLayout,
   SearchField,
   SegmentedControl,
+  type TableColumn,
   type TableRowModel,
   type TableSort,
 } from '@pv/ui'
@@ -20,12 +19,15 @@ import type { PartnerRow as Partner } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { listField, oneOf, useClientBookFilter, type BookFilters } from '@/app/client-book-filter'
 import { isApiError, userMessage } from '@/app/api'
-import { toastDone } from '@/app/toast'
 import { useOriginNames } from '@/data/lead-origins'
 import { fuzzyRank } from '@/lib/fuzzy-rank'
 import { searchableText } from '@/lib/search-box'
 import { partnersQuery } from '@/data/partners'
 import { BookCount, BookPage } from '@/components/book-page'
+import { FilterSection, SortSelect, ViewSwitch } from '@/components/book-cards'
+import { noop, useBookView } from '@/components/book-view'
+import { CopyRef, PartnerCardGrid } from '@/components/partner-cards'
+import { FilterMenu } from '@/components/table-bits'
 import { AddPartnerModal, EditPartnerModal } from './partners-parts'
 
 /** Partner book — who sends us leads, picked by `REFERRER`-asking
@@ -97,32 +99,14 @@ function partnerView(all: Partner[], filters: PartnerFilters, sort: TableSort) {
   }
 }
 
-/** Copies the ref without opening the row it sits in. */
-function CopyRef({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async (e: MouseEvent) => {
-    e.stopPropagation()
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      toastDone(`Đã chép mã ${value}`)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      /* Absent on plain http and blocked by some policies; the pill stays selectable. */
-    }
-  }
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      aria-label={`Chép mã ${value}`}
-      className="pointer-coarse:h-12"
-      onClick={copy}
-    >
-      <Icon icon={copied ? Check : Copy} size={14} />
-    </Button>
-  )
-}
+/** Grid has no column headers, so the sorts the table offers become one pick. */
+const PARTNER_SORT_OPTIONS = [
+  { value: 'name:asc', label: 'Tên A → Z' },
+  { value: 'name:desc', label: 'Tên Z → A' },
+  { value: 'leads:desc', label: 'Nhiều lead nhất' },
+  { value: 'opportunities:desc', label: 'Nhiều cơ hội nhất' },
+  { value: 'contracts:desc', label: 'Nhiều hợp đồng nhất' },
+]
 
 /** Cells of one book row, in column order: who, ref, kind, three counts, state. */
 function partnerCells(p: Partner, originName: string): ReactNode[] {
@@ -156,12 +140,23 @@ function partnerCells(p: Partner, originName: string): ReactNode[] {
   ]
 }
 
+const partnerColumns = (originFilter: ReactNode): TableColumn[] => [
+  { header: 'Đối tác', width: 'minmax(0,2fr)', sortKey: 'name' },
+  { header: 'Mã ref', width: '168px', align: 'center' },
+  { header: originFilter, width: 'minmax(0,1.2fr)', align: 'center' },
+  { header: 'Lead', width: '88px', sortKey: 'leads', align: 'center' },
+  { header: 'Cơ hội', width: '88px', sortKey: 'opportunities', align: 'center' },
+  { header: 'Hợp đồng', width: '104px', sortKey: 'contracts', align: 'center' },
+  { header: 'Trạng thái', width: '128px', align: 'center' },
+]
+
 const nextSort = (cur: TableSort, key: string): TableSort =>
   cur.key === key ? { key, dir: cur.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }
 
 export function PartnersPage() {
   const chrome = useAppChrome()
   const originNames = useOriginNames()
+  const [view, setView] = useBookView('pv.partners.view')
 
   const book = useClientBookFilter(PARTNER_FILTERS)
   const { filters, patch } = book
@@ -191,23 +186,26 @@ export function PartnersPage() {
   const { rows, counts } = useMemo(() => partnerView(all, filters, sort), [all, filters, sort])
   const toggleSort = (key: string) => setSort((cur) => nextSort(cur, key))
 
+  /* One body, laid in the column popover for the table and in the grid's filter menu. */
+  const originBody = (close: () => void) => (
+    <ColumnFilterList
+      options={originOptions}
+      selected={filters.origin}
+      close={close}
+      onApply={(origin) => patch({ origin })}
+    />
+  )
   const originFilter = (
     <ColumnFilter label="Nguồn lead" active={filters.origin.length > 0}>
-      {(close) => (
-        <ColumnFilterList
-          options={originOptions}
-          selected={filters.origin}
-          close={close}
-          onApply={(origin) => patch({ origin })}
-        />
-      )}
+      {originBody}
     </ColumnFilter>
   )
+  const originNameOf = (id: string) => originNames.get(id) ?? id
 
   const tableRows: TableRowModel[] = rows.map((p) => ({
     id: p.code,
     onOpen: () => setEditingCode(p.code),
-    cells: partnerCells(p, originNames.get(p.originId) ?? p.originId),
+    cells: partnerCells(p, originNameOf(p.originId)),
   }))
 
   return (
@@ -240,6 +238,20 @@ export function PartnersPage() {
                 onChange={book.setText}
                 className="min-w-0 flex-1 sm:max-w-[320px]"
               />
+              {view === 'grid' && (
+                <>
+                  <SortSelect
+                    options={PARTNER_SORT_OPTIONS}
+                    sort={sort.key}
+                    dir={sort.dir}
+                    onChange={(key, dir) => setSort({ key, dir })}
+                  />
+                  <FilterMenu label="Bộ lọc sổ đối tác" active={filters.origin.length > 0 ? 1 : 0}>
+                    <FilterSection title="Nguồn lead">{originBody(noop)}</FilterSection>
+                  </FilterMenu>
+                </>
+              )}
+              <ViewSwitch value={view} onChange={setView} />
               {book.dirty && (
                 <Button
                   size="md"
@@ -276,21 +288,22 @@ export function PartnersPage() {
                   }
               : undefined
           }
-          table={{
-            minWidth: 'min-w-[820px]',
-            sort,
-            onSort: toggleSort,
-            columns: [
-              { header: 'Đối tác', width: 'minmax(0,2fr)', sortKey: 'name' },
-              { header: 'Mã ref', width: '168px', align: 'center' },
-              { header: originFilter, width: 'minmax(0,1.2fr)', align: 'center' },
-              { header: 'Lead', width: '88px', sortKey: 'leads', align: 'center' },
-              { header: 'Cơ hội', width: '88px', sortKey: 'opportunities', align: 'center' },
-              { header: 'Hợp đồng', width: '104px', sortKey: 'contracts', align: 'center' },
-              { header: 'Trạng thái', width: '128px', align: 'center' },
-            ],
-            rows: tableRows,
-          }}
+          cards={
+            view === 'grid' ? (
+              <PartnerCardGrid rows={rows} originName={originNameOf} onOpen={setEditingCode} />
+            ) : undefined
+          }
+          table={
+            view === 'table'
+              ? {
+                  minWidth: 'min-w-[820px]',
+                  sort,
+                  onSort: toggleSort,
+                  columns: partnerColumns(originFilter),
+                  rows: tableRows,
+                }
+              : undefined
+          }
         />
 
         <AddPartnerModal key={addSeq} open={adding} onClose={() => setAdding(false)} />

@@ -1,17 +1,19 @@
-import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Button, SearchField } from '@pv/ui'
-import { ContractBookQuery } from '@pv/contracts'
+import { ContractBookQuery, type ContractRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { searchHint } from '@/lib/search-box'
 import { dm } from '@/lib/date'
 import { contractBookQuery } from '@/data/contracts'
-import { BookCount, BookPage } from '@/components/book-page'
+import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { ViewSwitch } from '@/components/book-cards'
+import { GRID_PAGE_SIZE } from '@/components/book-view'
+import { ContractNurtureCards } from '@/components/nurture-cards'
 import { moneyIn } from '@/components/deal-money/money'
 import { AvatarCell, TableFooter } from '@/components/table-bits'
-import { withTab, withoutTab } from './nurturing-model'
+import { withTab, withoutTab, type NurtureBookProps } from './nurturing-model'
 
 /** The contract tab of the nurturing page: every contract that was terminated
  *  (ADR 0107), with why, when, by whom and the money kept and returned. Money is
@@ -20,9 +22,54 @@ import { withTab, withoutTab } from './nurturing-model'
 const PAGE_SIZE = 10
 const SCHEMA = withTab(ContractBookQuery)
 
-export function ContractNurtureBook({ tabs }: { tabs: ReactNode }) {
+/** The table view, as the tab drew it before cards. */
+function contractNurtureTable(rows: ContractRow[], navigate: (to: string) => void): BookTable {
+  return {
+    minWidth: 'min-w-[1040px]',
+    columns: [
+      { header: 'Hợp đồng / Khách hàng', width: 'minmax(0,2fr)' },
+      { header: 'Lý do chấm dứt', width: 'minmax(0,1.6fr)' },
+      { header: 'Ngày chấm dứt', width: '128px', align: 'center' },
+      { header: 'Người chấm dứt', width: '128px', align: 'center' },
+      { header: 'Đã thu', width: '152px', align: 'right' },
+      { header: 'Đã hoàn', width: '152px', align: 'right' },
+    ],
+    rows: rows.map((c) => {
+      const t = c.termination
+      const money = moneyIn(c.currency)
+      return {
+        id: c.code,
+        onOpen: () => navigate(`/sales/contracts/${encodeURIComponent(c.code)}`),
+        cells: [
+          <span key="c" className="flex min-w-0 flex-col gap-1">
+            <span className="text-accent-foreground font-mono text-[11.5px]">{c.code}</span>
+            <span className="truncate text-[13px] font-semibold" title={c.customer}>
+              {c.customer}
+            </span>
+          </span>,
+          <span key="r" className="truncate text-[13px]" title={t?.reasonLabel}>
+            {t?.reasonLabel ?? '—'}
+          </span>,
+          <span key="d" className="tnum font-num text-[11.5px]">
+            {t ? dm(t.terminatedAt) : '—'}
+          </span>,
+          <AvatarCell key="b" name={t?.byName} empty="Chưa ghi người chấm dứt" />,
+          <span key="p" className="tnum font-num block text-right text-[13px]">
+            {t ? money(t.collectedAmount) : '—'}
+          </span>,
+          <span key="f" className="tnum font-num block text-right text-[13px]">
+            {t ? money(t.refundedAmount) : '—'}
+          </span>,
+        ],
+      }
+    }),
+  }
+}
+
+export function ContractNurtureBook({ tabs, view, onView }: NurtureBookProps) {
   const navigate = useNavigate()
-  const book = useBookQuery(SCHEMA, { size: PAGE_SIZE, filterKeys: [] })
+  const pageSize = view === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE
+  const book = useBookQuery(SCHEMA, { size: pageSize, filterKeys: [] })
   const query = { ...withoutTab(book.query), status: 'terminated' as const }
   const { data, isPending, error, refetch } = useQuery(contractBookQuery(query))
   const { pageIndex } = useBookPageClamp(book, data?.total)
@@ -42,6 +89,7 @@ export function ContractNurtureBook({ tabs }: { tabs: ReactNode }) {
             onChange={book.setText}
             className="min-w-0 flex-1 sm:max-w-[320px]"
           />
+          <ViewSwitch value={view} onChange={onView} />
           {book.dirty && (
             <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={book.clear}>
               Xoá tìm kiếm
@@ -71,50 +119,12 @@ export function ContractNurtureBook({ tabs }: { tabs: ReactNode }) {
               }
           : undefined
       }
-      table={{
-        minWidth: 'min-w-[1040px]',
-        columns: [
-          { header: 'Hợp đồng / Khách hàng', width: 'minmax(0,2fr)' },
-          { header: 'Lý do chấm dứt', width: 'minmax(0,1.6fr)' },
-          { header: 'Ngày chấm dứt', width: '128px', align: 'center' },
-          { header: 'Người chấm dứt', width: '128px', align: 'center' },
-          { header: 'Đã thu', width: '152px', align: 'right' },
-          { header: 'Đã hoàn', width: '152px', align: 'right' },
-        ],
-        rows: rows.map((c) => {
-          const t = c.termination
-          const money = moneyIn(c.currency)
-          return {
-            id: c.code,
-            onOpen: () => navigate(`/sales/contracts/${encodeURIComponent(c.code)}`),
-            cells: [
-              <span key="c" className="flex min-w-0 flex-col gap-1">
-                <span className="text-accent-foreground font-mono text-[11.5px]">{c.code}</span>
-                <span className="truncate text-[13px] font-semibold" title={c.customer}>
-                  {c.customer}
-                </span>
-              </span>,
-              <span key="r" className="truncate text-[13px]" title={t?.reasonLabel}>
-                {t?.reasonLabel ?? '—'}
-              </span>,
-              <span key="d" className="tnum font-num text-[11.5px]">
-                {t ? dm(t.terminatedAt) : '—'}
-              </span>,
-              <AvatarCell key="b" name={t?.byName} empty="Chưa ghi người chấm dứt" />,
-              <span key="p" className="tnum font-num block text-right text-[13px]">
-                {t ? money(t.collectedAmount) : '—'}
-              </span>,
-              <span key="f" className="tnum font-num block text-right text-[13px]">
-                {t ? money(t.refundedAmount) : '—'}
-              </span>,
-            ],
-          }
-        }),
-      }}
+      cards={view === 'grid' ? <ContractNurtureCards rows={rows} /> : undefined}
+      table={view === 'table' ? contractNurtureTable(rows, navigate) : undefined}
       footer={
         <TableFooter
           page={pageIndex}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           total={data?.total ?? 0}
           onPage={book.goPage}
         />

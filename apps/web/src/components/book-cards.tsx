@@ -11,11 +11,11 @@ import type { BookView } from './book-view'
  *  card nests in another. The card is `relative` so a stretched link can open
  *  the profile while the buttons inside stay pressable. */
 export const BOOK_CARD =
-  'glass-b hover:bg-muted text-foreground relative flex min-w-0 flex-col gap-3 rounded-md p-4 transition-colors has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring'
+  'glass-b hover:bg-muted text-foreground relative flex min-w-0 flex-col gap-3 rounded-lg p-4 transition-colors has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-ring'
 
 /** The profile link over the whole card: its `::after` covers the card. */
 export const CARD_LINK =
-  "text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-md after:content-['']"
+  "text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 
 export function ViewSwitch({
   value,
@@ -59,6 +59,7 @@ export function SortSelect({
   return (
     <Select
       label="Sắp xếp"
+      className="pointer-coarse:[&>button]:h-12"
       value={current}
       options={shown}
       neutralValue={options[0]?.value}

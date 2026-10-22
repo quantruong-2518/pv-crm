@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react'
 import type { useBookQuery } from '@/app/book-query'
+import type { BookView } from '@/components/book-view'
 
 /** The nurturing page's tab switch, without JSX (ADR 0109).
  *
@@ -15,6 +17,13 @@ export const NURTURE_TAB_LABEL: Record<NurtureTab, string> = {
   lead: 'Lead',
   deal: 'Cơ hội',
   contract: 'Hợp đồng',
+}
+
+/** What every tab's book takes. The view is the page's, so a tab change keeps it. */
+export type NurtureBookProps = {
+  tabs: ReactNode
+  view: BookView
+  onView: (view: BookView) => void
 }
 
 /** The tabs this reader may open, in order; the lead tab is always there. */

@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Avatar, Badge, Chip, Icon, Mail, Phone, cn, type IconGlyph } from '@pv/ui'
+import { Avatar, Badge, Icon, Mail, Phone, cn, type IconGlyph } from '@pv/ui'
 import type { ContactBookRow } from '@pv/contracts'
 import { phoneText } from '@/lib/phone'
 import { CommActionConfirm } from './comm-action-confirm'
 import { LetterComposer } from './mail-letter/letter-composer'
-import { BOOK_CARD, CARD_LINK } from './book-cards'
+import { BOOK_CARD } from './book-cards'
+import { CARD_GRID, CardFoot, CardHead, CardPerson, CardTitle } from './book-card-parts'
 
 /** The contact book as cards. A lead's primary contact takes two columns: the
  *  book's question is "who do I call at this customer", and the default sort
@@ -57,22 +57,6 @@ function Reach({
   )
 }
 
-function Owner({ name }: { name?: string }) {
-  return (
-    <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
-      {name ? (
-        <>
-          Phụ trách
-          <Avatar name={name} card={false} size="sm" />
-          <span className="text-foreground truncate">{name}</span>
-        </>
-      ) : (
-        'Chưa có người phụ trách'
-      )}
-    </span>
-  )
-}
-
 function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a: Ask) => void }) {
   const company = c.accountName ?? c.company
   const role = [c.title, company].filter(Boolean).join(' · ')
@@ -101,46 +85,38 @@ function ContactCard({ contact: c, onAsk }: { contact: ContactBookRow; onAsk: (a
      wide card only lays the reach and the holder side by side. */
   return (
     <article className={cn(BOOK_CARD, wide && 'sm:col-span-2')}>
-      <span className="flex min-w-0 items-center gap-3">
-        <Avatar name={c.name} card={false} size="md" />
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className="flex min-w-0 items-center gap-2">
-            <Link
-              to={`/sales/contacts/${c.code}`}
-              className={cn(CARD_LINK, 'min-w-0 truncate text-[13.5px] font-semibold')}
-              title={c.name}
-            >
-              {c.name}
-            </Link>
-            {wide && (
-              <Badge tone="success" className="shrink-0">
-                Liên hệ chính
-              </Badge>
-            )}
-          </span>
-          <span className="text-muted-foreground truncate text-[12px]" title={role}>
-            {role}
-          </span>
-        </span>
-        <Chip className="shrink-0">{c.code}</Chip>
-      </span>
+      <CardHead
+        mark={<Avatar name={c.name} card={false} size="lg" />}
+        title={
+          <CardTitle to={`/sales/contacts/${c.code}`} title={c.name}>
+            {c.name}
+          </CardTitle>
+        }
+        badge={
+          wide && (
+            <Badge tone="success" className="shrink-0">
+              Liên hệ chính
+            </Badge>
+          )
+        }
+        subtitle={role}
+        code={c.code}
+      />
       {wide ? (
-        <span className="mt-auto flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1">
+        <CardFoot className="gap-x-6 gap-y-1">
           {phone}
           {mail}
-          <span className="sm:ml-auto">
-            <Owner name={c.ownerName} />
-          </span>
-        </span>
+          <CardPerson name={c.ownerName} />
+        </CardFoot>
       ) : (
         <>
           <span className="flex min-w-0 flex-col">
             {phone}
             {mail}
           </span>
-          <span className="mt-auto">
-            <Owner name={c.ownerName} />
-          </span>
+          <CardFoot>
+            <CardPerson name={c.ownerName} />
+          </CardFoot>
         </>
       )}
     </article>
@@ -153,7 +129,7 @@ export function ContactCardGrid({ rows }: { rows: ContactBookRow[] }) {
   const [composing, setComposing] = useState<string | null>(null)
   return (
     <>
-      <div className="grid grid-flow-row-dense grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className={CARD_GRID}>
         {rows.map((c) => (
           <ContactCard key={c.code} contact={c} onAsk={setAsk} />
         ))}

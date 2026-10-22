@@ -55,8 +55,8 @@ import { NotificationMenu } from '@/components/notification-menu'
  *  ------------------------------------------------------------------
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
  *  Lead · Cơ hội · Hợp đồng · Chiến dịch là bốn lối vào trực
- *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng và
- *  Báo cáo là hai menu có tên vì ít cần mở hơn. Chúng không nấp
+ *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng,
+ *  Đang chờ và Báo cáo là ba menu có tên vì ít cần mở hơn. Chúng không nấp
  *  dưới một mục "Kinh doanh" và
  *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
@@ -252,9 +252,9 @@ export type SalesModule = {
   group: NavGroup
 }
 
-/** `primary` is the left-to-right daily work; `customer` and `manage`
- *  collapse into named menus, and `setup` lives in the settings frame. */
-type NavGroup = 'primary' | 'customer' | 'manage' | 'setup'
+/** `primary` is the left-to-right daily work; `customer`, `waiting` and
+ *  `manage` collapse into named menus, and `setup` lives in the settings frame. */
+type NavGroup = 'primary' | 'customer' | 'waiting' | 'manage' | 'setup'
 
 /** BẢY module Pebble Sales — bảng CHỐT.
  *
@@ -332,7 +332,7 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'customer',
   },
   {
-    /* Partners are people we know: beside contacts in the More menu. */
+    /* Partners are people we know: beside contacts in the customer menu. */
     no: 0,
     icon: Handshake,
     label: 'Đối tác',
@@ -362,7 +362,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/holds',
     permission: 'lead.view',
     question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại',
-    group: 'customer',
+    group: 'waiting',
   },
   {
     no: 0,
@@ -371,7 +371,7 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/nurturing',
     permission: 'lead.view',
     question: 'Lead và cơ hội đã dừng, hợp đồng đã chấm dứt',
-    group: 'customer',
+    group: 'waiting',
   },
   {
     /* Sits after Ops because it is the next step for the same customer:
@@ -591,12 +591,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     apps: [
       [
         ...appsIn('primary'),
-        ...menuOf(
-          'Khách hàng',
-          Users,
-          'Công ty, người liên hệ, đối tác, lead tạm hoãn và nhóm chờ chăm sóc',
-          appsIn('customer'),
-        ),
+        ...menuOf('Khách hàng', Users, 'Công ty, người liên hệ và đối tác', appsIn('customer')),
+        ...menuOf('Đang chờ', Timer, 'Tạm hoãn và nhóm chờ chăm sóc', appsIn('waiting')),
         ...menuOf('Báo cáo', Gauge, 'KPI, chỉ tiêu và kế hoạch kỳ tới', appsIn('manage')),
       ],
     ],

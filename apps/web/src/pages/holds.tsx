@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AppShell, ScreenLayout, SegmentedControl } from '@pv/ui'
+import { AppShell, Button, ScreenLayout, SegmentedControl } from '@pv/ui'
 import type { HoldRow, HoldSubjectType } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useAppChrome } from '@/app/chrome'
@@ -10,6 +10,9 @@ import { holdListQuery } from '@/data/holds'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { HoldUntilCell, LATE } from '@/components/hold-strip'
 import { AvatarCell } from '@/components/table-bits'
+import { ViewSwitch } from '@/components/book-cards'
+import { useBookView } from '@/components/book-view'
+import { HoldCardGrid } from '@/components/hold-cards'
 
 /** The hold list — `/sales/holds` (ADR 0097 §3): every lead and deal on hold,
  *  in one list, nearest date first as the server sorts it. A row opens the
@@ -23,6 +26,11 @@ import { AvatarCell } from '@/components/table-bits'
 
 const KIND_LABEL: Record<HoldSubjectType, string> = { lead: 'Lead', opportunity: 'Cơ hội' }
 
+const PATH: Record<HoldSubjectType, string> = {
+  lead: '/sales/leads',
+  opportunity: '/sales/opportunities',
+}
+
 const KINDS = ['all', 'lead', 'opportunity'] as const
 const WHENS = ['all', 'late', 'later'] as const
 const WHEN_LABEL: Record<(typeof WHENS)[number], string> = {
@@ -31,11 +39,6 @@ const WHEN_LABEL: Record<(typeof WHENS)[number], string> = {
   later: 'Chưa tới hạn',
 }
 const FILTERS = { kind: oneOf(KINDS, 'all'), when: oneOf(WHENS, 'all') }
-
-const PATH: Record<HoldSubjectType, string> = {
-  lead: '/sales/leads',
-  opportunity: '/sales/opportunities',
-}
 
 function SubjectCell({ row }: { row: HoldRow }) {
   return (
@@ -54,6 +57,7 @@ export function HoldsPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const navigate = useNavigate()
   const { filters, patch } = useClientBookFilter(FILTERS)
+  const [view, setView] = useBookView('pv.holds.view')
   const { data, isPending, error, refetch } = useQuery(holdListQuery('all'))
 
   const all = useMemo(() => data?.rows ?? [], [data])
@@ -63,6 +67,8 @@ export function HoldsPage() {
   const rows = whenOf(filters.when, ofKind)
   const countOf = (kind: (typeof KINDS)[number]) =>
     data && (kind === 'all' ? all.length : all.filter((r) => r.subjectType === kind).length)
+
+  const dirty = filters.kind !== 'all' || filters.when !== 'all'
 
   const table: BookTable = {
     minWidth: 'min-w-[880px]',
@@ -146,10 +152,30 @@ export function HoldsPage() {
             </div>
           }
           count={<BookCount total={rows.length} noun="mục" />}
+          tools={
+            <>
+              <ViewSwitch value={view} onChange={setView} />
+              {dirty && (
+                <Button
+                  size="md"
+                  variant="ghost"
+                  className="pointer-coarse:h-12"
+                  onClick={() => patch({ kind: 'all', when: 'all' })}
+                >
+                  Bỏ hết bộ lọc
+                </Button>
+              )}
+            </>
+          }
           pending={isPending}
           failure={failure}
           empty={empty}
-          table={table}
+          cards={
+            view === 'grid' ? (
+              <HoldCardGrid rows={rows} kinds={KIND_LABEL} paths={PATH} />
+            ) : undefined
+          }
+          table={view === 'table' ? table : undefined}
         />
       </ScreenLayout>
     </AppShell>
