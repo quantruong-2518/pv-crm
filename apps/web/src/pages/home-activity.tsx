@@ -12,7 +12,8 @@ import {
 import type { SalesPerformanceResponse } from '@pv/contracts'
 import { deltaOf, num, type Delta } from './home-model'
 import { bucketViews, type BucketView } from '@/data/period-pick'
-import { LIFT, ToneTile } from './home-funnel'
+import { CHART_TILE, ToneTile } from './home-funnel'
+import { MARK_FADE } from './home-look'
 
 /** The week view of row two: three counts per day on one shared axis, so a
  *  reader sees whether contact and deals follow the leads that came in.
@@ -21,7 +22,8 @@ import { LIFT, ToneTile } from './home-funnel'
  *
  *  Series differ by colour, dash and marker shape together, so none is read by
  *  hue alone. The y scale is fixed by all three series: hiding one never
- *  rescales the others. */
+ *  rescales the others. Lines and markers fade in as one layer, again on a
+ *  new period, so no dot sits ahead of or behind its line. */
 
 type SeriesKey = 'leads' | 'firstContacts' | 'opportunities'
 type Figures = SalesPerformanceResponse['current']
@@ -78,10 +80,12 @@ const SERIES: readonly Series[] = [
   },
 ]
 
+/* An opaque card ground: the pill sits on the toggle's tint, and stone's on-tint-success
+   equals its success, so a tint under it fell below 4.5:1. */
 const DELTA_LOOK = {
-  up: { icon: TrendingUp, tone: 'bg-success/15 text-on-tint-success' },
-  down: { icon: TrendingDown, tone: 'bg-warning/15 text-on-tint-warning' },
-  flat: { icon: Minus, tone: 'bg-surface-ink/10 text-muted-foreground' },
+  up: { icon: TrendingUp, tone: 'bg-card text-on-tint-success' },
+  down: { icon: TrendingDown, tone: 'bg-card text-on-tint-warning' },
+  flat: { icon: Minus, tone: 'bg-card text-muted-foreground' },
 } satisfies Record<Delta['direction'], { icon: IconGlyph; tone: string }>
 
 /* Dots sit 6% above the floor and the peak 14% below the top, so a marker never clips. */
@@ -133,7 +137,8 @@ function SeriesToggle({
       onClick={() => !locked && onToggle()}
       className={cn(
         'pointer-coarse:min-h-12 flex cursor-pointer flex-col gap-2 rounded-2xl px-4 py-3 text-left',
-        'transition-[translate,background-color] duration-150 hover:-translate-y-0.5 active:scale-95 motion-reduce:transition-none',
+        'duration-(--motion-duration) ease-(--motion-ease) transition-[translate,scale,background-color] hover:-translate-y-0.5 active:scale-95 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        'aria-disabled:cursor-default aria-disabled:hover:translate-y-0 aria-disabled:active:scale-100',
         'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
         on ? series.tint : 'bg-surface-ink/5',
       )}
@@ -173,14 +178,12 @@ function Marker({
   left,
   bottom,
   shift,
-  delay,
 }: {
   series: Series
   value: number
   left: number
   bottom: number
   shift: number
-  delay: number
 }) {
   return (
     <>
@@ -188,7 +191,6 @@ function Marker({
         aria-hidden
         className={cn(
           'bg-card ring-3 absolute size-3 translate-y-1/2 shadow-md ring-inset',
-          'duration-400 starting:scale-50 starting:opacity-0 transition-[scale,opacity] motion-reduce:transition-none',
           series.ring,
           series.shape,
         )}
@@ -196,7 +198,6 @@ function Marker({
           left: `${left}%`,
           bottom: `${bottom}%`,
           marginLeft: shift - 6,
-          transitionDelay: `${delay}ms`,
         }}
       />
       <span
@@ -247,7 +248,16 @@ function PlotTable({ views }: { views: readonly BucketView[] }) {
   )
 }
 
-function Plot({ views, shown }: { views: readonly BucketView[]; shown: readonly Series[] }) {
+function Plot({
+  views,
+  shown,
+  period,
+}: {
+  views: readonly BucketView[]
+  shown: readonly Series[]
+  /** Keys the marks layer, so it fades in again when the period changes. */
+  period: SalesPerformanceResponse['period']
+}) {
   const { top, ticks } = axisOf(views)
   const n = views.length
   const seen = views.filter((v) => v.state !== 'future').length
@@ -257,8 +267,8 @@ function Plot({ views, shown }: { views: readonly BucketView[]; shown: readonly 
     <div className="flex flex-1 flex-col pt-4">
       <PlotTable views={views} />
       <div aria-hidden className="flex flex-1 flex-col gap-2">
-        {/* Grows with the row: the reasons card beside it sets the height, and a
-            fixed plot left a blank band under the day labels. */}
+        {/* Grows with the card, so a taller row never leaves a blank band
+            under the day labels. */}
         <div className="flex min-h-52 flex-1 gap-2">
           <div aria-hidden className="relative w-4 shrink-0">
             {ticks.map((t) => (
@@ -315,49 +325,52 @@ function Plot({ views, shown }: { views: readonly BucketView[]; shown: readonly 
                 </span>
               </>
             )}
-            <svg
-              viewBox={`0 0 ${n} 100`}
-              preserveAspectRatio="none"
-              className="pointer-events-none absolute inset-0 size-full overflow-visible"
-              fill="none"
-              aria-hidden
-            >
-              {shown.map((s) => (
-                <polyline
-                  key={s.key}
-                  points={views
-                    .flatMap((v, i) =>
-                      v.state === 'future' ? [] : [`${i + 0.5},${100 - yOf(s.of(v.bucket), top)}`],
-                    )
-                    .join(' ')}
-                  strokeWidth={3}
-                  strokeDasharray={s.dash}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                  className={s.stroke}
-                />
-              ))}
-            </svg>
-            {views.flatMap((v, i) => {
-              if (v.state === 'future') return []
-              const same = shown.map((s) => ({ s, value: s.of(v.bucket) }))
-              return same.map(({ s, value }) => {
-                const mates = same.filter((o) => o.value === value)
-                const k = mates.findIndex((o) => o.s === s)
-                return (
-                  <Marker
-                    key={`${s.key}-${v.bucket.key}`}
-                    series={s}
-                    value={value}
-                    left={xOf(i, n)}
-                    bottom={yOf(value, top)}
-                    shift={(k - (mates.length - 1) / 2) * 16}
-                    delay={400 + i * 120}
+            <div key={period} className={cn('absolute inset-0', MARK_FADE)}>
+              <svg
+                viewBox={`0 0 ${n} 100`}
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-0 size-full overflow-visible"
+                fill="none"
+                aria-hidden
+              >
+                {shown.map((s) => (
+                  <polyline
+                    key={s.key}
+                    points={views
+                      .flatMap((v, i) =>
+                        v.state === 'future'
+                          ? []
+                          : [`${i + 0.5},${100 - yOf(s.of(v.bucket), top)}`],
+                      )
+                      .join(' ')}
+                    strokeWidth={3}
+                    strokeDasharray={s.dash}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                    className={s.stroke}
                   />
-                )
-              })
-            })}
+                ))}
+              </svg>
+              {views.flatMap((v, i) => {
+                if (v.state === 'future') return []
+                const same = shown.map((s) => ({ s, value: s.of(v.bucket) }))
+                return same.map(({ s, value }) => {
+                  const mates = same.filter((o) => o.value === value)
+                  const k = mates.findIndex((o) => o.s === s)
+                  return (
+                    <Marker
+                      key={`${s.key}-${v.bucket.key}`}
+                      series={s}
+                      value={value}
+                      left={xOf(i, n)}
+                      bottom={yOf(value, top)}
+                      shift={(k - (mates.length - 1) / 2) * 16}
+                    />
+                  )
+                })
+              })}
+            </div>
           </div>
         </div>
         <div className="grid pl-6" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
@@ -395,10 +408,10 @@ export function ActivityTile({
     setHidden((h) => (h.includes(key) ? h.filter((k) => k !== key) : [...h, key]))
 
   return (
-    <GlassCard className={cn('flex min-w-0 flex-col', LIFT, className)}>
+    <GlassCard className={cn('flex min-w-0 flex-col', CHART_TILE, className)}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <ToneTile icon={Activity} tone="success" />
+          <ToneTile icon={Activity} tone="primary" />
           <div className="flex flex-col">
             <h3 className="text-[16px] font-semibold leading-6">Hoạt động trong tuần</h3>
           </div>
@@ -416,7 +429,7 @@ export function ActivityTile({
           />
         ))}
       </div>
-      <Plot views={bucketViews(data)} shown={shown} />
+      <Plot views={bucketViews(data)} shown={shown} period={data.period} />
     </GlassCard>
   )
 }

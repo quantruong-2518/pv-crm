@@ -27,6 +27,7 @@ import { PeriodPicker, PeriodProgress } from '@/components/period-picker'
 import { SOFT_SHADOW } from '@/components/period-picker-style'
 import { ActivityTile } from './home-activity'
 import { FunnelTile } from './home-funnel'
+import { ENTER, ICON_TONE } from './home-look'
 import { daysOfPeriod, liveRunsQuery, stoppedRunsQuery } from './home-model'
 import { ReasonsTile } from './home-reasons'
 import { SignedTile } from './home-signed'
@@ -34,12 +35,12 @@ import { ChartsFailed, OpenValueTile, RunsTile, TileSkeleton, WinRateTile } from
 
 /** Screen 01 · Overview — a bento of sales figures.
  *
- *  Follows the canvas design. Header: bold title, how far the period has run,
- *  and one pill frame with the four grains and the ‹ period › stepper. Under
- *  it, pill quick actions that have a destination.
- *  Bento: flex-wrap rows as in the design. Row one is the signed tile (7)
- *  beside a column of three tiles (5); row two is the week's activity or the
- *  funnel (7) beside the exit reasons (5). Each row stacks below its basis.
+ *  The look lives in `home-look.ts` (ADR 0106 §5a). Header: bold title, how far
+ *  the period has run, and one pill frame with the four grains and the ‹ period ›
+ *  stepper. Under it, pill quick actions that have a destination.
+ *  Bento: row one is the signed tile (7) beside a column of three tiles (5),
+ *  stacking below its basis; then the week's activity or the funnel, and then
+ *  the exit reasons, each alone on a full-width row.
  *  The "fullest step now" tile (`home-fullest.tsx`) is kept but not drawn for now.
  *
  *  `/` has no route permission, so each half is gated on its own permission
@@ -47,24 +48,23 @@ import { ChartsFailed, OpenValueTile, RunsTile, TileSkeleton, WinRateTile } from
  *  The runs tile links to the workstream book; the period picker moves the
  *  period-scoped tiles. No ContextRail (law 10 debt). */
 
-/* Flex bases are the design's, and skeletons take the same ones. Each bento row
-   is its own wrap, or a wide screen would pull row two up beside row one. */
+/* Skeletons take the tiles' own bases. Each bento row is its own wrap, or a
+   wide screen would pull row two up beside row one. */
 const ROW = 'flex flex-wrap items-stretch gap-4'
 const HERO = 'min-w-0 flex-[7_1_560px]'
 const SIDE = 'min-w-0 flex-[5_1_340px]'
 const SIDE_STACK = `${SIDE} flex flex-col gap-4`
 const SIDE_TILE = 'min-w-0 flex-1'
-const ROW_TWO_MAIN = 'min-h-72 min-w-0 flex-[7_1_560px]'
-const ROW_TWO_SIDE = 'min-h-72 min-w-0 flex-[5_1_380px]'
-/** Beside a failed figures tile nothing shares the row, so the reasons take it whole. */
-const ROW_TWO_ALONE = 'min-h-72 min-w-0 flex-[1_1_100%]'
+/** A tile alone on its row: beside a neighbour, a stretched row left a tall empty band. */
+const ROW_FULL = 'min-w-0 flex-[1_1_100%]'
+/** A loading row keeps roughly a tile's height, so the page does not jump when it lands. */
+const SKELETON_FULL = `${ROW_FULL} min-h-72`
 
-/* Entry and hover motion: only opacity and translate/scale move, and the
-   reduced-motion variant turns the transition off. */
-const ENTER =
-  'starting:translate-y-3 starting:opacity-0 transition-[opacity,translate] duration-500 ease-(--motion-ease) motion-reduce:transition-none'
+/* The header enters with the cards (ENTER). The quick actions are buttons, so
+   they keep a pointer response: a small lift and a press. No hover brightness,
+   unlike the system button: it took white text to 4.28:1 on Aurora's primary. */
 const PRESS =
-  'transition-[translate,scale,box-shadow,filter,background-color] duration-200 ease-(--motion-ease) hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-ring focus-visible:outline-2'
+  'transition-[translate,scale,background-color] duration-(--motion-duration) ease-(--motion-ease) hover:-translate-y-0.5 active:scale-[0.98] motion-reduce:transition-none motion-reduce:hover:translate-y-0 focus-visible:outline-ring focus-visible:outline-2'
 
 const PILL =
   'pointer-coarse:h-12 inline-flex h-10 items-center gap-2 rounded-full pl-1 pr-4 text-[13px] font-semibold'
@@ -88,16 +88,14 @@ function QuickAction({
         PILL,
         PRESS,
         primary
-          ? 'text-primary-foreground bg-[linear-gradient(135deg,var(--primary),var(--primary-strong))] shadow-[0_8px_20px_color-mix(in_srgb,var(--primary)_28%,transparent)] hover:shadow-[0_16px_36px_color-mix(in_srgb,var(--primary)_42%,transparent)]'
+          ? 'text-primary-foreground shadow-primary bg-[linear-gradient(180deg,var(--primary),var(--primary-strong))]'
           : cn('bg-card text-foreground', SOFT_SHADOW),
       )}
     >
       <span
         className={cn(
           'flex size-7 items-center justify-center rounded-full',
-          primary
-            ? 'bg-primary-foreground/20'
-            : 'text-accent-foreground from-accent to-primary/25 bg-linear-to-br',
+          primary ? 'bg-primary-foreground/20' : ICON_TONE.primary,
         )}
       >
         <Icon icon={icon} size={16} />
@@ -182,7 +180,7 @@ function Bento({
     <div
       aria-busy={stale}
       className={cn(
-        'duration-(--motion-duration) flex flex-col gap-6 transition-opacity motion-reduce:transition-none',
+        'duration-(--motion-duration) ease-(--motion-ease) flex flex-col gap-6 transition-opacity motion-reduce:transition-none',
         stale && 'opacity-60',
       )}
     >
@@ -200,12 +198,12 @@ function Bento({
           </div>
           <div className={ROW}>
             {weekly ? (
-              <ActivityTile data={data} className={ROW_TWO_MAIN} />
+              <ActivityTile data={data} className={ROW_FULL} />
             ) : (
-              <FunnelTile data={data} className={ROW_TWO_MAIN} />
+              <FunnelTile data={data} className={ROW_FULL} />
             )}
-            {exitsTile(ROW_TWO_SIDE)}
           </div>
+          <div className={ROW}>{exitsTile(ROW_FULL)}</div>
         </>
       ) : error ? (
         <>
@@ -213,11 +211,11 @@ function Bento({
             <ChartsFailed
               detail={isApiError(error) ? userMessage(error) : 'Thử lại.'}
               onRetry={onRetry}
-              className={canRuns ? HERO : ROW_TWO_ALONE}
+              className={canRuns ? HERO : ROW_FULL}
             />
             {canRuns && <div className={SIDE_STACK}>{runsTile(SIDE_TILE)}</div>}
           </div>
-          <div className={ROW}>{exitsTile(ROW_TWO_ALONE)}</div>
+          <div className={ROW}>{exitsTile(ROW_FULL)}</div>
         </>
       ) : (
         <>
@@ -230,8 +228,10 @@ function Bento({
             </div>
           </div>
           <div className={ROW}>
-            <TileSkeleton className={ROW_TWO_MAIN} />
-            <TileSkeleton className={ROW_TWO_SIDE} />
+            <TileSkeleton className={SKELETON_FULL} />
+          </div>
+          <div className={ROW}>
+            <TileSkeleton className={SKELETON_FULL} />
           </div>
         </>
       )}
@@ -305,7 +305,7 @@ export function HomePage() {
         className={className}
       />
     ) : (
-      <TileSkeleton className={className} />
+      <TileSkeleton className={cn(className, 'min-h-72')} />
     )
 
   const data = charts.data

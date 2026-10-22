@@ -15,9 +15,6 @@ import { GROW_WIDTH, SOFT_SHADOW } from './period-picker-style'
  *  the line under the title that says how far the period has run. Moved here
  *  from `pages/home.tsx` so the workstream book shows the very same controls. */
 
-const NAVY_GRADIENT =
-  'bg-[linear-gradient(135deg,color-mix(in_srgb,var(--brand-blue)_45%,var(--brand-navy)),var(--brand-navy))]'
-const NAVY_LIFT = 'shadow-[0_4px_12px_color-mix(in_srgb,var(--brand-navy)_22%,transparent)]'
 const ROUND_ICON =
   'pointer-coarse:size-12 text-foreground hover:bg-surface-ink/8 flex size-9 items-center justify-center rounded-full disabled:opacity-50 disabled:hover:bg-transparent'
 
@@ -71,7 +68,7 @@ export function PeriodPicker({
               'duration-(--motion-duration) ease-(--motion-ease) transition-[background-color,color] motion-reduce:transition-none',
               'focus-visible:outline-ring focus-visible:outline-2',
               on
-                ? cn(NAVY_GRADIENT, NAVY_LIFT, 'text-primary-foreground')
+                ? 'bg-primary-strong text-primary-foreground shadow-primary'
                 : 'text-muted-foreground hover:bg-surface-ink/8',
             )}
           >

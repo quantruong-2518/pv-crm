@@ -72,6 +72,8 @@ bottom fading to transparent at 40%, painted as `background-image` over
 `--card`, so a `bg-*` tint on a glass-a still shows through it. Tables stay
 flat on `.glass-b`.
 
+On the overview, a card wash replaces the glass-a sheen — see ADR 0106 §5a.
+
 ### 6 · Font
 
 - Porcelain sets text in Inter (Google Fonts, which has a Vietnamese subset),

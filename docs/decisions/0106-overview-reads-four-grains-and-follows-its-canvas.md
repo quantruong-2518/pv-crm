@@ -48,6 +48,40 @@ from tokens only, the 8-step spacing scale, icons through `<Icon>`, no box
 borders. Reviewers must not pull this screen back to the standard Aurora look;
 any other screen is unaffected.
 
+### 5a · Amendment 22/10/2026 — quieter motion and theme-native surfaces
+
+Source: project owner, 22/10/2026. This departs from the canvas; do not
+"restore" the canvas look.
+
+- The shared look and motion recipes start from
+  `apps/web/src/pages/home-look.ts`; the card-shell consts in `home-tiles` and
+  `home-funnel` build on it. The canvas is no longer the source for motion,
+  gradients or the hero's colour.
+- Motion: cards enter at the system beat (`--motion-duration`). Data marks grow
+  on entry and slide on a period change, with a short, fixed-span stagger. Data
+  marks deliberately run longer than the UI beat (`--motion-duration`, the F-09
+  band) because they carry a value; owner decision 22/10. Layers drawn over
+  marks fade in once the marks have mostly grown. Cards and other non-clickable
+  containers do not move on hover. Reduced motion is honoured.
+- Surfaces: one opaque 135° wash per card, from tokens only, so each theme
+  (Aurora, Đá mịn, Sứ — ADR 0108) paints it in its own palette. No glows, blurs
+  or tinted shadows; elevation is `--shadow-card` (ADR 0108 §4).
+- The hero follows the active theme instead of being dark in every theme
+  (inside the forced-dark card Sứ also lost its own font and radius).
+- Layout (owner confirmed 22/10 after seeing the screenshots): the funnel (or the week's activity chart) and the reasons tile each
+  take a full-width row below the first row, the reasons groups side by side.
+  The reasons tile had set row two's height and left a large empty band inside
+  the funnel (measured in screenshots). The period picker's selected grain uses
+  the theme's own primary-strong instead of the brand navy (the picker is shared
+  with the workstream book, which changes with it).
+- The funnel tile no longer carries the "Từ cơ hội tới hợp đồng" cell: its
+  figure repeated the step-3→4 connector, and its caption read like the
+  win-rate tile's different number.
+- §5's waiver of the eyes-only look laws (law 5 radius included) and its
+  machine-enforced gates are unchanged, except that law 13 (contrast) is taken
+  back out of the waiver for this screen: contrast holds in all three themes.
+  Reviewers judge the screen against `home-look.ts`.
+
 ### 6 · Rejected
 
 - **Comparing with the whole previous period**: punishes a running period.

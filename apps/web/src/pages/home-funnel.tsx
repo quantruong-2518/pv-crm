@@ -1,87 +1,65 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import {
-  ArrowDown,
-  ArrowRight,
-  Check,
-  Filter,
-  GlassCard,
-  Icon,
-  cn,
-  percent,
-  type IconGlyph,
-} from '@pv/ui'
+import { ArrowDown, ArrowRight, Filter, GlassCard, Icon, cn, percent, type IconGlyph } from '@pv/ui'
 import type { SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
 import { enteredLeadsHref, funnelOf, num, rateOf } from './home-model'
 import { rangeLabel } from '@/data/period-pick'
 import { IconTile } from './home-tiles'
+import { CARD, ICON_TONE, MARK_EASE, WASH, staggerMs, type IconTone } from './home-look'
 
 /** The funnel of row two: the leads that entered the book in the period, and
  *  how many of them reached each step by now. Every step counts leads of the
  *  same cohort, so no bar is wider than the first.
  *
  *  It carries no delta: a young cohort always loses to a mature one, so the
- *  comparison would punish the running period. The cell under the steps says
- *  instead how well a deal closes. Which step holds the most items right now is a snapshot,
- *  not a period figure, so it has its own tile (`home-fullest.tsx`). */
+ *  comparison would punish the running period. How many leads with a deal
+ *  reach a contract is the last connector's share, so no cell repeats it.
+ *  Which step holds the most items right now is a snapshot, not a period
+ *  figure, so it has its own tile (`home-fullest.tsx`). */
 
-/** Card motion shared by the three chart tiles: a rise on mount and a lift on
- *  hover. Only transform and opacity move; reduced motion switches both off. */
-export const LIFT =
-  'rounded-3xl p-6 gap-5 transition-[opacity,translate] duration-500 ease-out starting:translate-y-3 starting:opacity-0 hover:-translate-y-1 motion-reduce:transition-none motion-reduce:hover:translate-y-0'
+/** Shell of the three chart tiles: the bento card and its wash. The card does
+ *  not move on hover: only what is clickable inside it reacts. */
+export const CHART_TILE = `${CARD} ${WASH} p-6 gap-5`
 
-const TONE = {
-  primary: 'from-primary/25 to-primary/10 text-on-tint-primary',
-  success: 'from-success/25 to-success/10 text-on-tint-success',
-  destructive: 'from-destructive/25 to-destructive/10 text-on-tint-destructive',
-}
-
-/** The stat cards' icon tile at the chart tiles' size, in one of three tones. */
-export function ToneTile({ icon, tone }: { icon: IconGlyph; tone: keyof typeof TONE }) {
-  return (
-    <IconTile icon={icon} size="size-9 rounded-xl" className={cn('bg-linear-to-br', TONE[tone])} />
-  )
+/** The stat cards' icon tile at the chart tiles' size. */
+export function ToneTile({ icon, tone }: { icon: IconGlyph; tone: IconTone }) {
+  return <IconTile icon={icon} size="size-9 rounded-xl" className={ICON_TONE[tone]} />
 }
 
 type Step = ReturnType<typeof funnelOf>[number]
 
-/* Chip, bar and glow per step: blue to teal to green, so the last step reads as the win. The
-   first step starts at primary-strong, the darkest blue that still reads on the dark card. */
+/* Chip and bar per step: blue to teal to green, so the last step reads as the win. The end
+   bars are flat, full-strength tokens: Aurora's primary-strong and porcelain's success/70 fell
+   under 3:1 on the track. Chips 1-2 share primary-strong (white on Aurora's primary is 4.46:1). */
 const STEP_LOOK = [
+  { chip: 'bg-primary-strong text-primary-foreground', bar: 'bg-primary' },
   {
     chip: 'bg-primary-strong text-primary-foreground',
-    bar: 'from-primary-strong to-primary',
-    glow: 'shadow-[0_6px_16px_color-mix(in_oklab,var(--primary)_20%,transparent)]',
-  },
-  {
-    chip: 'bg-primary text-primary-foreground',
-    bar: 'from-primary to-channel-meeting',
-    glow: 'shadow-[0_6px_16px_color-mix(in_oklab,var(--primary)_20%,transparent)]',
+    bar: 'bg-linear-to-r from-primary to-channel-meeting',
   },
   {
     chip: 'bg-channel-meeting text-background',
-    bar: 'from-channel-meeting to-success',
-    glow: 'shadow-[0_6px_16px_color-mix(in_oklab,var(--primary)_20%,transparent)]',
+    bar: 'bg-linear-to-r from-channel-meeting to-success',
   },
-  {
-    chip: 'bg-success text-background',
-    bar: 'from-success to-success/70',
-    glow: 'shadow-[0_6px_16px_color-mix(in_oklab,var(--success)_28%,transparent)]',
-  },
+  { chip: 'bg-success text-background', bar: 'bg-success' },
 ]
 
-const ROW = 'grid grid-cols-[172px_minmax(0,1fr)_72px] items-center gap-4'
+const ROW =
+  'grid grid-cols-[96px_minmax(0,1fr)_56px] sm:grid-cols-[172px_minmax(0,1fr)_72px] items-center gap-4'
 export const SUB = 'text-muted-foreground text-[12px] leading-4'
 
 function StepRow({
   step,
   index,
+  count,
   first,
   to,
 }: {
   step: Step
   index: number
+  /** How many steps the funnel has, to spread the bars' stagger. */
+  count: number
   first: number
   /** Makes the step's name a link to the list it counts. */
   to?: string
@@ -119,18 +97,21 @@ function StepRow({
         </Link>
       )}
       <span aria-hidden className="bg-surface-ink/5 flex h-9 justify-center rounded-xl">
+        {/* Width rides a custom property so the bar grows on mount and slides
+            on a period change; an inline width would do neither. */}
         <span
           className={cn(
-            'bg-linear-to-r block h-9 origin-center scale-x-100 rounded-xl',
-            'starting:scale-x-0 transition-transform duration-1000 ease-out motion-reduce:transition-none',
+            'w-(--w) starting:w-0 block h-9 rounded-xl',
+            `transition-[width] ${MARK_EASE}`,
             look.bar,
-            look.glow,
           )}
-          style={{
-            width: `${first > 0 ? (step.count / first) * 100 : 0}%`,
-            minWidth: step.count > 0 ? 18 : 0,
-            transitionDelay: `${380 + index * 110}ms`,
-          }}
+          style={
+            {
+              '--w': `${first > 0 ? (step.count / first) * 100 : 0}%`,
+              minWidth: step.count > 0 ? 18 : 0,
+              transitionDelay: `${staggerMs(index, count)}ms`,
+            } as CSSProperties
+          }
         />
       </span>
       <span className="tnum font-num flex flex-col items-end">
@@ -149,12 +130,12 @@ function StepRow({
 function Connector({ before, step }: { before: Step; step: Step }) {
   const gap = before.count - step.count
   return (
-    <div className={cn(ROW, 'h-8')}>
+    <div className={cn(ROW, 'min-h-8')}>
       <span
         aria-hidden
-        className="bg-linear-to-b from-primary/40 to-surface-ink/10 ml-3 h-8 w-0.5 justify-self-start"
+        className="bg-linear-to-b from-primary/40 to-surface-ink/10 ml-3 w-0.5 self-stretch justify-self-start"
       />
-      <span className="tnum font-num flex items-center justify-center gap-2 text-[12px] leading-4">
+      <span className="tnum font-num flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[12px] leading-4">
         {before.count === 0 ? (
           <span className="text-muted-foreground">—</span>
         ) : gap < 0 ? (
@@ -209,14 +190,14 @@ export function InsightCell({
       to={to}
       className={cn(
         className,
-        'focus-visible:outline-ring group transition-[translate] duration-300 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
+        'focus-visible:outline-ring duration-(--motion-duration) ease-(--motion-ease) group transition-[translate] hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0',
       )}
     >
       {head}
       {children}
       <span className="flex items-center gap-1 text-[12px] font-semibold leading-4">
         Xem danh sách
-        <span className="duration-(--motion-duration) transition-[translate] group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0">
+        <span className="duration-(--motion-duration) ease-(--motion-ease) transition-[translate] group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-focus-visible:translate-x-0">
           <Icon icon={ArrowRight} size={14} />
         </span>
       </span>
@@ -225,31 +206,6 @@ export function InsightCell({
 }
 
 export const FIGURE = 'tnum font-num text-[28px] font-bold leading-8 tracking-[-0.02em]'
-
-function Insights({ steps }: { steps: readonly Step[] }) {
-  const opportunities = steps[2]!.count
-  const contracts = steps[3]!.count
-  const close = rateOf(contracts, opportunities)
-
-  return (
-    <div className="mt-auto grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
-      <InsightCell
-        icon={Check}
-        title="Từ cơ hội tới hợp đồng"
-        tint="from-success/20 to-success/5 text-on-tint-success"
-      >
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className={cn(FIGURE, 'text-foreground')}>
-            {close === null ? '—' : percent(close)}
-          </span>
-          <span className={cn(SUB, 'tnum font-num')}>
-            {num(contracts)}/{num(opportunities)} lead đã ký hợp đồng
-          </span>
-        </div>
-      </InsightCell>
-    </div>
-  )
-}
 
 export function FunnelTile({
   data,
@@ -264,7 +220,7 @@ export function FunnelTile({
   const canLeads = useCan('lead.view')
 
   return (
-    <GlassCard className={cn('flex min-w-0 flex-col', LIFT, className)}>
+    <GlassCard className={cn('flex min-w-0 flex-col', CHART_TILE, className)}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <ToneTile icon={Filter} tone="primary" />
@@ -296,6 +252,7 @@ export function FunnelTile({
               <StepRow
                 step={step}
                 index={i}
+                count={steps.length}
                 first={cohort.leads}
                 to={i === 0 && canLeads ? enteredLeadsHref(data.span) : undefined}
               />
@@ -305,7 +262,6 @@ export function FunnelTile({
       </div>
 
       {cohort.leads === 0 && <span className={SUB}>Kỳ này chưa có lead vào sổ.</span>}
-      <Insights steps={steps} />
     </GlassCard>
   )
 }

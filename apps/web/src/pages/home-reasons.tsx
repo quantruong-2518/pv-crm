@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { GlassCard, Ban, Icon, Lightbulb, cn, percent } from '@pv/ui'
 import {
@@ -8,7 +9,8 @@ import {
   type SalesStopReason,
 } from '@pv/contracts'
 import { useCan } from '@/app/auth'
-import { LIFT, ToneTile } from './home-funnel'
+import { CHART_TILE, ToneTile } from './home-funnel'
+import { MARK_EASE } from './home-look'
 import {
   NURTURING_CONTRACTS_HREF,
   daysOfPeriod,
@@ -27,13 +29,20 @@ import { periodLabel } from '@/data/period-pick'
  *
  *  A reason is neither good nor bad, so a group uses one hue at falling
  *  strength rather than a rainbow. The count and share beside every legend row
- *  carry the number, so no segment is read by colour alone. */
+ *  carry the number, so no segment is read by colour alone. The tile spans a
+ *  full row and the groups sit side by side, each at most a column wide. */
 
-/** Rows a group prints before folding the rest: up to three groups stack in one
- *  side card, so each group stays short. */
+/** Rows a group prints before folding the rest: groups share a row side by
+ *  side, so each stays short and none outgrows its neighbours. */
 const REASON_ROWS = 3
 /** Circumference of the donut's circle (r = 30 in an 80-unit box). */
 const RING = 188.5
+
+/* Dash values ride custom properties read by classes, so a segment draws in from
+   zero on mount and slides on a period change; an inline dash would beat the
+   starting style. */
+const ARC =
+  '[stroke-dasharray:var(--dash)] [stroke-dashoffset:var(--off)] starting:[stroke-dasharray:0_var(--ring)]'
 
 type Row = SalesExitReason & { stage?: SalesStopReason['stage'] }
 type Slice = { key: string; label: string; stage?: SalesStopReason['stage']; count: number }
@@ -41,13 +50,13 @@ type Slice = { key: string; label: string; stage?: SalesStopReason['stage']; cou
 /* One hue per group at four strengths; the fourth, faintest one holds the folded rest. */
 const LOOK = {
   lead: {
-    panel: 'from-primary/10 to-primary/5',
+    panel: 'from-primary/8 to-primary/3',
     bulb: 'text-on-tint-primary',
     stroke: ['stroke-primary', 'stroke-primary/70', 'stroke-primary/45', 'stroke-primary/25'],
     fill: ['bg-primary', 'bg-primary/70', 'bg-primary/45', 'bg-primary/25'],
   },
   deal: {
-    panel: 'from-destructive/10 to-destructive/5',
+    panel: 'from-destructive/8 to-destructive/3',
     bulb: 'text-on-tint-destructive',
     stroke: [
       'stroke-destructive',
@@ -57,18 +66,24 @@ const LOOK = {
     ],
     fill: ['bg-destructive', 'bg-destructive/70', 'bg-destructive/45', 'bg-destructive/25'],
   },
-  /* The terminated badge's grey: warning already means "late" on this screen.
-     Slate is never text (law 2), so the bulb takes the muted ink. */
+  /* Grey, as the terminated badge's ink: warning already means "late" on this screen.
+     The muted ink rather than brand slate, which is one value in every theme and
+     fell under 3:1 on Aurora's panel. */
   contract: {
-    panel: 'from-surface-ink/8 to-surface-ink/4',
+    panel: 'from-surface-ink/8 to-surface-ink/3',
     bulb: 'text-muted-foreground',
     stroke: [
-      'stroke-brand-slate',
-      'stroke-brand-slate/70',
-      'stroke-brand-slate/45',
-      'stroke-brand-slate/25',
+      'stroke-muted-foreground',
+      'stroke-muted-foreground/70',
+      'stroke-muted-foreground/45',
+      'stroke-muted-foreground/25',
     ],
-    fill: ['bg-brand-slate', 'bg-brand-slate/70', 'bg-brand-slate/45', 'bg-brand-slate/25'],
+    fill: [
+      'bg-muted-foreground',
+      'bg-muted-foreground/70',
+      'bg-muted-foreground/45',
+      'bg-muted-foreground/25',
+    ],
   },
 }
 
@@ -98,14 +113,12 @@ function Donut({
   total,
   look,
   unit,
-  delay,
 }: {
   slices: readonly Slice[]
   rest: number
   total: number
   look: (typeof LOOK)['lead']
   unit: string
-  delay: number
 }) {
   let used = 0
   const arc = (count: number, stroke: string, key: string) => {
@@ -119,10 +132,15 @@ function Donut({
         r={30}
         fill="none"
         strokeWidth={12}
-        strokeDasharray={`${drawn} ${RING - drawn}`}
-        strokeDashoffset={-used}
         transform="rotate(-90 40 40)"
-        className={stroke}
+        style={
+          {
+            '--dash': `${drawn} ${RING - drawn}`,
+            '--off': `${-used}`,
+            '--ring': String(RING),
+          } as CSSProperties
+        }
+        className={cn(ARC, `transition-[stroke-dasharray,stroke-dashoffset] ${MARK_EASE}`, stroke)}
       />
     )
     used += length
@@ -130,13 +148,12 @@ function Donut({
   }
 
   return (
-    <div className="size-26 relative shrink-0">
+    <div className="relative size-32 shrink-0">
       <svg
         viewBox="0 0 80 80"
         role="img"
         aria-label={`${num(total)} ${unit}`}
-        className="starting:-rotate-120 starting:scale-90 starting:opacity-0 size-full transition-[rotate,scale,opacity] duration-1000 ease-out motion-reduce:transition-none"
-        style={{ transitionDelay: `${delay}ms` }}
+        className="size-full"
       >
         <circle
           cx={40}
@@ -178,7 +195,7 @@ function LegendRow({
   const className = cn(
     'grid grid-cols-[10px_minmax(0,1fr)_auto_40px] items-center gap-2 rounded-xl px-2 py-1',
     to !== undefined &&
-      'hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:min-h-12 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none',
+      'hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:min-h-12 duration-(--motion-duration) ease-(--motion-ease) transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none',
   )
   const cells = (
     <>
@@ -208,7 +225,6 @@ function ReasonGroup({
   unit,
   rows,
   hrefOf,
-  delay,
 }: {
   kind: keyof typeof LOOK
   title: string
@@ -216,7 +232,6 @@ function ReasonGroup({
   rows: readonly Row[]
   /** The list a row opens; undefined leaves the row unlinked. */
   hrefOf: (row: Row) => string | undefined
-  delay: number
 }) {
   const look = LOOK[kind]
   const total = sumOf(rows)
@@ -230,15 +245,9 @@ function ReasonGroup({
         <h4 className="text-[13px] font-semibold leading-[18px]">{title}</h4>
       </div>
       <div className="flex flex-wrap items-center gap-4">
-        <Donut
-          slices={shown}
-          rest={rest.count}
-          total={total}
-          look={look}
-          unit={unit}
-          delay={delay}
-        />
-        <div className="flex min-w-0 flex-1 basis-44 flex-col gap-1">
+        <Donut slices={shown} rest={rest.count} total={total} look={look} unit={unit} />
+        {/* Capped so a lone group spanning the row keeps each count next to its reason. */}
+        <div className="flex min-w-0 max-w-md flex-1 basis-44 flex-col gap-1">
           {shown.map((r, i) => (
             <LegendRow
               key={`${r.stage ?? ''}-${r.key}`}
@@ -292,7 +301,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
   const total = leadTotal + dealTotal + endedTotal
 
   return (
-    <GlassCard className={cn('flex min-w-0 flex-col', LIFT, 'gap-4', className)}>
+    <GlassCard className={cn('flex min-w-0 flex-col', CHART_TILE, 'gap-4', className)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <ToneTile icon={Ban} tone="destructive" />
@@ -326,7 +335,9 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
           Kỳ này chưa có lead vào {LEAD_STATE_LABEL.nurturing}, cơ hội dừng hay hợp đồng chấm dứt.
         </p>
       ) : (
-        <>
+        // At most three columns, each at least 320px; auto-fit drops the tracks no
+        // group fills, so two groups share the row instead of leaving a blank third.
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,max(320px,calc((100%_-_2rem)/3))),1fr))] gap-4">
           {data.leadExits.length > 0 && (
             <ReasonGroup
               kind="lead"
@@ -334,7 +345,6 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               unit="lead"
               rows={data.leadExits}
               hrefOf={(r) => (canLeads ? exitedLeadsHref(r.key, days) : undefined)}
-              delay={460}
             />
           )}
           {data.dealStops.length > 0 && (
@@ -346,7 +356,6 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               hrefOf={(r) =>
                 canDeals && r.stage ? stoppedDealsHref(r.key, r.stage, days) : undefined
               }
-              delay={600}
             />
           )}
           {data.contractTerminations.length > 0 && (
@@ -356,10 +365,9 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               unit="hợp đồng"
               rows={data.contractTerminations}
               hrefOf={() => (canLeads && canContracts ? NURTURING_CONTRACTS_HREF : undefined)}
-              delay={740}
             />
           )}
-        </>
+        </div>
       )}
     </GlassCard>
   )

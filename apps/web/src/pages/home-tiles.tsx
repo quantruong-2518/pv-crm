@@ -20,6 +20,7 @@ import {
 } from '@pv/ui'
 import type { SalesDayRange, SalesPerformanceResponse } from '@pv/contracts'
 import { useCan } from '@/app/auth'
+import { CARD, ICON_TONE, MARK_EASE, WASH, WASH_WARN } from './home-look'
 import {
   WORKSTREAM_BOOK_HREF,
   dealsHref,
@@ -35,13 +36,13 @@ import {
 
 /** Shared parts of the overview bento and its three compact cards.
  *
- *  The cards follow the canvas design, not the flat Aurora card: this screen
- *  has the owner's waiver for radius, gradient and entry motion. They are plain
- *  elements rather than `GlassCard`, whose panel paint would replace the
- *  gradient. Heads do not print the period (the screen's header says it once);
- *  the open book carries a "now" line instead. The hero is `home-signed.tsx`. */
+ *  The look lives in `home-look.ts` (ADR 0106 §5a). Row one is `<section>` +
+ *  CARD_SHELL, row two is `GlassCard` + CHART_TILE; both wear a wash. Each card
+ *  enters once; only links react to the pointer, and only marks move with the
+ *  data. Heads do not print the period (the screen's header says it once); the
+ *  open book carries a "now" line instead. The hero is `home-signed.tsx`. */
 
-/** Shared with the chart tiles: only the measured mark moves, never the tile
+/** The KPI weekly chart's bar motion: only the measured mark moves, never the tile
  *  (the global reduced-motion rule in the token file switches both off).
  *  The width twin lives in `components/period-picker-style.ts`. */
 export const GROW_HEIGHT = 'transition-[height] duration-(--motion-duration) ease-(--motion-ease)'
@@ -57,23 +58,22 @@ const TITLE = 'text-[13px] font-semibold leading-5'
 /** A small pill link inside a card; the coarse floor keeps it a 48px target. */
 export const PILL_LINK = cn(
   'bg-surface-ink/10 hover:bg-surface-ink/15 pointer-coarse:min-h-12 inline-flex items-center gap-2',
-  'rounded-full px-3 py-1 text-[12px] font-semibold leading-4 transition-colors',
+  'rounded-full px-3 py-1 text-[12px] font-semibold leading-4',
+  'duration-(--motion-duration) ease-(--motion-ease) transition-colors',
   'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
   'motion-reduce:transition-none',
 )
 
 /** Focus ring and the 48px coarse floor for a link that is not a pill. */
 const TILE_LINK = cn(
-  'pointer-coarse:min-h-12 inline-flex items-center transition-colors motion-reduce:transition-none',
+  'pointer-coarse:min-h-12 pointer-coarse:min-w-12 inline-flex items-center justify-center',
+  'motion-reduce:transition-none',
+  'duration-(--motion-duration) ease-(--motion-ease) transition-colors',
   'focus-visible:outline-ring focus-visible:outline-2 focus-visible:outline-offset-2',
 )
 
-/* The card shell: lifts on hover and rises in on first paint (`starting:`). */
-export const CARD_SHELL = cn(
-  'bg-card flex min-w-0 rounded-3xl p-5 [box-shadow:var(--shadow-panel)]',
-  'starting:translate-y-3 starting:opacity-0 transition duration-500 hover:-translate-y-0.5',
-  'motion-reduce:transition-none motion-reduce:hover:translate-y-0',
-)
+/* The card shell: a card is not clickable, so it enters once and never moves. */
+export const CARD_SHELL = cn('bg-card flex min-w-0 p-5', CARD)
 const CARD_TITLE = 'text-[14px] font-semibold leading-5'
 const CARD_BIG =
   'tnum font-num text-[32px] font-bold leading-9 tracking-[-0.025em] whitespace-nowrap'
@@ -113,8 +113,8 @@ export function IconTile({
 const DELTA_ICON = { up: TrendingUp, down: TrendingDown, flat: Minus }
 /* Up is good for every delta on this screen. */
 const DELTA_TONE = {
-  up: 'text-success bg-success/15',
-  down: 'text-warning bg-warning/15',
+  up: 'text-on-tint-success bg-success/10',
+  down: 'text-on-tint-warning bg-warning/10',
   flat: 'text-muted-foreground bg-surface-ink/10',
 }
 
@@ -148,19 +148,10 @@ export function OpenValueTile({ data, className }: Figures) {
   const valued = count - blank
   const canView = useCan('opportunity.view')
   return (
-    <section
-      className={cn(
-        CARD_SHELL,
-        'bg-linear-to-br from-card to-primary/10 flex-col gap-3 from-55%',
-        className,
-      )}
-    >
+    <section className={cn(CARD_SHELL, WASH, 'flex-col gap-3', className)}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <IconTile
-            icon={Wallet}
-            className="from-primary/30 to-primary/10 text-accent-foreground bg-linear-to-br"
-          />
+          <IconTile icon={Wallet} className={ICON_TONE.primary} />
           <div className="flex min-w-0 flex-col gap-1">
             <h3 className={CARD_TITLE}>Giá trị cơ hội đang mở</h3>
             <span className={cn(NOTE, 'tnum font-num')}>
@@ -185,12 +176,12 @@ export function OpenValueTile({ data, className }: Figures) {
             <>
               <span
                 style={cssVars({ '--w': `${(valued / count) * 100}%` })}
-                className="from-primary-strong to-primary w-(--w) bg-linear-to-r ease-(--motion-ease) starting:w-0 rounded-full transition-[width] duration-1000"
+                className={`bg-primary w-(--w) starting:w-0 rounded-full transition-[width] ${MARK_EASE}`}
               />
               {blank > 0 && (
                 <span
                   style={cssVars({ '--w': `${(blank / count) * 100}%` })}
-                  className="bg-warning/20 w-(--w) ease-(--motion-ease) starting:w-0 min-w-1 rounded-full bg-[repeating-linear-gradient(45deg,var(--warning)_0_3px,transparent_3px_6px)] transition-[width] duration-1000"
+                  className={`bg-warning/20 w-(--w) starting:w-0 min-w-1 rounded-full bg-[repeating-linear-gradient(45deg,var(--warning)_0_3px,transparent_3px_6px)] transition-[width] ${MARK_EASE}`}
                 />
               )}
             </>
@@ -252,7 +243,7 @@ function WinRing({ rate }: { rate: number }) {
           className={cn(
             RING_CIRCLE,
             'stroke-success starting:[stroke-dashoffset:var(--full)] [stroke-dashoffset:var(--arc)]',
-            'ease-(--motion-ease) transition-[stroke-dashoffset] duration-1000',
+            `transition-[stroke-dashoffset] ${MARK_EASE}`,
           )}
         />
       </svg>
@@ -274,18 +265,9 @@ export function WinRateTile({ data, className }: Figures) {
   const rate = winRate(data.current)
   const delta = deltaOf(rate, winRate(data.compare.figures), 'points')
   return (
-    <section
-      className={cn(
-        CARD_SHELL,
-        'bg-linear-to-br from-card to-success/10 items-center justify-between gap-4 from-55%',
-        className,
-      )}
-    >
+    <section className={cn(CARD_SHELL, WASH, 'items-center justify-between gap-4', className)}>
       <div className="flex min-w-0 items-center gap-3">
-        <IconTile
-          icon={Target}
-          className="from-success/30 to-success/10 text-success bg-linear-to-br"
-        />
+        <IconTile icon={Target} className={ICON_TONE.success} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-col gap-1">
             <h3 className={CARD_TITLE}>Tỷ lệ thắng</h3>
@@ -351,19 +333,18 @@ export function RunsTile({
 
   /* A warning tint says "look at this": only a stop earns it. */
   const warn = stopped > 0
-  const tone = warn ? 'text-on-tint-warning' : 'text-muted-foreground'
 
   return (
     <section
       className={cn(
         CARD_SHELL,
-        'bg-linear-to-br w-full items-center justify-between gap-4',
-        warn ? 'from-warning/10 via-warning/15 to-warning/20' : 'from-card to-surface-ink/10',
+        warn ? WASH_WARN : WASH,
+        'w-full items-center justify-between gap-4',
         className,
       )}
     >
       <span className="flex min-w-0 items-center gap-3">
-        <IconTile icon={Route} className={cn(tone, 'bg-card/75')} />
+        <IconTile icon={Route} className={warn ? ICON_TONE.warning : ICON_TONE.neutral} />
         <span className="flex min-w-0 flex-col gap-1">
           <h3 className={CARD_TITLE}>Hành trình đã dừng</h3>
           <span className={cn(NOTE, 'tnum font-num flex flex-wrap items-center gap-x-1')}>
@@ -382,21 +363,14 @@ export function RunsTile({
           <Link
             to={runsHref(stoppedRunsQuery(span))}
             aria-label={`${num(stopped)} hành trình đã dừng`}
-            className={TILE_LINK}
+            className={cn(TILE_LINK, 'underline-offset-4 hover:underline')}
           >
-            <span className={cn(CARD_BIG, tone)}>{num(stopped)}</span>
+            <span className={cn(CARD_BIG, 'text-on-tint-warning')}>{num(stopped)}</span>
           </Link>
         ) : (
           <span className={CARD_BIG}>{num(stopped)}</span>
         )}
-        <Link
-          to={WORKSTREAM_BOOK_HREF}
-          className={cn(
-            TILE_LINK,
-            'bg-card/80 gap-1 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold leading-4',
-            warn && tone,
-          )}
-        >
+        <Link to={WORKSTREAM_BOOK_HREF} className={cn(PILL_LINK, 'whitespace-nowrap')}>
           Xem tất cả hành trình
           <Icon icon={ArrowRight} size={14} />
         </Link>
