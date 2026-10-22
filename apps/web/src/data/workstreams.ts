@@ -1,18 +1,23 @@
 import { infiniteQueryOptions, keepPreviousData, queryOptions } from '@tanstack/react-query'
+import type { BadgeProps } from '@pv/ui'
 import { keepPageUnderSameFilters } from '@/app/book-query'
 import {
   WORKSTREAM_JOURNEY_STEPS,
   WorkstreamBoardResponse,
+  WorkstreamBoardQuery,
   WorkstreamBookQuery,
   WorkstreamBookResponse,
   WorkstreamScorecard,
   type WorkstreamBoardColumn,
   type WorkstreamFootprint,
   type WorkstreamRow,
+  type WorkstreamStandKind,
   type WorkstreamStatus,
 } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
+import { BADGE_INK } from '@/data/opportunities'
+import type { Pic } from '@/components/book-cells'
 
 /** Workstream book — `/sales/workstreams`. One row per customer journey run.
  *
@@ -36,6 +41,7 @@ export const NARROWING_CLEARED = {
   accountCode: undefined,
   standKind: undefined,
   standKey: undefined,
+  owner: undefined,
   closeReason: undefined,
   overdue: undefined,
   stopped: undefined,
@@ -60,12 +66,76 @@ export const WORKSTREAM_STATUS_LABEL: Record<WorkstreamStatus, string> = {
   all: 'Tất cả',
 }
 
-/** What each seat is called wherever a run's people are named: the book's
- *  column and the board's card read the same word. */
-export const IN_CHARGE_SEAT_WORD: Record<'lead' | 'deal' | 'contract', string> = {
-  lead: 'PIC lead',
-  deal: 'Sale chính',
-  contract: 'Người chốt',
+/** Said wherever a run has nobody in charge — the table's dash tooltip, the
+ *  owner filter's "none" option and the board card's visible line. */
+export const NO_PIC = 'Chưa có người phụ trách'
+
+/** The one word per seat that heads a person in the book's column and the
+ *  board's card (both draw `PicCell`). The deal's word names the seat, not a
+ *  lane: the server's holder falls back to the acceptor or a BD when a deal
+ *  has no seller, so "Sale" or a primary mark would be wrong for them. */
+const IN_CHARGE_SEAT: Record<'lead' | 'deal' | 'contract', Pick<Pic, 'role'>> = {
+  lead: { role: 'PIC lead' },
+  deal: { role: 'Phụ trách cơ hội' },
+  contract: { role: 'Người chốt' },
+}
+
+/** The people who answer for the object the run stands on, as `PicCell` takes
+ *  them. `inCharge` absent is an API one deploy behind: it falls back to the
+ *  Sale and BD the row always carried. */
+export function inChargePics(
+  row: Pick<WorkstreamRow, 'inCharge' | 'saleHolder' | 'bdHolder'>,
+): Pic[] {
+  const { inCharge, saleHolder, bdHolder } = row
+  if (inCharge === undefined) {
+    return [
+      ...(saleHolder ? [{ ...saleHolder, role: 'Sale', primary: true }] : []),
+      ...(bdHolder ? [{ ...bdHolder, role: 'BD' }] : []),
+    ]
+  }
+  if (inCharge === null) return []
+  return inCharge.people.map((p) => ({ ...p, ...IN_CHARGE_SEAT[inCharge.seat] }))
+}
+
+/** One hue per object kind, the pill shapes the opportunity book's stage cell
+ *  already uses (law 16). The table's stand cell and the board's card chip
+ *  both read it, so a rung is one colour on both views. Ink is `BADGE_INK` on
+ *  all three: the tone inks fall under 4.5:1 on a hovered row and on the
+ *  card's `surface-ink/5` ground (law 13); the tint still carries the hue. */
+export const STAND_TONE: Record<
+  WorkstreamStandKind,
+  { tone: BadgeProps['tone']; className?: string }
+> = {
+  LD: { tone: 'draft', className: BADGE_INK },
+  OP: { tone: 'running', className: BADGE_INK },
+  HĐ: { tone: 'success', className: BADGE_INK },
+}
+
+export type JourneyStep = (typeof WORKSTREAM_JOURNEY_STEPS)[number]
+export type JourneyStepKey = JourneyStep['key']
+
+const STEP_LABEL = Object.fromEntries(
+  WORKSTREAM_JOURNEY_STEPS.map((s) => [s.key, s.label]),
+) as Record<JourneyStepKey, string>
+
+/** The one word per journey step. Keyed by the step's own type, so a key the
+ *  contract does not hold fails to compile instead of printing in English. */
+export const stepLabel = (key: JourneyStepKey): string => STEP_LABEL[key]
+
+const STEP_OF_KIND = { LD: 'lead', OP: 'opportunity', HĐ: 'contract' } as const satisfies Record<
+  WorkstreamStandKind,
+  JourneyStepKey
+>
+
+/** The journey step a live run sits at, by the kind of object it stands on. */
+export const stepOfKind = (kind: WorkstreamStandKind): JourneyStepKey => STEP_OF_KIND[kind]
+
+/** What a stand kind is called: the journey step it sits at, so the header
+ *  filter, its chip and the board's step rail say the same word. */
+export const STAND_KIND_LABEL: Record<WorkstreamStandKind, string> = {
+  LD: stepLabel(STEP_OF_KIND.LD),
+  OP: stepLabel(STEP_OF_KIND.OP),
+  HĐ: stepLabel(STEP_OF_KIND.HĐ),
 }
 
 /** Every channel is always present on the wire, so a sum of 0 is a real 0.
@@ -89,6 +159,7 @@ export function workstreamBookQueryToParams(q: WorkstreamBookQuery): string {
   if (q.q !== undefined) p.set('q', q.q)
   if (q.standKind !== undefined) p.set('standKind', q.standKind)
   if (q.standKey !== undefined) p.set('standKey', q.standKey)
+  if (q.owner !== undefined) p.set('owner', q.owner)
   if (q.closeReason !== undefined) p.set('closeReason', q.closeReason)
   if (q.overdue !== undefined) p.set('overdue', String(q.overdue))
   if (q.stopped !== undefined) p.set('stopped', String(q.stopped))
@@ -146,16 +217,30 @@ export const workstreamScorecardQuery = (period: string) =>
 // THE BOARD — one catalogue call, then one paging call per column
 // ---------------------------------------------------------------------------
 
+/** The only narrowings the board offers, and the only ones its catalogue door
+ *  takes (`status`, `accountCode`, `owner`, `q`). Columns are built from these
+ *  alone, so a stray `stopped` or day range on the address cannot narrow a
+ *  column the header above it does not count. */
+export const BOARD_FILTER_KEYS = Object.keys(
+  WorkstreamBoardQuery.shape,
+) as (keyof WorkstreamBoardQuery)[]
+
+/** The board's share of a book query: the catalogue and its columns both read
+ *  this and nothing else. */
+function boardFilterOf(q: WorkstreamBookQuery): Partial<WorkstreamBookQuery> {
+  return Object.fromEntries(BOARD_FILTER_KEYS.map((key) => [key, q[key]]))
+}
+
 /** What the catalogue and its columns must ASK ALIKE. Paging and sorting are
- *  left out — they change which rows come back, never how many match — but
- *  `status`, `q` and `accountCode` go to both doors or the header counts a book
- *  the cards below it are no longer showing. */
+ *  left out — they change which rows come back, never how many match. */
 export function workstreamBoardFilterParams(q: WorkstreamBookQuery): string {
-  const d = DEFAULT_WORKSTREAM_BOOK_QUERY
   const p = new URLSearchParams()
-  if (q.status !== d.status) p.set('status', q.status)
-  if (q.accountCode !== undefined) p.set('accountCode', q.accountCode)
-  if (q.q !== undefined) p.set('q', q.q)
+  for (const key of BOARD_FILTER_KEYS) {
+    const value = q[key]
+    if (value !== undefined && value !== DEFAULT_WORKSTREAM_BOOK_QUERY[key]) {
+      p.set(key, String(value))
+    }
+  }
   return p.toString()
 }
 
@@ -229,17 +314,14 @@ export function boardColumnId(column: WorkstreamBoardColumn): string {
 /** One column = one call to the book door narrowed to that column's question.
  *  Same key prefix as the book, so one write invalidates the table view and
  *  every column of the board together. The screen never re-sorts: `sort`/`dir`
- *  ride on `base`. The three filters are cleared before the column's own are
- *  laid on, so nothing left on the address narrows a column twice. */
+ *  ride on `base`. Of `base` only `BOARD_FILTER_KEYS` are kept, so the column
+ *  counts exactly the set the catalogue header promised. */
 export function workstreamColumnQuery(base: WorkstreamBookQuery, column: WorkstreamBoardColumn) {
   const q: WorkstreamBookQuery = {
-    ...base,
-    standKind: undefined,
-    standKey: undefined,
-    closeReason: undefined,
-    /* The catalogue does not take `overdue`, so a column that did would count
-       fewer cards than the header above it promises. */
-    overdue: undefined,
+    ...DEFAULT_WORKSTREAM_BOOK_QUERY,
+    ...boardFilterOf(base),
+    sort: base.sort,
+    dir: base.dir,
     ...columnFilter(column),
     size: COLUMN_PAGE_SIZE,
     page: 1,
@@ -267,9 +349,6 @@ export function workstreamColumnQuery(base: WorkstreamBookQuery, column: Workstr
   })
 }
 
-export type JourneyStep = (typeof WORKSTREAM_JOURNEY_STEPS)[number]
-export type JourneyStepKey = JourneyStep['key']
-
 /** Which step a column hangs under — off the `by` tag and the MACHINE key,
  *  never off `phaseLabel`: one catalogue rename would otherwise move a column
  *  to another step. A closed run grouped by WHY it ended is the dropped step;
@@ -277,9 +356,7 @@ export type JourneyStepKey = JourneyStep['key']
  *  quietly swept into `dropped` — a rung off its own ladder is a data fault,
  *  and it has to stay visible at its own kind's step to be seen at all. */
 export function journeyStepOfColumn(column: WorkstreamBoardColumn): JourneyStepKey {
-  if (column.by === 'closeReason') return 'dropped'
-  if (column.kind === 'HĐ') return 'contract'
-  return column.kind === 'OP' ? 'opportunity' : 'lead'
+  return column.by === 'closeReason' ? 'dropped' : stepOfKind(column.kind)
 }
 
 export type BoardStepGroup = {
@@ -338,7 +415,9 @@ export function parseBoardStep(params: URLSearchParams): JourneyStepKey {
 }
 
 /** Every other parameter stays: switching view or step may not drop the search
- *  somebody typed or the sort they chose. */
+ *  somebody typed or the sort they chose. Going to the board drops every
+ *  narrowing it cannot show (`BOARD_FILTER_KEYS` are the ones it can), so a
+ *  link never claims a filter the board does not apply. */
 export function withBoardParams(
   params: URLSearchParams,
   next: { view?: BoardView; step?: JourneyStepKey },
@@ -350,8 +429,8 @@ export function withBoardParams(
   }
   if (next.view === 'kanban') {
     out.set(VIEW_PARAM, next.view)
-    // The board cannot apply these, so a link must not claim it does.
-    for (const key of ['overdue', 'standKind', 'standKey']) out.delete(key)
+    const kept = new Set<string>([...BOARD_FILTER_KEYS, 'sort', 'dir'])
+    for (const key of Object.keys(WorkstreamBookQuery.shape)) if (!kept.has(key)) out.delete(key)
   }
   if (next.step !== undefined) out.set(STEP_PARAM, next.step)
   return out

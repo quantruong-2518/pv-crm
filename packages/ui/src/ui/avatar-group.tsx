@@ -27,7 +27,7 @@ function Tip({ children }: { children: string }) {
   return (
     <span
       className={cn(
-        'glass-b pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden',
+        'glass-overlay pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden',
         '-translate-x-1/2 whitespace-nowrap rounded-sm px-2 py-1 text-[11px]',
         'group-hover/av:block',
       )}
@@ -56,7 +56,8 @@ export function AvatarGroup({
   return (
     <span className={cn('flex items-center', className)} aria-label={names.join(' · ')}>
       {shown.map((name, i) => (
-        <span key={name} className={cn('group/av relative', i > 0 && '-ml-2')}>
+        /* Index in the key: two people can share a name, and a repeated key drops one avatar. */
+        <span key={`${i}:${name}`} className={cn('group/av relative', i > 0 && '-ml-2')}>
           <Avatar name={name} size={size} className="shadow-control" />
         </span>
       ))}

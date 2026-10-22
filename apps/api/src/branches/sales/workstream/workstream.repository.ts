@@ -19,6 +19,8 @@ import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { WORKSTREAM_PRIORITY_LADDER, type Actor, type WorkstreamPriorityRung } from '@pv/engines'
 import {
+  OWNER_NONE,
+  SELLER_ROLES,
   WorkstreamChannel,
   type WorkstreamBookQuery,
   type WorkstreamCloseReason,
@@ -27,7 +29,7 @@ import {
   type WorkstreamStandKind,
 } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { createdWithin } from '@api/platform/db/book-filter'
+import { createdWithin, csvOf } from '@api/platform/db/book-filter'
 import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
@@ -146,13 +148,13 @@ export class WorkstreamRepository {
     const stand = this.standPair(who, scoped)
     const filters = this.filtersOf(q, stand)
 
-    /* Count a SECOND time only while the scope axis cuts: for a reader who sees
-       the whole book `hidden` is always 0, so a full count would pay for a
-       question nobody asked. The page reads the same filters and rides the wave. */
+    /* Count a SECOND time only while the scope axis cuts (else `hidden` is 0),
+       and never under `owner`: `hidden` there would tell an ownOnly reader how
+       many runs a colleague holds. The page reads the same filters. */
     const probe = probeOf(and(leadLive, scope))
     const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.count(and(...filters, scope), db),
-      (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
+      (db: Db) => (scope && !q.owner ? this.count(and(...filters), db) : Promise.resolve(null)),
       (db: Db) => this.page(and(...filters, scope), q, stand, this.inScopeValue(who, scoped), db),
     ] as const)
 
@@ -349,7 +351,7 @@ export class WorkstreamRepository {
     db: Db = this.db,
   ): Promise<WorkstreamPageRow[]> {
     return db
-      .select({ ...READ_COLUMNS, inScope })
+      .select({ ...READ_COLUMNS, inScope, inChargeIds: inChargeIds(stand) })
       .from(workstream)
       .innerJoin(lead, ANCHOR_ON)
       .leftJoin(account, eq(account.code, workstream.accountCode))
@@ -360,7 +362,9 @@ export class WorkstreamRepository {
       .orderBy(...this.orderBy(q, stand))
       .limit(q.size)
       .offset((q.page - 1) * q.size)
-      .then((rows) => rows.map((r) => ({ ...toRead(r), inScope: r.inScope })))
+      .then((rows) =>
+        rows.map((r) => ({ ...toRead(r), inScope: r.inScope, inChargeIds: r.inChargeIds })),
+      )
   }
 
   /** Counts under the same joins `page()` uses, so both numbers describe the
@@ -455,13 +459,14 @@ export class WorkstreamRepository {
           ? isNotNull(workstream.closedAt)
           : undefined,
       q.accountCode ? eq(workstream.accountCode, q.accountCode) : undefined,
+      q.owner ? inChargeAny(stand, q.owner) : undefined,
       /* One box, three columns: a run code pasted out of a chat, half the legal
          name, or the customer as the seller says it. */
       q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
       q.closeReason ? eq(workstream.closeReason, q.closeReason) : undefined,
       /* Half a pair still narrows: the two are independent in the contract, so
-         each answers on its own rather than waiting for the other. */
-      q.standKind ? sql`${stand.kind} = ${q.standKind}` : undefined,
+         each answers on its own. ANY listed kind; one is the board's column. */
+      q.standKind ? sql`${stand.kind} = ANY(${textArray(csvOf(q.standKind))})` : undefined,
       q.standKey ? sql`${stand.key} = ${q.standKey}` : undefined,
       /* `false` does not filter: "not overdue" is not a card, and the contract
          only promises the set the overdue card counts. */
@@ -634,8 +639,9 @@ export type WorkstreamRead = {
   held: boolean
 }
 
-/** A book row plus the scope verdict E2's second grid is built from. */
-export type WorkstreamPageRow = WorkstreamRead & { inScope: boolean }
+/** A book row plus the scope verdict E2's second grid is built from, and the
+ *  ids `inChargeOf` names — `inChargeIds`, the `owner` filter's own expression. */
+export type WorkstreamPageRow = WorkstreamRead & { inScope: boolean; inChargeIds: string[] }
 
 /** One signature of a run, as the book row reads it. */
 export type RunContract = {
@@ -651,7 +657,7 @@ export type RunContract = {
  *  contract rather than declared a second time. */
 export type WorkstreamFilters = Pick<
   WorkstreamBookQuery,
-  'status' | 'accountCode' | 'q' | 'standKind' | 'standKey' | 'closeReason'
+  'status' | 'accountCode' | 'owner' | 'q' | 'standKind' | 'standKey' | 'closeReason'
 >
 
 /** Every filter `filtersOf` reads: the board's plus the book's own cards. */
@@ -842,6 +848,52 @@ const priorityOrder = (stand: StandPair): SQL[] => {
     const dir = column.inverted === (rung.dir === 'desc') ? 'asc' : 'desc'
     return [sql`${column.at} ${sql.raw(dir)} nulls ${sql.raw(rung.nulls)}`]
   })
+}
+
+/** `text[]` literal of bound ids: Drizzle spreads a bare JS array into a `($1, $2)` list. */
+const textArray = (ids: readonly string[]): SQL =>
+  sql`ARRAY[${sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  )}]::text[]`
+
+/** The ids of `inCharge.people`: the book's page SELECTS this and `inChargeOf`
+ *  (`./workstream-seat.ts`) only names them, so the cell and the `owner` filter
+ *  read one expression. Seat by the READER's `stand.kind` (`inChargeOf` labels
+ *  it on the same three branches): the lead's PIC; the deal's holder by
+ *  `holderOf`'s rule (primary seller, first seller, the acceptor, first BD —
+ *  JS code-unit order, hence `COLLATE "C"`); else every closer of a live
+ *  contract, newest signature first. An absent actor is no person. */
+const inChargeIds = (stand: StandPair): SQL<string[]> => sql<string[]>`(CASE
+  WHEN ${stand.kind} = 'LD' AND ${workstream.standKind} <> 'HĐ'
+    THEN ARRAY(SELECT ic_l.id FROM platform.actor ic_l WHERE ic_l.id = ${lead.ownerId})
+  WHEN ${stand.kind} = 'OP' THEN ARRAY(SELECT h.id FROM (
+      SELECT ic_a.id, ic_a.name, o.is_primary AS lead_seat,
+             CASE WHEN o.role = 'SALE' THEN 1 ELSE 3 END AS rung
+        FROM sales.opportunity_owner o JOIN platform.actor ic_a ON ic_a.id = o.actor_id
+       WHERE o.opportunity_code = ${workstream.standCode}
+         AND (o.role = 'BD' OR ic_a.role_ids && ${textArray(SELLER_ROLES)})
+      UNION ALL
+      SELECT ic_p.id, ic_p.name, false, 2 FROM sales.opportunity d
+        JOIN platform.actor ic_p ON ic_p.id = d.accepted_by_id
+       WHERE d.code = ${workstream.standCode}
+    ) h ORDER BY h.rung, (h.rung = 1 AND h.lead_seat) DESC, h.name COLLATE "C", h.id COLLATE "C" LIMIT 1)
+  ELSE ARRAY(SELECT k.owner_id FROM (
+      SELECT DISTINCT ON (ic_k.owner_id) ic_k.owner_id, ic_k.signed_at, ic_k.code
+        FROM sales.contract ic_k JOIN platform.actor ic_c ON ic_c.id = ic_k.owner_id
+       WHERE ic_k.workstream_code = ${workstream.code} AND NOT ${contractTerminated(sql`ic_k.code`)}
+       ORDER BY ic_k.owner_id, ic_k.signed_at DESC, ic_k.code DESC
+    ) k ORDER BY k.signed_at DESC, k.code DESC)
+END)`
+
+/** The book's `owner` filter: ANY listed id in `inCharge.people`, `OWNER_NONE` = nobody. */
+const inChargeAny = (stand: StandPair, csv: string): SQL | undefined => {
+  const ids = csvOf(csv)
+  const named = ids.filter((id) => id !== OWNER_NONE)
+  return or(
+    ids.includes(OWNER_NONE) ? sql`cardinality(${inChargeIds(stand)}) = 0` : undefined,
+    named.length ? sql`${inChargeIds(stand)} && ${textArray(named)}` : undefined,
+  )
 }
 
 const READ_COLUMNS = {

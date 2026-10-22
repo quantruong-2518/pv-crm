@@ -28,9 +28,10 @@ export function CompanyCell({ lead, onEmail }: { lead: LeadRow; onEmail?: () => 
               event.stopPropagation()
               onEmail()
             }}
-            className="hover:text-foreground truncate underline-offset-2 hover:underline"
+            className="hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-0 pointer-coarse:after:-bottom-4 pointer-coarse:after:content-[''] relative min-w-0 underline-offset-2 hover:underline"
           >
-            {lead.email}
+            {/* Truncates inside, so the button's own box never clips its finger-sized hit area. */}
+            <span className="block truncate">{lead.email}</span>
           </button>
         ) : (
           <span className="truncate" title={lead.email}>

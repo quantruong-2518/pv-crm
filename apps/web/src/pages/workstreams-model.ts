@@ -1,30 +1,31 @@
-import type { TableColumn } from '@pv/ui'
-import { WORKSTREAM_JOURNEY_STEPS, type WorkstreamBookQuery } from '@pv/contracts'
-import { CLOSE_REASON_LABEL } from '@/data/workstreams'
-import { dayRangeChip, type ActiveFilter } from '@/components/active-filters'
+import { Kanban, List } from '@pv/ui'
+import type { WorkstreamBookQuery } from '@pv/contracts'
+import { CLOSE_REASON_LABEL, STAND_KIND_LABEL, type BoardView } from '@/data/workstreams'
+import { dayRangeChip, listChip, type ActiveFilter } from '@/components/active-filters'
+import type { ViewOption } from '@/components/book-cards'
 
-/** The book's columns and removable chips: one per narrowing that has no control of its
- *  own on the toolbar — the scorecard's four cards, the overview's runs tile,
- *  an account link and a stand picked from elsewhere. The overdue toggle shows
- *  its own state. */
+/** The book's search words and removable chips: one chip per narrowing a link or
+ *  a header can set — the scorecard's four cards, the overview's runs tile, an
+ *  account link, a stand or a person. The overdue toggle shows its own state. */
 
-/* Ordered by the question the book answers first: whose journey, where it
-   stands, what happens next, who holds it, when we last spoke. */
-export const columns: TableColumn[] = [
-  { header: 'Khách hàng', width: 'minmax(220px,2.2fr)', sortKey: 'customer' },
-  { header: 'Đang ở', width: 'minmax(240px,2.2fr)' },
-  { header: 'Việc tiếp theo', width: 'minmax(240px,2.2fr)', sortKey: 'priority' },
-  { header: 'Phụ trách', width: 'minmax(180px,1.6fr)' },
-  { header: 'Liên hệ gần nhất', width: 'minmax(140px,1fr)' },
+/* The server searches the run code, the lead's company and the account name
+   (`SEARCHED` in the workstream repository): that is all this line may promise.
+   One string for the table, the board and the app header. */
+export const WORKSTREAM_SEARCH_HINT = 'Tìm theo tên khách hàng hoặc mã hành trình…'
+
+/* A chip names every picked kind; the schema already refuses an unknown one. */
+const KIND_NAME: Record<string, string> = STAND_KIND_LABEL
+
+export const VIEW_OPTIONS: readonly ViewOption<BoardView>[] = [
+  { value: 'table', label: 'Bảng', icon: List },
+  { value: 'kanban', label: 'Kanban', icon: Kanban },
 ]
-
-const STEP_OF_KIND = { LD: 'lead', OP: 'opportunity', HĐ: 'contract' } as const
 
 export function filterChips(
   query: WorkstreamBookQuery,
   patch: (next: Partial<WorkstreamBookQuery>) => void,
+  ownerName: (id: string) => string,
 ): ActiveFilter[] {
-  const stand = query.standKind && STEP_OF_KIND[query.standKind]
   return [
     ...(query.stopped === true
       ? [
@@ -46,15 +47,17 @@ export function filterChips(
           },
         ]
       : []),
-    ...(stand
-      ? [
-          {
-            id: 'standKind',
-            label: `Đang ở ${WORKSTREAM_JOURNEY_STEPS.find((s) => s.key === stand)?.label ?? ''}`,
-            onDrop: () => patch({ standKind: undefined, standKey: undefined }),
-          },
-        ]
-      : []),
+    ...listChip(
+      'standKind',
+      'Đang ở',
+      query.standKind,
+      (kind) => KIND_NAME[kind] ?? kind,
+      () => patch({ standKind: undefined, standKey: undefined }),
+      ' ',
+    ),
+    ...listChip('owner', 'Người phụ trách', query.owner, ownerName, () =>
+      patch({ owner: undefined }),
+    ),
     ...dayRangeChip('live', 'Đang chạy trong', query.liveFrom, query.liveTo, () =>
       patch({ liveFrom: undefined, liveTo: undefined }),
     ),

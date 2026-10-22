@@ -308,6 +308,9 @@ export const NO_CAMPAIGN_ICON = CircleDashed
  *  đó có cùng nghĩa không. */
 export const NO_OWNER_TITLE = 'Còn ở kho chung, chưa ai nhận'
 
+/** The creator column's empty title; leads older than the column carry none. */
+export const NO_CREATOR_TITLE = 'Chưa ghi nhận người tạo'
+
 // ---------------------------------------------------------------------------
 // Next action — việc nên làm tiếp trên một lead
 // ---------------------------------------------------------------------------

@@ -276,6 +276,31 @@ export const CONDITION_SIDE_LABEL: Record<ConditionSide, string> = {
   customer: 'Bên khách',
 }
 
+/** The tab, the standing badge and the next-due cell all say this one phrase.
+ *  The other two standings are said once here too, for the tabs and the badge. */
+export const COLLECTED_LABEL = 'Đã thu đủ'
+export const COLLECTING_LABEL = 'Đang thu'
+export const OVERDUE_LABEL = 'Quá hạn'
+
+/** Every query key a header, a tab or a shared link can set — what "clear all" resets. */
+export const CONTRACT_FILTER_KEYS = [
+  'status',
+  'owner',
+  'kind',
+  'signedFrom',
+  'signedTo',
+  'dueFrom',
+  'dueTo',
+  'amountMin',
+  'amountMax',
+] as const satisfies readonly (keyof ContractBookQuery)[]
+
+/** The customer column also shows the contract kind, so its header names both. */
+export const CUSTOMER_HEADER = 'Khách hàng / Loại hợp đồng'
+
+/** Why a contract shows no closer: the dash's tooltip and the filter's "nobody" option. */
+export const NO_CLOSER = 'Chưa có người chốt'
+
 /** Where a contract stands in collecting — the ONE rule, said the way the
  *  book's tabs say it (the contract itself stores no state): any installment
  *  overdue, else every one paid, else still collecting. Both the contract
@@ -284,7 +309,8 @@ export const CONDITION_SIDE_LABEL: Record<ConditionSide, string> = {
 export type Standing = { tone: 'danger' | 'success' | 'running'; label: string }
 
 export function standingOf(rows: { overdue: boolean; paid: boolean }[]): Standing {
-  if (rows.some((r) => r.overdue)) return { tone: 'danger', label: 'Quá hạn' }
-  if (rows.length > 0 && rows.every((r) => r.paid)) return { tone: 'success', label: 'Đã thu đủ' }
-  return { tone: 'running', label: 'Đang thu' }
+  if (rows.some((r) => r.overdue)) return { tone: 'danger', label: OVERDUE_LABEL }
+  if (rows.length > 0 && rows.every((r) => r.paid))
+    return { tone: 'success', label: COLLECTED_LABEL }
+  return { tone: 'running', label: COLLECTING_LABEL }
 }

@@ -136,7 +136,9 @@ export function StatCard({
       {compact && compactContext && (
         <div
           className={cn(
-            'relative z-10 mt-2 pr-8 text-[11px] leading-[1.5]',
+            'relative z-10 mt-2 text-[11px] leading-[1.5]',
+            /* The watermark fills ~70px of the corner; text over its strokes dips under 4.5:1. */
+            icon ? 'pr-12' : 'pr-8',
             toneText ?? 'text-glass-foreground',
           )}
         >

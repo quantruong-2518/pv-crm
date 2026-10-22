@@ -6,6 +6,8 @@ import { BookQueueButton } from '@/components/book-queue-button'
 /** The overdue toggle, kept off the page body so that stays under the
  *  function ceiling. */
 
+type Patch = (next: Partial<WorkstreamBookQuery>) => void
+
 /** The server's overdue set is open runs only, so turning it on leaves the
  *  closed tab and every card's narrowing. */
 export function OverdueToggle({
@@ -14,7 +16,7 @@ export function OverdueToggle({
   count,
 }: {
   query: WorkstreamBookQuery
-  patch: (next: Partial<WorkstreamBookQuery>) => void
+  patch: Patch
   /** The whole-book count; undefined until the scorecard answers. */
   count: number | undefined
 }) {

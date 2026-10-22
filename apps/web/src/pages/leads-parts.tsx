@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Send,
   StatCard,
+  cn,
   Target,
   UserRoundPlus,
   Users,
@@ -25,8 +26,10 @@ import { ClaimLeadButton } from '@/components/lead-claim'
 import { MomentCell } from '@/components/lead-cells'
 import { HoldMark } from '@/components/hold-strip'
 import { LabelChips } from '@/components/lead-labels'
-import { AvatarCell } from '@/components/table-bits'
-import { NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
+import { PicCell } from '@/components/book-cells'
+import { ROW_ICON } from '@/components/table-bits'
+import { NO_CREATOR_TITLE, NO_OWNER_TITLE, leadScorecardQuery } from '@/data/leads'
+import { BADGE_INK } from '@/data/opportunities'
 import { useSetLeadOwner } from '@/data/lead-owner'
 import { LEAD_STATE_FACE } from '@/data/lead-state'
 import { sourcePartnerLabel } from '@/data/partners'
@@ -173,7 +176,8 @@ export function EnteredCell({ lead }: { lead: LeadRow }) {
 
 /** Who created the lead; blank for leads that predate the column. */
 export function CreatedByCell({ lead }: { lead: LeadRow }) {
-  return <AvatarCell name={lead.createdByName} empty="Chưa ghi nhận người tạo" />
+  const people = lead.createdByName ? [{ name: lead.createdByName }] : []
+  return <PicCell people={people} empty={NO_CREATOR_TITLE} />
 }
 
 /** When the lead was switched off — only rows of the switched-off tab carry it. */
@@ -190,11 +194,7 @@ export function DisabledAtCell({ lead }: { lead: LeadRow }) {
 export function StatusCell({ lead }: { lead: LeadRow }) {
   const face = LEAD_STATE_FACE[lead.state]
   const badge = (
-    <Badge
-      tone={face.badge}
-      className={face.badge === 'draft' ? 'text-foreground max-w-full' : 'max-w-full'}
-      title={face.label}
-    >
+    <Badge tone={face.badge} className={cn(BADGE_INK, 'max-w-full')} title={face.label}>
       <span className="truncate">{face.label}</span>
     </Badge>
   )
@@ -218,14 +218,10 @@ export function StatusCell({ lead }: { lead: LeadRow }) {
 
 /** Lead PIC cell for the book row.
  *
- *  Holder of `lead.assign` (director, head-of-sales, account-executive) gets
- *  `AssignMenu` right in the row — same component as the lead's own page, so
- *  a manager can hand a lead to a specific report without opening it first.
- *  Everyone else keeps the plain one-click claim: unheld gets a button that
- *  always claims for self, held gets the bare avatar. Both paths write
- *  through `PATCH /sales/leads/:code/owner` (`useSetLeadOwner`); no separate
- *  claim or assign endpoint. Stops the click from reaching the row, or
- *  claiming/assigning would also open the lead.
+ *  Holder of `lead.assign` gets `AssignMenu` right in the row, the same
+ *  component as the lead's own page. Everyone else keeps the one-click claim on
+ *  an unheld lead. Both write through `PATCH /sales/leads/:code/owner`
+ *  (`useSetLeadOwner`) and stop the click, or the row would open as well.
  *
  *  A lead in the nurturing pool has no holder to hand over: it shows the claim
  *  button instead, which takes it through the resume door (ADR 0109). */
@@ -234,60 +230,67 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
   const mayAssign = useCan('lead.assign')
   const canClaim = useCan('lead.edit')
   const setOwner = useSetLeadOwner()
-  const held = Boolean(lead.ownerEmail || lead.ownerName)
+  const holder = lead.ownerEmail || lead.ownerName
+  const people = holder ? [{ id: lead.ownerId, name: lead.ownerName, email: lead.ownerEmail }] : []
 
   if (lead.state === 'nurturing') {
     return canClaim ? (
-      <ClaimLeadButton code={lead.code} />
+      <PicCell
+        people={people}
+        empty={NO_OWNER_TITLE}
+        max={2}
+        action={<ClaimLeadButton code={lead.code} />}
+      />
     ) : (
-      <AvatarCell empty="Lead chờ người nhận" />
+      <PicCell people={people} empty="Lead chờ người nhận" />
     )
   }
 
   if (me && mayAssign) {
     return (
-      <span
-        onClick={(event) => event.stopPropagation()}
-        className="flex items-center justify-center gap-2"
-      >
-        {held && (
-          <AvatarCell email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
-        )}
-        <AssignMenu lead={lead} profile={lead} size="sm" buttonVariant="ghost" iconOnly />
-      </span>
+      <PicCell
+        people={people}
+        empty={NO_OWNER_TITLE}
+        max={2}
+        action={
+          <span onClick={(event) => event.stopPropagation()} className="flex items-center">
+            <AssignMenu lead={lead} profile={lead} size="sm" buttonVariant="ghost" iconOnly />
+          </span>
+        }
+      />
     )
   }
 
-  if (held || !me) {
-    return <AvatarCell email={lead.ownerEmail} name={lead.ownerName} empty={NO_OWNER_TITLE} />
-  }
+  const claim =
+    !holder && me ? (
+      <Button
+        size="sm"
+        variant="ghost"
+        className={ROW_ICON}
+        disabled={setOwner.isPending}
+        aria-label="Nhận lead"
+        title="Nhận lead"
+        onClick={(event) => {
+          event.stopPropagation()
+          setOwner.mutate(
+            { code: lead.code, ownerId: me.id },
+            {
+              onSuccess: () =>
+                toast('Bạn đã nhận lead này', {
+                  tone: 'success',
+                  detail: `${lead.code} · ${lead.company}`,
+                }),
+              onError: (error) =>
+                toast(isApiError(error) ? userMessage(error) : 'Không nhận được lead. Thử lại.', {
+                  tone: 'danger',
+                }),
+            },
+          )
+        }}
+      >
+        <Icon icon={UserRoundPlus} size={16} />
+      </Button>
+    ) : undefined
 
-  return (
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={setOwner.isPending}
-      aria-label="Nhận lead"
-      title="Nhận lead"
-      onClick={(event) => {
-        event.stopPropagation()
-        setOwner.mutate(
-          { code: lead.code, ownerId: me.id },
-          {
-            onSuccess: () =>
-              toast('Bạn đã nhận lead này', {
-                tone: 'success',
-                detail: `${lead.code} · ${lead.company}`,
-              }),
-            onError: (error) =>
-              toast(isApiError(error) ? userMessage(error) : 'Không nhận được lead. Thử lại.', {
-                tone: 'danger',
-              }),
-          },
-        )
-      }}
-    >
-      <Icon icon={UserRoundPlus} size={16} />
-    </Button>
-  )
+  return <PicCell people={people} empty={NO_OWNER_TITLE} max={2} action={claim} />
 }

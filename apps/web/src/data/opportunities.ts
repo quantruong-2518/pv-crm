@@ -305,6 +305,10 @@ export const BD_LANE = laneRule('BD')
 export const SALE_PRIMARY_LABEL = 'Sale chính'
 export const CHANGE_SALE_PRIMARY = 'Đổi Sale chính'
 
+/** Why a lane shows nobody: the dash's tooltip and the filter's "nobody" option. */
+export const NO_SALE = 'Chưa có Sale phụ trách'
+export const NO_BD = 'Chưa có BD phụ trách'
+
 /** Who the server accepts as the SALE primary: only sellers while the lane
  *  holds one, everyone otherwise. A person the directory lacks counts as no
  *  seller, the same as the server's own read of a roleless actor. */

@@ -1,15 +1,13 @@
 import {
   LEAD_ACTIVE_STATES,
-  LEAD_STATE_LABEL,
   LeadState,
   type LeadBookQuery,
   type LeadFacets,
   type LeadStateFilter,
 } from '@pv/contracts'
 import { LEAD_STATE_FACE, isOpenState } from '@/data/lead-state'
-import { dayRangeChip, listChip, type ActiveFilter } from '@/components/active-filters'
 
-/** Module 2 · the lead book's state tabs and filter chips, without JSX — split
+/** Module 2 · the lead book's state tabs, filter keys and header names, without JSX — split
  *  from `leads.tsx`.
  *
  *  `all` comes first, then the lead that became a deal, then the live groups.
@@ -60,22 +58,28 @@ export function stateTabOf(state: LeadStateFilter): string {
   return state
 }
 
-/** The book's narrowings a column dot alone would hide — the ones an overview
- *  link sets. */
-export function useLeadFilterChips(
-  query: LeadBookQuery,
-  patch: (next: Partial<LeadBookQuery>) => void,
-): ActiveFilter[] {
-  const stateName = (s: string) => {
-    const parsed = LeadState.safeParse(s)
-    return parsed.success ? LEAD_STATE_LABEL[parsed.data] : s
-  }
-  return [
-    ...listChip('states', 'Trạng thái', query.states, stateName, () =>
-      patch({ states: undefined }),
-    ),
-    ...dayRangeChip('created', 'Ngày tạo', query.createdFrom, query.createdTo, () =>
-      patch({ createdFrom: undefined, createdTo: undefined }),
-    ),
-  ]
-}
+/** Filter axes that count as "dirty" and that "clear all" resets — every key a
+ *  header or a shared link can set. Sort, paging and `disabled` are not among them. */
+export const LEAD_FILTER_KEYS = [
+  'campaign',
+  'sourceKind',
+  'motion',
+  'origin',
+  'createdBy',
+  'states',
+  'owner',
+  'createdFrom',
+  'createdTo',
+  'state',
+  'pinned',
+  'label',
+] as const
+
+/** Header names double as filter titles, so the two can never disagree. */
+export const LEAD_HEADER = {
+  source: 'Nguồn lead',
+  status: 'Trạng thái',
+  created: 'Ngày tạo',
+  creator: 'Người tạo',
+  owner: 'Người phụ trách',
+} as const

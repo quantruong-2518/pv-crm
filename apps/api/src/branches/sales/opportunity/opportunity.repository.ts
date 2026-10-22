@@ -5,8 +5,10 @@ import {
   desc,
   eq,
   exists,
+  gte,
   inArray,
   isNotNull,
+  lte,
   ne,
   not,
   sql,
@@ -235,9 +237,14 @@ export class OpportunityRepository {
         .offset((q.page - 1) * q.size)
 
     const probe = opportunityProbe(who, scoped)
+    /* A value bound skips the unscoped count: `hidden` under one would let an
+       ownOnly reader binary-search a colleague's amount or expected day. */
+    const valued = [q.amountMin, q.amountMax, q.expectedFrom, q.expectedTo].some(
+      (v) => v !== undefined,
+    )
     const [scopedTotal, all, rows] = await readsUnderFloor(this.db, q.q, probe, [
       (db: Db) => this.count(where, db),
-      (db: Db) => (scope ? this.count(and(...filters), db) : Promise.resolve(null)),
+      (db: Db) => (scope && !valued ? this.count(and(...filters), db) : Promise.resolve(null)),
       rowsOf,
     ] as const)
 
@@ -868,6 +875,12 @@ export class OpportunityRepository {
       /* The overview's win-rate and stop-reason fence (`performance/`) cut on the
          same Vietnam-day edges, so a card's link lists exactly what it counted. */
       ...createdWithin(opportunity.closedAt, q.closedFrom, q.closedTo),
+      /* A `date` column, so plain day bounds; NULL never compares and drops out. */
+      q.expectedFrom ? gte(opportunity.expectedClose, q.expectedFrom) : undefined,
+      q.expectedTo ? lte(opportunity.expectedClose, q.expectedTo) : undefined,
+      /* The `amount` sort's own expression; `!== undefined` because 0 is a real bound. */
+      q.amountMin !== undefined ? sql`${AMOUNT_VND} >= ${q.amountMin}` : undefined,
+      q.amountMax !== undefined ? sql`${AMOUNT_VND} <= ${q.amountMax}` : undefined,
       /* Accepted = past `new` on the board (ADR 0071); `false` = the `new` queue. */
       q.accepted === undefined
         ? undefined

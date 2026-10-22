@@ -155,8 +155,10 @@ const installmentExists = (narrow?: SQL) =>
   sql`EXISTS (SELECT 1 FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code}${narrow ? sql` AND ${narrow}` : sql``})`
 const UNPAID = sql`ci.paid_at IS NULL`
 
-/** Date of the earliest unpaid installment; NULL once everything is collected. */
-const NEXT_DUE = sql`(SELECT min(ci.due) FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code} AND ci.paid_at IS NULL)`
+/** Date of the earliest unpaid installment; NULL once everything is collected,
+ *  and NULL on a terminated contract (owed by nobody, `LIVE`) — so the sort and
+ *  the due-day filter read one expression. */
+const NEXT_DUE = sql`(CASE WHEN ${LIVE} THEN (SELECT min(ci.due) FROM sales.contract_installment ci WHERE ci.contract_code = ${contract.code} AND ci.paid_at IS NULL) END)`
 
 /** Start of today on the Vietnam calendar. "Overdue" is a due before it — due
  *  today is not yet late, the rule KPI and the overdue-reason door count by — and
@@ -325,7 +327,10 @@ export class ContractRepository {
        to print a zero is paying for a question nobody asked. Same trade the
        other two books took. */
     const total = (db: Db) => this.count(and(scope, filters), db)
-    const wide = (db: Db) => (scope ? this.count(filters, db) : Promise.resolve(null))
+    /* A value bound skips it too: `hidden` under one would let an ownOnly
+       reader binary-search a colleague's amount or due day. */
+    const valued = [q.amountMin, q.amountMax, q.dueFrom, q.dueTo].some((v) => v !== undefined)
+    const wide = (db: Db) => (scope && !valued ? this.count(filters, db) : Promise.resolve(null))
     const page = (db: Db) =>
       db
         .select({ row: contract, ownerName: actor.name, customer: lead.company })
@@ -645,7 +650,12 @@ export class ContractRepository {
    *  no tie-break lets Postgres return one row on both page 1 and page 2, or on
    *  neither. `NULLS LAST` both ways: a blank is not the smallest value. */
   private orderBy(q: ContractBookQuery): SQL[] {
-    const primary = q.sort === 'amount' ? CONTRACT_VND : NEXT_DUE
+    const primary = {
+      amount: CONTRACT_VND,
+      nextDue: NEXT_DUE,
+      signedAt: contract.signedAt,
+      code: contract.code,
+    }[q.sort]
     const dir = q.dir === 'asc' ? sql`ASC` : sql`DESC`
     const best = q.q ? [sql`${fuzzyRank(SEARCHED, q.q)} DESC`] : []
     return [...best, sql`${primary} ${dir} NULLS LAST`, desc(contract.signedAt), asc(contract.code)]
@@ -672,6 +682,17 @@ export class ContractRepository {
       q.signedTo
         ? sql`${contract.signedAt} < ((${q.signedTo}::date + 1)::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
         : undefined,
+      q.kind ? inArray(contract.kind, listOf(q.kind)) : undefined,
+      /* The Vietnam day the book prints for `nextDue`; NULL (terminated, collected) drops out. */
+      q.dueFrom
+        ? sql`(${NEXT_DUE} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date >= ${q.dueFrom}::date`
+        : undefined,
+      q.dueTo
+        ? sql`(${NEXT_DUE} AT TIME ZONE 'Asia/Ho_Chi_Minh')::date <= ${q.dueTo}::date`
+        : undefined,
+      /* `!== undefined`: 0 is a real bound. NULL never compares, so a blank amount drops out. */
+      q.amountMin !== undefined ? sql`${CONTRACT_VND} >= ${q.amountMin}` : undefined,
+      q.amountMax !== undefined ? sql`${CONTRACT_VND} <= ${q.amountMax}` : undefined,
       q.q ? fuzzyAny(SEARCHED, q.q) : undefined,
     ]
   }

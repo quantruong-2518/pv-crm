@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -9,7 +9,6 @@ import {
   Icon,
   ScreenHeader,
   ScreenLayout,
-  SearchField,
   TriangleAlert,
   X,
   cn,
@@ -17,6 +16,7 @@ import {
 import type { WorkstreamBookQuery } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { isApiError, userMessage } from '@/app/api'
+import { SEARCH_DELAY_MS } from '@/app/book-query'
 import {
   DEFAULT_WORKSTREAM_BOOK_QUERY,
   WORKSTREAM_STATUS_LABEL,
@@ -24,17 +24,17 @@ import {
   boardStepGroups,
   parseBoardStep,
   parseWorkstreamBookQuery,
+  type BoardView,
   withBoardParams,
   workstreamBoardColumnsQuery,
   type BoardStepGroup,
 } from '@/data/workstreams'
-import {
-  BoardColumn,
-  ColumnSkeleton,
-  LockedColumn,
-  StepRail,
-  ViewSwitch,
-} from './workstreams-board-parts'
+import { ViewSwitch } from '@/components/book-cards'
+import { csvOf } from '@/components/book-columns'
+import { BookSearch } from '@/components/book-page'
+import { BoardColumn, ColumnSkeleton, LockedColumn, StepRail } from './workstreams-board-parts'
+import { VIEW_OPTIONS, WORKSTREAM_SEARCH_HINT } from './workstreams-model'
+import { useOwnerName } from './workstreams-filters'
 
 /** The journey book read as a board — `/sales/workstreams?view=kanban`.
  *
@@ -56,6 +56,39 @@ const SKELETON_COLUMNS = [0, 200, 400]
 
 function ColumnRow({ children }: { children: ReactNode }) {
   return <div className="-mx-1 flex items-start gap-3 overflow-x-auto px-1 pb-4">{children}</div>
+}
+
+type SetParams = ReturnType<typeof useSearchParams>[1]
+
+/** The search box, written to the address after a pause. Not `useBookQuery`:
+ *  that rebuilds the address from the query's own keys and would drop `view`
+ *  and `step`, throwing the reader out of the board on the first letter. */
+function useBoardSearch(params: URLSearchParams, setParams: SetParams) {
+  const urlQ = params.get('q') ?? ''
+  const [text, setText] = useState(urlQ)
+
+  /* Follow the address (Back, a link) without eating a trailing space. */
+  useEffect(() => setText((now) => (now.trim() === urlQ ? now : urlQ)), [urlQ])
+
+  useEffect(() => {
+    const wanted = text.trim()
+    if (wanted === urlQ) return
+    const timer = setTimeout(() => {
+      setParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          if (wanted === '') next.delete('q')
+          else next.set('q', wanted)
+          next.delete('page')
+          return next
+        },
+        { replace: true },
+      )
+    }, SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [text, urlQ, setParams])
+
+  return [text, setText] as const
 }
 
 /** One active filter, and the button that takes it off — the same ghost button
@@ -86,27 +119,21 @@ function DropFilter({
 }
 
 export function WorkstreamsBoard() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm hành trình, khách hàng…' })
+  const chrome = useAppChrome({ searchPlaceholder: WORKSTREAM_SEARCH_HINT })
   const [params, setParams] = useSearchParams()
   const base = useMemo(() => parseWorkstreamBookQuery(params), [params])
   const step = parseBoardStep(params)
+  const [text, setText] = useBoardSearch(params, setParams)
+  const ownerName = useOwnerName()
 
   const { data, isPending, error, refetch } = useQuery(workstreamBoardColumnsQuery(base))
   const groups = useMemo(() => boardStepGroups(data?.columns), [data])
   const index = groups.findIndex((g) => g.step.key === step)
   const group = groups[index]
 
-  const drop = (name: 'status' | 'accountCode') => {
+  const drop = (name: 'status' | 'accountCode' | 'owner') => {
     const next = new URLSearchParams(params)
     next.delete(name)
-    next.delete('page')
-    setParams(next, { replace: true })
-  }
-
-  const setSearch = (value: string) => {
-    const next = new URLSearchParams(params)
-    if (value.trim() === '') next.delete('q')
-    else next.set('q', value)
     next.delete('page')
     setParams(next, { replace: true })
   }
@@ -118,13 +145,11 @@ export function WorkstreamsBoard() {
           title={<span className="uppercase">Sổ hành trình</span>}
           actions={
             <div className="flex min-w-0 flex-wrap items-center gap-3">
-              {/* The raw param, not the parsed query: the contract trims `q`, so
-                  echoing the parsed value eats the space between two words. */}
-              <SearchField
-                placeholder="Mã hành trình, tên lead, tên công ty"
-                value={params.get('q') ?? ''}
-                onChange={setSearch}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
+              <BookSearch
+                value={text}
+                onChange={setText}
+                placeholder={WORKSTREAM_SEARCH_HINT}
+                className="flex-1"
               />
               {/* A filter carried over from the table view must be visible here,
                   or the board is narrowed by something nobody can take off. */}
@@ -143,8 +168,16 @@ export function WorkstreamsBoard() {
                   onDrop={() => drop('accountCode')}
                 />
               )}
-              <ViewSwitch
-                view="kanban"
+              {base.owner !== undefined && (
+                <DropFilter
+                  label={`Người phụ trách: ${csvOf(base.owner).map(ownerName).join(', ')}`}
+                  aria="Bỏ lọc theo người phụ trách"
+                  onDrop={() => drop('owner')}
+                />
+              )}
+              <ViewSwitch<BoardView>
+                value="kanban"
+                options={VIEW_OPTIONS}
                 onChange={(next) =>
                   setParams(withBoardParams(params, { view: next }), { replace: true })
                 }
@@ -181,7 +214,7 @@ export function WorkstreamsBoard() {
             ))}
           </ColumnRow>
         ) : (
-          <StepColumns group={group} blockNumber={index + 1} base={base} />
+          <StepColumns group={group} base={base} />
         )}
       </ScreenLayout>
     </AppShell>
@@ -190,11 +223,9 @@ export function WorkstreamsBoard() {
 
 function StepColumns({
   group,
-  blockNumber,
   base,
 }: {
   group: BoardStepGroup | undefined
-  blockNumber: number
   base: WorkstreamBookQuery
 }) {
   if (!group) return null
@@ -204,7 +235,7 @@ function StepColumns({
   if (group.locked) {
     return (
       <ColumnRow>
-        <LockedColumn label={group.step.label} blockNumber={blockNumber} />
+        <LockedColumn label={group.step.label} />
       </ColumnRow>
     )
   }

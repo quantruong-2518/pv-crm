@@ -7,13 +7,13 @@ import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { searchHint } from '@/lib/search-box'
 import { opportunityBookQuery, opportunityFacetQuery, saleOwnersOf } from '@/data/opportunities'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { csvOf, peopleOptions } from '@/components/book-columns'
 import { FilterSection, ViewSwitch } from '@/components/book-cards'
 import { GRID_PAGE_SIZE, noop } from '@/components/book-view'
 import { DealNurtureCards } from '@/components/nurture-cards'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { CloseCell, PeopleCell } from './opportunities-cells'
 import { useOpportunityFilterChips, useOpportunityFilters } from './opportunities-filters'
-import { csvOf, peopleOptions } from './opportunities-model'
 import { StopReasonFilter } from './opportunities-parts'
 import { withTab, withoutTab, type NurtureBookProps } from './nurturing-model'
 
@@ -37,7 +37,7 @@ function dealNurtureTable(
       { header: 'Cơ hội / Khách hàng', width: 'minmax(0,2.2fr)' },
       { header: 'Lý do dừng', width: 'minmax(0,1.6fr)' },
       { header: 'Ngày dừng', filter: columns.closed, width: 'minmax(0,1fr)', align: 'center' },
-      { header: columns.sale, width: '140px', align: 'center' },
+      { header: 'Sale phụ trách', filter: columns.sale, width: '140px', align: 'center' },
     ],
     rows: rows.map((op) => ({
       id: op.code,

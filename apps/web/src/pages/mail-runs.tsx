@@ -118,8 +118,8 @@ export function MailRunsPage() {
   const hidden = data?.hidden ?? 0
 
   /* Bốn con số của TRANG ĐANG MỞ, và nhãn nói đúng như vậy.
-     `campaignFacetQuery` bên sổ chiến dịch kéo cả sổ về để đếm; ở đây không
-     làm thế, vì sổ lô gửi mọc thêm một dòng mỗi lần ai đó bấm gửi và sẽ vượt
+     Sổ chiến dịch chỉ còn kéo cả sổ về để lấy tên nguồn, không để đếm; ở đây
+     cũng không đếm cả sổ, vì sổ lô gửi mọc thêm một dòng mỗi lần ai đó bấm gửi và sẽ vượt
      trần 200 của `PageQuery` trong vài tuần chứ không vài quý. Một con số
      đúng-cho-trang có nhãn nói rõ "trang này" trung thực hơn một con số
      "cả sổ" lặng lẽ sai từ dòng thứ 201. */

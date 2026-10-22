@@ -119,7 +119,8 @@ export function ColumnFilter({ label, active, iconOnly, children, className }: C
  *  once. Picks stay in a local draft until the apply button; applying on every tick
  *  would refetch the book (and rebuild the header) between two clicks. */
 export type ColumnFilterListProps = {
-  options: { value: string; label: string }[]
+  /** `count` prints at the right as its own figure, so the label stays searchable as written. */
+  options: { value: string; label: string; count?: number }[]
   selected: string[]
   onApply: (selected: string[]) => void
   close: () => void
@@ -161,8 +162,14 @@ export function ColumnFilterList({
           <Checkbox
             key={o.value}
             label={o.label}
+            trailing={
+              o.count === undefined ? undefined : (
+                <span className="tnum font-num text-muted-foreground text-[11.5px]">{o.count}</span>
+              )
+            }
             checked={draft.includes(o.value)}
             onChange={(on) => toggle(o.value, on)}
+            className="pointer-coarse:min-h-12"
           />
         ))}
         {shown.length === 0 && (
@@ -222,6 +229,60 @@ export function ColumnFilterRange({ from, to, onApply, close }: ColumnFilterRang
   )
 }
 
+/** Amount style filter: two bounds, applied together. `scale` lets the reader
+ *  type in the unit people say aloud (500 with a millions unit and
+ *  `scale={1e6}` applies 500 000 000) instead of counting zeros. */
+export type ColumnFilterNumberRangeProps = {
+  min?: number
+  max?: number
+  onApply: (range: { min?: number; max?: number }) => void
+  close: () => void
+  unit?: string
+  scale?: number
+}
+
+export function ColumnFilterNumberRange({
+  min,
+  max,
+  onApply,
+  close,
+  unit,
+  scale = 1,
+}: ColumnFilterNumberRangeProps) {
+  const shown = (v?: number) => (v === undefined ? '' : String(v / scale))
+  const [draft, setDraft] = useState({ min: shown(min), max: shown(max) })
+  /* Blank, junk or a typed minus never reach the address: the book's schema refuses them. */
+  const read = (v: string) => {
+    const n = Number(v)
+    return v.trim() === '' || !Number.isFinite(n) ? undefined : Math.max(0, Math.round(n * scale))
+  }
+  const cls =
+    'bg-input text-foreground tnum font-num h-10 w-full rounded-md px-3 text-[12.5px] outline-none pointer-coarse:h-12'
+  const field = (key: 'min' | 'max', label: string) => (
+    <label className="text-muted-foreground flex flex-col gap-1 text-[12px]">
+      {unit ? `${label} (${unit})` : label}
+      <input
+        type="number"
+        inputMode="decimal"
+        min={0}
+        value={draft[key]}
+        onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
+        className={cls}
+      />
+    </label>
+  )
+  return (
+    <>
+      {field('min', 'Từ')}
+      {field('max', 'Đến')}
+      <PanelActions
+        onClear={draft.min || draft.max ? () => setDraft({ min: '', max: '' }) : undefined}
+        onApply={() => (onApply({ min: read(draft.min), max: read(draft.max) }), close())}
+      />
+    </>
+  )
+}
+
 function PanelActions({ onClear, onApply }: { onClear?: () => void; onApply: () => void }) {
   return (
     <div className="flex items-center justify-between gap-2">
@@ -229,7 +290,7 @@ function PanelActions({ onClear, onApply }: { onClear?: () => void; onApply: () 
         type="button"
         onClick={onClear}
         disabled={!onClear}
-        className="text-on-tint-primary pointer-coarse:min-h-12 pointer-coarse:px-2 text-[12px] font-semibold disabled:opacity-40"
+        className="text-on-tint-primary pointer-coarse:min-h-12 pointer-coarse:px-2 disabled:text-muted-foreground text-[12px] font-semibold disabled:cursor-not-allowed"
       >
         Bỏ chọn
       </button>

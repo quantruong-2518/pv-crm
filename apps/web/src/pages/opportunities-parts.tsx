@@ -2,9 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   ArrowRight,
-  Button,
   CircleX,
-  SearchField,
   SegmentedControl,
   Select,
   FileCheck,
@@ -27,15 +25,14 @@ import {
   opportunityFacetQuery,
   opportunityScorecardQuery,
 } from '@/data/opportunities'
-import { searchHint } from '@/lib/search-box'
 import { useCan } from '@/app/auth'
 import { opportunityStopReasonsQuery } from '@/data/opportunities-write'
 import { usePins } from '@/data/pins'
 import { BookCount } from '@/components/book-page'
-import { ANY, stateTabs } from './opportunities-model'
+import { ANY, CLOSED_TABS, stateTabs } from './opportunities-model'
 
-/** Module 3 · the deal book's blocks: the toolbar's two ends (tabs, search with
- *  "clear all" — the filters sit in the column headers) and the score cards
+/** Module 3 · the deal book's blocks: the state tabs, the count with its hold
+ *  link (the filters sit in the column headers) and the score cards
  *  (ADR 0077). Mounted by `opportunities.tsx`. */
 
 type Patch = (next: Partial<OpportunityBookQuery>) => void
@@ -44,12 +41,18 @@ type Patch = (next: Partial<OpportunityBookQuery>) => void
 const PINNED = 'pinned'
 
 /** A stop reason and the stopped-at column narrow only stopped deals, so every
- *  tab press drops them; a close-day range would empty the open tab. */
+ *  tab press drops them. The close-day column filters one date per tab: an
+ *  expected day on open and pinned, a closed day on won, lost and terminated,
+ *  none on "all" — so a range of the kind the new tab cannot show goes too. */
 function tabPatch(value: string): Partial<OpportunityBookQuery> {
+  const noExpected = { expectedFrom: undefined, expectedTo: undefined }
+  const noClosed = { closedFrom: undefined, closedTo: undefined }
   const dropped = {
     stopReason: undefined,
     stoppedStage: undefined,
-    ...(value === 'open' ? { closedFrom: undefined, closedTo: undefined } : {}),
+    ...(value === 'open' || value === PINNED ? noClosed : {}),
+    ...(CLOSED_TABS.includes(value) ? noExpected : {}),
+    ...(value === ANY ? { ...noExpected, ...noClosed } : {}),
   }
   return value === PINNED
     ? { ...dropped, pinned: true, state: undefined }
@@ -60,21 +63,11 @@ function tabPatch(value: string): Partial<OpportunityBookQuery> {
       }
 }
 
-/** The toolbar's left end: state tabs and the row count. Tab counts honour
- *  every other filter in force; the pinned tab counts the person's own pins. */
-export function BookTabs({
-  query,
-  total,
-  hidden,
-  onPatch,
-}: {
-  query: OpportunityBookQuery
-  total: number
-  hidden: number
-  onPatch: Patch
-}) {
-  /* The tabs count the book, not the pins nor a stop narrowing — as the lead book's do. */
-  const { data: facets } = useQuery(
+/** Tab counts honour every other filter in force; the pinned tab counts the
+ *  person's own pins. The tabs count the book, not the pins nor a stop
+ *  narrowing — as the lead book's do. */
+function useBookFacets(query: OpportunityBookQuery) {
+  return useQuery(
     opportunityFacetQuery(
       facetsQueryOf({
         ...query,
@@ -83,10 +76,13 @@ export function BookTabs({
         stoppedStage: undefined,
       }),
     ),
-  )
+  ).data
+}
+
+/** The toolbar's left end: the state tabs, and the stop reason on the stopped tab. */
+export function BookTabs({ query, onPatch }: { query: OpportunityBookQuery; onPatch: Patch }) {
+  const facets = useBookFacets(query)
   const pinCount = usePins('opportunity').codes.length
-  /* `/sales/holds` is a `lead.view` screen; a deal-only reader gets no dead link. */
-  const canSeeHolds = useCan('lead.view')
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3">
       <SegmentedControl
@@ -101,6 +97,25 @@ export function BookTabs({
         onChange={(value) => onPatch(tabPatch(value))}
       />
       <StopReasonFilter query={query} patch={onPatch} />
+    </div>
+  )
+}
+
+/** The row count after the tabs, then the way to the deals on hold. */
+export function BookCounts({
+  query,
+  total,
+  hidden,
+}: {
+  query: OpportunityBookQuery
+  total: number
+  hidden: number
+}) {
+  const facets = useBookFacets(query)
+  /* `/sales/holds` is a `lead.view` screen; a deal-only reader gets no dead link. */
+  const canSeeHolds = useCan('lead.view')
+  return (
+    <>
       <BookCount total={total} noun="cơ hội" hidden={hidden} />
       {/* Held deals are off the book and the board; the hold list is where they wait. */}
       {canSeeHolds && (facets?.held ?? 0) > 0 && (
@@ -111,36 +126,6 @@ export function BookTabs({
           <span className="tnum">{facets?.held}</span> cơ hội đang tạm hoãn
           <Icon icon={ArrowRight} size={16} />
         </Link>
-      )}
-    </div>
-  )
-}
-
-/** The toolbar's right end: search, and "clear all" once anything filters. */
-export function BookTools({
-  text,
-  onText,
-  dirty,
-  onClear,
-}: {
-  text: string
-  onText: (text: string) => void
-  dirty: boolean
-  onClear: () => void
-}) {
-  return (
-    <>
-      <SearchField
-        placeholder="Tìm theo tên, mã cơ hội hoặc khách hàng…"
-        value={text}
-        meta={searchHint(text)}
-        onChange={onText}
-        className="min-w-0 flex-1 sm:max-w-[320px]"
-      />
-      {dirty && (
-        <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={onClear}>
-          Bỏ hết bộ lọc
-        </Button>
       )}
     </>
   )
@@ -153,6 +138,8 @@ export function BookTools({
 export function ScoreCards() {
   const { data } = useQuery(opportunityScorecardQuery)
 
+  /* Until the read lands, or when it failed, no figure is true: "—", no tone. */
+  const loaded = data !== undefined
   const total = data?.total ?? 0
   const openCount = data?.open ?? 0
   const openAmount = data?.openAmountVnd ?? 0
@@ -162,24 +149,27 @@ export function ScoreCards() {
   const terminated = data?.terminated ?? 0
 
   /* No denominator, no ratio: "—", never "0%". */
-  const per = (n: number) => (total === 0 ? '—' : percent(n / total))
+  const per = (n: number) => (!loaded || total === 0 ? '—' : percent(n / total))
+  const warn = (bad: boolean) => (loaded && bad ? ('warning' as const) : ('default' as const))
+  const noTotal = loaded && total === 0 ? 'Chưa có cơ hội để tính tỷ lệ' : undefined
 
   const items = [
     {
       icon: Target,
       label: 'Tổng cơ hội',
-      value: String(total),
-      tone: total === 0 ? ('warning' as const) : ('default' as const),
-      hint: 'Gồm đang theo đuổi, đã ký, đã dừng và đã chấm dứt',
+      value: loaded ? String(total) : '—',
+      tone: warn(total === 0),
+      hint: loaded ? 'Cơ hội ở mọi trạng thái' : undefined,
     },
     {
       icon: Wallet,
       label: 'Giá trị đang theo đuổi',
-      value: billions(openAmount),
-      tone: openAmount === 0 ? ('warning' as const) : ('default' as const),
+      value: loaded ? billions(openAmount) : '—',
+      tone: warn(openAmount === 0),
       /* The server sums in dong and skips unpriced deals — then says how many. */
-      hint:
-        openBlank === 0
+      hint: !loaded
+        ? undefined
+        : openBlank === 0
           ? `${openCount} cơ hội đang mở`
           : `${openCount - openBlank}/${openCount} cơ hội đang mở · ${openBlank} chưa nhập giá trị`,
     },
@@ -187,24 +177,22 @@ export function ScoreCards() {
       icon: FileCheck,
       label: 'Đã ký hợp đồng',
       value: per(won),
-      tone: total > 0 && won === 0 ? ('warning' as const) : ('default' as const),
+      tone: warn(total > 0 && won === 0),
       /* Terminated deals have no card of their own (the row holds four); they
          ride here because each one was signed first (ADR 0107). */
-      hint:
-        total === 0
-          ? 'Chưa có cơ hội để tính tỷ lệ'
-          : terminated === 0
+      hint: !loaded
+        ? undefined
+        : (noTotal ??
+          (terminated === 0
             ? `${won}/${total} cơ hội đã ký hợp đồng`
-            : `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`,
+            : `${won}/${total} cơ hội đã ký hợp đồng · ${terminated} đã chấm dứt`)),
     },
     {
       icon: CircleX,
       label: OPPORTUNITY_STATE_LABEL.lost,
       value: per(lost),
-      hint:
-        total === 0
-          ? 'Chưa có cơ hội để tính tỷ lệ'
-          : `${lost}/${total} cơ hội không tiếp tục theo đuổi`,
+      tone: 'default' as const,
+      hint: !loaded ? undefined : (noTotal ?? `${lost}/${total} cơ hội không tiếp tục theo đuổi`),
     },
   ]
 

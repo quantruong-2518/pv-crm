@@ -199,10 +199,15 @@ export const WorkstreamBookQuery = PageQuery.extend({
   status: WorkstreamStatus.default('open'),
   accountCode: ObjectCode.optional(),
   q: searchText,
-  /** The board's "this column only" filter — each column is one call to the
-   *  same book door, so a column pages and sorts like any other view instead
-   *  of needing a door of its own. */
-  standKind: WorkstreamStandKind.optional(),
+  /** `WorkstreamStandKind` codes joined by commas; a run standing on ANY of
+   *  them matches. One code is also the board's "this column only" filter —
+   *  each column is one call to the same book door, so a column pages and
+   *  sorts like any other view. `standKey` only means something beside ONE code. */
+  standKind: z
+    .string()
+    .max(20)
+    .refine((v) => v.split(',').every((s) => WorkstreamStandKind.safeParse(s).success))
+    .optional(),
   standKey: z.string().min(1).max(40).optional(),
   /** The dropped step's filter — it groups by WHY a run closed, not by the
    *  rung it stands on. Only meaningful with `status` `closed` or `all`: an
@@ -226,11 +231,26 @@ export const WorkstreamBookQuery = PageQuery.extend({
    *  scorecard's opened-in-period set; pair with `status` `all`. */
   openedFrom: Day.optional(),
   openedTo: Day.optional(),
+  /** Actor ids joined by commas; a run whose `inCharge.people` holds ANY of them
+   *  matches. The SAME derived set the row shows (lead PIC, deal seller or
+   *  contract closers), not a stored column. `OWNER_NONE` = `inCharge` empty. */
+  owner: z.string().min(1).max(512).optional(),
   sort: WorkstreamSortKey.default('priority'),
   dir: SortDir.default('desc'),
 })
 
 export const WorkstreamBookResponse = paged(WorkstreamRow)
+
+/** The board asks the book's question minus paging, sorting and the filters a
+ *  board cannot show. Cut from the book's schema, so the web reads its keys
+ *  from `.shape` and a key added here reaches the header counts and the cards. */
+export const WorkstreamBoardQuery = WorkstreamBookQuery.pick({
+  status: true,
+  accountCode: true,
+  owner: true,
+  q: true,
+})
+export type WorkstreamBoardQuery = z.infer<typeof WorkstreamBoardQuery>
 
 /** One board column, tagged by WHICH question fetched it, because the first
  *  three steps group by the rung a live run stands on and the dropped step

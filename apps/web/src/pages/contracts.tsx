@@ -3,17 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   AppShell,
-  Button,
-  ColumnFilter,
-  ColumnFilterList,
-  ColumnFilterRange,
+  Coins,
   FileCheck,
-  Icon,
-  Lock,
+  ListChecks,
   ScreenLayout,
-  SearchField,
   SegmentedControl,
   StatCard,
+  TriangleAlert,
   billions,
   vnd,
   millions,
@@ -21,123 +17,50 @@ import {
 import {
   ContractBookQuery,
   OPPORTUNITY_STATE_LABEL,
-  OWNER_NONE,
   type ContractStatusFilter,
 } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
-import { searchHint } from '@/lib/search-box'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { useAppChrome } from '@/app/chrome'
-import { useSalesPeople } from '@/data/directory'
-import { dm } from '@/lib/date'
 import {
+  COLLECTED_LABEL,
+  COLLECTING_LABEL,
+  CONTRACT_FILTER_KEYS,
   bookRowsOf,
   contractBookQuery,
   contractDetailQuery,
   contractSummaryQuery,
-  daysPhrase,
-  type ContractBookRow,
-  type InstallmentView,
+  OVERDUE_LABEL,
 } from '@/data/contracts'
-import { BookCount, BookPage } from '@/components/book-page'
-import { dayRangeChip } from '@/components/active-filters'
-import { AvatarCell, TableFooter } from '@/components/table-bits'
-import { MoneySplit, TerminatedBadge } from '@/components/contract-bits'
-import { MoneyCell } from '@/components/money-cell'
+import { useContractKindLabel } from '@/data/sales-config'
+import { BookCount, BookPage, BookSearch } from '@/components/book-page'
+import { BOOK_PAGE_SIZE } from '@/components/book-columns'
+import { TableFooter } from '@/components/table-bits'
 import { useRowIntent } from '@/components/row-intent'
+import { contractCells, contractColumns } from './contracts-columns'
+import { useContractFilters } from './contracts-filters'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
  *  installment. This screen answers one question and refuses the others: which
  *  of my contracts wants something from me today. Drawn on `BookPage`, like
  *  every other book. */
 
-/** Rows per page — the screen decides, the server pages. */
-const PAGE_SIZE = 10
-
 const STATUS_TABS: { value: ContractStatusFilter; label: string }[] = [
   { value: 'all', label: 'Tất cả' },
-  { value: 'open', label: 'Đang thu' },
-  { value: 'overdue', label: 'Quá hạn' },
-  { value: 'collected', label: 'Đã thu đủ' },
+  { value: 'open', label: COLLECTING_LABEL },
+  { value: 'overdue', label: OVERDUE_LABEL },
+  { value: 'collected', label: COLLECTED_LABEL },
   { value: 'terminated', label: OPPORTUNITY_STATE_LABEL.terminated },
 ]
 
-function NextCell({ next, ended }: { next: InstallmentView | null; ended: boolean }) {
-  if (ended) {
-    return (
-      <span className="flex justify-end">
-        <TerminatedBadge />
-      </span>
-    )
-  }
-  if (!next) {
-    return <span className="text-success block text-right text-[11.5px]">Đã thu đủ</span>
-  }
-  return (
-    <span className="flex min-w-0 flex-col items-end gap-1">
-      <MoneyCell amount={next.installment.amount} missing="Đợt chưa nhập số tiền" />
-      <span className="text-muted-foreground tnum font-num truncate text-[11.5px]">
-        đợt {next.installment.no} · {dm(next.installment.due)} · {daysPhrase(next.daysLeft)}
-      </span>
-    </span>
-  )
-}
-
-function rowCells(row: ContractBookRow) {
-  const amount = row.contract.amount ?? 0
-  /* At risk = the next installment when it wants attention today. It used to be
-     "the next installment has a blocker", which a book row can no longer
-     answer: `GET /sales/contracts` ships the lean installment, checklist left
-     out. The level is derived from the due date, which the row does carry. */
-  const atRisk = row.urgent ? (row.next?.installment.amount ?? 0) : 0
-  /* Terminated: nothing is owed, so the money reads muted and the bar shows no gap to collect. */
-  const ended = row.contract.termination !== null
-
-  return [
-    <span key="code" className="text-accent-foreground font-mono text-[11.5px]">
-      {row.contract.code}
-    </span>,
-    <span key="customer" className="block truncate text-[12.5px]">
-      {row.contract.customer}
-    </span>,
-    <span key="signed" className="tnum font-num text-[11.5px]">
-      {dm(row.contract.signedAt)}
-    </span>,
-    <AvatarCell key="owner" name={row.contract.ownerName} empty="Chưa có người chốt" />,
-    <MoneyCell
-      key="value"
-      amount={row.contract.amount}
-      muted={ended}
-      missing="Hợp đồng chưa nhập giá trị"
-    />,
-    <span key="collected" className="flex min-w-0 flex-col gap-1">
-      {!ended && (
-        <MoneySplit
-          collected={row.collected}
-          atRisk={atRisk}
-          ahead={row.remaining - atRisk}
-          className="h-1.5"
-        />
-      )}
-      <span className="flex min-w-0 items-baseline justify-end gap-2">
-        {!ended && (
-          <span className="text-muted-foreground tnum font-num shrink-0 text-[11.5px]">
-            {amount === 0 ? '—' : `${Math.round((row.collected / amount) * 100)}%`}
-          </span>
-        )}
-        <MoneyCell amount={row.collected} muted={ended || row.collected === 0} />
-      </span>
-    </span>,
-    <NextCell key="next" next={row.next} ended={ended} />,
-  ]
-}
+/** Only what the server's search reads: the contract code and the customer's company. */
+const SEARCH_HINT = 'Tìm theo mã hợp đồng hoặc tên khách hàng…'
 
 /** Numbers of the WHOLE book, counted in SQL.
  *
  *  The summary door drops the scope axis on purpose, so these three do not
- *  shrink to what the reader owns — which is exactly why the line above says so.
- *  Someone who only sees their own contracts reads a signed count here larger
- *  than the table below, and they only know that if something tells them. */
+ *  shrink to what the reader owns: someone who only sees their own contracts
+ *  reads a signed count here larger than the table below. */
 function ContractScore() {
   const { data } = useQuery(contractSummaryQuery)
 
@@ -152,131 +75,74 @@ function ContractScore() {
   const lateTheirs = data?.lateConditionsTheirs ?? 0
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
-        Số liệu của toàn bộ hợp đồng, gồm cả hợp đồng ngoài phạm vi của bạn.
-      </p>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          size="compact"
-          icon={FileCheck}
-          label="Tổng giá trị hợp đồng"
-          value={billions(signed)}
-          /* Contracts carrying no amount are reported beside the sum rather than
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <StatCard
+        size="compact"
+        icon={FileCheck}
+        label="Tổng giá trị hợp đồng"
+        value={billions(signed)}
+        /* Contracts carrying no amount are reported beside the sum rather than
              counted as zero: a total that quietly swallows them reads smaller
              than the truth with nothing on screen saying why. */
-          source={
-            blank === 0
-              ? `${signedCount} hợp đồng · ${vnd(signed)}`
-              : `${signedCount} hợp đồng · ${blank} chưa nhập giá trị`
-          }
-        />
-        <StatCard
-          size="compact"
-          label="Đã thu tiền"
-          value={millions(collected, 0)}
-          /* Denominator is the SCHEDULE, not the signed value: collected money
+        source={
+          blank === 0
+            ? `${signedCount} hợp đồng · ${vnd(signed)}`
+            : `${signedCount} hợp đồng · ${blank} chưa nhập giá trị`
+        }
+      />
+      <StatCard
+        size="compact"
+        icon={Coins}
+        label="Đã thu tiền"
+        value={millions(collected, 0)}
+        /* Denominator is the SCHEDULE, not the signed value: collected money
              is summed from installments, so that is the only apples-to-apples
              ratio. */
-          source={
-            scheduled === 0
-              ? 'Chưa có đợt thanh toán nào'
-              : `${Math.round((collected / scheduled) * 100)}% tổng tiền theo lịch thu`
-          }
-        />
-        <StatCard
-          size="compact"
-          label="Tiền quá hạn"
-          value={millions(overdue, 0)}
-          source={
-            overdueCount > 0
-              ? `${overdueCount} đợt thanh toán cần xử lý`
-              : 'Không có khoản thu quá hạn'
-          }
-          delta={
-            overdueCount > 0 ? { direction: 'down', text: 'đang trễ', tone: 'danger' } : undefined
-          }
-        />
-        <StatCard
-          size="compact"
-          label="Điều kiện quá hạn"
-          value={String(lateOurs + lateTheirs)}
-          /* Counts CONDITIONS, not contracts — two late conditions on one
+        source={
+          scheduled === 0
+            ? 'Chưa có đợt thanh toán nào'
+            : `${Math.round((collected / scheduled) * 100)}% tổng tiền theo lịch thu`
+        }
+      />
+      <StatCard
+        size="compact"
+        icon={TriangleAlert}
+        tone={overdueCount > 0 ? 'danger' : 'default'}
+        label="Tiền quá hạn"
+        value={millions(overdue, 0)}
+        source={
+          overdueCount > 0
+            ? `${overdueCount} đợt thanh toán cần xử lý`
+            : 'Không có khoản thu quá hạn'
+        }
+      />
+      <StatCard
+        size="compact"
+        icon={ListChecks}
+        label="Điều kiện quá hạn"
+        value={String(lateOurs + lateTheirs)}
+        /* Counts CONDITIONS, not contracts — two late conditions on one
              contract are two phone calls. Kept split by side because one side
              is a call to the customer and the other is a call down the hall. */
-          source={
-            lateOurs + lateTheirs === 0
-              ? 'Không có điều kiện nào quá hạn'
-              : `${lateTheirs} từ khách hàng · ${lateOurs} từ nội bộ`
-          }
-        />
-      </div>
+        source={
+          lateOurs + lateTheirs === 0
+            ? 'Không có điều kiện nào quá hạn'
+            : `${lateTheirs} từ khách hàng · ${lateOurs} từ nội bộ`
+        }
+      />
     </div>
   )
 }
 
-type Book = ReturnType<typeof useBookQuery<ContractBookQuery>>
-
-/** The header filters and the sort handler — kept off the page body so it stays
- *  under the function-length cap. */
-function useColumnTools(book: Book) {
-  const { query } = book
-  const salesPeople = useSalesPeople()
-  const ownerOptions = [
-    { value: OWNER_NONE, label: 'Chưa có người chốt' },
-    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
-  ]
-  const ownerFilter = (
-    <ColumnFilter label="Người chốt" active={Boolean(query.owner)}>
-      {(close) => (
-        <ColumnFilterList
-          options={ownerOptions}
-          selected={query.owner ? query.owner.split(',') : []}
-          close={close}
-          onApply={(v) => book.patch({ owner: v.length ? v.join(',') : undefined })}
-        />
-      )}
-    </ColumnFilter>
-  )
-  const signedFilter = (
-    <ColumnFilter label="Ngày ký" active={Boolean(query.signedFrom || query.signedTo)}>
-      {(close) => (
-        <ColumnFilterRange
-          from={query.signedFrom}
-          to={query.signedTo}
-          close={close}
-          onApply={({ from, to }) => book.patch({ signedFrom: from, signedTo: to })}
-        />
-      )}
-    </ColumnFilter>
-  )
-
-  /* The arrow always lights: the default order (`nextDue asc`) is a column here. */
-  const onSort = (key: string) => {
-    if (key !== 'amount' && key !== 'nextDue') return
-    book.patch(
-      query.sort === key
-        ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-        : { sort: key, dir: key === 'amount' ? 'desc' : 'asc' },
-    )
-  }
-
-  const chips = dayRangeChip('signed', 'Ngày ký', query.signedFrom, query.signedTo, () =>
-    book.patch({ signedFrom: undefined, signedTo: undefined }),
-  )
-
-  return { ownerFilter, signedFilter, onSort, chips }
-}
-
 export function ContractsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm hợp đồng, khách hàng, số hoá đơn…' })
+  const chrome = useAppChrome({ searchPlaceholder: SEARCH_HINT })
   const navigate = useNavigate()
+  const resolveKind = useContractKindLabel()
 
   /* The address is the filter state (Back, F5 and shared links keep it). */
   const book = useBookQuery(ContractBookQuery, {
-    size: PAGE_SIZE,
-    filterKeys: ['status', 'owner', 'signedFrom', 'signedTo'],
+    size: BOOK_PAGE_SIZE,
+    filterKeys: CONTRACT_FILTER_KEYS,
   })
   const { query } = book
 
@@ -286,9 +152,7 @@ export function ContractsPage() {
   const { pageIndex } = useBookPageClamp(book, data?.total)
 
   const rows = useMemo(() => (data ? bookRowsOf(data) : []), [data])
-  const hidden = data?.hidden ?? 0
-
-  const { ownerFilter, signedFilter, onSort, chips } = useColumnTools(book)
+  const { filters, chips, onSort, onStatus } = useContractFilters(book)
 
   /* One `size=1` read per tab: `total` is the count under the OTHER filters in
      force, and no other endpoint answers that. */
@@ -302,7 +166,7 @@ export function ContractsPage() {
   const intent = useRowIntent(contractDetailQuery, () => import('@/pages/contract-detail'))
   const tableRows = rows.map((row) => ({
     id: row.contract.code,
-    cells: rowCells(row),
+    cells: contractCells(row, resolveKind),
     onOpen: () => navigate(`/sales/contracts/${row.contract.code}`),
     ...intent(row.contract.code),
   }))
@@ -320,32 +184,13 @@ export function ContractsPage() {
               tone="quiet"
               value={query.status}
               options={tabs}
-              onChange={(status) => book.patch({ status: status as ContractStatusFilter })}
+              onChange={(status) => onStatus(status as ContractStatusFilter)}
             />
           }
-          count={data && <BookCount total={data.total} noun="hợp đồng" />}
+          count={data && <BookCount total={data.total} noun="hợp đồng" hidden={data.hidden} />}
           filters={chips}
-          tools={
-            <>
-              <SearchField
-                placeholder="Tìm theo mã hợp đồng hoặc tên khách hàng…"
-                value={book.text}
-                meta={searchHint(book.text)}
-                onChange={book.setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
-              />
-              {book.dirty && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  className="pointer-coarse:h-12"
-                  onClick={book.clear}
-                >
-                  Bỏ hết bộ lọc
-                </Button>
-              )}
-            </>
-          }
+          tools={<BookSearch value={book.text} onChange={book.setText} placeholder={SEARCH_HINT} />}
+          onClearFilters={book.dirty ? book.clear : undefined}
           pending={isPending}
           failure={
             error
@@ -365,8 +210,7 @@ export function ContractsPage() {
                     action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
                   }
                 : {
-                    message:
-                      'Chưa có hợp đồng nào bạn xem được. Hợp đồng tự tạo khi cơ hội ký thành công.',
+                    message: 'Chưa có hợp đồng nào.',
                     action: {
                       label: 'Xem sổ cơ hội',
                       onClick: () => navigate('/sales/opportunities'),
@@ -375,49 +219,21 @@ export function ContractsPage() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[1080px]',
             sort: { key: query.sort, dir: query.dir },
             onSort,
-            columns: [
-              { header: 'Mã', width: '104px' },
-              { header: 'Khách hàng', width: 'minmax(0, 1fr)' },
-              { header: signedFilter, width: '104px' },
-              { header: ownerFilter, width: '140px', align: 'center' },
-              {
-                header: 'Giá trị hợp đồng (₫)',
-                width: '176px',
-                align: 'right',
-                sortKey: 'amount',
-              },
-              { header: 'Tiến độ thu (₫)', width: '184px', align: 'right' },
-              {
-                header: 'Đợt thu tiếp theo (₫)',
-                width: '184px',
-                align: 'right',
-                sortKey: 'nextDue',
-              },
-            ],
+            columns: contractColumns(filters),
             rows: tableRows,
+            pageSize: BOOK_PAGE_SIZE,
           }}
           footer={
             <TableFooter
               page={pageIndex}
-              pageSize={PAGE_SIZE}
+              pageSize={BOOK_PAGE_SIZE}
               total={data?.total ?? 0}
               onPage={book.goPage}
             />
           }
         />
-
-        {/* `hidden` is the server's receipt for the scope cut, so the screen can
-            name the axis that stopped them: a wider role will not open this row,
-            only a change of owner will. */}
-        {hidden > 0 && (
-          <div className="text-muted-foreground flex items-center gap-3 text-[11.5px]">
-            <Icon icon={Lock} size={16} />
-            <span>{hidden} hợp đồng không hiện vì nằm ngoài phạm vi của bạn.</span>
-          </div>
-        )}
       </ScreenLayout>
     </AppShell>
   )

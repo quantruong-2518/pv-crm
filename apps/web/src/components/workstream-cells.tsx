@@ -1,8 +1,9 @@
-import { Avatar, AvatarGroup, Badge, cn, type BadgeProps } from '@pv/ui'
-import { vnDayOf, type WorkstreamRow, type WorkstreamStandKind } from '@pv/contracts'
+import { Badge, cn } from '@pv/ui'
+import { vnDayOf, type WorkstreamRow } from '@pv/contracts'
 import { dmy } from '@/lib/date'
 import { chainPath } from '@/data/opportunities'
-import { IN_CHARGE_SEAT_WORD, footprintTotal } from '@/data/workstreams'
+import { NO_PIC, STAND_TONE, footprintTotal, inChargePics } from '@/data/workstreams'
+import { PicCell } from './book-cells'
 import { DueBadge } from './contract-bits'
 import { CloseBadge, ObjectChip, OverdueNote } from './workstream-bits'
 
@@ -30,7 +31,9 @@ export function CustomerCell({ row, go }: { row: WorkstreamRow; go: Go }) {
   return (
     <button
       type="button"
-      className="min-w-0 truncate text-left font-semibold hover:underline"
+      /* The hit area grows downward only: upward it would cover the cell's
+         edge, and `truncate` on the button itself would clip the pseudo-box. */
+      className="pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:top-0 pointer-coarse:after:-bottom-4 pointer-coarse:after:content-[''] relative min-w-0 max-w-full text-left font-semibold hover:underline"
       title={row.customer}
       onClick={(event) => {
         event.stopPropagation()
@@ -39,17 +42,9 @@ export function CustomerCell({ row, go }: { row: WorkstreamRow; go: Go }) {
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      {row.customer}
+      <span className="block truncate">{row.customer}</span>
     </button>
   )
-}
-
-/* One hue per object kind, the pill shapes the opportunity book's stage cell
-   already uses (law 16). The chip beside it stays a muted code. */
-const STAND_TONE: Record<WorkstreamStandKind, { tone: BadgeProps['tone']; className?: string }> = {
-  LD: { tone: 'draft', className: 'text-foreground' },
-  OP: { tone: 'running' },
-  HĐ: { tone: 'success' },
 }
 
 export function StandCell({ row, go }: { row: WorkstreamRow; go: Go }) {
@@ -116,38 +111,16 @@ export function NextStepCell({ row }: { row: WorkstreamRow }) {
   return <span className="text-muted-foreground truncate">Chưa có việc tiếp theo</span>
 }
 
-/** The people who answer for the object the run stands on. `inCharge` absent
- *  is an API one deploy behind and prints a dash; `null` or nobody is a run
- *  no one has taken yet. */
-export function InChargeCell({ row }: { row: WorkstreamRow }) {
-  const { inCharge } = row
-  if (inCharge === undefined) return <span className="text-muted-foreground">—</span>
-  const people = inCharge?.people ?? []
-  const [only] = people
-  if (inCharge === null || only === undefined) {
-    return <span className="text-muted-foreground truncate">Chưa ai nhận</span>
-  }
-  if (people.length === 1) {
-    return (
-      <span className="flex min-w-0 items-center gap-2" title={only.name}>
-        <Avatar name={only.name} size="sm" />
-        <span className="flex min-w-0 flex-col">
-          <span className="truncate">{only.name}</span>
-          <span className="text-muted-foreground text-[11.5px]">
-            {IN_CHARGE_SEAT_WORD[inCharge.seat]}
-          </span>
-        </span>
-      </span>
-    )
-  }
-  const names = people.map((p) => p.name)
+/** Who answers for the object the run stands on — the table's column and the
+ *  board's card print them alike. With nobody, the table keeps a dash; a card
+ *  passes `spoken`, because a dash's tooltip never opens under a finger. */
+export function InChargeCell({ row, spoken = false }: { row: WorkstreamRow; spoken?: boolean }) {
   return (
-    <span className="flex min-w-0 items-center gap-2" title={names.join(' · ')}>
-      <AvatarGroup names={names} max={3} />
-      <span className="text-muted-foreground truncate text-[12px]">
-        {people.length} {inCharge.seat === 'contract' ? 'người chốt' : 'người'}
-      </span>
-    </span>
+    <PicCell
+      people={inChargePics(row)}
+      empty={NO_PIC}
+      action={spoken ? <span className="text-muted-foreground truncate">{NO_PIC}</span> : undefined}
+    />
   )
 }
 

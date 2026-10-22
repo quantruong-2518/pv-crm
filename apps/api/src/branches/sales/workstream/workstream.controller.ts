@@ -1,6 +1,11 @@
 import { Controller, Get, Param, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { ObjectCode, WorkstreamBookQuery, WorkstreamScorecardQuery } from '@pv/contracts'
+import {
+  ObjectCode,
+  WorkstreamBoardQuery,
+  WorkstreamBookQuery,
+  WorkstreamScorecardQuery,
+} from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { invalid } from '@api/platform/http/problem'
 import { zod } from '@api/platform/http/zod.pipe'
@@ -25,16 +30,6 @@ import { WorkstreamService } from './workstream.service'
  *  lead they hold, whose deals they stand on, or whose contracts they closed
  *  (ADR 0110 §3). The book thins out and reports `hidden`; the board and the
  *  scorecard count the same thinned book; the profile refuses. */
-/** The board asks the book's question MINUS paging and sorting, and it is cut
- *  out of the book's own schema rather than written again: a filter the two
- *  doors spell differently is a header counting a book the cards below it are
- *  no longer showing. */
-const WorkstreamBoardQuery = WorkstreamBookQuery.pick({
-  status: true,
-  accountCode: true,
-  q: true,
-})
-type WorkstreamBoardQuery = Pick<WorkstreamBookQuery, 'status' | 'accountCode' | 'q'>
 
 @Controller('sales/workstreams')
 export class WorkstreamController {

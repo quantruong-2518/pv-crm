@@ -117,73 +117,17 @@ export function TableFooter({
   )
 }
 
-/** Cột người bên MÌNH — TÊN trên bảng, hòm thư ở `title`.
- *
- *  Bản trước in ngược lại: hòm thư trên bảng, tên ở tooltip. Lý do khi đó —
- *  tên trùng được, hòm thư thì không — vẫn đúng, nhưng nó là lý do để KHOÁ
- *  theo hòm thư chứ không phải để IN nó. Người quét cột này đang hỏi "ai đang
- *  giữ", và `huydq@pebblevina.com` bắt mắt tự dịch lại thành "Đỗ Quang Huy" ở
- *  từng dòng một. Hai cột người của sổ lead và sổ cơ hội nay chỉ in avatar
- *  (`AvatarCell` bên dưới, tên ở tooltip); ô này giữ cho bố cục danh sách một
- *  dòng, nơi tên vẫn đứng cạnh avatar.
- *
- *  Hòm thư KHÔNG mất, nó lui về `title` — đúng chỗ của thứ chỉ cần khi đối
- *  chiếu với thư hoặc bảng hoa hồng.
- *
- *  Cả hai ĐI VÀO bằng props, không dựng lại từ tên. Bản cũ gọi `staffEmail`
- *  của fixture — một quy ước ghép chữ đúng với 100 dòng đóng băng và là một
- *  phép ĐOÁN với bảng `platform.actor` thật, nơi hòm thư là một cột người ta
- *  gõ vào. Đoán sai ở đây là một lá thư gửi tới địa chỉ không tồn tại, và
- *  không ai biết cho tới lúc nó dội về.
- *
- *  Có hòm thư mà thiếu tên thì in hòm thư, và in bằng mono để đọc ra ngay là
- *  một dạng khác. Hai trường về từ CÙNG một phép join nên ca đó gần như không
- *  xảy ra; nếu xảy ra thì "có người giữ, chưa biết tên" phải đọc khác hẳn
- *  "chưa ai nhận" — dòng "—" bên dưới. */
-export function PicCell({
-  email,
-  name,
-  empty,
-  avatar = false,
-}: {
-  email?: string
-  name?: string
-  empty: string
-  /** Initials before the name — the one-row list layout. */
-  avatar?: boolean
-}) {
-  const shown = name ?? email
-  if (!shown) {
-    return (
-      <span className="text-muted-foreground" title={empty}>
-        —
-      </span>
-    )
-  }
-  const text = (
-    <span
-      className={name ? 'block truncate' : 'block truncate font-mono text-[11px]'}
-      title={email ?? name}
-    >
-      {shown}
-    </span>
-  )
-  if (!avatar) return text
-  return (
-    <span className="flex min-w-0 items-center gap-2">
-      <Avatar name={shown} email={name ? email : undefined} size="sm" />
-      {text}
-    </span>
-  )
-}
-
 /** The icon-only action of a book row: transparent, muted, round, and 48px
  *  under a finger (law 13). A class string, not a component, because it rides
  *  on three different buttons; disabled ones fade so they read as shut. */
 export const ROW_ICON =
   'text-muted-foreground hover:bg-surface-ink/9 pointer-coarse:size-12 size-8 shrink-0 rounded-full bg-transparent px-0 shadow-none disabled:opacity-45'
 
-/** A person as a bare avatar; the name and mailbox stay in the tooltip. */
+/** Superseded by `PicCell` (`book-cells.tsx`); goes once its last book moves.
+ *
+ *  A person column prints avatar AND name — several people as an avatar group,
+ *  the primary's name and "+N". This bare avatar hid the name in a hover
+ *  tooltip, which a tablet cannot open. */
 export function AvatarCell({
   name,
   email,

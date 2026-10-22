@@ -12,7 +12,7 @@
   - `app/book-query.ts` — `useBookQuery` keeps a book's filters, search text and
     page in the URL; `useBookPageClamp` pulls the page back when the result
     shrinks. Used by every server-paged book (leads, opportunities, accounts,
-    contacts, campaigns, mail-runs, contracts). Client-side books use
+    contacts, campaigns, mail-runs, contracts, workstreams). Client-side books use
     `app/client-book-filter.ts`, the same idea without paging.
   - `app/auth/` — the whole auth flow: session state machine, ticket expiry,
     multi-tab sync, the screen gate (`RequireAccess`) and the button gate

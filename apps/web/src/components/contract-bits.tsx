@@ -2,10 +2,12 @@ import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
 import { OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, InstallmentView } from '@/data/contracts'
-import { DUE_LABEL, standingOf } from '@/data/contracts'
+import { COLLECTED_LABEL, DUE_LABEL, daysPhrase, standingOf } from '@/data/contracts'
+import { dmy } from '@/lib/date'
+import { MoneyCell } from '@/components/money-cell'
 import { BADGE_INK } from '@/data/opportunities'
 
-/** The three pieces every contract screen repeats. They live here rather than in
+/** The pieces every contract screen repeats. They live here rather than in
  *  `@pv/ui` because none of them is a general control — each one only means
  *  something next to an installment, and a library component that only fits one
  *  screen is a component that will be bent out of shape by the second. */
@@ -94,6 +96,47 @@ export function MoneySplit({
       {collected > 0 && <span className="bg-success" style={{ flex: collected }} />}
       {atRisk > 0 && <span className="bg-warning" style={{ flex: atRisk }} />}
       {ahead > 0 && <span className="bg-surface-ink/12" style={{ flex: ahead }} />}
+    </span>
+  )
+}
+
+/** The book's last column: the next unpaid installment's amount, then which
+ *  installment, its full date and the days left. Money is in the contract's
+ *  own currency. A terminated contract shows its badge, a paid-up one the phrase. */
+export function NextDueCell({
+  next,
+  ended,
+  currency,
+}: {
+  next: InstallmentView | null
+  ended: boolean
+  currency: string | null
+}) {
+  if (ended) {
+    return (
+      <span className="flex justify-end">
+        <TerminatedBadge />
+      </span>
+    )
+  }
+  if (!next) {
+    return <span className="text-success block text-right text-[11.5px]">{COLLECTED_LABEL}</span>
+  }
+  /* The days lead: a truncated caption then loses the date, never the lateness. */
+  const caption = `${daysPhrase(next.daysLeft)} · đợt ${next.installment.no} · ${dmy(next.installment.due)}`
+  return (
+    <span className="flex min-w-0 flex-col items-end gap-1">
+      <MoneyCell
+        amount={next.installment.amount}
+        currency={currency}
+        missing="Đợt chưa nhập số tiền"
+      />
+      <span
+        className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]"
+        title={caption}
+      >
+        {caption}
+      </span>
     </span>
   )
 }

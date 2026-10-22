@@ -219,7 +219,7 @@ export class WorkstreamService {
    *  Deals are cut per reader before anything is derived from them: the run is
    *  scoped by its lead, a deal by its own owners, so a colleague's deal must
    *  not surface as the row's stand, holder or waiting-on. */
-  private async rowsOf(who: Actor, reads: readonly WorkstreamRead[]): Promise<WorkstreamRow[]> {
+  private async rowsOf(who: Actor, reads: readonly WorkstreamPageRow[]): Promise<WorkstreamRow[]> {
     const codes = reads.map((r) => r.row.code)
     const [[deals, owners], contracts, footprints, ladders] = await Promise.all([
       this.dealsWithOwners(codes),

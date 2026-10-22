@@ -2,21 +2,9 @@ import { useMemo } from 'react'
 import { Contact, EyeOff, ImagePlus, Pin, Plus } from '@pv/ui'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  AppShell,
-  Button,
-  Checkbox,
-  ColumnFilter,
-  ColumnFilterList,
-  ColumnFilterRange,
-  Icon,
-  ScreenLayout,
-  SearchField,
-  SegmentedControl,
-} from '@pv/ui'
-import { LeadBookQuery, OWNER_NONE } from '@pv/contracts'
+import { AppShell, Button, Icon, ScreenLayout, SegmentedControl } from '@pv/ui'
+import { LeadBookQuery } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
-import { searchHint } from '@/lib/search-box'
 import { openMasMail } from '@/app/mas-mail-composer'
 import { useCan, useSession } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
@@ -24,31 +12,24 @@ import { leadBookQuery, leadFacetsQuery, leadSearchQuery, leadsByCodesQuery } fr
 import { leadProfileQuery } from '@/data/lead-profile'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
-import { useDirectory, useSalesPeople } from '@/data/directory'
+import { useDirectory } from '@/data/directory'
 import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
 import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
 import { usePins } from '@/data/pins'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useLeadImportBatch } from '@/components/lead-import-batch'
 import { LeadDisableAction } from '@/components/lead-disable'
-import { PinCell, PinSelectionAction } from '@/components/pin-cell'
-import { BookCount, BookPage, type BookTable } from '@/components/book-page'
+import { PinSelectionAction } from '@/components/pin-cell'
+import { BOOK_PAGE_SIZE } from '@/components/book-columns'
+import { BookCount, BookPage, BookSearch, type BookTable } from '@/components/book-page'
 import { BookQueueButton } from '@/components/book-queue-button'
 import { useBookSelection } from '@/components/book-selection'
 import { useRowIntent } from '@/components/row-intent'
-import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
-import { HoldUntilCell } from '@/components/hold-strip'
-import { CompanyCell } from '@/components/lead-cells'
-import {
-  DisabledAtCell,
-  CreatedByCell,
-  EnteredCell,
-  LeadPicCell,
-  ScoreStrip,
-  SourceCell,
-  StatusCell,
-} from './leads-parts'
-import { STATE_TABS, stateTabOf, tabCount, tabPatch, useLeadFilterChips } from './leads-model'
+import { BookSelectionBar, TableFooter } from '@/components/table-bits'
+import { ScoreStrip } from './leads-parts'
+import { leadCells, leadColumns } from './leads-columns'
+import { useLeadFilterChips, useLeadFilters } from './leads-filters'
+import { LEAD_FILTER_KEYS, STATE_TABS, stateTabOf, tabCount, tabPatch } from './leads-model'
 
 /** Module 2 · Sổ lead — a list, not a workbench: a row opens `/sales/leads/:code`.
  *
@@ -62,33 +43,6 @@ import { STATE_TABS, stateTabOf, tabCount, tabPatch, useLeadFilterChips } from '
  *
  *  No ContextRail (law 10 debt): a chain built from a hard-coded anchor would
  *  describe a lead nobody picked. It returns once it can follow the chosen row. */
-
-/** Số dòng một trang. Máy chủ cắt trang, nhưng con số vẫn do màn quyết —
- *  `size` đi kèm mọi lời gọi. */
-const PAGE_SIZE = 10
-
-/** Tiền tố đánh dấu một giá trị ô lọc Nguồn là `sourceKind` chứ không phải id
- *  chiến dịch — xem docblock `sourceFilterOptions` cho lý do một ô cần phân biệt hai
- *  loại giá trị. An toàn vì hai bảng mã không bao giờ đụng nhau: id chiến dịch
- *  luôn có tiền tố `SR-` (`ConfigCode`, sáu prefix theo danh mục), `LeadSourceKind`
- *  luôn viết hoa không dấu gạch (`MANUAL`/`IMPORT`/`APOLLO`/`LANDING_PAGE`). */
-
-/** Filter axes that count as "dirty" and that "clear all" resets — the schema's
- *  own keys; `disabled`, sort and tier/category are not among them. */
-const FILTER_KEYS = [
-  'campaign',
-  'sourceKind',
-  'motion',
-  'origin',
-  'createdBy',
-  'states',
-  'owner',
-  'createdFrom',
-  'createdTo',
-  'state',
-  'pinned',
-  'label',
-] as const
 
 /** Panel nạp tệp KHÔNG chống trùng trong trình duyệt nữa — tập rỗng là một
  *  quyết định, không phải một chỗ chưa nối.
@@ -106,8 +60,10 @@ const FILTER_KEYS = [
  *  không còn chỗ gọi nào — nó ở lại `data/intake.ts` cho tới lượt dọn. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
+const SEARCH_PLACEHOLDER = 'Tìm theo tên công ty, người liên hệ, mã lead hoặc mã số thuế…'
+
 export function LeadsPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const chrome = useAppChrome({ searchPlaceholder: SEARCH_PLACEHOLDER })
   const navigate = useNavigate()
   /* Hides rather than greys out — same call the create route's own gate makes
      (`routes.tsx`, `permission: 'lead.edit'`), so the button and the fence
@@ -117,8 +73,8 @@ export function LeadsPage() {
   const meId = useSession((s) => s.actor?.id)
 
   /* The address is the source of truth; the hook owns patch, the debounced
-     search box, the page reset and "clear all". `size` is PAGE_SIZE, kept off it. */
-  const book = useBookQuery(LeadBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+     search box, the page reset and "clear all". `size` is the page size, kept off it. */
+  const book = useBookQuery(LeadBookQuery, { size: BOOK_PAGE_SIZE, filterKeys: LEAD_FILTER_KEYS })
   const { urlQuery, text, setText, patch, dirty, clear: clearFilters } = book
   /* A hand-typed `?disabled=true` without the permission is dropped here, as
      the server drops it: the reader gets the ordinary book. */
@@ -163,7 +119,7 @@ export function LeadsPage() {
 
   /* One read answers every tab — `byState` under the current search and source
      filter; `open` and `all` are sums the screen takes — and feeds the
-     no-campaign half of the source select (`sourceKinds`). See `LeadFacets`. */
+     origin filter's choices. See `LeadFacets`. */
   /* Asked WITHOUT `disabled`, so the state tabs keep counting the live book
      while the switched-off view is on — and `LeadFacetsQuery.parse` takes the
      wire's 'true'/'false', not the boolean the URL parse already produced. */
@@ -184,46 +140,9 @@ export function LeadsPage() {
     )
   }
 
-  /* Options come from the facets, so a filter never offers a value no lead
-     carries. The column filters send several values as one comma list. */
-  const salesPeople = useSalesPeople()
-  const ownerOptions = [
-    { value: OWNER_NONE, label: 'Chưa có người phụ trách' },
-    ...salesPeople.map((a) => ({ value: a.id, label: a.name })),
-  ]
-  const originOptions = (counts?.origins ?? []).map((o) => ({ value: o.id, label: o.name }))
-  const csvOf = (v?: string) => (v ? v.split(',') : [])
-  const listFilter = (
-    label: string,
-    key: 'owner' | 'origin',
-    options: { value: string; label: string }[],
-  ) => (
-    <ColumnFilter label={label} active={Boolean(query[key])}>
-      {(close) => (
-        <ColumnFilterList
-          options={options}
-          selected={csvOf(query[key])}
-          close={close}
-          onApply={(v) => patch({ [key]: v.length ? v.join(',') : undefined })}
-        />
-      )}
-    </ColumnFilter>
-  )
-  const dateFilter = (
-    <ColumnFilter iconOnly label="Ngày tạo" active={Boolean(query.createdFrom || query.createdTo)}>
-      {(close) => (
-        <ColumnFilterRange
-          from={query.createdFrom}
-          to={query.createdTo}
-          close={close}
-          onApply={({ from, to }) => patch({ createdFrom: from, createdTo: to })}
-        />
-      )}
-    </ColumnFilter>
-  )
-
+  const filters = useLeadFilters(query, patch, counts, tabValue)
   const canEmail = useCan('lead.send-email')
-  const filterChips = useLeadFilterChips(query, patch)
+  const filterChips = useLeadFilterChips(query, patch, counts, rows)
 
   /* Shared by every bulk-action book: selection outlives paging and keeps the
      mouse/pen paint gesture identical between the lead and opportunity books. */
@@ -309,8 +228,9 @@ export function LeadsPage() {
 
   const onPage = book.goPage
 
+  const view = { heldView, disabledView }
   const table: BookTable = {
-    minWidth: 'min-w-[960px]',
+    pageSize: BOOK_PAGE_SIZE,
     /* The default order (`createdAt desc`) lights the entry-date arrow. */
     sort: query.sort === 'daysHere' ? undefined : { key: query.sort, dir: query.dir },
     onSort: (key) => {
@@ -323,86 +243,30 @@ export function LeadsPage() {
           : { sort: key, dir: key === 'company' ? 'asc' : 'desc' },
       )
     },
-    columns: [
-      {
-        header: (
-          <Checkbox
-            checked={allPageSelected}
-            indeterminate={pageSelected > 0 && !allPageSelected}
-            onChange={selectPage}
-            label={<span className="sr-only">Chọn cả trang</span>}
-            className="w-full justify-center gap-0 p-0"
-          />
-        ),
-        width: '48px',
-      },
-      { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)', sortKey: 'company' },
-      { header: listFilter('Nguồn lead', 'origin', originOptions), width: 'minmax(0,1.3fr)' },
-      { header: 'Trạng thái', width: 'minmax(0,1.2fr)' },
-      heldView
-        ? { header: 'Ngày hẹn gặp lại', width: 'minmax(0,1fr)' }
-        : {
-            header: 'Ngày tạo',
-            sortKey: 'createdAt',
-            filter: dateFilter,
-            width: 'minmax(0,0.9fr)',
-          },
-      /* A switched-off lead takes no hand-over and no pin: the two action
-         columns give way to the one fact that tab adds. */
-      ...(disabledView
-        ? [{ header: 'Ngày vô hiệu hóa', width: 'minmax(0,1.1fr)' }]
-        : [
-            { header: 'Người tạo', width: '140px', align: 'center' as const },
-            {
-              header: listFilter('Người phụ trách', 'owner', ownerOptions),
-              width: '140px',
-              align: 'center' as const,
-            },
-            { header: <span className="sr-only">Ghim</span>, width: '48px' },
-          ]),
-    ],
+    columns: leadColumns(view, filters, {
+      checked: allPageSelected,
+      indeterminate: pageSelected > 0 && !allPageSelected,
+      onChange: selectPage,
+    }),
     rows: rows.map((l) => ({
       id: l.code,
       state: selectedCodes.has(l.code) ? ('selected' as const) : undefined,
       onOpen: () => open(l.code),
       ...intent(l.code, (event) => paintSelection(l.code, event)),
-      cells: [
-        <SelectionCell
-          key="select"
-          checked={selectedCodes.has(l.code)}
-          label={l.company}
-          onPress={(event) => beginDrag(l.code, event)}
-          onChange={(on) => changeSelection(l.code, on)}
-        />,
-        <CompanyCell
-          key="c"
-          lead={l}
-          onEmail={
-            canEmail && !disabledView
-              ? () =>
-                  openMasMail({
-                    recipients: [l],
-                    searchRecipients: searchLeads,
-                    initialCode: l.code,
-                  })
-              : undefined
-          }
-        />,
-        <SourceCell key="s" lead={l} />,
-        <StatusCell key="w" lead={l} />,
-        heldView ? (
-          <span key="d">{l.hold && <HoldUntilCell hold={l.hold} />}</span>
-        ) : (
-          <EnteredCell key="d" lead={l} />
-        ),
-        ...(disabledView
-          ? [<DisabledAtCell key="x" lead={l} />]
-          : [
-              <CreatedByCell key="b" lead={l} />,
-              <LeadPicCell key="o" lead={l} />,
-              <PinCell key="p" subject="lead" code={l.code} label={l.company} />,
-            ]),
-      ],
+      cells: leadCells(l, view, {
+        selected: selectedCodes.has(l.code),
+        onPress: (event) => beginDrag(l.code, event),
+        onSelect: (on) => changeSelection(l.code, on),
+        onEmail:
+          canEmail && !disabledView
+            ? () =>
+                openMasMail({
+                  recipients: [l],
+                  searchRecipients: searchLeads,
+                  initialCode: l.code,
+                })
+            : undefined,
+      }),
     })),
   }
 
@@ -504,15 +368,10 @@ export function LeadsPage() {
           }
           count={<BookCount total={total} noun="lead" hidden={bookPage?.hidden} />}
           filters={filterChips}
+          onClearFilters={dirty ? clearFilters : undefined}
           tools={
             <>
-              <SearchField
-                placeholder="Tìm theo tên công ty, người liên hệ hoặc mã lead…"
-                value={text}
-                meta={searchHint(text)}
-                onChange={setText}
-                className="min-w-0 flex-1 sm:max-w-[320px]"
-              />
+              <BookSearch value={text} onChange={setText} placeholder={SEARCH_PLACEHOLDER} />
               {meId && (
                 <BookQueueButton
                   icon={Contact}
@@ -538,16 +397,6 @@ export function LeadsPage() {
                   onPress={onDisabledView}
                 />
               )}
-              {dirty && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  onClick={clearFilters}
-                  className="pointer-coarse:h-12"
-                >
-                  Bỏ hết bộ lọc
-                </Button>
-              )}
             </>
           }
           pending={isPending}
@@ -555,7 +404,7 @@ export function LeadsPage() {
           empty={empty}
           table={table}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={onPage} />
+            <TableFooter page={pageIndex} pageSize={BOOK_PAGE_SIZE} total={total} onPage={onPage} />
           }
         />
 

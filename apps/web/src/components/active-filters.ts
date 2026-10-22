@@ -1,4 +1,6 @@
 import type { IconGlyph } from '@pv/ui'
+import { OWNER_NONE } from '@pv/contracts'
+import { AMOUNT_SCALE, AMOUNT_UNIT } from './book-columns'
 import { dmy } from '@/lib/date'
 
 /** The removable chips a book draws above its toolbar (`BookPage` draws them).
@@ -47,3 +49,34 @@ export function listChip(
   if (!csv) return []
   return [{ id, label: `${name}${separator}${csv.split(',').map(nameOf).join(', ')}`, onDrop }]
 }
+
+/** One chip for an amount pair, in the unit the filter was typed in. */
+export function amountChip(
+  id: string,
+  name: string,
+  min: number | undefined,
+  max: number | undefined,
+  onDrop: () => void,
+): ActiveFilter[] {
+  const said = (vnd: number) => (vnd / AMOUNT_SCALE).toLocaleString('vi-VN')
+  if (min !== undefined && max !== undefined) {
+    return [{ id, label: `${name} ${said(min)} – ${said(max)} ${AMOUNT_UNIT}`, onDrop }]
+  }
+  if (min !== undefined) return [{ id, label: `${name} từ ${said(min)} ${AMOUNT_UNIT}`, onDrop }]
+  if (max !== undefined) return [{ id, label: `${name} đến ${said(max)} ${AMOUNT_UNIT}`, onDrop }]
+  return []
+}
+
+/** Names a picked person for a chip. A pick the directory does not know (yet,
+ *  or any more) reads as one plain phrase in every book, never as a raw id. */
+export function personNameOf(
+  people: readonly { id: string; name: string }[],
+  none?: string,
+): (id: string) => string {
+  return (id) =>
+    id === OWNER_NONE
+      ? (none ?? PERSON_UNKNOWN)
+      : (people.find((p) => p.id === id)?.name ?? PERSON_UNKNOWN)
+}
+
+const PERSON_UNKNOWN = 'Người đã chọn'

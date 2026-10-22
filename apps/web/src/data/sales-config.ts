@@ -260,6 +260,15 @@ export function useContractKindOptions(keep?: string) {
   return contractKindOptions(useContractKindBook(), keep)
 }
 
+/** Every kind, retired ones included: a book filters old paper too, while a
+ *  form that writes a new contract offers only the active ones. */
+export function useContractKindFilterOptions() {
+  const book = useContractKindBook()
+  return [...(book?.CONTRACT_KIND ?? [])]
+    .sort((a, b) => a.ord - b.ord)
+    .map((r) => ({ value: r.id, label: r.name }))
+}
+
 /** One resolver per component, so non-React helpers take it as a parameter. */
 export function useContractKindLabel(): (code: string) => string {
   const book = useContractKindBook()

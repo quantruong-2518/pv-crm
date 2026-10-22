@@ -6,45 +6,49 @@ import type {
 } from '@pv/contracts'
 import { toContract as toNextStep } from '../next-step/next-step.mapper'
 import type { NextStepRead } from '../next-step/next-step.repository'
-import { holderOf, type OwnerRow, type RefOwner } from '../opportunity/opportunity.mapper'
-import type { RunContract, WorkstreamRead } from './workstream.repository'
+import type { OwnerRow, RefOwner } from '../opportunity/opportunity.mapper'
+import type { RunContract, WorkstreamPageRow } from './workstream.repository'
 
 /** Who answers for a book row, and what they do next — both read off the
  *  stand AS THIS READER SEES IT (`standOf`), never off the bare row: a folded
  *  card must not print a deal's holder or step under a lead pill.
  *
- *  Seats follow ADR 0110 §4: the lead's PIC, the deal's primary seller, or the
- *  closer of each live contract. Never the lead's PIC standing in for another
- *  seat — an empty seat is `null`, not a borrowed name. */
+ *  Seats follow ADR 0110 §4: the lead's PIC, the deal's holder, or the closer
+ *  of each live contract. Never the lead's PIC standing in for another seat —
+ *  an empty seat is `null`, not a borrowed name. WHO sits is the page's
+ *  `inChargeIds` (the `owner` filter's own SQL); this file only labels the seat,
+ *  on that SQL's three branches, and names the ids from rows already loaded. */
 
 export function inChargeOf(
   stand: WorkstreamStand,
-  read: WorkstreamRead,
+  read: WorkstreamPageRow,
   owners: ReadonlyMap<string, OwnerRow[]>,
   acceptors: ReadonlyMap<string, RefOwner>,
   contracts: readonly RunContract[],
 ): WorkstreamInCharge | null {
-  const seat = (kind: WorkstreamInCharge['seat'], people: WorkstreamHolder[]) =>
-    people.length === 0 ? null : { seat: kind, people }
-
   /* A run at the signature rung names its closers even when this reader's
      card folded to the lead: never the lead's PIC for a contract (ADR 0110 §4). */
-  if (stand.kind === 'LD' && read.row.standKind !== 'HĐ') {
-    const { ownerId } = read.lead
-    return seat('lead', ownerId && read.saleName ? [{ id: ownerId, name: read.saleName }] : [])
-  }
-  if (stand.kind === 'OP') {
-    const holder = holderOf(owners.get(stand.code) ?? [], acceptors.get(stand.code) ?? null)
-    return seat('deal', holder ? [holder] : [])
-  }
-
-  const closers = new Map<string, WorkstreamHolder>()
-  for (const c of contracts) {
-    if (!c.terminated && c.ownerId && c.ownerName) {
-      closers.set(c.ownerId, { id: c.ownerId, name: c.ownerName })
-    }
-  }
-  return seat('contract', [...closers.values()])
+  const seat: WorkstreamInCharge['seat'] =
+    stand.kind === 'OP'
+      ? 'deal'
+      : stand.kind === 'LD' && read.row.standKind !== 'HĐ'
+        ? 'lead'
+        : 'contract'
+  const acceptor = acceptors.get(stand.code)
+  const named: WorkstreamHolder[] = [
+    ...(read.lead.ownerId && read.saleName ? [{ id: read.lead.ownerId, name: read.saleName }] : []),
+    ...(owners.get(stand.code) ?? []),
+    ...(acceptor ? [acceptor] : []),
+    ...contracts.flatMap((c) =>
+      c.ownerId && c.ownerName ? [{ id: c.ownerId, name: c.ownerName }] : [],
+    ),
+  ]
+  const names = new Map(named.map((p) => [p.id, p.name]))
+  const people = read.inChargeIds.flatMap((id) => {
+    const name = names.get(id)
+    return name === undefined ? [] : [{ id, name }]
+  })
+  return people.length === 0 ? null : { seat, people }
 }
 
 /** The object whose next step the row prints: the stand's lead or deal. A

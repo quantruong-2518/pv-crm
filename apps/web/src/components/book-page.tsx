@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import {
   Button,
   DataTable,
@@ -7,6 +7,7 @@ import {
   Icon,
   Inbox,
   ScreenHeader,
+  SearchField,
   Skeleton,
   TriangleAlert,
   X,
@@ -15,10 +16,12 @@ import {
   type TableRowModel,
   type TableSort,
 } from '@pv/ui'
+import { searchHint } from '@/lib/search-box'
 import type { ActiveFilter } from './active-filters'
+import { bookMinWidth } from './book-columns'
 
 /** ONE shape for every book screen — leads, deals, campaigns, lead sources,
- *  mail runs, mail templates, companies, contacts, workstreams, users.
+ *  mail runs, mail templates, companies, contacts, contracts, workstreams, users.
  *
  *  Ten books had grown three layouts: a title sometimes uppercase and sometimes
  *  trailing a kicker and two lines of prose, filters sometimes in a card of
@@ -36,13 +39,80 @@ import type { ActiveFilter } from './active-filters'
 const ROW_CLASS = 'h-14'
 const ROW_PX = 56
 
+/** The header band: 40px, 64px under a finger, where a column filter's 48px
+ *  trigger sets it. The footer slot: `TableFooter`'s 32px page buttons in
+ *  `py-3`, 48px ones under a finger. Both kept in step with `DataTable` and
+ *  `TableFooter` by hand — a class cannot be measured. */
+const HEAD_CLASS = 'h-10 pointer-coarse:h-16'
+const HEAD_PX = 40
+const HEAD_COARSE_PX = 64
+const FOOT_CLASS = 'h-14 pointer-coarse:h-18'
+
+/** Below this many rows a short window scrolls the page instead of the table. */
+const FLOOR_ROWS = 5
+
+/** A full page, capped by the window: everything above the table and the
+ *  pager below it are subtracted, then the shell's own bottom padding (the
+ *  bottom nav's room below `lg`), so the pager is always in view and the rows
+ *  scroll under a header that stays put. `--book-top`/`--book-foot` are measured. */
+const RESERVED_CLASS = cn(
+  'flex flex-col',
+  'pointer-coarse:[--book-body:var(--book-rows-coarse)] [--book-body:var(--book-rows-fine)]',
+  '[--book-gap:calc(100px+env(safe-area-inset-bottom))] lg:[--book-gap:24px]',
+  'h-[min(var(--book-body),max(var(--book-floor),calc(100dvh-var(--book-top,0px)-var(--book-foot,0px)-var(--book-gap))))]',
+)
+
+function reservedHeight(rows: number) {
+  return {
+    '--book-rows-fine': `${HEAD_PX + rows * ROW_PX}px`,
+    '--book-rows-coarse': `${HEAD_COARSE_PX + rows * ROW_PX}px`,
+    '--book-floor': `${HEAD_PX + FLOOR_ROWS * ROW_PX}px`,
+    /* Starting values; `useFitWindow` writes the measured ones. React leaves
+       a key alone while its value does not change between renders. */
+    '--book-top': '0px',
+    '--book-foot': '0px',
+  } as CSSProperties
+}
+
+/** Writes where the body starts on the page and how tall the pager is. Any
+ *  height above it can change (score cards load, chips appear, the toolbar
+ *  wraps), so it re-measures whenever `main` resizes. */
+function useFitWindow(
+  body: RefObject<HTMLDivElement | null>,
+  foot: RefObject<HTMLDivElement | null>,
+  on: boolean,
+) {
+  useLayoutEffect(() => {
+    const el = body.current
+    if (!on || !el) return
+    const measure = () => {
+      el.style.setProperty('--book-top', `${el.getBoundingClientRect().top + window.scrollY}px`)
+      el.style.setProperty('--book-foot', `${foot.current?.offsetHeight ?? 0}px`)
+    }
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(el.closest('main') ?? document.body)
+    window.addEventListener('resize', measure)
+    return () => {
+      watch.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [body, foot, on])
+}
+
 export type BookTable = {
   columns: TableColumn[]
   rows: TableRowModel[]
   sort?: TableSort
   onSort?: (key: string) => void
-  /** Narrower than this the columns crush, so the card scrolls sideways. */
-  minWidth: string
+  /** Narrower than this the columns crush, so the card scrolls sideways. The
+   *  sum of the column tracks (`bookMinWidth`) always applies as well. */
+  minWidth?: string
+  /** More classes on the table root — a column that stays put while it scrolls. */
+  className?: string
+  /** Rows per page. Given, the body keeps one height through loading, empty,
+   *  a short page and a full one, capped so the pager stays in the window. */
+  pageSize?: number
 }
 
 export type BookPageProps = {
@@ -82,6 +152,9 @@ export type BookPageProps = {
   cards?: ReactNode
   /** `TableFooter` — drawn inside the card, under the table. */
   footer?: ReactNode
+  /** Given, a clear-all-filters button closes the tools row. Pass it only while
+   *  something narrows the book (`book.dirty ? book.clear : undefined`). */
+  onClearFilters?: () => void
 }
 
 export function BookPage({
@@ -100,10 +173,16 @@ export function BookPage({
   table,
   cards,
   footer,
+  onClearFilters,
 }: BookPageProps) {
-  const hasToolbar = Boolean(tabs || count || tools)
+  const hasToolbar = Boolean(tabs || count || tools || onClearFilters)
   const hasRows = !pending && !failure && !empty
   const hasFilters = Boolean(filters?.length)
+  /* Cards are as tall as their rows make them; only a table reserves a page. */
+  const reserve = cards ? undefined : table?.pageSize
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const footRef = useRef<HTMLDivElement>(null)
+  useFitWindow(bodyRef, footRef, reserve !== undefined)
   /* The toolbar's own padding closes the chip line; without one it closes itself. */
   const chips = <ActiveFilters items={filters} className={hasToolbar ? undefined : 'pb-4'} />
   const toolbar = hasToolbar && (
@@ -112,8 +191,20 @@ export function BookPage({
         {tabs}
         {count}
       </div>
-      {tools && (
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">{tools}</div>
+      {(tools || onClearFilters) && (
+        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+          {tools}
+          {onClearFilters && (
+            <Button
+              size="md"
+              variant="ghost"
+              className="pointer-coarse:h-12"
+              onClick={onClearFilters}
+            >
+              Bỏ hết bộ lọc
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -147,6 +238,30 @@ export function BookPage({
     )
   }
 
+  const body = pending ? (
+    reserve === undefined ? (
+      <div className="flex flex-col gap-3 p-5">
+        <Skeleton height={ROW_PX} />
+        <Skeleton height={ROW_PX} delay={200} />
+        <Skeleton height={ROW_PX} delay={400} />
+      </div>
+    ) : (
+      <TableSkeleton rows={reserve} />
+    )
+  ) : failure ? (
+    <EmptyState
+      tone="danger"
+      icon={TriangleAlert}
+      message={failure.message}
+      action={{ label: 'Thử lại', onClick: failure.onRetry }}
+      className="py-12"
+    />
+  ) : empty ? (
+    <EmptyState icon={Inbox} message={empty.message} action={empty.action} className="py-12" />
+  ) : table ? (
+    <BookDataTable table={table} sticky={reserve !== undefined} />
+  ) : null
+
   return (
     <>
       {head}
@@ -158,44 +273,83 @@ export function BookPage({
         {chips}
         {toolbar}
 
-        <div className="overflow-x-auto">
-          {pending ? (
-            <div className="flex flex-col gap-3 p-5">
-              <Skeleton height={ROW_PX} />
-              <Skeleton height={ROW_PX} delay={200} />
-              <Skeleton height={ROW_PX} delay={400} />
-            </div>
-          ) : failure ? (
-            <EmptyState
-              tone="danger"
-              icon={TriangleAlert}
-              message={failure.message}
-              action={{ label: 'Thử lại', onClick: failure.onRetry }}
-              className="py-12"
-            />
-          ) : empty ? (
-            <EmptyState
-              icon={Inbox}
-              message={empty.message}
-              action={empty.action}
-              className="py-12"
-            />
-          ) : table ? (
-            <DataTable
-              flush
-              rowHeight={ROW_CLASS}
-              className={table.minWidth}
-              columns={table.columns}
-              rows={table.rows}
-              sort={table.sort}
-              onSort={table.onSort}
-            />
-          ) : null}
-        </div>
+        {reserve === undefined ? (
+          <div className="overflow-x-auto">{body}</div>
+        ) : (
+          <div
+            ref={bodyRef}
+            style={reservedHeight(reserve)}
+            className={cn(
+              RESERVED_CLASS,
+              hasRows ? 'overflow-auto' : 'justify-center overflow-hidden',
+            )}
+          >
+            {body}
+          </div>
+        )}
 
-        {hasRows && footer}
+        <div ref={footRef}>
+          {hasRows ? footer : reserve !== undefined && <div aria-hidden className={FOOT_CLASS} />}
+        </div>
       </GlassCard>
     </>
+  )
+}
+
+/** Loading in the table's own geometry: the header band, then one 56px row per
+ *  row the page will hold, so the rows land where the bars stood. */
+function TableSkeleton({ rows }: { rows: number }) {
+  return (
+    <div aria-hidden>
+      <div className={cn('bg-surface-ink/5', HEAD_CLASS)} />
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className={cn('flex items-center px-5', ROW_CLASS)}>
+          <Skeleton height={16} delay={i * 80} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** `DataTable` takes no style, so the summed minimum rides on a wrapper; a
+ *  `minWidth` class a book still names sits on the table and the larger wins. */
+function BookDataTable({ table, sticky }: { table: BookTable; sticky: boolean }) {
+  const drawn = (
+    <DataTable
+      flush
+      stickyHeader={sticky}
+      rowHeight={ROW_CLASS}
+      className={cn(table.minWidth, table.className)}
+      columns={table.columns}
+      rows={table.rows}
+      sort={table.sort}
+      onSort={table.onSort}
+    />
+  )
+  return <div style={{ minWidth: bookMinWidth(table.columns.map((c) => c.width)) }}>{drawn}</div>
+}
+
+/** The book's search box: the width the contract book set, 48px under a
+ *  finger (law 13), and the too-short hint in its corner. */
+export function BookSearch({
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  className?: string
+}) {
+  return (
+    <SearchField
+      placeholder={placeholder}
+      value={value}
+      meta={searchHint(value)}
+      onChange={onChange}
+      className={cn('pointer-coarse:h-12 min-w-0 flex-1 sm:max-w-[320px]', className)}
+    />
   )
 }
 

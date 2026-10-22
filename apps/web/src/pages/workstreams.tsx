@@ -1,14 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import {
-  AppShell,
-  Button,
-  ScreenLayout,
-  SearchField,
-  SegmentedControl,
-  type TableSort,
-} from '@pv/ui'
+import { AppShell, ScreenLayout, SegmentedControl, type TableSort } from '@pv/ui'
 import {
   WorkstreamBookQuery,
   WorkstreamSortKey,
@@ -17,19 +10,20 @@ import {
   type WorkstreamRow,
 } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
-import { searchHint } from '@/lib/search-box'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { keyOf } from '@/data/period-pick'
 import {
-  DEFAULT_WORKSTREAM_BOOK_QUERY,
   WORKSTREAM_STATUS_LABEL,
   parseBoardView,
+  type BoardView,
   withBoardParams,
   workstreamBookQuery,
   workstreamScorecardQuery,
 } from '@/data/workstreams'
-import { BookCount, BookPage } from '@/components/book-page'
+import { ViewSwitch } from '@/components/book-cards'
+import { BOOK_PAGE_SIZE } from '@/components/book-columns'
+import { BookCount, BookPage, BookSearch } from '@/components/book-page'
 import { PeriodPicker, PeriodProgress } from '@/components/period-picker'
 import { TableFooter } from '@/components/table-bits'
 import {
@@ -40,26 +34,24 @@ import {
   StandCell,
 } from '@/components/workstream-cells'
 import { WorkstreamsBoard } from './workstreams-board'
-import { columns, filterChips } from './workstreams-model'
+import { VIEW_OPTIONS, WORKSTREAM_SEARCH_HINT, filterChips } from './workstreams-model'
+import { useOwnerName, useWorkstreamColumns } from './workstreams-filters'
 import { OverdueToggle } from './workstreams-parts'
 import { useBookPeriod } from './workstreams-period'
 import { WorkstreamScoreStrip } from './workstreams-score'
-import { ViewSwitch } from './workstreams-board-parts'
 
 /** The workstream book — `/sales/workstreams`. One row per customer journey run.
  *
  *  Only what the server can filter is offered: status tabs, search, the overdue
- *  toggle and the four period cards. Sort is customer or the server's priority
- *  ladder (the default). Filters live in the address (`app/book-query.ts`), the
+ *  toggle, the four period cards and the stand and person headers. Sort is
+ *  customer or the server's priority ladder (the default); the last-contact
+ *  figure is folded per page, so the server has nothing to sort it by.
+ *  Filters live in the address (`app/book-query.ts`), the
  *  period beside them (`workstreams-period.ts`). A filter held in the browser
  *  only filters the page the server happened to send, so none is offered.
  *
  *  No ContextRail (law 10), the same conscious debt `pages/opportunities.tsx`
  *  records: a book has no open object to build a chain from. */
-
-/* Rows per page: the contract's own default, restated for `useBookQuery` so the
-   address never carries a `size` nobody chose. */
-const PAGE_SIZE = DEFAULT_WORKSTREAM_BOOK_QUERY.size
 
 /* Every query field the server narrows by, bar sort and paging: they drive
    `dirty` and "clear all". `status` counts only off its default tab. */
@@ -68,6 +60,7 @@ const FILTER_KEYS = [
   'accountCode',
   'standKind',
   'standKey',
+  'owner',
   'closeReason',
   'overdue',
   'stopped',
@@ -103,13 +96,15 @@ export default function WorkstreamsPage() {
 }
 
 function WorkstreamsBook() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm hành trình, khách hàng…' })
+  const chrome = useAppChrome({ searchPlaceholder: WORKSTREAM_SEARCH_HINT })
   const navigate = useNavigate()
   /* Only the view switch reads the raw address: `useBookQuery` writes schema
      keys alone, and `view` / `step` are not among them. */
   const [params, setParams] = useSearchParams()
-  const book = useBookQuery(WorkstreamBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const book = useBookQuery(WorkstreamBookQuery, { size: BOOK_PAGE_SIZE, filterKeys: FILTER_KEYS })
   const { query, text, setText, patch, goPage, clear: clearAll, dirty } = book
+  const columns = useWorkstreamColumns(query, patch)
+  const ownerName = useOwnerName()
 
   const { data, isPending, error, refetch } = useQuery(workstreamBookQuery(query))
   const [pick, onPick] = useBookPeriod()
@@ -139,7 +134,7 @@ function WorkstreamsBook() {
     patch(
       query.sort === parsed.data
         ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-        : { sort: parsed.data, dir: parsed.data === 'openedAt' ? 'desc' : 'asc' },
+        : { sort: parsed.data, dir: 'asc' },
     )
   }
 
@@ -178,29 +173,20 @@ function WorkstreamsBook() {
             />
           }
           count={<BookCount total={total} noun="hành trình" hidden={hidden} />}
-          filters={filterChips(query, patch)}
+          filters={filterChips(query, patch, ownerName)}
+          onClearFilters={dirty ? clearAll : undefined}
           tools={
             <>
-              <SearchField
-                placeholder="Tìm hành trình, lead, công ty…"
+              <BookSearch
                 value={text}
-                meta={searchHint(text)}
                 onChange={setText}
-                className="min-w-0 flex-1 max-sm:basis-full sm:max-w-[320px]"
+                placeholder={WORKSTREAM_SEARCH_HINT}
+                className="max-sm:basis-full"
               />
               <OverdueToggle query={query} patch={patch} count={score.data?.overdue} />
-              {dirty && (
-                <Button
-                  size="md"
-                  variant="ghost"
-                  onClick={clearAll}
-                  className="pointer-coarse:h-12"
-                >
-                  Bỏ hết bộ lọc
-                </Button>
-              )}
-              <ViewSwitch
-                view="table"
+              <ViewSwitch<BoardView>
+                value="table"
+                options={VIEW_OPTIONS}
                 onChange={(next) =>
                   setParams(withBoardParams(params, { view: next }), { replace: true })
                 }
@@ -233,7 +219,7 @@ function WorkstreamsBook() {
               : undefined
           }
           table={{
-            minWidth: 'min-w-[1040px]',
+            pageSize: BOOK_PAGE_SIZE,
             sort: tableSort,
             onSort,
             columns,
@@ -244,7 +230,7 @@ function WorkstreamsBook() {
             })),
           }}
           footer={
-            <TableFooter page={pageIndex} pageSize={PAGE_SIZE} total={total} onPage={goPage} />
+            <TableFooter page={pageIndex} pageSize={BOOK_PAGE_SIZE} total={total} onPage={goPage} />
           }
         />
       </ScreenLayout>

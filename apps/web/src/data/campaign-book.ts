@@ -99,26 +99,19 @@ export const CAMPAIGN_STATE_TONE: Record<
   DONE: 'success',
 }
 
-/** Trần `size` của hợp đồng (`PageQuery.size.max(200)`) — con số làm cho
- *  `campaignFacetQuery` bên dưới có hạn sử dụng. */
+/** Contract ceiling for `size` (`PageQuery.size.max(200)`). */
 export const FACET_SIZE = 200
 
-/** CHẮP VÁ, cùng hình và cùng hạn sử dụng với `opportunityFacetQuery` — đọc
- *  docblock ở đó trước khi bắt chước kiểu này.
+/** A sample of the book (first 200 campaigns), read for names, not counts.
  *
- *  Hai thứ trên màn cần câu trả lời về CẢ SỔ chứ không về trang đang mở: ba ô
- *  số ở đầu màn, và danh sách chủ trong ô lọc. Đếm trên trang thì mở trang 2
- *  là ba con số đổi, và ô lọc tự giấu mất những người không xuất hiện trên
- *  hai mươi dòng đang xem.
+ *  The campaign book uses it ONLY to list source names for a viewer who cannot
+ *  open the sales catalog (`presales`: `campaign.view` without `config.view`);
+ *  the mail-run book and the mass-mail picker read campaign names from it.
  *
- *  **Gãy khi sổ vượt 200 chiến dịch** — trang đầu vẫn đúng, ba con số lặng lẽ
- *  sai. Cách sửa thật là một endpoint đếm ở SQL (`GET /sales/campaigns/
- *  scorecard`), đúng thứ sổ cơ hội đã có; dựng nó khi sổ này chạm ngưỡng đó,
- *  đừng dựng trước.
+ *  Breaks past 200 campaigns: names beyond the sample drop out of those lists.
+ *  The real fix is a facet endpoint in SQL; build it when a book hits the cap.
  *
- *  Aggregate tier (one minute): the three figures at the top need not be exact
- *  to the second, and re-pulling 200 rows on every filter change pays for an
- *  unchanged answer. Writes still sweep it through `CAMPAIGN_BOOK_KEY`. */
+ *  Aggregate tier (one minute); writes still sweep it through `CAMPAIGN_BOOK_KEY`. */
 export const campaignFacetQuery = queryOptions({
   queryKey: [...CAMPAIGN_BOOK_KEY, 'facets'] as const,
   queryFn: ({ signal }) =>

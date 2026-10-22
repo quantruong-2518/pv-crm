@@ -1,40 +1,24 @@
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import {
-  Avatar,
-  AvatarGroup,
-  Chip,
-  GlassCard,
-  Icon,
-  Kanban,
-  List,
-  Lock,
-  Skeleton,
-  cn,
-  initialsOf,
-} from '@pv/ui'
-import type {
-  WorkstreamBoardColumn,
-  WorkstreamBookQuery,
-  WorkstreamRow,
-  WorkstreamStandKind,
-} from '@pv/contracts'
+import { Badge, GlassCard, Icon, Lock, Skeleton, cn, initialsOf } from '@pv/ui'
+import type { WorkstreamBoardColumn, WorkstreamBookQuery, WorkstreamRow } from '@pv/contracts'
 import { dm } from '@/lib/date'
 import {
-  IN_CHARGE_SEAT_WORD,
+  STAND_TONE,
   footprintTotal,
   workstreamColumnQuery,
   type BoardStepGroup,
-  type BoardView,
   type JourneyStepKey,
 } from '@/data/workstreams'
+import { InChargeCell } from '@/components/workstream-cells'
 
 /** The parts of the kanban view of the journey book — `?view=kanban`.
  *
- *  Four grounds and no fifth (law 12): page → column (`glass-b`, law 8) →
- *  card and column bar (`surface-ink/5`) → chip. A card is ONE link to one
- *  profile, so nothing inside it is clickable on its own.
+ *  Surfaces: column (`glass-b`, law 8) → card and column bar (`surface-ink/5`)
+ *  → chip. The one background layer (law 12) belongs to the outermost frame,
+ *  not to anything here. A card is ONE link to one profile, so nothing inside
+ *  it is clickable on its own.
  *
  *  Every figure printed here arrives from a door: the column header prints
  *  `WorkstreamBoardColumn.total`, the out-of-scope strip prints the page's
@@ -48,13 +32,6 @@ const NOTCH = 12
 const STEP_CLIP_FIRST = `polygon(0 0, calc(100% - ${NOTCH}px) 0, 100% 50%, calc(100% - ${NOTCH}px) 100%, 0 100%)`
 const STEP_CLIP = `polygon(0 0, calc(100% - ${NOTCH}px) 0, 100% 50%, calc(100% - ${NOTCH}px) 100%, 0 100%, ${NOTCH}px 50%)`
 const CARET_CLIP = 'polygon(50% 100%, 0 0, 100% 0)'
-
-/** The card's one splash of colour — which object is live right now. */
-const STAND_TINT: Record<WorkstreamStandKind, string> = {
-  LD: 'bg-primary/24 text-on-tint-primary',
-  OP: 'bg-warning/12 text-on-tint-warning',
-  HĐ: 'bg-success/12 text-on-tint-success',
-}
 
 type StepPhase = 'done' | 'current' | 'upcoming'
 
@@ -76,95 +53,6 @@ const STEP_BADGE: Record<StepPhase, string> = {
   current: 'bg-primary text-primary-foreground',
   done: 'bg-success/12 text-on-tint-success',
   upcoming: 'bg-surface-ink/10 text-muted-foreground',
-}
-
-// ---------------------------------------------------------------------------
-// TOOLBAR
-// ---------------------------------------------------------------------------
-
-/** Switching view swaps the whole screen, so the pressed button is destroyed
- *  mid-press and the focus falls to `<body>`. A module flag and not state: the
- *  component that would hold the state is the one being unmounted. The next
- *  switch to mount is the same control, and it takes the focus back. */
-let viewJustSwitched = false
-
-/** Table or board. On the address, never in a component's head: a board opened
- *  on one rung has to be pasteable into a chat. */
-export function ViewSwitch({
-  view,
-  onChange,
-}: {
-  view: BoardView
-  onChange: (view: BoardView) => void
-}) {
-  const activeButton = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!viewJustSwitched) return
-    viewJustSwitched = false
-    activeButton.current?.focus()
-  }, [])
-
-  const press = (next: BoardView) => {
-    viewJustSwitched = next !== view
-    onChange(next)
-  }
-
-  return (
-    <div
-      role="group"
-      aria-label="Kiểu xem sổ hành trình"
-      className="bg-surface-ink/5 flex shrink-0 items-center gap-1 rounded-md p-1"
-    >
-      <ViewButton
-        icon={List}
-        label="Xem dạng bảng"
-        active={view === 'table'}
-        buttonRef={view === 'table' ? activeButton : undefined}
-        onClick={() => press('table')}
-      />
-      <ViewButton
-        icon={Kanban}
-        label="Xem dạng kanban"
-        active={view === 'kanban'}
-        buttonRef={view === 'kanban' ? activeButton : undefined}
-        onClick={() => press('kanban')}
-      />
-    </div>
-  )
-}
-
-function ViewButton({
-  icon,
-  label,
-  active,
-  buttonRef,
-  onClick,
-}: {
-  icon: Parameters<typeof Icon>[0]['icon']
-  label: string
-  active: boolean
-  buttonRef?: RefObject<HTMLButtonElement | null>
-  onClick: () => void
-}) {
-  return (
-    <button
-      ref={buttonRef}
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      title={label}
-      onClick={onClick}
-      className={cn(
-        'motion-std pointer-coarse:size-12 flex size-8 items-center justify-center rounded-sm',
-        active
-          ? 'bg-primary text-primary-foreground shadow-primary'
-          : 'text-muted-foreground hover:bg-surface-ink/8 hover:text-foreground',
-      )}
-    >
-      <Icon icon={icon} size={16} />
-    </button>
-  )
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +124,7 @@ function StepCard({
         type="button"
         aria-pressed={current}
         aria-label={`Bước ${index + 1} · ${group.step.label} · ${
-          bookless ? 'chưa có sổ' : PHASE_NOTE[phase]
+          bookless ? 'chưa dùng được' : PHASE_NOTE[phase]
         }${group.closedOnly ? ' · chỉ đếm hành trình đã đóng' : ''}${counted}`}
         onClick={onSelect}
         style={{ clipPath: index > 0 ? STEP_CLIP : STEP_CLIP_FIRST }}
@@ -253,7 +141,7 @@ function StepCard({
         <span aria-hidden className={cn('absolute inset-x-0 top-0 h-[3px]', STEP_BAR[phase])} />
         <span
           className={cn(
-            'tnum font-num flex size-5 shrink-0 items-center justify-center rounded-full text-[10.5px] font-semibold',
+            'tnum font-num flex size-5 shrink-0 items-center justify-center rounded-md text-[10.5px] font-semibold',
             STEP_BADGE[phase],
           )}
         >
@@ -360,11 +248,11 @@ function ColumnNote({
 
 /** State 3 · a step with no book behind it. The screen draws this from
  *  `WORKSTREAM_JOURNEY_STEPS`; the server sends no column to draw it from. */
-export function LockedColumn({ label, blockNumber }: { label: string; blockNumber: number }) {
+export function LockedColumn({ label }: { label: string }) {
   return (
     <ColumnShell label={label} count={DASH} dim>
       <div className={COLUMN_BODY}>
-        <ColumnNote icon={Lock}>{`Khối ${blockNumber} chưa có sổ`}</ColumnNote>
+        <ColumnNote icon={Lock}>{`Bước ${label} chưa dùng được`}</ColumnNote>
       </div>
     </ColumnShell>
   )
@@ -487,52 +375,6 @@ function GuestAvatar({ name }: { name: string }) {
   )
 }
 
-/** The line under the customer: who holds the run. An API one deploy behind
- *  sends no `inCharge`, and the card then falls back to the Sale it always showed. */
-function HolderLine({ row }: { row: WorkstreamRow }) {
-  const { inCharge, saleHolder: sale, bdHolder: bd } = row
-  const muted = 'text-muted-foreground min-w-0 flex-1 truncate text-[11.5px]'
-  if (inCharge === undefined) {
-    return sale === null ? (
-      <span className={muted}>Chưa có Sale giữ hành trình này</span>
-    ) : (
-      <>
-        {/* BD stays on a hover title, as before this card knew `inCharge`. */}
-        <span title={bd === null ? sale.name : `${sale.name} · BD: ${bd.name}`} className="flex">
-          <Avatar size="sm" name={sale.name} />
-        </span>
-        <span className={muted}>
-          <span className="text-glass-foreground">Phụ trách: </span>
-          {sale.name}
-        </span>
-      </>
-    )
-  }
-  const people = inCharge?.people ?? []
-  const [only] = people
-  if (inCharge === null || only === undefined) return <span className={muted}>Chưa ai nhận</span>
-  if (people.length > 1) {
-    const names = people.map((p) => p.name)
-    return (
-      <>
-        <AvatarGroup names={names} max={3} />
-        <span className={muted} title={names.join(' · ')}>
-          {people.length} {inCharge.seat === 'contract' ? 'người chốt' : 'người'}
-        </span>
-      </>
-    )
-  }
-  return (
-    <>
-      <Avatar size="sm" name={only.name} />
-      <span className={muted}>
-        <span className="text-glass-foreground">{IN_CHARGE_SEAT_WORD[inCharge.seat]}: </span>
-        {only.name}
-      </span>
-    </>
-  )
-}
-
 function JourneyCard({ row }: { row: WorkstreamRow }) {
   const last = row.footprint.lastContactedAt
   return (
@@ -541,7 +383,7 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
        4.5:1 exactly while the pointer rests there (law 13). */
     <Link
       to={`/sales/workstreams/${encodeURIComponent(row.code)}`}
-      className="motion-std bg-surface-ink/5 hover:shadow-control flex min-h-12 shrink-0 flex-col gap-2 rounded-md p-3"
+      className="motion-std bg-surface-ink/5 hover:shadow-control flex min-h-12 shrink-0 flex-col gap-2 rounded-lg p-3"
     >
       <span className="flex min-w-0 items-center gap-2">
         <span
@@ -552,7 +394,12 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
         </span>
         {/* No `title` with the rung name: the column header above already says
             it, and a tooltip is nothing at all on a touch screen. */}
-        <Chip className={cn('shrink-0', STAND_TINT[row.stand.kind])}>{row.stand.code}</Chip>
+        <Badge
+          tone={STAND_TONE[row.stand.kind].tone}
+          className={cn('shrink-0', STAND_TONE[row.stand.kind].className)}
+        >
+          {row.stand.code}
+        </Badge>
       </span>
 
       <span className="flex min-w-0 items-center gap-2">
@@ -565,7 +412,9 @@ function JourneyCard({ row }: { row: WorkstreamRow }) {
       </span>
 
       <span className="flex min-w-0 items-center gap-2">
-        <HolderLine row={row} />
+        <span className="flex min-w-0 flex-1 text-[11.5px]">
+          <InChargeCell row={row} spoken />
+        </span>
         <span
           className="tnum font-num text-muted-foreground shrink-0 text-[10.5px]"
           title="Tổng số lần liên lạc · lần gần nhất"

@@ -42,6 +42,7 @@ import {
   SearchField,
   ColumnFilter,
   ColumnFilterList,
+  ColumnFilterNumberRange,
   Combobox,
   StageTrack,
   StatCard,
@@ -308,15 +309,28 @@ function StepperDemo() {
 
 function ColumnFilterDemo() {
   const [picked, setPicked] = useState<string[]>(['Apollo', 'Zalo OA'])
-  const options = ['Apollo', 'LinkedIn', 'Facebook', 'Zalo OA'].map((l) => ({
+  const [amount, setAmount] = useState<{ min?: number; max?: number }>({ min: 500_000_000 })
+  const options = ['Apollo', 'LinkedIn', 'Facebook', 'Zalo OA'].map((l, i) => ({
     value: l,
     label: l,
+    count: 12 - i * 3,
   }))
   return (
-    <div className="text-muted-foreground font-mono text-[10px] font-semibold uppercase tracking-[.1em]">
+    <div className="text-muted-foreground flex gap-4 font-mono text-[10px] font-semibold uppercase tracking-[.1em]">
       <ColumnFilter label="Nguồn" active={picked.length > 0}>
         {(close) => (
           <ColumnFilterList options={options} selected={picked} onApply={setPicked} close={close} />
+        )}
+      </ColumnFilter>
+      <ColumnFilter label="Giá trị" active={amount.min !== undefined || amount.max !== undefined}>
+        {(close) => (
+          <ColumnFilterNumberRange
+            {...amount}
+            unit="triệu ₫"
+            scale={1e6}
+            onApply={setAmount}
+            close={close}
+          />
         )}
       </ColumnFilter>
     </div>

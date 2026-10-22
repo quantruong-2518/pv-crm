@@ -4,7 +4,6 @@ import {
   JOURNEY_STATUS_LABEL,
   LEAD_STATE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
-  WORKSTREAM_JOURNEY_STEPS,
   type DueLevel,
   type JourneyContract,
   type JourneyDeal,
@@ -18,6 +17,7 @@ import {
 import { billions, millions } from '@pv/ui'
 import { DUE_LABEL, lateLevel, overdue } from '@/data/contracts'
 import { STATE_TONE } from '@/data/opportunities'
+import { stepLabel } from '@/data/workstreams'
 
 /** The journey tree's arithmetic — ordering, rung and status reading, layout.
  *  No React, so every rule the cards obey can be read in one place.
@@ -56,9 +56,6 @@ const ROW_GAP = 12
 const FAN_GAP = 8
 /** Height of the empty deal lane's line; it once held a 48px button. */
 export const GHOST_H = 64
-
-const stepLabel = (key: (typeof WORKSTREAM_JOURNEY_STEPS)[number]['key']) =>
-  WORKSTREAM_JOURNEY_STEPS.find((s) => s.key === key)?.label ?? ''
 
 /** Phase names are the handoff's grouping labels (not states); the object
  *  word under each comes from the product's own tables. */

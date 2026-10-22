@@ -377,7 +377,7 @@ export const ContractStatusFilter = z.enum(['all', 'open', 'overdue', 'collected
 
 /** Sortable columns. Blank amounts and a missing next installment sort LAST in
  *  both directions: an unpriced contract is not the cheapest one. */
-export const ContractSortKey = z.enum(['nextDue', 'amount'])
+export const ContractSortKey = z.enum(['nextDue', 'amount', 'signedAt', 'code'])
 
 /** `GET /sales/contracts` — paging, filtering and sorting, all on the server.
  *
@@ -390,6 +390,21 @@ export const ContractBookQuery = PageQuery.extend({
   owner: z.string().min(1).max(512).optional(),
   signedFrom: Day.optional(),
   signedTo: Day.optional(),
+  /** `ContractKind` codes joined by commas; a contract of ANY of them matches. */
+  kind: z
+    .string()
+    .max(200)
+    .refine((v) => v.split(',').every((s) => ContractKind.safeParse(s).success))
+    .optional(),
+  /** Due day of the NEXT unpaid installment (what the `nextDue` sort reads),
+   *  both ends inclusive. A contract with none left, or a terminated one
+   *  (nobody owes its installments, ADR 0107), never matches. */
+  dueFrom: Day.optional(),
+  dueTo: Day.optional(),
+  /** Contract amount converted to VND by the rate table (what the `amount`
+   *  sort orders by), whole dong, both ends inclusive. A blank amount never matches. */
+  amountMin: z.coerce.number().int().nonnegative().optional(),
+  amountMax: z.coerce.number().int().nonnegative().optional(),
   /** Substring of the contract code or the customer's company name. */
   q: searchText,
   sort: ContractSortKey.default('nextDue'),

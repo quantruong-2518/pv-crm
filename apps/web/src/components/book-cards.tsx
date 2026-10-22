@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { SegmentedControl, Select, type SelectOption } from '@pv/ui'
+import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
+import { SegmentedControl, Select, type IconGlyph, type SelectOption } from '@pv/ui'
 import type { BookView } from './book-view'
 
 /** What a book needs to draw its rows as cards beside its table: the card face,
@@ -17,25 +17,64 @@ export const BOOK_CARD =
 export const CARD_LINK =
   "text-foreground no-underline outline-none after:absolute after:inset-0 after:rounded-lg after:content-['']"
 
-export function ViewSwitch({
-  value,
-  onChange,
-}: {
+export type ViewOption<V extends string> = { value: V; label: string; icon?: IconGlyph }
+
+const GRID_OR_TABLE: readonly ViewOption<BookView>[] = [
+  { value: 'grid', label: 'Lưới' },
+  { value: 'table', label: 'Bảng' },
+]
+
+/** A switch can swap the whole screen, destroying the pressed button mid-press
+ *  so focus falls to `<body>`. A module flag, not state: the component that
+ *  would hold it is the one unmounting. The next switch to render refocuses. */
+let viewJustSwitched = false
+
+/** Grid / Table unless `options` names other faces. Controlled: where the
+ *  choice lives (storage, the address) is the book's, never the switch's. */
+export function ViewSwitch(props: {
   value: BookView
   onChange: (v: BookView) => void
+}): ReactElement
+export function ViewSwitch<V extends string>(props: {
+  value: V
+  onChange: (v: V) => void
+  options: readonly ViewOption<V>[]
+}): ReactElement
+export function ViewSwitch<V extends string>({
+  value,
+  onChange,
+  /* The overloads let only a `BookView` switch omit `options`. */
+  options = GRID_OR_TABLE as readonly ViewOption<string>[] as readonly ViewOption<V>[],
+}: {
+  value: V
+  onChange: (v: V) => void
+  options?: readonly ViewOption<V>[]
 }) {
+  const root = useRef<HTMLDivElement>(null)
+
+  /* Runs on mount (the screen was swapped) and on a value change (it was not). */
+  useEffect(() => {
+    if (!viewJustSwitched) return
+    viewJustSwitched = false
+    root.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus()
+  }, [value])
+
   return (
-    <SegmentedControl
-      label="Kiểu hiển thị"
-      hideLabel
-      tone="quiet"
-      value={value}
-      options={[
-        { value: 'grid', label: 'Lưới' },
-        { value: 'table', label: 'Bảng' },
-      ]}
-      onChange={(v) => onChange(v === 'table' ? 'table' : 'grid')}
-    />
+    <div ref={root} className="contents">
+      <SegmentedControl
+        label="Kiểu hiển thị"
+        hideLabel
+        tone="quiet"
+        value={value}
+        options={[...options]}
+        onChange={(v) => {
+          const next = options.find((o) => o.value === v)
+          if (!next || next.value === value) return
+          viewJustSwitched = true
+          onChange(next.value)
+        }}
+      />
+    </div>
   )
 }
 

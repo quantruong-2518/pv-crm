@@ -564,6 +564,15 @@ export const OpportunityBookQuery = PageQuery.extend({
   overdue: Bool.optional(),
   /** `true` = ONLY the deals the caller has pinned (`PinSetBody`). */
   pinned: Bool.optional(),
+  /** Expected close day (`expectedClose`), both ends inclusive. A deal with no
+   *  expected day never matches. */
+  expectedFrom: Day.optional(),
+  expectedTo: Day.optional(),
+  /** Deal amount CONVERTED TO VND by the rate table (the row carries its own
+   *  `currency`; what the `amount` sort orders by), whole dong, both ends
+   *  inclusive. A deal with no amount never matches. */
+  amountMin: z.coerce.number().int().nonnegative().optional(),
+  amountMax: z.coerce.number().int().nonnegative().optional(),
 
   /** Actor ids of a Sale on the deal joined by commas (one id is a list of
    *  one), `OWNER_NONE` allowed among them for "nobody is closing it yet".

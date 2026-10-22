@@ -99,16 +99,18 @@ function faceOf(key: Card['key'], data: InPeriod): Face {
     }
   }
   const rate = (f: InPeriod['now']) => rateOf(f[key], f.closed)
-  const tail = `${now[key]} trên ${now.closed} hành trình đã đóng`
+  const delta = deltaFace(
+    deltaOf(rate(now), rate(compare.figures), 'points'),
+    against,
+    key === 'won',
+    'danger',
+  )
+  /* One context line, like the two count cards: the base rides in front of the
+     comparison, so the four cards stay one height (a fourth line grew the row). */
   return {
     value: now.closed === 0 ? '—' : percent(now[key] / now.closed),
-    hint: tail,
-    delta: deltaFace(
-      deltaOf(rate(now), rate(compare.figures), 'points'),
-      against,
-      key === 'won',
-      'danger',
-    ),
+    hint: delta ? undefined : `${now[key]} trên ${now.closed} hành trình đã đóng`,
+    delta: delta && { ...delta, text: `${now[key]}/${now.closed} · ${delta.text}` },
   }
 }
 

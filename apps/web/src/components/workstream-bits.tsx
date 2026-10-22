@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Badge, CalendarClock, Chip, Icon, cn } from '@pv/ui'
 import type { WorkstreamCloseReason, WorkstreamStandKind } from '@pv/contracts'
 import { chainPath } from '@/data/opportunities'
+import { BADGE_INK } from '@/data/opportunities'
 import { CLOSE_REASON_LABEL } from '@/data/workstreams'
 
 /** Cells shared by the workstream screens.
@@ -9,16 +10,13 @@ import { CLOSE_REASON_LABEL } from '@/data/workstreams'
  *  They stay in the app, not `@pv/ui`: each one knows how Sales reads a run
  *  (which rung has a deadline, what a close reason means). */
 
-/* The class override lifts the badge text to 4.5:1 on a hovered row, where
-   the default success/danger text falls short (law 13). CHURNED is neutral,
-   not warning: warning already means "overdue" in the same book. */
-const CLOSE_BADGE: Record<
-  WorkstreamCloseReason,
-  { tone: 'success' | 'danger' | 'draft'; className?: string }
-> = {
-  WON: { tone: 'success', className: 'text-on-tint-success-strong' },
-  LOST: { tone: 'danger', className: 'text-on-tint-destructive' },
-  CHURNED: { tone: 'draft', className: 'text-foreground' },
+/* `BADGE_INK` on every pill: the tone inks fall under 4.5:1 on a hovered row
+   in the fine-stone theme (law 13); the tint still carries the colour. CHURNED
+   is neutral, not warning: warning already means "overdue" in this book. */
+const CLOSE_BADGE: Record<WorkstreamCloseReason, 'success' | 'danger' | 'draft'> = {
+  WON: 'success',
+  LOST: 'danger',
+  CHURNED: 'draft',
 }
 
 /** A chip inside a clickable row: without stopping the event the row would
@@ -69,7 +67,7 @@ export function OverdueNote({
   }
   if (overdueBy <= 0) return null
   return (
-    <Badge tone="warning" className="shrink-0 gap-1">
+    <Badge tone="warning" className={cn('shrink-0 gap-1', BADGE_INK)}>
       <Icon icon={CalendarClock} size={14} />
       Trễ <span className="tnum font-num">{overdueBy}</span> ngày
     </Badge>
@@ -77,9 +75,8 @@ export function OverdueNote({
 }
 
 export function CloseBadge({ reason }: { reason: WorkstreamCloseReason }) {
-  const { tone, className } = CLOSE_BADGE[reason]
   return (
-    <Badge tone={tone} className={cn('shrink-0', className)}>
+    <Badge tone={CLOSE_BADGE[reason]} className={cn('shrink-0', BADGE_INK)}>
       {CLOSE_REASON_LABEL[reason]}
     </Badge>
   )

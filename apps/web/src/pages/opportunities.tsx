@@ -12,6 +12,7 @@ import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import {
   bdOwnersOf,
+  NO_BD,
   DEFAULT_OPPORTUNITY_BOOK_QUERY,
   opportunityBookQuery,
   opportunityProfileQuery,
@@ -22,22 +23,22 @@ import { useOpportunityImport } from '@/data/opportunity-import'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
 import { useBookSelection } from '@/components/book-selection'
 import { useRowIntent } from '@/components/row-intent'
-import { BookPage } from '@/components/book-page'
+import { BookPage, BookSearch } from '@/components/book-page'
+import { BOOK_PAGE_SIZE, COL } from '@/components/book-columns'
 import { OpportunityCreateDialog } from '@/components/opportunity-create-dialog'
 import { BookSelectionBar, SelectionCell, TableFooter } from '@/components/table-bits'
 import { PinCell, PinSelectionAction } from '@/components/pin-cell'
 import {
   bookColumns,
+  closeDayOf,
   emptyOf,
   FILTER_KEYS,
   mailTally,
-  PAGE_SIZE,
   sortPatch,
   STICKY_LEAD,
-  TABLE_MIN_WIDTH,
   useMailable,
 } from './opportunities-model'
-import { BookTabs, BookTools, ScoreCards } from './opportunities-parts'
+import { BookCounts, BookTabs, ScoreCards } from './opportunities-parts'
 import { useOpportunityFilterChips, useOpportunityFilters } from './opportunities-filters'
 import {
   AmountCell,
@@ -68,10 +69,13 @@ import {
  *  code, which a file's "Account" cell does not carry. */
 const NO_LOCAL_KEYS: ReadonlySet<string> = new Set()
 
+/** Exactly the fields the server matches: deal name, deal code, company. */
+const SEARCH_PLACEHOLDER = 'Tìm theo tên cơ hội, mã cơ hội hoặc khách hàng…'
+
 export function OpportunitiesPage() {
-  const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
+  const chrome = useAppChrome({ searchPlaceholder: SEARCH_PLACEHOLDER })
   const navigate = useNavigate()
-  const book = useBookQuery(OpportunityBookQuery, { size: PAGE_SIZE, filterKeys: FILTER_KEYS })
+  const book = useBookQuery(OpportunityBookQuery, { size: BOOK_PAGE_SIZE, filterKeys: FILTER_KEYS })
   const { urlQuery, query, text, setText, patch, goPage, clear: clearFilters, dirty } = book
 
   /* `error` is read: a dead server must not read as "no deal matches". */
@@ -114,10 +118,10 @@ export function OpportunitiesPage() {
             )
           }
           score={<ScoreCards />}
-          tabs={
-            <BookTabs query={urlQuery} total={total} hidden={data?.hidden ?? 0} onPatch={patch} />
-          }
-          tools={<BookTools text={text} onText={setText} dirty={dirty} onClear={clearFilters} />}
+          tabs={<BookTabs query={urlQuery} onPatch={patch} />}
+          count={data && <BookCounts query={urlQuery} total={total} hidden={data.hidden} />}
+          tools={<BookSearch value={text} onChange={setText} placeholder={SEARCH_PLACEHOLDER} />}
+          onClearFilters={dirty ? clearFilters : undefined}
           filters={filterChips}
           pending={isPending}
           failure={
@@ -141,7 +145,8 @@ export function OpportunitiesPage() {
               : undefined
           }
           table={{
-            minWidth: `${TABLE_MIN_WIDTH} ${STICKY_LEAD}`,
+            className: STICKY_LEAD,
+            pageSize: BOOK_PAGE_SIZE,
             sort: tableSort,
             onSort: (key) => {
               const next = sortPatch(query, key)
@@ -158,10 +163,10 @@ export function OpportunitiesPage() {
                     className="w-full justify-center gap-0 p-0"
                   />
                 ),
-                width: '48px',
+                width: COL.select,
               },
-              ...bookColumns(filters),
-              { header: <span className="sr-only">Ghim</span>, width: '48px' },
+              ...bookColumns(filters, closeDayOf(book.query) === 'closed'),
+              { header: <span className="sr-only">Ghim</span>, width: COL.pin },
             ],
             rows: rows.map((o) => ({
               id: o.code,
@@ -184,13 +189,7 @@ export function OpportunitiesPage() {
             })),
           }}
           footer={
-            <TableFooter
-              page={pageIndex}
-              pageSize={PAGE_SIZE}
-              total={total}
-              noun="cơ hội"
-              onPage={goPage}
-            />
+            <TableFooter page={pageIndex} pageSize={BOOK_PAGE_SIZE} total={total} onPage={goPage} />
           }
         />
 
@@ -282,7 +281,7 @@ function bookCells(op: OpportunityBookRow, canAccept: boolean, mail: () => void)
     <StageCell key="stage" op={op} />,
     <AmountCell key="amount" op={op} />,
     <CloseCell key="close" op={op} />,
-    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing="Chưa có BD phụ trách" />,
+    <PeopleCell key="bd" owners={bdOwnersOf(op)} missing={NO_BD} />,
     <SaleCell key="sale" op={op} canAccept={canAccept} />,
     <LastActivityCell key="activity" op={op} />,
     <NextStepCell key="next" op={op} />,

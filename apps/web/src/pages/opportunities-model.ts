@@ -6,50 +6,61 @@ import {
   type OpportunityBookRow,
   type OpportunityFacetsResponse,
   type OpportunityStatus,
-  type WorkstreamHolder,
 } from '@pv/contracts'
 import type { TableColumn } from '@pv/ui'
 import type { MasRecipient } from '@/data/mas-mail-draft'
+import { COL } from '@/components/book-columns'
 
 /** Module 3 · the deal book's logic without JSX: the address as the filter's
  *  source of truth, the tab order and the bulk-mail
  *  tally. The screen is `opportunities.tsx`. */
 
-/** Rows drawn per page; overrides the contract's default without writing it
- *  to the address, so a shared link carries no number nobody chose. */
-export const PAGE_SIZE = 10
-
 /** The "no filter on this axis" value of a native select, `undefined` on the wire. */
 export const ANY = 'all'
+
+/** The tabs whose rows are all finished: they print a closed day, not an expected one. */
+export const CLOSED_TABS: readonly string[] = ['won', 'lost', 'terminated']
+
+/** Which date the close-day column's filter drives on this tab. "All" mixes
+ *  both kinds of row, so it has none: no range could be true of every row. */
+export const closeDayOf = (query: Pick<OpportunityBookQuery, 'state' | 'pinned'>) =>
+  query.pinned || query.state === 'open'
+    ? ('expected' as const)
+    : query.state && CLOSED_TABS.includes(query.state)
+      ? ('closed' as const)
+      : null
 
 /** The eight columns after the select box, filters in their headers
  *  (`opportunities-filters.tsx`). Only the server's sort keys
  *  (`OpportunitySortKey`) get an arrow; a header that sorts nothing is a lie. */
 export const bookColumns = (
-  filters: Record<'account' | 'stage' | 'closed' | 'bd' | 'sale', ReactNode>,
+  filters: Record<'account' | 'stage' | 'amount' | 'closed' | 'bd' | 'sale', ReactNode | undefined>,
+  closedTab: boolean,
 ): TableColumn[] => [
-  { header: 'Cơ hội', width: 'minmax(224px,2fr)', sortKey: 'name', filter: filters.account },
-  { header: filters.stage, width: 'minmax(112px,1fr)' },
-  /* Fixed tracks: full digits up to tens of billions, and the lead book's person width. */
-  { header: 'Giá trị (₫)', width: '144px', align: 'right', sortKey: 'amount' },
-  /* A closed deal prints its close day here, so the close-day range filters this column. */
+  { header: 'Cơ hội / Khách hàng', width: COL.name, sortKey: 'name', filter: filters.account },
+  { header: 'Giai đoạn', width: COL.status, filter: filters.stage },
   {
-    header: 'Dự kiến chốt',
-    width: '128px',
-    align: 'center',
-    sortKey: 'expectedClose',
+    header: 'Giá trị (₫)',
+    width: COL.money,
+    align: 'right',
+    sortKey: 'amount',
+    filter: filters.amount,
+  },
+  /* An open deal prints its expected day, a closed one the day it closed: the tab
+     picks which range the filter drives (none on "all"). The header is kept short:
+     a longer one overflows 112px beside the sort arrow and the filter funnel. */
+  {
+    header: 'Ngày chốt',
+    width: COL.date,
+    /* A closed tab prints `closedAt`, which the server cannot sort by. */
+    sortKey: closedTab ? undefined : 'expectedClose',
     filter: filters.closed,
   },
-  { header: filters.bd, width: '140px', align: 'center' },
-  { header: filters.sale, width: '140px', align: 'center' },
-  { header: 'Tương tác gần nhất', width: 'minmax(144px,1fr)' },
-  { header: 'Việc cần làm tiếp', width: '1.6fr' },
+  { header: 'BD phụ trách', width: COL.person, filter: filters.bd },
+  { header: 'Sale phụ trách', width: COL.person, filter: filters.sale },
+  { header: 'Tương tác gần nhất', width: COL.status },
+  { header: 'Việc tiếp theo', width: COL.text },
 ]
-
-/** Narrower than this the eight tracks crush, so the card scrolls sideways.
- *  Sized so the floored headers above stay on one line and the last column
- *  still has room for "title · due". */
-export const TABLE_MIN_WIDTH = 'min-w-[1360px]'
 
 /** The deal column stays put while the book scrolls sideways to the row acts.
  *  Its cell reaches over the gap after it, and paints the panel's own `--card`
@@ -80,12 +91,6 @@ export const STICKY_LEAD = [
 
 /** A deal's life in reading order — the enum puts `lost` before `won`. */
 const TAB_ORDER: readonly OpportunityStatus[] = ['open', 'won', 'lost', 'terminated']
-const TAB_LABEL: Record<OpportunityStatus, string> = {
-  open: 'Đang theo đuổi',
-  won: 'Đã ký hợp đồng',
-  lost: 'Đã dừng',
-  terminated: OPPORTUNITY_STATE_LABEL.terminated,
-}
 
 /** Tabs with counts; "all" is the sum of `byState` under the same filters. */
 export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefined) {
@@ -94,20 +99,11 @@ export function stateTabs(byState: OpportunityFacetsResponse['byState'] | undefi
     { value: ANY, label: 'Tất cả', count: all },
     ...TAB_ORDER.map((state) => ({
       value: state as string,
-      label: TAB_LABEL[state],
+      label: OPPORTUNITY_STATE_LABEL[state],
       count: byState?.[state],
     })),
   ]
 }
-
-/** The values of a comma-list filter, `[]` while the filter is off. */
-export const csvOf = (csv?: string) => (csv ? csv.split(',') : [])
-
-/** A person filter's choices, sorted by name so entries do not jump around. */
-export const peopleOptions = (people: readonly WorkstreamHolder[]) =>
-  people
-    .map((p) => ({ value: p.id, label: p.name }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'vi'))
 
 /** What an empty page says. The pinned tab with nothing pinned gets its own
  *  sentence, and no "clear filters": there is no filter to blame. */
@@ -142,6 +138,10 @@ export const FILTER_KEYS = [
   'stoppedStage',
   'closedFrom',
   'closedTo',
+  'expectedFrom',
+  'expectedTo',
+  'amountMin',
+  'amountMax',
   'accepted',
   'overdue',
   'sale',
@@ -150,8 +150,17 @@ export const FILTER_KEYS = [
   'pinned',
 ] as const satisfies readonly (keyof OpportunityBookQuery)[]
 
-/** A header press: the same column flips direction, a new one starts ascending.
- *  A key the server does not sort by is dropped here rather than sent as a 400. */
+/** Money and dates read best biggest or latest first, so their first press
+ *  sorts down; text starts at A. */
+const DESC_FIRST: ReadonlySet<OpportunitySortKey> = new Set([
+  'amount',
+  'expectedClose',
+  'createdAt',
+])
+
+/** A header press: the same column flips direction, a new one starts in its
+ *  natural direction. A key the server does not sort by is dropped here
+ *  rather than sent as a 400. */
 export function sortPatch(
   query: OpportunityBookQuery,
   key: string,
@@ -160,7 +169,7 @@ export function sortPatch(
   if (!parsed.success) return null
   return query.sort === parsed.data
     ? { dir: query.dir === 'asc' ? 'desc' : 'asc' }
-    : { sort: parsed.data, dir: 'asc' }
+    : { sort: parsed.data, dir: DESC_FIRST.has(parsed.data) ? 'desc' : 'asc' }
 }
 
 const NO_RECIPIENTS: ReadonlyMap<string, MasRecipient> = new Map()
