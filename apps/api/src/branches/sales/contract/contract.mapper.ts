@@ -53,8 +53,7 @@ export function fromDraft(
  *   · money and kind — always from the body: a won deal signs again (ADR 0069
  *     §5), so the deal's value cannot stand in for each paper's.
  *   · `signedAt` — absent = now; typing it is for a late entry.
- *   · `ownerId` — absent = `fallbackOwnerId`, the deal's holder (`holderOf`):
- *     commission follows the holder unless somebody names another Sale.
+ *   · `ownerId` — the creator (ADR 0113): the signer, or the request's raiser.
  *   · `collectorId` — always from the body, required: no default, not even the
  *     closer, so a contract never starts with an implied person chasing money.
  *
@@ -65,11 +64,9 @@ export function fromSign(
   body: ContractSign,
   code: string,
   deal: { code: string; leadCode: string; workstreamCode: string | null },
-  fallbackOwnerId: string | null,
+  ownerId: string,
   now: Date,
 ): ContractValues {
-  const ownerId = body.ownerId ?? fallbackOwnerId
-
   return {
     code,
     opportunityCode: deal.code,
@@ -82,7 +79,7 @@ export function fromSign(
     currency: body.currency,
     signedAt: body.signedAt === undefined ? now : new Date(body.signedAt),
     collectorId: body.collectorId,
-    ...(ownerId === null ? {} : { ownerId }),
+    ownerId,
   }
 }
 

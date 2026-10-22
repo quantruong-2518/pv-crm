@@ -176,6 +176,7 @@ export function RunOwners({
                   code: contract.code,
                   who: contract.implementer.name,
                   id: contract.implementer.id,
+                  keepSeat: true,
                 },
               ]
             : []),

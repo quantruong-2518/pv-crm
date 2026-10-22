@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Chip, Drawer, Select } from '@pv/ui'
 import {
   ContractSign,
-  isSellerRole,
   type ContractKind,
   type CurrencyCode,
   type InstallmentDraft,
@@ -10,10 +9,8 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
-import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { collectorNote, useCollectorCandidates } from '@/data/contract-collector'
-import { useDirectory, useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { useSignContract } from '@/data/opportunities-write'
 import { useContractKindLabel, useContractKindOptions } from '@/data/sales-config'
@@ -22,7 +19,7 @@ import { NO_AMOUNT, compactMoney, kindLabel } from '@/components/deal-money/mone
 import { ScheduleEditor } from '@/components/deal-pay'
 import { scheduleIssue, scheduleSummary } from '@/components/deal-pay/schedule-math'
 import { Field } from './ops-fields'
-import { SignAmount, SignCollector, SignFooter, SignNotice, SignWhenWho } from './sign-drawer-parts'
+import { SignAmount, SignCollector, SignFooter, SignNotice, SignDay } from './sign-drawer-parts'
 
 /** A request to sign a contract on a deal — a panel over the deal's profile.
  *
@@ -45,8 +42,6 @@ type SignForm = {
   currency: CurrencyCode | ''
   /** `YYYY-MM-DD`, as `<input type="date">` reads. */
   signedDate: string
-  /** The closer: the signed-in seller, else the row's `holder`; `''` = no override is sent. */
-  ownerId: string
   /** The payment PIC the reader picked; `''` = not picked yet, and the press stays shut. */
   collectorId: string
   /** The pending quotation round this signature wins; `''` = none picked. */
@@ -76,7 +71,6 @@ function bodyOf(form: SignForm): Omit<ContractSign, 'collectorId'> | null {
     amount,
     currency,
     ...(form.signedDate === '' ? {} : { signedAt: signedAtOf(form.signedDate) }),
-    ...(form.ownerId === '' ? {} : { ownerId: form.ownerId }),
     ...(form.quotationId === '' ? {} : { quotationId: form.quotationId }),
     ...(form.installments.length === 0 ? {} : { installments: form.installments }),
   }
@@ -135,16 +129,10 @@ type Props = {
 }
 
 export function SignDrawer({ op, open, onClose, quotationId }: Props) {
-  const salesPeople = useSalesPeople()
-  const directory = useDirectory()
   const resolveKind = useContractKindLabel()
   const sign = useSignContract(op.code)
   const direct = op.signsDirect
   const again = op.state === 'won'
-  /* Primitives, not the actor: a renewed ticket hands over a new object, and
-     that must not reseed a form someone is typing into. */
-  const meId = useSession((s) => s.actor?.id)
-  const meSells = useSession((s) => isSellerRole(s.actor?.roleIds))
 
   /* `op` keeps its reference between react-query renders, so the seed does too
      and the effect below never reseeds over a box being typed into. */
@@ -154,12 +142,11 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
       amount: again ? null : op.amount,
       currency: op.currency ?? '',
       signedDate: localDay(new Date()),
-      ownerId: (meSells && meId) || (op.holder?.id ?? ''),
       collectorId: '',
       quotationId: '',
       installments: [],
     }),
-    [op, again, meId, meSells],
+    [op, again],
   )
 
   const [form, setForm] = useState<SignForm>(seed)
@@ -170,12 +157,6 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
     if (!open) return
     setForm(quotationId ? lend(seed, op, quotationId) : seed)
   }, [open, seed, op, quotationId])
-
-  /* Only sellers may close; the current value stays so the select never shows blank. */
-  const people = [
-    ...salesPeople.filter((a) => isSellerRole(a.roleIds)),
-    ...directory.filter((a) => a.id === form.ownerId && !isSellerRole(a.roleIds)),
-  ]
 
   const set = <K extends keyof SignForm>(key: K, value: SignForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -288,13 +269,10 @@ export function SignDrawer({ op, open, onClose, quotationId }: Props) {
           onChange={(id) => set('collectorId', id)}
         />
 
-        <SignWhenWho
+        <SignDay
           signedDate={form.signedDate}
-          ownerId={form.ownerId}
-          people={people}
           direct={direct}
           onDate={(day) => set('signedDate', day)}
-          onOwner={(id) => set('ownerId', id)}
         />
 
         <SignNotice op={op} direct={direct} />

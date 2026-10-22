@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import {
   ArrowRight,
   Avatar,
@@ -419,6 +419,19 @@ export function DealCard({
   )
 }
 
+/** One row per job, the job first so the column reads "who does what". */
+function contractPeople(
+  contract: JourneyContract,
+  sameHand: boolean,
+): [string, WorkstreamHolder | null][] {
+  const rows: [string, WorkstreamHolder | null][] = [
+    [sameHand ? 'Người chốt, thu tiền' : 'Người chốt', contract.holder],
+  ]
+  if (contract.collector && !sameHand) rows.push(['Người thu tiền', contract.collector])
+  if (contract.implementer) rows.push(['Người triển khai', contract.implementer])
+  return rows
+}
+
 /** What sits inside the rungs opens under the card, read here under
  *  `workstream.view` alone — the profile behind the code needs `contract.view`. */
 export function ContractCard({
@@ -461,18 +474,14 @@ export function ContractCard({
       </div>
       <Rail rungs={railOf('contract', contract.rungs, late)} />
       <span className="flex min-w-0 flex-col gap-1">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-muted-foreground text-[12px]">
-            {sameHand ? 'Người chốt, thu tiền' : 'Người chốt'}
-          </span>
-          <Holder person={contract.holder} />
+        <span className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1">
+          {contractPeople(contract, sameHand).map(([job, person]) => (
+            <Fragment key={job}>
+              <span className="text-muted-foreground text-[12px]">{job}</span>
+              <Holder person={person} />
+            </Fragment>
+          ))}
         </span>
-        {contract.collector && !sameHand && (
-          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-muted-foreground text-[12px]">Người thu tiền</span>
-            <Holder person={contract.collector} />
-          </span>
-        )}
         {contract.canEdit === false && contract.canCollect !== true && (
           <span className="text-muted-foreground flex items-center gap-2 text-[12px]">
             <Icon icon={Lock} size={14} className="shrink-0" />

@@ -116,8 +116,7 @@ export async function assertSellers(tx: Db, added: readonly string[]): Promise<v
   assertSellersIn(await actorsByIds(tx, added), added)
 }
 
-/** Rule 1's person: switched on, and a seller by role. Also who may close a
- *  contract (ADR 0110 §1). */
+/** Rule 1's person: switched on, and a seller by role. */
 export const isActiveSeller = (a: ActorRow): boolean =>
   a.disabledAt === null && isSellerRole(a.roleIds)
 

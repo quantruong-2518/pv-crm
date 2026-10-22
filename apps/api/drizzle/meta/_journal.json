@@ -953,6 +953,13 @@
       "when": 1795158360000,
       "tag": "0138_kpi_absence_and_stand_in_bell",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795244760000,
+      "tag": "0139_contract_owner_is_signer",
+      "breakpoints": true
     }
   ]
 }

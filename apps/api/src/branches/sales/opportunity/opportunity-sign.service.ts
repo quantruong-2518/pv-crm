@@ -3,14 +3,13 @@ import type { Actor, RoleId } from '@pv/engines'
 import {
   ConfigProposalReceipt,
   ContractSignProposal,
-  isSellerRole,
   type ContractSign,
   type ContractSignedReceipt,
   type ObjectCode,
   type OpportunityAct,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, invalid, notFound } from '@api/platform/http/problem'
+import { conflict, notFound } from '@api/platform/http/problem'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { ApprovalService, type ApprovalApplier } from '@api/platform/approval/approval.service'
@@ -29,13 +28,7 @@ import { WorkstreamRepository } from '../workstream/workstream.repository'
 import { announceSigned } from './deal-money.bell'
 import { closeForSign, NOTE, stageEventOf, toRef } from './opportunity.mapper'
 import { DEAL_HELD_REFUSAL, terminatedSentence } from './opportunity-lifecycle'
-import {
-  actorsByIds,
-  isActiveSeller,
-  lanePeople,
-  primaryOf,
-  salePrimaryOf,
-} from './opportunity-owners'
+import { actorsByIds, lanePeople, primaryOf, salePrimaryOf } from './opportunity-owners'
 import { OpportunityRepository, type OpportunityRead } from './opportunity.repository'
 
 /** Signing a deal, through E3 (ADR 0057 §7).
@@ -77,9 +70,8 @@ export class OpportunitySign implements ApprovalApplier {
   async propose(
     who: Actor,
     code: ObjectCode,
-    asked: ContractSign,
+    body: ContractSign,
   ): Promise<ConfigProposalReceipt | ContractSignedReceipt> {
-    const body = withCloser(who, asked)
     const found = await this.deals.byCode(who, code)
     if (!found || !found.inScope) throw notFound('cơ hội', code)
     /* On the pool, before the lock: PGlite has one connection, so a pool read
@@ -151,7 +143,7 @@ export class OpportunitySign implements ApprovalApplier {
   }
 
   /** Every refusal the door makes: the deal (`signVerdict`, 409), the round the
-   *  signature claims to win (409), then the body (422 owner). */
+   *  signature claims to win (409), then the collector (422). */
   private async assertProposable(
     handle: Db,
     found: OpportunityRead,
@@ -175,7 +167,6 @@ export class OpportunitySign implements ApprovalApplier {
     if (round && round.kind === null) {
       adoptedPlace(rounds, body.kind, await kindLabel(handle, body.kind))
     }
-    await assertCloser(handle, body.ownerId)
     await this.collectors.assertPick(handle, body.collectorId)
   }
 
@@ -190,8 +181,6 @@ export class OpportunitySign implements ApprovalApplier {
     const quoted = await this.quotes.exists(tx, code)
     const verdict = signableVerdict(signFactsOf(found, quoted))
     if (!verdict.ok) throw conflict(verdict.reason)
-    /* The closer frozen into the request may have left or changed role since. */
-    await assertCloser(tx, sign.ownerId)
     await this.collectors.assertPick(tx, sign.collectorId)
 
     /* The bell's actor is the decider; the raiser already hears `approval-approved`. */
@@ -215,11 +204,10 @@ export class OpportunitySign implements ApprovalApplier {
   ): Promise<string> {
     const code = found.row.code
     const contractCode = await this.contracts.nextCode(tx)
-    const values = fromSign(body, contractCode, found.row, found.holder?.id ?? null, new Date())
+    /* The creator is the closer (ADR 0113): the signer, or the request's raiser
+       — never the approver, never the deal's holder. */
+    const values = fromSign(body, contractCode, found.row, by.id, new Date())
     const signedAt = values.signedAt
-    const ownerId = values.ownerId ?? null
-    const ownerName =
-      ownerId === null ? null : ((await this.deals.actorNames(tx, [ownerId])).get(ownerId) ?? null)
 
     const row = found.signed
       ? found.row
@@ -229,7 +217,8 @@ export class OpportunitySign implements ApprovalApplier {
       kind: 'HĐ',
       branch: 'Sales',
       label: `${found.account} · ${row.name}`,
-      ...(ownerId && ownerName ? { owner: ownerName, ownerId } : {}),
+      owner: by.name,
+      ownerId: by.id,
       amount: body.amount,
     })
     /* A lane old code left without a primary gets one before it is frozen. */
@@ -274,7 +263,7 @@ export class OpportunitySign implements ApprovalApplier {
       contractCode,
       director: await this.hub.sharedInRoles(tx, ['director'], 'Sales'),
       owners: found.owners.map((o) => o.id),
-      commissionOwner: values.ownerId ?? undefined,
+      commissionOwner: by.id,
     })
     return contractCode
   }
@@ -396,24 +385,6 @@ export function signVerdict(f: SignFacts & { pendingSign: boolean }): Opportunit
 }
 
 const refuse = (reason: string): OpportunityAct => ({ ok: false, reason })
-
-const NOT_ACTIVE_SELLER = 'Người chốt hợp đồng phải là người bán đang làm việc.'
-
-/** The closer may be any active seller, on the deal's lane or not (ADR 0110
- *  §1). Read on `handle`: under the lock a pool read would wait forever. */
-async function assertCloser(handle: Db, ownerId: string | undefined): Promise<void> {
-  if (ownerId === undefined) return
-  const [closer] = await actorsByIds(handle, [ownerId])
-  if (!closer || !isActiveSeller(closer)) {
-    throw invalid({ ownerId: [NOT_ACTIVE_SELLER] }, NOT_ACTIVE_SELLER)
-  }
-}
-
-/** No closer named: the signer when they sell, else the deal's holder later in
- *  `fromSign` (ADR 0110 §1). Frozen into the request here, so `apply` writes
- *  the raiser without reading their roles again. */
-const withCloser = (who: Actor, body: ContractSign): ContractSign =>
-  body.ownerId !== undefined || !isSellerRole(who.roleIds) ? body : { ...body, ownerId: who.id }
 
 /** Who says yes to a signature: one link, the director — the same policy the
  *  sales config proposals follow (`config.approval.ts`). A second approver is a

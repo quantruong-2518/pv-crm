@@ -9,14 +9,15 @@ import {
   type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { NO_COLLECTOR } from '@/data/contract-collector'
-import { peopleIdOptions, type useSalesPeople } from '@/data/directory'
 import { localDay } from '@/data/local-day'
 import { dmy } from '@/lib/date'
 import { Field } from './ops-fields'
 
 /** Pieces of the sign drawer, split out to keep it under the function
  *  ceiling: the footer, the payment PIC, and the one-line fold for the signing
- *  day and the closer. */
+ *  day. */
+
+const CLOSER_IS_YOU = 'Bạn là người chốt: nhận hoa hồng và được sửa hợp đồng.'
 
 /** Who collects the money. The closer is not the collector by nature: the box
  *  always starts empty and the press stays shut until someone is picked. */
@@ -39,7 +40,7 @@ export function SignCollector({
       label="Người thu tiền"
       required
       plain
-      hint={candidates?.length === 0 ? NO_COLLECTOR : undefined}
+      hint={candidates?.length === 0 ? NO_COLLECTOR : CLOSER_IS_YOU}
     >
       <Select
         label="Người thu tiền"
@@ -55,28 +56,20 @@ export function SignCollector({
   )
 }
 
-/** The signing day and who closes the contract, folded into one row that
- *  says both while the defaults stand; its change link opens the two fields.
- *  The verb follows the door: sign when the press signs, send when it sends
- *  a request. */
-export function SignWhenWho({
+/** The signing day, folded into one row while the default stands; its change
+ *  link opens the field. The closer is never picked: whoever creates the
+ *  contract closes it (ADR 0113); `SignCollector` says so beside the collector. */
+export function SignDay({
   signedDate,
-  ownerId,
-  people,
   direct,
   onDate,
-  onOwner,
 }: {
   signedDate: string
-  ownerId: string
-  people: ReturnType<typeof useSalesPeople>
   direct: boolean
   onDate: (day: string) => void
-  onOwner: (id: string) => void
 }) {
   const [changing, setChanging] = useState(false)
   const verb = direct ? 'ký' : 'gửi'
-  const owner = people.find((a) => a.id === ownerId)
   const taken = signedDate === '' || signedDate === localDay(new Date())
 
   return (
@@ -87,11 +80,9 @@ export function SignWhenWho({
         onClick={() => setChanging((was) => !was)}
         className="bg-surface-ink/9 motion-std hover:bg-surface-ink/14 pointer-coarse:min-h-12 flex min-h-12 items-center gap-3 rounded-md px-3 text-left"
       >
-        <span className="text-muted-foreground text-[12px] font-medium">Ngày ký · Người chốt</span>
+        <span className="text-muted-foreground text-[12px] font-medium">Ngày ký</span>
         <span className="tnum min-w-0 flex-1 truncate text-[13px]">
           {taken ? `Lấy lúc bấm ${verb}` : `Ngày ${dmy(signedDate)}`}
-          {' · '}
-          {owner?.name ?? 'Chưa chọn'}
         </span>
         <span className="text-accent-foreground text-[12px]">Đổi</span>
         <Icon
@@ -101,40 +92,22 @@ export function SignWhenWho({
         />
       </button>
       {changing && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Ngày ký"
-            hint={
-              signedDate !== ''
-                ? `Ngày ${dmy(signedDate)}. Sửa nếu ký ngày khác.`
-                : `Bỏ trống là lấy lúc bấm ${verb}.`
-            }
-          >
-            <Input
-              type="date"
-              aria-label="Ngày ký"
-              className="pointer-coarse:h-12"
-              value={signedDate}
-              onChange={(e) => onDate(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Người chốt hợp đồng"
-            plain
-            hint="Người này nhận hoa hồng và sửa được hợp đồng."
-          >
-            <Select
-              label="Người chốt hợp đồng"
-              hideLabel
-              size="lg"
-              value={ownerId}
-              neutralValue={ownerId}
-              onChange={onOwner}
-              options={peopleIdOptions(people)}
-              className="w-full"
-            />
-          </Field>
-        </div>
+        <Field
+          label="Ngày ký"
+          hint={
+            signedDate !== ''
+              ? `Ngày ${dmy(signedDate)}. Sửa nếu ký ngày khác.`
+              : `Bỏ trống là lấy lúc bấm ${verb}.`
+          }
+        >
+          <Input
+            type="date"
+            aria-label="Ngày ký"
+            className="pointer-coarse:h-12"
+            value={signedDate}
+            onChange={(e) => onDate(e.target.value)}
+          />
+        </Field>
       )}
     </div>
   )

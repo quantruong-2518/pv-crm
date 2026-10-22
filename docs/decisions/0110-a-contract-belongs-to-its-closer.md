@@ -1,6 +1,7 @@
 # 0110 · A contract belongs to the person who closed it, and the journey book names who answers by seat
 
 Status: accepted
+Superseded in §1 by ADR 0113 (the closer is whoever created the contract)
 Source: project owner's decisions, 21/10/2026; design canvas https://claude.ai/artifact/56S94xeWLTMgkdpwWS7qto
 
 ## Context

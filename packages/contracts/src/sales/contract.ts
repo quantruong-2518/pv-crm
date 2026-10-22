@@ -68,11 +68,9 @@ import { WorkstreamHolder } from './workstream'
  *  A won deal may sign again (licence beside deployment), so the deal's own
  *  value cannot stand in for the paper's: every request names `amount`,
  *  `currency` and `kind`, and the deal's value stays as it was (29/09).
- *  The two optional overrides exist for cases that really happen:
- *
- *   · `signedAt` — paperwork gets entered days after the pen moved.
- *   · `ownerId` — commission can land on somebody other than the first Sale in
- *     the list.
+ *  `signedAt` is optional because paperwork gets entered days after the pen
+ *  moved. There is no `ownerId`: the closer is whoever creates the contract
+ *  (ADR 0113), so a body naming one is stripped, not obeyed.
  *
  *  `code` is NOT here, for the reason `OpportunityCreate` has no `code`: the
  *  server mints it from `sales.contract_code_seq`, and a body carrying its own
@@ -144,10 +142,7 @@ export const ContractSignShape = z.object({
    *  17:00 in Hanoi once the string is read back as UTC. */
   signedAt: Moment.optional(),
 
-  /** Whose commission. Absent = the deal's holder, i.e. its SALE primary. */
-  ownerId: z.string().trim().min(1).max(64).optional(),
-
-  /** Who chases the money. Required and separate from `ownerId`: the closer
+  /** Who chases the money. Required and separate from the closer: the closer
    *  keeps commission and KPI, the collector owns the payment follow-up. */
   collectorId: z.string().trim().min(1).max(64),
 
