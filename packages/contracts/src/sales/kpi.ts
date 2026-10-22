@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Moment } from '../primitives'
+import { MonthKey, Moment } from '../primitives'
 import { RoleId, RoleIds } from '../auth'
 
 /** `/sales/kpi/:period/…` — scorecards per ROLE and the agreed monthly targets.
@@ -14,8 +14,9 @@ import { RoleId, RoleIds } from '../auth'
  *  the catalog's `unit` says how to print it. */
 
 /** A calendar month only (`2026-10`). Targets are agreed per month, so the
- *  week, quarter and year keys `SalesPeriodKey` also accepts are refused here. */
-export const KpiPeriodKey = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
+ *  week, quarter and year keys `SalesPeriodKey` also accepts are refused here.
+ *  The schema is `MonthKey`'s, kept under this name so no import changes. */
+export const KpiPeriodKey = MonthKey
 
 export const KpiPeriodParams = z.object({ period: KpiPeriodKey })
 export const KpiRoleParams = z.object({ period: KpiPeriodKey, role: RoleId })

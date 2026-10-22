@@ -46,6 +46,10 @@ export const Day = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, { error: 'Ngày không đúng định dạng.', abort: true })
   .refine(isRealCalendarDate, { error: 'Ngày không có trên lịch.', abort: true })
 
+/** A calendar month only (`2026-10`): KPI targets and the org tree are kept per
+ *  month. Here rather than in `sales/kpi` so a platform contract can use it. */
+export const MonthKey = z.string().regex(/^20\d{2}-(0[1-9]|1[0-2])$/)
+
 /** Mốc thời gian tuyệt đối, ISO 8601 kèm múi. */
 export const Moment = z
   .string('Mốc thời gian là bắt buộc.')

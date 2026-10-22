@@ -2,7 +2,9 @@ import { and, eq, inArray, isNotNull, lte, max, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiPeriodKey, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
+import { orgMember, orgNode } from '@api/platform/db/org.schema'
 import { actor } from '@api/platform/db/platform.schema'
+import { firstOrgVersion, isOrgUnit, orgVersionAt } from '@api/platform/org/org-version'
 import { spansOf } from '../performance/performance-period'
 import { kpiAllocation } from './kpi-allocation.schema'
 import { vietnamToday } from './kpi-rules'
@@ -35,8 +37,29 @@ export class KpiTeamRepository {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('sales.kpi_team_roster'))`)
   }
 
-  /** The roster in force for `period`; no header at or before it means no teams. */
+  /** The roster in force for `period`; no header at or before it means no teams.
+   *  A month the org tree covers reads the tree instead (ADR 0118 §7): its team
+   *  units WITH a head are the teams, the head the lead; members of a headless
+   *  team or of any other unit are in no team, as a roster team always had a lead. */
   async rosterAt(period: string, handle: Db = this.db): Promise<RosterEntry[]> {
+    const tree = await this.treeAt(period, handle)
+    if (tree) {
+      const rows = await handle
+        .select({
+          teamId: orgMember.unitId,
+          teamName: orgNode.name,
+          actorId: orgMember.actorId,
+          lead: orgMember.head,
+        })
+        .from(orgMember)
+        .innerJoin(
+          orgNode,
+          and(eq(orgNode.fromPeriod, orgMember.fromPeriod), eq(orgNode.unitId, orgMember.unitId)),
+        )
+        .where(and(eq(orgMember.fromPeriod, tree), eq(orgNode.kind, 'team')))
+      const headed = new Set(rows.filter((r) => r.lead).map((r) => r.teamId))
+      return rows.filter((r) => headed.has(r.teamId))
+    }
     const [head] = await handle
       .select({ from: max(kpiTeamRoster.fromPeriod) })
       .from(kpiTeamRoster)
@@ -52,6 +75,21 @@ export class KpiTeamRepository {
       .from(kpiTeamMember)
       .innerJoin(kpiTeam, eq(kpiTeam.id, kpiTeamMember.teamId))
       .where(eq(kpiTeamMember.fromPeriod, head.from))
+  }
+
+  /** The org tree version in force for `period`, or null before the tree's first month. */
+  treeAt(period: string, handle: Db = this.db): Promise<string | null> {
+    return orgVersionAt(handle, period)
+  }
+
+  /** The tree's first month, or null while no version exists. */
+  treeStart(handle: Db = this.db): Promise<string | null> {
+    return firstOrgVersion(handle)
+  }
+
+  /** A roster team that is also a tree unit: its name is the tree's to change. */
+  isTreeUnit(teamId: string, handle: Db = this.db): Promise<boolean> {
+    return isOrgUnit(handle, teamId)
   }
 
   /** The month after the last one anything was sent for, at either tier, and
@@ -141,6 +179,16 @@ export class KpiTeamRepository {
     const [row] = await tx.insert(kpiTeam).values({ name, createdBy: by }).returning()
     if (!row) throw new Error('kpi_team insert returned no row')
     return row.id
+  }
+
+  /** A team unit of the org tree mirrored as its `kpi_team` row, same id: the
+   *  allocation tables still point there (ADR 0118 §8). Renaming relabels past
+   *  months too, as `renameTeam` does. */
+  async saveTeam(tx: Db, team: { id: string; name: string; by: string }): Promise<void> {
+    await tx
+      .insert(kpiTeam)
+      .values({ id: team.id, name: team.name, createdBy: team.by })
+      .onConflictDoUpdate({ target: kpiTeam.id, set: { name: team.name } })
   }
 
   async renameTeam(tx: Db, teamId: string, name: string): Promise<void> {

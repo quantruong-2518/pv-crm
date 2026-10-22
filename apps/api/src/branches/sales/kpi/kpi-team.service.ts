@@ -13,6 +13,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { rosterOf } from './kpi-allocation-team'
+import { monthLabel } from './kpi-alert.service'
 import { KpiSeatService } from './kpi-seat.service'
 import { memberOf, teamsOf } from './kpi-team.mapper'
 import { KpiTeamRepository, type ActorFace } from './kpi-team.repository'
@@ -76,6 +77,7 @@ export class KpiTeamService {
   }
 
   async create(who: Actor, body: KpiTeamBody): Promise<KpiTeamRosterResponse> {
+    await this.assertRosterMonth(await this.repo.effectiveFrom())
     await this.assertEligible(body.memberIds)
     return this.write(who, async (tx, at) => {
       await this.assertFree(tx, at, body.memberIds)
@@ -85,10 +87,15 @@ export class KpiTeamService {
     })
   }
 
+  /** A team that is also a tree unit keeps its members editable here for months
+   *  before the tree, but not its name: one label lives in the tree (ADR 0118). */
   async update(who: Actor, teamId: string, body: KpiTeamBody): Promise<KpiTeamRosterResponse> {
+    await this.assertRosterMonth(await this.repo.effectiveFrom())
     await this.assertEligible(body.memberIds)
     return this.write(who, async (tx, at) => {
-      await this.assertInRoster(tx, at, teamId)
+      const name = await this.assertInRoster(tx, at, teamId)
+      if (name !== body.name && (await this.repo.isTreeUnit(teamId, tx)))
+        throw conflict('Đổi tên nhóm ở mục Phòng ban & nhóm.')
       await this.repo.removeTeam(tx, at, teamId)
       await this.assertFree(tx, at, body.memberIds)
       await this.repo.addMembers(tx, membersOf(at, teamId, body))
@@ -100,6 +107,7 @@ export class KpiTeamService {
   async remove(who: Actor, teamId: string): Promise<KpiTeamRosterResponse> {
     return this.write(who, async (tx, at) => {
       await this.assertInRoster(tx, at, teamId)
+      if (await this.repo.isTreeUnit(teamId, tx)) throw conflict('Xoá nhóm ở mục Phòng ban & nhóm.')
       await this.repo.removeTeam(tx, at, teamId)
       return { kpi: 'team-removed', teamId }
     })
@@ -114,6 +122,7 @@ export class KpiTeamService {
     const at = await this.repo.run(async (tx) => {
       await this.repo.lockRoster(tx)
       const month = await this.repo.effectiveFrom(tx)
+      await this.assertRosterMonth(month, tx)
       await this.repo.openRoster(tx, month, who.id)
       const note = await apply(tx, month)
       await this.audit.write(
@@ -166,9 +175,19 @@ export class KpiTeamService {
     )
   }
 
-  private async assertInRoster(tx: Db, at: KpiPeriodKey, teamId: string): Promise<void> {
-    const entries = await this.repo.rosterAt(at, tx)
-    if (!entries.some((e) => e.teamId === teamId)) throw notFound('nhóm')
+  /** The team's name, or 404 when it is not in the roster at `at`. */
+  private async assertInRoster(tx: Db, at: KpiPeriodKey, teamId: string): Promise<string> {
+    const entry = (await this.repo.rosterAt(at, tx)).find((e) => e.teamId === teamId)
+    if (!entry) throw notFound('nhóm')
+    return entry.teamName
+  }
+
+  /** The tree owns every month from its first (ADR 0118 §7): a roster header
+   *  there would never be read. Months before it stay this door's. */
+  private async assertRosterMonth(month: KpiPeriodKey, handle?: Db): Promise<void> {
+    const start = await this.repo.treeStart(handle)
+    if (start !== null && month >= start)
+      throw conflict(`Nhóm từ ${monthLabel(month)} được sửa ở mục Phòng ban & nhóm.`)
   }
 }
 
