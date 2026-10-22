@@ -10,6 +10,7 @@ export function InstallmentFooter({
   failed,
   busy,
   canTick,
+  collecting,
   onClose,
   onOpen,
   onTick,
@@ -18,6 +19,8 @@ export function InstallmentFooter({
   failed: boolean
   busy: boolean
   canTick: boolean
+  /** The modal's own collect button stands, so the way in steps down. */
+  collecting: boolean
   onClose: () => void
   onOpen: () => void
   onTick: () => void
@@ -37,7 +40,11 @@ export function InstallmentFooter({
         <Button size="lg" variant="ghost" onClick={onClose}>
           Đóng
         </Button>
-        <Button size="lg" variant={canTick ? 'secondary' : 'default'} onClick={onOpen}>
+        <Button
+          size="lg"
+          variant={canTick || collecting ? 'secondary' : 'default'}
+          onClick={onOpen}
+        >
           <Icon icon={ArrowRight} size={16} />
           Mở đợt
         </Button>

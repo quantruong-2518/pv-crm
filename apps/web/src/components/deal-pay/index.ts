@@ -1,5 +1,5 @@
 export { installmentDoorsOf } from './installment-doors'
-export { CollectCard } from './installment-collect'
+export { CollectBody, CollectCard } from './installment-collect'
 export { ConditionDialog, UndoPaidDialog } from './installment-dialogs'
 export { ScheduleDrawer } from './schedule-drawer'
 export { ScheduleEditor } from './schedule-editor'

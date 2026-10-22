@@ -52,7 +52,9 @@ export const NO_AMOUNT = 'Chưa nhập giá trị'
 export const QUOTE_LABEL = 'Ghi báo giá'
 
 /** Where one installment stands, in the contract's words plus the server's day count. */
-export function installmentStatusLine(i: OpportunityMoneyInstallment): string {
+export function installmentStatusLine(
+  i: Pick<OpportunityMoneyInstallment, 'status' | 'paidAt' | 'days'>,
+): string {
   const label = INSTALLMENT_STATUS_LABEL[i.status]
   if (i.status === 'paid') return i.paidAt ? `${label} ${dmy(i.paidAt)}` : label
   if (i.days === null) return label

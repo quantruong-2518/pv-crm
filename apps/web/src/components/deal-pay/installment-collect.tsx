@@ -10,27 +10,41 @@ import { UndoPaidDialog } from './installment-dialogs'
 import { useLateReason } from './use-late-reason'
 import { usePayDay, type DayPick } from './use-pay-day'
 
-/** The collection card of one installment: the day to record and the one
- *  button while unpaid, the fact once paid with its undo. Both doors are the
- *  contract's own (`can.recordPayment`, undo only for whoever recorded) and
- *  an absent door is an absent button. `leads` is true when another primary
- *  already stands on the screen, so this one steps down to secondary. `late`
- *  = overdue, so collecting asks for the reason first. */
-export function CollectCard({
-  contract,
-  installment,
-  canPay,
-  canUndo,
-  leads,
-  late,
-}: {
+type CollectProps = {
   contract: ContractDetailRow
   installment: InstallmentRow
   canPay: boolean
   canUndo: boolean
   leads: boolean
   late: boolean
-}) {
+  onPaid?: () => void
+}
+
+/** The collection card of one installment: the day to record and the one
+ *  button while unpaid, the fact once paid with its undo. Both doors are the
+ *  contract's own (`can.recordPayment`, undo only for whoever recorded) and
+ *  an absent door is an absent button. `leads` is true when another primary
+ *  already stands on the screen, so this one steps down to secondary. `late`
+ *  = overdue, so collecting asks for the reason first. */
+export function CollectCard(props: CollectProps) {
+  if (props.installment.paidAt === undefined && !props.canPay) return null
+  return (
+    <RecordCard title="Thu tiền">
+      <CollectBody {...props} />
+    </RecordCard>
+  )
+}
+
+/** The card's content alone, for the installment modal's own section. */
+export function CollectBody({
+  contract,
+  installment,
+  canPay,
+  canUndo,
+  leads,
+  late,
+  onPaid,
+}: CollectProps) {
   const pay = usePayDay(true, contract.signedAt)
   const record = useRecordPaid(contract.code)
   const [undoing, setUndoing] = useState(false)
@@ -39,10 +53,8 @@ export function CollectCard({
   const blocker = pay.blocker || reason.blocker
   const failed = (e: ApiError) => toastFail('Không ghi thu được.', userMessage(e))
 
-  if (!paid && !canPay) return null
-
   return (
-    <RecordCard title="Thu tiền">
+    <>
       {paid ? (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-success tnum m-0 min-w-0 flex-1 text-[13px]">
@@ -101,7 +113,10 @@ export function CollectCard({
                   record.mutate(
                     { no: installment.no, body: { paidAt: momentOfDay(pay.day) } },
                     {
-                      onSuccess: () => toastDone(`Đã ghi thu ${installment.label}.`),
+                      onSuccess: () => {
+                        toastDone(`Đã ghi thu ${installment.label}.`)
+                        onPaid?.()
+                      },
                       onError: failed,
                     },
                   ),
@@ -120,6 +135,6 @@ export function CollectCard({
         open={undoing}
         onClose={() => setUndoing(false)}
       />
-    </RecordCard>
+    </>
   )
 }

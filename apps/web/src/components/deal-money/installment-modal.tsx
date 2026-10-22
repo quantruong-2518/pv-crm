@@ -11,7 +11,7 @@ import { contractDetailQuery, viewInstallment } from '@/data/contracts'
 import { useDoneCondition } from '@/data/contracts-write'
 import { BADGE_INK } from '@/data/opportunities'
 import { useContractKindLabel } from '@/data/sales-config'
-import { ConditionDialog, installmentDoorsOf } from '@/components/deal-pay'
+import { CollectBody, ConditionDialog, installmentDoorsOf } from '@/components/deal-pay'
 import { StepDocuments } from '@/components/run/step-documents'
 import { InstallmentFooter } from './installment-footer'
 import { INSTALLMENT_TONE, compactMoney, installmentStatusLine, kindLabel } from './money'
@@ -19,23 +19,32 @@ import { AcceptSection, ReminderSection, Section } from './installment-sections'
 
 /** One installment, opened from its tile: acceptance, reminders and papers,
  *  with ONE primary in the footer chosen by the step the installment is at.
- *  Money is recorded and undone on the installment's own screen, which the
- *  footer opens. The two facts in the header are the profile's own row, so
+ *  Money is recorded only from the contract (ADR 0111): its screen passes
+ *  `collect`, the deal's does not and points to the installment screen. The two facts in the header are the profile's own row, so
  *  they stand even when the contract's detail is refused (that door is scoped
  *  to the contract's owner, who may not be this reader); the sections and the
  *  buttons need the detail. Every press goes through the contract's own doors
  *  (done condition, reminder) and the server judges each. */
 
+/** What the modal reads: the deal's money row, or the same facts built from the contract. */
+export type ModalContract = Pick<OpportunityMoneyContract, 'code' | 'kind' | 'currency' | 'can'>
+export type ModalInstallment = Pick<
+  OpportunityMoneyInstallment,
+  'no' | 'label' | 'amount' | 'due' | 'share' | 'status' | 'days' | 'paidAt'
+>
+
 export function InstallmentModal({
   contract,
   installment: i,
   workstreamCode,
+  collect = false,
   open,
   onClose,
 }: {
-  contract: OpportunityMoneyContract
-  installment: OpportunityMoneyInstallment
+  contract: ModalContract
+  installment: ModalInstallment
   workstreamCode: string | null
+  collect?: boolean
   open: boolean
   onClose: () => void
 }) {
@@ -60,6 +69,8 @@ export function InstallmentModal({
   const blocking = full ? viewInstallment(full).blocking : null
   const hasOpen = full?.conditions.some((c) => !c.doneAt) === true
   const canTick = doors?.condition === true && blocking !== null
+  const paid = full?.paidAt !== undefined
+  const collecting = collect && doors?.pay === true
   const failure = done.error
   const busy = done.isPending
 
@@ -80,9 +91,11 @@ export function InstallmentModal({
           ? `Bước tiếp theo: ${blocking.what}.`
           : hasOpen
             ? 'Bước tiếp theo: nghiệm thu.'
-            : collects
-              ? 'Ghi thu ở trang đợt.'
-              : ''
+            : collecting
+              ? 'Bước tiếp theo: thu tiền.'
+              : collects
+                ? 'Ghi thu ở trang đợt.'
+                : ''
 
   return (
     <Modal
@@ -110,6 +123,7 @@ export function InstallmentModal({
           failed={failure !== null}
           busy={busy}
           canTick={canTick}
+          collecting={collecting}
           onClose={onClose}
           onOpen={openInstallment}
           onTick={() => blocking && tick(blocking.id)}
@@ -126,6 +140,19 @@ export function InstallmentModal({
             onTick={tick}
             onAdd={doors.condition ? () => setAdding(true) : undefined}
           />
+          {detail.data && (collecting || (collect && paid)) && (
+            <Section title="Thu tiền">
+              <CollectBody
+                contract={detail.data}
+                installment={full}
+                canPay={doors.pay}
+                canUndo={doors.undo}
+                leads={canTick}
+                late={i.status === 'overdue'}
+                onPaid={onClose}
+              />
+            </Section>
+          )}
           <ReminderSection code={contract.code} installment={full} canRemind={doors.remind} />
           <Section title="Chứng từ của đợt">
             <StepDocuments

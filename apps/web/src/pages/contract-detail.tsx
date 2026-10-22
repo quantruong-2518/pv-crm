@@ -9,6 +9,7 @@ import {
   contractDetailQuery,
   contractReadOnlyNote,
   daysPhrase,
+  overdue,
   today,
   viewInstallment,
   type Contract,
@@ -16,6 +17,7 @@ import {
   type InstallmentView,
 } from '@/data/contracts'
 import { CommActionConfirm } from '@/components/comm-action-confirm'
+import { InstallmentModal, type ModalInstallment } from '@/components/deal-money/installment-modal'
 import { ContractInside } from '@/components/contract-inside'
 import { MAIL_BLOCKED, contractChain, hasInside, useContractRun } from '@/components/contract-run'
 import { LetterComposer } from '@/components/mail-letter/letter-composer'
@@ -98,8 +100,11 @@ function ContractScreen({ contract }: { contract: Contract }) {
   )
   const next = ended ? undefined : views.find((v) => !v.installment.paidAt)
   const subject = { kind: 'contract', code: contract.code } as const
-  const openInstallment = (no: number) =>
-    navigate(`/sales/contracts/${contract.code}/installments/${no}`)
+  const { openInstallment, installmentModal } = useInstallmentModal(
+    contract,
+    views,
+    run.workstreamCode,
+  )
   const addressee: BarContact = run.contacts.find((c) => c.name === contract.contact) ??
     run.contacts.find((c) => c.primary) ??
     run.contacts[0] ?? { name: contract.contact }
@@ -217,6 +222,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
         mail={{ onCompose: () => setComposing(true) }}
         onClose={() => setMailing(null)}
       />
+      {installmentModal}
       {composing && (
         <LetterComposer
           door="contract"
@@ -228,6 +234,59 @@ function ContractScreen({ contract }: { contract: Contract }) {
     </RecordShell>
   )
 }
+
+/** A tile opens the installment modal, built from the contract itself, so a
+ *  collector who cannot read the deal still records money here (ADR 0111). */
+function useInstallmentModal(
+  contract: Contract,
+  views: InstallmentView<Installment>[],
+  workstreamCode: string | null,
+) {
+  const mayEdit = useCan('contract.edit')
+  const [paying, setPaying] = useState<{ no: number; open: boolean; session: number } | null>(null)
+  const view = views.find((v) => v.installment.no === paying?.no)
+  /* A terminated contract refuses every write (ADR 0107). */
+  const live = contract.termination === null
+
+  return {
+    openInstallment: (no: number) =>
+      setPaying((prev) => ({ no, open: true, session: (prev?.session ?? 0) + 1 })),
+    installmentModal: paying && view && (
+      <InstallmentModal
+        key={paying.session}
+        contract={{
+          code: contract.code,
+          kind: contract.kind,
+          currency: contract.currency,
+          can: {
+            editSchedule: mayEdit && contract.canEdit !== false && live,
+            recordPayment: contract.canCollect === true && live,
+          },
+        }}
+        installment={modalRowOf(view)}
+        workstreamCode={workstreamCode}
+        collect={live}
+        open={paying.open}
+        onClose={() => setPaying((prev) => prev && { ...prev, open: false })}
+      />
+    ),
+  }
+}
+
+const modalRowOf = ({
+  installment: d,
+  level,
+  daysLeft,
+}: InstallmentView<Installment>): ModalInstallment => ({
+  no: d.no,
+  label: d.label,
+  amount: d.amount,
+  due: d.due,
+  share: d.share,
+  paidAt: d.paidAt,
+  status: d.paidAt ? 'paid' : overdue(level) ? 'overdue' : 'upcoming',
+  days: d.paidAt ? null : Math.abs(daysLeft),
+})
 
 /** What the assistant read. The "no reply" clause only when the installment's
  *  latest sent touch is still waiting for one. */
