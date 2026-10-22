@@ -82,7 +82,7 @@ export class KpiAlertService {
       subject: { kind: 'kpi-target', code: pkg.period, label },
     })
     await this.hub.announce(tx, {
-      event: { ...event, audiences: { approvers: await this.setters(tx, pkg.period) } },
+      event: { ...event, audiences: { approvers: await this.setters(tx, pkg.period, who.id) } },
       subject: { kind: 'kpi-allocation', code: packageCode(pkg), label },
     })
   }
@@ -99,7 +99,9 @@ export class KpiAlertService {
         ref: { code: pkg.period },
         occurrence: occurrenceOf(pkg),
         actorId: who.id,
-        audiences: { sender: await this.seats.seatActors(seat, pkg.period, undefined, tx) },
+        audiences: {
+          sender: await this.seats.bellActors(seat, pkg.period, undefined, tx, [who.id]),
+        },
       },
       subject: await this.returnedSubject(tx, pkg),
       detail: { reason, period: pkg.period },
@@ -116,11 +118,12 @@ export class KpiAlertService {
     teams: readonly { id: string; name: string }[],
   ): Promise<void> {
     const roster = rosterOf(await this.teams.rosterAt(pkg.period, tx))
-    const acting = await this.seats.leadSeats(
+    const acting = await this.seats.bellLeadSeats(
       roster,
       teams.map((t) => t.id),
       undefined,
       tx,
+      [who.id],
     )
     for (const team of teams) {
       await this.hub.announce(tx, {
@@ -177,7 +180,7 @@ export class KpiAlertService {
       })
     }
     await this.hub.announce(tx, {
-      event: { ...event, audiences: { setters: await this.setters(tx, pkg.period) } },
+      event: { ...event, audiences: { setters: await this.setters(tx, pkg.period, who.id) } },
       subject: { kind: 'kpi-allocation', code: packageCode(pkg), label },
     })
   }
@@ -225,9 +228,10 @@ export class KpiAlertService {
     })
   }
 
-  /** The setters' pool today (`KpiSeatService`): one definition for every bell. */
-  private setters(tx: Db, period: string): Promise<string[]> {
-    return this.seats.seatActors({ kind: 'setters' }, period, undefined, tx)
+  /** The setters' bell pool today, less the actor (`KpiSeatService.bellActors`). */
+  private setters(tx: Db, period: string, actorId?: string): Promise<string[]> {
+    const without = actorId ? [actorId] : []
+    return this.seats.bellActors({ kind: 'setters' }, period, undefined, tx, without)
   }
 
   /** The package's label, with the team's name when it is a team package. */

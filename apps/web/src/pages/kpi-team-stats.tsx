@@ -40,8 +40,9 @@ function readingCells(r: KpiTeamReading, def: KpiMetricDef) {
       <span className="font-semibold">{KPI_METRIC_LABEL[r.metricKey]}</span>
       {!additive && <span className={NOTE}>Xem theo từng thành viên.</span>}
     </span>,
-    <span key="value" className={cn(FIGURE, 'font-semibold')}>
-      {printCell(def.unit, r.value)}
+    <span key="value" className={TWO_LINES}>
+      <span className={cn(FIGURE, 'font-semibold')}>{printCell(def.unit, r.value)}</span>
+      <AdjustmentNote unit={def.unit} reading={r} form="cell" />
     </span>,
     <span key="share" className={FIGURE}>
       {printCell(def.unit, r.share)}

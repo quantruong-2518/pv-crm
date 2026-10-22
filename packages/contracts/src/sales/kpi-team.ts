@@ -6,6 +6,7 @@ import {
   KpiPeriodKey,
   KpiPeriodParams,
   KpiPerson,
+  KpiReading,
   KpiTargetActor,
   KpiVerdict,
 } from './kpi'
@@ -95,14 +96,16 @@ export const KpiTeamShare = z.object({ role: RoleId, metricKey: KpiMetricKey, va
 
 /** `value` and `share` are `null` for a ratio, hours or days metric: members'
  *  figures do not add up, so the page shows members only. */
-export const KpiTeamReading = z.object({
-  role: RoleId,
-  metricKey: KpiMetricKey,
-  value: z.number().nullable(),
-  share: amount.nullable(),
-  expected: z.number().nonnegative().nullable(),
-  verdict: KpiVerdict,
-})
+export const KpiTeamReading = z
+  .object({
+    role: RoleId,
+    metricKey: KpiMetricKey,
+    value: z.number().nullable(),
+    share: amount.nullable(),
+    expected: z.number().nonnegative().nullable(),
+    verdict: KpiVerdict,
+  })
+  .extend(KpiReading.pick({ adjustedBy: true, afterAdjustments: true }).shape)
 
 export const KpiTeamViewResponse = z.object({
   period: KpiPeriodKey,

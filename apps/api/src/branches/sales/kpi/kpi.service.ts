@@ -179,7 +179,9 @@ export class KpiService {
         throw conflict('Chỉ tiêu này vừa được duyệt. Tải lại rồi gửi đề nghị mới.')
       }
       await this.note(tx, who, { kpi: 'target-proposed', period, role, targets: body.targets })
-      const setters = await this.seats.seatActors({ kind: 'setters' }, period, undefined, tx)
+      const setters = await this.seats.bellActors({ kind: 'setters' }, period, undefined, tx, [
+        who.id,
+      ])
       await this.ring(tx, who, period, role, KPI_TARGET_PROPOSED, { setters }, proposedAt)
     })
     return this.targetsOf(period)

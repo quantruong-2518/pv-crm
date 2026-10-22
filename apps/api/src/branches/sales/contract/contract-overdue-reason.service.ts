@@ -15,6 +15,8 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, denied, notFound, type PvError } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { awayRefusal } from '../kpi/kpi-rules'
+import { KpiSeatService } from '../kpi/kpi-seat.service'
 import { ContractOverdueReasonRepository } from './contract-overdue-reason.repository'
 import { ContractRepository } from './contract.repository'
 import { ContractScheduleRepository } from './contract-schedule.repository'
@@ -90,6 +92,7 @@ export class ContractOverdueReasonService {
     private readonly audit: AuditRepository,
     private readonly hub: NotificationHub,
     private readonly termination: ContractTerminationService,
+    private readonly seats: KpiSeatService,
   ) {}
 
   async list(who: Actor, code: ContractCode, no: number): Promise<OverdueReasonListResponse> {
@@ -133,15 +136,21 @@ export class ContractOverdueReasonService {
           },
           tx,
         )
-        /* The writer is left out here as well as by E4: a holder may be the owner. */
-        const holders = await this.hub.holding(tx, 'contract.approve-overdue-reason', 'Sales')
+        /* The writer is left out here as well as by E4: a holder may be the owner.
+         * Nobody else present rings the away approvers instead: owner's choice, 22/10. */
+        const approvers = await this.seats.presentHolders(
+          'contract.approve-overdue-reason',
+          undefined,
+          tx,
+          [who.id],
+        )
         await this.hub.announce(tx, {
           event: {
             name: OVERDUE_REASON_SENT,
             ref: { code },
             actorId: who.id,
             occurrence: `${no}/${id}`,
-            audiences: { approvers: holders.filter((h) => h !== who.id) },
+            audiences: { approvers },
           },
           subject: { kind: 'contract', code, label: await this.repo.labelOf(tx, code) },
           detail: { [NOTIFICATION_DETAIL_NO]: no },
@@ -160,6 +169,7 @@ export class ContractOverdueReasonService {
       /* The contract's lock first, so a termination landing now is seen committed. */
       await this.schedule.lock(tx, found.contractCode)
       await this.termination.assertLive(tx, found.contractCode)
+      if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()
       if (found.writtenById === who.id) {
         throw conflict('Người ghi lý do không tự duyệt được lý do của mình.')
       }

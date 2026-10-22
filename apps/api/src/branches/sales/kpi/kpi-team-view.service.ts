@@ -23,6 +23,23 @@ import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
 import { expectedOf, verdictOf } from './kpi-verdict'
 import { KpiService } from './kpi.service'
 
+type Figures = Pick<KpiTeamReading, 'value' | 'adjustedBy' | 'afterAdjustments'>
+
+/** `null` when no member has a figure, so "no data" never reads as zero. */
+const sumOf = (xs: readonly (number | null)[]): number | null =>
+  xs.some((x) => x !== null) ? xs.reduce<number>((n, x) => n + (x ?? 0), 0) : null
+
+/** Adjustment notes add like the values (ADR 0115). A member with no note
+ *  counts at their own value toward the team's after-adjustments figure. */
+function teamFigures(members: readonly Figures[]): Figures {
+  const noted = members.some((r) => r.afterAdjustments !== null)
+  return {
+    value: sumOf(members.map((r) => r.value)),
+    adjustedBy: sumOf(members.map((r) => r.adjustedBy)),
+    afterAdjustments: noted ? sumOf(members.map((r) => r.afterAdjustments ?? r.value ?? 0)) : null,
+  }
+}
+
 /** The team page and the team lead's own doors (ADR 0101). All of them take
  *  `kpi.view`: a lead holds nothing more, so "leads this team in the roster of
  *  the month" is checked here, never read off a permission.
@@ -72,14 +89,16 @@ export class KpiTeamViewService {
             share: null,
             expected: null,
             verdict: 'no-data',
+            adjustedBy: null,
+            afterAdjustments: null,
           },
         ]
       }
-      const figures = cards.people
-        .flatMap((p) => p.scorecards.filter((c) => c.role === s.role))
-        .flatMap((c) => c.readings.filter((r) => r.key === s.metricKey))
-        .flatMap((r) => (r.value === null ? [] : [r.value]))
-      const value = figures.length > 0 ? figures.reduce((n, v) => n + v, 0) : null
+      const { value, adjustedBy, afterAdjustments } = teamFigures(
+        cards.people
+          .flatMap((p) => p.scorecards.filter((c) => c.role === s.role))
+          .flatMap((c) => c.readings.filter((r) => r.key === s.metricKey)),
+      )
       const share = Number(s.value)
       return [
         {
@@ -89,6 +108,8 @@ export class KpiTeamViewService {
           share,
           expected: expectedOf(share, def, elapsed),
           verdict: verdictOf(value, share, def, elapsed, tolerance),
+          adjustedBy,
+          afterAdjustments,
         },
       ]
     })

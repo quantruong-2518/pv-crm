@@ -3,6 +3,7 @@ import { AuditModule } from '@api/platform/audit/audit.module'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { RolesModule } from '@api/platform/roles/roles.module'
+import { KpiSeatModule } from '../kpi/kpi-seat.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
 import { ContractCollectors } from './contract-collector.service'
@@ -27,7 +28,7 @@ import { ContractTerminationService } from './contract-termination.service'
  *  new door forgets to declare it. `NotificationModule` for the overdue
  *  sweeper's bell line, `RolesModule` for the collector picker's grants.
  *  `LeadStateModule` and `MeetingModule` for the lead park a termination may
- *  cause (ADR 0109).
+ *  cause (ADR 0109). `KpiSeatModule` (ADR 0117 §5).
  *
  *  `ContractRepository` is ALSO a provider of `OpportunityModule`, and that is
  *  deliberate for now: the sign door was written before this module existed
@@ -46,6 +47,7 @@ import { ContractTerminationService } from './contract-termination.service'
     RolesModule,
     LeadStateModule,
     MeetingModule,
+    KpiSeatModule,
   ],
   controllers: [ContractController, ContractOverdueReasonController],
   providers: [

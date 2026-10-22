@@ -27,10 +27,19 @@ it was filed under; a set-target holder who is away still receives every bell an
    stand in for and how many items wait. Items filed before keep their own bell history; the waiting lists move.
 5. Pool items (agree a role target, decide a package, settle a room counter, close a month) keep the two-person
    rule; an away holder drops out of the pool and its bells, and its doors answer 409.
+   Overdue-installment reasons (approver pool `contract.approve-overdue-reason`) are a pool item: an away
+   approver gets 409 at decide.
 6. The stand-in is checked again whenever a seat is resolved: for a team lead, only a member of that team in that
    month's roster or a target setter; for a package's sender, only a target setter; otherwise the seat falls to the
    setters. Reading a team page follows the same seat: the roster lead keeps it while away, and whoever acts for
    the lead today reads it too; the person, contributions and history reads use the same rule.
+
+Amended 22/10/2026 (owner): when every member of a pool is away (or the only one present is the writer), the bell
+rings all active members, away included, so waiting work is never orphaned; who may act is unchanged (away people
+still get 409). The writer (proposer, sender, returner) is removed before the fallback. A seat (team lead, package
+sender) whose door answer is empty rings the setters' pool the same way. Doors and waiting lists read the strict
+path (`seatActors`, `leadSeats`); bells read the bell path (`bellActors`, `bellLeadSeats`, `presentHolders`),
+which may name away people and never decides who may act.
 
 ## Defaults that are not the owner's
 
@@ -48,5 +57,6 @@ it was filed under; a set-target holder who is away still receives every bell an
 - Migration 0138: `sales.kpi_absence`; bell kind `kpi-stand-in` added to both kind CHECKs (0137's list + 1).
 - The team roster read reports `actingFor` (who acts for the lead today) instead of `leadLocked`.
 - E3 approvals (sign requests, config changes) are not covered; a later slice.
-- Known gap: overdue-reason approval (door and bell live in the contract module, which the KPI module imports)
-  does not yet read absences; moving the absence and seat rule into a small shared module is the fix.
+- Closed: overdue-reason approval now reads absences; the seat rule lives in `KpiSeatModule`
+  (`apps/api/src/branches/sales/kpi/kpi-seat.module.ts`), imported by the contract module.
+- Closed with the 22/10 amendment: a team-lead or package-sender seat with nobody present no longer rings nobody.

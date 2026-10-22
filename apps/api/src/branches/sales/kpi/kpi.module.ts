@@ -6,7 +6,6 @@ import { SettingModule } from '@api/platform/setting/setting.module'
 import { SalesConfigModule } from '../config/config.module'
 import { ContractModule } from '../contract/contract.module'
 import { KpiAbsenceController } from './kpi-absence.controller'
-import { KpiAbsenceRepository } from './kpi-absence.repository'
 import { KpiAbsenceService } from './kpi-absence.service'
 import { KpiAlertRepository } from './kpi-alert.repository'
 import { KpiAlertService } from './kpi-alert.service'
@@ -32,11 +31,10 @@ import { KpiHistoryService } from './kpi-history.service'
 import { KpiReadingsRepository } from './kpi-readings.repository'
 import { KpiReconcileRepository } from './kpi-reconcile.repository'
 import { KpiReconcileService } from './kpi-reconcile.service'
-import { KpiSeatService } from './kpi-seat.service'
+import { KpiSeatModule } from './kpi-seat.module'
 import { KpiService } from './kpi.service'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamController } from './kpi-team.controller'
-import { KpiTeamRepository } from './kpi-team.repository'
 import { KpiTeamService } from './kpi-team.service'
 import { KpiTeamViewController } from './kpi-team-view.controller'
 import { KpiTeamViewService } from './kpi-team-view.service'
@@ -52,9 +50,9 @@ import { KpiTeamViewService } from './kpi-team-view.service'
  *  (`kpi.view-all`, who approves overdue reasons). `SettingModule` for the
  *  forecast thresholds. `SalesConfigModule` for the config gate (ADR 0099 §2).
  *  `NotificationModule` for the bell (ADR 0093, 0099 §4). `ContractModule` for
- *  the overdue reasons the close gate lists (ADR 0116). `exports` names the
- *  reconcile pass (ADR 0115): callable from an application context (acceptance
- *  runs call it). */
+ *  the overdue reasons the close gate lists (ADR 0116). `KpiSeatModule` for the
+ *  seat rule (ADR 0117). `exports` names the reconcile pass (ADR 0115):
+ *  callable from an application context (acceptance runs call it). */
 @Module({
   imports: [
     AuditModule,
@@ -63,6 +61,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     SalesConfigModule,
     NotificationModule,
     ContractModule,
+    KpiSeatModule,
   ],
   controllers: [
     KpiController,
@@ -94,14 +93,11 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiAlertSweeper,
     KpiContributionsService,
     KpiContributionsRepository,
-    KpiTeamRepository,
     KpiTeamService,
     KpiTeamViewService,
     KpiReconcileRepository,
     KpiReconcileService,
-    KpiAbsenceRepository,
     KpiAbsenceService,
-    KpiSeatService,
   ],
   exports: [KpiReconcileService],
 })

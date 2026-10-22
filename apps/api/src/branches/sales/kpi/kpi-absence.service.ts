@@ -159,7 +159,7 @@ export class KpiAbsenceService {
       )
       const fresh = locked.filter((l) => l.disabledAt.getTime() >= since)
       if (fresh.length === 0) return
-      const seats = await this.seats.leadSeats(
+      const seats = await this.seats.bellLeadSeats(
         roster,
         leads.map((e) => e.teamId),
         today,
@@ -193,21 +193,23 @@ export class KpiAbsenceService {
       period,
       tx,
     )
+    const sender = { kind: 'sender', actorId: row.actorId } as const
     /* No seat to act for and nothing waiting: a stand-in bell would say nothing. */
     if (!team && waiting === 0 && !(await this.seats.setterHolders(tx)).includes(row.actorId))
       return
     const seats = team
       ? [
           ...(
-            await this.seats.leadSeats(
+            await this.seats.bellLeadSeats(
               rosterOf(entries),
               led.map((e) => e.teamId),
               today,
               tx,
+              [row.actorId],
             )
           ).values(),
         ]
-      : [await this.seats.seatActors({ kind: 'sender', actorId: row.actorId }, period, today, tx)]
+      : [await this.seats.bellActors(sender, period, today, tx, [row.actorId])]
     await this.alerts.standIn(tx, {
       to: [...new Set(seats.flat())],
       forName: row.actorName,

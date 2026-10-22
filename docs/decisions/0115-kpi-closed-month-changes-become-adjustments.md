@@ -44,4 +44,4 @@ basis of uniform rows `(actor_id, kind, code, at, value, tag)` folded by a total
 
 - Migration 0136: `sales.kpi_month_basis`, `sales.kpi_adjustment` (additive).
 - `kpi_month_value` stays the card's frozen source; the basis table serves lists and the reconcile pass.
-- Known gap kept open: a terminated contract's kept cash is dropped from `collected-value` (0107 §2); not this slice.
+- Known gap kept open: a terminated contract's kept cash is dropped from `collected-value` (0107 §2); not this slice. Closed by 0119.

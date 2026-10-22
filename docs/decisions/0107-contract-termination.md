@@ -38,6 +38,8 @@ and the director is notified (kind `contract-terminated`).
 
 ### 3 · Counting rules
 
+`collected-value`: superseded by 0119.
+
 - `wonDeals`, signed count and amount, collected and overdue KPI readings,
   contract book open / overdue / collected, and "customer has bought"
   (`leadHasContract`, `leadSigned`) all read LIVE contracts only.

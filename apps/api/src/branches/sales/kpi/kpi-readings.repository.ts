@@ -49,8 +49,9 @@ const within = (column: SQL): SQL =>
   sql`${column} >= (SELECT lo FROM span) AND ${column} < (SELECT hi FROM span)`
 
 const LIVE = sql`JOIN sales.lead l ON l.code = k.lead_code AND l.disabled_at IS NULL`
-/** A terminated contract is no sale (ADR 0107): out of signed, collected and
- *  overdue. Only live readings move; a closed month reads its frozen copy. */
+/** A terminated contract is no sale (ADR 0107): out of signed and overdue.
+ *  Collected keeps its cash and books the refund instead (`collected-value`).
+ *  Only live readings move; a closed month reads its frozen copy. */
 const KEPT = sql`NOT ${contractTerminated(sql`k.code`)}`
 const contractVnd = toVndSql(sql`k.amount`, sql`k.currency`)
 const installmentVnd = toVndSql(sql`i.amount`, sql`k.currency`)
@@ -262,12 +263,21 @@ const ROOM: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
       ${OVERDUE}`,
     total: SUM,
   },
+  /* Cash stays on its paid day even if the contract is terminated later; the
+     refund is a negative row on the termination day (ADR 0119). Tag
+     `terminated`, the one the contributions list already labels. */
   'collected-value': {
     basis: () => sql`
       SELECT NULL AS actor_id, ${INSTALLMENT}, i.paid_at AS at, ${worth(installmentVnd, 'collected')}
       FROM sales.contract_installment i
       JOIN sales.contract k ON k.code = i.contract_code ${LIVE}
-      WHERE ${KEPT} AND ${within(sql`i.paid_at`)}`,
+      WHERE ${within(sql`i.paid_at`)}
+      UNION ALL
+      SELECT NULL AS actor_id, 'contract' AS kind, k.code, t.terminated_at AS at,
+             ${worth(sql`-(${toVndSql(sql`t.refunded_amount`, sql`k.currency`)})`, 'terminated')}
+      FROM sales.contract_termination t
+      JOIN sales.contract k ON k.code = t.contract_code ${LIVE}
+      WHERE t.refunded_amount > 0 AND ${within(sql`t.terminated_at`)}`,
     total: SUM,
   },
   'approval-turnaround-hours': {
