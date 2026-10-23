@@ -1,18 +1,30 @@
 import type { ReactNode } from 'react'
-import { Badge, Button, Icon, StatusDot, cn } from '@pv/ui'
-import { MAIL_LETTER_STATE_LABEL } from '@pv/contracts'
+import { Badge, Button, Icon, cn, type StatusDotState } from '@pv/ui'
+import { MAIL_LETTER_STATE_LABEL, type MailMergeKey } from '@pv/contracts'
 import { CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
 import { LETTER_TONE } from '@/components/mail-letter/letter-model'
+import { MERGE_PATTERN } from '@/components/mail-rich-body-model'
 import { COMM_FOCUS, COMM_STATE_DOT } from '@/data/comm-record-detail'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
+import { MERGE_LABEL } from '@/data/mail-hints'
 import { dm, dmhm } from '@/lib/date'
-import type { JourneyRow } from './comm-journey-rows'
+import type { JourneyRow, MergeValues } from './comm-journey-rows'
 
-/** The rows of `CommJourney`: a gutter of dot over date, then who made the
- *  contact and through what, then what was said. The date sits under its dot
- *  so the line one reads is the person, not a column of numbers. */
+/** The rows of `CommJourney`: a gutter of channel icon over date, then what
+ *  was said, then who said it. The icon stands where a dot would and takes the
+ *  dot's colour, so channel and state cost one mark, not a mark and a word. */
 
 const NOTE = 'm-0 text-[12.5px] leading-[1.6] text-muted-foreground'
+
+/** `StatusDot`'s fills as icon ink; the faint `next` grey would vanish on a
+ *  stroke, so it reads as muted text instead. */
+const DOT_TEXT: Record<StatusDotState, string> = {
+  ok: 'text-success',
+  current: 'text-primary',
+  next: 'text-muted-foreground',
+  bad: 'text-destructive-foreground',
+  warning: 'text-warning',
+}
 
 /** A comm's pill only while unfinished; a letter's for every state but SENT,
  *  the plain outcome. An empty comm gets no pill: its fill button says it. */
@@ -38,6 +50,21 @@ function Stamp({ row }: { row: JourneyRow }) {
   )
 }
 
+/** A letter's subject is stored as its template. Each key shows its value, or
+ *  its label when the row cannot know it; bold either way, so it reads as filled in. */
+function mergeParts(text: string, values: MergeValues) {
+  const parts: { text: string; merged: boolean }[] = []
+  let last = 0
+  for (const match of text.matchAll(new RegExp(MERGE_PATTERN, 'g'))) {
+    const key = match[1] as MailMergeKey
+    parts.push({ text: text.slice(last, match.index), merged: false })
+    parts.push({ text: values[key] || MERGE_LABEL[key], merged: true })
+    last = match.index + match[0].length
+  }
+  parts.push({ text: text.slice(last), merged: false })
+  return parts
+}
+
 function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
   if (row.commState === 'empty') {
     return row.canFill && open ? (
@@ -48,14 +75,25 @@ function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
       <p className={NOTE}>Chưa có nội dung.</p>
     )
   }
+  const parts = mergeParts(row.title, row.merge)
+  /* One line: the card is a glance, the hover and the record give the rest. */
   const text = (
     <span
+      title={parts.map((part) => part.text).join('')}
       className={cn(
-        'text-[13px] leading-[1.5]',
+        'block w-full min-w-0 truncate text-[13px] leading-[1.5]',
         row.titleMuted ? 'text-muted-foreground' : 'text-foreground',
       )}
     >
-      {row.title}
+      {parts.map((part, i) =>
+        part.merged ? (
+          <strong key={i} className="font-bold">
+            {part.text}
+          </strong>
+        ) : (
+          part.text
+        ),
+      )}
     </span>
   )
   return open ? (
@@ -63,7 +101,7 @@ function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
       type="button"
       onClick={open}
       className={cn(
-        'pointer-coarse:min-h-12 flex w-full items-center rounded-sm text-left hover:underline',
+        'pointer-coarse:min-h-12 flex w-full min-w-0 items-center rounded-sm text-left hover:underline',
         COMM_FOCUS,
       )}
     >
@@ -76,12 +114,10 @@ function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
 
 export function JourneyList({
   rows,
-  showCode,
   openOf,
   actionsOf,
 }: {
   rows: JourneyRow[]
-  showCode: boolean
   openOf: (row: JourneyRow) => (() => void) | null | undefined | false
   actionsOf: (row: JourneyRow) => ReactNode
 }) {
@@ -91,16 +127,22 @@ export function JourneyList({
         const actions = actionsOf(row)
         return (
           <li key={row.key} className="flex gap-3">
-            <div className="flex w-12 shrink-0 flex-col items-center gap-1 pt-1">
-              <StatusDot
-                state={
-                  row.letter
-                    ? LETTER_TONE[row.letter.state].dot
-                    : row.commState
-                      ? COMM_STATE_DOT[row.commState]
-                      : 'next'
-                }
-              />
+            <div className="flex w-12 shrink-0 flex-col items-center gap-1">
+              <span
+                className={cn(
+                  'inline-flex',
+                  DOT_TEXT[
+                    row.letter
+                      ? LETTER_TONE[row.letter.state].dot
+                      : row.commState
+                        ? COMM_STATE_DOT[row.commState]
+                        : 'next'
+                  ],
+                )}
+              >
+                <Icon icon={COMMS_CHANNEL_ICON[row.channel]} size={16} />
+                <span className="sr-only">{COMMS_CHANNEL_LABEL[row.channel]}</span>
+              </span>
               <Stamp row={row} />
               {i < rows.length - 1 && <span aria-hidden className="bg-surface-ink/8 w-px flex-1" />}
             </div>
@@ -111,21 +153,13 @@ export function JourneyList({
                 i < rows.length - 1 && 'pb-5',
               )}
             >
-              <p className="m-0 flex flex-wrap items-center gap-x-2 text-[13px] leading-[1.5]">
-                {row.owner && <span className="font-semibold">{row.owner}</span>}
-                <span className="text-muted-foreground inline-flex items-center gap-1">
-                  <Icon icon={COMMS_CHANNEL_ICON[row.channel]} size={16} />
-                  {COMMS_CHANNEL_LABEL[row.channel]}
-                </span>
-                {row.letter?.transport === 'gmail' && (
-                  <span className="text-muted-foreground">{row.letter.fromAddress}</span>
-                )}
-                {showCode && <span className="text-muted-foreground font-mono">{row.code}</span>}
+              <Body row={row} open={openOf(row) || null} />
+              <p className="text-muted-foreground m-0 flex flex-wrap items-center gap-x-2 text-[12px] leading-[1.5]">
+                {row.owner && <span className="italic">{row.owner}</span>}
                 <RowPill row={row} />
                 <CommLateMark late={row.late} />
                 <CommOverdueMark overdue={row.overdue} />
               </p>
-              <Body row={row} open={openOf(row) || null} />
               {row.letter?.failureReason && (
                 <p className="text-muted-foreground m-0 text-[12px] leading-[1.5]">
                   {row.letter.failureReason}

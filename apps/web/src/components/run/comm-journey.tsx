@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleX, Mail, Pencil } from '@pv/ui'
-import { Button, Icon, SegmentedControl, Select, Skeleton, buttonVariants, cn } from '@pv/ui'
+import { Button, Icon, Select, Skeleton, buttonVariants, cn } from '@pv/ui'
 import type { MailSubjectTimelineRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
 import { MailRunEditModal } from '@/components/mail-run-edit-modal'
-import { COMM_FOCUS, subjectKindLabel } from '@/data/comm-record-detail'
+import { COMM_FOCUS } from '@/data/comm-record-detail'
 import { commRecordPath, workstreamCommsPath } from '@/data/comm-records'
 import { COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { useOwnLetterCancel } from '@/data/mail-letters'
@@ -20,13 +20,11 @@ import { RunBlock } from './run-block'
  *  contract and run screens (ADR 0078 §1), replacing `DealComms`,
  *  `ContractComms` and the comm and mail tabs of `LeadHistoryPanel`.
  *
- *  Scope: the whole run, or the subject alone; with no subject (the run's own
- *  screen) only the whole run. Letters ride in as Email rows (ADR 0078 §3), so
- *  the channel filter covers mail. A comm opens its record screen; a letter has
+ *  Always the whole run. Letters ride in as Email rows (ADR 0078 §3), so the
+ *  channel filter covers mail. A comm opens its record screen; a letter has
  *  no screen, so it opens the run modal, and the creator's scheduled one keeps
  *  Edit · Stop. A long list, so `.glass-b` (law 8). */
 
-type Scope = 'run' | 'self'
 const ALL_CHANNELS = 'all'
 /** The card is a glance; the whole run reads on its own screen. */
 const RECENT = 5
@@ -42,20 +40,14 @@ export function CommJourney({
   subject?: JourneySubject
 }) {
   const { rows, canComms, isLoading, error, lettersError } = useJourneyRows(workstreamCode, subject)
-  const [scope, setScope] = useState<Scope>('run')
   const [channel, setChannel] = useState(ALL_CHANNELS)
   const [editing, setEditing] = useState<{ id: string; viaContent: boolean } | null>(null)
   const client = useQueryClient()
   const navigate = useNavigate()
 
-  const own = subject ? rows.filter((row) => row.code === subject.code) : rows
-  const inScope = scope === 'run' ? rows : own
-  const shown = channel === ALL_CHANNELS ? inScope : inScope.filter((r) => r.channel === channel)
+  const shown = channel === ALL_CHANNELS ? rows : rows.filter((r) => r.channel === channel)
   const channels = [...new Set(rows.map((row) => row.channel))]
-  const unconfirmed = inScope.filter((row) => row.commState === 'unconfirmed').length
-  /* A switch between two equal lists, or a code every row shares, says nothing. */
-  const hasScopes = Boolean(subject) && workstreamCode !== null && own.length !== rows.length
-  const showCode = new Set(inScope.map((row) => row.code)).size > 1
+  const unconfirmed = rows.filter((row) => row.commState === 'unconfirmed').length
   /* Cut to the newest only where the full screen can be reached; with no run
      or no comm permission the card is the only place the rows are listed. */
   const cut = canComms && workstreamCode !== null && shown.length > RECENT
@@ -83,6 +75,21 @@ export function CommJourney({
               {unconfirmed} chưa xác nhận
             </span>
           )}
+          {channels.length > 1 && (
+            <Select
+              label="Kênh"
+              hideLabel
+              size="sm"
+              className="pointer-coarse:[&>button]:h-12"
+              value={channel}
+              neutralValue={ALL_CHANNELS}
+              onChange={setChannel}
+              options={[
+                { value: ALL_CHANNELS, label: 'Mọi kênh' },
+                ...channels.map((c) => ({ value: c, label: COMMS_CHANNEL_LABEL[c] })),
+              ]}
+            />
+          )}
           {canComms && workstreamCode !== null && rows.length > 0 && (
             <button
               type="button"
@@ -99,43 +106,6 @@ export function CommJourney({
         </>
       }
     >
-      {rows.length > RECENT && (hasScopes || channels.length > 1) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {hasScopes && subject && (
-            <SegmentedControl
-              label="Phạm vi"
-              hideLabel
-              tone="quiet"
-              value={scope}
-              onChange={(value) => setScope(value as Scope)}
-              options={[
-                { value: 'run', label: 'Cả lượt', count: rows.length },
-                {
-                  value: 'self',
-                  label: `${subjectKindLabel(subject.code)} này`,
-                  count: own.length,
-                },
-              ]}
-            />
-          )}
-          {channels.length > 1 && (
-            <Select
-              label="Kênh"
-              hideLabel
-              size="sm"
-              className="pointer-coarse:[&>button]:h-12"
-              value={channel}
-              neutralValue={ALL_CHANNELS}
-              onChange={setChannel}
-              options={[
-                { value: ALL_CHANNELS, label: 'Mọi kênh' },
-                ...channels.map((c) => ({ value: c, label: COMMS_CHANNEL_LABEL[c] })),
-              ]}
-            />
-          )}
-        </div>
-      )}
-
       {lettersError !== null && (
         <p className={cn(NOTE, 'text-destructive-foreground')}>
           Không đọc được các email.{' '}
@@ -152,7 +122,6 @@ export function CommJourney({
       ) : shown.length > 0 ? (
         <JourneyList
           rows={cut ? shown.slice(0, RECENT) : shown}
-          showCode={showCode}
           openOf={openOf}
           actionsOf={(row) =>
             row.letter &&

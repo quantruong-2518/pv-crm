@@ -2,6 +2,8 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import type {
   CommRecordState,
   DebriefView,
+  MailAddressee,
+  MailMergeKey,
   MailSubjectKind,
   MailSubjectTimelineRow,
   ThreadChannel,
@@ -46,9 +48,23 @@ export type JourneyRow = {
   canFill: boolean
   /** Who holds the comm, or who wrote the letter. */
   owner?: string
+  /** What the template keys a letter's subject carries fill with here. */
+  merge: MergeValues
 }
 
-const commRow = (row: DebriefView, now: number): JourneyRow => ({
+export type MergeValues = Record<MailMergeKey, string | undefined>
+
+/** The server's `mergeOf`, from what the row knows: the run's customer and the
+ *  letter's first addressee. A comm titled by a letter has no addressee. */
+const mergeOf = (customer: string | undefined, to?: MailAddressee): MergeValues => ({
+  company: customer,
+  account: customer,
+  contactName: to?.name,
+  contact_name: to?.name,
+  email: to?.email,
+})
+
+const commRow = (row: DebriefView, now: number, customer?: string): JourneyRow => ({
   key: `comm:${row.id}`,
   channel: row.channel,
   code: row.subject.code,
@@ -62,11 +78,17 @@ const commRow = (row: DebriefView, now: number): JourneyRow => ({
   letter: null,
   canFill: row.closableByMe,
   owner: row.owner.name,
+  merge: mergeOf(customer),
 })
 
 /** A letter still going out has no send time yet; it sits at now, on top, not
  *  at the bottom with no date until the provider takes it. */
-const letterRow = (code: string, row: MailSubjectTimelineRow, now: number): JourneyRow => ({
+const letterRow = (
+  code: string,
+  row: MailSubjectTimelineRow,
+  now: number,
+  customer?: string,
+): JourneyRow => ({
   key: `letter:${code}:${row.runId}`,
   channel: 'email',
   code,
@@ -81,6 +103,7 @@ const letterRow = (code: string, row: MailSubjectTimelineRow, now: number): Jour
   letter: row,
   canFill: false,
   owner: row.createdBy.name,
+  merge: mergeOf(customer, row.to[0]),
 })
 
 function letterTargets(
@@ -131,10 +154,11 @@ export function useJourneyRows(workstreamCode: string | null, subject?: JourneyS
   const lettersError =
     own?.error ?? letters.find((q) => q.error && !outOfReach(q.error))?.error ?? null
 
+  const customer = journey.data?.customer
   const rows = [
-    ...(comms.data?.rows ?? []).map((row) => commRow(row, now)),
+    ...(comms.data?.rows ?? []).map((row) => commRow(row, now, customer)),
     ...targets.flatMap((t, i) =>
-      (letters[i]?.data?.rows ?? []).map((row) => letterRow(t.code, row, now)),
+      (letters[i]?.data?.rows ?? []).map((row) => letterRow(t.code, row, now, customer)),
     ),
   ].sort((a, b) => timeOf(b) - timeOf(a))
 

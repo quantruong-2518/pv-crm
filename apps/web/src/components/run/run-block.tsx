@@ -21,6 +21,7 @@ export function RunBlock({
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-3 p-5" aria-label={title}>
       <SectionTitle
         size="detail"
+        className="items-center"
         actions={
           (aside || onEdit) && (
             <>
