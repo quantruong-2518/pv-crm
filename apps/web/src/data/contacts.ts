@@ -9,6 +9,8 @@ import {
   type ContactPatch,
   type ContactRow,
   type ObjectCode,
+  type OpportunityContact,
+  type OpportunityProfileResponse,
 } from '@pv/contracts'
 import { api, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
@@ -164,6 +166,21 @@ function restoreLeadList(client: Client, snap: Snapshot | undefined, error: ApiE
   toastFail('Chưa lưu được, đã trả lại như cũ', userMessage(error))
 }
 
+/** The same person printed from other reads — their own profile and every deal
+ *  rail — changed too; the refetch on settle corrects them if the server refuses. */
+function rewriteElsewhere(client: Client, code: ObjectCode, body: ContactPatch) {
+  client.setQueryData<ContactBookRow>([...CONTACT_BOOK_KEY, code], (r) => r && { ...r, ...body })
+  const seen: Partial<OpportunityContact> = {}
+  for (const k of ['name', 'title', 'email', 'phone'] as const) {
+    if (body[k] !== undefined) seen[k] = body[k]
+  }
+  client.setQueriesData<OpportunityProfileResponse>({ queryKey: ['sales', 'ops'] }, (op) =>
+    Array.isArray(op?.contacts)
+      ? { ...op, contacts: op.contacts.map((c) => (c.code === code ? { ...c, ...seen } : c)) }
+      : op,
+  )
+}
+
 export function useEditContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
@@ -174,12 +191,14 @@ export function useEditContact(code: ObjectCode, leadCode?: string) {
       const snap = await rewriteLeadList(client, leadCode, (rows) =>
         rows.map((r) => (r.code === code ? { ...r, ...body } : r)),
       )
+      rewriteElsewhere(client, code, body)
       toastDone('Đã cập nhật người liên hệ')
       return snap
     },
     onError: (error, _body, snap) => restoreLeadList(client, snap, error),
     onSettled: (row) => {
       void client.invalidateQueries({ queryKey: [...CONTACT_BOOK_KEY, code] })
+      void client.invalidateQueries({ queryKey: ['sales', 'ops'] })
       invalidateAround(client, leadCode ?? row?.leadCode)
     },
   })
