@@ -8,6 +8,7 @@ import {
   Plus,
   SegmentedControl,
   Select,
+  Trash2,
   UserPlus,
 } from '@pv/ui'
 import {
@@ -21,7 +22,14 @@ import { toastDone } from '@/app/toast'
 import { RadioCard } from '@/components/radio-card'
 import { StepFooter } from '@/components/step-footer'
 import { useOrgWrite } from '@/data/org-tree'
-import { HEAD_LABEL, UNPLACED, parentsFor, splitError, unitOf } from './sales-config-org-model'
+import {
+  HEAD_LABEL,
+  KIND_LABEL,
+  UNPLACED,
+  parentsFor,
+  splitError,
+  unitOf,
+} from './sales-config-org-model'
 
 /** The dialogs of the org section (5.18), as the app draws a dialog:
  *  the right-hand `Drawer`, full width on a phone. The month an edit lands on
@@ -237,6 +245,57 @@ export function EditUnitDrawer({
           </div>
         )}
       </div>
+    </Drawer>
+  )
+}
+
+/** Delete asks once more, as the old team book did (owner's call, 23/10),
+ *  though the panel offers it only for a unit with no member and no child. */
+export function RemoveUnitDrawer({
+  unit,
+  onClose,
+}: {
+  /** `null` = closed. */
+  unit: OrgUnit | null
+  onClose: () => void
+}) {
+  const write = useOrgWrite()
+  const { reset } = write
+  useEffect(() => {
+    if (unit) reset()
+  }, [unit, reset])
+
+  const remove = () => {
+    if (!unit) return
+    write.mutate(
+      { kind: 'remove', unitId: unit.id },
+      {
+        onSuccess: () => {
+          toastDone(`Đã xoá ${unit.name}`)
+          onClose()
+        },
+      },
+    )
+  }
+
+  return (
+    <Drawer
+      open={unit !== null}
+      onClose={onClose}
+      title={`Xoá ${unit?.name ?? ''}`}
+      footer={
+        <StepFooter
+          error={write.error}
+          pending={write.isPending}
+          hint=""
+          onClose={onClose}
+          confirm={{ icon: Trash2, label: 'Xoá', disabled: unit === null, onClick: remove }}
+        />
+      }
+    >
+      <p className="m-0 text-[13px] leading-5">
+        {unit ? KIND_LABEL[unit.kind] : ''} này sẽ không còn trên cây.
+      </p>
     </Drawer>
   )
 }

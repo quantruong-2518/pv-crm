@@ -1,9 +1,6 @@
 import type { ReactNode } from 'react'
 import { Avatar, Button, ChevronRight, GlassCard, Icon, cn } from '@pv/ui'
 import type { OrgPerson, OrgTreeResponse, OrgUnit } from '@pv/contracts'
-import { userMessage } from '@/app/api'
-import { toastDone } from '@/app/toast'
-import { useOrgWrite } from '@/data/org-tree'
 import {
   HEAD_LABEL,
   KIND_LABEL,
@@ -238,13 +235,15 @@ function People({
 
 type PanelActions = {
   onEdit: (u: OrgUnit) => void
+  onRemove: (u: OrgUnit) => void
   onHead: (u: OrgUnit) => void
   onAdd: (u: OrgUnit) => void
   onMove: (p: OrgPerson) => void
 }
 
 /** The open unit: what it is and where, its head, its members. Delete shows
- *  only when the server would take it (no member, no child), so it needs no hint. */
+ *  only when the server would take it (no member, no child), so it needs no hint;
+ *  it opens a confirm dialog rather than deleting at once. */
 export function UnitPanel({
   tree,
   selected,
@@ -258,7 +257,6 @@ export function UnitPanel({
   canEdit: boolean
   actions: PanelActions
 }) {
-  const remove = useOrgWrite()
   const byId = new Map(tree.people.map((p) => [p.actorId, p]))
   const peopleOf = (ids: readonly string[]) =>
     ids.flatMap((id) => {
@@ -288,12 +286,6 @@ export function UnitPanel({
     !tree.units.some((u) => u.parentId === unit.id)
   const known = seeAll || members.length > 0
 
-  const drop = () =>
-    remove.mutate(
-      { kind: 'remove', unitId: unit.id },
-      { onSuccess: () => toastDone(`Đã xoá ${unit.name}`) },
-    )
-
   return (
     <GlassCard variant="b" className="flex min-w-0 flex-col gap-6 p-5 lg:p-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -310,8 +302,7 @@ export function UnitPanel({
               <Button
                 variant="destructive"
                 className="pointer-coarse:h-12"
-                disabled={remove.isPending}
-                onClick={drop}
+                onClick={() => actions.onRemove(unit)}
               >
                 Xoá
               </Button>
@@ -324,11 +315,6 @@ export function UnitPanel({
               Sửa
             </Button>
           </div>
-        )}
-        {remove.error && (
-          <p role="alert" className={cn(NOTE, 'text-destructive-foreground m-0 basis-full')}>
-            {userMessage(remove.error)}
-          </p>
         )}
       </div>
 

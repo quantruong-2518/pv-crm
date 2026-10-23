@@ -13,6 +13,7 @@ import {
   EditUnitDrawer,
   HeadDrawer,
   PlaceDrawer,
+  RemoveUnitDrawer,
   type PlaceTarget,
 } from './sales-config-org-dialogs'
 import {
@@ -39,6 +40,7 @@ const ALERT = 'text-destructive-foreground m-0 text-[11.5px] leading-[1.5]'
 type Dialog =
   | { kind: 'add' }
   | { kind: 'edit'; unit: OrgUnit }
+  | { kind: 'remove'; unit: OrgUnit }
   | { kind: 'head'; unit: OrgUnit }
   | { kind: 'place'; target: PlaceTarget }
 
@@ -98,6 +100,7 @@ function TreeBody({
           canEdit={editable}
           actions={{
             onEdit: (unit) => onDialog({ kind: 'edit', unit }),
+            onRemove: (unit) => onDialog({ kind: 'remove', unit }),
             onHead: (unit) => onDialog({ kind: 'head', unit }),
             onAdd: (unit) => onDialog({ kind: 'place', target: { unit } }),
             onMove: (person: OrgPerson) => onDialog({ kind: 'place', target: { person } }),
@@ -204,6 +207,7 @@ export function OrgSection() {
             tree={tree}
             onClose={close}
           />
+          <RemoveUnitDrawer unit={dialog?.kind === 'remove' ? dialog.unit : null} onClose={close} />
           <HeadDrawer
             unit={dialog?.kind === 'head' ? dialog.unit : null}
             tree={tree}
