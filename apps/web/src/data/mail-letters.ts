@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
   type QueryClient,
+  type QueryKey,
 } from '@tanstack/react-query'
 import type {
   MailGroupPreflightRequest,
@@ -15,10 +16,11 @@ import type {
   MailRunPatchResponse,
   MailSubjectKind,
   MailSubjectTimelineResponse,
+  MailSubjectTimelineRow,
   MasPreviewResponse,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
-import { useCan } from '@/app/auth'
+import { useCan, useSession } from '@/app/auth'
 import { untilPushed } from '@/app/query-client'
 import { toast } from '@/app/toast'
 import { accountProfileQuery } from '@/data/accounts'
@@ -232,16 +234,62 @@ function watchLetterSent(client: QueryClient, door: MailSubjectKind, code: strin
   setTimeout(() => void look(), WATCH_EVERY_MS)
 }
 
+/** The row a pressed Send puts on the contact tree before the server answers.
+ *  Keyed by `letterId`, so a retried press replaces it rather than stacking a twin. */
+function pendingLetter(
+  body: MailGroupSendRequest,
+  actor: { id: string; name: string } | null,
+): MailSubjectTimelineRow {
+  return {
+    runId: body.letterId,
+    subject: body.subject,
+    state: body.scheduledAt ? 'SCHEDULED' : 'SENDING',
+    ...(body.scheduledAt ? { scheduledAt: body.scheduledAt } : {}),
+    to: [],
+    cc: [],
+    createdBy: { actorId: actor?.id ?? '', name: actor?.name ?? '' },
+    mine: true,
+    canEdit: false,
+    transport: body.transport ?? 'resend',
+    fromAddress: '',
+    threadUrl: null,
+    failureReason: null,
+  }
+}
+
 export function useLetterSend() {
   const client = useQueryClient()
+  const actor = useSession((s) => s.actor)
 
-  return useMutation<MailGroupSendResponse, ApiError, MailGroupSendRequest>({
+  return useMutation<
+    MailGroupSendResponse,
+    ApiError,
+    MailGroupSendRequest,
+    { key: QueryKey; before: MailSubjectTimelineResponse | undefined }
+  >({
     mutationFn: (body) =>
       api.write<MailGroupSendResponse>('/sales/mail/letters', {
         method: 'POST',
         body,
         need: SEND_NEED,
       }),
+    /* Opening the composer writes nothing; pressing Send puts the letter on the
+       tree at once, yellow, and the server's row replaces it when it answers. */
+    onMutate: async (body) => {
+      const key = subjectLettersQuery(body.door, body.subjectCode).queryKey
+      await client.cancelQueries({ queryKey: key })
+      const before = client.getQueryData<MailSubjectTimelineResponse>(key)
+      const rows = (before?.rows ?? []).filter((row) => row.runId !== body.letterId)
+      client.setQueryData<MailSubjectTimelineResponse>(key, {
+        rows: [pendingLetter(body, actor), ...rows],
+      })
+      return { key, before }
+    },
+    onError: (_error, _body, context) => {
+      if (!context) return
+      if (context.before) client.setQueryData(context.key, context.before)
+      else void client.invalidateQueries({ queryKey: context.key })
+    },
     onSuccess: (answer, body) => {
       void client.invalidateQueries({ queryKey: [...LETTERS_KEY, body.door, body.subjectCode] })
       if (!body.scheduledAt) watchLetterSent(client, body.door, body.subjectCode, answer.mailRunId)

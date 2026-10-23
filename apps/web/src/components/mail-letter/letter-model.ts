@@ -175,7 +175,7 @@ export const LETTER_TONE: Record<
   { badge: 'draft' | 'warning' | 'success' | 'running' | 'danger'; dot: StatusDotState }
 > = {
   SCHEDULED: { badge: 'warning', dot: 'next' },
-  SENDING: { badge: 'running', dot: 'current' },
+  SENDING: { badge: 'running', dot: 'warning' },
   SENT: { badge: 'success', dot: 'ok' },
   OPENED: { badge: 'success', dot: 'ok' },
   REPLIED: { badge: 'success', dot: 'ok' },

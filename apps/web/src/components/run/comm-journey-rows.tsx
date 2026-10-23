@@ -64,11 +64,14 @@ const commRow = (row: DebriefView, now: number): JourneyRow => ({
   owner: row.owner.name,
 })
 
-const letterRow = (code: string, row: MailSubjectTimelineRow): JourneyRow => ({
+/** A letter still going out has no send time yet; it sits at now, on top, not
+ *  at the bottom with no date until the provider takes it. */
+const letterRow = (code: string, row: MailSubjectTimelineRow, now: number): JourneyRow => ({
   key: `letter:${code}:${row.runId}`,
   channel: 'email',
   code,
-  at: row.sentAt ?? row.scheduledAt ?? null,
+  at:
+    row.sentAt ?? row.scheduledAt ?? (row.state === 'SENDING' ? new Date(now).toISOString() : null),
   title: row.subject,
   titleMuted: false,
   commId: null,
@@ -131,7 +134,7 @@ export function useJourneyRows(workstreamCode: string | null, subject?: JourneyS
   const rows = [
     ...(comms.data?.rows ?? []).map((row) => commRow(row, now)),
     ...targets.flatMap((t, i) =>
-      (letters[i]?.data?.rows ?? []).map((row) => letterRow(t.code, row)),
+      (letters[i]?.data?.rows ?? []).map((row) => letterRow(t.code, row, now)),
     ),
   ].sort((a, b) => timeOf(b) - timeOf(a))
 
