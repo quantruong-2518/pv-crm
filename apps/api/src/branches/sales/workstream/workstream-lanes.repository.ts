@@ -1,14 +1,21 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import type { ApprovalState, ContractKind, CurrencyCode, StageKey, TouchKind } from '@pv/contracts'
+import type {
+  ApprovalState,
+  ContractKind,
+  CurrencyCode,
+  CustomerTemperature,
+  StageKey,
+  TouchKind,
+} from '@pv/contracts'
 import { approval } from '@api/platform/approval/approval.schema'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contract, contractInstallment } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
-import { dealTerminated, dealWon, leadDealsAllLost } from '../open-deal'
+import { dealTerminated, dealWon, journeyInGrowth, leadDealsAllLost } from '../open-deal'
 import { openHoldsOf, type HoldRead } from '../hold/hold.sql'
 import { MILESTONE_TOUCH } from '../opportunity/opportunity.mapper'
 import { opportunityStageEvent } from '../opportunity/opportunity.schema'
@@ -47,6 +54,7 @@ export class WorkstreamLanesRepository {
       lost,
       leadHolds,
       dealHolds,
+      grown,
     ] = await Promise.all([
       this.db
         .select({
@@ -147,13 +155,17 @@ export class WorkstreamLanesRepository {
             .orderBy(asc(touch.at)),
       deals.length === 0 ? none : this.signApprovalsOf(deals),
       this.db
-        .select({ allLost: sql<boolean>`${leadDealsAllLost(lead.code)}` })
+        .select({
+          allLost: sql<boolean>`${leadDealsAllLost(lead.code)}`,
+          growth: sql<boolean>`${journeyInGrowth(lead.workstreamCode)}`,
+        })
         .from(lead)
         .where(eq(lead.code, leadCode)),
       /* The holds need only the codes already in hand, so they ride the
          same wave as the reads above instead of a second round. */
       openHoldsOf(this.db, 'lead', [leadCode]),
       openHoldsOf(this.db, 'opportunity', deals),
+      deals.length === 0 ? none : this.grownDealsOf(deals),
     ])
 
     return {
@@ -167,8 +179,45 @@ export class WorkstreamLanesRepository {
       dealTouches,
       signApprovals: signs,
       allLost: lost[0]?.allLost ?? false,
+      growth: lost[0]?.growth ?? false,
+      grownDeals: grown,
       holds: new Map([...leadHolds, ...dealHolds]),
     }
+  }
+
+  /** Deals opened while their run was in `growth` (ADR 0121 §6): every live
+   *  contract signed before the deal was collected by then, as recorded. Each
+   *  names the contract last collected and the reading standing at opening. */
+  private async grownDealsOf(deals: string[]): Promise<GrownDealRow[]> {
+    const list = sql.join(
+      deals.map((d) => sql`${d}`),
+      sql`, `,
+    )
+    const liveAt = (k: string) =>
+      sql`NOT EXISTS (SELECT 1 FROM sales.contract_termination t
+                       WHERE t.contract_code = ${sql.raw(k)}.code AND t.terminated_at <= o.created_at)`
+    const r = (await this.db.execute(sql`
+      SELECT o.code AS deal,
+             (SELECT k.code FROM sales.contract k
+                JOIN sales.contract_installment ci ON ci.contract_code = k.code
+               WHERE k.lead_code = o.lead_code AND k.signed_at < o.created_at AND ${liveAt('k')}
+               ORDER BY ci.paid_at DESC NULLS LAST, k.code LIMIT 1) AS "fromCode",
+             (SELECT ct.temperature FROM sales.customer_temperature ct
+               WHERE ct.lead_code = o.lead_code AND ct.recorded_at <= o.created_at
+               ORDER BY ct.recorded_at DESC LIMIT 1) AS temperature
+        FROM sales.opportunity o
+       WHERE o.code IN (${list})
+         AND EXISTS (SELECT 1 FROM sales.contract k
+                      WHERE k.lead_code = o.lead_code AND k.signed_at < o.created_at AND ${liveAt('k')})
+         AND NOT EXISTS (
+               SELECT 1 FROM sales.contract k
+                WHERE k.lead_code = o.lead_code AND k.signed_at < o.created_at AND ${liveAt('k')}
+                  AND (NOT EXISTS (SELECT 1 FROM sales.contract_installment ci WHERE ci.contract_code = k.code)
+                       OR EXISTS (SELECT 1 FROM sales.contract_installment ci WHERE ci.contract_code = k.code
+                                   AND (ci.paid_at IS NULL
+                                        OR coalesce(ci.paid_recorded_at, ci.paid_at) > o.created_at))))
+    `)) as { rows: GrownDealRow[] }
+    return r.rows.filter((g) => g.fromCode !== null)
   }
 
   /** Read off `platform.approval` by the same payload key as
@@ -300,6 +349,13 @@ export type SignApprovalRow = {
   decidedReason: string | null
 }
 
+/** A deal opened from `growth`; `fromCode` is never null once filtered. */
+export type GrownDealRow = {
+  deal: string
+  fromCode: string | null
+  temperature: CustomerTemperature | null
+}
+
 /** `doNotContact` is the catalogue's own flag, `false` on every pre-0068 row. */
 export type StopReasonRow = { name: string; doNotContact: boolean }
 
@@ -319,6 +375,10 @@ export type LaneRows = {
   signApprovals: SignApprovalRow[]
   /** `leadDealsAllLost` over EVERY deal of the lead, hidden ones included. */
   allLost: boolean
+  /** `journeyInGrowth` over every contract of the run, hidden ones included. */
+  growth: boolean
+  /** The visible deals opened while the run was in `growth`. */
+  grownDeals: GrownDealRow[]
   /** Open holds of the lead and the visible deals, by code (codes never collide). */
   holds: Map<string, HoldRead>
 }

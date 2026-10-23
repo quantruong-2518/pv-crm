@@ -58,6 +58,9 @@ export const SettingKey = z.enum([
   'kpi.alert.slip-percent',
   'kpi.alert.hit-percent',
   'kpi.pace.tolerance-percent',
+  'sales.after-sale.hot-days',
+  'sales.after-sale.warm-days',
+  'sales.after-sale.cold-days',
 ])
 
 export type SettingKey = z.infer<typeof SettingKey>
@@ -186,6 +189,30 @@ export const SETTING_REGISTRY: Record<SettingKey, SettingDefinition> = {
     min: 0,
     max: 99,
     description: 'Thiếu bao nhiêu so với số cần có tới hôm nay vẫn tính Đúng tiến độ (%).',
+  },
+  /* Owner's defaults 22/10/2026. Written only as a trio through `RecareCycles`
+     (`./sales/config`), the sales-config approval path, never `SettingPatch`. */
+  'sales.after-sale.hot-days': {
+    unit: 'days',
+    defaultValue: 14,
+    min: 1,
+    max: 365,
+    description: 'Khách đã mua đang Nóng: bao nhiêu ngày không liên hệ thì nhắc chăm sóc.',
+  },
+  'sales.after-sale.warm-days': {
+    unit: 'days',
+    defaultValue: 45,
+    min: 1,
+    max: 365,
+    description: 'Khách đã mua đang Ấm: bao nhiêu ngày không liên hệ thì nhắc chăm sóc.',
+  },
+  'sales.after-sale.cold-days': {
+    unit: 'days',
+    defaultValue: 90,
+    min: 1,
+    max: 365,
+    description:
+      'Khách đã mua đang Nguội hoặc chưa đánh giá: bao nhiêu ngày không liên hệ thì nhắc chăm sóc.',
   },
 }
 

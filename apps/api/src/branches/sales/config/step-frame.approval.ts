@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_TEMPERATURE_LABEL,
   LEAD_STATE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   type StateAddress,
@@ -40,6 +41,9 @@ export const isFrameChange = <T extends { kind: string }>(
 /** The object word and the state's product label, so the approver never
  *  reads a state key. */
 export function stateWords(address: StateAddress): string {
+  if (address.kind === 'customer') {
+    return `khách đã mua · ${CUSTOMER_TEMPERATURE_LABEL[address.state]}`
+  }
   return address.kind === 'lead'
     ? `lead · ${LEAD_STATE_LABEL[address.state]}`
     : `cơ hội · ${OPPORTUNITY_STAGE_LABEL[address.state]}`

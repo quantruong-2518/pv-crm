@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Post } from '@nestjs/com
 import type { Actor } from '@pv/engines'
 import {
   ActivityFreshnessPatch,
+  RecareCyclesPatch,
   ConfigEntryCreate,
   ConfigEntryPatch,
   ConfigList,
@@ -81,6 +82,24 @@ export class SalesConfigController {
     @Body(zod(ActivityFreshnessPatch)) body: ActivityFreshnessPatch,
   ) {
     return this.config.proposeActivityFreshness(who, body)
+  }
+
+  /** The bought-customer cycles (ADR 0121 §4), the staleness pair's twin. */
+  @Get('recare-cycles')
+  @Need({ branch: 'Sales', permission: 'config.view' })
+  recareCycles() {
+    return this.config.recareCycles()
+  }
+
+  /** All three cycles in one body, 202 like every write here. */
+  @Patch('recare-cycles')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  patchRecareCycles(
+    @CurrentActor() who: Actor,
+    @Body(zod(RecareCyclesPatch)) body: RecareCyclesPatch,
+  ) {
+    return this.config.proposeRecareCycles(who, body)
   }
 
   /** The journey frame (ADR 0080): every template, switched-off ones too, and

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ConfigProposalReceipt,
+  CustomerTemperature,
   FREE_ENTRY_DEFAULT,
   StageKey,
   StateAddress,
@@ -21,10 +22,12 @@ import { stateWords, type FrameChange } from './step-frame.approval'
 import { StepFrameRepository } from './step-frame.repository'
 import type { StepTemplateRowDb } from './step-frame.schema'
 
-/** The closed sets, spelled from the contract: lead states first, then stages. */
+/** The closed sets, spelled from the contract: lead states, stages, then a
+ *  bought customer's temperatures (ADR 0121 §5). */
 const ADDRESSES: StateAddress[] = [
   ...StepLeadState.options.map((state) => ({ kind: 'lead' as const, state })),
   ...StageKey.options.map((state) => ({ kind: 'opportunity' as const, state })),
+  ...CustomerTemperature.options.map((state) => ({ kind: 'customer' as const, state })),
 ]
 
 /** `parse`, not a cast: the two columns are plain text to Drizzle, and the

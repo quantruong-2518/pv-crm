@@ -6,7 +6,6 @@ import {
   type JourneyContract,
   type JourneyDeal,
   type JourneyInstallment,
-  type JourneyLink,
   type JourneyRungState,
   type JourneyDealSubStep,
   type JourneySubStep,
@@ -289,21 +288,25 @@ function ws0041(): Body {
     doors: [
       {
         kind: 'growth',
-        journeyCode: 'WS-0088',
-        leadCode: 'LD-0334',
+        journeyCode: 'WS-0041',
+        leadCode: 'LD-0058',
+        dealCode: 'OP-0307',
         from: { code: 'HĐ-2531', rung: 'done' },
         at: at('2026-07-08'),
         need: 'Khách muốn đưa MES vào xưởng X1',
         decidedBy: ha,
+        temperature: 'hot',
       },
       {
         kind: 'growth',
-        journeyCode: 'WS-0089',
-        leadCode: 'LD-0335',
+        journeyCode: 'WS-0041',
+        leadCode: 'LD-0058',
+        dealCode: 'OP-0308',
         from: { code: 'HĐ-2531', rung: 'done' },
         at: at('2026-07-08', '14:00'),
         need: 'Bản quyền CMMS hết hạn cuối tháng 8 — khách muốn gia hạn',
         decidedBy: huy,
+        temperature: 'hot',
       },
     ],
   }
@@ -581,12 +584,14 @@ function ws0088(): Body {
     doors: [
       {
         kind: 'growth',
-        journeyCode: 'WS-0093',
-        leadCode: 'LD-0352',
-        from: { code: mes.code, rung: 'deploy' },
+        journeyCode: 'WS-0088',
+        leadCode: lead.code,
+        dealCode: 'OP-0309',
+        from: { code: mes.code, rung: 'done' },
         at: at('2026-08-08', '16:00'),
         need: 'Trong lúc chạy thử dây chuyền 1, khách xin thêm báo cáo hiệu suất theo ca',
         decidedBy: ha,
+        temperature: 'hot',
       },
     ],
   }
@@ -729,35 +734,11 @@ function ws0093(): Body {
 }
 
 // ---------------------------------------------------------------------------
-// THE TREE — links are derived from growth doors, so the rail cannot disagree
+// THE TREE — a growth door reopens its own run, so no run links to another
 // ---------------------------------------------------------------------------
 
-function linkOf(j: Body): JourneyLink {
-  return {
-    code: j.code,
-    ordinal: j.ordinal,
-    bornBy: 'growth',
-    status: j.status,
-    closeReason: j.closeReason,
-  }
-}
-
 function assemble(bodies: Body[]): WorkstreamJourneyResponse[] {
-  const byCode = new Map(bodies.map((b) => [b.code, b]))
-  const edges = bodies.flatMap((from) =>
-    from.doors.flatMap((d) =>
-      d.kind === 'growth' ? [{ from, to: must(byCode.get(d.journeyCode), d.journeyCode) }] : [],
-    ),
-  )
-  return bodies.map((b) => {
-    const prev = edges.find((e) => e.to.code === b.code)
-    return {
-      ...b,
-      hiddenDeals: 0,
-      previous: prev ? linkOf(prev.from) : null,
-      next: edges.filter((e) => e.from.code === b.code).map((e) => linkOf(e.to)),
-    }
-  })
+  return bodies.map((b) => ({ ...b, hiddenDeals: 0, previous: null, next: [] }))
 }
 
 let built: readonly WorkstreamJourneyResponse[] | undefined

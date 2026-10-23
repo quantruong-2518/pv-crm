@@ -78,6 +78,7 @@ export const CONFIG_AREAS = [
       { id: 'waiting-labels', no: '5.4e', title: 'Nhãn nhóm chờ' },
       { id: 'comm-criteria', no: '5.10', title: 'Câu hỏi đánh giá liên hệ' },
       { id: 'step-kinds', no: '5.11', title: 'Loại bước tiếp theo' },
+      { id: 'recare-cycles', no: '5.19', title: 'Kỳ chăm sóc khách đã mua' },
     ],
   },
   {
@@ -174,6 +175,11 @@ export function freshnessWaiting(proposals: ConfigProposal[]): string | null {
   const said = proposals.flatMap((p) =>
     p.change.kind === 'activity-freshness' ? [p.consequence] : [],
   )
+  return said.length > 0 ? said.join(' · ') : null
+}
+
+export function recareWaiting(proposals: ConfigProposal[]): string | null {
+  const said = proposals.flatMap((p) => (p.change.kind === 'recare-cycles' ? [p.consequence] : []))
   return said.length > 0 ? said.join(' · ') : null
 }
 

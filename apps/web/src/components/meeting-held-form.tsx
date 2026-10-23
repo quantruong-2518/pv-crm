@@ -16,16 +16,11 @@ import { CommFileDrop, CommFileList } from '@/components/comm-files'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
 import { Field } from '@/components/field-bits'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
-import {
-  EMPTY_STEP_DRAFT,
-  evaluationBlockerOf,
-  stepBlockerOf,
-  stepInputOf,
-  subjectKindLabel,
-} from '@/data/comm-record-detail'
+import { EMPTY_STEP_DRAFT, evaluationBlockerOf, subjectKindLabel } from '@/data/comm-record-detail'
+import { useCloseStep } from '@/data/customer-close'
 import { meetingRowLabel } from '@/data/meeting-labels'
 import { useCloseMeeting } from '@/data/meeting-today'
-import { useStepOptions } from '@/data/next-step'
+import { TemperaturePick } from './temperature-pick'
 
 /** The close-out of a booked meeting (the held button), in one panel: summary, who
  *  attended, the outcome (the comm's own evaluation answers), the next step
@@ -57,8 +52,7 @@ export function MeetingHeldForm({
 }) {
   const vocab = useQuery(commVocabularyQuery)
   const close = useCloseMeeting()
-  const target = record.stepTarget
-  const options = useStepOptions(target?.kind ?? null, record.subject.code)
+  const step = useCloseStep(record.subject.code, record.stepTarget)
   const people = useAttendance(open, meeting)
   const [summary, setSummary] = useState('')
   const [picked, setPicked] = useState<Record<string, string>>({})
@@ -68,7 +62,8 @@ export function MeetingHeldForm({
     (meeting ? null : 'Chưa có danh sách người dự.') ??
     (summary.trim() === '' ? 'Chưa ghi tóm tắt buổi họp.' : null) ??
     evaluationBlockerOf(vocab, picked) ??
-    (target ? stepBlockerOf(draft, options) : null)
+    step.temperatureGap ??
+    step.gapOf(draft)
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -79,7 +74,7 @@ export function MeetingHeldForm({
         criterionId: c.id,
         answerId: picked[c.id] ?? '',
       })),
-      ...(target && { step: stepInputOf(draft, options.data) }),
+      ...step.inputOf(draft),
       /* No booked list = no lists at all: an empty array would REPLACE the attendees. */
       ...(meeting && {
         hosts: people.hosts.map(({ actorId, name, attended }) => ({ actorId, name, attended })),
@@ -163,18 +158,23 @@ export function MeetingHeldForm({
         <section className="flex min-w-0 flex-col gap-4" aria-label="Kết quả">
           <SectionTitle size="md">Kết quả</SectionTitle>
           <CommEvaluation vocab={vocab} picked={picked} onPick={setPicked} />
+          {step.customer && (
+            <TemperaturePick value={step.temperature} onPick={step.setTemperature} />
+          )}
         </section>
 
         <section className="flex min-w-0 flex-col gap-4" aria-label="Bước tiếp theo">
           <SectionTitle size="md">Bước tiếp theo</SectionTitle>
-          {target ? (
-            <CommNextStepFields
-              kinds={vocab.data?.stepKinds ?? []}
-              options={options}
-              draft={draft}
-              onDraft={setDraft}
-            />
-          ) : (
+          {step.takesStep ? (
+            step.stepShown && (
+              <CommNextStepFields
+                kinds={vocab.data?.stepKinds ?? []}
+                options={step.options}
+                draft={draft}
+                onDraft={setDraft}
+              />
+            )
+          ) : step.target.isPending ? null : (
             <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
               {subjectKindLabel(record.subject.code)}{' '}
               <span className="font-mono">{record.subject.code}</span> không nhận bước tiếp theo từ

@@ -474,6 +474,20 @@ export const ActivityFreshness = z
 export const ActivityFreshnessResponse = ActivityFreshness
 export const ActivityFreshnessPatch = ActivityFreshness
 
+/** Days without contact before a bought customer is due for care, one cycle per
+ *  temperature (ADR 0121). `GET` / `PATCH /sales/config/recare-cycles`, written
+ *  as one proposal like `ActivityFreshness`. No hot < warm < cold refine: the
+ *  owner's rulings fix the defaults, not an order between them. */
+const recareDays = (key: `sales.after-sale.${'hot' | 'warm' | 'cold'}-days`) =>
+  z.number().int().min(SETTING_REGISTRY[key].min).max(SETTING_REGISTRY[key].max)
+export const RecareCycles = z.object({
+  hotDays: recareDays('sales.after-sale.hot-days'),
+  warmDays: recareDays('sales.after-sale.warm-days'),
+  coldDays: recareDays('sales.after-sale.cold-days'),
+})
+export const RecareCyclesResponse = RecareCycles
+export const RecareCyclesPatch = RecareCycles
+
 /** The four journey-frame kinds (ADR 0080). Only the kind travels: their
  *  shapes live in `./step-frame`, which imports this file, so naming them here
  *  would be an import cycle. The screen counts them per section instead. */
@@ -500,6 +514,7 @@ export const ConfigProposalChange = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('reorder'), list: ConfigList, ids: z.array(ConfigCode).min(1) }),
   z.object({ kind: z.literal('motion'), motion: LeadMotion, patch: MotionPolicyPatch }),
   z.object({ kind: z.literal('activity-freshness'), value: ActivityFreshness }),
+  z.object({ kind: z.literal('recare-cycles'), value: RecareCycles }),
   z.object({ kind: z.literal(FRAME_CHANGE_KINDS) }),
   z.object({ kind: z.literal('kpi-metrics'), value: KpiRoleMetricsPatch }),
   z.object({ kind: z.literal('kpi-alert'), value: KpiAlertPatch }),
@@ -524,6 +539,9 @@ export type ConfigProposalsResponse = z.infer<typeof ConfigProposalsResponse>
 export type ActivityFreshness = z.infer<typeof ActivityFreshness>
 export type ActivityFreshnessResponse = z.infer<typeof ActivityFreshnessResponse>
 export type ActivityFreshnessPatch = z.infer<typeof ActivityFreshnessPatch>
+export type RecareCycles = z.infer<typeof RecareCycles>
+export type RecareCyclesResponse = z.infer<typeof RecareCyclesResponse>
+export type RecareCyclesPatch = z.infer<typeof RecareCyclesPatch>
 export type ConfigEntry = z.infer<typeof ConfigEntry>
 export type ConfigUsage = z.infer<typeof ConfigUsage>
 export type ConfigBundle = z.infer<typeof ConfigBundle>

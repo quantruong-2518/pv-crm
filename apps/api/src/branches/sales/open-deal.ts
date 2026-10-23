@@ -92,3 +92,34 @@ export const leadDealsAllLost = (leadCode: SQLWrapper): SQL =>
   sql`(NOT ${leadHasContract(leadCode)}
        AND EXISTS (SELECT 1 FROM sales.opportunity od_l WHERE od_l.lead_code = ${leadCode})
        AND NOT ${leadHasOpenDeal(leadCode)})`
+
+/** Fully collected (ADR 0121 §1): live, at least one installment, none unpaid
+ *  — the contract book's `collected` filter. `contractCode` is the OUTER code. */
+export const contractCollected = (contractCode: SQLWrapper): SQL =>
+  sql`(NOT ${contractTerminated(contractCode)}
+       AND EXISTS (SELECT 1 FROM sales.contract_installment od_ci WHERE od_ci.contract_code = ${contractCode})
+       AND NOT EXISTS (SELECT 1 FROM sales.contract_installment od_cu WHERE od_cu.contract_code = ${contractCode} AND od_cu.paid_at IS NULL))`
+
+/** The run is in `growth` (ADR 0121 §1): closed WON, its lead live, and every
+ *  live contract of that lead collected. `workstreamCode` is the OUTER code. */
+export const journeyInGrowth = (workstreamCode: SQLWrapper): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.workstream od_g JOIN sales.lead od_gl ON od_gl.workstream_code = od_g.code
+       WHERE od_g.code = ${workstreamCode} AND od_g.close_reason = 'WON' AND od_gl.disabled_at IS NULL
+         AND ${leadHasContract(sql`od_gl.code`)}
+         AND NOT EXISTS (SELECT 1 FROM sales.contract od_gk WHERE od_gk.lead_code = od_gl.code
+                          AND NOT ${contractTerminated(sql`od_gk.code`)} AND NOT ${contractCollected(sql`od_gk.code`)}))`
+
+/** Owner ids of the lead's live contracts — its closers (ADR 0113: the
+ *  creator), the carers of a bought customer. A subquery for `IN (…)`;
+ *  `leadCode` is the OUTER column. Unowned contracts add no row. */
+export const liveContractOwners = (leadCode: SQLWrapper): SQL =>
+  sql`(SELECT od_lo.owner_id FROM sales.contract od_lo
+        WHERE od_lo.lead_code = ${leadCode} AND od_lo.owner_id IS NOT NULL
+          AND NOT ${contractTerminated(sql`od_lo.code`)})`
+
+/** `actorId` closed a live contract of the lead, and the lead's run is in
+ *  `growth` — a carer of that customer. `leadCode` is the OUTER column. */
+export const leadCarer = (leadCode: SQLWrapper, actorId: string): SQL =>
+  sql`EXISTS (SELECT 1 FROM sales.lead od_rl
+       WHERE od_rl.code = ${leadCode} AND ${actorId}::text IN ${liveContractOwners(sql`od_rl.code`)}
+         AND ${journeyInGrowth(sql`od_rl.workstream_code`)})`

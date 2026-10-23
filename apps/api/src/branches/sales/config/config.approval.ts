@@ -8,6 +8,7 @@ import {
   ROLE_LABEL,
   splitFirstTouch,
   type ActivityFreshness,
+  type RecareCycles,
   type ConfigList,
   type ConfigProposalChange,
   type LeadMotion,
@@ -84,6 +85,8 @@ export type ConfigChange =
   /** The book's two staleness dials (ADR 0077 §4), always as a pair so
    *  `alertDays > warnDays` was judged on the very body that lands. */
   | { kind: 'activity-freshness'; value: ActivityFreshness }
+  /** The three re-care cycles of a bought customer (ADR 0121 §4), as one trio. */
+  | { kind: 'recare-cycles'; value: RecareCycles }
   /** The journey frame's four (ADR 0080) — declared beside their words. */
   | FrameChange
   /** The KPI metric overlay and alert pair (ADR 0099 §2), beside their words. */
@@ -141,6 +144,10 @@ function consequenceOf(change: ConfigChange): string {
   if (change.kind === 'activity-freshness') {
     const { warnDays, alertDays } = change.value
     return `Đổi ngưỡng hoạt động của cơ hội: vàng từ ${warnDays} ngày, đỏ từ ${alertDays} ngày`
+  }
+  if (change.kind === 'recare-cycles') {
+    const { hotDays, warmDays, coldDays } = change.value
+    return `Đổi kỳ chăm sóc khách đã mua: Nóng ${hotDays} ngày, Ấm ${warmDays} ngày, Nguội ${coldDays} ngày`
   }
   return `Đổi phương án tiếp cận ${MOTION_LABEL[change.motion]}: ${motionWords(change.patch).join(' · ')}`
 }
@@ -247,7 +254,9 @@ export class SalesConfigGateE3 extends SalesConfigGate {
           ? change.motion
           : change.kind === 'activity-freshness'
             ? `${change.value.warnDays}/${change.value.alertDays}`
-            : change.list
+            : change.kind === 'recare-cycles'
+              ? `${change.value.hotDays}/${change.value.warmDays}/${change.value.coldDays}`
+              : change.list
     this.log.log(`đề nghị ${request.id} · ${change.kind} · ${subject} · bởi ${who.id}`)
 
     return { requestId: request.id, state: request.state, change }

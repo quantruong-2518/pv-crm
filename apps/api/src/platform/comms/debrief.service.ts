@@ -100,7 +100,9 @@ export class DebriefService {
   async target(who: Actor, q: DebriefTargetQuery): Promise<DebriefTargetResponse> {
     await this.inReach(who, q.subjectCode)
     const slot = this.hook ? await this.hook.slot(who, q.subjectCode) : null
-    return DebriefTargetResponse.parse(slot ?? { stepTarget: null, confirmable: false })
+    return DebriefTargetResponse.parse(
+      slot ?? { stepTarget: null, confirmable: false, customer: null },
+    )
   }
 
   async list(who: Actor, q: DebriefListQuery): Promise<DebriefListResponse> {
@@ -204,9 +206,11 @@ export class DebriefService {
     const id = found.row.id
     const subjectCode = found.row.subjectCode
     const prepared = await hook.prepare(who, {
+      debriefId: id,
       subjectCode,
       answers: body.answers,
       step: body.step,
+      temperature: body.temperature,
     })
     const behalf = found.row.ownerId === who.id ? '' : ` · closed on behalf of ${found.row.ownerId}`
 

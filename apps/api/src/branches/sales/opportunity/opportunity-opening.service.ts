@@ -17,9 +17,14 @@ import { OpportunityRepository } from './opportunity.repository'
 
 /** Who may open a deal on a lead: its holder, a reader the scope does not cut,
  *  and anyone when nobody holds it — the opener then takes it (ADR 0088 §17).
- *  A lead somebody else holds stays closed to an `ownOnly` caller. */
-export const opens = (who: Actor, ownerId: string | null): boolean =>
-  !who.ownOnly || ownerId === null || ownerId === who.id
+ *  A lead somebody else holds stays closed to an `ownOnly` caller, unless they
+ *  care for its bought customer (`carer`, ADR 0121 §6). */
+export const opens = (who: Actor, ownerId: string | null, carer = false): boolean =>
+  !who.ownOnly || ownerId === null || ownerId === who.id || carer
+
+/** A carer let in only as a carer holds the deal they open (ADR 0121 §6). */
+export const CARER_HOLDS =
+  'Bạn mở cơ hội cho khách mình chăm sóc, nên bạn phải là người phụ trách cơ hội này.'
 
 export const foreignLead = (code: string) =>
   denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
@@ -67,7 +72,7 @@ export class OpportunityOpening {
     const db = this.repo.readonlyHandle
     const found = await this.repo.leadFacts(db, leadCode)
     if (!found) throw notFound('lead', leadCode)
-    if (!opens(who, found.ownerId)) throw foreignLead(leadCode)
+    if (!(await this.admits(db, who, found.ownerId, leadCode))) throw foreignLead(leadCode)
     const { accountCode, workstreamCode } = found
 
     const [owningAccount, previousWon, standing, contacts, ladder, running] = await Promise.all([
@@ -145,14 +150,20 @@ export class OpportunityOpening {
     const live = new Set(rows.map((r) => r.code))
     const gone = leadCodes.find((code) => !live.has(code))
     if (gone) throw notFound('lead', gone)
-    const foreign = rows.find((r) => !opens(who, r.ownerId))
-    if (foreign) throw foreignLead(foreign.code)
+    for (const r of rows) {
+      if (!(await this.admits(tx, who, r.ownerId, r.code))) throw foreignLead(r.code)
+    }
     await this.leadStates.claimed(
       tx,
       rows.filter((r) => r.ownerId === null),
       who,
     )
     return new Map(rows.map((r) => [r.code, r.accountCode]))
+  }
+
+  /** `opens`, asking the carer clause only of a caller the rest refuses. */
+  async admits(db: Db, who: Actor, ownerId: string | null, leadCode: string): Promise<boolean> {
+    return opens(who, ownerId) || this.repo.cares(db, who.id, leadCode)
   }
 
   /** Under the lead lock: the body must name exactly the lead's running deals,

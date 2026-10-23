@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { SessionModule } from '@api/platform/session/session.module'
+import { CustomerTemperatureRepository } from '../after-sale/customer-temperature.repository'
 import { SalesConfigModule } from '../config/config.module'
 import { LeadModule } from '../lead/lead.module'
 import { MeetingModule } from '../meeting/meeting.module'
@@ -43,6 +44,8 @@ import { NextStepService } from './next-step.service'
     OpportunityStepService,
     OpportunityStepRepository,
     NextStepDebriefHook,
+    /* Bare, a stateless SQL class: the close-out writes a bought customer's reading. */
+    CustomerTemperatureRepository,
   ],
   exports: [NextStepDebriefHook],
 })

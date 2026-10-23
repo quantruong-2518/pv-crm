@@ -1,4 +1,5 @@
 import type {
+  CustomerTemperature,
   DebriefAnswerInput,
   DebriefStepInput,
   DebriefStepTarget,
@@ -67,9 +68,12 @@ export type MeetingHeld = {
 }
 
 export type CommDebriefInput = {
+  /** The record being closed: a bought customer's reading belongs to it (ADR 0121 §3). */
+  debriefId: string
   subjectCode: string
   answers: readonly DebriefAnswerInput[]
   step: DebriefStepInput | undefined
+  temperature: CustomerTemperature | undefined
 }
 
 /** Names travel back so comms stores copies: renaming a config row later must

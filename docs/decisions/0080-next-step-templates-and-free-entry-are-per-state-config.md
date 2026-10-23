@@ -3,6 +3,8 @@
 Status: accepted (replaces 0071 §12; adds to 0074 §4's `STEP_KIND` list; leaves 0057 §3, 0058 and 0072 §2 untouched)
 Source: project owner's decisions in chat, 08/10/2026
 
+> Amended by 0121: §1 gains a third object kind, `customer` (hot, warm, cold).
+
 ## Context
 
 Sales people must always work inside one company framework. The sales

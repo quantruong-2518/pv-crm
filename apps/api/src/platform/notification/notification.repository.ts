@@ -237,4 +237,4 @@ export class NotificationRepository {
  *  (the UNIQUE on `(recipient_id, event_key)` keys off a row that still has to
  *  exist) — purging it on the normal 90-day clock would ring the same overdue
  *  installment again the day the sweeper next finds it untold. */
-const DURABLE_KINDS: NotificationKind[] = ['contract-installment-overdue']
+const DURABLE_KINDS: NotificationKind[] = ['contract-installment-overdue', 'customer-recare-due']

@@ -74,6 +74,7 @@ export const NotificationKind = z.enum([
   'contract-terminated',
   'contract-collector-changed',
   'kpi-stand-in',
+  'customer-recare-due',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -163,6 +164,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'contract-terminated': 'Hợp đồng đã chấm dứt',
   'contract-collector-changed': 'Đã đổi người thu tiền hợp đồng',
   'kpi-stand-in': 'Bạn đang làm thay việc KPI của người khác',
+  'customer-recare-due': 'Đến kỳ chăm sóc khách đã mua',
 }
 
 /** The filter chips on the bell screen. */
@@ -259,6 +261,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'contract-terminated': 'contract',
   'contract-collector-changed': 'contract',
   'kpi-stand-in': 'kpi',
+  'customer-recare-due': 'contract',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -332,6 +335,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'contract-collector-changed': { important: true, locked: false },
   /* ADR 0117 default 3: work now waits on someone who did not ask for it. */
   'kpi-stand-in': { important: true, locked: false },
+  'customer-recare-due': { important: false, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -447,6 +451,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     /* The seat's own waiting list: a team page for a lead's stand-in (who may hold
        only `kpi.view`), the allocations screen for a target setter's. */
     'kpi-stand-in': ['kpi-team', 'kpi-allocation'],
+    'customer-recare-due': ['contract'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or

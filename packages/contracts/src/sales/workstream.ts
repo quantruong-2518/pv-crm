@@ -370,8 +370,8 @@ export const LEAD_LANE_BACKBONE = [
  *  each step's book supplies. Declared once here for the same reason
  *  `LEAD_LANE_BACKBONE` is: both ends read it, the screen to draw the six and
  *  the API to know which of them has a book. `after-sale` and `growth` have no
- *  book yet, so the board door returns no column for them and the screen draws
- *  the placeholder; no flag marks that — the absent column already says it. */
+ *  board column — bought customers list on their own book (`./after-sale`) —
+ *  so the screen draws the placeholder; the absent column already says it. */
 export const WORKSTREAM_JOURNEY_STEPS = [
   { key: 'lead', label: 'Lead' },
   { key: 'opportunity', label: 'Cơ hội' },

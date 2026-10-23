@@ -6,6 +6,7 @@ import {
   CalendarClock,
   ChartColumn,
   CircleCheck,
+  CircleCheckBig,
   ClipboardList,
   Coins,
   Contact,
@@ -336,6 +337,16 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/admin/partners',
     permission: 'lead-origin.manage',
     question: 'Ai giới thiệu lead cho công ty, và được bao nhiêu',
+    group: 'customer',
+  },
+  {
+    /* Bought customers are customers: beside companies and contacts (ADR 0121). */
+    no: 0,
+    icon: CircleCheckBig,
+    label: 'Khách đã mua',
+    path: '/sales/after-sale',
+    permission: 'contract.view',
+    question: 'Khách đã trả đủ tiền hợp đồng, hẹn ngày chăm sóc lại',
     group: 'customer',
   },
   {

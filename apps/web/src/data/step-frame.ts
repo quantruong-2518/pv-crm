@@ -1,5 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
+  CUSTOMER_TEMPERATURE_LABEL,
+  CustomerTemperature,
   LEAD_STATE_LABEL,
   OPPORTUNITY_STAGE_LABEL,
   StepFrameResponse,
@@ -47,11 +49,20 @@ export const stepFrameQuery = queryOptions({
 export const FRAME_STATES: Record<StateAddress['kind'], StateAddress[]> = {
   lead: StepLeadState.options.map((state) => ({ kind: 'lead', state })),
   opportunity: StageKey.options.map((state) => ({ kind: 'opportunity', state })),
+  customer: CustomerTemperature.options.map((state) => ({ kind: 'customer', state })),
 }
 
 /** The product's own word for a state — the label maps, never a coined one. */
-export const stateLabelOf = (address: StateAddress): string =>
-  address.kind === 'lead' ? LEAD_STATE_LABEL[address.state] : OPPORTUNITY_STAGE_LABEL[address.state]
+export function stateLabelOf(address: StateAddress): string {
+  switch (address.kind) {
+    case 'lead':
+      return LEAD_STATE_LABEL[address.state]
+    case 'opportunity':
+      return OPPORTUNITY_STAGE_LABEL[address.state]
+    case 'customer':
+      return CUSTOMER_TEMPERATURE_LABEL[address.state]
+  }
+}
 
 export const sameAddress = (a: StateAddress, b: StateAddress) =>
   a.kind === b.kind && a.state === b.state

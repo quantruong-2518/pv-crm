@@ -45,7 +45,7 @@ import { hold } from '../hold/hold.schema'
 import { leadHeld, openHoldsOf } from '../hold/hold.sql'
 import { leadOrigin } from '../lead-origin/lead-origin.schema'
 import { partner } from '../partner/partner.schema'
-import { leadDealHeldBy, leadSigned } from '../open-deal'
+import { leadCarer, leadDealHeldBy, leadSigned } from '../open-deal'
 import { touch } from '../touch/touch.schema'
 import { contact } from '../contact/contact.schema'
 import { realExchanges } from '../performance/real-exchange'
@@ -497,13 +497,16 @@ export class LeadRepository {
     return leadScope(who, scoped)
   }
 
-  /** The one-lead READ axis: the book's scope, or someone standing on a live
-   *  deal of this lead — they read and mail the customer they are selling to.
+  /** The one-lead READ axis: the book's scope, someone standing on a live
+   *  deal of this lead — they read and mail the customer they are selling to —
+   *  or a carer of a bought customer (ADR 0121 §6), who may open its next deal.
    *  Edits use `holds` (`leadHolderScope`): a deal does not hand over the lead,
    *  and the shared pool is claimed before it is edited (ADR 0109). */
   private readScopeOf(who: Pick<Actor, 'id' | 'ownOnly'>): SQL | undefined {
     const holds = this.scopeOf(who, true)
-    return holds ? or(holds, leadDealHeldBy(lead.code, who.id)) : undefined
+    return holds
+      ? or(holds, leadDealHeldBy(lead.code, who.id), leadCarer(lead.code, who.id))
+      : undefined
   }
 
   /** Codes of the OTHER live leads on this row's mailbox — flagged, not refused,

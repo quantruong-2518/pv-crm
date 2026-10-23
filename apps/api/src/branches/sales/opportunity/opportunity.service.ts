@@ -33,7 +33,7 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { conflict, denied, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { toChainLink } from '@api/platform/graph/graph.mapper'
 import { GraphService } from '@api/platform/graph/graph.service'
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
@@ -61,7 +61,7 @@ import { OpportunityFacetsRepository } from './opportunity-facets.repository'
 import { OpportunityFacts } from './opportunity-facts'
 import { editTrail } from './opportunity-trail'
 import { announceOpened, announceOwners, announcePrimary } from './opportunity-bell'
-import { foreignLead, opens, OpportunityOpening } from './opportunity-opening.service'
+import { CARER_HOLDS, foreignLead, opens, OpportunityOpening } from './opportunity-opening.service'
 import {
   actorsByIds,
   assertHeld,
@@ -375,7 +375,10 @@ export class OpportunityService {
     ])
     const { names, roles } = labelsOf(actors)
     if (lead === null) throw notFound('lead', body.leadCode)
-    if (!opens(who, lead.ownerId)) throw foreignLead(body.leadCode)
+    const asCarer = !opens(who, lead.ownerId)
+    if (asCarer && !(await this.opening.admits(handle, who, lead.ownerId, body.leadCode))) {
+      throw foreignLead(body.leadCode)
+    }
     assertOwnSaleLane(this.onlySaleAtCreate(who), body.saleOwners)
 
     /* ONE instant for the whole write. `new Date()` used to sit inline in the
@@ -393,6 +396,7 @@ export class OpportunityService {
     const owner = holderOfIds(body, names, roles, acceptor, salePrimary)
     assertSellersIn(actors, body.saleOwners)
     assertHeld(owner)
+    if (asCarer && owner?.id !== who.id) throw invalid({ saleOwners: [CARER_HOLDS] }, CARER_HOLDS)
     const code = await this.repo.nextCode()
 
     const row = await this.repo.run(async (tx) => {

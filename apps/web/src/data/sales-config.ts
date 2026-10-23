@@ -13,6 +13,7 @@ import { type WaveChannel } from '@pv/engines/fixtures/das-vina'
 import {
   ActivityFreshnessResponse,
   ConfigProposalsResponse,
+  RecareCyclesResponse,
   LEAD_STOP_REASON_OTHER,
   LeadTier,
   OPPORTUNITY_STOP_REASON_OTHER,
@@ -25,6 +26,7 @@ import {
   type ConfigProposal,
   type ConfigProposalReceipt,
   type ActivityFreshnessPatch,
+  type RecareCyclesPatch,
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
@@ -586,6 +588,33 @@ export function useProposeActivityFreshness() {
   return useMutation<ConfigProposalReceipt, ApiError, ActivityFreshnessPatch>({
     mutationFn: (body) =>
       api.write<ConfigProposalReceipt>('/sales/config/activity-freshness', {
+        method: 'PATCH',
+        body,
+        need: { branch: 'Sales', permission: 'config.propose' },
+      }),
+    onSuccess: () => proposalSent(client),
+  })
+}
+
+/** A bought customer's care cycle per temperature (ADR 0121), in days. */
+export const recareCyclesQuery = queryOptions({
+  queryKey: ['sales', 'config', 'recare-cycles'] as const,
+  queryFn: ({ signal }) =>
+    api.read<RecareCyclesResponse>('/sales/config/recare-cycles', {
+      need: { branch: 'Sales', permission: 'config.view' },
+      schema: RecareCyclesResponse,
+      signal,
+    }),
+  ...cacheTier.reference,
+})
+
+/** Proposes the trio as one change, as the freshness pair does. */
+export function useProposeRecareCycles() {
+  const client = useQueryClient()
+
+  return useMutation<ConfigProposalReceipt, ApiError, RecareCyclesPatch>({
+    mutationFn: (body) =>
+      api.write<ConfigProposalReceipt>('/sales/config/recare-cycles', {
         method: 'PATCH',
         body,
         need: { branch: 'Sales', permission: 'config.propose' },

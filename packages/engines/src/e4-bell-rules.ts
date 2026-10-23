@@ -65,6 +65,8 @@ export const MEETING_CALENDAR_FAILED = 'sales.meeting.calendar-failed'
 /** A hold's see-again day is near, or here (ADR 0097 §4); the sweep is the only emitter. */
 export const HOLD_DUE_SOON = 'sales.hold.due-soon'
 export const HOLD_DUE = 'sales.hold.due'
+/** A bought customer's care day came (ADR 0121 §4); the hourly sweep is the only emitter. */
+export const CUSTOMER_RECARE_DUE = 'sales.after-sale.recare-due'
 export const APPROVAL_WAITING = 'platform.approval.waiting'
 export const APPROVAL_DECIDED = 'platform.approval.decided'
 export const MAIL_RUN_FINISHED = 'platform.mail-run.finished'
@@ -162,6 +164,9 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('hold-due-soon', HOLD_DUE_SOON, 'setter'),
   bell('hold-due', HOLD_DUE, 'holders'),
   bell('hold-due', HOLD_DUE, 'setter'),
+
+  /* Every unlocked carer of the customer (ADR 0121 §4). */
+  bell('customer-recare-due', CUSTOMER_RECARE_DUE, 'carers'),
 
   bell('kpi-target-allocated', KPI_ALLOCATION_SUBMITTED, 'holders'),
   bell('kpi-allocation-waiting', KPI_ALLOCATION_SUBMITTED, 'approvers'),

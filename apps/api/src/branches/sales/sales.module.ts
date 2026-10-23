@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { registerConstraints } from '@api/platform/http/db-error'
 import { ACCOUNT_CONSTRAINTS } from './account/account.constraints'
+import { AfterSaleModule } from './after-sale/after-sale.module'
 import { AccountModule } from './account/account.module'
 import { CAMPAIGN_CONSTRAINTS } from './campaign/campaign.constraints'
 import { CampaignModule } from './campaign/campaign.module'
@@ -96,6 +97,8 @@ registerConstraints(HOLD_CONSTRAINTS)
     SearchModule,
     /* Holds over leads and deals: it imports both books, none imports it. */
     HoldModule,
+    /* The bought-customer book (ADR 0121): reads all three books, none imports it. */
+    AfterSaleModule,
     /* The hourly Google retry for cancelled meetings — here, not in
        `MeetingModule`, so the one-off scripts never start it. */
     MeetingCancelSweepModule,

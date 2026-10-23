@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { PageQuery, paged } from '../pagination'
 import { Day, Moment, ObjectCode, textInput, textInputOptional } from '../primitives'
+import { CustomerTemperature } from '../sales/after-sale'
 import { ConfigCode } from '../sales/config'
 import {
   MEETING_MAX_GUESTS,
@@ -11,6 +12,7 @@ import {
 } from '../sales/meeting'
 import { NextStepDoneBody, NextStepKind, NextStepSetBody } from '../sales/next-step'
 import { TouchSubject } from '../sales/touch'
+import { WorkstreamHolder } from '../sales/workstream'
 import { CommsChannel, LinkableCode } from './identity'
 import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadRow } from './thread'
 
@@ -71,7 +73,8 @@ export const DebriefStepInput = NextStepSetBody.extend({
 })
 
 /** `step` is absent exactly when the subject takes none (contracts, closed
- *  objects); that rule needs the branch, so the sales hook judges it. */
+ *  objects); that rule needs the branch, so the sales hook judges it. The hook
+ *  also requires `temperature` and `step` on a bought customer (ADR 0121). */
 export const DebriefClose = z.object({
   /** Optional: the mobile log has no title step; the desktop form asks for one. */
   title: textInputOptional(DEBRIEF_TITLE_MAX),
@@ -82,6 +85,7 @@ export const DebriefClose = z.object({
       message: 'Mỗi câu hỏi chỉ chọn một câu trả lời.',
     }),
   step: DebriefStepInput.optional(),
+  temperature: CustomerTemperature.optional(),
 })
 
 // ---------------------------------------------------------------------------
@@ -137,9 +141,19 @@ export const DebriefStepTarget = z.object({
  *  would ask, read before anything is written. `confirmable` false = the caller
  *  could not confirm it (open subject, no right to set its step), so create is refused. */
 export const DebriefTargetQuery = z.object({ subjectCode: LinkableCode })
+
+/** Set when the subject belongs to a run in `growth`: the form then asks a
+ *  temperature, and the step lands on `leadCode` whatever the subject is. */
+export const DebriefCustomerTarget = z.object({
+  leadCode: ObjectCode,
+  temperature: CustomerTemperature.nullable(),
+  carers: z.array(WorkstreamHolder),
+})
+
 export const DebriefTargetResponse = z.object({
   stepTarget: DebriefStepTarget.nullable(),
   confirmable: z.boolean(),
+  customer: DebriefCustomerTarget.nullable(),
 })
 
 /** Also the contact-history timeline row: channel, when, summary, state, step. */
@@ -236,6 +250,7 @@ export type DebriefStepCopy = z.infer<typeof DebriefStepCopy>
 export type DebriefSubject = z.infer<typeof DebriefSubject>
 export type DebriefStepTarget = z.infer<typeof DebriefStepTarget>
 export type DebriefTargetQuery = z.infer<typeof DebriefTargetQuery>
+export type DebriefCustomerTarget = z.infer<typeof DebriefCustomerTarget>
 export type DebriefTargetResponse = z.infer<typeof DebriefTargetResponse>
 export type DebriefView = z.infer<typeof DebriefView>
 export type DebriefListQuery = z.infer<typeof DebriefListQuery>

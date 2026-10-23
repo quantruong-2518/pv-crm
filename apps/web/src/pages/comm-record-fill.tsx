@@ -20,13 +20,11 @@ import {
   confirmHoursLeft,
   evaluationBlockerOf,
   readCommDraft,
-  stepBlockerOf,
-  stepInputOf,
   useConfirmComm,
   writeCommDraft,
 } from '@/data/comm-record-detail'
+import { useCloseStep } from '@/data/customer-close'
 import { useMinuteClock } from '@/data/minute-clock'
-import { useStepOptions } from '@/data/next-step'
 import { ContentStep, EvaluationStep, NextStepStep } from './comm-record-fill-steps'
 
 /** The owner's fill form for an open comm: three steps, one card at a time,
@@ -43,8 +41,7 @@ type Problem = { text: string; failed?: boolean } | null
 export function CommFillWorkspace({ record }: { record: DebriefView }) {
   const vocab = useQuery(commVocabularyQuery)
   const confirm = useConfirmComm()
-  const target = record.stepTarget
-  const options = useStepOptions(target?.kind ?? null, record.subject.code)
+  const close = useCloseStep(record.subject.code, record.stepTarget)
   const saved = useMemo(() => readCommDraft(record.id), [record.id])
   const [title, setTitle] = useState(saved?.title ?? '')
   const [summary, setSummary] = useState(saved?.summary ?? '')
@@ -57,8 +54,8 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
     (word): word is string => word !== false,
   )
   const contentGap = missing.length > 0 ? `Còn thiếu ${missing.join(' và ')}` : null
-  const evaluationGap = evaluationBlockerOf(vocab, picked)
-  const stepGap = target ? stepBlockerOf(draft, options) : null
+  const evaluationGap = evaluationBlockerOf(vocab, picked) ?? close.temperatureGap
+  const stepGap = close.gapOf(draft)
   /* One gap per step, in the order of `titles`; the bar says the open one's. */
   const gaps = [contentGap, evaluationGap, stepGap]
   const blocker = gaps.find((gap) => gap !== null) ?? null
@@ -83,7 +80,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
       title: title.trim(),
       summary: summary.trim(),
       answers: criteria.map((c) => ({ criterionId: c.id, answerId: picked[c.id] ?? '' })),
-      ...(target && { step: stepInputOf(draft, options.data) }),
+      ...close.inputOf(draft),
     }
     confirm.mutate(
       { id: record.id, body },
@@ -142,14 +139,20 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
         />
       )}
       {at === 1 && (
-        <EvaluationStep heading={titles[1]} vocab={vocab} picked={picked} onPick={setPicked} />
+        <EvaluationStep
+          heading={titles[1]}
+          vocab={vocab}
+          picked={picked}
+          onPick={setPicked}
+          close={close}
+        />
       )}
       {at === 2 && (
         <NextStepStep
           record={record}
           heading={titles[2]}
           kinds={vocab.data?.stepKinds ?? []}
-          options={options}
+          close={close}
           draft={draft}
           onDraft={setDraft}
         />

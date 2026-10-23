@@ -260,6 +260,9 @@ describe('Mã và đầu hành trình — khoá từng giá trị mới', () => 
       'OP-0291',
       'OP-0292',
       'OP-0293',
+      'OP-0307',
+      'OP-0308',
+      'OP-0309',
       'WS-0041',
       'WS-0088',
       'WS-0089',
@@ -578,7 +581,18 @@ describe('Cửa tiếp nối và cây hành trình', () => {
     const doors = JOURNEYS.flatMap((j) =>
       j.doors.map((d) =>
         d.kind === 'growth'
-          ? [j.code, d.kind, d.journeyCode, d.leadCode, d.from, d.at, d.need, d.decidedBy.id]
+          ? [
+              j.code,
+              d.kind,
+              d.journeyCode,
+              d.leadCode,
+              d.dealCode,
+              d.from,
+              d.at,
+              d.need,
+              d.decidedBy.id,
+              d.temperature,
+            ]
           : [
               j.code,
               d.kind,
@@ -597,67 +611,54 @@ describe('Cửa tiếp nối và cây hành trình', () => {
       [
         'WS-0041',
         'growth',
-        'WS-0088',
-        'LD-0334',
+        'WS-0041',
+        'LD-0058',
+        'OP-0307',
         { code: 'HĐ-2531', rung: 'done' },
         '2026-07-08T09:00:00+07:00',
         'Khách muốn đưa MES vào xưởng X1',
         'u-ha',
+        'hot',
       ],
       [
         'WS-0041',
         'growth',
-        'WS-0089',
-        'LD-0335',
+        'WS-0041',
+        'LD-0058',
+        'OP-0308',
         { code: 'HĐ-2531', rung: 'done' },
         '2026-07-08T14:00:00+07:00',
         'Bản quyền CMMS hết hạn cuối tháng 8 — khách muốn gia hạn',
         'u-huy',
+        'hot',
       ],
       [
         'WS-0088',
         'growth',
-        'WS-0093',
-        'LD-0352',
-        { code: 'HĐ-2607', rung: 'deploy' },
+        'WS-0088',
+        'LD-0334',
+        'OP-0309',
+        { code: 'HĐ-2607', rung: 'done' },
         '2026-08-08T16:00:00+07:00',
         'Trong lúc chạy thử dây chuyền 1, khách xin thêm báo cáo hiệu suất theo ca',
         'u-ha',
+        'hot',
       ],
     ])
   })
 
-  it('cửa tăng trưởng mở đúng hành trình kia: cùng lead, cùng giờ, người quyết giữ lead', () => {
-    for (const d of JOURNEYS.flatMap((j) => j.doors)) {
-      if (d.kind !== 'growth') continue
-      const born = journey(d.journeyCode)
-      expect([born.lead.code, born.openedAt, born.lead.holder]).toEqual([
-        d.leadCode,
-        d.at,
-        d.decidedBy,
-      ])
-    }
+  it('cửa tăng trưởng mở lại đúng hành trình chứa nó: cùng lead, mã cơ hội mới không trùng ai', () => {
+    const all = new Set(deals.map((x) => x.code))
+    for (const j of JOURNEYS)
+      for (const d of j.doors) {
+        if (d.kind !== 'growth') continue
+        expect([d.journeyCode, d.leadCode]).toEqual([j.code, j.lead.code])
+        expect(all.has(d.dealCode)).toBe(false)
+      }
   })
 
-  it('ContextRail: một trước, nhiều sau, hai chiều khớp nhau', () => {
-    expect(
-      JOURNEYS.map((j) => [j.code, j.previous?.code ?? null, j.next.map((n) => n.code)]),
-    ).toEqual([
-      ['WS-0041', null, ['WS-0088', 'WS-0089']],
-      ['WS-0088', 'WS-0041', ['WS-0093']],
-      ['WS-0089', 'WS-0041', []],
-      ['WS-0093', 'WS-0088', []],
-    ])
-    for (const j of JOURNEYS)
-      for (const n of j.next) {
-        const other = journey(n.code)
-        expect([n.status, n.closeReason, n.ordinal]).toEqual([
-          other.status,
-          other.closeReason,
-          other.ordinal,
-        ])
-        expect(other.previous?.code).toBe(j.code)
-      }
+  it('không còn cây: cửa tăng trưởng không sinh hành trình nối tiếp', () => {
+    for (const j of JOURNEYS) expect([j.previous, j.next]).toEqual([null, []])
   })
 
   it('WS-0041 đóng lúc cửa tăng trưởng cuối cùng mở', () => {

@@ -7,6 +7,7 @@ import {
   type LeadState,
   type NextStepDoneBody,
   type NextStepSetBody,
+  type CustomerTemperature,
   type ObjectCode,
   type StateAddress,
   type StepOptionsResponse,
@@ -16,6 +17,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { ActorRepository } from '@api/platform/session/actor.repository'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { CustomerTemperatureRepository } from '../after-sale/customer-temperature.repository'
 import { StepFrameService } from '../config/step-frame.service'
 import { LeadService } from '../lead/lead.service'
 import { byOf, TouchService } from '../touch/touch.service'
@@ -26,6 +28,10 @@ import { assertNextDiffers, leadAddress, liveKind } from './next-step.rules'
 
 /** One write on a step: `closing` set = "done" (touch, then `next` or clear). */
 export type StepWrite = Partial<Pick<NextStepDoneBody, 'closing' | 'next'>>
+
+/** A bought customer's close-out (ADR 0121 §5): the lead's run is in `growth`,
+ *  the frame state is the temperature just read, and any carer may write. */
+export type CustomerStep = { temperature: CustomerTemperature; carers: readonly string[] }
 
 /** The next step of a LEAD (flow G1–G3): read, set, mark done, clear.
  *
@@ -47,16 +53,32 @@ export class NextStepService {
     private readonly actors: ActorRepository,
     private readonly frame: StepFrameService,
     private readonly hub: NotificationHub,
+    private readonly customers: CustomerTemperatureRepository,
   ) {}
 
+  /** A bought customer's step is shown too: its close-outs land it here. */
   async get(who: Actor, code: ObjectCode): Promise<NextStepResponse> {
     await this.leads.guard(who, code)
-    return answer(await this.repo.slot(code))
+    const [slot, customer] = await Promise.all([
+      this.repo.slot(code),
+      this.customers.customerOf(code),
+    ])
+    return answer(slot, customer !== null)
   }
 
-  /** The picker's list for the state the lead stands in now (ADR 0080 §4). */
-  async options(who: Actor, code: ObjectCode): Promise<StepOptionsResponse> {
+  /** The picker's list for the state the lead stands in now (ADR 0080 §4); a
+   *  bought customer's for `temperature`, else its reading, else `cold`. */
+  async options(
+    who: Actor,
+    code: ObjectCode,
+    temperature?: CustomerTemperature,
+  ): Promise<StepOptionsResponse> {
     await this.leads.guard(who, code)
+    const customer = await this.customers.customerOf(code)
+    if (customer) {
+      const state = temperature ?? customer.temperature ?? 'cold'
+      return this.frame.options({ kind: 'customer', state })
+    }
     return this.frame.options(leadAddress((await this.repo.slot(code))?.state))
   }
 
@@ -91,8 +113,11 @@ export class NextStepService {
     op: StepWrite,
     reach: boolean,
     prefix = '',
+    customer?: CustomerStep,
   ): Promise<void> {
-    const held = await this.lockOpen(tx, who, code)
+    const held = customer
+      ? await this.lockCustomer(tx, who, code, customer)
+      : await this.lockOpen(tx, who, code)
     if (op.closing) {
       const current = (await this.repo.slot(code, tx))?.step
       if (!current || current.text !== op.closing.text || current.due !== op.closing.due) {
@@ -138,7 +163,12 @@ export class NextStepService {
     tx: Db,
     who: Actor,
     code: ObjectCode,
-    held: { ownerId: string | null; address: StateAddress | null; company: string },
+    held: {
+      ownerId: string | null
+      address: StateAddress | null
+      company: string
+      carers?: readonly string[]
+    },
     body: NextStepSetBody,
     reach: boolean,
     prefix: string,
@@ -151,7 +181,9 @@ export class NextStepService {
         'Chưa có người làm việc tiếp theo.',
       )
     }
-    if (doerId !== holderId && !this.access.allows(who, 'lead.assign')) {
+    /* A carer of a bought customer may take its step without the assign grant. */
+    const carer = held.carers?.includes(doerId) === true
+    if (doerId !== holderId && !carer && !this.access.allows(who, 'lead.assign')) {
       throw denied(
         'out-of-scope',
         'Bạn chỉ đặt việc tiếp theo cho người phụ trách lead. Muốn giao người khác, nhờ trưởng phòng.',
@@ -167,7 +199,7 @@ export class NextStepService {
        this write lands on (ADR 0080 §2). */
     const step = await this.frame.settle(tx, held.address, body, prefix)
     if (step.kindId !== undefined) await liveKind(this.repo, step.kindId, tx, `${prefix}kindId`)
-    if (doerId !== holderId && !reach) {
+    if (doerId !== holderId && !carer && !reach) {
       throw invalid(
         {
           doerId: [
@@ -202,6 +234,21 @@ export class NextStepService {
     return this.access.check(doer, { branch: 'Sales', permission: 'lead.view' }).ok
   }
 
+  /** A bought customer's lead: exists, held by the caller or one of its carers
+   *  when `ownOnly`, and its run still in `growth` — refused in that order. */
+  private async lockCustomer(tx: Db, who: Actor, code: ObjectCode, customer: CustomerStep) {
+    const row = await this.repo.lockLead(tx, code)
+    if (!row) throw notFound('lead', code)
+    if (who.ownOnly && row.ownerId !== who.id && !customer.carers.includes(who.id)) {
+      throw denied('out-of-scope', `Bạn không chăm sóc khách của lead ${code}.`)
+    }
+    if (!(await this.customers.growing(tx, code))) {
+      throw conflict(`Lead ${code} không còn trong sổ Khách đã mua. Tải lại để xem.`)
+    }
+    const address = { kind: 'customer' as const, state: customer.temperature }
+    return { ownerId: row.ownerId, address, company: row.company, carers: customer.carers }
+  }
+
   /** Exists, in scope, still in the funnel — refused in that order. */
   private async lockOpen(tx: Db, who: Actor, code: ObjectCode) {
     const row = await this.repo.lockLead(tx, code)
@@ -222,8 +269,9 @@ const isOpen = (state: LeadState): boolean =>
   (LEAD_ACTIVE_STATES as readonly LeadState[]).includes(state)
 
 /** A step left on a lead that has left the funnel is not shown: it is nobody's
- *  work any more, whatever the row still says. */
-function answer(slot: NextStepSlot | null): NextStepResponse {
-  const step = slot?.step && isOpen(slot.state) ? toContract(slot.step, slot.today) : null
+ *  work any more, whatever the row still says — unless the lead is a bought customer. */
+function answer(slot: NextStepSlot | null, customer = false): NextStepResponse {
+  const shown = slot?.step && (customer || isOpen(slot.state))
+  const step = shown && slot.step ? toContract(slot.step, slot.today) : null
   return NextStepResponse.parse({ step })
 }

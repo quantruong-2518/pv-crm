@@ -496,3 +496,27 @@ the code does today, and stands until the owner says otherwise.
 111.  **Two bells when the last deal stops?** A lead holder who is not on the
       deal gets the lost-deal line and the "moved into Nhóm chờ chăm sóc" line.
       Default: both ring. _(see ADR 0109 §2)_
+
+## After-sale re-care (added 22/10/2026)
+
+Raised while recording the "Khách đã mua" book (ADR 0121). Each default is a
+coordinator default, not an owner ruling, and stands until the owner says
+otherwise.
+
+112.  **Should a close-out that reaches nobody ("Không liên lạc được") record
+      a temperature and restart the clock?** Default: no — no reading, clock
+      not restarted. _(see ADR 0121 §3)_
+113.  **Which cycle does a customer with no reading yet follow?** Default: the
+      cold cycle. _(see ADR 0121 §4)_
+114.  **Should "Mở cơ hội mới" show on warm and cold rows too?** Default: hot
+      rows only. _(see ADR 0121 §6)_
+115.  **Should a carer read the whole lead and send a letter from it while the
+      run is in growth?** Default: yes — the one-lead read plus a single
+      letter. _(see ADR 0121 §7)_
+116.  **Who gets the step of a customer close-out with no doer chosen?**
+      Default: the closing carer, otherwise the lead's holder. _(see ADR 0121 §7)_
+117.  **Are temperature and step required only of the holder or a carer?**
+      Default: yes; anyone else closes a growth customer's contract comm with
+      no step and no temperature, as 0074 §5 says. _(see ADR 0121 §7)_
+118.  **Should each carer's reminder bell open that carer's own latest live
+      contract?** Default: yes. _(see ADR 0121 §7)_

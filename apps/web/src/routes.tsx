@@ -384,6 +384,14 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/nurturing'),
   },
   {
+    /** Runs whose every live contract is fully collected, re-cared by temperature (ADR 0121). */
+    path: '/sales/after-sale',
+    name: 'Khách đã mua',
+    branch: 'Sales',
+    permission: 'contract.view',
+    load: () => import('@/pages/after-sale'),
+  },
+  {
     /** Typing a deal by hand — the same door `/sales/leads/new` opens, and it
      *  reaches the same form card `:code` draws.
      *

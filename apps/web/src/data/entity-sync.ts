@@ -3,6 +3,7 @@ import type { EntityKind } from '@pv/contracts'
 import { sessionIsLive } from '@/app/auth'
 import { queryClient } from '@/app/query-client'
 import { ACCOUNT_BOOK_KEY } from '@/data/accounts'
+import { AFTER_SALE_BOOK_KEY } from '@/data/after-sale'
 import { APPROVALS_KEY } from '@/data/approvals'
 import { CAMPAIGN_BOOK_KEY } from '@/data/campaign-book'
 import { campaignTotalsQuery, sourcesQuery } from '@/data/campaigns'
@@ -70,10 +71,11 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
   opportunity: [OPPORTUNITY_BOOK_KEY, OPS_KEY, NEXT_STEP_KEY],
   account: [ACCOUNT_BOOK_KEY],
   contact: [CONTACT_BOOK_KEY, LEAD_SCOPED_KEY],
-  contract: [CONTRACT_BOOK_KEY, ['sales', 'overdue-reasons']],
-  workstream: [WORKSTREAM_BOOK_KEY, NEXT_STEP_KEY],
-  meeting: [MEETING_KEY],
-  comm: COMM_QUEUE_KEYS,
+  /* The bought-customer book reads money, carers, contact and temperature. */
+  contract: [CONTRACT_BOOK_KEY, ['sales', 'overdue-reasons'], AFTER_SALE_BOOK_KEY],
+  workstream: [WORKSTREAM_BOOK_KEY, NEXT_STEP_KEY, AFTER_SALE_BOOK_KEY],
+  meeting: [MEETING_KEY, AFTER_SALE_BOOK_KEY],
+  comm: [...COMM_QUEUE_KEYS, AFTER_SALE_BOOK_KEY],
   approval: [APPROVALS_KEY],
   /* The campaign page prints a wave's send progress, so it follows mail. */
   mail: [MAIL_RUN_KEY, LETTERS_KEY, CAMPAIGN_BOOK_KEY],

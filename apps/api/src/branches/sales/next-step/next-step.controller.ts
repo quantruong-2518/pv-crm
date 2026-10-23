@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import { NextStepDoneBody, NextStepSetBody, ObjectCode } from '@pv/contracts'
+import { NextStepDoneBody, NextStepSetBody, ObjectCode, StepOptionsQuery } from '@pv/contracts'
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
@@ -22,11 +22,16 @@ export class NextStepController {
   }
 
   /** The picker's templates and free-entry flag for the state the object
-   *  stands in NOW (ADR 0080 §4) — the client never names a state. */
+   *  stands in NOW (ADR 0080 §4) — the client never names a state, except a
+   *  bought customer's temperature the close-out form has just picked (ADR 0121). */
   @Get('options')
   @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
-  options(@CurrentActor() who: Actor, @Param('code', zod(ObjectCode)) code: ObjectCode) {
-    return this.steps.options(who, code)
+  options(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ObjectCode)) code: ObjectCode,
+    @Query(zod(StepOptionsQuery)) q: StepOptionsQuery,
+  ) {
+    return this.steps.options(who, code, q.temperature)
   }
 
   @Put()

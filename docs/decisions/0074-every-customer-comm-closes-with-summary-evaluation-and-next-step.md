@@ -3,6 +3,8 @@
 Status: accepted (extends 0050; extends 0049's hook pattern; narrows 0011's meeting-transcript door; leaves 0072 care activities untouched)
 Source: project owner's decisions in chat, 01/10/2026
 
+> Superseded in part by 0121: §5's "no next step on a contract" for a customer in `growth`.
+
 Amended by ADR 0094: a comm may close as "Không liên lạc được" with no summary, evaluation or next step; the title and §2 hold for every other close.
 
 ## Context

@@ -15,14 +15,12 @@ import { toastDone } from '@/app/toast'
 import { dmhm } from '@/lib/date'
 import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
+import { TemperaturePick } from '@/components/temperature-pick'
 import { COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import {
   EMPTY_STEP_DRAFT,
-  commTargetQuery,
   evaluationBlockerOf,
-  stepBlockerOf,
-  stepInputOf,
   subjectKindLabel,
   subjectPath,
   deleteCommFile,
@@ -30,7 +28,7 @@ import {
   useConfirmComm,
 } from '@/data/comm-record-detail'
 import { commCreateFailure, commRecordPath, useCreateCommRecord } from '@/data/comm-records'
-import { useStepOptions } from '@/data/next-step'
+import { useCloseStep } from '@/data/customer-close'
 import {
   ContentFields,
   PickChannel,
@@ -204,12 +202,12 @@ function SaveStep({
   onSave: (close: Omit<DebriefClose, 'summary'>) => void
 }) {
   const vocab = useQuery(commVocabularyQuery)
-  const target = useQuery(commTargetQuery(subjectCode))
   const [picked, setPicked] = useState<Record<string, string>>({})
   const [draft, setDraft] = useState(EMPTY_STEP_DRAFT)
-  const step = target.data?.stepTarget ?? null
-  const options = useStepOptions(step?.kind ?? null, subjectCode)
+  const close = useCloseStep(subjectCode)
+  const { target } = close
   const kind = subjectKindLabel(subjectCode)
+  const stepCode = close.stepCode
 
   const blocker = !target.data
     ? target.error
@@ -217,12 +215,12 @@ function SaveStep({
       : 'Đang tải điều kiện xác nhận.'
     : !target.data.confirmable
       ? `Bạn không xác nhận được lượt liên hệ trên ${kind.toLowerCase()} ${subjectCode}.`
-      : (evaluationBlockerOf(vocab, picked) ?? (step ? stepBlockerOf(draft, options) : null))
+      : (evaluationBlockerOf(vocab, picked) ?? close.temperatureGap ?? close.gapOf(draft))
 
   const save = () =>
     onSave({
       answers: Object.entries(picked).map(([criterionId, answerId]) => ({ criterionId, answerId })),
-      ...(step && { step: stepInputOf(draft, options.data) }),
+      ...close.inputOf(draft),
     })
 
   return (
@@ -230,19 +228,24 @@ function SaveStep({
       {target.data?.confirmable && (
         <>
           <CommEvaluation vocab={vocab} picked={picked} onPick={setPicked} />
-          {step ? (
-            <>
-              <span className="text-muted-foreground text-[11px]">
-                Bước tiếp theo · cho {kind.toLowerCase()}{' '}
-                <span className="font-mono">{subjectCode}</span>
-              </span>
-              <CommNextStepFields
-                kinds={vocab.data?.stepKinds ?? []}
-                options={options}
-                draft={draft}
-                onDraft={setDraft}
-              />
-            </>
+          {close.customer && (
+            <TemperaturePick value={close.temperature} onPick={close.setTemperature} />
+          )}
+          {close.takesStep ? (
+            close.stepShown && (
+              <>
+                <span className="text-muted-foreground text-[11px]">
+                  Bước tiếp theo · cho {subjectKindLabel(stepCode).toLowerCase()}{' '}
+                  <span className="font-mono">{stepCode}</span>
+                </span>
+                <CommNextStepFields
+                  kinds={vocab.data?.stepKinds ?? []}
+                  options={close.options}
+                  draft={draft}
+                  onDraft={setDraft}
+                />
+              </>
+            )
           ) : (
             <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
               {kind} {subjectCode} không nhận bước tiếp theo từ lượt liên hệ này.

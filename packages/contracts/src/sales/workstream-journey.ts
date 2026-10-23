@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ApprovalState } from '../approval'
 import { ContractCode, Day, Moment, MoneyVnd, ObjectCode, textInput } from '../primitives'
+import { CustomerTemperature } from './after-sale'
 import { DocState, InstallmentSummaryRow } from './contract'
 import {
   ContractKind,
@@ -278,15 +279,20 @@ export const JourneyWaitingDoor = z.object({
   lastTouch: z.object({ at: Moment, text: textInput(300) }).nullable(),
 })
 
-/** `decidedBy` is also the new lead's holder — whoever decides growth keeps it. */
+/** A deal opened while the run was in `growth` (ADR 0121): it reopens the SAME
+ *  run, so `journeyCode` is this one and the door opens `dealCode`. `need` is
+ *  the deal's name, `decidedBy` its opener (now its holder), `temperature` the
+ *  reading when it opened. */
 export const JourneyGrowthDoor = z.object({
   kind: z.literal('growth'),
   journeyCode: ObjectCode,
   leadCode: ObjectCode,
-  from: JourneyDoorAnchor,
+  dealCode: ObjectCode,
+  from: z.object({ code: ContractCode, rung: z.literal('done') }),
   at: Moment,
-  need: textInput(500),
+  need: textInput(200),
   decidedBy: WorkstreamHolder,
+  temperature: CustomerTemperature.nullable(),
 })
 
 export const JourneyDoor = z.discriminatedUnion('kind', [JourneyWaitingDoor, JourneyGrowthDoor])

@@ -3,6 +3,7 @@ import {
   OPPORTUNITY_MILESTONE_LABEL,
   ContractRungKey,
   JourneyDealStop,
+  JourneyGrowthDoor,
   JourneySubStep,
   JourneyWaitingDoor,
   LEAD_LANE_BACKBONE,
@@ -87,6 +88,7 @@ const STOP_REASON_MAX = capOf(JourneyDealStop.shape.reason)
 /** Both below what their doors accept (`OPPORTUNITY_STOP_NOTE_MAX`, a refusal's
  *  `textInput(500)`) — a contract mismatch; `clip` marks the cut. */
 const STOP_NOTE_MAX = capOf(JourneyDealStop.shape.note.unwrap())
+const NEED_MAX = capOf(JourneyGrowthDoor.shape.need)
 const NOTE_MAX = capOf(JourneySubStep.shape.note.unwrap())
 
 const clip = (text: string, max: number): string =>
@@ -162,14 +164,16 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
     .map((deal) => dealOf(deal, input))
   const onDeal = parkedOnDeal(input.all, deals, rows)
   const lead = leadOf(read, input.all, rows, { now: input.now, today: input.today }, onDeal)
+  /* `growth` is SQL's verdict over every contract, hidden ones included (ADR 0121 §1). */
+  const growth = row.closedAt !== null && rows.growth
 
   return {
     code: row.code,
     ordinal: input.ordinal,
     customer: read.accountName ?? read.lead.company,
     accountCode: row.accountCode,
-    status: row.closedAt === null ? 'open' : 'closed',
-    closeReason: row.closeReason ?? null,
+    status: row.closedAt === null ? 'open' : growth ? 'growth' : 'closed',
+    closeReason: growth ? null : (row.closeReason ?? null),
     openedAt: row.openedAt.toISOString(),
     closedAt: iso(row.closedAt),
     /* No table links one run to the next yet. */
@@ -183,8 +187,35 @@ export function journeyOf(input: JourneyInput): WorkstreamJourneyResponse {
       canEdit: input.canEdit(c.ownerId),
       canCollect: input.canCollect(c.collectorId, c.terminatedAt !== null),
     })),
-    doors: lead.door ? [lead.door] : [],
+    doors: [...(lead.door ? [lead.door] : []), ...growthDoorsOf(input)],
   }
+}
+
+/** One door per visible deal opened while the run was in `growth` (ADR 0121
+ *  §6): it reopened THIS run, so the door opens the deal. Drawn only when the
+ *  contract it grew from is one this reader may see; the opener is the deal's
+ *  entry event, the one row written with `from: null`. */
+function growthDoorsOf(input: JourneyInput): JourneyDoor[] {
+  const { rows, read } = input
+  return rows.grownDeals.flatMap((g) => {
+    const deal = input.deals.find((d) => d.code === g.deal)
+    const opened = rows.events.find((e) => e.deal === g.deal && e.from === null)
+    const from = rows.contracts.find((c) => c.code === g.fromCode)
+    if (!deal || !opened || !from) return []
+    return [
+      {
+        kind: 'growth' as const,
+        journeyCode: read.row.code,
+        leadCode: read.lead.code,
+        dealCode: deal.code,
+        from: { code: from.code, rung: 'done' as const },
+        at: deal.createdAt.toISOString(),
+        need: clip(deal.name, NEED_MAX),
+        decidedBy: { id: opened.byId, name: opened.by },
+        temperature: g.temperature,
+      },
+    ]
+  })
 }
 
 /** Where the lead's door hangs when its last live deal was lost (ADR 0069
@@ -530,10 +561,11 @@ function lastStageOf(events: readonly StageEventRow[]): StageKey | null {
   return stood
 }
 
-/** Only `signed` and `collect` have a source today; deploy, accept and done
- *  stay `upcoming` until their tables exist. `collect` reads the schedule:
- *  all paid → done, some → current; a terminated contract stops it there and
- *  keeps only the paid installments, so none reads overdue (ADR 0107). */
+/** Only `signed` and `collect` have a source today. `collect` reads the
+ *  schedule: all paid → done, some → current; a terminated contract stops it
+ *  there and keeps only the paid installments, so none reads overdue (ADR 0107).
+ *  All paid on a live contract is `done` (ADR 0121 §1): deploy and accept, which
+ *  have no table yet, read `skipped`; otherwise they and `done` stay `upcoming`. */
 function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string): JourneyContract {
   const ended = c.terminatedAt !== null
   const schedule = rows.installments.filter(
@@ -556,6 +588,13 @@ function contractOf(c: ContractLaneRow, rows: LaneRows, now: Date, today: string
   const rungs = ContractRungKey.options.map((key) => {
     if (key === 'signed') {
       return { key, state: 'done' as const, at: c.signedAt.toISOString(), by: null, days: null }
+    }
+    const lastPaid = paid[paid.length - 1] ?? null
+    if (collect === 'done' && !ended && (key === 'deploy' || key === 'accept')) {
+      return { key, state: 'skipped' as const, at: null, by: null, days: null }
+    }
+    if (collect === 'done' && !ended && key === 'done') {
+      return { key, state: 'done' as const, at: iso(lastPaid), by: null, days: null }
     }
     if (key === 'collect' && collect !== 'upcoming') {
       return {

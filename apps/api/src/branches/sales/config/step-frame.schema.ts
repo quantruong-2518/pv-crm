@@ -11,7 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { sql, type SQL } from 'drizzle-orm'
-import type { StageKey, StepLeadState } from '@pv/contracts'
+import type { CustomerTemperature, StageKey, StepLeadState } from '@pv/contracts'
 import { sales } from '../sales.schema'
 import { configEntry } from './config.schema'
 
@@ -24,16 +24,18 @@ import { configEntry } from './config.schema'
  *
  *  The state sets stay enums in code (ADR 0080 §6), so both tables copy them
  *  into a CHECK by hand: a state added to the contract must be a migration
- *  somebody reads. A stage's deadline is NOT here — `limit_days` on `STAGE`. */
+ *  somebody reads. A stage's deadline is NOT here — `limit_days` on `STAGE`.
+ *  `customer` (0143, ADR 0121) is a paid-up journey keyed by its temperature. */
 
-type FrameKind = 'lead' | 'opportunity'
-type FrameState = StepLeadState | StageKey
+type FrameKind = 'lead' | 'opportunity' | 'customer'
+type FrameState = StepLeadState | StageKey | CustomerTemperature
 
 /** Two implications rather than one OR, so an unknown kind fails only
  *  `*_object_kind_known` and each refusal names exactly one constraint. */
 const stateKnown = (): SQL =>
   sql`("object_kind" <> 'lead' OR "state_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing'))
-      AND ("object_kind" <> 'opportunity' OR "state_key" IN ('new', 'assigned', 'engaged', 'quotation'))`
+      AND ("object_kind" <> 'opportunity' OR "state_key" IN ('new', 'assigned', 'engaged', 'quotation'))
+      AND ("object_kind" <> 'customer' OR "state_key" IN ('hot', 'warm', 'cold'))`
 
 export const stepTemplate = sales.table(
   'step_template',
@@ -43,7 +45,8 @@ export const stepTemplate = sales.table(
     id: uuid('id').primaryKey().defaultRandom(),
     objectKind: text('object_kind').$type<FrameKind>().notNull(),
     /** Lead: the OPEN states only (`StepLeadState`) — a template on `converted`
-     *  could never be picked. Opportunity: the four `StageKey` columns. */
+     *  could never be picked. Opportunity: the four `StageKey` columns.
+     *  Customer: the three `CustomerTemperature` values. */
     stateKey: text('state_key').$type<FrameState>().notNull(),
     /** Copied into `next_step.text` when picked, hence that column's bound. */
     name: text('name').notNull(),
@@ -67,7 +70,10 @@ export const stepTemplate = sales.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    check('step_template_object_kind_known', sql`"object_kind" IN ('lead', 'opportunity')`),
+    check(
+      'step_template_object_kind_known',
+      sql`"object_kind" IN ('lead', 'opportunity', 'customer')`,
+    ),
     check('step_template_state_known', stateKnown()),
     /** `next_step_text_bounded`'s rule: `textInput(200)` at the door, repeated
      *  here so no writer can bypass it. */
@@ -110,7 +116,10 @@ export const stateRule = sales.table(
   },
   (t) => [
     primaryKey({ name: 'state_rule_pk', columns: [t.objectKind, t.stateKey] }),
-    check('state_rule_object_kind_known', sql`"object_kind" IN ('lead', 'opportunity')`),
+    check(
+      'state_rule_object_kind_known',
+      sql`"object_kind" IN ('lead', 'opportunity', 'customer')`,
+    ),
     check('state_rule_state_known', stateKnown()),
   ],
 )

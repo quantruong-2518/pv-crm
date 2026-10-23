@@ -13,7 +13,6 @@ import {
   cn,
 } from '@pv/ui'
 import {
-  JOURNEY_BORN_BY_LABEL,
   LEAD_STATE_LABEL,
   LOSS_REASON_DO_NOT_CONTACT_LABEL,
   type JourneyContract,
@@ -29,6 +28,7 @@ import { useContractKindLabel } from '@/data/sales-config'
 import { DueBadge } from '@/components/contract-bits'
 import { HoldMark } from '@/components/hold-strip'
 import { ContractInside } from '@/components/contract-inside'
+import { TemperatureBadge } from '@/components/temperature-pick'
 import { hasInside } from '@/components/contract-run'
 import {
   CARD,
@@ -504,8 +504,9 @@ type DoorProps = Track & { box: Box }
    on itself; flow C4: a do-not-contact lead is never mailed. */
 const DOOR_TEXT = {
   arose: 'Phát sinh từ',
-  whyNewTitle: 'Vì sao là hành trình mới',
-  whyNew: 'Khách đang triển khai hoặc đang dùng mà có nhu cầu mới thì mở hành trình mới.',
+  growthTitle: 'Cơ hội mới',
+  opener: 'phụ trách',
+  temperature: 'Nhiệt độ lúc mở',
   wakeAny: 'Bấm "Nhận lead" hoặc khách trả lời chiến dịch thì lead này quay lại chăm sóc.',
   wakeManual:
     'Chỉ bấm "Nhận lead" mới quay lại chăm sóc. Lead này không được đưa vào chiến dịch và không nhận mail.',
@@ -518,8 +519,8 @@ function fromText(from: JourneyDoor['from'], kind: PickKind) {
   return label ? `${from.code} · ${label}` : from.code
 }
 
-/** The title is the door's open button — the new journey for growth, the
- *  parked lead for waiting. The codes inside are links, and a link may not
+/** The title is the door's open button — the repeat deal for growth (ADR
+ *  0121), the parked lead for waiting. The codes inside are links, and a link may not
  *  sit inside a button. */
 function DoorShell({
   door,
@@ -529,8 +530,8 @@ function DoorShell({
   pathOf,
   children,
 }: DoorProps & { door: JourneyDoor; title: string; children: ReactNode }) {
-  const code = door.kind === 'growth' ? door.journeyCode : door.leadCode
-  const path = pathOf(door.kind === 'growth' ? 'WS' : 'LD', code)
+  const code = door.kind === 'growth' ? door.dealCode : door.leadCode
+  const path = pathOf(door.kind === 'growth' ? 'OP' : 'LD', code)
   return (
     <Card id={doorId(door)} {...CARD.door} box={box} className="gap-3 p-3">
       <button
@@ -568,20 +569,20 @@ function GrowthDoor({
   ...props
 }: DoorProps & { door: JourneyGrowthDoor; from: PickKind }) {
   return (
-    <DoorShell door={door} title={JOURNEY_BORN_BY_LABEL.growth} {...props}>
-      <div className="pointer-coarse:gap-x-2 pointer-coarse:gap-y-6 flex flex-wrap items-center gap-2">
-        <CodePill kind="WS" code={door.journeyCode} {...props} />
-        <CodePill kind="LD" code={door.leadCode} {...props} />
+    <DoorShell door={door} title={DOOR_TEXT.growthTitle} {...props}>
+      <div className="flex flex-wrap items-center gap-2">
+        <CodePill kind="OP" code={door.dealCode} {...props} />
+        <DateText iso={door.at} title="Mở" />
       </div>
-      <DateText iso={door.at} title="Mở" />
       <p className="m-0 break-words text-[12px]">{door.need}</p>
       <span className="text-muted-foreground break-words text-[12px]">
         {DOOR_TEXT.arose} {fromText(door.from, from)}
       </span>
-      <Person who={door.decidedBy} role="quyết định và giữ lead" />
-      <p className="text-muted-foreground m-0 break-words text-[12px]">
-        <span className="font-semibold">{DOOR_TEXT.whyNewTitle}</span> · {DOOR_TEXT.whyNew}
-      </p>
+      <Person who={door.decidedBy} role={DOOR_TEXT.opener} />
+      <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px]">
+        {DOOR_TEXT.temperature}
+        <TemperatureBadge value={door.temperature} />
+      </span>
     </DoorShell>
   )
 }

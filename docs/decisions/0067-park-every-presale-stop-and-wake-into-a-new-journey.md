@@ -15,6 +15,8 @@ flows C, A2, D, G and H agreed 27/09 (`.claude/HANDOFF-workstream-loop.md`,
 https://claude.ai/artifact/Ho7qfF1zV5M93Tv5x5LSXV, §1 "Luồng đích" and §3
 "Chênh lệch"
 
+> Superseded in part by 0121: §5's growth wake — a deal opened from `growth` stays on the same lead and journey.
+
 ## Context
 
 A company repeats forever; each journey (`sales.workstream`) is one sales

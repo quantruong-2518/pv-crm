@@ -9,6 +9,7 @@ import {
   NextStepResponse,
   StepOptionsResponse,
   type NextStepDoneBody,
+  type CustomerTemperature,
   type NextStepSetBody,
   type StepTemplateOption,
 } from '@pv/contracts'
@@ -98,21 +99,32 @@ export const nextStepQuery = (subject: NextStepSubject, code: string) =>
 const STEP_OPTIONS = 'step-options'
 
 /** Keyed UNDER the object's profile key: every state mover already invalidates
- *  that prefix, so the picker follows a state change with no line of its own. */
-export const stepOptionsQuery = (subject: NextStepSubject, code: string) =>
+ *  that prefix, so the picker follows a state change with no line of its own.
+ *  `temperature` is a bought customer's close-out pick (ADR 0121), lead door only. */
+export const stepOptionsQuery = (
+  subject: NextStepSubject,
+  code: string,
+  temperature?: CustomerTemperature,
+) =>
   queryOptions({
-    queryKey: [...DOOR[subject].profile, code, STEP_OPTIONS] as const,
+    queryKey: [...DOOR[subject].profile, code, temperature ?? null, STEP_OPTIONS] as const,
     queryFn: ({ signal }) =>
-      api.read<StepOptionsResponse>(`${path(subject, code)}/options`, {
-        need: DOOR[subject].read,
-        schema: StepOptionsResponse,
-        signal,
-      }),
+      api.read<StepOptionsResponse>(
+        `${path(subject, code)}/options${temperature ? `?temperature=${temperature}` : ''}`,
+        { need: DOOR[subject].read, schema: StepOptionsResponse, signal },
+      ),
   })
 
 /** For a form whose subject may take no step at all: `null` reads nothing. */
-export function useStepOptions(subject: NextStepSubject | null, code: string) {
-  return useQuery({ ...stepOptionsQuery(subject ?? 'lead', code), enabled: subject !== null })
+export function useStepOptions(
+  subject: NextStepSubject | null,
+  code: string,
+  temperature?: CustomerTemperature,
+) {
+  return useQuery({
+    ...stepOptionsQuery(subject ?? 'lead', code, temperature),
+    enabled: subject !== null,
+  })
 }
 
 export function stepOptionsMoved(client: QueryClient) {

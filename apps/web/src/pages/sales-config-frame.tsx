@@ -68,6 +68,7 @@ type Phase = StateAddress['kind']
 const PHASES: { value: Phase; label: string }[] = [
   { value: 'lead', label: 'Presale · Lead' },
   { value: 'opportunity', label: 'Sale · Cơ hội' },
+  { value: 'customer', label: 'Khách đã mua' },
 ]
 
 function StepFrame({ catalog, draft }: AreaProps) {
@@ -77,6 +78,7 @@ function StepFrame({ catalog, draft }: AreaProps) {
   const [open, setOpen] = useState<Record<Phase, StateAddress>>({
     lead: FRAME_STATES.lead[0]!,
     opportunity: FRAME_STATES.opportunity[0]!,
+    customer: FRAME_STATES.customer[0]!,
   })
 
   /* Stage deadlines need only the catalog. The whole ladder stands in when

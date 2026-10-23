@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ConfigBundle, MotionPolicy } from '@pv/contracts'
 import { kpiAlertQuery, kpiRoleMetricsQuery } from '@/data/kpi-config'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
-import { activityFreshnessQuery, ladderRows } from '@/data/sales-config'
+import { activityFreshnessQuery, ladderRows, recareCyclesQuery } from '@/data/sales-config'
 import { salesMotionsQuery } from '@/data/sales-motions'
 import { FRAME_STATES, stepFrameQuery, templatesAt } from '@/data/step-frame'
 import { keyOf } from './home-model'
@@ -21,6 +21,7 @@ const isDeclared = (m: MotionPolicy) => m.firstTouchMinutes !== null
  *  from a read the section itself makes; `undefined` is "not read". */
 function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | undefined> {
   const { data: freshness } = useQuery(activityFreshnessQuery)
+  const { data: recare } = useQuery(recareCyclesQuery)
   const { data: motions } = useQuery(salesMotionsQuery())
   const { data: frame } = useQuery(stepFrameQuery)
   const { data: kpiMetrics } = useQuery(kpiRoleMetricsQuery)
@@ -33,7 +34,7 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
   )
 
   const tiers = ladderRows(catalog, 'TIER')
-  const states = [...FRAME_STATES.lead, ...FRAME_STATES.opportunity]
+  const states = Object.values(FRAME_STATES).flat()
 
   return {
     'step-frame':
@@ -52,6 +53,8 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
       catalog.WAITING_LABEL.length === 0 ? 'Chưa có' : `${catalog.WAITING_LABEL.length} nhãn`,
     'comm-criteria': `${catalog.COMM_CRITERION.length} câu`,
     'step-kinds': catalog.STEP_KIND.length === 0 ? 'Chưa có' : `${catalog.STEP_KIND.length} loại`,
+    'recare-cycles':
+      recare && `Nóng ${recare.hotDays} · Ấm ${recare.warmDays} · Nguội ${recare.coldDays} ngày`,
     freshness: freshness && `Vàng ${freshness.warnDays} · đỏ ${freshness.alertDays} ngày`,
     'care-reasons': `${catalog.LOSS_REASON.length} lý do`,
     'quote-reasons':

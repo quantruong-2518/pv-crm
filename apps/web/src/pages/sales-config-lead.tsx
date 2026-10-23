@@ -5,6 +5,7 @@ import { AddStopReason } from './sales-config-add-rows'
 import { AddEntry, CommCriteriaConfig, EntryRow, FlatListConfig } from './sales-config-comm'
 import { byOrd, motionPickerWaiting } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
+import { RecareCyclesConfig } from './sales-config-recare'
 import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-config-section'
 
 /** Intake — how a lead may come in. `MotionPickerSection` is the same list the
@@ -30,7 +31,8 @@ export function AssignArea() {
 }
 
 /** Care and contact — why a lead stops being cared for, the labels of the
- *  waiting group, and the vocabulary of the contact confirm form. */
+ *  waiting group, the vocabulary of the contact confirm form, and the care
+ *  cycle of a bought customer. */
 export function CareArea({ catalog }: AreaProps) {
   const stops = [...(catalog?.EXIT_REASON ?? [])].sort(byOrd)
   const labels = [...(catalog?.WAITING_LABEL ?? [])].sort(byOrd)
@@ -93,6 +95,10 @@ export function CareArea({ catalog }: AreaProps) {
 
       <Section at="step-kinds" summary={<EntryCount rows={catalog?.STEP_KIND ?? []} noun="loại" />}>
         <FlatListConfig list="STEP_KIND" unit="bước" addLabel="Thêm loại bước tiếp theo" />
+      </Section>
+
+      <Section at="recare-cycles" hint="Số ngày không liên hệ trước khi nhắc chăm sóc.">
+        <RecareCyclesConfig />
       </Section>
     </>
   )

@@ -39,7 +39,8 @@ export const CHAIN_KIND = { lead: 'LD', deal: 'OP', contract: 'HĐ' } as const
  *  rung's step drawer; undefined = the reader has no door to it. */
 export type PathOf = (kind: string, code: string) => string | undefined
 
-export const doorId = (d: JourneyDoor) => `door:${d.leadCode}`
+/* A growth door is a deal on the run's own lead, so the deal names it. */
+export const doorId = (d: JourneyDoor) => `door:${d.kind === 'growth' ? d.dealCode : d.leadCode}`
 
 export type Tone = 'draft' | 'warning' | 'success' | 'danger' | 'running'
 export type Status = { label: string; tone: Tone }

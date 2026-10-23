@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   ActivityFreshnessResponse,
+  RecareCyclesResponse,
   CommVocabularyResponse,
   ConfigBundle,
   ConfigListResponse,
@@ -14,6 +15,7 @@ import {
   LeadLabelOptionsResponse,
   LeadStopReasonResponse,
   type ActivityFreshnessPatch,
+  type RecareCyclesPatch,
   type LeadMotion,
   type MotionPolicyPatch,
   type ConfigEntryCreate,
@@ -29,6 +31,7 @@ import type { Db } from '@api/platform/db/db.module'
 import { SettingService } from '@api/platform/setting/setting.service'
 import { applyKpiConfig, isKpiConfigChange } from '../kpi/kpi-config.approval'
 import { activityFreshnessOf } from './activity-freshness'
+import { recareCyclesOf } from './recare-cycles'
 import { SalesConfigGate, type ConfigChange } from './config.approval'
 import { toBundle, toContract, toUsage } from './config.mapper'
 import { SalesConfigRepository, type ConfigPatchDb } from './config.repository'
@@ -246,6 +249,16 @@ export class SalesConfigService implements ApprovalApplier {
     return this.propose(who, { kind: 'activity-freshness', value: body })
   }
 
+  /** `GET /sales/config/recare-cycles` — the bought-customer cycles (ADR 0121 §4). */
+  async recareCycles(): Promise<RecareCyclesResponse> {
+    return RecareCyclesResponse.parse(await recareCyclesOf(this.settings))
+  }
+
+  /** Propose the trio. The contract held each bound; there is no order to keep. */
+  proposeRecareCycles(who: Actor, body: RecareCyclesPatch): Promise<ConfigProposalReceipt> {
+    return this.propose(who, { kind: 'recare-cycles', value: body })
+  }
+
   /** `GET /sales/config/proposals/mine` — the reader's own waiting changes,
    *  so the screen can mark the rows they touch. A payload that no longer
    *  parses is skipped rather than failing the read: one old row must not hide
@@ -345,6 +358,14 @@ export class SalesConfigService implements ApprovalApplier {
       await this.settings.setIn(tx, proposerId, [
         { key: 'sales.activity.warn-days', value: change.value.warnDays },
         { key: 'sales.activity.alert-days', value: change.value.alertDays },
+      ])
+      return
+    }
+    if (change.kind === 'recare-cycles') {
+      await this.settings.setIn(tx, proposerId, [
+        { key: 'sales.after-sale.hot-days', value: change.value.hotDays },
+        { key: 'sales.after-sale.warm-days', value: change.value.warmDays },
+        { key: 'sales.after-sale.cold-days', value: change.value.coldDays },
       ])
       return
     }

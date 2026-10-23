@@ -22,7 +22,7 @@ import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive, leadScope } from '../lead/lead-scope'
-import { dealOpen, dealStoodBy } from '../open-deal'
+import { dealOpen, dealStoodBy, leadCarer } from '../open-deal'
 import { runBefore } from '../workstream/workstream.repository'
 import { workstream } from '../workstream/workstream.schema'
 import { ACCEPTOR_NAME } from './opportunity.repository'
@@ -82,6 +82,17 @@ export class OpportunityOpenRepository {
       .where(and(eq(lead.code, code), leadLive))
       .limit(1)
     return row ?? null
+  }
+
+  /** `actorId` is a carer of the lead's bought customer (ADR 0121 §6), asked
+   *  on the caller's handle so the create door re-asks it under its lead lock. */
+  async cares(db: Db, actorId: string, leadCode: string): Promise<boolean> {
+    const [row] = await db
+      .select({ code: lead.code })
+      .from(lead)
+      .where(and(eq(lead.code, leadCode), leadLive, leadCarer(lead.code, actorId)))
+      .limit(1)
+    return row !== undefined
   }
 
   /** Every RUNNING deal of these leads (`dealOpen`: not lost, not signed),

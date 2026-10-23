@@ -6,13 +6,14 @@ import {
   DEBRIEF_TITLE_MAX,
   type CommVocabularyResponse,
   type DebriefView,
-  type StepOptionsResponse,
 } from '@pv/contracts'
 import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommFileDrop, CommFileList } from '@/components/comm-files'
 import { CommNextStepFields, STEP_LABEL } from '@/components/comm-next-step-fields'
 import { CommStepCard } from '@/components/comm-record-frame'
+import { TemperaturePick } from '@/components/temperature-pick'
 import { COMM_NOUN, subjectKindLabel, type StepDraft } from '@/data/comm-record-detail'
+import type { CloseStep } from '@/data/customer-close'
 
 /** The three cards of the owner's fill form on `/comms/:id`, one shown at a
  *  time by `CommFillWorkspace`. Each card only draws and reports; the form's
@@ -88,15 +89,20 @@ export function EvaluationStep({
   vocab,
   picked,
   onPick,
+  close,
 }: {
   heading: string
   vocab: UseQueryResult<CommVocabularyResponse>
   picked: Record<string, string>
   onPick: Dispatch<SetStateAction<Record<string, string>>>
+  close: CloseStep
 }) {
   return (
     <CommStepCard index={1} title={heading}>
       <CommEvaluation vocab={vocab} picked={picked} onPick={onPick} />
+      {close.customer && (
+        <TemperaturePick value={close.temperature} onPick={close.setTemperature} />
+      )}
     </CommStepCard>
   )
 }
@@ -105,23 +111,30 @@ export function NextStepStep({
   record,
   heading,
   kinds,
-  options,
+  close,
   draft,
   onDraft,
 }: {
   record: DebriefView
   heading: string
   kinds: CommVocabularyResponse['stepKinds']
-  options: UseQueryResult<StepOptionsResponse>
+  close: CloseStep
   draft: StepDraft
   onDraft: (next: StepDraft) => void
 }) {
   const { code } = record.subject
   return (
     <CommStepCard index={2} title={heading}>
-      {record.stepTarget ? (
-        <CommNextStepFields kinds={kinds} options={options} draft={draft} onDraft={onDraft} />
-      ) : (
+      {close.takesStep ? (
+        close.stepShown && (
+          <CommNextStepFields
+            kinds={kinds}
+            options={close.options}
+            draft={draft}
+            onDraft={onDraft}
+          />
+        )
+      ) : close.target.isPending ? null : (
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">
           {subjectKindLabel(code)} <span className="font-mono">{code}</span> không nhận bước tiếp
           theo từ lượt liên hệ này.

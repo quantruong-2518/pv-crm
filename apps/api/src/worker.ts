@@ -11,6 +11,8 @@ import { AppModule } from './app.module'
 import { CampaignSweeper } from './branches/sales/campaign/campaign.sweeper'
 import { HoldReminderModule } from './branches/sales/hold/hold-reminder.module'
 import { HoldReminderSweeper } from './branches/sales/hold/hold-reminder.sweeper'
+import { AfterSaleReminderModule } from './branches/sales/after-sale/after-sale-reminder.module'
+import { AfterSaleReminderSweeper } from './branches/sales/after-sale/after-sale-reminder.sweeper'
 import { ContractOverdueSweeper } from './branches/sales/contract/contract-overdue.sweeper'
 import { KpiAlertSweeper } from './branches/sales/kpi/kpi-alert.sweeper'
 import { MeetingCancelSweeper } from './branches/sales/meeting/meeting-cancel.sweeper'
@@ -86,6 +88,7 @@ import {
     AppModule,
     /* Worker-only: the HTTP process has no tick to drive it. */
     HoldReminderModule,
+    AfterSaleReminderModule,
     /* `imports` của `forWorker` là chỗ nối module mail vào — nó cung cấp
        `MAIL_LEDGER` và `MAIL_PORT`. `LeadModule` vào cùng vì một trong hai bộ
        dựng thân mail do nhánh Sales cung cấp: `platform/` không được biết bảng
@@ -132,6 +135,7 @@ async function bootstrap(): Promise<void> {
   const campaigns = app.get(CampaignSweeper)
   const gates = app.get(MailWaveGateSweeper)
   const holds = app.get(HoldReminderSweeper)
+  const recare = app.get(AfterSaleReminderSweeper)
   const meetings = app.get(MeetingCancelSweeper)
   const kpiAlerts = app.get(KpiAlertSweeper)
   const overdue = app.get(ContractOverdueSweeper)
@@ -263,6 +267,8 @@ async function bootstrap(): Promise<void> {
   const sweepCampaigns = pass('Quét chiến dịch lỗi', () => campaigns.sweep())
   // Rides this tick, no clock of its own; it throttles itself to one pass an hour.
   const sweepHolds = pass('Hold reminders failed', () => holds.sweep())
+  // Same: bought-customer re-care bells, hourly (ADR 0121 §4).
+  const sweepRecare = pass('Re-care reminders failed', () => recare.sweep())
   // Same: one pass a minute (Google Calendar retries), the cancelled pass hourly.
   const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
   // Same: one pass a day, the first tick after boot is the boot pass.
@@ -277,6 +283,7 @@ async function bootstrap(): Promise<void> {
     sweepGmail()
     sweepCampaigns()
     sweepHolds()
+    sweepRecare()
     sweepMeetings()
     sweepKpiAlerts()
     sweepOverdue()

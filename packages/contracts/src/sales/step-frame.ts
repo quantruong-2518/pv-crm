@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { textInput } from '../primitives'
+import { CustomerTemperature } from './after-sale'
 import { ConfigCode, ConfigEntryCreate } from './config'
 import { LEAD_OPEN_STATES, LeadState, StageKey } from './enums'
 import { NEXT_STEP_TEXT_MAX, NextStepKind, StepTemplateId } from './next-step'
@@ -11,7 +12,7 @@ import { NEXT_STEP_TEXT_MAX, NextStepKind, StepTemplateId } from './next-step'
  *      PATCH /sales/config/step-frame/templates/order    `config.propose` → 202
  *      PATCH /sales/config/step-frame/templates/:id      `config.propose` → 202
  *      PATCH /sales/config/step-frame/rules              `config.propose` → 202
- *      GET   /sales/leads/:code/next-step/options          `lead.view`
+ *      GET   /sales/leads/:code/next-step/options?temperature=  `lead.view`
  *      GET   /sales/opportunities/:code/next-step/options  `opportunity.view`
  *
  *  The state SETS stay closed enums; only the rules hanging on them are data.
@@ -31,10 +32,12 @@ export const StepLeadState = LeadState.extract(
 )
 
 /** A union on `kind`, so an opportunity can never carry a lead state. Kept as a
- *  FIELD on its owners: a union cannot be picked from or extended. */
+ *  FIELD on its owners: a union cannot be picked from or extended. `customer`
+ *  is a bought customer's close-out, keyed by the temperature just read. */
 export const StateAddress = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('lead'), state: StepLeadState }),
   z.object({ kind: z.literal('opportunity'), state: StageKey }),
+  z.object({ kind: z.literal('customer'), state: CustomerTemperature }),
 ])
 
 /** The schema itself, not a retyped 365: one typo fence for every day count. */
@@ -81,6 +84,11 @@ export const StepTemplateOption = StepTemplate.pick({
  *  the door is keyed by the object's code so the server resolves the state and
  *  a stale client cannot ask about another one. `address` is `null` for an
  *  object with no frame state (a deal off the board): no templates, free entry. */
+/** Lead door only, for a lead whose run is in `growth`: the temperature the
+ *  close-out form has just picked, since templates hang on it. Absent = the
+ *  current reading, else `cold` — the cycle an unread customer rides. */
+export const StepOptionsQuery = z.object({ temperature: CustomerTemperature.optional() })
+
 export const StepOptionsResponse = z.object({
   address: StateAddress.nullable(),
   freeEntry: z.boolean(),
@@ -134,6 +142,7 @@ export type StepTemplate = z.infer<typeof StepTemplate>
 export type StateRule = z.infer<typeof StateRule>
 export type StepFrameResponse = z.infer<typeof StepFrameResponse>
 export type StepTemplateOption = z.infer<typeof StepTemplateOption>
+export type StepOptionsQuery = z.infer<typeof StepOptionsQuery>
 export type StepOptionsResponse = z.infer<typeof StepOptionsResponse>
 export type StepTemplateParams = z.infer<typeof StepTemplateParams>
 export type StepTemplateCreate = z.infer<typeof StepTemplateCreate>
