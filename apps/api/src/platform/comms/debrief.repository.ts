@@ -60,6 +60,11 @@ const STATE = sql<CommRecordState>`CASE
 
 /** Late runs from creation, not the anchor: a reply must not reset the clock.
  *  Never on a booked meeting: an overdue one raises nothing (no badge). */
+/** A group letter's record (`letter:` thread) is the same event as the letter
+ *  row the journey already draws; the journey reads without it. */
+const notLetter = sql`NOT EXISTS (SELECT 1 FROM comms.thread lt
+  WHERE lt.id = ${debrief.threadId} AND lt.external_id LIKE 'letter:%')`
+
 const LATE = sql<boolean>`(${debrief.closedAt} IS NULL AND NOT ${debrief.booked}
   AND ${debrief.createdAt} < now() - make_interval(hours => ${COMM_CONFIRM_WITHIN_HOURS}::int))`
 
@@ -87,7 +92,10 @@ export class DebriefRepository {
    *  Joining moves the anchor only: the subject stays the one set at opening. */
   async openOrJoin(
     tx: Db,
-    values: Pick<DebriefValues, 'threadId' | 'ownerId' | 'messageId' | 'subjectCode' | 'booked'>,
+    values: Pick<
+      DebriefValues,
+      'threadId' | 'ownerId' | 'messageId' | 'subjectCode' | 'booked' | 'title'
+    >,
   ): Promise<string> {
     const [row] = await tx
       .insert(debrief)
@@ -139,11 +147,12 @@ export class DebriefRepository {
       .orderBy(desc(debrief.createdAt), desc(debrief.id))
   }
 
-  /** The records of several subjects at once, newest first. */
+  /** The records of several subjects at once, newest first — the journey's feed,
+   *  so without the records of letters it already shows as letters. */
   async bySubjects(codes: readonly string[]): Promise<DebriefRead[]> {
     if (codes.length === 0) return []
     return this.reads(this.db)
-      .where(inArray(debrief.subjectCode, [...codes]))
+      .where(and(inArray(debrief.subjectCode, [...codes]), notLetter))
       .orderBy(desc(debrief.createdAt), desc(debrief.id))
   }
 

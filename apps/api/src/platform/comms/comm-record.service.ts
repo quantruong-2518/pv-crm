@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { normalisePhone, type CommsChannel, type ThreadChannel } from '@pv/contracts'
+import {
+  DEBRIEF_TITLE_MAX,
+  normalisePhone,
+  type CommsChannel,
+  type ThreadChannel,
+} from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
@@ -197,6 +202,7 @@ export class CommRecordService {
       messageId: turn.id,
       subjectCode,
       booked: false,
+      title: subject.slice(0, DEBRIEF_TITLE_MAX),
     })
     await this.audit.write(
       {
