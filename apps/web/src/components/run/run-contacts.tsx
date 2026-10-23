@@ -71,6 +71,7 @@ function LeadContacts({ code }: { code: string }) {
   const { data: lead } = useQuery({ ...leadProfileQuery(code), enabled: canView })
   const canEdit = useCan('lead.edit') && lead?.canEdit === true
   const [editing, setEditing] = useState(false)
+  const { pencil, drawer } = useContactEdit(code)
   const people = data?.rows.map((c) => ({
     code: c.code,
     name: c.name,
@@ -85,7 +86,7 @@ function LeadContacts({ code }: { code: string }) {
         <p className={NOTE}>Vai của bạn không xem được người liên hệ của lead này.</p>
       ) : (
         <PeopleBody
-          people={people}
+          people={people && canEdit ? pencil(people) : people}
           loading={isLoading}
           error={error}
           onChange={canEdit ? () => setEditing(true) : undefined}
@@ -96,6 +97,7 @@ function LeadContacts({ code }: { code: string }) {
           <ContactsCard code={code} canEdit embedded hideCommActions />
         </div>
       </Drawer>
+      {drawer}
     </RunBlock>
   )
 }

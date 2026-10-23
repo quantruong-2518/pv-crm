@@ -13,9 +13,10 @@ import {
   Skeleton,
   Textarea,
 } from '@pv/ui'
-import { ContactChannel, type ContactRow } from '@pv/contracts'
-import { userMessage, type FieldErrors } from '@/app/api'
-import { toast } from '@/app/toast'
+import { ContactChannel, ContactPatch, type ContactRow } from '@pv/contracts'
+import { type FieldErrors } from '@/app/api'
+import { toastDone } from '@/app/toast'
+import { fieldErrorsOf } from '@/data/lead-patch'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 import {
   BLANK_CONTACT,
@@ -32,6 +33,7 @@ import {
 } from '@/data/contacts'
 import { CommActions, type CommMail } from './comm-actions'
 import { Field } from './ops-fields'
+import { QUIET } from './run/run-person'
 
 /** The "Contacts" card on the lead profile — who we know at this company.
  *
@@ -225,22 +227,18 @@ function ContactLine({
               <Button
                 size="sm"
                 variant="ghost"
-                className="pointer-coarse:size-12"
+                className={QUIET}
                 title="Đặt làm người liên hệ chính"
                 disabled={promote.isPending}
-                onClick={() =>
-                  promote.mutate(undefined, {
-                    onError: (e) => toast(userMessage(e), { tone: 'danger' }),
-                  })
-                }
+                onClick={() => promote.mutate()}
               >
-                <Icon icon={Pin} size={14} />
+                <Icon icon={Pin} size={16} />
               </Button>
             )}
             <Button
               size="sm"
               variant="ghost"
-              className="pointer-coarse:size-12"
+              className={QUIET}
               title="Xoá người liên hệ"
               disabled={drop.isPending}
               onClick={() =>
@@ -250,12 +248,10 @@ function ContactLine({
                    machinery than it protects. The real guard sits on the
                    server — deleting the PRIMARY contact while others remain
                    is refused with a message pointing the way. */
-                drop.mutate(undefined, {
-                  onError: (e) => toast(userMessage(e), { tone: 'danger' }),
-                })
+                drop.mutate()
               }
             >
-              <Icon icon={Trash2} size={14} />
+              <Icon icon={Trash2} size={16} />
             </Button>
           </span>
         )}
@@ -327,10 +323,20 @@ function ContactDrawer({
   const submit = () => {
     const onError = (e: { errors?: FieldErrors }) => setErrors(e.errors ?? {})
     if (row === null) {
-      add.mutate(contactCreateBodyOf(draft), { onSuccess: onClose, onError })
-    } else {
-      edit.mutate(contactPatchBodyOf(draft), { onSuccess: onClose, onError })
+      add.mutate(contactCreateBodyOf(draft), {
+        onSuccess: () => {
+          toastDone('Đã thêm người liên hệ')
+          onClose()
+        },
+        onError,
+      })
+      return
     }
+    /* Checked here because the drawer closes before the server answers. */
+    const parsed = ContactPatch.safeParse(contactPatchBodyOf(draft))
+    if (!parsed.success) return setErrors(fieldErrorsOf(parsed.error.issues))
+    edit.mutate(parsed.data)
+    onClose()
   }
 
   return (

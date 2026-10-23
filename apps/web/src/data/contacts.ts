@@ -10,7 +10,8 @@ import {
   type ContactRow,
   type ObjectCode,
 } from '@pv/contracts'
-import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { api, userMessage, type ApiError, type ApiNeed } from '@/app/api'
+import { toastDone, toastFail } from '@/app/toast'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
 
 /** Contacts — TWO path shapes, and both are real.
@@ -138,15 +139,48 @@ export function useAddContact(leadCode: ObjectCode) {
   })
 }
 
+type Client = ReturnType<typeof useQueryClient>
+type Snapshot = { leadCode?: string; before?: ContactListResponse }
+
+/** Rewrites the lead's open list before the server answers, so the drawer can
+ *  close on Save; the snapshot puts it back if the server refuses. */
+async function rewriteLeadList(
+  client: Client,
+  leadCode: string | undefined,
+  change: (rows: ContactRow[]) => ContactRow[],
+): Promise<Snapshot> {
+  if (leadCode === undefined) return {}
+  const { queryKey } = leadContactsQuery(leadCode)
+  await client.cancelQueries({ queryKey })
+  const before = client.getQueryData(queryKey)
+  if (before) client.setQueryData(queryKey, { rows: change(before.rows) })
+  return { leadCode, before }
+}
+
+function restoreLeadList(client: Client, snap: Snapshot | undefined, error: ApiError) {
+  if (snap?.leadCode !== undefined) {
+    client.setQueryData(leadContactsQuery(snap.leadCode).queryKey, snap.before)
+  }
+  toastFail('Chưa lưu được, đã trả lại như cũ', userMessage(error))
+}
+
 export function useEditContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
-  return useMutation<ContactRow, ApiError, ContactPatch>({
+  return useMutation<ContactRow, ApiError, ContactPatch, Snapshot>({
     mutationFn: (body) =>
       api.write<ContactRow>(`${BOOK_PATH}/${code}`, { method: 'PATCH', body, need: WRITE_NEED }),
-    onSuccess: (row) => {
+    onMutate: async (body) => {
+      const snap = await rewriteLeadList(client, leadCode, (rows) =>
+        rows.map((r) => (r.code === code ? { ...r, ...body } : r)),
+      )
+      toastDone('Đã cập nhật người liên hệ')
+      return snap
+    },
+    onError: (error, _body, snap) => restoreLeadList(client, snap, error),
+    onSettled: (row) => {
       void client.invalidateQueries({ queryKey: [...CONTACT_BOOK_KEY, code] })
-      invalidateAround(client, leadCode ?? row.leadCode)
+      invalidateAround(client, leadCode ?? row?.leadCode)
     },
   })
 }
@@ -154,10 +188,18 @@ export function useEditContact(code: ObjectCode, leadCode?: string) {
 export function useDropContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
-  return useMutation<void, ApiError, void>({
+  return useMutation<void, ApiError, void, Snapshot>({
     mutationFn: () =>
       api.write<void>(`${BOOK_PATH}/${code}`, { method: 'DELETE', need: WRITE_NEED }),
-    onSuccess: () => invalidateAround(client, leadCode),
+    onMutate: async () => {
+      const snap = await rewriteLeadList(client, leadCode, (rows) =>
+        rows.filter((r) => r.code !== code),
+      )
+      toastDone('Đã xoá người liên hệ')
+      return snap
+    },
+    onError: (error, _input, snap) => restoreLeadList(client, snap, error),
+    onSettled: () => invalidateAround(client, leadCode),
   })
 }
 
@@ -171,12 +213,20 @@ export function useDropContact(code: ObjectCode, leadCode?: string) {
 export function useSetPrimaryContact(code: ObjectCode, leadCode?: string) {
   const client = useQueryClient()
 
-  return useMutation<ContactRow, ApiError, void>({
+  return useMutation<ContactRow, ApiError, void, Snapshot>({
     mutationFn: () =>
       api.write<ContactRow>(`${BOOK_PATH}/${code}/primary`, { method: 'POST', need: WRITE_NEED }),
-    onSuccess: (row) => {
+    onMutate: async () => {
+      const snap = await rewriteLeadList(client, leadCode, (rows) =>
+        rows.map((r) => ({ ...r, isPrimary: r.code === code })),
+      )
+      toastDone('Đã đổi người liên hệ chính')
+      return snap
+    },
+    onError: (error, _input, snap) => restoreLeadList(client, snap, error),
+    onSettled: (row) => {
       void client.invalidateQueries({ queryKey: [...CONTACT_BOOK_KEY, code] })
-      invalidateAround(client, leadCode ?? row.leadCode)
+      invalidateAround(client, leadCode ?? row?.leadCode)
     },
   })
 }

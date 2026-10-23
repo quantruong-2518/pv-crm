@@ -3,10 +3,8 @@ import { Check, Factory, Mail, Phone, Pencil } from '@pv/ui'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, GlassCard, Icon, SectionTitle, type RailObject } from '@pv/ui'
-import { userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { toast } from '@/app/toast'
 import { dm } from '@/lib/date'
 import { ContactEditDrawer } from '@/components/contacts-card'
 import { contactProfileQuery, useSetPrimaryContact } from '@/data/contacts'
@@ -84,20 +82,7 @@ export default function ContactDetailPage() {
                     Sửa
                   </Button>
                   {!contact.isPrimary && (
-                    <Button
-                      size="lg"
-                      disabled={promote.isPending}
-                      onClick={() =>
-                        promote.mutate(undefined, {
-                          onSuccess: () =>
-                            toast('Đã đổi người liên hệ chính', {
-                              tone: 'success',
-                              detail: contact.name,
-                            }),
-                          onError: (e) => toast(userMessage(e), { tone: 'danger' }),
-                        })
-                      }
-                    >
+                    <Button size="lg" disabled={promote.isPending} onClick={() => promote.mutate()}>
                       <Icon icon={Check} size={16} />
                       {promote.isPending ? 'Đang lưu…' : 'Đặt làm người chính'}
                     </Button>

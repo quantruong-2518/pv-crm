@@ -8,6 +8,11 @@ import { Avatar, Button, Icon, MetaPill, Pencil, UserRoundPlus, cn, type IconGly
 
 const LINE = 'text-muted-foreground m-0 break-words text-[12px] leading-[1.5]'
 
+/** Icon buttons as tall as the tag pill and without a plate, so they sit in
+ *  the line instead of boxing it. Touch keeps the 48px target (law 13). */
+export const QUIET =
+  'pointer-coarse:size-12 hover:bg-surface-ink/9 size-6 shrink-0 bg-transparent px-0 shadow-none'
+
 export function PersonList({ children }: { children: ReactNode }) {
   return <ul className="m-0 flex list-none flex-col gap-3 p-0">{children}</ul>
 }
@@ -69,7 +74,7 @@ export function PersonRow({
             <Button
               size="sm"
               variant="ghost"
-              className="pointer-coarse:size-12 size-8 shrink-0 px-0"
+              className={QUIET}
               title={edit.label}
               aria-label={edit.label}
               onClick={edit.onClick}
@@ -88,7 +93,7 @@ export function PersonRow({
         <Button
           size="sm"
           variant="ghost"
-          className="pointer-coarse:size-12 size-8 shrink-0 px-0"
+          className={QUIET}
           title={door.label}
           aria-label={door.label}
           onClick={door.onClick}

@@ -118,7 +118,7 @@ function wireKeyOf(key: ProfileField['key']): PatchKey | undefined {
 
 export type PatchResult = { ok: true; body: LeadPatch } | { ok: false; errors: FieldErrors }
 
-function fieldErrorsOf(
+export function fieldErrorsOf(
   issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[],
 ): FieldErrors {
   const errors: FieldErrors = {}
