@@ -155,8 +155,12 @@ export class ThreadRepository {
   }
 
   /** Who an address belongs to, if anyone — asked before minting one. */
-  async identityByAddress(channel: CommsChannel, address: string): Promise<IdentityRowDb | null> {
-    const [row] = await this.db
+  async identityByAddress(
+    channel: CommsChannel,
+    address: string,
+    tx: Db = this.db,
+  ): Promise<IdentityRowDb | null> {
+    const [row] = await tx
       .select()
       .from(identity)
       .where(and(eq(identity.channel, channel), eq(identity.address, address)))
@@ -181,8 +185,9 @@ export class ThreadRepository {
   async memberIdentity(
     actorId: string,
     channel: CommsChannel | null,
+    tx: Db = this.db,
   ): Promise<IdentityRowDb | null> {
-    const [row] = await this.db
+    const [row] = await tx
       .select()
       .from(identity)
       .where(and(eq(identity.side, 'member'), eq(identity.actorId, actorId)))
@@ -194,8 +199,8 @@ export class ThreadRepository {
     return row ?? null
   }
 
-  async actorEmail(actorId: string): Promise<string | null> {
-    const [row] = await this.db
+  async actorEmail(actorId: string, tx: Db = this.db): Promise<string | null> {
+    const [row] = await tx
       .select({ email: actor.email })
       .from(actor)
       .where(eq(actor.id, actorId))

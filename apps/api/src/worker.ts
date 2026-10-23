@@ -17,6 +17,8 @@ import { MeetingCancelSweeper } from './branches/sales/meeting/meeting-cancel.sw
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
+import { CommRecordModule } from './platform/comms/comm-record.module'
+import { LetterCommHook } from './platform/comms/letter-comm.hook'
 import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
 import { LeadScanSweeper } from './branches/sales/lead/lead-scan.sweeper'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
@@ -101,10 +103,10 @@ import {
        theo ADR 0085, chỉ còn để rút dòng cũ) không giao nhau, nên thứ tự này
        chỉ là thói quen: nền trước, nhánh sau. */
     QueueModule.forWorker({
-      imports: [MailModule, LeadModule, OpportunityModule],
+      imports: [MailModule, LeadModule, OpportunityModule, CommRecordModule],
       composers: [MasMailComposer, LeadMailComposer, OpportunityMailComposer],
       /* Every hook runs on each accepted letter; each skips subjects it does not own. */
-      sentHooks: [LeadMailSentHook, OpportunityMailSentHook],
+      sentHooks: [LeadMailSentHook, OpportunityMailSentHook, LetterCommHook],
     }),
   ],
 })

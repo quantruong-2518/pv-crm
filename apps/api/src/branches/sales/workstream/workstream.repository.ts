@@ -997,6 +997,7 @@ function FOOTPRINT(codes: readonly string[]): SQL {
       JOIN comms.message m ON m.thread_id = t.id
      WHERE NOT COALESCE((SELECT bool_and(d.cancelled) FROM comms.debrief d
                           WHERE d.thread_id = t.id), false)
+       AND COALESCE(t.external_id, '') NOT LIKE 'letter:%'
      GROUP BY o.ws, t.channel
     UNION ALL
     SELECT o.ws AS ws, 'meeting' AS channel, count(*)::int AS n, max(mt.at) AS last_at

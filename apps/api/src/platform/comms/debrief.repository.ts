@@ -229,6 +229,25 @@ export class DebriefRepository {
       .orderBy(asc(min(debrief.createdAt)), asc(debrief.ownerId))
   }
 
+  /** A record born closed: a sent letter is its own content, so there is nothing
+   *  for the owner to fill in and nothing for the queue to chase. */
+  async insertClosed(
+    tx: Db,
+    values: Pick<DebriefValues, 'threadId' | 'ownerId' | 'messageId' | 'subjectCode'> & {
+      title: string
+      summary: string
+      at: Date
+    },
+  ): Promise<string> {
+    const { at, ...rest } = values
+    const [row] = await tx
+      .insert(debrief)
+      .values({ ...rest, closedAt: at })
+      .returning({ id: debrief.id })
+    if (!row) throw new Error('comms.debrief: INSERT returned no row')
+    return row.id
+  }
+
   async close(
     tx: Db,
     id: string,

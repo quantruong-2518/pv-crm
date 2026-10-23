@@ -124,7 +124,7 @@ export async function renderMasLetter(input: MasLetterInput): Promise<MasLetter>
  *  `escape` is how the same substitution serves two grammars: prose takes the
  *  value as it is, a URL takes it percent-encoded. It escapes the VALUE only —
  *  the surrounding text is the author's and is never touched. */
-function substitute(
+export function substitute(
   value: string,
   merge: Record<string, string>,
   missing: Set<string>,

@@ -1,5 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common'
-import { normalisePhone, type CommsChannel, type ThreadChannel } from '@pv/contracts'
+import {
+  DEBRIEF_SUMMARY_MAX,
+  DEBRIEF_TITLE_MAX,
+  normalisePhone,
+  type CommsChannel,
+  type ThreadChannel,
+} from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
@@ -52,6 +58,17 @@ export type CommRecordOpen = {
 
 /** `created: false` = a meeting already had a record of this owner. */
 export type CommRecordOpened = { debriefId: string; threadId: string; created: boolean }
+
+/** A group letter's first To, as the ledger recorded it when the provider took it. */
+export type LetterSent = {
+  deliveryId: string
+  subjectCode: string
+  ownerId: string
+  contactCode: string
+  email: string
+  subject: string
+  at: Date
+}
 
 type Mint = { channel: CommsChannel; address: NormalisedAddress }
 type NewIdentity = Mint &
@@ -137,6 +154,66 @@ export class CommRecordService {
       await also?.(tx)
       return { debriefId, threadId, created: true }
     })
+  }
+
+  /** A letter the provider took, filed as a record that is already closed: the
+   *  subject line is its summary. Runs on the accept's transaction, so every
+   *  read goes through `tx` (PGlite holds one connection); a repeat of the
+   *  same delivery is refused by `thread_channel_external_unique`. */
+  async recordLetter(tx: Db, input: LetterSent): Promise<void> {
+    const { deliveryId, subjectCode, ownerId, subject, at } = input
+    if (!(await this.threads.objectByCode(subjectCode, tx)))
+      throw notFound('đối tượng', subjectCode)
+    const guest = await this.guestOf(
+      'email',
+      { code: input.contactCode, phone: null, email: input.email, sameLead: [] },
+      tx,
+    )
+    const member = await this.memberOf(ownerId, 'email', tx)
+
+    const row = {
+      channel: 'email' as const,
+      subject,
+      externalId: `letter:${deliveryId}`,
+      startedAt: at,
+      lastAt: at,
+    }
+    const threadId = (await this.threads.insertThread(tx, row)).id
+    const to = 'id' in guest ? guest.id : await this.threads.insertIdentity(tx, guest)
+    const from = 'id' in member ? member.id : await this.threads.insertIdentity(tx, member)
+    await this.threads.ensureLink(tx, { threadId, objectCode: subjectCode, linkedBy: 'human' })
+    const turn = await this.threads.insertMessage(tx, {
+      threadId,
+      at,
+      direction: 'out',
+      fromIdentityId: from,
+      bodyText: null,
+      durationSec: null,
+      captureSource: 'sync',
+    })
+    await this.threads.insertParties(tx, [
+      { messageId: turn.id, identityId: from, role: 'from' },
+      { messageId: turn.id, identityId: to, role: 'to' },
+    ])
+    const title = subject.slice(0, DEBRIEF_TITLE_MAX)
+    const debriefId = await this.debriefs.insertClosed(tx, {
+      threadId,
+      ownerId,
+      messageId: turn.id,
+      subjectCode,
+      title,
+      summary: `Thư: ${subject}`.slice(0, DEBRIEF_SUMMARY_MAX),
+      at,
+    })
+    await this.audit.write(
+      {
+        actorId: ownerId,
+        action: 'edit',
+        code: subjectCode,
+        note: `comms.debrief ${debriefId} filed from letter ${deliveryId} · email thread ${threadId}`,
+      },
+      tx,
+    )
   }
 
   /** The meeting moved. Only comms' own copy of time follows: the booking
@@ -231,13 +308,16 @@ export class CommRecordService {
   private async guestOf(
     channel: ThreadChannel,
     person: CommContact,
+    tx?: Db,
   ): Promise<{ id: string } | NewIdentity> {
     const known =
-      (await this.threads.guestIdentity(person.code, channel === 'meeting' ? null : channel)) ??
-      (CHAT_ON_PHONE.has(channel) ? await this.threads.guestIdentity(person.code, 'phone') : null)
+      (await this.threads.guestIdentity(person.code, channel === 'meeting' ? null : channel, tx)) ??
+      (CHAT_ON_PHONE.has(channel)
+        ? await this.threads.guestIdentity(person.code, 'phone', tx)
+        : null)
     if (known) return known
     const mint = mintFor(channel, person)
-    const taken = await this.threads.identityByAddress(mint.channel, mint.address)
+    const taken = await this.threads.identityByAddress(mint.channel, mint.address, tx)
     /* The lead's own person and its contact often share one phone: same people. */
     if (taken?.side === 'guest' && taken.objectCode && person.sameLead.includes(taken.objectCode)) {
       return taken
@@ -261,13 +341,18 @@ export class CommRecordService {
   private async memberOf(
     ownerId: string,
     channel: ThreadChannel,
+    tx?: Db,
   ): Promise<{ id: string } | NewIdentity> {
-    const known = await this.threads.memberIdentity(ownerId, channel === 'meeting' ? null : channel)
+    const known = await this.threads.memberIdentity(
+      ownerId,
+      channel === 'meeting' ? null : channel,
+      tx,
+    )
     if (known) return known
-    const mailbox = await this.threads.actorEmail(ownerId)
+    const mailbox = await this.threads.actorEmail(ownerId, tx)
     if (!mailbox) throw new Error(`comms: comm owner ${ownerId} is not in platform.actor`)
     const address = normaliseAddress('email', mailbox)
-    if (await this.threads.identityByAddress('email', address)) {
+    if (await this.threads.identityByAddress('email', address, tx)) {
       throw conflict(
         `Hòm thư ${address} của người ghi liên hệ đang thuộc người khác. Báo người giữ sổ định danh sửa lại.`,
       )
