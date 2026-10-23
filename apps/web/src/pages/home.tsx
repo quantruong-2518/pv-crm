@@ -31,7 +31,7 @@ import { ENTER, ICON_TONE } from './home-look'
 import { daysOfPeriod, liveRunsQuery, stoppedRunsQuery } from './home-model'
 import { ReasonsTile } from './home-reasons'
 import { SignedTile } from './home-signed'
-import { ChartsFailed, OpenValueTile, RunsTile, TileSkeleton, WinRateTile } from './home-tiles'
+import { ChartsFailed, RunsTile, TileSkeleton, WinRateTile } from './home-tiles'
 
 /** Screen 01 · Overview — a bento of sales figures.
  *
@@ -191,7 +191,6 @@ function Bento({
           <div className={ROW}>
             <SignedTile data={data} className={HERO} />
             <div className={SIDE_STACK}>
-              <OpenValueTile data={data} className={SIDE_TILE} />
               <WinRateTile data={data} className={SIDE_TILE} />
               {runsTile(SIDE_TILE)}
             </div>
@@ -222,7 +221,6 @@ function Bento({
           <div className={ROW}>
             <TileSkeleton className={HERO} />
             <div className={SIDE_STACK}>
-              <TileSkeleton className={SIDE_TILE} />
               <TileSkeleton className={SIDE_TILE} />
               {canRuns && <TileSkeleton className={SIDE_TILE} />}
             </div>

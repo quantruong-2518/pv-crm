@@ -66,6 +66,9 @@ export const SalesBucket = SalesPeriodFigures.extend({
   key: z.string(),
   first: Day,
   last: Day,
+  /** Open deals whose `expectedClose` falls in this slice. Not history: the
+   *  book as it stands today, placed by the day each deal says it will close. */
+  open: z.object({ count, amountVnd: MoneyVnd }),
 })
 
 /** One calendar month of the quarter the period sits in. */
@@ -86,8 +89,14 @@ export const SalesPerformanceResponse = z.object({
    *  `period` has run by `asOf`; the whole period before once it is over. */
   compare: SalesDayRange.extend({ figures: SalesPeriodFigures }),
   /** A snapshot of today, not of the period: the open book keeps no history,
-   *  so it has no previous figure to compare with. */
-  open: z.object({ count, amountVnd: MoneyVnd, blank: count }),
+   *  so it has no previous figure to compare with. `unplaced` is the part no
+   *  bucket holds: no expected day, or one outside the period. */
+  open: z.object({
+    count,
+    amountVnd: MoneyVnd,
+    blank: count,
+    unplaced: z.object({ count, amountVnd: MoneyVnd }),
+  }),
   buckets: z.array(SalesBucket).min(3).max(12),
   /** Superseded by `buckets`; still filled until the web that reads it is gone. */
   months: z.array(SalesMonthPoint).length(3),

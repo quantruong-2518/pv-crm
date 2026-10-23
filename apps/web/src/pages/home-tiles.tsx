@@ -13,7 +13,6 @@ import {
   TrendingDown,
   TrendingUp,
   TriangleAlert,
-  Wallet,
   cn,
   percent,
   type IconGlyph,
@@ -26,7 +25,6 @@ import {
   dealsHref,
   deltaOf,
   liveRunsQuery,
-  money,
   num,
   rateOf,
   runsHref,
@@ -138,80 +136,6 @@ export function DeltaLine({ delta, children }: { delta: Delta | null; children?:
 }
 
 type Figures = { data: SalesPerformanceResponse; className?: string }
-
-/** The open book as it stands now: it keeps no history, so the picker does
- *  not move this tile and it has nothing to compare with. A deal with no
- *  amount is missing from the sum, so the strip shows how much of the book the
- *  sum covers, in proportion rather than a mark per deal. */
-export function OpenValueTile({ data, className }: Figures) {
-  const { count, amountVnd, blank } = data.open
-  const valued = count - blank
-  const canView = useCan('opportunity.view')
-  return (
-    <section className={cn(CARD_SHELL, WASH, 'flex-col gap-3', className)}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <IconTile icon={Wallet} className={ICON_TONE.primary} />
-          <div className="flex min-w-0 flex-col gap-1">
-            <h3 className={CARD_TITLE}>Giá trị cơ hội đang mở</h3>
-            <span className={cn(NOTE, 'tnum font-num')}>
-              Tính đến hôm nay
-              {count > 0 && (
-                <>
-                  {' · '}
-                  <strong className="text-foreground font-semibold">{num(count)} cơ hội</strong>
-                </>
-              )}
-            </span>
-          </div>
-        </div>
-        <span className={CARD_BIG}>{money(amountVnd)}</span>
-      </div>
-      {/* Pinned to the foot so the three side cards line up at any height. */}
-      <div className="mt-auto flex flex-col gap-2">
-        <div aria-hidden className="flex h-2.5 gap-1">
-          {count === 0 ? (
-            <span className="bg-surface-ink/8 w-full rounded-full" />
-          ) : (
-            <>
-              <span
-                style={cssVars({ '--w': `${(valued / count) * 100}%` })}
-                className={`bg-primary w-(--w) starting:w-0 rounded-full transition-[width] ${MARK_EASE}`}
-              />
-              {blank > 0 && (
-                <span
-                  style={cssVars({ '--w': `${(blank / count) * 100}%` })}
-                  className={`bg-warning/20 w-(--w) starting:w-0 min-w-1 rounded-full bg-[repeating-linear-gradient(45deg,var(--warning)_0_3px,transparent_3px_6px)] transition-[width] ${MARK_EASE}`}
-                />
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <span className={cn(NOTE, 'tnum font-num')}>
-            {count === 0 ? (
-              'Chưa có cơ hội nào đang mở'
-            ) : blank > 0 ? (
-              <>
-                <strong className="text-foreground font-semibold">{num(valued)}</strong> cơ hội đã
-                có giá trị · <strong className="text-warning font-semibold">{num(blank)}</strong>{' '}
-                chưa nhập giá trị, chưa tính vào tổng
-              </>
-            ) : (
-              'Tất cả đã có giá trị'
-            )}
-          </span>
-          {canView && count > 0 && (
-            <Link to={dealsHref('open')} className={PILL_LINK}>
-              Xem cơ hội
-              <Icon icon={ArrowRight} size={14} />
-            </Link>
-          )}
-        </div>
-      </div>
-    </section>
-  )
-}
 
 /** Closed = won + lost + terminated (ADR 0107): a broken contract is not a win. */
 const closedOf = (f: SalesPerformanceResponse['current']) =>

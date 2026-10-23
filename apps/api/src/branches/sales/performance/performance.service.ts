@@ -34,9 +34,15 @@ export class PerformanceService {
     const spans = new Map(
       [current, previous, compare, ...months, ...buckets].map((s) => [s.key, s]),
     )
-    const figures = await this.repo.figures([...spans.values()], {
-      reached: salesGrainOf(period) === 'week',
-    })
+    const [figures, openSpans] = await Promise.all([
+      this.repo.figures([...spans.values()], { reached: salesGrainOf(period) === 'week' }),
+      this.repo.openBySpan(buckets),
+    ])
+    const placed = [...openSpans.values()]
+    const unplaced = {
+      count: card.open - placed.reduce((n, o) => n + o.count, 0),
+      amountVnd: card.openAmountVnd - placed.reduce((n, o) => n + o.amountVnd, 0),
+    }
     const range = (s: PeriodSpan) => ({ first: s.from, last: lastDayOf(s) })
 
     /* Parsed rather than returned raw, like the books: a span the query dropped
@@ -48,8 +54,13 @@ export class PerformanceService {
       current: figures.get(current.key),
       previous: figures.get(previous.key),
       compare: { ...range(compare), figures: figures.get(compare.key) },
-      open: { count: card.open, amountVnd: card.openAmountVnd, blank: card.openBlank },
-      buckets: buckets.map((b) => ({ key: b.key, ...range(b), ...figures.get(b.key) })),
+      open: { count: card.open, amountVnd: card.openAmountVnd, blank: card.openBlank, unplaced },
+      buckets: buckets.map((b) => ({
+        key: b.key,
+        ...range(b),
+        ...figures.get(b.key),
+        open: openSpans.get(b.key),
+      })),
       months: months.map((m) => ({ key: m.key, ...figures.get(m.key) })),
     })
   }

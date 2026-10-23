@@ -6,6 +6,8 @@ import { contract } from '../contract/contract.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
 import { toVndSql } from '../money'
+import { dealHeld } from '../hold/hold.sql'
+import { opportunity } from '../opportunity/opportunity.schema'
 import {
   contractTerminated,
   dealLost,
@@ -139,6 +141,34 @@ export class PerformanceRepository {
           },
         },
       ]),
+    )
+  }
+
+  /** The open book cut by `expected_close`, one row per span, empty ones as
+   *  zeros. "Open" is the scorecard's predicate (`stage` set, not held, live
+   *  lead) so the buckets and the tile's total cannot drift; a deal with no
+   *  day or a day outside every span falls to `unplaced` in the service. */
+  async openBySpan(
+    spans: PeriodSpan[],
+  ): Promise<Map<string, { count: number; amountVnd: number }>> {
+    const values = sql.join(
+      spans.map((s) => sql`(${s.key}::text, ${s.from}::date, ${s.to}::date)`),
+      sql`, `,
+    )
+    const r = (await this.db.execute(sql`
+      WITH span("key", "lo", "hi") AS (VALUES ${values})
+      SELECT s."key",
+             count(${opportunity.code})::int AS open_count,
+             COALESCE(SUM(${toVndSql(opportunity.amount, opportunity.currency)}), 0)::bigint AS open_amount
+        FROM span s
+        LEFT JOIN ${opportunity}
+               ON ${opportunity.stage} IS NOT NULL AND NOT ${dealHeld(opportunity.code)}
+              AND ${opportunity.expectedClose} >= s."lo" AND ${opportunity.expectedClose} < s."hi"
+              AND EXISTS (SELECT 1 FROM ${lead} WHERE ${lead.code} = ${opportunity.leadCode} AND ${leadLive})
+       GROUP BY s."key"
+    `)) as { rows: { key: string; open_count: number; open_amount: number | string }[] }
+    return new Map(
+      r.rows.map((row) => [row.key, { count: row.open_count, amountVnd: Number(row.open_amount) }]),
     )
   }
 }
