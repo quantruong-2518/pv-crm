@@ -1,11 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common'
-import {
-  DEBRIEF_SUMMARY_MAX,
-  DEBRIEF_TITLE_MAX,
-  normalisePhone,
-  type CommsChannel,
-  type ThreadChannel,
-} from '@pv/contracts'
+import { normalisePhone, type CommsChannel, type ThreadChannel } from '@pv/contracts'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { conflict, invalid, notFound } from '@api/platform/http/problem'
@@ -59,14 +53,16 @@ export type CommRecordOpen = {
 /** `created: false` = a meeting already had a record of this owner. */
 export type CommRecordOpened = { debriefId: string; threadId: string; created: boolean }
 
-/** A group letter's first To, as the ledger recorded it when the provider took it. */
+/** A group letter's first To, as it was queued. */
 export type LetterSent = {
-  deliveryId: string
+  letterId: string
   subjectCode: string
   ownerId: string
   contactCode: string
   email: string
   subject: string
+  /** The letter as the contact reads it: it is what makes the record `unconfirmed`, not `empty`. */
+  body: string
   at: Date
 }
 
@@ -156,12 +152,12 @@ export class CommRecordService {
     })
   }
 
-  /** A letter the provider took, filed as a record that is already closed: the
-   *  subject line is its summary. Runs on the accept's transaction, so every
-   *  read goes through `tx` (PGlite holds one connection); a repeat of the
-   *  same delivery is refused by `thread_channel_external_unique`. */
+  /** A group letter, filed as the sender's open record the moment it is queued.
+   *  Runs on the send's transaction, so every read goes through `tx` (PGlite
+   *  holds one connection); a repeat of the same letter is refused by
+   *  `thread_channel_external_unique`. */
   async recordLetter(tx: Db, input: LetterSent): Promise<void> {
-    const { deliveryId, subjectCode, ownerId, subject, at } = input
+    const { letterId, subjectCode, ownerId, subject, body, at } = input
     if (!(await this.threads.objectByCode(subjectCode, tx)))
       throw notFound('đối tượng', subjectCode)
     const guest = await this.guestOf(
@@ -174,7 +170,7 @@ export class CommRecordService {
     const row = {
       channel: 'email' as const,
       subject,
-      externalId: `letter:${deliveryId}`,
+      externalId: `letter:${letterId}`,
       startedAt: at,
       lastAt: at,
     }
@@ -187,30 +183,27 @@ export class CommRecordService {
       at,
       direction: 'out',
       fromIdentityId: from,
-      bodyText: null,
+      bodyText: body,
       durationSec: null,
-      captureSource: 'sync',
+      captureSource: 'manual',
     })
     await this.threads.insertParties(tx, [
       { messageId: turn.id, identityId: from, role: 'from' },
       { messageId: turn.id, identityId: to, role: 'to' },
     ])
-    const title = subject.slice(0, DEBRIEF_TITLE_MAX)
-    const debriefId = await this.debriefs.insertClosed(tx, {
+    const debriefId = await this.debriefs.openOrJoin(tx, {
       threadId,
       ownerId,
       messageId: turn.id,
       subjectCode,
-      title,
-      summary: `Thư: ${subject}`.slice(0, DEBRIEF_SUMMARY_MAX),
-      at,
+      booked: false,
     })
     await this.audit.write(
       {
         actorId: ownerId,
         action: 'edit',
         code: subjectCode,
-        note: `comms.debrief ${debriefId} filed from letter ${deliveryId} · email thread ${threadId}`,
+        note: `comms.debrief ${debriefId} opened for letter ${letterId} · email thread ${threadId}`,
       },
       tx,
     )

@@ -11,7 +11,7 @@ import type { DeliveryToSend } from './mail.contract'
  *  Called inside the accept's own transaction, under a savepoint: the fact is
  *  known only there, and a branch that fails must not un-accept a sent mail. */
 export interface MailSentHook {
-  afterSent(tx: Db, sent: MailAccepted): Promise<void>
+  afterSent(tx: Db, sent: MailSent): Promise<void>
   /** A letter that will never arrive, or one that arrived without its state
    *  move. The branch writes its trail on the caller's `tx` and names the
    *  subject's people for the bell; `null` = not this branch's letter. */
@@ -27,11 +27,6 @@ export interface MailSentHook {
 
 /** What the branch needs to tell a customer letter from an internal one. */
 export type MailSent = Pick<DeliveryToSend, 'aggregateType' | 'aggregateId' | 'mailRunId' | 'role'>
-
-/** `afterSent` gets the whole accepted delivery: a hook that files the letter
- *  somewhere needs its sender, subject and addresses, not just whose it is. */
-export type MailAccepted = MailSent &
-  Pick<DeliveryToSend, 'id' | 'addresses' | 'sender' | 'run' | 'runKind' | 'merge'>
 
 export type MailTrouble =
   /** `unknown`: given up past the resend window, so it may have arrived. */

@@ -218,15 +218,13 @@ const OWN: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
     total: SHARE,
   },
   /* A comm closed as "unreached" talked to nobody (owner's call 15/10/2026);
-     one closed "cancelled" was a meeting that never happened. A sent letter files
-     itself closed (`letter:` thread): sending is not a conversation anyone confirmed. */
+     one closed "cancelled" was a meeting that never happened. */
   'debriefs-closed': {
     basis: (only) => sql`
       SELECT d.owner_id AS actor_id, ${DEBRIEF_SUBJECT} AS kind, d.subject_code AS code,
              d.closed_at AS at, ${tally('closed')}
       FROM comms.debrief d
       WHERE NOT d.unreached AND NOT d.cancelled AND ${subjectLive(sql`d.subject_code`)}
-        AND NOT EXISTS (SELECT 1 FROM comms.thread t WHERE t.id = d.thread_id AND t.external_id LIKE 'letter:%')
         AND ${within(sql`d.closed_at`)}${only(sql`d.owner_id`)}`,
     total: COUNT,
   },

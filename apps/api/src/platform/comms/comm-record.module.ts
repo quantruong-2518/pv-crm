@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module'
 import { StorageModule } from '../storage/storage.module'
-import { LetterCommHook } from './letter-comm.hook'
 import { CommRecordService } from './comm-record.service'
 import { DebriefRepository } from './debrief.repository'
 import { ThreadRepository } from './thread.repository'
@@ -16,7 +15,7 @@ import { ThreadRepository } from './thread.repository'
  *  `StorageModule` because a dropped booking removes its record's files. */
 @Module({
   imports: [AuditModule, StorageModule],
-  providers: [ThreadRepository, DebriefRepository, CommRecordService, LetterCommHook],
-  exports: [ThreadRepository, DebriefRepository, CommRecordService, LetterCommHook],
+  providers: [ThreadRepository, DebriefRepository, CommRecordService],
+  exports: [ThreadRepository, DebriefRepository, CommRecordService],
 })
 export class CommRecordModule {}

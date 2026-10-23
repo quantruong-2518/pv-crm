@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   MAIL_DOOR_LABEL,
@@ -17,6 +17,7 @@ import {
   type MailSubjectKind,
   type MailTransport,
 } from '@pv/contracts'
+import { CommRecordService, type LetterSent } from '@api/platform/comms/comm-record.service'
 import { ENV, type Env } from '@api/platform/config/env'
 import type { Db } from '@api/platform/db/db.module'
 import { GoogleAccess } from '@api/platform/google/google-access'
@@ -28,7 +29,7 @@ import {
   type MailEnqueue,
 } from '@api/platform/mail/mail.contract'
 import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
-import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
+import { renderMasLetter, senderOf, substitute } from '@api/platform/mail/mas-letter'
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
@@ -77,6 +78,8 @@ const subjectLabel = (door: MailSubjectKind): string => MAIL_DOOR_LABEL[door].to
  *  the letter rides the same run, identity and worker. */
 @Injectable()
 export class MailLetterService {
+  private readonly log = new Logger('MailLetter')
+
   constructor(
     private readonly repo: MailLetterRepository,
     private readonly mas: MasRepository,
@@ -89,6 +92,7 @@ export class MailLetterService {
     private readonly contracts: ContractRepository,
     private readonly google: GoogleAccess,
     private readonly domains: MailDomainCheck,
+    private readonly records: CommRecordService,
   ) {}
 
   async preflight(
@@ -224,6 +228,11 @@ export class MailLetterService {
         audienceCount: 1,
         createdBy: who.id,
       })
+      const merge = mergeOf({
+        company: subject.company,
+        contactName: first.name,
+        email: first.email,
+      })
       const deliveryId = await this.mail.enqueueLetter(
         tx,
         {
@@ -236,7 +245,7 @@ export class MailLetterService {
           recipient: first.email,
           mailRunId,
           role: 'recipient',
-          merge: mergeOf({ company: subject.company, contactName: first.name, email: first.email }),
+          merge,
           addresses,
         },
         { nextAttemptAt: scheduledAt },
@@ -244,6 +253,19 @@ export class MailLetterService {
       /* Null = the same key landed between the read above and this insert —
          a concurrent retry. Roll this copy back; the other one stands. */
       if (!deliveryId) throw conflict('Thư này vừa được gửi. Tải lại để xem.')
+
+      /* The contact book shows the letter from this press on, not from the day the provider
+         takes it: a pending record the sender closes out like any other comm. */
+      await this.fileInHistory(tx, {
+        letterId: mailRunId,
+        subjectCode: body.subjectCode,
+        ownerId: who.id,
+        contactCode: first.code,
+        email: first.email,
+        subject: substitute(body.subject, merge, new Set()),
+        body: substitute(body.body, merge, new Set()),
+        at: new Date(),
+      })
 
       /* Timed = care scheduled; sent now moves nothing here — the letter going
          out does, in the worker (`LeadMailSentHook`, ADR 0068 §1–2). */
@@ -259,6 +281,16 @@ export class MailLetterService {
     })
 
     return reply(queued.mailRunId, queued.toCount, body.to.length, state)
+  }
+
+  /** Never fails the send: a customer address that belongs to someone else loses
+   *  its history line, not the letter. Own savepoint, so nothing half-written stays. */
+  private async fileInHistory(tx: Db, letter: LetterSent): Promise<void> {
+    try {
+      await tx.transaction((sp) => this.records.recordLetter(sp, letter))
+    } catch (error) {
+      this.log.warn(`Letter ${letter.letterId} not filed in the contact book: ${String(error)}`)
+    }
   }
 
   /** The one answer to "whose mailbox", for preflight, preview and send. The

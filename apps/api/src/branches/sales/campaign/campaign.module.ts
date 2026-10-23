@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common'
 import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GoogleModule } from '@api/platform/google/google.module'
+import { CommRecordModule } from '@api/platform/comms/comm-record.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
@@ -68,6 +69,7 @@ import { SourceService } from './source.service'
     LeadOriginModule,
     GoogleModule,
     NotificationModule,
+    CommRecordModule,
   ],
   controllers: [
     MasController,
