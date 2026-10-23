@@ -368,6 +368,14 @@ export const lead = sales.table(
      *  the lead is `nurturing`: the park reason and moment (ADR 0109). */
     exitReason: text('exit_reason'),
     exitedAt: timestamp('exited_at', { withTimezone: true }),
+    /** The day the parker wants the customer contacted again (ADR 0125): a plain
+     *  calendar day, no time of day. NULL = "no date" and the lead sits in the
+     *  "none" group. Set only while `nurturing`; cleared with `exit_reason`. */
+    recontactOn: date('recontact_on'),
+    /** When a customer reply moved a parked lead back to the pool as `new` — the
+     *  "just replied" group is `new` + this set. Cleared once the lead gets an
+     *  owner or leaves `new`, so it can only mark an unclaimed reply. */
+    repliedFromPoolAt: timestamp('replied_from_pool_at', { withTimezone: true }),
 
     // ── disabled · switched off by a director ──────────────────────────────
     /** Non-null = hidden from everybody and frozen, with every deal and
@@ -449,6 +457,15 @@ export const lead = sales.table(
     check(
       'lead_state_known',
       sql`"state" IN ('new', 'assigned', 'working', 'nurturing', 'converted')`,
+    ),
+    /** A re-contact date only means something on a parked lead; every exit from the
+     *  pool clears it with the reason. */
+    check('lead_recontact_only_nurturing', sql`"recontact_on" IS NULL OR "state" = 'nurturing'`),
+    /** A reply marker only means something while the lead waits unclaimed in the
+     *  pool: `new` with no owner (see `lead_open_owner_matches`). */
+    check(
+      'lead_replied_from_pool_unclaimed',
+      sql`"replied_from_pool_at" IS NULL OR ("state" = 'new' AND "owner_id" IS NULL)`,
     ),
     /** A park always says why, and leaving the pool clears it (ADR 0109 §1).
      *  `lead_exit_pair` above pairs the timestamp. */

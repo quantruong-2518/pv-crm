@@ -891,6 +891,11 @@ export const StopReasonBody = z
     path: ['note'],
   })
 
+/** When to call a parked lead again. Absent or null = no date. "After today"
+ *  needs the server's clock, so the door judges it, not this schema. It lives
+ *  on each park body, not on `StopReasonBody`, which contract terminate shares. */
+export const RecontactOn = Day.nullable().optional()
+
 /** `POST /sales/opportunities/:code/stop` — the deal is lost, for good; there is
  *  no reopen door. Nurturing again starts from the lead.
  *
@@ -903,7 +908,7 @@ export const StopReasonBody = z
  *
  *  The lead needs no answer: stopping the last live deal with nothing signed
  *  parks it by itself (profile `parksLead`, ADR 0109). */
-export const OpportunityStopBody = StopReasonBody
+export const OpportunityStopBody = StopReasonBody.safeExtend({ recontactOn: RecontactOn })
 
 /** `POST /sales/opportunities/:code/accept` — a head-of-sales or director
  *  takes a `new` deal to `assigned`. Permission `opportunity.accept`.

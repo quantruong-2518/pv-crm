@@ -54,8 +54,8 @@ import { NotificationMenu } from '@/components/notification-menu'
  *  ------------------------------------------------------------------
  *  Hàng điều hướng chính chỉ nói về các khu vực NGƯỜI DÙNG THỰC SỰ LÀM VIỆC:
  *  Lead · Cơ hội · Hợp đồng · Chiến dịch là bốn lối vào trực
- *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng,
- *  Đang chờ và Báo cáo là ba menu có tên vì ít cần mở hơn. Chúng không nấp
+ *  tiếp, xếp từ trái sang phải theo giá trị sử dụng hằng ngày. Khách hàng
+ *  và Báo cáo là hai menu có tên vì ít cần mở hơn. Chúng không nấp
  *  dưới một mục "Kinh doanh" và
  *  không đứng cạnh roadmap Cung ứng/Sản xuất/Tài chính/One Plus chưa mở.
  *
@@ -251,9 +251,10 @@ export type SalesModule = {
   group: NavGroup
 }
 
-/** `primary` is the left-to-right daily work; `customer`, `waiting` and
- *  `manage` collapse into named menus, and `setup` lives in the settings frame. */
-type NavGroup = 'primary' | 'customer' | 'waiting' | 'manage' | 'setup'
+/** `primary` is the left-to-right daily work; `lead` hangs under the Lead entry
+ *  (its label still opens the book); `customer` and `manage` collapse into named
+ *  menus, and `setup` lives in the settings frame. */
+type NavGroup = 'primary' | 'lead' | 'customer' | 'manage' | 'setup'
 
 /** BẢY module Pebble Sales — bảng CHỐT.
  *
@@ -351,6 +352,16 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'customer',
   },
   {
+    /* Its pair: stopped leads waiting to be contacted again, plus the stop log (ADR 0125). */
+    no: 0,
+    icon: Timer,
+    label: 'Khách đã dừng',
+    path: '/sales/nurturing',
+    permission: 'lead.view',
+    question: 'Lead chờ liên hệ lại và nhật ký từng lần dừng',
+    group: 'customer',
+  },
+  {
     /** Đứng ngay sau Lead vì đó là bước kế tiếp của cùng một khách: qua cổng
      *  init data thì lead thành cơ hội. Hai sổ dùng chung bố cục và chung ba
      *  mảnh bảng (`components/table-bits.tsx`). */
@@ -363,24 +374,15 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'primary',
   },
   {
-    /* Not a numbered module: one list across leads and deals (ADR 0097 §3). Off the
-     main bar: a waiting list, not daily work; the books link here too. */
+    /* Not a numbered module: one list across leads and deals (ADR 0097 §3). Under
+     the Lead entry: a waiting list, not daily work (ADR 0125). */
     no: 0,
     icon: CalendarClock,
     label: 'Tạm hoãn',
     path: '/sales/holds',
     permission: 'lead.view',
     question: 'Lead và cơ hội đang tạm hoãn, hẹn ngày gặp lại',
-    group: 'waiting',
-  },
-  {
-    no: 0,
-    icon: Timer,
-    label: 'Nhóm chờ chăm sóc',
-    path: '/sales/nurturing',
-    permission: 'lead.view',
-    question: 'Lead và cơ hội đã dừng, hợp đồng đã chấm dứt',
-    group: 'waiting',
+    group: 'lead',
   },
   {
     /* Sits after Ops because it is the next step for the same customer:
@@ -528,6 +530,14 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
         access.check(actor, { branch: 'Sales', permission: m.permission }).ok,
     )
   const appsIn = (group: NavGroup) => modulesIn(group).map(moduleApp)
+  /* The Lead entry keeps going straight to its book; the chevron opens its side lists. */
+  const leadSubs = appsIn('lead')
+  const primaryApp = (module: SalesModule): HeaderApp => {
+    const app = moduleApp(module)
+    if (module.path !== '/sales/leads' || !leadSubs.length) return app
+    const items = [{ ...app, label: 'Sổ lead' }, ...leadSubs]
+    return { ...app, active: items.some((i) => i.active), items }
+  }
   /* A named dropdown, not a catch-all: the label tells what is inside it. */
   const menuOf = (label: string, icon: IconGlyph, description: string, items: HeaderApp[]) =>
     items.length ? [{ icon, label, description, active: items.some((i) => i.active), items }] : []
@@ -573,9 +583,8 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     /* One group, so no separators: the row reads as one list of books. */
     apps: [
       [
-        ...appsIn('primary'),
+        ...modulesIn('primary').map(primaryApp),
         ...menuOf('Khách hàng', Users, 'Công ty, người liên hệ và đối tác', appsIn('customer')),
-        ...menuOf('Đang chờ', Timer, 'Tạm hoãn và nhóm chờ chăm sóc', appsIn('waiting')),
         ...menuOf('Báo cáo', Gauge, 'KPI, chỉ tiêu và kế hoạch kỳ tới', appsIn('manage')),
       ],
     ],

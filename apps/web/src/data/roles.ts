@@ -125,7 +125,7 @@ export const PERMISSION_LABEL = {
   'lead.edit': 'Sửa hồ sơ lead',
   'lead.send-email': 'Gửi thư cho lead mình phụ trách',
   'lead.assign': 'Giao việc trên lead cho người khác',
-  'lead.disqualify': 'Chuyển lead vào Nhóm chờ chăm sóc',
+  'lead.disqualify': 'Chuyển lead vào Khách đã dừng',
   'lead.disable': 'Tắt và bật lại lead',
   'account.view': 'Xem khách hàng công ty',
   'account.edit': 'Sửa hồ sơ khách hàng công ty',

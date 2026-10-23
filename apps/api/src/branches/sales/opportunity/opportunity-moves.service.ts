@@ -14,6 +14,7 @@ import { endHolds, shiftDealClock } from '../hold/hold.sql'
 import { syncLeadRuns } from '../workstream/workstream-sync'
 import { LEAD_NOTE } from '../lead/lead-write.mapper'
 import { LEAD_PARK_REASON, LeadStateWriter } from '../lead/lead-state'
+import { assertRecontactLater } from '../lead/lead-exit.service'
 import { MeetingCancel } from '../meeting/meeting-cancel'
 import type { MeetingRowDb } from '../meeting/meeting.schema'
 import { announceOpened } from './opportunity-bell'
@@ -84,6 +85,7 @@ export class OpportunityMoves {
   ): Promise<OpportunityStopResponse> {
     const leadCode = await this.deals.scopedLeadCode(who, code)
     if (leadCode === null) throw notFound('cơ hội', code)
+    assertRecontactLater(body.recontactOn)
     const at = new Date()
     const gone: MeetingRowDb[] = []
 
@@ -115,7 +117,7 @@ export class OpportunityMoves {
         lead?.state === 'converted' && (await this.deals.allLost(tx, written.leadCode))
           ? lead
           : undefined
-      if (last) gone.push(...(await this.parkLead(tx, who, written.leadCode)))
+      if (last) gone.push(...(await this.parkLead(tx, who, written.leadCode, body.recontactOn)))
       else await syncLeadRuns(tx, [written.leadCode])
       return { row: written, read: fresh.read }
     })
@@ -127,10 +129,16 @@ export class OpportunityMoves {
   /** The machine's park (ADR 0109): no door, permission or scope — the stop
    *  already passed its own — and EX-08 is written even when switched off in
    *  config. The state writer re-syncs the run and withholds mail. */
-  private async parkLead(tx: Db, who: Actor, leadCode: string): Promise<MeetingRowDb[]> {
+  private async parkLead(
+    tx: Db,
+    who: Actor,
+    leadCode: string,
+    recontactOn: string | null | undefined,
+  ): Promise<MeetingRowDb[]> {
     const reasonId = LEAD_PARK_REASON.dealStopped
     const note = LEAD_NOTE.nurtured(reasonId, undefined)
-    await this.leadStates.parked(tx, leadCode, { by: null, reasonId, note, actorId: who.id })
+    const park = { by: null, reasonId, note, actorId: who.id, recontactOn }
+    await this.leadStates.parked(tx, leadCode, park)
     return this.meetings.cancelFor(tx, who, [leadCode], 'lead-nurtured')
   }
 

@@ -188,6 +188,8 @@ export function toContract(read: LeadRead, today: string): LeadRow {
     createdAt: row.createdAt.toISOString(),
     ...(row.exitReason ? { exitReason: row.exitReason } : {}),
     ...(row.exitedAt ? { exitedAt: row.exitedAt.toISOString() } : {}),
+    recontactOn: row.recontactOn,
+    repliedFromPoolAt: row.repliedFromPoolAt?.toISOString() ?? null,
     ...(read.duplicateOf?.length ? { duplicateOf: read.duplicateOf } : {}),
     ...(row.disabledAt ? { disabledAt: row.disabledAt.toISOString() } : {}),
     labels: read.labels,

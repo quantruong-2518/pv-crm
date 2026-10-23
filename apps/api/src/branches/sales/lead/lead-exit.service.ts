@@ -9,9 +9,10 @@ import {
   type ObjectCode,
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
-import { conflict, denied, notFound } from '@api/platform/http/problem'
+import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
 import { MeetingCancel } from '../meeting/meeting-cancel'
 import type { MeetingRowDb } from '../meeting/meeting.schema'
+import { vnDay } from '../opportunity/opportunity-lifecycle'
 import { byOf, TouchService, type TouchEntry } from '../touch/touch.service'
 import { LEAD_NOTE } from './lead-write.mapper'
 import { LeadService } from './lead.service'
@@ -23,6 +24,14 @@ export type LockedLead = NonNullable<Awaited<ReturnType<LeadWriteRepository['loc
 
 /** States the park door takes a lead from; `converted` only with nothing live. */
 const PARKABLE: readonly LeadState[] = ['new', 'assigned', 'working', 'converted']
+
+/** A re-contact day must lie ahead (ADR 0125) — "after today" needs the clock,
+ *  so the doors judge it, not the contract. Shared by every park body. */
+export function assertRecontactLater(day: string | null | undefined): void {
+  if (day && day <= vnDay(new Date())) {
+    throw invalid({ recontactOn: ['Ngày liên hệ lại phải sau hôm nay.'] })
+  }
+}
 
 /** A pool lead has no holder to call or hand over; the claim is its way out. */
 const IN_POOL = 'Lead đang ở Nhóm chờ chăm sóc. Bấm Nhận lead để chăm lại.'
@@ -92,12 +101,14 @@ export class LeadExitService {
       )
     }
     await this.assertReason(tx, body.reasonKey)
+    assertRecontactLater(body.recontactOn)
 
     await this.states.parked(tx, code, {
       by: who,
       reasonId: body.reasonKey,
       note: LEAD_NOTE.nurtured(body.reasonKey, body.note),
       actorId: who.id,
+      recontactOn: body.recontactOn,
     })
     return this.meetings.cancelFor(tx, who, [code], 'lead-nurtured')
   }

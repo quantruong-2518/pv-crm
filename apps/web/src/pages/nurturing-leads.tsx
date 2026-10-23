@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -6,42 +7,66 @@ import {
   ColumnFilterList,
   ColumnFilterRange,
   SearchField,
+  SegmentedControl,
   Select,
 } from '@pv/ui'
-import { LEAD_STOP_REASON_OTHER, LeadBookQuery, type LeadRow } from '@pv/contracts'
+import { LEAD_STOP_REASON_OTHER, LeadBookQuery, vnDayOf, type LeadRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
 import { searchHint } from '@/lib/search-box'
 import { leadBookQuery, leadStopReasonsQuery } from '@/data/leads'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
+import { recareCountsQuery } from '@/data/stop-log'
 import { stopReasonLabel } from '@/data/sales-config'
 import { dayRangeChip, listChip } from '@/components/active-filters'
 import { BookCount, BookPage, type BookTable } from '@/components/book-page'
 import { FilterSection, ViewSwitch } from '@/components/book-cards'
-import { GRID_PAGE_SIZE, noop } from '@/components/book-view'
+import { GRID_PAGE_SIZE, noop, useBookView } from '@/components/book-view'
 import { ClaimLeadButton } from '@/components/lead-claim'
 import { LabelChips } from '@/components/lead-labels'
 import { CompanyCell, MomentCell } from '@/components/lead-cells'
-import { LeadNurtureCards } from '@/components/nurture-cards'
+import { LeadNurtureCards, RecontactCell } from '@/components/nurture-cards'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
 import { SourceCell } from './leads-parts'
-import { withTab, withoutTab, type NurtureBookProps } from './nurturing-model'
+import {
+  PAGE_TITLE,
+  RECARE_GROUPS,
+  RECARE_GROUP_LABEL,
+  defaultGroup,
+  groupQuery,
+  withPageKeys,
+  withoutPageKeys,
+  type NurtureTabProps,
+  type RecareGroup,
+} from './nurturing-model'
 
-/** The lead tab of the nurturing page: every lead parked in the pool, with the
- *  reason and the moment it went in. Reason, entry day and label narrow it; the
- *  overview's links land here with the first two already set. */
+/** The re-contact tab (ADR 0125): parked leads by re-contact day, and
+ *  the leads a customer reply brought back. The group lives in the address;
+ *  with none there, fresh replies open first while there are any. Reason and
+ *  entry day narrow only the parked groups — a reply clears both on the lead. */
 
 const PAGE_SIZE = 10
-const SCHEMA = withTab(LeadBookQuery)
+const SCHEMA = withPageKeys(LeadBookQuery)
 const FILTER_KEYS = ['exitReason', 'exitedFrom', 'exitedTo', 'label'] as const
+const NO_POOL_FILTERS = { exitReason: undefined, exitedFrom: undefined, exitedTo: undefined }
+
+const EMPTY: Record<RecareGroup, string> = {
+  replied: 'Chưa có khách nào vừa phản hồi.',
+  due: 'Không có lead nào đến hạn liên hệ lại.',
+  later: 'Không có lead nào hẹn liên hệ lại sau.',
+  none: 'Không có lead nào chưa hẹn ngày liên hệ lại.',
+}
 
 const csvOf = (v?: string) => (v ? v.split(',') : [])
 
-/** The reason list, the two header filters and the chips for what is narrowed.
- *  Each filter's body is written once: in a column popover for the table, or in
- *  a section of the grid's filter menu. */
-function useNurtureFilters(query: LeadBookQuery, patch: (next: Partial<LeadBookQuery>) => void) {
+/** The header filters and the chips for what is narrowed. Each filter's body is
+ *  written once: in a column popover for the table, or in the grid's menu. */
+function useRecareFilters(
+  query: LeadBookQuery,
+  replied: boolean,
+  patch: (next: Partial<LeadBookQuery>) => void,
+) {
   const { data: reasons } = useQuery(leadStopReasonsQuery)
   const { data: labels } = useQuery(leadLabelOptionsQuery)
   const reasonName = (id?: string) => stopReasonLabel(reasons?.rows, id)
@@ -77,8 +102,8 @@ function useNurtureFilters(query: LeadBookQuery, patch: (next: Partial<LeadBookQ
     </ColumnFilter>
   )
   const menu = (
-    <FilterMenu label="Bộ lọc nhóm chờ chăm sóc" active={Number(dayOn) + Number(labelOn)}>
-      <FilterSection title="Ngày vào nhóm">{dayBody(noop)}</FilterSection>
+    <FilterMenu label="Bộ lọc khách đã dừng" active={Number(dayOn) + Number(labelOn)}>
+      {!replied && <FilterSection title="Ngày vào nhóm">{dayBody(noop)}</FilterSection>}
       <FilterSection title="Nhãn">{labelBody(noop)}</FilterSection>
     </FilterMenu>
   )
@@ -102,20 +127,24 @@ function useNurtureFilters(query: LeadBookQuery, patch: (next: Partial<LeadBookQ
   return { reasons, reasonName, dayFilter, labelFilter, menu, chips }
 }
 
-/** The table view, as the tab drew it before cards. */
-function leadNurtureTable(
+type Filters = ReturnType<typeof useRecareFilters>
+
+/** A parked lead: why, since when, when to call again, and the claim. */
+function parkedTable(
   rows: LeadRow[],
-  filters: ReturnType<typeof useNurtureFilters>,
+  filters: Filters,
+  today: string,
   canClaim: boolean,
-  navigate: (to: string) => void,
+  open: (code: string) => void,
 ): BookTable {
   const { reasonName, dayFilter, labelFilter } = filters
   return {
-    minWidth: 'min-w-[960px]',
+    minWidth: 'min-w-[1040px]',
     columns: [
       { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)' },
       { header: 'Lý do', width: 'minmax(0,1.4fr)' },
       { header: 'Ngày vào nhóm', filter: dayFilter, width: 'minmax(0,1fr)' },
+      { header: 'Liên hệ lại', width: 'minmax(0,1fr)' },
       { header: labelFilter, width: 'minmax(0,1.2fr)' },
       { header: 'Nguồn lead', width: 'minmax(0,1.3fr)' },
       ...(canClaim
@@ -130,13 +159,14 @@ function leadNurtureTable(
     ],
     rows: rows.map((l) => ({
       id: l.code,
-      onOpen: () => navigate(`/sales/leads/${encodeURIComponent(l.code)}`),
+      onOpen: () => open(l.code),
       cells: [
         <CompanyCell key="c" lead={l} />,
         <span key="r" className="truncate text-[13px]" title={reasonName(l.exitReason)}>
           {reasonName(l.exitReason) ?? '—'}
         </span>,
         <MomentCell key="d" iso={l.exitedAt} />,
+        <RecontactCell key="n" on={l.recontactOn} today={today} />,
         <LabelChips key="l" labels={l.labels} max={2} className="flex-nowrap" />,
         <SourceCell key="s" lead={l} />,
         ...(canClaim ? [<ClaimLeadButton key="a" code={l.code} />] : []),
@@ -145,24 +175,78 @@ function leadNurtureTable(
   }
 }
 
-export function LeadNurtureBook({ tabs, view, onView }: NurtureBookProps) {
+/** A lead a reply brought back: in `new`, assigned the usual way from its page. */
+function repliedTable(rows: LeadRow[], filters: Filters, open: (code: string) => void): BookTable {
+  return {
+    minWidth: 'min-w-[800px]',
+    columns: [
+      { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.2fr)' },
+      { header: 'Phản hồi lúc', width: 'minmax(0,1fr)' },
+      { header: filters.labelFilter, width: 'minmax(0,1.2fr)' },
+      { header: 'Nguồn lead', width: 'minmax(0,1.3fr)' },
+    ],
+    rows: rows.map((l) => ({
+      id: l.code,
+      onOpen: () => open(l.code),
+      cells: [
+        <CompanyCell key="c" lead={l} />,
+        <MomentCell key="t" iso={l.repliedFromPoolAt ?? undefined} />,
+        <LabelChips key="l" labels={l.labels} max={2} className="flex-nowrap" />,
+        <SourceCell key="s" lead={l} />,
+      ],
+    })),
+  }
+}
+
+export function RecareBook({ nav }: NurtureTabProps) {
   const navigate = useNavigate()
   const canClaim = useCan('lead.edit')
+  const [view, setView] = useBookView('pv.nurturing.view')
+  const [today] = useState(() => vnDayOf(new Date()))
   const pageSize = view === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE
   const book = useBookQuery(SCHEMA, { size: pageSize, filterKeys: FILTER_KEYS })
-  const query = { ...withoutTab(book.query), state: 'nurturing' as const }
-  const { data, isPending, error, refetch } = useQuery(leadBookQuery(query))
+  const counts = useQuery(recareCountsQuery)
+  /* Unset in the address: wait for the counts, or the book would flash `due` first. */
+  const group = book.query.group ?? (counts.isPending ? undefined : defaultGroup(counts.data))
+  const replied = group === 'replied'
+  const query: LeadBookQuery = {
+    ...withoutPageKeys(book.query),
+    ...(replied ? NO_POOL_FILTERS : {}),
+    ...groupQuery(group ?? 'due'),
+  }
+  const { data, isPending, error, refetch } = useQuery({
+    ...leadBookQuery(query),
+    enabled: group !== undefined,
+  })
   const { pageIndex } = useBookPageClamp(book, data?.total)
-  const filters = useNurtureFilters(query, book.patch)
-  const { reasons, chips } = filters
+  const filters = useRecareFilters(query, replied, book.patch)
   const rows = data?.rows ?? []
+  const open = (code: string) => navigate(`/sales/leads/${encodeURIComponent(code)}`)
+
+  const groups = (
+    <SegmentedControl
+      label="Nhóm"
+      hideLabel
+      tone="quiet"
+      value={group ?? ''}
+      options={RECARE_GROUPS.map((g) => ({
+        value: g,
+        label: RECARE_GROUP_LABEL[g],
+        count: counts.data?.[g],
+      }))}
+      onChange={(value) =>
+        book.patch({ group: value as RecareGroup, ...(value === 'replied' ? NO_POOL_FILTERS : {}) })
+      }
+    />
+  )
 
   return (
     <BookPage
-      title="Nhóm chờ chăm sóc"
-      tabs={tabs}
+      title={PAGE_TITLE}
+      nav={nav}
+      tabs={groups}
       count={data && <BookCount total={data.total} noun="lead" hidden={data.hidden} />}
-      filters={chips}
+      filters={filters.chips}
       tools={
         <>
           <SearchField
@@ -172,20 +256,22 @@ export function LeadNurtureBook({ tabs, view, onView }: NurtureBookProps) {
             onChange={book.setText}
             className="min-w-0 flex-1 sm:max-w-[320px]"
           />
-          <Select
-            label="Lý do"
-            value={query.exitReason ?? ''}
-            neutralValue=""
-            options={[
-              { value: '', label: 'Tất cả' },
-              ...(reasons?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
-              { value: LEAD_STOP_REASON_OTHER, label: 'Khác' },
-            ]}
-            onChange={(value) => book.patch({ exitReason: value === '' ? undefined : value })}
-            className="pointer-coarse:[&>button]:h-12 max-w-[240px]"
-          />
+          {!replied && (
+            <Select
+              label="Lý do"
+              value={query.exitReason ?? ''}
+              neutralValue=""
+              options={[
+                { value: '', label: 'Tất cả' },
+                ...(filters.reasons?.rows ?? []).map((r) => ({ value: r.id, label: r.name })),
+                { value: LEAD_STOP_REASON_OTHER, label: 'Khác' },
+              ]}
+              onChange={(value) => book.patch({ exitReason: value === '' ? undefined : value })}
+              className="pointer-coarse:[&>button]:h-12 max-w-[240px]"
+            />
+          )}
           {view === 'grid' && filters.menu}
-          <ViewSwitch value={view} onChange={onView} />
+          <ViewSwitch value={view} onChange={setView} />
           {book.dirty && (
             <Button size="md" variant="ghost" className="pointer-coarse:h-12" onClick={book.clear}>
               Bỏ hết bộ lọc
@@ -210,17 +296,29 @@ export function LeadNurtureBook({ tabs, view, onView }: NurtureBookProps) {
                 action: { label: 'Bỏ hết bộ lọc', onClick: book.clear },
               }
             : {
-                message: 'Chưa có lead nào trong nhóm chờ.',
+                message: EMPTY[group ?? 'due'],
                 action: { label: 'Tải lại', onClick: () => void refetch() },
               }
           : undefined
       }
       cards={
         view === 'grid' ? (
-          <LeadNurtureCards rows={rows} reasonName={filters.reasonName} canClaim={canClaim} />
+          <LeadNurtureCards
+            rows={rows}
+            replied={replied}
+            today={today}
+            reasonName={filters.reasonName}
+            canClaim={canClaim}
+          />
         ) : undefined
       }
-      table={view === 'table' ? leadNurtureTable(rows, filters, canClaim, navigate) : undefined}
+      table={
+        view === 'table'
+          ? replied
+            ? repliedTable(rows, filters, open)
+            : parkedTable(rows, filters, today, canClaim, open)
+          : undefined
+      }
       footer={
         <TableFooter
           page={pageIndex}

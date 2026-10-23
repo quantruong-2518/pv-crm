@@ -42,7 +42,7 @@ import { MOTION_BY_CHANNEL } from './lead-intake'
 import { LeadOriginId, LeadOriginPick } from './lead-origin'
 import { LeadSource } from './lead-source'
 import { PartnerCode } from './partner'
-import { OPPORTUNITY_STOP_REASON_OTHER, StopReasonBody } from './opportunity'
+import { OPPORTUNITY_STOP_REASON_OTHER, RecontactOn, StopReasonBody } from './opportunity'
 
 /** Lead book — module 2 of the Sales branch. `GET /sales/leads`.
  *
@@ -197,6 +197,10 @@ export const LeadRow = z.object({
    *  somebody just added on the Config screen. */
   exitReason: z.string().optional(),
   exitedAt: Moment.optional(),
+  /** Day to call a nurturing lead again; null = no date (ADR 0125). */
+  recontactOn: Day.nullable().optional(),
+  /** Set while a customer reply put a pooled lead back to `new`, until it gets an owner. */
+  repliedFromPoolAt: Moment.nullable().optional(),
   /** When the lead was switched off. Present only on a row a `lead.disable`
    *  holder reads — nobody else is ever handed a disabled lead. */
   disabledAt: Moment.optional(),
@@ -350,6 +354,10 @@ export const LeadBookQuery = PageQuery.extend({
    *  the overview's stop reasons count by, so their links match. */
   exitedFrom: Day.optional(),
   exitedTo: Day.optional(),
+  /** Nurturing leads by re-contact date: due = today or earlier, later, none. */
+  recontact: z.enum(['due', 'later', 'none']).optional(),
+  /** `true` = only leads a customer reply moved back to `new` (`repliedFromPoolAt`). */
+  replied: Bool.optional(),
 
   q: searchText,
 
@@ -1012,7 +1020,7 @@ export type LeadIndustryTagsResponse = z.infer<typeof LeadIndustryTagsResponse>
  *  contract, → `nurturing` with no holder. The reason comes from `EXIT_REASON`
  *  (ADR 0070). `POST :code/resume` (the claim, no body) makes the caller the
  *  holder again. Labels are not in this body: they go through `:code/labels`. */
-export const LeadNurtureBody = LeadStopBody
+export const LeadNurtureBody = LeadStopBody.safeExtend({ recontactOn: RecontactOn })
 
 /** All lifecycle doors answer the re-read profile, like `PATCH :code`. */
 export const LeadContactedResponse = LeadProfile

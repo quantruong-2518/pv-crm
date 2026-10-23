@@ -67,19 +67,29 @@ export type LeadReach = Extract<LeadState, 'assigned' | 'working'>
 type LeadColumns = Omit<PgUpdateSetSource<typeof lead>, 'code' | 'state' | 'stateSince'>
 
 /** `lead_nurturing_has_reason` ties the park reason and moment to `nurturing`,
- *  so every UPDATE that lands elsewhere clears them in the same statement. */
-const LEFT_POOL = { exitReason: null, exitedAt: null } as const
+ *  so every UPDATE that lands elsewhere clears them — and the re-contact day —
+ *  in the same statement. The reply marker goes too: no move but the reply's
+ *  own keeps a lead unclaimed in `new` (`lead_replied_from_pool_unclaimed`). */
+const LEFT_POOL = {
+  exitReason: null,
+  exitedAt: null,
+  recontactOn: null,
+  repliedFromPoolAt: null,
+} as const
 
 type StoredLead = { row: LeadRowDb; ownerName: string | null }
 
 /** One park into the pool: the touch's author (`null` = the machine, for a
  *  deal stop or a termination), the `EXIT_REASON` id, the timeline sentence,
- *  and who pressed what caused it — the former holder is not told of their own act. */
+ *  and who pressed what caused it — the former holder is not told of their own act.
+ *  `recontactOn` = the day to call again (ADR 0125), absent = no date. The state
+ *  it leaves is not passed: `parked` reads it off the row the caller locked. */
 export type Park = {
   by: { id: string; name: string } | null
   reasonId: string
   note: string
   actorId: string | null
+  recontactOn?: string | null | undefined
 }
 
 /** Who a move is credited to: the holder (only their own leads move) or the system. */
@@ -145,6 +155,7 @@ export class LeadStateWriter {
       to: 'new',
       from: ['nurturing'],
       note: LEAD_NOTE.repliedIntoPool,
+      also: { repliedFromPoolAt: sql`now()` },
     })
     for (const p of pooled) {
       const subject = { kind: 'lead' as const, code: p.code, label: p.company }
@@ -193,12 +204,13 @@ export class LeadStateWriter {
       from: readonly LeadState[]
       kind: 'exchange-logged'
       note: string
+      also?: LeadColumns
     },
   ): Promise<{ code: string; company: string; occurrence: string | undefined }[]> {
     if (codes.length === 0) return []
     const moved = await tx
       .update(lead)
-      .set({ ...LEFT_POOL, state: step.to, stateSince: sql`now()` })
+      .set({ ...LEFT_POOL, ...step.also, state: step.to, stateSince: sql`now()` })
       .where(
         and(
           inArray(lead.code, [...codes]),
@@ -277,10 +289,12 @@ export class LeadStateWriter {
       exitReason: park.reasonId,
       /* The DB clock, same as the `state_since` this move stamps. */
       exitedAt: sql`now()`,
+      recontactOn: park.recontactOn ?? null,
+      repliedFromPoolAt: null,
     })
     /* `nurturing` is open, so `move` keeps the step; the pool has nobody to do it. */
     await dropStep(tx, code)
-    const occurrence = await this.afterPark(tx, code, park)
+    const occurrence = await this.afterPark(tx, code, park, before.row.state)
     const holder = before.row.ownerId
     await this.hub.announce(tx, {
       event: {
@@ -295,10 +309,15 @@ export class LeadStateWriter {
   }
 
   /** What every park owes beside the move: the dated `nurtured` row carrying the
-   *  reason (ADR 0070), unsent mail withheld (ADR 0068 §6), and an open hold
-   *  ended — a parked lead sits in the pool, not in the hold list.
+   *  reason (ADR 0070) and the state left (ADR 0125), unsent mail withheld
+   *  (ADR 0068 §6), and an open hold ended — a parked lead sits in the pool.
    *  Returns the `nurtured` row's id, the bell's occurrence. */
-  private async afterPark(tx: Db, code: string, park: Park): Promise<string | undefined> {
+  private async afterPark(
+    tx: Db,
+    code: string,
+    park: Park,
+    parkedFrom: LeadState,
+  ): Promise<string | undefined> {
     const [occurrence] = await this.touch.record(tx, [
       {
         subjectCode: code,
@@ -307,6 +326,7 @@ export class LeadStateWriter {
         ...byOf(park.by),
         note: park.note,
         reasonId: park.reasonId,
+        parkedFrom,
       },
     ])
     await this.mailRuns.withholdSubject(

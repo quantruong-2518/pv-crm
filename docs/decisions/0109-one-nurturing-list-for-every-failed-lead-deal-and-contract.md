@@ -3,6 +3,8 @@
 Status: accepted (supersedes parts of 0057, 0068, 0069, 0088, 0097 and 0107 — exact paragraphs under "Supersedes"; answers open question 104)
 Source: project owner's decisions in chat, 21/10/2026, one question each
 
+> Superseded in part by 0125: §5's page with three tabs — now "Khách đã dừng" with two tabs.
+
 ## Context
 
 A failed lead could end in two places: "Nhóm chờ chăm sóc" (`nurturing`, with a

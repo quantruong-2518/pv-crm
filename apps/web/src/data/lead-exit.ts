@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import type { LeadNurtureBody, LeadNurtureResponse, LeadResumeResponse } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
+import { STOP_LOG_KEY } from './stop-log'
 import { WORKSTREAM_BOOK_KEY } from './workstreams'
 
 /** A lead entering and leaving the nurturing pool (ADR 0109), no approval.
@@ -31,6 +32,8 @@ export const LEAD_STATE_KEYS = [
   /* `HOLD_LIST_KEY` (`./holds`), spelled out: that file imports this one. A
      touch, a park or a convert ends a lead's hold. */
   ['sales', 'holds'],
+  /* A park, a deal stop or a termination writes a log row; a claim turns its "now". */
+  STOP_LOG_KEY,
 ] as const
 
 export function invalidateLeadState(client: QueryClient) {

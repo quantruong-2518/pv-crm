@@ -62,7 +62,7 @@ export function CareArea({ catalog }: AreaProps) {
       {/* 5.4e — ADR 0097 §5: the lead book and the campaign picker filter by these. */}
       <Section
         at="waiting-labels"
-        hint="Gắn cho lead ở Nhóm chờ chăm sóc để lọc và chọn vào chiến dịch."
+        hint="Gắn cho lead ở Khách đã dừng để lọc và chọn vào chiến dịch."
         summary={<EntryCount rows={labels} noun="nhãn" />}
       >
         {labels.length === 0 ? (

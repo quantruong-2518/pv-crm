@@ -5,6 +5,8 @@ import { LEAD_STATE_LABEL, LEAD_STOP_REASON_OTHER, type LeadProfile } from '@pv/
 import { userMessage } from '@/app/api'
 import { toastDone, toastFail } from '@/app/toast'
 import { MeetingsCancelNote } from '@/components/meetings-cancel-note'
+import { RecontactField } from '@/components/recontact-field'
+import { RECONTACT_DEFAULT, recontactOnOf } from '@/components/recontact-pick'
 import { StopReasonField } from '@/components/stop-reason-field'
 import { StepFooter } from '@/components/step-footer'
 import { LabelPicker } from '@/components/lead-labels'
@@ -35,6 +37,7 @@ export function NurtureDialog({
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
   const [labels, setLabels] = useState<string[]>([])
+  const [recontact, setRecontact] = useState(RECONTACT_DEFAULT)
   const nurture = useNurtureLead(profile.code)
   const endHold = useEndLeadHold(profile.code)
   const saveLabels = useSetLeadLabels(profile.code)
@@ -49,13 +52,16 @@ export function NurtureDialog({
     if (open) {
       setReasonKey('')
       setNote('')
+      setRecontact(RECONTACT_DEFAULT)
       setLabels(seedLabels === '' ? [] : seedLabels.split(','))
       reset()
       resetEnd()
     }
   }, [open, reset, resetEnd, seedLabels])
 
-  const ready = reasonKey !== '' && (reasonKey !== LEAD_STOP_REASON_OTHER || note.trim() !== '')
+  const recontactOn = recontactOnOf(recontact)
+  const reasoned = reasonKey !== '' && (reasonKey !== LEAD_STOP_REASON_OTHER || note.trim() !== '')
+  const ready = reasoned && recontactOn !== undefined
   const parked = () => {
     meetingsCancelled(client)
     const message = `Đã chuyển ${profile.code} vào ${LEAD_STATE_LABEL.nurturing}.`
@@ -87,7 +93,13 @@ export function NurtureDialog({
         <StepFooter
           error={door.error}
           pending={door.isPending || saveLabels.isPending}
-          hint={ready ? 'Ghi ngay, không cần duyệt.' : 'Chọn lý do.'}
+          hint={
+            ready
+              ? 'Ghi ngay, không cần duyệt.'
+              : reasoned
+                ? 'Chọn ngày liên hệ lại.'
+                : 'Chọn lý do.'
+          }
           onClose={onClose}
           confirm={{
             icon: Timer,
@@ -95,7 +107,11 @@ export function NurtureDialog({
             disabled: !ready,
             onClick: () => {
               const trimmed = note.trim()
-              const body = { reasonKey, ...(trimmed === '' ? {} : { note: trimmed }) }
+              const body = {
+                reasonKey,
+                ...(trimmed === '' ? {} : { note: trimmed }),
+                recontactOn,
+              }
               if (held) endHold.mutate({ to: 'waiting', ...body }, { onSuccess: parked })
               else nurture.mutate(body, { onSuccess: parked })
             },
@@ -110,6 +126,9 @@ export function NurtureDialog({
         onNoteChange={setNote}
         notePlaceholder="Khách hẹn quay lại khi nào, chờ điều gì…"
       />
+      <div className="mt-6">
+        <RecontactField value={recontact} onChange={setRecontact} disabled={door.isPending} />
+      </div>
       <div className="mt-6 flex flex-col gap-2">
         <span className="text-muted-foreground text-[11px]">Nhãn nhóm chờ</span>
         <LabelPicker value={labels} onChange={setLabels} disabled={door.isPending} />

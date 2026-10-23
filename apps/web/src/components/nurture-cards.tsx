@@ -1,26 +1,17 @@
 import type { ReactNode } from 'react'
-import type { ContractRow, LeadRow, OpportunityBookRow } from '@pv/contracts'
-import { saleOwnersOf } from '@/data/opportunities'
+import { Badge } from '@pv/ui'
+import type { LeadRow } from '@pv/contracts'
+import { dmy } from '@/lib/date'
 import { BOOK_CARD } from './book-cards'
-import {
-  CARD_GRID,
-  CardFoot,
-  CardHead,
-  CardNote,
-  CardPerson,
-  CardStat,
-  CardTitle,
-  CompanyMark,
-} from './book-card-parts'
-import { moneyIn } from './deal-money/money'
+import { CARD_GRID, CardFoot, CardHead, CardNote, CardTitle, CompanyMark } from './book-card-parts'
 import { ClaimLeadButton } from './lead-claim'
 import { LabelChips } from './lead-labels'
 
-/** The nurturing page's three tabs as cards (ADR 0109): a parked lead, a
- *  stopped deal, a terminated contract, read who → why it left → when. A card
- *  keeps the row's facts but two: the lead's origin, and every Sale on a deal
- *  but the primary. The pool has no holder, so the lead card ends on the claim
- *  button the row carries. */
+/** The re-contact tab of the stopped-customers page as cards (ADR 0109, 0125): a parked
+ *  lead read who → why it stopped → when to call again. A card keeps the row's
+ *  facts but the lead's origin. A parked lead has no holder, so its card ends
+ *  on the claim button; a lead a reply brought back is in `new` and is
+ *  assigned the usual way, so its card ends on the reply's day. */
 
 /* Pinned to Vietnam time as the table's `MomentCell`, so the day printed is
    the day the entry-day filter matches. */
@@ -31,13 +22,24 @@ const DAY = new Intl.DateTimeFormat('vi-VN', {
   year: 'numeric',
 })
 
-const dayOf = (iso?: string) => {
+const dayOf = (iso?: string | null) => {
   const at = new Date(iso ?? '')
   return Number.isNaN(at.getTime()) ? '—' : DAY.format(at)
 }
 
-/** A labelled date in the foot, in `CardPerson`'s type so the two read as one row. */
-function FootDate({ label, children }: { label: string; children: ReactNode }) {
+const dayNo = (day: string) => Date.parse(`${day}T00:00:00Z`) / 86_400_000
+
+/** The re-contact day against `today` (both Vietnam days): late, today, later, or none. */
+export function RecontactCell({ on, today }: { on?: string | null; today: string }) {
+  if (!on) return <span className="text-muted-foreground text-[13px]">Không hẹn</span>
+  const late = dayNo(today) - dayNo(on)
+  if (late > 0) return <Badge tone="danger">Trễ {late} ngày</Badge>
+  if (late === 0) return <Badge tone="warning">Hôm nay</Badge>
+  return <span className="tnum font-num text-[13px]">{dmy(on)}</span>
+}
+
+/** A labelled value, in `CardPerson`'s type so a row of them reads as one line. */
+function Labelled({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-[12px]">
       {label}
@@ -48,10 +50,15 @@ function FootDate({ label, children }: { label: string; children: ReactNode }) {
 
 export function LeadNurtureCards({
   rows,
+  replied,
+  today,
   reasonName,
   canClaim,
 }: {
   rows: readonly LeadRow[]
+  /** The just-replied group: no reason, no re-contact day, no claim. */
+  replied: boolean
+  today: string
   reasonName: (id?: string) => string | undefined
   canClaim: boolean
 }) {
@@ -69,12 +76,21 @@ export function LeadNurtureCards({
             subtitle={l.contactName}
             code={l.code}
           />
-          <CardNote>{reasonName(l.exitReason)}</CardNote>
+          {!replied && <CardNote>{reasonName(l.exitReason)}</CardNote>}
+          {!replied && (
+            <Labelled label="Liên hệ lại">
+              <RecontactCell on={l.recontactOn} today={today} />
+            </Labelled>
+          )}
           <LabelChips labels={l.labels} max={2} className="flex-nowrap" />
           <CardFoot>
-            <FootDate label="Ngày vào nhóm">{dayOf(l.exitedAt)}</FootDate>
+            {replied ? (
+              <Labelled label="Ngày phản hồi">{dayOf(l.repliedFromPoolAt)}</Labelled>
+            ) : (
+              <Labelled label="Ngày vào nhóm">{dayOf(l.exitedAt)}</Labelled>
+            )}
             {/* Lifts the button over the title's stretched link. */}
-            {canClaim && (
+            {canClaim && !replied && (
               <span className="relative z-[1]">
                 <ClaimLeadButton code={l.code} />
               </span>
@@ -82,83 +98,6 @@ export function LeadNurtureCards({
           </CardFoot>
         </article>
       ))}
-    </div>
-  )
-}
-
-/** The seller the card names: the primary on the Sale lane, else its first. */
-const sellerOf = (op: OpportunityBookRow) => {
-  const sale = saleOwnersOf(op)
-  return (sale.find((o) => o.primary) ?? sale[0])?.name
-}
-
-/** `stopDate` is the table's own date cell, handed in so card and row print one date. */
-export function DealNurtureCards({
-  rows,
-  stopDate,
-}: {
-  rows: readonly OpportunityBookRow[]
-  stopDate: (op: OpportunityBookRow) => ReactNode
-}) {
-  return (
-    <div className={CARD_GRID}>
-      {rows.map((op) => (
-        <article key={op.code} className={BOOK_CARD}>
-          <CardHead
-            mark={<CompanyMark name={op.account} />}
-            title={
-              <CardTitle
-                to={`/sales/opportunities/${encodeURIComponent(op.code)}`}
-                title={op.account}
-              >
-                {op.account}
-              </CardTitle>
-            }
-            subtitle={op.name}
-            code={op.code}
-          />
-          <CardNote>{op.stopReasonLabel ?? undefined}</CardNote>
-          <CardFoot>
-            <CardPerson name={sellerOf(op)} label="Sale phụ trách" empty="Chưa có Sale phụ trách" />
-            <FootDate label="Ngày dừng">{stopDate(op)}</FootDate>
-          </CardFoot>
-        </article>
-      ))}
-    </div>
-  )
-}
-
-/* A contract has no name of its own: the customer is the title, as the table's
-   bold line, and the code rides in the chip. */
-export function ContractNurtureCards({ rows }: { rows: readonly ContractRow[] }) {
-  return (
-    <div className={CARD_GRID}>
-      {rows.map((c) => {
-        const t = c.termination
-        const money = moneyIn(c.currency)
-        return (
-          <article key={c.code} className={BOOK_CARD}>
-            <CardHead
-              mark={<CompanyMark name={c.customer} />}
-              title={
-                <CardTitle to={`/sales/contracts/${encodeURIComponent(c.code)}`} title={c.customer}>
-                  {c.customer}
-                </CardTitle>
-              }
-              code={c.code}
-            />
-            <CardNote>{t?.reasonLabel}</CardNote>
-            <span className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-              <CardStat value={t ? money(t.collectedAmount) : '—'} label="đã thu" />
-              <CardStat value={t ? money(t.refundedAmount) : '—'} label="đã hoàn" />
-            </span>
-            <CardFoot>
-              <CardPerson name={t?.byName} label="Người chấm dứt" empty="Chưa ghi người chấm dứt" />
-              <FootDate label="Ngày chấm dứt">{t ? dayOf(t.terminatedAt) : '—'}</FootDate>
-            </CardFoot>
-          </article>
-        )
-      })}
     </div>
   )
 }

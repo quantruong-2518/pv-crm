@@ -2,6 +2,7 @@ import {
   Bell,
   BriefcaseDollar,
   Building,
+  CalendarClock,
   ChartAnalysis,
   Contact,
   ContactBook,
@@ -51,7 +52,15 @@ const HEADER_CUSTOMER = [
 const HEADER_APPS = [
   [
     { icon: Route, label: 'Hành trình' },
-    { icon: Users, label: 'Lead' },
+    {
+      icon: Users,
+      label: 'Lead',
+      onClick: () => {},
+      items: [
+        { icon: Users, label: 'Sổ lead' },
+        { icon: CalendarClock, label: 'Tạm hoãn' },
+      ],
+    },
     { icon: BriefcaseDollar, label: 'Cơ hội' },
     { icon: FileCheck, label: 'Hợp đồng' },
     { icon: Megaphone, label: 'Chiến dịch' },

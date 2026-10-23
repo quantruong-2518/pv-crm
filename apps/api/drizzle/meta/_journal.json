@@ -1009,6 +1009,13 @@
       "when": 1795590720000,
       "tag": "0148_workstream_document_types",
       "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1795600000000,
+      "tag": "0149_stop_log_recontact",
+      "breakpoints": true
     }
   ]
 }

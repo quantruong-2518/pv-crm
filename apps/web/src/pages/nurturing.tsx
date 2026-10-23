@@ -1,53 +1,31 @@
-import type { ComponentType } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppShell, ScreenLayout, SegmentedControl } from '@pv/ui'
-import { useCan } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
-import { useBookView } from '@/components/book-view'
-import { ContractNurtureBook } from './nurturing-contracts'
-import { DealNurtureBook } from './nurturing-deals'
-import { LeadNurtureBook } from './nurturing-leads'
-import {
-  NURTURE_TAB_LABEL,
-  tabsFor,
-  type NurtureBookProps,
-  type NurtureTab,
-} from './nurturing-model'
+import { RecareBook } from './nurturing-leads'
+import { StopLogBook } from './nurturing-log'
+import { NURTURE_TABS, NURTURE_TAB_LABEL, type NurtureTab } from './nurturing-model'
 
-/** The nurturing page — `/sales/nurturing` (ADR 0109): the leads parked, the
- *  deals stopped and the contracts terminated, one tab each. The active tab
- *  lives in the address (`?tab=`); a tab the reader may not view is left out,
- *  and an address naming one falls back to the lead tab.
- *
- *  Only the active tab is mounted, so only its book is read. A row opens the
- *  record's own page, where the way back is. Grid or table is one choice for
- *  the whole page, so changing tab keeps it.
+/** The stopped-customers page — `/sales/nurturing` (ADR 0109, 0125): the parked leads to
+ *  contact again, and the log of every stop decision. The tab lives in the
+ *  address (`?tab=`); an unknown one falls back to the re-contact tab. Only the
+ *  active tab is mounted, so only its book is read, and switching tab starts
+ *  that tab's filters fresh. A row opens the record's own page.
  *
  *  No ContextRail (law 10 debt, as on the hold list): a list of unrelated
  *  objects has no one story to chain. */
 
-const BOOKS: Record<NurtureTab, ComponentType<NurtureBookProps>> = {
-  lead: LeadNurtureBook,
-  deal: DealNurtureBook,
-  contract: ContractNurtureBook,
-}
-
 export function NurturingPage() {
   const chrome = useAppChrome({ searchPlaceholder: 'Tìm khách hàng, cơ hội, báo giá, hồ sơ…' })
   const [params, setParams] = useSearchParams()
-  const [view, setView] = useBookView('pv.nurturing.view')
-  const available = tabsFor(useCan('opportunity.view'), useCan('contract.view'))
   const asked = params.get('tab')
-  const tab = available.find((t) => t === asked) ?? 'lead'
-  const Book = BOOKS[tab]
+  const tab: NurtureTab = NURTURE_TABS.find((t) => t === asked) ?? 'recare'
 
-  const switcher = available.length > 1 && (
+  const nav = (
     <SegmentedControl
-      label="Loại"
+      label="Mục"
       hideLabel
-      tone="quiet"
       value={tab}
-      options={available.map((t) => ({ value: t, label: NURTURE_TAB_LABEL[t] }))}
+      options={NURTURE_TABS.map((t) => ({ value: t, label: NURTURE_TAB_LABEL[t] }))}
       onChange={(value) => setParams({ tab: value })}
     />
   )
@@ -55,7 +33,7 @@ export function NurturingPage() {
   return (
     <AppShell {...chrome.shell}>
       <ScreenLayout>
-        <Book tabs={switcher} view={view} onView={setView} />
+        {tab === 'log' ? <StopLogBook nav={nav} /> : <RecareBook nav={nav} />}
       </ScreenLayout>
     </AppShell>
   )

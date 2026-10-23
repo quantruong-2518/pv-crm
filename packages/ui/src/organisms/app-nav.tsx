@@ -41,8 +41,13 @@ function AppButton({
   onToggle: (button: HTMLButtonElement) => void
 }) {
   const hasItems = Boolean(app.items?.length) && !app.locked
-  return (
+  /* A split entry: the label navigates, a separate chevron owns the menu. */
+  const split = hasItems && Boolean(app.onClick)
+  const menuButton = hasItems && !split
+  const mainRef = useRef<HTMLButtonElement>(null)
+  const main = (
     <button
+      ref={mainRef}
       type="button"
       title={app.description ?? app.label}
       aria-label={
@@ -53,11 +58,11 @@ function AppButton({
             : app.label
       }
       disabled={app.locked}
-      aria-expanded={hasItems ? open : undefined}
-      aria-haspopup={hasItems ? 'menu' : undefined}
-      aria-controls={hasItems && open ? menuId : undefined}
+      aria-expanded={menuButton ? open : undefined}
+      aria-haspopup={menuButton ? 'menu' : undefined}
+      aria-controls={menuButton && open ? menuId : undefined}
       aria-current={app.active ? 'page' : undefined}
-      onClick={(e) => (hasItems ? onToggle(e.currentTarget) : app.onClick?.())}
+      onClick={(e) => (menuButton ? onToggle(e.currentTarget) : app.onClick?.())}
       /* Locked: only the icons dim, the label keeps `--muted-foreground`.
          Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
       className={cn(
@@ -81,7 +86,7 @@ function AppButton({
           {app.count > 99 ? '99+' : app.count}
         </span>
       ) : null}
-      {hasItems ? (
+      {menuButton ? (
         <Icon
           icon={ChevronDown}
           size={14}
@@ -90,6 +95,27 @@ function AppButton({
       ) : null}
       {app.locked ? <LockMark /> : null}
     </button>
+  )
+  if (!split) return main
+  return (
+    <span className="flex shrink-0 items-center">
+      {main}
+      <button
+        type="button"
+        aria-label={`Mở menu ${app.label}`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-controls={open ? menuId : undefined}
+        onClick={() => mainRef.current && onToggle(mainRef.current)}
+        className={cn(
+          'motion-std pointer-coarse:h-12 pointer-coarse:w-12 flex h-10 w-6 items-center justify-center rounded-md',
+          app.active || open ? 'bg-primary/15 text-on-tint-primary' : 'text-foreground/80',
+          'hover:bg-surface-ink/10 hover:text-foreground',
+        )}
+      >
+        <Icon icon={ChevronDown} size={14} className={cn('motion-std', open && 'rotate-180')} />
+      </button>
+    </span>
   )
 }
 

@@ -1,6 +1,6 @@
 import { check, index, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { LeadTier, RoleId, TouchKind, TouchSubject } from '@pv/contracts'
+import type { LeadState, LeadTier, RoleId, TouchKind, TouchSubject } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { stepTemplate } from '../config/step-frame.schema'
 import { sales } from '../sales.schema'
@@ -151,6 +151,13 @@ export const touch = sales.table(
      *  No index: no screen asks "touches of template X" yet. */
     templateId: uuid('template_id').references(() => stepTemplate.id),
 
+    /** The lead's state at the moment it was parked — the "stage at stop" column
+     *  of the stop log (ADR 0125). A copy taken at write time, like `by`: the
+     *  lead's state moves on after the park, so it cannot be read back later.
+     *  NULL on every `nurtured` row written before 0149 (the log prints a placeholder)
+     *  and on every other kind. */
+    parkedFrom: text('parked_from').$type<LeadState>(),
+
     note: text('note').notNull(),
   },
   (t) => [
@@ -160,6 +167,11 @@ export const touch = sales.table(
     index('touch_subject_idx').on(t.subjectCode, t.at.desc()),
     /** "Việc tôi đã làm", chưa có màn nào hỏi. Rẻ, và cột đã có sẵn. */
     index('touch_actor_idx').on(t.actorId),
+    /** "Which lead parks fell in this period, newest first?" — the stop log's lead
+     *  rows. Partial so the dominant kinds stay out of it: parks are a sliver. */
+    index('touch_nurtured_at_idx')
+      .on(t.at.desc())
+      .where(sql`"kind" = 'nurtured'`),
     check('touch_subject_kind_known', sql`"subject_kind" IN ('lead', 'opportunity')`),
     /** Every `TouchKind` value, copied out by hand: the enum changing must be a
      *  migration somebody reads (0097 `re-entered`, 0101 `customer-replied`). Legacy kinds
@@ -232,6 +244,16 @@ export const touch = sales.table(
      *  `touch_hand_over_sides`: a pre-column or pre-deploy row stays NULL
      *  rather than fail. */
     check('touch_reason_only_stop', sql`"reason_id" IS NULL OR "kind" IN ('nurtured', 'exited')`),
+    /** Only a park names the state it left. One-way like the checks above: a
+     *  pre-0149 `nurtured` row stays NULL. */
+    check('touch_parked_from_only_nurtured', sql`"parked_from" IS NULL OR "kind" = 'nurtured'`),
+    /** The six `LeadState` values, copied out by hand for `touch_kind_known`'s
+     *  reason. `converted` stays: an automatic park (EX-08/09) leaves it. */
+    check(
+      'touch_parked_from_known',
+      sql`"parked_from" IS NULL OR "parked_from" IN ('new', 'assigned', 'working',
+                                                       'nurturing', 'converted')`,
+    ),
     /** One-way for `touch_reason_only_stop`'s reason: a typed step, and every
      *  `next-step-done` row older than 0091, has no template. */
     check('touch_template_only_step_done', sql`"template_id" IS NULL OR "kind" = 'next-step-done'`),

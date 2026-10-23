@@ -10,6 +10,7 @@ import {
   LeadScorecard,
   LeadTier,
   PipelinePositionView,
+  RecareCountsResponse,
   type ContactCreate,
   type ContactListResponse,
   type ContactPatch,
@@ -95,6 +96,12 @@ export class LeadService {
       total: page.total,
       hidden: page.hidden + hidden,
     })
+  }
+
+  /** `GET /sales/leads/recare-counts` — the four group sizes of the re-contact
+   *  tab, on the book's scope axis (ADR 0125). */
+  async recareCounts(who: Actor): Promise<RecareCountsResponse> {
+    return RecareCountsResponse.parse(await this.repo.recareCounts(who))
   }
 
   /** Nửa "không chiến dịch" của ô lọc Nguồn — `GET /sales/leads/facets`. Đọc

@@ -11,14 +11,7 @@ import {
 import { useCan } from '@/app/auth'
 import { CHART_TILE, ToneTile } from './home-funnel'
 import { MARK_EASE } from './home-look'
-import {
-  NURTURING_CONTRACTS_HREF,
-  daysOfPeriod,
-  exitedLeadsHref,
-  num,
-  rateOf,
-  stoppedDealsHref,
-} from './home-model'
+import { daysOfPeriod, num, rateOf, stopLogHref, stoppedDealsHref } from './home-model'
 import { periodLabel } from '@/data/period-pick'
 
 /** Why leads, deals and signed contracts left in the picked period: one panel
@@ -344,7 +337,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               title={`Lead vào ${LEAD_STATE_LABEL.nurturing}`}
               unit="lead"
               rows={data.leadExits}
-              hrefOf={(r) => (canLeads ? exitedLeadsHref(r.key, days) : undefined)}
+              hrefOf={() => (canLeads ? stopLogHref('lead', days) : undefined)}
             />
           )}
           {data.dealStops.length > 0 && (
@@ -364,7 +357,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
               title="Hợp đồng đã chấm dứt"
               unit="hợp đồng"
               rows={data.contractTerminations}
-              hrefOf={() => (canLeads && canContracts ? NURTURING_CONTRACTS_HREF : undefined)}
+              hrefOf={() => (canLeads && canContracts ? stopLogHref('contract', days) : undefined)}
             />
           )}
         </div>

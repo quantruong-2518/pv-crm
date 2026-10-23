@@ -376,9 +376,9 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/holds'),
   },
   {
-    /** Leads parked, deals stopped and contracts terminated, one list (ADR 0109). */
+    /** Parked leads waiting to be contacted again, and the stop log (ADR 0109, 0125). */
     path: '/sales/nurturing',
-    name: 'Nhóm chờ chăm sóc',
+    name: 'Khách đã dừng',
     branch: 'Sales',
     permission: 'lead.view',
     load: () => import('@/pages/nurturing'),

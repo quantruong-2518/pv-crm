@@ -115,6 +115,14 @@ export class LeadController {
     return this.leads.facets(who, q)
   }
 
+  /** Group sizes of the re-contact tab (ADR 0125). Above `:code` for the
+   *  reason `scorecard` gives; `scoped: true` on the book's own axis. */
+  @Get('recare-counts')
+  @Need({ branch: 'Sales', permission: 'lead.view', scoped: true })
+  recareCounts(@CurrentActor() who: Actor) {
+    return this.leads.recareCounts(who)
+  }
+
   /** Tag vocabulary for the lead form's typeahead.
    *
    *  Must stay above `@Get(':code')` for the reason `scorecard` gives. Not

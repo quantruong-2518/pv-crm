@@ -46,7 +46,9 @@ export type HeaderApp = {
   active?: boolean
   locked?: boolean
   onClick?: () => void
-  /** Module con. Có thì mục này xổ dropdown thay vì đi thẳng. */
+  /** Sub-modules: the entry opens a dropdown instead of going straight there.
+   *  With `onClick` as well, the label still goes straight and only the chevron
+   *  opens the dropdown — for a daily book that also has a side list. */
   items?: HeaderAction[]
   /** Work waiting on the viewer inside this module, drawn like the approvals count. */
   count?: number

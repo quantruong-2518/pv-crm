@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
   TouchTimelineResponse,
+  type LeadState,
   type LeadTier,
   type TouchHolder,
   type TouchKind,
@@ -53,6 +54,7 @@ export class TouchService {
         ...(e.actorId === undefined ? {} : { actorId: e.actorId }),
         ...(e.at === undefined ? {} : { at: e.at }),
         ...(e.reasonId === undefined ? {} : { reasonId: e.reasonId }),
+        ...(e.parkedFrom === undefined ? {} : { parkedFrom: e.parkedFrom }),
         ...(e.templateId ? { templateId: e.templateId } : {}),
         /* One end spreads into two columns, and the pair is spread together so
            an id can never land without its name — the shape
@@ -110,6 +112,9 @@ export type TouchEntry = {
   /** `EXIT_REASON` config id (or `'other'`) of a stop — only on `'exited'` and
    *  `'nurtured'`, which `touch_reason_only_stop` enforces (ADR 0070). */
   reasonId?: string
+  /** The lead state a park left — only on `'nurtured'`, which
+   *  `touch_parked_from_only_nurtured` enforces (ADR 0125). */
+  parkedFrom?: LeadState
   /** The template a finished step was picked from (ADR 0080 §5) — only on
    *  `'next-step-done'`, which `touch_template_only_step_done` enforces. */
   templateId?: string | null

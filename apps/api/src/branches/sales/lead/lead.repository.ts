@@ -27,6 +27,7 @@ import {
   type LeadSourceKind,
   type LeadTier,
   type LeadStateFilter,
+  type RecareCountsResponse,
 } from '@pv/contracts'
 import { createdWithin } from '@api/platform/db/book-filter'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -51,6 +52,7 @@ import { contact } from '../contact/contact.schema'
 import { realExchanges } from '../performance/real-exchange'
 import { lead, leadLabel } from './lead.schema'
 import { labelsOf, leadLabelledAny } from './lead-label.sql'
+import { recareCounts, recareFilter, recareOrder } from './lead-recare.sql'
 import { leadHolderScope, leadLive, leadScope } from './lead-scope'
 import type {
   LeadMailEventRead,
@@ -212,10 +214,12 @@ export class LeadRepository {
       : [
           ...this.filtersOf(q),
           pinned,
-          this.stateFilter(q.state),
-          q.states
-            ? and(inArray(lead.state, listOf(q.states) as LeadState[]), not(leadHeld(lead.code)))
-            : undefined,
+          ...(recareFilter(q) ?? [
+            this.stateFilter(q.state),
+            q.states
+              ? and(inArray(lead.state, listOf(q.states) as LeadState[]), not(leadHeld(lead.code)))
+              : undefined,
+          ]),
           leadLive,
         ]
 
@@ -269,6 +273,11 @@ export class LeadRepository {
       total: scoped_,
       hidden: all === null ? 0 : all - scoped_,
     }
+  }
+
+  /** Size of each re-contact group (ADR 0125), over the book's own fence. */
+  recareCounts(who: Actor): Promise<RecareCountsResponse> {
+    return recareCounts(this.db, and(leadLive, this.scopeOf(who, true)))
   }
 
   /** Nửa "không chiến dịch" của ô lọc Nguồn — bốn `LeadSourceKind` nào đang
@@ -719,6 +728,8 @@ export class LeadRepository {
     const primary =
       q.sort === 'company' ? lead.company : q.sort === 'daysHere' ? DAYS_HERE : lead.createdAt
     const rank = q.q ? [desc(fuzzyRank(SEARCHED, q.q))] : []
+    const recare = recareOrder(q)
+    if (recare) return [...rank, ...recare, asc(lead.code)]
     return [...rank, dir(primary), dir(lead.code)]
   }
 

@@ -184,19 +184,9 @@ export const enteredLeadsHref = (days: SalesDayRange): string =>
 
 const NURTURING_HREF = '/sales/nurturing'
 
-/** Leads parked in the nurturing pool for one reason in the period. */
-export const exitedLeadsHref = (reason: string, days: SalesDayRange): string => {
-  const params = new URLSearchParams({
-    tab: 'lead',
-    exitReason: reason,
-    exitedFrom: days.first,
-    exitedTo: days.last,
-  })
-  return `${NURTURING_HREF}?${params}`
-}
-
-/** The pool's tab of contracts that were terminated. */
-export const NURTURING_CONTRACTS_HREF = `${NURTURING_HREF}?tab=contract`
+/** The stop log narrowed to one kind over the overview's period. */
+export const stopLogHref = (kind: 'lead' | 'contract', days: SalesDayRange): string =>
+  `${NURTURING_HREF}?${new URLSearchParams({ tab: 'log', kind, from: days.first, to: days.last })}`
 
 // ---------------------------------------------------------------------------
 // THE WORKSTREAM BOOK — where the runs tile sends the reader

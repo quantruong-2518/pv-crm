@@ -33,6 +33,8 @@ import {
 } from '@/data/opportunities-write'
 import { MeetingsCancelNote } from './meetings-cancel-note'
 import { Field } from './ops-fields'
+import { RecontactField } from './recontact-field'
+import { RECONTACT_DEFAULT, recontactOnOf } from './recontact-pick'
 
 /** Module 3 · stopping a deal, and what a stopped deal remembers (ADR 0069 §1).
  *
@@ -52,6 +54,13 @@ function stopSubjects(op: OpportunityProfileResponse): MeetingSubject[] {
   ]
 }
 
+/** The footer's line while nothing is sent: what the form still lacks. */
+function missingLine(reasonKey: string, noteMissing: boolean, dayMissing: boolean) {
+  if (reasonKey === '') return 'Chọn một lý do.'
+  if (noteMissing) return `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
+  return dayMissing ? 'Chọn ngày liên hệ lại.' : null
+}
+
 export function StopDrawer({
   op,
   open,
@@ -64,6 +73,7 @@ export function StopDrawer({
   const waiting = op.money.open.filter((n) => n.pendingId !== null).length
   const [reasonKey, setReasonKey] = useState('')
   const [note, setNote] = useState('')
+  const [recontact, setRecontact] = useState(RECONTACT_DEFAULT)
   const stop = useStopDeal(op.code)
   const { data: catalog } = useQuery(opportunityStopReasonsQuery)
   /* `stage: null` is offered in every column — the rule the server checks the key by. */
@@ -71,13 +81,21 @@ export function StopDrawer({
   const flagged = new Set(reasons.filter((r) => r.doNotContact).map((r) => r.id))
   const busy = stop.isPending
   const noteNeeded = reasonKey === OPPORTUNITY_STOP_REASON_OTHER
-  const ready = reasonKey !== '' && (!noteNeeded || note.trim() !== '') && !busy
+  /* The day applies to the lead, so it is asked only when this stop parks it. */
+  const recontactOn = op.parksLead ? recontactOnOf(recontact) : null
+  const missing = missingLine(
+    reasonKey,
+    noteNeeded && note.trim() === '',
+    recontactOn === undefined,
+  )
+  const ready = missing === null && !busy
 
   const submit = () =>
     stop.mutate(
       {
         reasonKey,
         ...(note.trim() === '' ? {} : { note: note.trim() }),
+        ...(op.parksLead ? { recontactOn } : {}),
       },
       {
         /* Closes only once the server accepted, so a refusal cannot vanish. */
@@ -85,6 +103,7 @@ export function StopDrawer({
           toastDone(`Đã dừng ${op.code}.`)
           setReasonKey('')
           setNote('')
+          setRecontact(RECONTACT_DEFAULT)
           onClose()
         },
       },
@@ -109,7 +128,7 @@ export function StopDrawer({
       title="Dừng cơ hội"
       subtitle={
         <>
-          <span className="font-mono">{op.code}</span> · {op.account}. Dừng rồi không mở lại được .
+          <span className="font-mono">{op.code}</span> · {op.account}. Dừng rồi không mở lại được.
         </>
       }
       footer={
@@ -121,15 +140,7 @@ export function StopDrawer({
             )}
             aria-live="polite"
           >
-            {stop.error
-              ? userMessage(stop.error)
-              : busy
-                ? 'Đang dừng cơ hội…'
-                : reasonKey === ''
-                  ? 'Chọn một lý do.'
-                  : noteNeeded && note.trim() === ''
-                    ? `Chọn "${OPPORTUNITY_STOP_REASON_OTHER_LABEL}" thì phải nhập ghi chú.`
-                    : null}
+            {stop.error ? userMessage(stop.error) : busy ? 'Đang dừng cơ hội…' : missing}
           </span>
           <div className="flex shrink-0 gap-2">
             <Button
@@ -199,9 +210,12 @@ export function StopDrawer({
         </Field>
 
         {op.parksLead && (
-          <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-            Lead của cơ hội này sẽ chuyển vào {LEAD_STATE_LABEL.nurturing}.
-          </p>
+          <>
+            <p className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
+              Lead của cơ hội này sẽ chuyển vào {LEAD_STATE_LABEL.nurturing}.
+            </p>
+            <RecontactField value={recontact} onChange={setRecontact} disabled={busy} />
+          </>
         )}
       </div>
     </Drawer>

@@ -26,6 +26,7 @@ import { OpportunityModule } from './opportunity/opportunity.module'
 import { PartnerModule } from './partner/partner.module'
 import { PerformanceModule } from './performance/performance.module'
 import { SearchModule } from './search/search.module'
+import { StopLogModule } from './stop-log/stop-log.module'
 import { TOUCH_CONSTRAINTS } from './touch/touch.constraints'
 import { WorkstreamModule } from './workstream/workstream.module'
 
@@ -99,6 +100,8 @@ registerConstraints(HOLD_CONSTRAINTS)
     HoldModule,
     /* The bought-customer book (ADR 0121): reads all three books, none imports it. */
     AfterSaleModule,
+    /* The stop log (ADR 0125): reads all three books' stops, none imports it. */
+    StopLogModule,
     /* The hourly Google retry for cancelled meetings — here, not in
        `MeetingModule`, so the one-off scripts never start it. */
     MeetingCancelSweepModule,
