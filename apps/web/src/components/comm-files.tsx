@@ -22,7 +22,7 @@ import {
  *  50 MB, the rest 15 MB, both from the contract) is checked here, because the
  *  drop molecule knows one ceiling and a recording may legitimately be longer
  *  than any document. Recordings are kept forever (ADR 0075 §6), so the only
- *  delete is the owner's, while the record is not done. */
+ *  delete is the owner's: while the record is open, or while editing it (ADR 0122). */
 
 const MB = 1024 * 1024
 
@@ -58,7 +58,7 @@ export function CommFileDrop({ id }: { id: string }) {
   )
 }
 
-/** The files of an open record, each deletable by its owner. */
+/** The files of a record in the owner's form, each deletable by them. */
 export function CommFileList({ id, canDelete }: { id: string; canDelete: boolean }) {
   const { data, isPending, error } = useQuery(commFilesQuery(id))
   const remove = useDeleteCommFile(id)

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { CustomerTemperature, WorkstreamHolder } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { journeyInGrowth, liveContractOwners } from '../open-deal'
@@ -65,5 +65,24 @@ export class CustomerTemperatureRepository {
   /** Inside the close-out's transaction; `debrief_id` UNIQUE refuses a second reading. */
   async insert(tx: Db, values: CustomerTemperatureValues): Promise<void> {
     await tx.insert(customerTemperature).values(values)
+  }
+
+  /** The reading one close-out took; null when it took none. */
+  async readingOf(debriefId: string): Promise<CustomerTemperature | null> {
+    const [row] = await this.db
+      .select({ temperature: customerTemperature.temperature })
+      .from(customerTemperature)
+      .where(eq(customerTemperature.debriefId, debriefId))
+      .limit(1)
+    return row?.temperature ?? null
+  }
+
+  /** The owner's edit corrects the reading in place (ADR 0122): `recorded_at`
+   *  stays, so the reading keeps its place in the journey's history. */
+  async retemper(tx: Db, debriefId: string, temperature: CustomerTemperature): Promise<void> {
+    await tx
+      .update(customerTemperature)
+      .set({ temperature })
+      .where(eq(customerTemperature.debriefId, debriefId))
   }
 }

@@ -168,6 +168,21 @@ export class DebriefRepository {
     return row !== undefined && row.closedAt === null
   }
 
+  /** The edit's twin of `lockOpen`: true only for a record still `done`. */
+  async lockDone(tx: Db, id: string): Promise<boolean> {
+    const [row] = await tx
+      .select({
+        closedAt: debrief.closedAt,
+        unreached: debrief.unreached,
+        cancelled: debrief.cancelled,
+      })
+      .from(debrief)
+      .where(eq(debrief.id, id))
+      .limit(1)
+      .for('update')
+    return row !== undefined && row.closedAt !== null && !row.unreached && !row.cancelled
+  }
+
   /** One page of an owner's open records, longest-owed first; `subjectCodes`
    *  narrows to one sales run. */
   async pending(
@@ -250,6 +265,20 @@ export class DebriefRepository {
       .update(debrief)
       .set({ ...values, closedAt: sql`now()` })
       .where(eq(debrief.id, id))
+  }
+
+  /** The edit (ADR 0122): `closed_at` stays the confirm's instant. */
+  async rewrite(
+    tx: Db,
+    id: string,
+    values: Partial<
+      Pick<
+        DebriefValues,
+        'title' | 'summary' | 'nextKindId' | 'nextKindName' | 'nextText' | 'nextDue'
+      >
+    >,
+  ): Promise<void> {
+    await tx.update(debrief).set(values).where(eq(debrief.id, id))
   }
 
   /** Closes a record as "could not reach the customer". Flags only: an open
@@ -343,6 +372,11 @@ export class DebriefRepository {
   async insertAnswers(tx: Db, rows: readonly DebriefAnswerValues[]): Promise<void> {
     if (rows.length === 0) return
     await tx.insert(debriefAnswer).values([...rows])
+  }
+
+  async replaceAnswers(tx: Db, id: string, rows: readonly DebriefAnswerValues[]): Promise<void> {
+    await tx.delete(debriefAnswer).where(eq(debriefAnswer.debriefId, id))
+    await this.insertAnswers(tx, rows)
   }
 
   /** Answers of many debriefs in one statement; a debrief with none is absent. */

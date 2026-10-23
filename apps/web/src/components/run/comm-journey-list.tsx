@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Badge, Button, Icon, cn, type StatusDotState } from '@pv/ui'
+import { Badge, Icon, cn, type StatusDotState } from '@pv/ui'
 import { MAIL_LETTER_STATE_LABEL, type MailMergeKey } from '@pv/contracts'
 import { CommLateMark, CommOverdueMark, CommStateBadge } from '@/components/comm-bits'
 import { LETTER_TONE } from '@/components/mail-letter/letter-model'
@@ -7,12 +7,18 @@ import { MERGE_PATTERN } from '@/components/mail-rich-body-model'
 import { COMM_FOCUS, COMM_STATE_DOT } from '@/data/comm-record-detail'
 import { COMMS_CHANNEL_ICON, COMMS_CHANNEL_LABEL } from '@/data/comms'
 import { MERGE_LABEL } from '@/data/mail-hints'
-import { dm, dmhm } from '@/lib/date'
+import { useMinuteClock } from '@/data/minute-clock'
+import { dm, dmy, hm } from '@/lib/date'
 import type { JourneyRow, MergeValues } from './comm-journey-rows'
 
-/** The rows of `CommJourney`: a gutter of channel icon over date, then what
+/** The rows of `CommJourney`: a gutter of channel icon over hour, then what
  *  was said, then who said it. The icon stands where a dot would and takes the
- *  dot's colour, so channel and state cost one mark, not a mark and a word. */
+ *  dot's colour, so channel and state cost one mark, not a mark and a word.
+ *
+ *  The day is not repeated per row: rows are grouped by calendar day and a
+ *  divider names it, so every row, a booked meeting or a scheduled letter
+ *  included, has the same one-hour gutter. The rail runs on through the
+ *  dividers; both rail and hairline are background spans (law 4). */
 
 const NOTE = 'm-0 text-[12.5px] leading-[1.6] text-muted-foreground'
 
@@ -36,18 +42,32 @@ function RowPill({ row }: { row: JourneyRow }) {
   return <Badge tone={LETTER_TONE[state].badge}>{MAIL_LETTER_STATE_LABEL[state]}</Badge>
 }
 
-/** A scheduled letter or a booked meeting has not happened yet, so it carries
- *  its hour under the day. */
-function Stamp({ row }: { row: JourneyRow }) {
-  if (!row.at) return null
-  const ahead = row.letter?.state === 'SCHEDULED' || row.commState === 'scheduled'
-  const [day, hour] = (ahead ? dmhm(row.at) : dm(row.at)).split(' ')
-  return (
-    <span className="text-muted-foreground tnum flex flex-col items-center text-[11.5px] leading-[1.4]">
-      <span>{day}</span>
-      {hour && <span>{hour}</span>}
-    </span>
-  )
+const DAY_MS = 86_400_000
+
+/** Today · yesterday · dd/mm, with the year only outside the current one.
+ *  Read in the reader's zone through `lib/date`, so 23:00Z is already tomorrow. */
+function dayLabel(at: string | null, now: number) {
+  if (!at) return 'Chưa có ngày'
+  const day = dmy(at)
+  const today = dmy(new Date(now).toISOString())
+  if (day === today) return 'Hôm nay'
+  if (day === dmy(new Date(now - DAY_MS).toISOString())) return 'Hôm qua'
+  return day.endsWith(today.slice(-4)) ? dm(at) : day
+}
+
+type Item = { kind: 'day'; key: string; label: string } | { kind: 'row'; row: JourneyRow }
+
+/** Rows arrive newest first, so one day is always a run of neighbours. */
+function withDays(rows: JourneyRow[], now: number): Item[] {
+  const items: Item[] = []
+  let last: string | undefined
+  for (const row of rows) {
+    const label = dayLabel(row.at, now)
+    if (label !== last) items.push({ kind: 'day', key: `day:${row.key}`, label })
+    last = label
+    items.push({ kind: 'row', row })
+  }
+  return items
 }
 
 /** A letter's subject is stored as its template. Each key shows its value, or
@@ -68,9 +88,16 @@ function mergeParts(text: string, values: MergeValues) {
 function Body({ row, open }: { row: JourneyRow; open: (() => void) | null }) {
   if (row.commState === 'empty') {
     return row.canFill && open ? (
-      <Button size="sm" variant="ghost" className="pointer-coarse:h-12" onClick={open}>
-        Bổ sung nội dung
-      </Button>
+      <button
+        type="button"
+        onClick={open}
+        className={cn(
+          'text-warning pointer-coarse:min-h-12 inline-flex items-center rounded-sm text-[13px] font-medium underline underline-offset-4',
+          COMM_FOCUS,
+        )}
+      >
+        Bổ sung thông tin
+      </button>
     ) : (
       <p className={NOTE}>Chưa có nội dung.</p>
     )
@@ -121,13 +148,32 @@ export function JourneyList({
   openOf: (row: JourneyRow) => (() => void) | null | undefined | false
   actionsOf: (row: JourneyRow) => ReactNode
 }) {
+  const now = useMinuteClock()
+  const items = withDays(rows, now)
   return (
     <ol className="m-0 flex list-none flex-col p-0">
-      {rows.map((row, i) => {
+      {items.map((item, i) => {
+        const more = i < items.length - 1
+        if (item.kind === 'day') {
+          return (
+            <li key={item.key} role="presentation" className="flex gap-3">
+              <div className="flex w-10 shrink-0 justify-center">
+                {i > 0 && <span aria-hidden className="bg-surface-ink/8 w-px" />}
+              </div>
+              <div className="flex min-w-0 flex-1 items-center gap-2 pb-2">
+                <span className="text-muted-foreground tnum text-[11.5px] font-medium leading-[1.4]">
+                  {item.label}
+                </span>
+                <span aria-hidden className="bg-surface-ink/8 h-px flex-1" />
+              </div>
+            </li>
+          )
+        }
+        const { row } = item
         const actions = actionsOf(row)
         return (
           <li key={row.key} className="flex gap-3">
-            <div className="flex w-12 shrink-0 flex-col items-center gap-1">
+            <div className="flex w-10 shrink-0 flex-col items-center gap-1">
               <span
                 className={cn(
                   'inline-flex',
@@ -143,16 +189,15 @@ export function JourneyList({
                 <Icon icon={COMMS_CHANNEL_ICON[row.channel]} size={16} />
                 <span className="sr-only">{COMMS_CHANNEL_LABEL[row.channel]}</span>
               </span>
-              <Stamp row={row} />
-              {i < rows.length - 1 && <span aria-hidden className="bg-surface-ink/8 w-px flex-1" />}
+              {row.at && (
+                <span className="text-muted-foreground tnum text-[11.5px] leading-[1.4]">
+                  {hm(row.at)}
+                </span>
+              )}
+              {more && <span aria-hidden className="bg-surface-ink/8 w-px flex-1" />}
             </div>
 
-            <div
-              className={cn(
-                'flex min-w-0 flex-1 flex-col items-start gap-1',
-                i < rows.length - 1 && 'pb-5',
-              )}
-            >
+            <div className={cn('flex min-w-0 flex-1 flex-col items-start gap-1', more && 'pb-5')}>
               <Body row={row} open={openOf(row) || null} />
               <p className="text-muted-foreground m-0 flex flex-wrap items-center gap-x-2 text-[12px] leading-[1.5]">
                 {row.owner && <span className="italic">{row.owner}</span>}

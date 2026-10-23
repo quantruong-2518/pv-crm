@@ -46,6 +46,8 @@ There is no reopen. The web asks once before closing
 (`apps/web/src/components/comm-unreached-dialog.tsx`). The button sits in the
 record page's form bar and folds into the "Khác" menu under `sm`.
 
+Amended by ADR 0122: an edit of a confirmed record is not a reopen; "no reopen" stands.
+
 ### 4 · One clock-driven bell reminder
 
 Kind `comm-record-late`, subject kind `comm-record` (code = debrief id), group

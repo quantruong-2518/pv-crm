@@ -20,6 +20,7 @@ import {
   type CommRecordState,
   type CommVocabularyResponse,
   type DebriefClose,
+  type DebriefEdit,
   type DebriefStepInput,
   type DebriefSummary,
   type MessageDirection,
@@ -31,7 +32,13 @@ import { FileText, ImageFrame, type IconGlyph } from '@pv/ui'
 import { api, type ApiError } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { COMMS_KEY, COMM_VIEW_NEED, threadMessagesQuery } from '@/data/comms'
-import { nextStepKey, rereadOptionsOnRefusal, stepOptionsMoved } from '@/data/next-step'
+import { AFTER_SALE_BOOK_KEY } from '@/data/after-sale'
+import {
+  NEXT_STEP_KEY,
+  nextStepKey,
+  rereadOptionsOnRefusal,
+  stepOptionsMoved,
+} from '@/data/next-step'
 import { chainPath } from '@/data/opportunities'
 import { putOnceMore } from '@/data/lead-scan-run'
 
@@ -171,6 +178,34 @@ export function commClosed(client: QueryClient, view: DebriefView) {
   void client.invalidateQueries({ queryKey: COMMS_KEY })
 }
 
+/** The owner's change to a confirmed record (ADR 0122). A 409 means the step
+ *  it set has moved on, so the record is read again and that part locks. */
+export function useEditComm() {
+  const client = useQueryClient()
+
+  return useMutation<DebriefView, ApiError, { id: string; body: DebriefEdit }>({
+    mutationFn: ({ id, body }) =>
+      api.write(`/comms/debriefs/${encodeURIComponent(id)}/edit`, {
+        body,
+        need: COMM_VIEW_NEED,
+        schema: DebriefView,
+      }),
+    onError: (error, { id }) => {
+      rereadOptionsOnRefusal(client)(error)
+      if (error.kind === 'conflict') {
+        void client.invalidateQueries({ queryKey: commRecordQuery(id).queryKey })
+      }
+    },
+    onSuccess: (view) => {
+      commClosed(client, view)
+      /* A bought customer's step and temperature sit on its lead, not on the subject. */
+      void client.invalidateQueries({ queryKey: NEXT_STEP_KEY })
+      void client.invalidateQueries({ queryKey: ['sales', 'workstreams', 'journey'] })
+      void client.invalidateQueries({ queryKey: AFTER_SALE_BOOK_KEY })
+    },
+  })
+}
+
 // ---------------------------------------------------------------------------
 // FILES ON A RECORD — declare → PUT → uploaded
 // ---------------------------------------------------------------------------
@@ -254,7 +289,7 @@ export async function uploadCommFile(
   return declared.id
 }
 
-/** Owner only, and only while the comm is not done; the server refuses the rest. */
+/** Owner only — while the comm is open, or while editing it once done (ADR 0122). */
 export const deleteCommFile = (id: string, attachmentId: string) =>
   api.write<void>(
     `/comms/debriefs/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachmentId)}`,
@@ -272,7 +307,7 @@ export function useAttachCommFile(id: string) {
   })
 }
 
-/** Owner only, and only while the record is not done; the server refuses the rest. */
+/** Owner only; the server refuses everybody else. */
 export function useDeleteCommFile(id: string) {
   const client = useQueryClient()
 
@@ -410,11 +445,10 @@ export function summaryTextOf(summary: DebriefSummary): string {
   return summary.state === 'hidden' ? 'Tóm tắt bị ẩn theo quyền của bạn.' : 'Chưa có tóm tắt.'
 }
 
-/** The line a comm row prints: a booked meeting has no summary yet, so its
- *  title (the meeting's own) stands in; every other row prints the summary. */
+/** The line a comm row prints: its title (a meeting's is the meeting's own),
+ *  so every channel reads alike; only a record closed untitled prints the summary. */
 export function titleOf(row: Pick<DebriefView, 'state' | 'title' | 'summary'>) {
-  if (row.state === 'scheduled' && row.title) return { title: row.title, titleMuted: false }
-  if (row.state === 'cancelled' && row.title) return { title: row.title, titleMuted: true }
+  if (row.title) return { title: row.title, titleMuted: row.state === 'cancelled' }
   if (row.state === 'unreached') return { title: UNREACHED_LINE, titleMuted: true }
   return { title: summaryTextOf(row.summary), titleMuted: row.summary.state !== 'visible' }
 }

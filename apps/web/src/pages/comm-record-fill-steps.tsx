@@ -15,9 +15,9 @@ import { TemperaturePick } from '@/components/temperature-pick'
 import { COMM_NOUN, subjectKindLabel, type StepDraft } from '@/data/comm-record-detail'
 import type { CloseStep } from '@/data/customer-close'
 
-/** The three cards of the owner's fill form on `/comms/:id`, one shown at a
- *  time by `CommFillWorkspace`. Each card only draws and reports; the form's
- *  state and what is still missing live in the workspace. */
+/** The three cards of the owner's form on `/comms/:id`, one shown at a time
+ *  by `CommFormSteps` — first fill and later edit alike. Each card only draws
+ *  and reports; the form's state lives in `useCommForm`. */
 
 const COUNT = new Intl.NumberFormat('vi-VN')
 
@@ -28,31 +28,37 @@ export function ContentStep({
   summary,
   onTitle,
   onSummary,
+  fileNote = 'không bắt buộc',
 }: {
   record: DebriefView
-  title: string
+  /** Null hides the field. */
+  title: string | null
   summary: string
   heading: string
   onTitle: (title: string) => void
   onSummary: (summary: string) => void
+  /** The grey words after the files label. */
+  fileNote?: string
 }) {
   const titleId = useId()
   const summaryId = useId()
   return (
     <CommStepCard index={0} title={heading}>
-      <div className="flex min-w-0 flex-col gap-2">
-        <label htmlFor={titleId} className={STEP_LABEL}>
-          Tiêu đề
-        </label>
-        <Input
-          id={titleId}
-          value={title}
-          maxLength={DEBRIEF_TITLE_MAX}
-          placeholder="Ví dụ: Chốt lịch khảo sát nhà xưởng"
-          className="h-12 text-[14px]"
-          onChange={(e) => onTitle(e.target.value)}
-        />
-      </div>
+      {title !== null && (
+        <div className="flex min-w-0 flex-col gap-2">
+          <label htmlFor={titleId} className={STEP_LABEL}>
+            Tiêu đề
+          </label>
+          <Input
+            id={titleId}
+            value={title}
+            maxLength={DEBRIEF_TITLE_MAX}
+            placeholder="Ví dụ: Chốt lịch khảo sát nhà xưởng"
+            className="h-12 text-[14px]"
+            onChange={(e) => onTitle(e.target.value)}
+          />
+        </div>
+      )}
       <div className="flex min-w-0 flex-col gap-2">
         <label htmlFor={summaryId} className={STEP_LABEL}>
           Ghi chú {COMM_NOUN[record.channel]}
@@ -75,7 +81,7 @@ export function ContentStep({
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
           Ghi âm và tệp đính kèm{' '}
-          <span className="text-muted-foreground font-normal">· không bắt buộc</span>
+          <span className="text-muted-foreground font-normal">· {fileNote}</span>
         </span>
         <CommFileDrop id={record.id} />
         <CommFileList id={record.id} canDelete />

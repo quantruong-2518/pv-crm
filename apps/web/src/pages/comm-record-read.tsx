@@ -1,5 +1,5 @@
 import { daysUntil } from '@pv/engines'
-import { CalendarDays, GlassCard, Icon, MetaPill, cn } from '@pv/ui'
+import { Button, CalendarDays, GlassCard, Icon, MetaPill, Pencil, cn } from '@pv/ui'
 import type { DebriefAnswer, DebriefStepCopy, DebriefView } from '@pv/contracts'
 import { dmy, hm } from '@/lib/date'
 import { CommFileShowcase } from '@/components/comm-file-showcase'
@@ -20,10 +20,11 @@ import { useMinuteClock } from '@/data/minute-clock'
 
 /** The read view of `/comms/:id`: a confirmed record as its three steps, each
  *  card done; an unreached one, or an open one seen by somebody who is not its
- *  owner, as one card of what was said and filed. Nothing here edits: a
- *  confirmed record has no door to change it yet. */
+ *  owner, as one card of what was said and filed. Nothing here writes: `onEdit`
+ *  is the owner's door to `CommEditWorkspace` (ADR 0122), given only when the
+ *  server says the record is `editableByMe`. */
 
-export function CommReadView({ record }: { record: DebriefView }) {
+export function CommReadView({ record, onEdit }: { record: DebriefView; onEdit?: () => void }) {
   const titles = commStepTitles(record)
   const done = record.state === 'done'
   const noun = COMM_NOUN[record.channel]
@@ -35,6 +36,14 @@ export function CommReadView({ record }: { record: DebriefView }) {
       subjectInTitle={record.title === null}
       meta={<ReadMeta record={record} />}
       caption={closedCaption(record)}
+      actions={
+        onEdit && (
+          <Button size="lg" variant="secondary" onClick={onEdit}>
+            <Icon icon={Pencil} size={16} />
+            Sửa
+          </Button>
+        )
+      }
       note={
         record.closedAt === null ? `Chỉ ${record.owner.name} xác nhận được lượt liên hệ này.` : null
       }
@@ -92,7 +101,7 @@ function closedCaption(record: DebriefView): string | null {
 }
 
 /** Kind and direction, date then time, and how long a call ran. */
-function ReadMeta({ record }: { record: DebriefView }) {
+export function ReadMeta({ record }: { record: DebriefView }) {
   const anchor = useAnchorTurn(record)
   const seconds = anchor?.durationSec ?? 0
   return (
@@ -123,7 +132,7 @@ function AnswerTiles({ answers }: { answers: readonly DebriefAnswer[] }) {
   )
 }
 
-function StepRow({ step }: { step: DebriefStepCopy }) {
+export function StepRow({ step }: { step: DebriefStepCopy }) {
   /* Subscribed only so the count turns over at midnight without a reload. */
   useMinuteClock()
   const days = daysUntil(step.due, todayDay())

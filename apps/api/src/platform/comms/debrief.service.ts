@@ -9,6 +9,7 @@ import {
   PendingDebriefResponse,
   type CommRecordCreateBody,
   type DebriefClose,
+  type DebriefEdit,
   type DebriefListQuery,
   type DebriefTargetQuery,
   type PendingDebriefQuery,
@@ -25,6 +26,7 @@ import {
   unconfirmable,
   type CommDebriefHook,
   type MeetingSlot,
+  type RecordStep,
 } from './comm-debrief.hook'
 import { CommRecordService } from './comm-record.service'
 import { refuseNonSubject, toDebriefView, toObjectRef, toThread } from './comms.mapper'
@@ -33,7 +35,8 @@ import { MESSAGE_LOGGED_HOOK, type MessageLoggedHook } from './message-logged.ho
 import { ThreadRepository } from './thread.repository'
 
 /** Comm records (ADR 0074, 0075): the button door, the subject's timeline,
- *  one record, the owner's queue, the managers' counts, and the confirm.
+ *  one record, the owner's queue, the managers' counts, the confirm, and the
+ *  owner's edit of a confirmed record (ADR 0122).
  *
  *  Two fences. Reading a record takes the OWNER or reach on its subject: the
  *  owner was in the conversation, so a hand-over must not strand their record.
@@ -259,6 +262,62 @@ export class DebriefService {
     return this.one(who, id)
   }
 
+  /** ADR 0122: the owner rewrites a `done` record — title, summary, answers,
+   *  and while the step it set still stands, that step and its temperature.
+   *  Same split as `confirm`: the branch judges on the pool, then one tx. */
+  async edit(who: Actor, id: string, body: DebriefEdit): Promise<DebriefView> {
+    const hook = this.hook
+    if (!hook) throw new Error('comms: COMM_DEBRIEF_HOOK is not bound; refusing to edit unchecked')
+    const found = await this.editable(who, id)
+    const prepared = await hook.prepareEdit(who, {
+      debriefId: id,
+      subjectCode: found.row.subjectCode,
+      answers: body.answers,
+      step: body.step,
+      temperature: body.temperature,
+      stored: storedStep(found.row),
+    })
+    await this.repo.run(async (tx) => {
+      if (!(await this.repo.lockDone(tx, id))) throw conflict(NOT_DONE)
+      const step = prepared.step
+      await this.repo.rewrite(tx, id, {
+        title: found.row.booked ? null : (body.title ?? null),
+        summary: body.summary,
+        ...(step
+          ? {
+              nextKindId: step.kind.id,
+              nextKindName: step.kind.name,
+              nextText: step.text,
+              nextDue: step.due,
+            }
+          : {}),
+      })
+      await this.repo.replaceAnswers(
+        tx,
+        id,
+        prepared.answers.map((a) => ({ debriefId: id, ...a })),
+      )
+      await this.audit.write(
+        {
+          actorId: who.id,
+          action: 'edit',
+          code: found.row.subjectCode,
+          note: `comms.debrief ${id} edited · ${prepared.answers.length} answer(s)${step ? ` · step ${step.kind.id}` : ''}${body.temperature ? ` · temperature ${body.temperature}` : ''}`,
+        },
+        tx,
+      )
+      await hook.applyEdit(tx, who, prepared)
+    })
+    return this.one(who, id)
+  }
+
+  /** Who may add or remove a record's files: `closable` while it is open;
+   *  once closed, the owner of a `done` one (ADR 0122). */
+  async fileable(who: Actor, id: string): Promise<DebriefRead> {
+    const found = await this.repo.byId(id)
+    return found?.row.closedAt ? this.editable(who, id) : this.closable(who, id)
+  }
+
   /** The owner, or anyone who reaches the subject. 404 before 403. */
   async readable(who: Actor, id: string): Promise<DebriefRead> {
     const found = await this.repo.byId(id)
@@ -302,6 +361,16 @@ export class DebriefService {
     return found
   }
 
+  /** The edit door's fence: the owner, reading content, on a `done` record. */
+  private async editable(who: Actor, id: string): Promise<DebriefRead> {
+    const found = await this.owned(who, id, false)
+    if (!this.access.allows(who, 'comm.view-content')) {
+      throw denied('permission-denied', 'Bạn không xem được nội dung liên hệ nên không sửa được.')
+    }
+    if (found.state !== 'done') throw conflict(NOT_DONE)
+    return found
+  }
+
   /** `withSummary: false` withholds every summary, so nothing is read or audited. */
   private async views(
     who: Actor,
@@ -310,6 +379,10 @@ export class DebriefService {
   ): Promise<DebriefView[]> {
     const answers = await this.repo.answersOf(reads.map((r) => r.row.id))
     const targets = await this.targetsOf(who, reads)
+    /* `editable`'s fence: a summary the caller cannot read is not theirs to overwrite. */
+    const content = this.access.allows(who, 'comm.view-content')
+    const editable = (r: DebriefRead) => content && r.row.ownerId === who.id && r.state === 'done'
+    const edits = await this.editTargetsOf(who, reads.filter(editable))
     const closable = await this.closableOf(who, reads)
     const slots = await this.slotsOf(reads)
     const views = reads.map((r) =>
@@ -319,9 +392,10 @@ export class DebriefService {
           who,
           r,
           answers.get(r.row.id) ?? [],
-          r.row.closedAt ? null : (targets.get(r.row.subjectCode) ?? null),
+          r.row.closedAt ? (edits.get(r.row.id) ?? null) : (targets.get(r.row.subjectCode) ?? null),
           closable(r),
           r.thread.externalId ? slots.get(r.thread.externalId) : undefined,
+          editable(r),
         ),
         ...(withSummary || r.row.summary === null ? {} : { summary: { state: 'hidden' } }),
       }),
@@ -380,6 +454,15 @@ export class DebriefService {
     return this.hook && codes.length > 0 ? this.hook.targets(who, codes) : new Map()
   }
 
+  /** The branch's slot per editable record whose set step still stands. */
+  private async editTargetsOf(who: Actor, reads: readonly DebriefRead[]) {
+    const records = reads.flatMap((r) => {
+      const stored = storedStep(r.row)
+      return stored ? [{ debriefId: r.row.id, subjectCode: r.row.subjectCode, stored }] : []
+    })
+    return this.hook && records.length > 0 ? this.hook.editTargets(who, records) : new Map()
+  }
+
   /** The run's subjects the caller may view; the rest are left out, not refused,
    *  because a seat can reach the lead of a run whose contract it cannot. A run
    *  has no object row (no mirror), so reach is asked per subject only. */
@@ -409,3 +492,10 @@ export class DebriefService {
 }
 
 const DONE = 'Liên hệ này đã đóng.'
+const NOT_DONE = 'Chỉ sửa được liên hệ đã xác nhận.'
+
+/** The step copy the confirm stored; null when it set none. */
+const storedStep = (row: DebriefRead['row']): RecordStep | null =>
+  row.nextKindId && row.nextText && row.nextDue
+    ? { kindId: row.nextKindId, text: row.nextText, due: row.nextDue }
+    : null

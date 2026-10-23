@@ -3,6 +3,7 @@ import type { Actor } from '@pv/engines'
 import {
   CommRecordCreateBody,
   DebriefClose,
+  DebriefEdit,
   DebriefId,
   DebriefListQuery,
   DebriefTargetQuery,
@@ -73,6 +74,19 @@ export class DebriefController {
     @Body(zod(DebriefClose)) body: DebriefClose,
   ) {
     return this.debriefs.close(who, id, body)
+  }
+
+  /** The owner's edit of a confirmed record (ADR 0122); 200 for `close`'s reason.
+   *  Owner only and a `done` record only — both fences are in the service. */
+  @Post(':id/edit')
+  @HttpCode(200)
+  @Need({ permission: 'comm.view' })
+  edit(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(DebriefId)) id: string,
+    @Body(zod(DebriefEdit)) body: DebriefEdit,
+  ) {
+    return this.debriefs.edit(who, id, body)
   }
 
   /** "Could not reach the customer": closes with no summary, so no body. Owner

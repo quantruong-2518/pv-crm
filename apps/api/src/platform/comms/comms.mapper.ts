@@ -232,6 +232,7 @@ export function toDebriefView(
   stepTarget: DebriefStepTarget | null,
   closableByMe: boolean,
   slot: MeetingSlot | undefined,
+  editableByMe: boolean,
 ): DebriefView {
   const { row } = read
   const meetingId = read.thread.channel === 'meeting' ? read.thread.externalId : null
@@ -276,6 +277,7 @@ export function toDebriefView(
     step,
     meeting,
     closableByMe,
+    editableByMe,
   }
 }
 

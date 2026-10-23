@@ -1,31 +1,25 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Button, Icon, PhoneOff, Save, Timer, cn } from '@pv/ui'
+import { ArrowLeft, ArrowRight, Button, Icon, PhoneOff, Save, Timer } from '@pv/ui'
 import type { DebriefClose, DebriefView } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy, hm } from '@/lib/date'
 import { CommLateMark } from '@/components/comm-bits'
-import { CommRecordFrame, CommStepper, type CommStepState } from '@/components/comm-record-frame'
-import { CommTurns } from '@/components/comm-turns'
+import { CommRecordFrame } from '@/components/comm-record-frame'
 import { CommUnreachedDialog } from '@/components/comm-unreached-dialog'
-import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import {
   COMM_NOUN,
-  commStepTitles,
   useAnchorTurn,
-  EMPTY_STEP_DRAFT,
   clearCommDraft,
   commKindLine,
   confirmHoursLeft,
-  evaluationBlockerOf,
   readCommDraft,
   useConfirmComm,
   writeCommDraft,
 } from '@/data/comm-record-detail'
-import { useCloseStep } from '@/data/customer-close'
+import { EMPTY_COMM_DRAFT, useCommForm } from '@/data/comm-record-form'
 import { useMinuteClock } from '@/data/minute-clock'
-import { ContentStep, EvaluationStep, NextStepStep } from './comm-record-fill-steps'
+import { BAR_BUTTON, CommFormBar, CommFormSteps, type FormProblem } from './comm-record-form'
 
 /** The owner's fill form for an open comm: three steps, one card at a time,
  *  and a sticky bar that says what the open step still lacks. Next is shut
@@ -36,51 +30,30 @@ import { ContentStep, EvaluationStep, NextStepStep } from './comm-record-fill-st
  *  Filled by hand — AI pre-fill is deferred (ADR 0075 §6), so there is no AI
  *  block here and nothing is proposed on the reader's behalf. */
 
-type Problem = { text: string; failed?: boolean } | null
-
 export function CommFillWorkspace({ record }: { record: DebriefView }) {
-  const vocab = useQuery(commVocabularyQuery)
   const confirm = useConfirmComm()
-  const close = useCloseStep(record.subject.code, record.stepTarget)
   const saved = useMemo(() => readCommDraft(record.id), [record.id])
-  const [title, setTitle] = useState(saved?.title ?? '')
-  const [summary, setSummary] = useState(saved?.summary ?? '')
-  const [picked, setPicked] = useState<Record<string, string>>(saved?.picked ?? {})
-  const [draft, setDraft] = useState(saved?.step ?? EMPTY_STEP_DRAFT)
-  const [at, setAt] = useState(0)
+  const form = useCommForm(record, saved ?? EMPTY_COMM_DRAFT)
+  const { close, at, go, titles } = form
   const [unreached, setUnreached] = useState(false)
 
-  const missing = [title.trim() === '' && 'tiêu đề', summary.trim() === '' && 'ghi chú'].filter(
-    (word): word is string => word !== false,
-  )
-  const contentGap = missing.length > 0 ? `Còn thiếu ${missing.join(' và ')}` : null
-  const evaluationGap = evaluationBlockerOf(vocab, picked) ?? close.temperatureGap
-  const stepGap = close.gapOf(draft)
   /* One gap per step, in the order of `titles`; the bar says the open one's. */
-  const gaps = [contentGap, evaluationGap, stepGap]
+  const gaps = [form.contentGap, form.answersGap ?? close.temperatureGap, close.gapOf(form.draft)]
   const blocker = gaps.find((gap) => gap !== null) ?? null
-  const titles = commStepTitles(record)
   const last = titles.length - 1
-  const states = titles.map<CommStepState>((_, i) =>
-    i === at ? 'current' : gaps[i] === null ? 'done' : 'todo',
-  )
 
-  const criteria = vocab.data?.criteria ?? []
-  const go = (index: number) => {
-    setAt(index)
-    window.scrollTo({ top: 0 })
-  }
   const save = () => {
+    const { title, summary, picked, draft } = form
     writeCommDraft(record.id, { title, summary, picked, step: draft })
     toastDone('Đã lưu nháp trên máy này')
   }
   const submit = () => {
     if (blocker || confirm.isPending) return
     const body: DebriefClose = {
-      title: title.trim(),
-      summary: summary.trim(),
-      answers: criteria.map((c) => ({ criterionId: c.id, answerId: picked[c.id] ?? '' })),
-      ...close.inputOf(draft),
+      title: form.title.trim(),
+      summary: form.summary.trim(),
+      answers: form.answers(),
+      ...close.inputOf(form.draft),
     }
     confirm.mutate(
       { id: record.id, body },
@@ -94,7 +67,7 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
   }
 
   const shortfall = at === last ? blocker : (gaps[at] ?? null)
-  const problem: Problem =
+  const problem: FormProblem =
     at === last && confirm.error
       ? { text: userMessage(confirm.error), failed: true }
       : shortfall === null
@@ -115,48 +88,42 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
         )
       }
       bar={
-        <FillBar
-          problem={problem}
-          onSave={save}
-          onBack={at > 0 ? () => go(at - 1) : undefined}
-          onNext={at < last ? () => go(at + 1) : undefined}
-          nextReady={gaps[at] === null}
-          onConfirm={at === last ? submit : undefined}
-          confirmReady={blocker === null && !confirm.isPending}
-        />
+        <CommFormBar problem={problem}>
+          <Button size="md" variant="secondary" className={BAR_BUTTON} onClick={save}>
+            <Icon icon={Save} size={16} />
+            Lưu nháp
+          </Button>
+          {at > 0 && (
+            <Button size="md" variant="ghost" className={BAR_BUTTON} onClick={() => go(at - 1)}>
+              <Icon icon={ArrowLeft} size={16} />
+              Bước trước
+            </Button>
+          )}
+          {at < last && (
+            <Button
+              size="md"
+              className={BAR_BUTTON}
+              disabled={gaps[at] !== null}
+              onClick={() => go(at + 1)}
+            >
+              Tiếp tục
+              <Icon icon={ArrowRight} size={16} />
+            </Button>
+          )}
+          {at === last && (
+            <Button
+              size="md"
+              className={BAR_BUTTON}
+              disabled={blocker !== null || confirm.isPending}
+              onClick={submit}
+            >
+              Xác nhận
+            </Button>
+          )}
+        </CommFormBar>
       }
     >
-      <CommStepper labels={titles} states={states} onGo={go} />
-      {at === 0 && <CommTurns threadId={record.threadId} />}
-      {at === 0 && (
-        <ContentStep
-          record={record}
-          heading={titles[0]}
-          title={title}
-          summary={summary}
-          onTitle={setTitle}
-          onSummary={setSummary}
-        />
-      )}
-      {at === 1 && (
-        <EvaluationStep
-          heading={titles[1]}
-          vocab={vocab}
-          picked={picked}
-          onPick={setPicked}
-          close={close}
-        />
-      )}
-      {at === 2 && (
-        <NextStepStep
-          record={record}
-          heading={titles[2]}
-          kinds={vocab.data?.stepKinds ?? []}
-          close={close}
-          draft={draft}
-          onDraft={setDraft}
-        />
-      )}
+      <CommFormSteps record={record} form={form} gaps={gaps} />
       <CommUnreachedDialog record={record} open={unreached} onClose={() => setUnreached(false)} />
     </CommRecordFrame>
   )
@@ -181,72 +148,5 @@ function FillMeta({ record }: { record: DebriefView }) {
         </span>
       )}
     </>
-  )
-}
-
-/** Sticky under the open card. Lifted over the bottom nav on a phone; on a
- *  laptop narrow enough that the column meets the assistant button, it stops
- *  short of it. */
-function FillBar({
-  problem,
-  onSave,
-  onBack,
-  onNext,
-  nextReady,
-  onConfirm,
-  confirmReady,
-}: {
-  problem: Problem
-  onSave: () => void
-  onBack?: () => void
-  onNext?: () => void
-  nextReady: boolean
-  onConfirm?: () => void
-  confirmReady: boolean
-}) {
-  const button = 'pointer-coarse:h-12'
-  return (
-    <div
-      role="group"
-      aria-label="Thao tác liên hệ"
-      className="glass-overlay sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 flex flex-wrap items-center gap-3 rounded-lg px-4 py-3 lg:bottom-6 lg:max-xl:w-[calc(100%-72px)]"
-    >
-      <div className="flex min-w-0 flex-1 basis-64 flex-col">
-        {problem && (
-          <>
-            <strong
-              role={problem.failed ? 'alert' : undefined}
-              className={cn(
-                'text-[13px] font-semibold leading-[1.5]',
-                problem.failed ? 'text-destructive-foreground' : 'text-warning',
-              )}
-            >
-              {problem.text}
-            </strong>
-          </>
-        )}
-      </div>
-      <Button size="md" variant="secondary" className={button} onClick={onSave}>
-        <Icon icon={Save} size={16} />
-        Lưu nháp
-      </Button>
-      {onBack && (
-        <Button size="md" variant="ghost" className={button} onClick={onBack}>
-          <Icon icon={ArrowLeft} size={16} />
-          Bước trước
-        </Button>
-      )}
-      {onNext && (
-        <Button size="md" className={button} disabled={!nextReady} onClick={onNext}>
-          Tiếp tục
-          <Icon icon={ArrowRight} size={16} />
-        </Button>
-      )}
-      {onConfirm && (
-        <Button size="md" className={button} disabled={!confirmReady} onClick={onConfirm}>
-          Xác nhận
-        </Button>
-      )}
-    </div>
   )
 }

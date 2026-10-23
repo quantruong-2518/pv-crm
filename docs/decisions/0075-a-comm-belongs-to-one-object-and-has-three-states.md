@@ -35,6 +35,8 @@ are precise and neutral, no colloquial wording.
 
 Amended by ADR 0094: a fifth state `unreached`, "Không liên lạc được", closes with none of the above; `scheduled` (a booked meeting) was already outside this list.
 
+Amended by ADR 0122: a `done` record is no longer read-only for its owner, who may edit it (ADR 0122); it stays `done`.
+
 ### 3 · Where comm records come from
 
 Amended by ADR 0081: Telegram and WhatsApp buttons join Gọi / Zalo / Gửi mail.

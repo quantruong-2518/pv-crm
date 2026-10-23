@@ -7,6 +7,8 @@ Source: project owner's decisions in chat, 01/10/2026
 
 Amended by ADR 0094: a comm may close as "Không liên lạc được" with no summary, evaluation or next step; the title and §2 hold for every other close.
 
+Amended by ADR 0122: §5's fence also covers editing a confirmed comm; only its owner may.
+
 ## Context
 
 Raw comm data (calls, meetings, Zalo/Telegram chats, mail) piles up without

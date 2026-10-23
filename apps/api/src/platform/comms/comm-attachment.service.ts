@@ -17,8 +17,8 @@ import { DebriefService } from './debrief.service'
 
 /** Files on a comm record (ADR 0075 §4) through a presigned PUT, the lead-scan
  *  flow: declare → PUT straight to storage → `uploaded`. Reading takes the
- *  record's read fence, changing takes whoever may close it (`closable`). Storage
- *  calls run outside the transaction, for lead-scan's PGlite reason. */
+ *  record's read fence, changing takes `fileable` (a `done` record too, ADR
+ *  0122). Storage calls run outside the transaction, for lead-scan's PGlite reason. */
 @Injectable()
 export class CommAttachmentService {
   private readonly log = new Logger('CommAttachment')
@@ -42,7 +42,7 @@ export class CommAttachmentService {
     id: string,
     body: CommAttachmentDeclareBody,
   ): Promise<CommAttachmentDeclareResponse> {
-    await this.records.closable(who, id)
+    await this.records.fileable(who, id)
     const fileId = randomUUID()
     const storageKey = keyOf(id, fileId)
     await this.repo.insert({
@@ -61,7 +61,7 @@ export class CommAttachmentService {
 
   /** Trusts the caller that the PUT landed, as lead-scan's `start` does. */
   async uploaded(who: Actor, id: string, fileId: string): Promise<CommAttachment> {
-    const record = await this.records.closable(who, id)
+    const record = await this.records.fileable(who, id)
     const row = await this.repo.run(async (tx) => {
       const attached = await this.repo.attach(tx, keyOf(id, fileId), id)
       if (!attached) throw notFound('tệp', fileId)
@@ -83,7 +83,7 @@ export class CommAttachmentService {
   }
 
   async remove(who: Actor, id: string, fileId: string): Promise<void> {
-    const record = await this.records.closable(who, id)
+    const record = await this.records.fileable(who, id)
     const key = await this.repo.run(async (tx) => {
       const gone = await this.repo.remove(tx, keyOf(id, fileId))
       if (!gone) throw notFound('tệp', fileId)

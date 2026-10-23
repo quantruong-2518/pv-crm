@@ -27,10 +27,10 @@ import { CommRecordState, DebriefId, MessageId, ThreadChannel, ThreadId, ThreadR
  *      POST /comms/debriefs/:id/close        `comm.view` · owner only (the confirm button)
  *      POST /comms/debriefs/:id/close-meeting  same gate, plus per-person attendance
  *      POST /comms/debriefs/:id/unreached    same gate · empty body · `DebriefView` with state `unreached`
+ *      POST /comms/debriefs/:id/edit         same gate · a `done` record only (ADR 0122)
  *
  *  `POST /comms/messages` opens or joins a debrief too (`MessageCreateResponse.debriefId`).
- *  Config ids are stored with name copies, so renaming an entry never rewrites a closed
- *  debrief. The step shape is borrowed from `NextStepSetBody`: it lands via the sales hook. */
+ *  Config ids keep name copies, so a rename never rewrites a closed debrief; the step shape is `NextStepSetBody`'s. */
 
 export const DEBRIEF_SUMMARY_MAX = 2000
 export const DEBRIEF_TITLE_MAX = 120
@@ -89,6 +89,17 @@ export const DebriefClose = z.object({
 })
 
 // ---------------------------------------------------------------------------
+// POST /comms/debriefs/:id/edit
+// ---------------------------------------------------------------------------
+
+/** The owner's change to a confirmed record (ADR 0122). Absent `step` or
+ *  `temperature` = keep it; present, it REPLACES the step this record set, so
+ *  it never marks anything done. Refused once that step is done or changed. */
+export const DebriefEdit = DebriefClose.extend({
+  step: DebriefStepInput.omit({ previousDone: true }).optional(),
+})
+
+// ---------------------------------------------------------------------------
 // POST /comms/debriefs/:id/close-meeting
 // ---------------------------------------------------------------------------
 
@@ -131,7 +142,8 @@ export const DebriefStepCopy = z.object({ kind: NextStepKind, text: z.string().m
 export const DebriefSubject = z.object({ code: LinkableCode, label: z.string().min(1) })
 
 /** Present only while the subject can take a step from this caller (an open
- *  lead or opportunity). `currentStep` is what the form offers to mark done. */
+ *  lead or opportunity). `currentStep` is what the form offers to mark done.
+ *  On a record `editableByMe`, present only while the step it set still stands. */
 export const DebriefStepTarget = z.object({
   kind: TouchSubject,
   currentStep: NextStepDoneBody.shape.closing.nullable(),
@@ -181,6 +193,8 @@ export const DebriefView = z.object({
     .nullable(),
   /** The server decides (owner, or an outranking superior); the web never recomputes rank. */
   closableByMe: z.boolean(),
+  /** A `done` record of the caller's own: the edit door is open (ADR 0122). */
+  editableByMe: z.boolean(),
 })
 
 /** `summary=none`: a visible summary arrives as `hidden` and no read is audited —
@@ -241,6 +255,7 @@ export type CommRecordCreateResponse = z.infer<typeof CommRecordCreateResponse>
 export type DebriefAnswerInput = z.infer<typeof DebriefAnswerInput>
 export type DebriefStepInput = z.infer<typeof DebriefStepInput>
 export type DebriefClose = z.infer<typeof DebriefClose>
+export type DebriefEdit = z.infer<typeof DebriefEdit>
 export type MeetingAttendedHost = z.infer<typeof MeetingAttendedHost>
 export type MeetingAttendedGuest = z.infer<typeof MeetingAttendedGuest>
 export type MeetingDebriefClose = z.infer<typeof MeetingDebriefClose>

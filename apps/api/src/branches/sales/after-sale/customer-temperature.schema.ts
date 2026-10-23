@@ -10,8 +10,8 @@ import { sales } from '../sales.schema'
 /** One temperature reading of a paid-up customer (ADR 0121 §3), written by the
  *  comm close-out that took it, in that close-out's transaction.
  *
- *  Append-only: the current temperature is the LATEST row of the journey, so a
- *  reading is never overwritten and "since when, by whom" is the row itself.
+ *  One row per close-out: the current temperature is the LATEST row of the
+ *  journey. Only its own record's owner edit rewrites a row (ADR 0122).
  *  Nothing marks a row stale when the journey leaves `growth` — that state is
  *  derived on read, and a returning customer's old reading is still history. */
 export const customerTemperature = sales.table(

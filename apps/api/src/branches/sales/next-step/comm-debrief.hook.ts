@@ -9,16 +9,19 @@ import type {
 } from '@pv/contracts'
 import {
   unconfirmable,
+  type CommDebriefEditInput,
   type CommDebriefHook,
   type CommDebriefInput,
   type MeetingHeld,
   type MeetingSlot,
   type PreparedDebrief,
+  type RecordStep,
+  type SetStep,
 } from '@api/platform/comms/comm-debrief.hook'
 import type { CommContact } from '@api/platform/comms/comm-record.service'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
-import { denied, invalid } from '@api/platform/http/problem'
+import { conflict, denied, invalid } from '@api/platform/http/problem'
 import { SalesConfigService } from '../config/config.service'
 import { StepFrameService } from '../config/step-frame.service'
 import { MeetingService } from '../meeting/meeting.service'
@@ -28,7 +31,7 @@ import {
   CustomerTemperatureRepository,
   type CustomerRead,
 } from '../after-sale/customer-temperature.repository'
-import { NextStepRepository } from './next-step.repository'
+import { NextStepRepository, type NextStepRead } from './next-step.repository'
 import { assertNextDiffers, dealAddress, leadAddress, liveKind } from './next-step.rules'
 import { NextStepService } from './next-step.service'
 
@@ -40,7 +43,8 @@ import { NextStepService } from './next-step.service'
  *  `prepare` asks everything that reads on the pool — doer reach, holder,
  *  config — because PGlite has one connection and `apply` runs inside comms'
  *  transaction. What it learns rides on the prepared step (`subject`, `reach`),
- *  so `apply` must be handed the object `prepare` returned. */
+ *  so `apply` must be handed the object `prepare` returned. The owner's edit
+ *  of a confirmed record (ADR 0122) is the same pair, `prepareEdit`/`applyEdit`. */
 @Injectable()
 export class NextStepDebriefHook implements CommDebriefHook {
   constructor(
@@ -107,21 +111,13 @@ export class NextStepDebriefHook implements CommDebriefHook {
     }
   }
 
-  /** `write` re-asks scope and liveness on the locked row; the permission is
-   *  asked here because no `@Need` stands in front of this path. */
   async apply(tx: Db, who: Actor, prepared: PreparedDebrief): Promise<void> {
     const step = prepared.step as PreparedStep | null
     if (!step) return
-    if (!this.can(who, step.subject === 'lead' ? 'lead.edit' : 'opportunity.edit')) {
-      throw denied('permission-denied')
-    }
+    await this.writeStep(tx, who, step)
     if (step.subject === 'lead' && step.customer) {
       /* The reading is written with the step it chose, where the fact is still known. */
       const { customer } = step
-      await this.leadSteps.write(tx, who, step.subjectCode, opOf(step), step.reach, STEP_PATH, {
-        temperature: customer.temperature,
-        carers: customer.carers,
-      })
       await this.customers.insert(tx, {
         workstreamCode: customer.workstreamCode,
         leadCode: step.subjectCode,
@@ -129,12 +125,87 @@ export class NextStepDebriefHook implements CommDebriefHook {
         debriefId: customer.debriefId,
         recordedBy: who.id,
       })
-      return
     }
-    const op = opOf(step)
-    if (step.subject === 'lead')
-      await this.leadSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH)
-    else await this.dealSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH)
+  }
+
+  /** ADR 0122. "Still stands" is asked before the judges, so a moved step
+   *  answers 409 rather than a 400 about a subject that has moved on. Absent
+   *  temperature = this record's reading, which `applyEdit` then rewrites as is. */
+  async prepareEdit(who: Actor, input: CommDebriefEditInput): Promise<PreparedDebrief> {
+    const answers = await this.judgeAnswers(input.answers)
+    const { step, temperature, stored } = input
+    if (!step && !temperature) return { answers, step: null }
+    const customer = await this.customers.customerOf(input.subjectCode)
+    const mine = customer && this.writesFor(who, customer) ? customer : null
+    if (temperature && !mine) throw invalid({ temperature: [NO_TEMPERATURE] })
+    if (!step) {
+      throw invalid(
+        { step: ['Đổi nhiệt độ thì chọn lại việc tiếp theo.'] },
+        'Thiếu việc tiếp theo.',
+      )
+    }
+    if (!stored) {
+      throw invalid({ step: ['Liên hệ này không đặt việc tiếp theo. Bỏ việc tiếp theo.'] })
+    }
+    const code = mine?.leadCode ?? input.subjectCode
+    const current = (await this.steps.stepsOf([code])).get(code)
+    if (!current || !stands(current, stored)) throw moved(code)
+    const reading = mine ? await this.customers.readingOf(input.debriefId) : null
+    if (temperature && !reading) {
+      throw invalid({ temperature: ['Liên hệ này chưa ghi nhiệt độ khách. Bỏ nhiệt độ.'] })
+    }
+    const kept = mine ? (temperature ?? reading ?? mine.temperature ?? undefined) : undefined
+    /* No doer sent = the standing step's, or a reassignment would be undone. */
+    const keptDoer = step.doerId === undefined ? current.doerId : undefined
+    const sent = { ...step, doerId: step.doerId ?? current.doerId }
+    const judged = await this.judgeStep(who, { ...input, step: sent, temperature: kept })
+    if (!judged) throw new Error(`sales: edit of ${input.debriefId} judged no step for a sent one`)
+    const edit: PreparedStep = { ...judged, stands: stored, keptDoer }
+    return { answers, step: edit }
+  }
+
+  /** The lock is the one `write` takes next, so nothing moves the step between. */
+  async applyEdit(tx: Db, who: Actor, prepared: PreparedDebrief): Promise<void> {
+    const step = prepared.step as PreparedStep | null
+    if (!step) return
+    if (!step.stands)
+      throw new Error('sales: applyEdit was handed a step prepareEdit did not judge')
+    const current = await this.lockedStep(tx, who, step)
+    const doerMoved = step.keptDoer !== undefined && current?.doerId !== step.keptDoer
+    if (!stands(current, step.stands) || doerMoved) throw moved(step.subjectCode)
+    await this.writeStep(tx, who, step)
+    if (step.subject === 'lead' && step.customer) {
+      const { debriefId, temperature } = step.customer
+      await this.customers.retemper(tx, debriefId, temperature)
+    }
+  }
+
+  /** Per record, the slot `targets` gives its subject — while the step it set
+   *  still stands where `judgeStep` would write (a customer's: on its lead). */
+  async editTargets(
+    who: Actor,
+    records: readonly SetStep[],
+  ): Promise<Map<string, DebriefStepTarget>> {
+    const codes = [...new Set(records.map((r) => r.subjectCode))]
+    const targets = await this.targets(who, codes)
+    const customers = await this.customers.customersOf(codes)
+    const at = (code: string) => {
+      const c = customers.get(code)
+      return c && this.writesFor(who, c) ? c.leadCode : code
+    }
+    const steps = await this.steps.stepsOf([...new Set(codes.map(at))])
+    const map = new Map<string, DebriefStepTarget>()
+    for (const r of records) {
+      const target = targets.get(r.subjectCode)
+      const current = steps.get(at(r.subjectCode))
+      if (target && current && stands(current, r.stored)) {
+        map.set(r.debriefId, {
+          kind: target.kind,
+          currentStep: { text: current.text, due: current.due },
+        })
+      }
+    }
+    return map
   }
 
   /** The fence was comms' (`closable`); the meeting book owns the rest. */
@@ -144,6 +215,32 @@ export class NextStepDebriefHook implements CommDebriefHook {
 
   meetingSlots(meetingIds: readonly string[]): Promise<Map<string, MeetingSlot>> {
     return this.meetings.slots(meetingIds)
+  }
+
+  /** `write` re-asks scope and liveness on the locked row; the permission is
+   *  asked here because no `@Need` stands in front of this path. */
+  private async writeStep(tx: Db, who: Actor, step: PreparedStep): Promise<void> {
+    if (!this.can(who, step.subject === 'lead' ? 'lead.edit' : 'opportunity.edit')) {
+      throw denied('permission-denied')
+    }
+    const op = opOf(step)
+    if (step.subject === 'opportunity') {
+      await this.dealSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH)
+      return
+    }
+    const c = step.customer
+    const customer = c && { temperature: c.temperature, carers: c.carers }
+    await this.leadSteps.write(tx, who, step.subjectCode, op, step.reach, STEP_PATH, customer)
+  }
+
+  /** The step standing on the subject, read behind its row lock. */
+  private async lockedStep(tx: Db, who: Actor, step: PreparedStep) {
+    if (step.subject === 'lead') {
+      await this.steps.lockLead(tx, step.subjectCode)
+      return (await this.steps.slot(step.subjectCode, tx))?.step
+    }
+    await this.deals.lock(tx, who, step.subjectCode)
+    return (await this.deals.slot(who, step.subjectCode, tx))?.step
   }
 
   /** One answer per question of `commVocabulary` — active AND with an active
@@ -179,7 +276,7 @@ export class NextStepDebriefHook implements CommDebriefHook {
       return this.judgeCustomerStep(who, input, customer)
     }
     if (input.temperature) {
-      throw invalid({ temperature: ['Liên hệ này không cần nhiệt độ. Bỏ nhiệt độ.'] })
+      throw invalid({ temperature: [NO_TEMPERATURE] })
     }
     const [target] = await this.reachable(who, [input.subjectCode])
     const step = input.step
@@ -321,6 +418,21 @@ export class NextStepDebriefHook implements CommDebriefHook {
  *  whether `prepare` or the write under the lock finds it. */
 const STEP_PATH = 'step.'
 
+const NO_TEMPERATURE = 'Liên hệ này không cần nhiệt độ. Bỏ nhiệt độ.'
+
+/** The step a record set still stands: same kind, text and due (ADR 0122). */
+const stands = (
+  current: Pick<NextStepRead, 'kindId' | 'text' | 'due'> | null | undefined,
+  stored: RecordStep,
+): boolean =>
+  !!current &&
+  current.kindId === stored.kindId &&
+  current.text === stored.text &&
+  current.due === stored.due
+
+const moved = (code: string) =>
+  conflict(`Việc tiếp theo của ${code} đã xong hoặc đã đổi. Sửa ở đó.`)
+
 type Target = DebriefStepTarget & {
   code: string
   holderId: string | null
@@ -336,7 +448,13 @@ type CustomerPrepared = {
 }
 
 /** What `prepare` learned on the pool that `apply` cannot re-ask inside the tx. */
-type PreparedStep = NonNullable<PreparedDebrief['step']> & { subjectCode: string } & (
+type PreparedStep = NonNullable<PreparedDebrief['step']> & {
+  subjectCode: string
+  /** Set by `prepareEdit` only: the step the edited record set. */
+  stands?: RecordStep
+  /** The standing step's doer, kept because the edit named none. */
+  keptDoer?: string
+} & (
     | { subject: 'lead'; reach: boolean; customer?: CustomerPrepared }
     | { subject: 'opportunity'; reach: DoerReach | null }
   )

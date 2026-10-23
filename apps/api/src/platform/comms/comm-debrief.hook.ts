@@ -1,6 +1,7 @@
 import type {
   CustomerTemperature,
   DebriefAnswerInput,
+  DebriefEdit,
   DebriefStepInput,
   DebriefStepTarget,
   DebriefTargetResponse,
@@ -45,6 +46,16 @@ export interface CommDebriefHook {
    *  subject that takes none. */
   prepare(who: Actor, input: CommDebriefInput): Promise<PreparedDebrief>
   apply(tx: Db, who: Actor, prepared: PreparedDebrief): Promise<void>
+  /** The owner's edit of a `done` record (ADR 0122): answers judged as in
+   *  `prepare`; a step only while the one the record set still stands (409
+   *  otherwise), and it REPLACES that step. Absent step or temperature = keep. */
+  prepareEdit(who: Actor, input: CommDebriefEditInput): Promise<PreparedDebrief>
+  /** Re-asks "still stands" under the subject's lock, then writes as `apply`;
+   *  a new temperature rewrites this record's reading, never adds a second. */
+  applyEdit(tx: Db, who: Actor, prepared: PreparedDebrief): Promise<void>
+  /** Record id → step slot, only while the step it set still stands and the
+   *  caller could write it; any other record is absent. */
+  editTargets(who: Actor, records: readonly SetStep[]): Promise<Map<string, DebriefStepTarget>>
   /** close-meeting: the meeting behind a closed record is marked held with its
    *  attendance, inside the close's transaction. Refuses (409) a meeting not
    *  started yet, one already held, or one on a deal that no longer takes edits. */
@@ -74,6 +85,16 @@ export type CommDebriefInput = {
   answers: readonly DebriefAnswerInput[]
   step: DebriefStepInput | undefined
   temperature: CustomerTemperature | undefined
+}
+
+/** The step a confirmed record set, as its row copied it (ADR 0122). */
+export type RecordStep = { kindId: string; text: string; due: string }
+
+export type SetStep = { debriefId: string; subjectCode: string; stored: RecordStep }
+
+export type CommDebriefEditInput = Omit<CommDebriefInput, 'step'> & {
+  step: DebriefEdit['step']
+  stored: RecordStep | null
 }
 
 /** Names travel back so comms stores copies: renaming a config row later must
