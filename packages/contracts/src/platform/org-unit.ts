@@ -46,6 +46,8 @@ export const OrgTreeResponse = z.object({
    *  the old KPI team roster still answers and `units` is empty. With no version
    *  at all, `units` from `editableFrom` on is the seed the first write keeps. */
   fromPeriod: MonthKey.nullable(),
+  /** The tree's first month; `null` while no version exists yet. */
+  firstPeriod: MonthKey.nullable(),
   /** The month an edit would land on now (ADR 0118 §5). */
   editableFrom: MonthKey,
   units: z.array(OrgUnit),

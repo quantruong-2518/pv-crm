@@ -1,14 +1,17 @@
 import { Button, GlassCard } from '@pv/ui'
 import { useQuery } from '@tanstack/react-query'
 import type { ConfigBundle, MotionPolicy } from '@pv/contracts'
+import { useCan } from '@/app/auth'
 import { kpiAlertQuery, kpiRoleMetricsQuery } from '@/data/kpi-config'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
+import { orgTreeQuery } from '@/data/org-tree'
 import { activityFreshnessQuery, ladderRows, recareCyclesQuery } from '@/data/sales-config'
 import { salesMotionsQuery } from '@/data/sales-motions'
 import { FRAME_STATES, stepFrameQuery, templatesAt } from '@/data/step-frame'
 import { keyOf } from './home-model'
 import { monthPick } from './kpi-model'
 import { CONFIG_AREAS, type AreaKey, type SectionId } from './sales-config-model'
+import { isBeforeTree } from './sales-config-org-model'
 
 /** Printed for a value that is still loading or failed to read: a zero there
  *  would be a statement about the configuration that nobody has checked. */
@@ -27,6 +30,11 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
   const { data: kpiMetrics } = useQuery(kpiRoleMetricsQuery)
   const { data: kpiAlert } = useQuery(kpiAlertQuery)
   const { data: roster } = useQuery(kpiTeamRosterQuery(keyOf(monthPick())))
+  const { data: org } = useQuery(orgTreeQuery(keyOf(monthPick())))
+  /* Only a view-all holder is sent the whole tree; anyone else would count their own path. */
+  const seeAll = useCan('kpi.view-all')
+  const orgCount = (kind: 'department' | 'team') =>
+    org?.units.filter((u) => u.kind === kind).length ?? 0
   /* Distinct metrics and roles, not cells: one metric off in two roles is one metric. */
   const offIn = kpiMetrics?.roles.filter((r) => r.metrics.some((m) => !m.enabled))
   const offKeys = new Set(
@@ -76,8 +84,14 @@ function useSectionValues(catalog: ConfigBundle): Record<SectionId, string | und
           ? ` · thiếu ${kpiAlert.tolerancePercent}% vẫn tính Đúng tiến độ`
           : ''
       }`,
-    'kpi-teams':
-      roster && (roster.teams.length === 0 ? 'Chưa có' : `${roster.teams.length} nhóm tháng này`),
+    /* A month before the org tree still reads the old team roster (ADR 0118 §7).
+       Without view-all both reads hold only the reader's own path, so no count. */
+    'kpi-teams': !seeAll
+      ? undefined
+      : org && !isBeforeTree(org)
+        ? `${orgCount('department')} phòng · ${orgCount('team')} nhóm tháng này`
+        : roster &&
+          (roster.teams.length === 0 ? 'Chưa có' : `${roster.teams.length} nhóm tháng này`),
   }
 }
 

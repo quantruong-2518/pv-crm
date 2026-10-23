@@ -94,7 +94,7 @@ cài ghi tại ~7 cửa. Câu hỏi cho chủ dự án: có chặn luôn ngày k
 
 **Đã chốt 22/10 (người dùng):** Q1–Q4, Q10, Q11 nhận đúng mặc định trên trang thiết kế; áp từ tháng **12/2026**.
 Canvas màn duyệt song song với lát 2a (canvas cũ 404, dựng lại): 2a "Phòng ban & nhóm" ở
-https://claude.ai/artifact/FdrbrL4SVNwk7DTo2Esh4c (3 artboard, chưa duyệt). ADR 0118 (cây) nháp, 0119 (tiền thu HĐ thanh lý).
+https://claude.ai/artifact/5pM5Tf3nvh5ERAe56qAZdF (3 artboard, theme Sứ, chủ dự án duyệt 23/10). ADR 0118 (cây) nháp, 0119 (tiền thu HĐ thanh lý).
 Số đã giữ với phiên pv-crm-d9 (22/10): KPI dùng migration 0140–0142, ADR 0118–0120; d9 lấy 0143+, ADR 0121+.
 Cũng chốt 22/10: người giữ `kpi.set-target` sửa cây; Giám đốc đứng đầu Công ty, Trưởng phòng đứng đầu Phòng (gỡ lệnh
 cấm hai vai này trong nhóm); công nợ quá hạn tính cho người thu tiền (`collector_id`, làm cùng 2d).

@@ -14,7 +14,7 @@ import { cacheTier } from '@/app/query-client'
  *  month refetches the roster. A write lands on `editableFrom`, not on the month
  *  the screen shows: its answer goes straight into THAT month's cache, and the
  *  whole KPI tree is invalidated because holders of a role move between the
- *  room list and a team. */
+ *  room list and a team, and so is the org tree, whose seed is this roster. */
 
 const need = (permission: NonNullable<ApiNeed['permission']>): ApiNeed => ({
   branch: 'Sales',
@@ -56,6 +56,7 @@ function useRosterWrite<I>(
     onSuccess: (fresh) => {
       client.setQueryData(kpiTeamRosterKey(fresh.period), fresh)
       void client.invalidateQueries({ queryKey: ['sales', 'kpi'] })
+      void client.invalidateQueries({ queryKey: ['platform', 'org'] })
     },
   })
 }

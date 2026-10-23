@@ -100,7 +100,7 @@ export const CONFIG_AREAS = [
     sections: [
       { id: 'kpi-metrics', no: '5.16', title: 'Chỉ số theo vai trò' },
       { id: 'kpi-alert', no: '5.17', title: 'Ngưỡng cảnh báo' },
-      { id: 'kpi-teams', no: '5.18', title: 'Nhóm' },
+      { id: 'kpi-teams', no: '5.18', title: 'Phòng ban & nhóm' },
     ],
   },
 ] as const

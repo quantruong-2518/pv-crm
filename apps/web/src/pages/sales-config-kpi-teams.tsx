@@ -6,18 +6,17 @@ import { isApiError, userMessage } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { ROLE_LABEL } from '@/data/users'
-import { keyOf } from './home-model'
-import { monthPick, monthText } from './kpi-model'
+import { monthText } from './kpi-model'
 import { actingLine } from './kpi-team-model'
 import { TeamFormDrawer, TeamRemoveDrawer } from './sales-config-kpi-teams-parts'
-import { Section } from './sales-config-section'
 
-/** The Teams section of the KPI area (ADR 0101): KPI teams, who leads each and
- *  who is in it. Edited directly by a `kpi.set-target` holder, with no approval.
+/** The old KPI team editor (ADR 0101), drawn inside the org section (5.18) for a
+ *  month before the org tree (ADR 0118 §7): KPI teams, who leads each and who
+ *  is in it. Edited directly by a `kpi.set-target` holder, with no approval.
  *
- *  A change lands on `editableFrom`, the month after the last one anything was
- *  sent for, not on the month on screen; so the list shows THAT month's roster.
- *  The running month is read first only to learn which month that is. */
+ *  It reads the roster of the month picked above it. A change lands on the
+ *  roster's `editableFrom`, so the edit buttons show only when that is the
+ *  month on screen; the caller draws this only for months before the tree. */
 
 const NOTE = 'text-muted-foreground m-0 text-[11.5px] leading-[1.5]'
 const ALERT = 'text-destructive-foreground m-0 text-[11.5px] leading-[1.5]'
@@ -51,7 +50,7 @@ function TeamLine({
         <span className={NOTE}>{team.members.map((m) => m.name).join(', ')}</span>
       </div>
       {canSet && (
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 gap-2 max-sm:hidden">
           <Button variant="secondary" className="pointer-coarse:h-12" onClick={onEdit}>
             <Icon icon={Pencil} size={16} />
             Sửa
@@ -66,18 +65,9 @@ function TeamLine({
   )
 }
 
-export function KpiTeamsConfig() {
-  const canSet = useCan('kpi.set-target')
-  const running = keyOf(monthPick())
-  const now = useQuery(kpiTeamRosterQuery(running))
-  const from = now.data?.editableFrom
-  /* Same month as the running one: the first read already is the editable roster. */
-  const later = useQuery({
-    ...kpiTeamRosterQuery(from ?? running),
-    enabled: from !== undefined && from !== running,
-  })
-  const roster = from === undefined || from === running ? now.data : later.data
-  const error = now.error ?? later.error
+export function KpiTeamsConfig({ period }: { period: string }) {
+  const { data: roster, error, refetch } = useQuery(kpiTeamRosterQuery(period))
+  const canSet = useCan('kpi.set-target') && roster?.editableFrom === period
   const [form, setForm] = useState<{ team: KpiTeam | null } | null>(null)
   const [removing, setRemoving] = useState<KpiTeam | null>(null)
 
@@ -92,7 +82,7 @@ export function KpiTeamsConfig() {
             variant="ghost"
             size="sm"
             className="pointer-coarse:h-12"
-            onClick={() => void Promise.all([now.refetch(), later.refetch()])}
+            onClick={() => void refetch()}
           >
             Thử lại
           </Button>
@@ -124,17 +114,24 @@ export function KpiTeamsConfig() {
   const pool = [...(form?.team?.members ?? []), ...(roster?.unassigned ?? [])]
 
   return (
-    <Section at="kpi-teams" hint="Trưởng nhóm chia phần chỉ tiêu của nhóm cho thành viên.">
+    <div className="flex flex-col gap-4">
+      {/* A read-only month shows the list alone; the phone edits nothing. */}
       {canSet && roster && (
-        <Button className="pointer-coarse:h-12 self-start" onClick={() => setForm({ team: null })}>
-          <Icon icon={Plus} size={16} />
-          Thêm nhóm
-        </Button>
-      )}
-      {roster && (
-        <p className={cn(NOTE, 'tnum font-num')}>
-          Thay đổi áp dụng từ tháng {monthText(roster.editableFrom)}.
-        </p>
+        <>
+          <p className={cn(NOTE, 'max-sm:hidden')}>
+            Trưởng nhóm chia phần chỉ tiêu của nhóm cho thành viên.
+          </p>
+          <Button
+            className="pointer-coarse:h-12 self-start max-sm:hidden"
+            onClick={() => setForm({ team: null })}
+          >
+            <Icon icon={Plus} size={16} />
+            Thêm nhóm
+          </Button>
+          <p className={cn(NOTE, 'tnum font-num max-sm:hidden')}>
+            Thay đổi áp dụng từ tháng {monthText(roster.editableFrom)}.
+          </p>
+        </>
       )}
       {body()}
       {roster && (
@@ -153,6 +150,6 @@ export function KpiTeamsConfig() {
           />
         </>
       )}
-    </Section>
+    </div>
   )
 }

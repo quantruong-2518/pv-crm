@@ -53,8 +53,9 @@ export class OrgService {
    *  only of the people shown unless the caller also edits. */
   async read(who: Actor, period: string): Promise<OrgTreeResponse> {
     const from = await this.repo.versionAt(period)
-    const editableFrom = await this.editableFrom()
-    const { nodes, members } = await this.rowsAt(period, from, editableFrom)
+    const first = await this.repo.firstVersion()
+    const editableFrom = await this.editableFrom(undefined, first)
+    const { nodes, members } = await this.rowsAt(period, from, editableFrom, first)
     const faces = await this.repo.people([...new Set(members.map((m) => m.actorId))])
     const all = this.access.allows(who, 'kpi.view-all')
     const units = all
@@ -65,6 +66,7 @@ export class OrgService {
     return OrgTreeResponse.parse({
       period,
       fromPeriod: from,
+      firstPeriod: first,
       editableFrom,
       units,
       people: faces
@@ -79,13 +81,13 @@ export class OrgService {
     period: string,
     from: string | null,
     editableFrom: string,
+    first: string | null,
   ): Promise<OrgSeed> {
     if (from) {
       const [nodes, members] = await Promise.all([this.repo.nodes(from), this.repo.members(from)])
       return { nodes, members }
     }
-    if (period < editableFrom || (await this.repo.firstVersion()) !== null)
-      return { nodes: [], members: [] }
+    if (period < editableFrom || first !== null) return { nodes: [], members: [] }
     return seedOf(await this.hook.rosterAt(editableFrom), COMPANY_NAME)
   }
 
@@ -218,8 +220,11 @@ export class OrgService {
   }
 
   /** ADR 0118 §5: never before the tree's first month nor behind the KPI floor. */
-  private async editableFrom(handle?: Db): Promise<string> {
-    const first = (await this.repo.firstVersion(handle)) ?? TREE_START
+  private async editableFrom(
+    handle?: Db,
+    known: string | null | undefined = undefined,
+  ): Promise<string> {
+    const first = (known === undefined ? await this.repo.firstVersion(handle) : known) ?? TREE_START
     const floor = await this.hook.floor(handle)
     return first > floor ? first : floor
   }
