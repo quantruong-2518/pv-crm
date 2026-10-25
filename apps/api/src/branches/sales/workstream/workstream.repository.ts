@@ -35,7 +35,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
-import { contractReadBy, contractTerminated, dealStoodBy } from '../open-deal'
+import { contractReadBy, contractTerminated, dealStoodBy, journeyInGrowth } from '../open-deal'
 import { CAMPAIGN_ON } from '../lead/lead.repository'
 import { leadLive } from '../lead/lead-scope'
 import { lead, type LeadRowDb } from '../lead/lead.schema'
@@ -640,6 +640,9 @@ export type WorkstreamRead = {
   campaignName: string | null
   /** The run stands on a held lead or deal (`STAND_HELD`): never overdue. */
   held: boolean
+  /** Every live contract is collected (ADR 0121 §1): derived here, not stored,
+   *  so an undone payment needs no clean-up of `stand_key`. */
+  growth: boolean
 }
 
 /** A book row plus the scope verdict E2's second grid is built from, and the
@@ -908,6 +911,7 @@ const READ_COLUMNS = {
   bdName: BD_ACTOR.name,
   campaignName: configEntry.name,
   held: STAND_HELD,
+  growth: sql<boolean>`${journeyInGrowth(workstream.code)}`,
 }
 
 function toRead(r: {
@@ -918,6 +922,7 @@ function toRead(r: {
   bdName: string | null
   campaignName: string | null
   held: boolean
+  growth: boolean
 }): WorkstreamRead {
   return {
     row: r.row,
@@ -927,6 +932,7 @@ function toRead(r: {
     bdName: r.bdName,
     campaignName: r.campaignName,
     held: r.held,
+    growth: r.growth,
   }
 }
 

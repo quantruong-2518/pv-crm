@@ -71,8 +71,14 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
   opportunity: [OPPORTUNITY_BOOK_KEY, OPS_KEY, NEXT_STEP_KEY],
   account: [ACCOUNT_BOOK_KEY],
   contact: [CONTACT_BOOK_KEY, LEAD_SCOPED_KEY],
-  /* The bought-customer book reads money, carers, contact and temperature. */
-  contract: [CONTRACT_BOOK_KEY, ['sales', 'overdue-reasons'], AFTER_SALE_BOOK_KEY],
+  /* The bought-customer book reads money, carers, contact and temperature; a
+     run's stand word and its journey turn on whether every installment is paid. */
+  contract: [
+    CONTRACT_BOOK_KEY,
+    ['sales', 'overdue-reasons'],
+    AFTER_SALE_BOOK_KEY,
+    WORKSTREAM_BOOK_KEY,
+  ],
   workstream: [WORKSTREAM_BOOK_KEY, NEXT_STEP_KEY, AFTER_SALE_BOOK_KEY],
   meeting: [MEETING_KEY, AFTER_SALE_BOOK_KEY],
   comm: [...COMM_QUEUE_KEYS, AFTER_SALE_BOOK_KEY],

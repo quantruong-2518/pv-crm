@@ -1,5 +1,6 @@
 import {
   CLOSE_REASON_LABEL,
+  CONTRACT_RUNG_LABEL,
   LEAD_LANE_BACKBONE,
   LEAD_STATE_LABEL,
   StageKey,
@@ -96,7 +97,11 @@ export function standOf(
   const own = kind === 'HĐ' && paperCode !== null ? paperCode : standCode
   const code = (kept ? own : read.lead.code) ?? read.lead.code
 
-  return { code, kind, key, phaseLabel: labelOf(kind, key, stage) }
+  /* Fully collected keeps `signed` as the key, so the board's column and the
+     stand CHECK stay put; only the word follows the contract card (ADR 0121 §1). */
+  const phaseLabel =
+    kind === 'HĐ' && read.growth ? CONTRACT_RUNG_LABEL.done : labelOf(kind, key, stage)
+  return { code, kind, key, phaseLabel }
 }
 
 /** May this reader open the object the run stands on — the SAME question

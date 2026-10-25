@@ -25,8 +25,9 @@ import { MenuButton } from './menu-button'
  *
  *  It IS the screen's ContextRail (law 10): every chip goes through it, azure
  *  for the one open. A step with several objects shows the one open, else the
- *  latest, and "+n". After-sale and growth have no book yet, so they are places
- *  only. When the run cannot be read, the server's chain stands in. Not
+ *  latest, and "+n". After-sale and growth carry no chip; after-sale reads
+ *  reached once the run is in `growth` (ADR 0121 §1). When the run cannot be
+ *  read, the server's chain stands in. Not
  *  `StageTrack`: that is a bar with no place for a step's object chip. */
 
 type Journey = WorkstreamJourneyResponse
@@ -110,6 +111,8 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
           const chip: RailObject | null = focus
             ? { code: focus, source: here, ...(path ? { onOpen: () => navigate(path) } : {}) }
             : null
+          const reached =
+            Boolean(focus) || (step.key === 'after-sale' && journey.status === 'growth')
 
           return (
             <li key={step.key} className="flex items-center gap-1">
@@ -118,7 +121,7 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                   aria-hidden
                   className={cn(
                     'mx-2 h-0.5 w-4 rounded-full',
-                    focus ? 'bg-success' : 'bg-surface-ink/16',
+                    reached ? 'bg-success' : 'bg-surface-ink/16',
                   )}
                 />
               )}
@@ -130,15 +133,15 @@ function RunBar({ journey, current }: { journey: Journey; current: RunSubject })
                 )}
               >
                 <StatusDot
-                  state={here ? 'current' : focus ? 'ok' : 'next'}
-                  label={here ? 'đang ở đây' : focus ? 'đã tới' : 'chưa tới'}
+                  state={here ? 'current' : reached ? 'ok' : 'next'}
+                  label={here ? 'đang ở đây' : reached ? 'đã tới' : 'chưa tới'}
                 />
                 <span
                   className={cn(
                     'text-[13px] leading-[1.5]',
                     here
                       ? 'text-accent-foreground font-semibold'
-                      : focus
+                      : reached
                         ? 'text-foreground font-medium'
                         : 'text-glass-foreground font-medium',
                   )}
