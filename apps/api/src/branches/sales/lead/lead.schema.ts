@@ -443,13 +443,12 @@ export const lead = sales.table(
     check('lead_exit_pair', sql`("exit_reason" IS NULL) = ("exited_at" IS NULL)`),
     /** Switched off always says by whom — the audit trail's second witness. */
     check('lead_disabled_pair', sql`("disabled_at" IS NULL) = ("disabled_by" IS NULL)`),
-    /** The six `LeadState` values, copied out by hand for `touch_kind_known`'s
-     *  reason: a state added to the contract must be a migration somebody reads.
-     *  `archived` retired by 0067, `disqualified` by 0129–0130 — both moved to `nurturing`. */
+    /** The five `LeadState` values, copied by hand for `touch_kind_known`'s reason.
+     *  `archived` (0067) and `disqualified` (0129–0130) moved to `nurturing`;
+     *  `verifying` (0144, ADR 0123) moved to `assigned`. */
     check(
       'lead_state_known',
-      sql`"state" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                      'converted')`,
+      sql`"state" IN ('new', 'assigned', 'working', 'nurturing', 'converted')`,
     ),
     /** A park always says why, and leaving the pool clears it (ADR 0109 §1).
      *  `lead_exit_pair` above pairs the timestamp. */
@@ -463,7 +462,7 @@ export const lead = sales.table(
      *  holder (ADR 0109). `converted` stays exempt, as before. */
     check(
       'lead_open_owner_matches',
-      sql`"state" NOT IN ('new', 'assigned', 'verifying', 'working', 'nurturing')
+      sql`"state" NOT IN ('new', 'assigned', 'working', 'nurturing')
           OR (("state" IN ('new', 'nurturing')) = ("owner_id" IS NULL))`,
     ),
     /** `contact_channel` joined this list on 27/08, and it is not cosmetic:

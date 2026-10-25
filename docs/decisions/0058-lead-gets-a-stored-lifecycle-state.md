@@ -7,6 +7,7 @@ resume, no archive sweep); accepted (partially supersedes 0015 and 0034's use of
 Superseded in part by 0068: 0067's retirement of `disqualified` and its reopen
 path is itself reversed — `disqualified` is back, so this ADR's `disqualified`
 row and reopen text apply again.
+Superseded in part by 0123: the `verifying` state is removed.
 Source: project owner's decision in session, 18/09/2026; diagram
 `crm_workstream_v2.pdf`, block 2 ("Lead") — already cited by ADR 0054
 

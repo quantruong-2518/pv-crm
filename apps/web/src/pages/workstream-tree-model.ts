@@ -165,7 +165,7 @@ const LADDER: Record<PickKind, Readonly<Record<string, string>>> = {
 export const rungLabel = (kind: PickKind, key: string): string | undefined => LADDER[kind][key]
 
 /** One grid column per rung, spelled out so Tailwind sees each class: the deal
- *  ladder has four rungs (ADR 0072), the lead and contract ladders five. */
+ *  and lead ladders have four rungs (ADRs 0072, 0123), the contract ladder five. */
 export const gridCols = (rungs: number) => (rungs === 4 ? 'grid-cols-4' : 'grid-cols-5')
 
 /** A skipped rung between two reached ones stays lit: the line shows how far

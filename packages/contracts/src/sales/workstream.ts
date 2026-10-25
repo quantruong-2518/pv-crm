@@ -353,15 +353,14 @@ export const WorkstreamScorecardQuery = z.object({ period: SalesPeriodKey.option
 // SHARED LADDERS
 // ---------------------------------------------------------------------------
 
-/** The five backbone rungs, in order, and no others — every lead lane draws
+/** The four backbone rungs, in order, and no others — every lead lane draws
  *  exactly this ladder so any two leads sit side by side and compare (ADR
  *  0058). Declared once so the API's writer and this contract agree on which
- *  five. The `verifying` rung is entered by touch kind `care-planned` or legacy
- *  `first-action`; `working` by `exchange-logged` or legacy `verified`. */
+ *  four. `working` is entered by `exchange-logged` or legacy `verified`; the
+ *  `verifying` rung is gone (ADR 0123). */
 export const LEAD_LANE_BACKBONE = [
   'new',
   'assigned',
-  'verifying',
   'working',
   'converted',
 ] as const satisfies readonly LeadState[]

@@ -169,19 +169,17 @@ export const workstream = sales.table(
       sql`CASE "stand_kind"
             WHEN 'HĐ' THEN "stand_key" = 'signed'
             WHEN 'OP' THEN "stand_key" IN ('new', 'assigned', 'engaged', 'quotation')
-            WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                                           'converted')
+            WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'working', 'nurturing', 'converted')
             ELSE true
           END`,
     ),
 
-    /** A `LeadState` whatever the run stands on. The trigger writes only the five
+    /** A `LeadState` whatever the run stands on. The trigger writes only the four
      *  backbone rungs (a `nurturing` lead at the rung its trail proves); the
      *  domain is the contract's. `stand_code` is fenced by a DEFERRED trigger. */
     check(
       'workstream_stand_lead_key_known',
-      sql`"stand_lead_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing',
-                               'converted')`,
+      sql`"stand_lead_key" IN ('new', 'assigned', 'working', 'nurturing', 'converted')`,
     ),
   ],
 )

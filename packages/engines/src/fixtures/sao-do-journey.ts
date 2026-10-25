@@ -239,7 +239,6 @@ function ws0041(): Body {
         {
           new: { at: at('2025-06-02'), by: huy },
           assigned: { at: at('2025-06-02'), by: huy },
-          verifying: { at: at('2025-06-04'), by: huy },
           working: { at: at('2025-06-09'), by: huy },
           converted: { at: at('2025-06-20'), by: huy },
         },
@@ -487,7 +486,6 @@ function ws0088(): Body {
         {
           new: { at: at('2026-07-08'), by: ha },
           assigned: { at: at('2026-07-08'), by: ha },
-          verifying: { at: at('2026-07-09'), by: ha },
           working: { at: at('2026-07-10'), by: ha },
           converted: { at: at('2026-07-13'), by: ha },
         },
@@ -628,7 +626,6 @@ function ws0089(): Body {
         {
           new: { at: at('2026-07-08', '14:00'), by: huy },
           assigned: { at: at('2026-07-08', '14:00'), by: huy },
-          verifying: { at: at('2026-07-09'), by: huy },
           working: { at: at('2026-07-10'), by: huy },
           converted: { at: at('2026-07-14'), by: huy },
         },

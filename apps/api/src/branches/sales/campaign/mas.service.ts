@@ -34,7 +34,6 @@ import { MailDomainCheck } from '@api/platform/mail/mail-domain-check'
 import { renderMasLetter, senderOf } from '@api/platform/mail/mas-letter'
 import { MailRunRepository, type MailRunUpdate } from '@api/platform/mail/mail-run.repository'
 import { MailRunSweeper } from '@api/platform/mail/mail-run.sweeper'
-import { LeadStateWriter } from '../lead/lead-state'
 import { deadNote, mailKey } from './mail-domain'
 import {
   MasRepository,
@@ -154,7 +153,6 @@ export class MasService {
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ACCESS) private readonly access: AccessControl,
     @Inject(ENV) private readonly env: Env,
-    private readonly states: LeadStateWriter,
     private readonly domains: MailDomainCheck,
     private readonly sweeper: MailRunSweeper,
   ) {}
@@ -447,13 +445,6 @@ export class MasService {
         waveNo,
         phase: body.label,
       })
-
-      if (body.audience.subjectType === 'lead' && scheduledAt) {
-        /* A SEND TIME is care scheduled, campaign wave or not (ADR 0068 §2); the
-           letter going out moves it to `working` (`LeadMailSentHook`). */
-        const mailed = sendable.map((d) => d.row.code)
-        await this.states.mailTimed(tx, mailed, who)
-      }
 
       await this.repo.writeRunNote(tx, {
         actorId: who.id,

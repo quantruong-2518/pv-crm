@@ -33,7 +33,7 @@ type FrameState = StepLeadState | StageKey | CustomerTemperature
 /** Two implications rather than one OR, so an unknown kind fails only
  *  `*_object_kind_known` and each refusal names exactly one constraint. */
 const stateKnown = (): SQL =>
-  sql`("object_kind" <> 'lead' OR "state_key" IN ('new', 'assigned', 'verifying', 'working', 'nurturing'))
+  sql`("object_kind" <> 'lead' OR "state_key" IN ('new', 'assigned', 'working', 'nurturing'))
       AND ("object_kind" <> 'opportunity' OR "state_key" IN ('new', 'assigned', 'engaged', 'quotation'))
       AND ("object_kind" <> 'customer' OR "state_key" IN ('hot', 'warm', 'cold'))`
 

@@ -91,7 +91,6 @@ export const LEAD_NOTE = {
    *  on: several doors reach each rung, the trail already names the person, and a
    *  stored sentence that quotes `LEAD_STATE_LABEL` goes stale the day a label
    *  is renamed. */
-  carePlanned: 'Đặt lịch làm việc với khách',
   exchanged: 'Có trao đổi thật với khách',
   mailed: 'Thư đã gửi tới khách',
   replied: 'Khách đã trả lời thư',

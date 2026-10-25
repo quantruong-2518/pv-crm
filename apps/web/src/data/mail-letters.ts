@@ -26,7 +26,6 @@ import { toast } from '@/app/toast'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
 import { leadProfileQuery } from '@/data/lead-profile'
-import { invalidateLeadState } from '@/data/lead-exit'
 import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
 import { LETTERS_KEY } from '@/data/mas'
 
@@ -296,9 +295,6 @@ export function useLetterSend() {
       void client.invalidateQueries({ queryKey: ['sales', 'mail-runs'] })
       /* The letter files its own pending record in the contact book. */
       void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY })
-      /* A letter the owner schedules at the lead door is planned care: the
-         lead moves to `verifying` (ADR 0063). */
-      if (body.door === 'lead' && body.scheduledAt) invalidateLeadState(client)
     },
   })
 }

@@ -6,6 +6,7 @@ Status: accepted (partially supersedes 0058: the entry conditions of `verifying`
 Superseded in part by 0068: §1's `nurturing` label "Chờ thời điểm" is now
 "Nhóm chờ chăm sóc"; §1's `disqualified` label is revived (reopen path back),
 now shown as "Ngừng chăm sóc" instead of "Không theo nữa".
+Superseded in part by 0123: `verifying` is removed; `assigned` is "Đã có người phụ trách", `working` "Đang chăm sóc".
 Source: project owner's decision in session, 21/09/2026
 
 ## Context

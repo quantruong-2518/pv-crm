@@ -82,8 +82,8 @@ export const ContractKind = z
 /** Where a lead stands in its OWN lifecycle (ADR 0058, entry rules ADR 0063).
  *  STORED under a CHECK and moved only by the server; a screen never derives it.
  *
- *   · `new` / `assigned` — no PIC yet / a PIC who has scheduled nothing yet
- *   · `verifying`  — the owner scheduled care (future meeting, timed mail run)
+ *   · `new` / `assigned` — no PIC yet / a PIC holds it, no customer touch yet
+ *     (scheduling care moves nothing, ADR 0123)
  *   · `working`    — first real touch: call, message, meeting held, any mail sent
  *   · `nurturing`  — the one shared waiting pool, never expires and has NO holder.
  *                    Entered by the park door or automatically when the last
@@ -93,7 +93,7 @@ export const ContractKind = z
  *  Tier belongs to no state, and neither does a hold (`./hold`, an overlay).
  *  Not `StageKey`: that is the deal's. */
 export const LeadState = z.enum(
-  ['new', 'assigned', 'verifying', 'working', 'nurturing', 'converted'],
+  ['new', 'assigned', 'working', 'nurturing', 'converted'],
   'Trạng thái lead không có trong danh sách',
 )
 
@@ -104,9 +104,8 @@ export const LeadState = z.enum(
  *  `apps/web/src/data/lead-state.ts` pairs this label with a tone locally. */
 export const LEAD_STATE_LABEL: Record<LeadState, string> = {
   new: 'Khởi tạo lead',
-  assigned: 'Nhận PIC',
-  verifying: 'Tạo chiến lược chăm sóc',
-  working: 'Tình trạng chăm sóc',
+  assigned: 'Đã có người phụ trách',
+  working: 'Đang chăm sóc',
   nurturing: 'Nhóm chờ chăm sóc',
   converted: 'Thành cơ hội',
 }
@@ -119,22 +118,17 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   new: {
     does: 'Lead vừa tạo, chưa có người nhận.',
     who: 'Tự động hoặc người nhập lead',
-    next: 'Có người nhận PIC thì sang Nhận PIC.',
+    next: `Giao cho một người phụ trách thì sang ${LEAD_STATE_LABEL.assigned}.`,
   },
   assigned: {
-    does: 'Một người nhận phụ trách lead.',
-    who: 'Người phụ trách (PIC); với mail hẹn giờ là người hẹn',
-    next: 'Có lịch chăm sóc thì sang Tạo chiến lược chăm sóc. Đã liên hệ khách thì sang Tình trạng chăm sóc. Tạm gác thì sang Nhóm chờ chăm sóc.',
-  },
-  verifying: {
-    does: 'Đã lên lịch chăm sóc (họp sắp tới, mail hẹn giờ), chưa liên hệ khách.',
-    who: 'PIC',
-    next: 'Liên hệ khách lần đầu (gọi, nhắn, họp, gửi mail) thì sang Tình trạng chăm sóc. Tạm gác thì sang Nhóm chờ chăm sóc.',
+    does: 'Một người đã nhận lead, chưa liên hệ khách.',
+    who: 'Người phụ trách (PIC)',
+    next: `Liên hệ khách lần đầu (gọi, nhắn, họp, gửi mail) thì sang ${LEAD_STATE_LABEL.working}. Tạm gác thì sang ${LEAD_STATE_LABEL.nurturing}.`,
   },
   working: {
-    does: 'Đang chăm sóc. Mỗi lần liên hệ được ghi vào lịch sử.',
+    does: 'Mỗi lần liên hệ khách được ghi vào lịch sử.',
     who: 'PIC',
-    next: 'Chuyển vào Nhóm chờ chăm sóc khi tạm gác. Mở cơ hội thì sang Thành cơ hội.',
+    next: `Tạm gác thì sang ${LEAD_STATE_LABEL.nurturing}. Mở cơ hội thì sang ${LEAD_STATE_LABEL.converted}.`,
   },
   nurturing: {
     does: 'Lead đang chờ chăm sóc, không có người phụ trách.',
@@ -144,16 +138,15 @@ export const LEAD_STATE_HINT: Record<LeadState, { does: string; who: string; nex
   converted: {
     does: 'Đã mở cơ hội đầu tiên từ lead này.',
     who: 'Người có quyền tạo cơ hội và sửa lead',
-    next: 'Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Hết cơ hội đang chạy và chưa ký thì lead tự sang Nhóm chờ chăm sóc.',
+    next: `Còn cơ hội đang chạy hoặc đã ký thì giữ nguyên, vẫn mở thêm được cơ hội. Hết cơ hội đang chạy và chưa ký thì lead tự sang ${LEAD_STATE_LABEL.nurturing}.`,
   },
 }
 
 /** The states still in the funnel — the book's default tab and every "still
- *  open" count. Declared once so no two readers disagree on which five. */
+ *  open" count. Declared once so no two readers disagree on which four. */
 export const LEAD_OPEN_STATES = [
   'new',
   'assigned',
-  'verifying',
   'working',
   'nurturing',
 ] as const satisfies readonly LeadState[]

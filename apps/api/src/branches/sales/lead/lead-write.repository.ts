@@ -409,6 +409,5 @@ export class LeadWriteRepository {
  *  off-backbone walk of `sales.workstream_stand()` makes (migration 0058). */
 const reachedRung = sql<LeadReach>`CASE
      WHEN EXISTS (SELECT 1 FROM sales.touch lr_w WHERE lr_w.subject_code = ${lead.code} AND lr_w.kind IN ('verified', 'exchange-logged')) THEN 'working'
-     WHEN EXISTS (SELECT 1 FROM sales.touch lr_v WHERE lr_v.subject_code = ${lead.code} AND lr_v.kind IN ('first-action', 'care-planned')) THEN 'verifying'
      ELSE 'assigned'
    END`

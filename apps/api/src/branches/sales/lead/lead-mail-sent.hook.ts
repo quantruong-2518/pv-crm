@@ -59,8 +59,8 @@ export class LeadMailSentHook implements MailSentHook {
   }
 
   /** Every reply leaves ONE `customer-replied` row, by the system, whatever
-   *  the lead's state — pool, parked and converted included. An `assigned` or
-   *  `verifying` lead also moves to `working` (ADR 0067 §2), a `nurturing` one
+   *  the lead's state — pool, parked and converted included. An `assigned`
+   *  lead also moves to `working` (ADR 0067 §2), a `nurturing` one
    *  back to `new` (ADR 0109), and the state writer dates that move with its
    *  own row: two facts, two rows. A
    *  switched-off lead takes neither, and nobody is told. */

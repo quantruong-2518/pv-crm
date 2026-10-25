@@ -70,7 +70,6 @@ export function leadRungsOf(
 /** The same entry kinds the server's lane writer reads (`RUNG_HIT`). */
 const ENTRY_KINDS: Record<Exclude<Rung, 'assigned'>, readonly TouchKind[]> = {
   new: ['created'],
-  verifying: ['care-planned', 'first-action'],
   working: ['exchange-logged', 'verified'],
   converted: ['entered-pipeline'],
 }
@@ -159,10 +158,10 @@ export function mailBlockedOf(canSendEmail: boolean): string | undefined {
 }
 
 /** States a lead can be parked from, held-or-not aside (ADR 0109). */
-const PARKABLE: ReadonlySet<string> = new Set(['new', 'assigned', 'verifying', 'working'])
+const PARKABLE: ReadonlySet<string> = new Set(['new', 'assigned', 'working'])
 
 /** States with a holder still being worked — where a hold starts. */
-const WORKED: ReadonlySet<string> = new Set(['assigned', 'verifying', 'working'])
+const WORKED: ReadonlySet<string> = new Set(['assigned', 'working'])
 
 /** The bar's other moves: the state moves the header does not hold, the
  *  hand-over and the pin. Same gates as the old toolbar's `…` menu; a door

@@ -54,7 +54,6 @@ export class MeetingService {
   constructor(
     private readonly repo: MeetingRepository,
     private readonly touch: TouchService,
-    /* A meeting by the lead's holder moves the state — see `moveLead` below. */
     private readonly states: LeadStateWriter,
     private readonly records: CommRecordService,
     private readonly actors: ActorRepository,
@@ -116,7 +115,6 @@ export class MeetingService {
       })
       await this.repo.setAttendees(tx, id, attendeesOf(id, body))
       if (!ahead) return
-      await this.moveLead(tx, code, who.id, at)
       await this.writeTouch(tx, who, { subjectCode: code, at, title: body.title }, already)
     })
     /* After the commit, never inside it: Google cannot fail or hold the booking.
@@ -126,8 +124,7 @@ export class MeetingService {
 
   /** Edit a booking. No touch row: fixing a title is not something that
    *  happened with the customer. Slot and title live on this row alone; a new
-   *  `at` also moves the lead by the OWNER (`moveLead`) and the record's
-   *  booking turn (`reschedule`). A held meeting is history and refuses. */
+   *  `at` also moves the record's booking turn (`reschedule`). A held meeting is history and refuses. */
   async amend(who: Actor, code: string, id: string, body: MeetingPatch): Promise<MeetingRow> {
     const current = await this.changeable(who, code, id)
     const at = body.at === undefined ? current.at : new Date(body.at)
@@ -178,7 +175,6 @@ export class MeetingService {
       }
 
       if (body.at === undefined) return
-      if (current.createdBy) await this.moveLead(tx, code, current.createdBy, at)
       await this.records.reschedule(tx, id, at)
     })
     /* Every patchable field shows on the event (`link` as its location). */
@@ -371,15 +367,6 @@ export class MeetingService {
       if (!why || !(error instanceof PvError)) throw error
       throw invalid({ guests: why }, error.message)
     }
-  }
-
-  /** THE meeting rule (ADR 0063 §2), for the booking and the reschedule: a
-   *  meeting still ahead is care SCHEDULED, by its OWNER. The exchange is
-   *  logged by close-meeting alone (`markHeld`), never by a clock. Owner-only and
-   *  forward-only; on a deal there is no lead state to move. */
-  private moveLead(tx: Db, code: string, ownerId: string, at: Date): Promise<void> {
-    if (!code.startsWith('LD-') || at.getTime() <= Date.now()) return Promise.resolve()
-    return this.states.scheduled(tx, [code], ownerId)
   }
 
   /** The timeline row: `first-meeting` when the book held no meeting of this

@@ -17,7 +17,6 @@ import type {
 } from '@pv/contracts'
 import { api, isApiError, userMessage, type ApiError, type ApiNeed } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
-import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Module 5 · MAS mail — the five doors the compose panel and the lead
  *  timeline call. `/sales/mail/*` plus one lead-side read.
@@ -417,9 +416,6 @@ export function useMasSend() {
          không được phụ thuộc ngược lên chúng. */
       void client.invalidateQueries({ queryKey: ['sales', 'campaign-book'] })
       void client.invalidateQueries({ queryKey: ['sales', 'mail-runs'] })
-      /* A mail run the owner SCHEDULES is planned care, and that moves the lead
-         to `verifying` (ADR 0063). */
-      invalidateLeadState(client)
     },
   })
 }

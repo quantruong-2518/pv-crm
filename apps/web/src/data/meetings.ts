@@ -3,7 +3,6 @@ import type { MeetingCreate, MeetingListResponse, MeetingPatch, MeetingRow } fro
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { COMM_RECORDS_KEY } from '@/data/comm-record-detail'
 import { COMMS_KEY } from '@/data/comms'
-import { invalidateLeadState } from '@/data/lead-exit'
 
 /** Meetings of one lead or one deal — four doors under
  *  `/sales/{leads|opportunities}/:code/meetings` (`sales/meeting.ts`).
@@ -96,16 +95,15 @@ export function useAddMeeting() {
     onSuccess: (_row, { subject }) => {
       meetingsMoved(client, subject.code)
       if (subject.kind !== 'lead') return
-      /* A held meeting counts the lead as contacted on the card; a future `at`
-         moves the lead to `verifying`, a past one to `working` (ADR 0063 §2). */
+      /* A held meeting counts the lead as contacted on the card. Booking moves
+         no lead state; only close-meeting (`markHeld`) does (ADR 0123). */
       void client.invalidateQueries({ queryKey: SCORECARD_KEY })
-      invalidateLeadState(client)
     },
   })
 }
 
-/** The reschedule door too: a moved `at` re-orders the list and the star, and
- *  moves the lead's state on the same rule as a new meeting. */
+/** The reschedule door too: a moved `at` re-orders the list and the star;
+ *  like a booking it moves no lead state (ADR 0123). */
 export function useEditMeeting() {
   const client = useQueryClient()
 
@@ -118,7 +116,6 @@ export function useEditMeeting() {
       }),
     onSuccess: (_row, { subject }) => {
       meetingsMoved(client, subject.code)
-      if (subject.kind === 'lead') invalidateLeadState(client)
     },
   })
 }

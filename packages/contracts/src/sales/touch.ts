@@ -65,15 +65,14 @@ export const TouchKind = z.enum([
   'handed-over',
   /** The lead moved up a tier, after it was verified. */
   'tier-raised',
-  /** The PIC's FIRST scheduling action: a future meeting or a timed mail run
-   *  (`assigned` → `verifying`). Written by the state writer itself, so every
-   *  door that schedules care leaves a dated rung. */
+  /** LEGACY, rows persist: written by nobody since ADR 0123 (scheduling care
+   *  no longer moves a lead); old rows still read. */
   'care-planned',
   /** The first real touch — logged exchange or a mail actually sent — moved
-   *  the lead to `working`, from `assigned`, `verifying` or `nurturing` (the
-   *  loop, ADR 0068). Carries no tier. */
+   *  the lead to `working`, from `assigned` or `nurturing` (the loop, ADR
+   *  0068). Carries no tier. */
   'exchange-logged',
-  /** LEGACY, rows persist: same rung as `care-planned` (→ `verifying`). */
+  /** LEGACY, rows persist: same retired rung as `care-planned`. */
   'first-action',
   /** LEGACY, rows persist: same rung as `exchange-logged` (→ `working`); such
    *  rows carry the tier set at the time. */

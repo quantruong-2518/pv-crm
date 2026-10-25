@@ -6,7 +6,6 @@ import { MailModule } from '@api/platform/mail/mail.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
 import { LeadOriginModule } from '../lead-origin/lead-origin.module'
 import { ContractRepository } from '../contract/contract.repository'
-import { LeadStateModule } from '../lead/lead-state'
 import { LeadRepository } from '../lead/lead.repository'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import { CampaignController } from './campaign.controller'
@@ -65,7 +64,6 @@ import { SourceService } from './source.service'
   imports: [
     EnginesModule,
     MailModule,
-    LeadStateModule,
     LeadOriginModule,
     GoogleModule,
     NotificationModule,

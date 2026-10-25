@@ -19,7 +19,6 @@ export const LEAD_STATE_FACE: Record<
 > = {
   new: { label: LEAD_STATE_LABEL.new, badge: 'warning' },
   assigned: { label: LEAD_STATE_LABEL.assigned, badge: 'warning' },
-  verifying: { label: LEAD_STATE_LABEL.verifying, badge: 'running' },
   working: { label: LEAD_STATE_LABEL.working, badge: 'running' },
   nurturing: { label: LEAD_STATE_LABEL.nurturing, badge: 'draft' },
   converted: { label: LEAD_STATE_LABEL.converted, badge: 'success' },

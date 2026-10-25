@@ -33,7 +33,6 @@ import { renderMasLetter, senderOf, substitute } from '@api/platform/mail/mas-le
 import { MailRunRepository } from '@api/platform/mail/mail-run.repository'
 import { ContractRepository } from '../contract/contract.repository'
 import { LeadRepository } from '../lead/lead.repository'
-import { LeadStateWriter } from '../lead/lead-state'
 import { OpportunityRepository } from '../opportunity/opportunity.repository'
 import { deadNote, mailKey } from './mail-domain'
 import {
@@ -87,7 +86,6 @@ export class MailLetterService {
     private readonly runs: MailRunRepository,
     @Inject(MAIL_ENQUEUE) private readonly mail: MailEnqueue,
     @Inject(ENV) private readonly env: Env,
-    private readonly states: LeadStateWriter,
     private readonly deals: OpportunityRepository,
     private readonly contracts: ContractRepository,
     private readonly google: GoogleAccess,
@@ -267,11 +265,6 @@ export class MailLetterService {
         at: new Date(),
       })
 
-      /* Timed = care scheduled; sent now moves nothing here — the letter going
-         out does, in the worker (`LeadMailSentHook`, ADR 0068 §1–2). */
-      if (body.door === 'lead' && scheduledAt) {
-        await this.states.mailTimed(tx, [subject.leadCode], who)
-      }
       await this.mas.writeRunNote(tx, {
         actorId: who.id,
         runId: mailRunId,

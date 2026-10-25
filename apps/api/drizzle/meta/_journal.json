@@ -974,6 +974,13 @@
       "when": 1795590420000,
       "tag": "0140_org_unit_tree",
       "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1795590480000,
+      "tag": "0144_lead_state_drop_verifying",
+      "breakpoints": true
     }
   ]
 }

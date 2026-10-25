@@ -239,21 +239,24 @@ function parkedOnDeal(
 }
 
 /** A backbone rung, and the touch that puts the lead on it. `assigned` answers
- *  to `created` as well: a lead born with a holder was never handed over.
- *  Two kinds each for `verifying`/`working`, legacy beside new (ADR 0063 §5). */
+ *  to `created` as well: a lead born with a holder was never handed over, and
+ *  to the legacy `first-action`/`care-planned`, as 0144's SQL twin does (ADR 0123).
+ *  Two kinds for `working`, legacy beside new (ADR 0063 §5). */
 type LeadRungKey = (typeof LEAD_LANE_BACKBONE)[number]
 
 const RUNG_HIT: Record<LeadRungKey, (t: LeadTouchEntry) => boolean> = {
   new: (t) => t.kind === 'created',
-  assigned: (t) => (t.kind === 'handed-over' || t.kind === 'created') && t.to !== null,
-  verifying: (t) => t.kind === 'first-action' || t.kind === 'care-planned',
+  assigned: (t) =>
+    ((t.kind === 'handed-over' || t.kind === 'created') && t.to !== null) ||
+    t.kind === 'first-action' ||
+    t.kind === 'care-planned',
   working: (t) => t.kind === 'verified' || t.kind === 'exchange-logged',
   converted: (t) => t.kind === 'entered-pipeline',
 }
 
 const touchHolder = (t: LeadTouchEntry): WorkstreamHolder | null => personOf(t.actorId, t.by)
 
-/** The five backbone rungs, and the waiting door while the lead sits in the
+/** The four backbone rungs, and the waiting door while the lead sits in the
  *  `nurturing` pool (ADR 0109) — the ONLY waiting door: a lost deal draws none
  *  (ADR 0069). The park stops the rung at `exitedAt`, the moment it was parked. */
 function leadOf(
@@ -357,7 +360,7 @@ function parkReasonOf(parked: LeadTouchEntry | null | undefined): string {
 
 /** Which rung the lead is DRAWN on. A lead off the backbone — the `nurturing`
  *  pool, which may never have been assigned — stands on the last rung its trail
- *  proves it reached; the SQL twin is `sales.workstream_stand()` (0129). */
+ *  proves it reached; the SQL twin is `sales.workstream_stand()` (0144). */
 function standingOn(lead: LeadRowDb, entryOf: (key: LeadRungKey) => Entry): number {
   const onBackbone = (LEAD_LANE_BACKBONE as readonly LeadState[]).indexOf(lead.state)
   if (onBackbone >= 0) return onBackbone

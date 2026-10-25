@@ -23,9 +23,9 @@ import { endHolds } from '../hold/hold.sql'
 
 /** THE ONE PLACE A LEAD'S LIFECYCLE STATE IS WRITTEN (ADR 0058, 0063, 0068).
  *
- *  Two facts move a lead forward, and nothing else does: care was SCHEDULED
- *  (→ `verifying`) and a real touch happened — call, message, meeting held, a
- *  mail that went out (→ `working`). The `nurturing` pool is left only by a
+ *  One fact moves a lead forward: a real touch happened — call, message,
+ *  meeting held, a mail that went out (`assigned` → `working`). Scheduling
+ *  care moves nothing (ADR 0123). The `nurturing` pool is left only by a
  *  claim, a customer reply or a new deal (ADR 0109). Edits move nothing.
  *
  *  Every write moves `state_since` with `state`, refreshes the lead's mirror
@@ -62,7 +62,7 @@ export function stateAfterOwnerChange(state: LeadState, ownerId: string | null):
 /** The highest backbone rung a lead's touch trail proves it ever reached
  *  (ADR 0063 §4) — read by `LeadWriteRepository.lockForMove`; a claim out of
  *  the pool puts the lead back there. */
-export type LeadReach = Extract<LeadState, 'assigned' | 'verifying' | 'working'>
+export type LeadReach = Extract<LeadState, 'assigned' | 'working'>
 
 type LeadColumns = Omit<PgUpdateSetSource<typeof lead>, 'code' | 'state' | 'stateSince'>
 
@@ -82,9 +82,8 @@ export type Park = {
   actorId: string | null
 }
 
-/** Who a move is credited to: the holder (only their own leads move), a named
- *  person moving any holder's lead, or the system. */
-type Mover = { holderId: string } | { anyone: { id: string; name: string } } | null
+/** Who a move is credited to: the holder (only their own leads move) or the system. */
+type Mover = { holderId: string } | null
 
 @Injectable()
 export class LeadStateWriter {
@@ -121,26 +120,6 @@ export class LeadStateWriter {
     })
   }
 
-  /** The holder booked a future meeting: `assigned` → `verifying`. */
-  scheduled(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
-    return this.planned(tx, codes, { holderId: actorId })
-  }
-
-  /** A mail run timed for later, any kind and whoever timed it (ADR 0068 §2):
-   *  `assigned` → `verifying`; a pool lead has no holder and stays `new`. */
-  mailTimed(tx: Db, codes: readonly string[], who: { id: string; name: string }): Promise<void> {
-    return this.planned(tx, codes, { anyone: who })
-  }
-
-  private async planned(tx: Db, codes: readonly string[], mover: Mover): Promise<void> {
-    await this.advance(tx, codes, mover, {
-      to: 'verifying',
-      from: ['assigned'],
-      kind: 'care-planned',
-      note: LEAD_NOTE.carePlanned,
-    })
-  }
-
   /** The holder logged a real exchange: call, message, meeting held. */
   exchanged(tx: Db, codes: readonly string[], actorId: string): Promise<void> {
     return this.touched(tx, codes, { holderId: actorId }, LEAD_NOTE.exchanged)
@@ -152,7 +131,7 @@ export class LeadStateWriter {
     return this.touched(tx, codes, null, LEAD_NOTE.mailed)
   }
 
-  /** The customer answered a letter (ADR 0067 §2): `assigned|verifying` →
+  /** The customer answered a letter (ADR 0067 §2): `assigned` →
    *  `working`, credited to nobody so no holder's first-contact count is fed.
    *  A reply is the one campaign response that takes a lead out of the
    *  `nurturing` pool (ADR 0109): back to `new`, and the assigners hear it.
@@ -160,7 +139,7 @@ export class LeadStateWriter {
    *  itself is the caller's `customer-replied` row, on every reply. */
   async replied(tx: Db, codes: readonly string[]): Promise<void> {
     const step = { kind: 'exchange-logged', note: LEAD_NOTE.repliedIntoWork } as const
-    await this.advance(tx, codes, null, { ...step, to: 'working', from: ['assigned', 'verifying'] })
+    await this.advance(tx, codes, null, { ...step, to: 'working', from: ['assigned'] })
     const pooled = await this.advance(tx, codes, null, {
       ...step,
       to: 'new',
@@ -173,7 +152,7 @@ export class LeadStateWriter {
     }
   }
 
-  /** `assigned|verifying` → `working`. A mail sent is not a response, so a
+  /** `assigned` → `working`. A mail sent is not a response, so a
    *  `nurturing` lead stays in the pool (ADR 0109). The same touch ends an open
    *  hold (ADR 0097 §3), moved or not, on the leads the mover's predicate covers. */
   private async touched(
@@ -183,17 +162,16 @@ export class LeadStateWriter {
     note: string,
   ): Promise<void> {
     const step = { to: 'working', kind: 'exchange-logged', note } as const
-    await this.advance(tx, codes, mover, { ...step, from: ['assigned', 'verifying'] })
+    await this.advance(tx, codes, mover, { ...step, from: ['assigned'] })
     if (codes.length === 0) return
-    const covered =
-      mover && 'holderId' in mover
-        ? (
-            await tx
-              .select({ code: lead.code })
-              .from(lead)
-              .where(and(inArray(lead.code, [...codes]), eq(lead.ownerId, mover.holderId)))
-          ).map((r) => r.code)
-        : codes
+    const covered = mover
+      ? (
+          await tx
+            .select({ code: lead.code })
+            .from(lead)
+            .where(and(inArray(lead.code, [...codes]), eq(lead.ownerId, mover.holderId)))
+        ).map((r) => r.code)
+      : codes
     await endHolds(tx, 'lead', covered, 'touch', null)
   }
 
@@ -213,7 +191,7 @@ export class LeadStateWriter {
     step: {
       to: LeadState
       from: readonly LeadState[]
-      kind: 'care-planned' | 'exchange-logged'
+      kind: 'exchange-logged'
       note: string
     },
   ): Promise<{ code: string; company: string; occurrence: string | undefined }[]> {
@@ -224,7 +202,7 @@ export class LeadStateWriter {
       .where(
         and(
           inArray(lead.code, [...codes]),
-          mover && 'holderId' in mover ? eq(lead.ownerId, mover.holderId) : undefined,
+          mover ? eq(lead.ownerId, mover.holderId) : undefined,
           inArray(lead.state, [...step.from]),
           leadLive,
         ),
@@ -253,9 +231,7 @@ export class LeadStateWriter {
         kind: step.kind,
         ...(mover === null
           ? { by: SYSTEM_ACTOR }
-          : 'holderId' in mover
-            ? { by: r.ownerName ?? SYSTEM_ACTOR, actorId: mover.holderId }
-            : { by: mover.anyone.name, actorId: mover.anyone.id }),
+          : { by: r.ownerName ?? SYSTEM_ACTOR, actorId: mover.holderId }),
         note: step.note,
       })),
     )

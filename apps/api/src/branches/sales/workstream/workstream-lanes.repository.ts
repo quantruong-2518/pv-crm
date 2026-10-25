@@ -241,10 +241,10 @@ export class WorkstreamLanesRepository {
 }
 
 /** Every touch kind that MOVES a lead's state (ADR 0058, 0063), and no other:
- *  the lead rungs and its waiting door fold out of these. Two kinds per forward
- *  rung, legacy beside new, and both stay FOREVER: the rows written under
- *  `first-action`/`verified` are on disk (ADR 0063 §5). Same pairing as the
- *  trigger WHEN list in migration 0058. */
+ *  the lead rungs and its waiting door fold out of these. Two kinds for the
+ *  `working` rung, legacy beside new, and both stay FOREVER: the rows written
+ *  under `verified` are on disk (ADR 0063 §5). `first-action`/`care-planned`
+ *  moved a rung that is gone (ADR 0123); their rows now read as `assigned`. */
 const LEAD_LANE_KINDS = [
   'created',
   'handed-over',

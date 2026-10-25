@@ -42,7 +42,7 @@ import { endHolds, shiftDealClock } from './hold.sql'
 
 /** States a lead may be held from: it has a holder and is still being cared
  *  for. The `nurturing` pool has no holder, so no hold (ADR 0109). */
-const LEAD_HOLDABLE: readonly LeadState[] = ['assigned', 'verifying', 'working']
+const LEAD_HOLDABLE: readonly LeadState[] = ['assigned', 'working']
 
 /** Why a held lead's unsent mail is held back (ADR 0068 §6's mechanism). */
 const LEAD_HELD_WITHHOLD = {

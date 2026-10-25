@@ -520,3 +520,11 @@ otherwise.
       no step and no temperature, as 0074 §5 says. _(see ADR 0121 §7)_
 118.  **Should each carer's reminder bell open that carer's own latest live
       contract?** Default: yes. _(see ADR 0121 §7)_
+
+## Lead stepper (added 25/10/2026)
+
+Raised while removing `verifying` (ADR 0123). Not decided.
+
+119.  **Should "Mở cơ hội" be gated instead of being the primary button from
+      step 2?** For example: at least one real touch, or some need fields
+      filled. _(see ADR 0123)_

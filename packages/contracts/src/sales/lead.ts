@@ -1008,7 +1008,7 @@ export type LeadIndustryTagsResponse = z.infer<typeof LeadIndustryTagsResponse>
 // ---------------------------------------------------------------------------
 
 /** `POST /sales/leads/:code/nurture` — the ONE park door: `new` | `assigned` |
- *  `verifying` | `working`, or `converted` with no open deal and no live
+ *  `working`, or `converted` with no open deal and no live
  *  contract, → `nurturing` with no holder. The reason comes from `EXIT_REASON`
  *  (ADR 0070). `POST :code/resume` (the claim, no body) makes the caller the
  *  holder again. Labels are not in this body: they go through `:code/labels`. */

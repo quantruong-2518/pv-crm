@@ -22,7 +22,7 @@ import { LeadWriteRepository } from './lead-write.repository'
 export type LockedLead = NonNullable<Awaited<ReturnType<LeadWriteRepository['lockForMove']>>>
 
 /** States the park door takes a lead from; `converted` only with nothing live. */
-const PARKABLE: readonly LeadState[] = ['new', 'assigned', 'verifying', 'working', 'converted']
+const PARKABLE: readonly LeadState[] = ['new', 'assigned', 'working', 'converted']
 
 /** A pool lead has no holder to call or hand over; the claim is its way out. */
 const IN_POOL = 'Lead đang ở Nhóm chờ chăm sóc. Bấm Nhận lead để chăm lại.'
@@ -46,7 +46,7 @@ export class LeadExitService {
   /** `POST /sales/leads/:code/contacted` — confirm that the phone call really
    *  happened. Opening a `tel:` URL alone proves nothing, so the screen asks
    *  for this short second press. It records every valid call and, being a real
-   *  exchange, moves `assigned|verifying` → `working` (ADR 0068). */
+   *  exchange, moves `assigned` → `working` (ADR 0068). */
   async contacted(who: Actor, code: ObjectCode): Promise<LeadProfile> {
     await this.repo.run(async (tx) => {
       const held = await this.lockRow(tx, who, code)

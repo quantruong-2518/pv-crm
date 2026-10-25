@@ -1,6 +1,6 @@
 # 0067 · Presale in the repeating journey: every stop parks the lead in `nurturing` ("Chờ thời điểm"), waking opens a new lead and a new journey
 
-Status: accepted (partially supersedes 0057 §2, 0058, 0063 §1/§2/§4, 0064 §3
+Status: accepted, `verifying` rows superseded by 0123 (partially supersedes 0057 §2, 0058, 0063 §1/§2/§4, 0064 §3
 and §6, 0066 §6 — exact paragraphs under "Superseded"); partially superseded
 by 0068 (§1's holder-cleared rule and retiring `disqualified`, §5 including
 D3, D7 — `nurturing` now loops on the same lead instead of waking a new one,

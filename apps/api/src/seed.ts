@@ -218,7 +218,6 @@ function plantJourney(j: JourneySeed, i: number): void {
     null,
     'Agent 1 nhắn lại trên kênh khách vừa dùng',
   )
-  plantFirstAction(ld, owner, ago(m.contacted, 2))
   if (reached) {
     pushTouch(
       ld,
@@ -390,12 +389,6 @@ function outcomeOf(
 /** `greatest()` as the run sync reads it: NULLs skipped. */
 const latest = (a: Date | null, b: Date | null): Date | null =>
   a && b ? (a > b ? a : b) : (a ?? b)
-
-/** Only a HELD lead has one — the row records the holder's first move, and the
- *  journey lane dates its `verifying` rung off nothing else. */
-function plantFirstAction(ld: string, owner: Hand | null, at: Date): void {
-  if (owner) pushTouch(ld, 'lead', 'first-action', at, owner, LEAD_NOTE.carePlanned)
-}
 
 /** A working lead got its tier through verify (ADR 0058), so it carries the
  *  `verified` touch that says so — after its other pre-deal events. */
