@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Button, CalendarClock, Check, GlassCard, Icon, Link, SectionTitle, Skeleton } from '@pv/ui'
 import { MEETING_CANCEL_CAUSE_LABEL, type DebriefView, type MeetingRow } from '@pv/contracts'
 import { useCan } from '@/app/auth'
@@ -33,6 +34,7 @@ export function ScheduledMeeting({ record }: { record: DebriefView }) {
   const meeting = list.data?.rows.find((row) => row.id === record.meeting?.id)
   const [holding, setHolding] = useState(false)
   const [moving, setMoving] = useState(false)
+  const navigate = useNavigate()
   /* Rescheduling rewrites the booking, so it needs the booking in hand. */
   const cancelled = record.state === 'cancelled'
   const closable = record.closableByMe && !cancelled
@@ -114,6 +116,7 @@ export function ScheduledMeeting({ record }: { record: DebriefView }) {
           editing={meeting}
           open={moving}
           onClose={() => setMoving(false)}
+          onDropped={() => navigate(-1)}
         />
       )}
     </CommRecordFrame>

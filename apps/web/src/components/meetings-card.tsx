@@ -1,13 +1,23 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link as RouteLink } from 'react-router-dom'
-import { CalendarCheck, FileText, Handshake, Link, MessageSquare, Target, Trash2 } from '@pv/ui'
+import {
+  CalendarCheck,
+  CalendarClock,
+  FileText,
+  Handshake,
+  Link,
+  MessageSquare,
+  Target,
+  Trash2,
+} from '@pv/ui'
 import { Badge, Button, Drawer, Icon, MetaPill, Skeleton, cn } from '@pv/ui'
 import { MEETING_CANCEL_CAUSE_LABEL, type DebriefView, type MeetingRow } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast } from '@/app/toast'
 import { CommOverdueMark } from '@/components/comm-bits'
+import { MeetingScheduleDrawer } from '@/components/meeting-schedule-drawer'
 import { COMM_CARD_SURFACE, meetingOverdue } from '@/data/comm-record-detail'
 import { commRecordPath, subjectCommIndexQuery } from '@/data/comm-records'
 import { MEETING_MODE_LABEL, meetingRowLabel } from '@/data/meeting-labels'
@@ -133,11 +143,14 @@ function MeetingLine({
 }) {
   const recordId = record?.id
   const drop = useDropMeeting()
+  const [moving, setMoving] = useState(false)
   /* The record's closer fence (owner or an outranking superior) gates delete too;
      a row with no record falls back to the subject's edit right alone. */
   const live = row.cancelledAt === null
   const droppable =
     canEdit && live && (record ? record.closableByMe : true) && Date.parse(row.at) > now
+  /* Same fence as delete, but a meeting already past stays movable until it is held. */
+  const movable = canEdit && live && row.heldAt === null && (record ? record.closableByMe : true)
 
   return (
     <li className={cn('flex flex-col gap-3 rounded-md p-3', COMM_CARD_SURFACE)}>
@@ -230,6 +243,16 @@ function MeetingLine({
             Xem transcript
           </button>
         )}
+        {movable && (
+          <button
+            type="button"
+            onClick={() => setMoving(true)}
+            className="text-accent-foreground pointer-coarse:min-h-12 inline-flex items-center gap-1 rounded-sm px-2 py-2 text-xs font-medium"
+          >
+            <Icon icon={CalendarClock} size={14} />
+            Dời lịch
+          </button>
+        )}
         {droppable && (
           <button
             type="button"
@@ -258,6 +281,14 @@ function MeetingLine({
           </button>
         )}
       </div>
+      {movable && (
+        <MeetingScheduleDrawer
+          subject={subject}
+          editing={row}
+          open={moving}
+          onClose={() => setMoving(false)}
+        />
+      )}
     </li>
   )
 }

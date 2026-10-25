@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Building, CalendarClock, Check } from '@pv/ui'
+import { Building, CalendarClock, Check, Trash2 } from '@pv/ui'
 import { Button, Drawer, Icon, Input, MetaPill, SegmentedControl, Select, Textarea } from '@pv/ui'
 import {
   MEETING_DURATION_MINUTES,
@@ -15,6 +15,7 @@ import {
 } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { isApiError, userMessage } from '@/app/api'
+import { toast } from '@/app/toast'
 import { Field } from '@/components/field-bits'
 import { GoogleCalendarChip } from '@/components/google-calendar-chip'
 import { toastSaved } from '@/components/meeting-saved-toast'
@@ -35,7 +36,7 @@ import {
   meetingSlotMoment,
   meetingSlotOf,
 } from '@/data/meeting-labels'
-import { useAddMeeting, useEditMeeting, type MeetingSubject } from '@/data/meetings'
+import { useAddMeeting, useDropMeeting, useEditMeeting, type MeetingSubject } from '@/data/meetings'
 
 /** Booking a meeting that has NOT happened yet — one sheet, no section headings.
  *
@@ -58,6 +59,7 @@ export function MeetingScheduleDrawer({
   onClose,
   editing,
   anchor,
+  onDropped,
 }: {
   subject: MeetingSubject
   open: boolean
@@ -65,12 +67,16 @@ export function MeetingScheduleDrawer({
   editing?: MeetingRow
   /** The bar the sheet rises out of; without one it rises from the screen's foot. */
   anchor?: HTMLElement | null
+  /** The drop deletes the booking's comm record too, so a screen standing on
+   *  that record needs to leave it. */
+  onDropped?: () => void
 }) {
   const people = useDirectory()
   const { company, contacts } = useSubjectBook(subject, open)
   const add = useAddMeeting()
   const edit = useEditMeeting()
-  const pending = add.isPending || edit.isPending
+  const drop = useDropMeeting()
+  const pending = add.isPending || edit.isPending || drop.isPending
 
   const form = useMeetingDraft(open, editing)
   const [failure, setFailure] = useState('')
@@ -120,6 +126,27 @@ export function MeetingScheduleDrawer({
     )
   }
 
+  /* The server refuses a meeting already under way (409), so the door is not offered. */
+  const droppable = editing !== undefined && Date.parse(editing.at) > Date.now()
+
+  /* No `confirm()` (it freezes automation); the button says what it does. */
+  const dropEditing = () => {
+    if (!editing || pending) return
+    setFailure('')
+    drop.mutate(
+      { subject, id: editing.id },
+      {
+        onSuccess: () => {
+          toast('Đã xoá buổi họp', { tone: 'success' })
+          onClose()
+          onDropped?.()
+        },
+        onError: (error) =>
+          setFailure(isApiError(error) ? userMessage(error) : 'Không xoá được buổi họp. Thử lại.'),
+      },
+    )
+  }
+
   return (
     <Drawer
       open={open}
@@ -145,6 +172,7 @@ export function MeetingScheduleDrawer({
           pending={pending}
           verb={editing ? 'Lưu lịch mới' : past ? 'Ghi lại buổi họp' : 'Đặt lịch'}
           onClose={onClose}
+          onDrop={droppable ? dropEditing : undefined}
         />
       }
     >
@@ -245,6 +273,7 @@ function ScheduleFooter({
   pending,
   verb,
   onClose,
+  onDrop,
 }: {
   failure: string
   blocker: string | null
@@ -255,6 +284,8 @@ function ScheduleFooter({
    *  rather than a booking (`doneToast`); a reschedule saves a new slot. */
   verb: string
   onClose: () => void
+  /** Only on a reschedule: the booking can be dropped from the same sheet. */
+  onDrop?: (() => void) | undefined
 }) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-3">
@@ -274,6 +305,18 @@ function ScheduleFooter({
         )}
       </span>
       <div className="flex shrink-0 gap-2">
+        {onDrop && (
+          <Button
+            variant="ghost"
+            type="button"
+            className="hover:text-destructive-foreground pointer-coarse:h-12"
+            disabled={pending}
+            onClick={onDrop}
+          >
+            <Icon icon={Trash2} size={16} />
+            Xoá lịch
+          </Button>
+        )}
         <Button variant="ghost" type="button" className="pointer-coarse:h-12" onClick={onClose}>
           Huỷ
         </Button>
