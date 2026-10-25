@@ -25,7 +25,7 @@ The lead path is `new` → `assigned` → `working`, then the exits as before.
 
 ## Implementer's calls
 
-The owner did not rule on these; they stand until the owner says otherwise.
+Proposed by the implementer; the owner kept all of them on 25/10/2026.
 
 - Scheduling care moves nothing and writes no rung touch any more.
 - The `care-planned` and `first-action` touch kinds stay as LEGACY: existing
@@ -33,10 +33,10 @@ The owner did not rule on these; they stand until the owner says otherwise.
   `assigned` rung.
 - Existing `verifying` leads and workstream stand rows become `assigned`;
   `state_since` is kept.
-- Lead `step_template` rows keyed `verifying` re-key to `assigned`; `state_rule`
-  rows that would collide are dropped.
-- One migration (migration 0144; the number is set by the migration itself,
-  written in parallel with others above 0143).
+- Lead `step_template` rows keyed `verifying` re-key to `assigned`; one whose
+  name an active `assigned` template holds is switched off, not deleted;
+  `state_rule` rows that would collide are dropped.
+- Migrations 0144 (expand) and 0145 (contract).
 
 ## What this amends
 
