@@ -981,6 +981,13 @@
       "when": 1795590480000,
       "tag": "0144_lead_state_drop_verifying",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1795590540000,
+      "tag": "0145_lead_state_drop_verifying_contract",
+      "breakpoints": true
     }
   ]
 }

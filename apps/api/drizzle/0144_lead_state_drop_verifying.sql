@@ -1,23 +1,14 @@
--- 0144 - the lead state `verifying` is removed (ADR 0123). The backbone is
--- new -> assigned -> working -> converted; scheduling care moves nothing. Every
--- stored `verifying` (lead, its `platform.object` mirror, both stand columns)
--- becomes `assigned`, `state_since` kept. Lead `step_template` rows re-key to
--- `assigned`, switched off where an active `assigned` one holds the name (never
--- deleted: steps and touches point at them); a `state_rule` that would collide is
--- deleted. Touch kinds `care-planned`/`first-action` stay valid as legacy rows.
---
--- ORDER OUTSIDE: migrate BEFORE deploy. Until the deploy, the old build's care
--- scheduling is refused (23514); after it, the new build would meet `verifying`.
--- ORDER INSIDE: fences dropped, function replaced, data moved, fences re-added.
--- Re-runnable: IF EXISTS on DDL, every data statement guarded by its WHERE.
--- Hand-written for 0047's reason: `generate`'s baseline is still stuck at 0026.
+-- 0144 - EXPAND half of removing the lead state `verifying` (ADR 0123); 0145
+-- is the CONTRACT half. The backbone is new -> assigned -> working -> converted;
+-- scheduling care moves nothing. Every stored `verifying` (lead, its
+-- `platform.object` mirror, both stand columns) becomes `assigned`, `state_since`
+-- kept. Lead `step_template` rows re-key to `assigned`, switched off where an
+-- active `assigned` one holds the name (never deleted: steps and touches point at
+-- them); a `state_rule` that would collide is deleted. The CHECKs still accept
+-- `verifying`, so the old build keeps working until the deploy (/ship rule).
+-- ORDER OUTSIDE: migrate, deploy, then 0145. Re-runnable: every data statement
+-- is guarded by its WHERE. Hand-written for 0047's reason (baseline stuck at 0026).
 
-ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_state_known";--> statement-breakpoint
-ALTER TABLE "sales"."lead" DROP CONSTRAINT IF EXISTS "lead_open_owner_matches";--> statement-breakpoint
-ALTER TABLE "sales"."workstream" DROP CONSTRAINT IF EXISTS "workstream_stand_key_known";--> statement-breakpoint
-ALTER TABLE "sales"."workstream" DROP CONSTRAINT IF EXISTS "workstream_stand_lead_key_known";--> statement-breakpoint
-ALTER TABLE "sales"."step_template" DROP CONSTRAINT IF EXISTS "step_template_state_known";--> statement-breakpoint
-ALTER TABLE "sales"."state_rule" DROP CONSTRAINT IF EXISTS "state_rule_state_known";--> statement-breakpoint
 
 -- 0129's body again with a four-rung backbone and the trail walk re-indexed to
 -- it. Replaced before the lead UPDATE so the stand trigger draws with the new rule.
@@ -155,25 +146,3 @@ DELETE FROM "sales"."state_rule" v
                 WHERE a."object_kind" = 'lead' AND a."state_key" = 'assigned');--> statement-breakpoint
 UPDATE "sales"."state_rule" SET "state_key" = 'assigned'
  WHERE "object_kind" = 'lead' AND "state_key" = 'verifying';--> statement-breakpoint
-
--- Five `LeadState` values now, not six.
-ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_state_known" CHECK ("state" IN ('new', 'assigned', 'working', 'nurturing', 'converted'));--> statement-breakpoint
-ALTER TABLE "sales"."lead" ADD CONSTRAINT "lead_open_owner_matches" CHECK ("state" NOT IN ('new', 'assigned', 'working', 'nurturing')
-          OR (("state" IN ('new', 'nurturing')) = ("owner_id" IS NULL)));--> statement-breakpoint
-ALTER TABLE "sales"."workstream" ADD CONSTRAINT "workstream_stand_key_known" CHECK (
-  CASE "stand_kind"
-    WHEN 'HĐ' THEN "stand_key" = 'signed'
-    WHEN 'OP' THEN "stand_key" IN ('new', 'assigned', 'engaged', 'quotation')
-    WHEN 'LD' THEN "stand_key" IN ('new', 'assigned', 'working', 'nurturing', 'converted')
-    ELSE true
-  END
-);--> statement-breakpoint
-ALTER TABLE "sales"."workstream" ADD CONSTRAINT "workstream_stand_lead_key_known" CHECK (
-  "stand_lead_key" IN ('new', 'assigned', 'working', 'nurturing', 'converted')
-);--> statement-breakpoint
-ALTER TABLE "sales"."step_template" ADD CONSTRAINT "step_template_state_known" CHECK (("object_kind" <> 'lead' OR "state_key" IN ('new', 'assigned', 'working', 'nurturing'))
-      AND ("object_kind" <> 'opportunity' OR "state_key" IN ('new', 'assigned', 'engaged', 'quotation'))
-      AND ("object_kind" <> 'customer' OR "state_key" IN ('hot', 'warm', 'cold')));--> statement-breakpoint
-ALTER TABLE "sales"."state_rule" ADD CONSTRAINT "state_rule_state_known" CHECK (("object_kind" <> 'lead' OR "state_key" IN ('new', 'assigned', 'working', 'nurturing'))
-      AND ("object_kind" <> 'opportunity' OR "state_key" IN ('new', 'assigned', 'engaged', 'quotation'))
-      AND ("object_kind" <> 'customer' OR "state_key" IN ('hot', 'warm', 'cold')));
