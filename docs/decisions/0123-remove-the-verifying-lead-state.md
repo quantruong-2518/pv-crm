@@ -48,8 +48,7 @@ The owner did not rule on these; they stand until the owner says otherwise.
   holds.
 - **0068 §7** — a timed run moves no lead state.
 
-## Open
+### 3 · "Mở cơ hội" is not gated
 
-"Mở cơ hội" is the primary button from step 2 (`assigned`). Whether it should
-be gated (at least one real touch, or some need fields filled) is not decided:
-see open question 119.
+Owner, 25/10/2026: a lead may open an opportunity from step 2 (`assigned`)
+even with no customer touch yet; the sale decides (open question 119).

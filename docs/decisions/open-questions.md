@@ -523,8 +523,10 @@ otherwise.
 
 ## Lead stepper (added 25/10/2026)
 
-Raised while removing `verifying` (ADR 0123). Not decided.
+Raised while removing `verifying` (ADR 0123).
 
 119.  **Should "Mở cơ hội" be gated instead of being the primary button from
       step 2?** For example: at least one real touch, or some need fields
       filled. _(see ADR 0123)_
+      **Answered 25/10/2026: no gate — "Mở cơ hội" stays open from step 2,
+      contact or not; the sale decides (ADR 0123).**
