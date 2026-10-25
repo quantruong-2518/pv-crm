@@ -7,6 +7,7 @@ import {
   ContractConditionParams,
   ContractInstallmentParams,
   ContractInstallmentsBody,
+  ContractPenaltyBody,
   ContractTerminateBody,
   InstallmentConditionBody,
   InstallmentPaidBody,
@@ -116,6 +117,18 @@ export class ContractController {
     @Body(zod(ContractTerminateBody)) body: ContractTerminateBody,
   ) {
     return this.termination.terminate(who, code, body)
+  }
+
+  /** ADR 0124: the one write a terminated contract still takes. Answers the
+   *  contract re-read; 409 while the contract is live. */
+  @Put(':code/penalty')
+  @Need({ branch: 'Sales', permission: 'contract.terminate', scoped: true })
+  setPenalty(
+    @CurrentActor() who: Actor,
+    @Param('code', zod(ContractCode)) code: ContractCode,
+    @Body(zod(ContractPenaltyBody)) body: ContractPenaltyBody,
+  ) {
+    return this.termination.setPenalty(who, code, body)
   }
 
   /** ADR 0111: swap the payment PIC. `contract.edit` is the floor; the service

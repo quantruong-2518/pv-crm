@@ -37,6 +37,7 @@ import {
   assertMayWriteContract,
   mayChangeCollector,
   mayCollect,
+  mayEditPenalty,
   mayRecordPayment,
   mayWriteContract,
 } from './contract-writer'
@@ -303,6 +304,12 @@ export class ContractScheduleService {
         found.termination !== null,
       ),
       canChangeCollector: mayChangeCollector(this.access, who, found.termination !== null),
+      canEditPenalty: mayEditPenalty(
+        this.access,
+        who,
+        found.row.ownerId,
+        found.termination !== null,
+      ),
     })
   }
 

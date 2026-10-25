@@ -39,6 +39,18 @@ export const RELEASE_NOTES: readonly ReleaseNote[] = [
     date: '25/10/2026',
     items: [
       {
+        module: 'Hợp đồng',
+        feature: 'Tiền phạt',
+        kind: 'new',
+        text: 'Ghi tiền phạt khi chấm dứt hợp đồng, khách hoặc công ty trả, kèm ngày tiền về hoặc đã chi.',
+      },
+      {
+        module: 'Hợp đồng',
+        feature: 'Sổ hợp đồng',
+        kind: 'new',
+        text: 'Đầu sổ có ô tổng hợp số hợp đồng đã chấm dứt và tiền phạt; bấm vào để xem các hợp đồng đó.',
+      },
+      {
         module: 'Lead',
         feature: 'Lịch gặp',
         kind: 'new',

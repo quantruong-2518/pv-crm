@@ -2,6 +2,7 @@ import type { ObjectRef } from '@pv/engines'
 import type {
   ContractDetailRow,
   ContractParticipant,
+  ContractPenalty,
   ContractRow,
   ContractSign,
   ContractTermination,
@@ -118,7 +119,8 @@ export function toContract(
 
 /** The label falls back to the key: a catalogue row deleted outright must not
  *  turn a recorded termination into an empty string the wire refuses. */
-function toTermination({ row, byName, reasonName }: TerminationRead): ContractTermination {
+function toTermination(read: TerminationRead): ContractTermination {
+  const { row, byName, reasonName } = read
   const other = row.reasonKey === OPPORTUNITY_STOP_REASON_OTHER
   return {
     terminatedAt: row.terminatedAt.toISOString(),
@@ -129,6 +131,19 @@ function toTermination({ row, byName, reasonName }: TerminationRead): ContractTe
     refundedAmount: row.refundedAmount,
     byId: row.terminatedById,
     byName,
+    penalty: toPenalty(read),
+  }
+}
+
+/** NULL direction = no penalty; the 0146 CHECKs keep direction and amount paired. */
+function toPenalty({ row, settledByName }: TerminationRead): ContractPenalty | null {
+  if (row.penaltyDirection === null || row.penaltyAmount === null) return null
+  return {
+    direction: row.penaltyDirection,
+    amount: row.penaltyAmount,
+    settledOn: row.penaltySettledOn,
+    settledById: row.penaltySettledById,
+    settledByName,
   }
 }
 

@@ -18,6 +18,8 @@ import { WorkstreamHolder } from './workstream'
  *         every propose door on this branch answers the same way.
  *      POST /sales/contracts/:code/terminate         permission `contract.terminate` · scoped
  *      -> `ContractTerminateResponse`; 409 when already terminated or refund > collected.
+ *      PUT  /sales/contracts/:code/penalty           permission `contract.terminate` · scoped
+ *      -> `ContractPenaltyResponse`; 409 when not terminated or the contract has no currency; 400 when settledOn is after today (VN).
  *      PUT  /sales/contracts/:code/collector         permission `contract.edit` · scoped
  *      -> `ContractDetailResponse`; the server also limits it to head of sales / director.
  *      GET  /sales/contracts/termination-reasons     permission `contract.terminate`
@@ -301,6 +303,28 @@ export const INSTALLMENT_STATUS_LABEL: Record<InstallmentStatus, string> = {
  *  snapshot cannot drift from the lanes it was copied from. */
 export const ContractParticipant = OpportunityOwner
 
+export const ContractPenaltyDirection = z.enum(['customer-pays', 'company-pays'])
+
+export const CONTRACT_PENALTY_DIRECTION_LABEL: Record<ContractPenaltyDirection, string> = {
+  'customer-pays': 'Khách trả phạt',
+  'company-pays': 'Công ty trả phạt',
+}
+
+/** The one penalty a termination may carry (ADR 0124), in one direction, in the
+ *  contract's currency. `settledOn` is the day the money moved; null = pending.
+ *  Not capped by collected money: a penalty may exceed what was paid. */
+export const ContractPenaltyInput = z.object({
+  direction: ContractPenaltyDirection,
+  amount: MoneyVnd.positive('Tiền phạt phải lớn hơn 0.'),
+  settledOn: Day.nullable().default(null),
+})
+
+/** Read shape: the input plus who recorded the settlement (set with `settledOn`). */
+export const ContractPenalty = ContractPenaltyInput.extend({
+  settledById: z.string().min(1).max(64).nullable(),
+  settledByName: textInput(120).nullable(),
+})
+
 /** The one `sales.contract_termination` row of a contract. The contract and its
  *  installments stay; this row alone moves the deal to `terminated` (final).
  *  Amounts are in the contract's currency, like `ContractRow.amount`;
@@ -315,6 +339,8 @@ export const ContractTermination = z.object({
   refundedAmount: MoneyVnd,
   byId: z.string().min(1).max(64),
   byName: textInput(120),
+  /** Optional: web and API deploy at different times. */
+  penalty: ContractPenalty.nullable().optional(),
 })
 
 /** One signed contract, as the book prints it — LEAN installments only.
@@ -377,6 +403,8 @@ export const ContractDetailRow = ContractRow.extend({
   /** Whether the reader may swap the collector PIC: head of sales or director
    *  on a contract not yet terminated (ADR 0111). Optional like its siblings. */
   canChangeCollector: z.boolean().optional(),
+  /** Head of sales or director on a terminated contract (ADR 0124). */
+  canEditPenalty: z.boolean().optional(),
 })
 
 /** What a contract book row is judged by. A contract stores no state: all four
@@ -478,16 +506,27 @@ export const ContractSignResponse = z.object({
  *  what was collected (409), which a body alone cannot know. */
 export const ContractTerminateBody = StopReasonBody.safeExtend({
   refundedAmount: MoneyVnd.default(0),
+  penalty: ContractPenaltyInput.optional(),
 })
 
 /** The whole contract back: `termination` and the book status are recomputed. */
 export const ContractTerminateResponse = ContractDetailRow
+
+/** `PUT /sales/contracts/:code/penalty` — null clears the penalty. */
+export const ContractPenaltyBody = z.object({ penalty: ContractPenaltyInput.nullable() })
+
+export const ContractPenaltyResponse = ContractDetailRow
 
 /** `GET /sales/contracts/termination-reasons` — ACTIVE entries, `other` not
  *  listed. `OpportunityStopReasons`'s shape so one reason picker reads both;
  *  `stage` is always null and `doNotContact` always false here. */
 export const ContractTerminationReasons = OpportunityStopReasons
 
+export type ContractPenaltyDirection = z.infer<typeof ContractPenaltyDirection>
+export type ContractPenaltyInput = z.infer<typeof ContractPenaltyInput>
+export type ContractPenalty = z.infer<typeof ContractPenalty>
+export type ContractPenaltyBody = z.infer<typeof ContractPenaltyBody>
+export type ContractPenaltyResponse = z.infer<typeof ContractPenaltyResponse>
 export type ContractTermination = z.infer<typeof ContractTermination>
 export type ContractCollectorCandidate = z.infer<typeof ContractCollectorCandidate>
 export type ContractCollectorCandidates = z.infer<typeof ContractCollectorCandidates>
@@ -572,6 +611,15 @@ export const ContractSummary = z.object({
    *  customer and the other is a phone call down the hall. */
   lateConditionsOurs: z.number().int().nonnegative(),
   lateConditionsTheirs: z.number().int().nonnegative(),
+
+  /** Termination penalties: a company-level report, never a KPI (ADR 0124).
+   *  VND via the rate table; pending = total - settled, derived by the reader.
+   *  Optional for an API one deploy behind. */
+  terminatedCount: z.number().int().nonnegative().optional(),
+  penaltyCustomerPaysVnd: MoneyVnd.optional(),
+  penaltyCustomerPaysSettledVnd: MoneyVnd.optional(),
+  penaltyCompanyPaysVnd: MoneyVnd.optional(),
+  penaltyCompanyPaysSettledVnd: MoneyVnd.optional(),
 
   /** Newest LAST, so the array feeds a sparkline without being reversed. */
   byMonth: z.array(ContractMonthPoint),

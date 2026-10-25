@@ -13,7 +13,12 @@ import { denied, notFound } from '@api/platform/http/problem'
 import { toBookRow, toDetail, toRef } from './contract.mapper'
 import { ContractCollectors } from './contract-collector.service'
 import { ContractRepository, type ContractBookRead } from './contract.repository'
-import { mayChangeCollector, mayRecordPayment, mayWriteContract } from './contract-writer'
+import {
+  mayChangeCollector,
+  mayEditPenalty,
+  mayRecordPayment,
+  mayWriteContract,
+} from './contract-writer'
 
 /** The contract book — read only, and the only place that holds both the
  *  repository and an engine.
@@ -101,6 +106,12 @@ export class ContractService {
         found.termination !== null,
       ),
       canChangeCollector: mayChangeCollector(this.access, who, found.termination !== null),
+      canEditPenalty: mayEditPenalty(
+        this.access,
+        who,
+        found.row.ownerId,
+        found.termination !== null,
+      ),
     })
   }
 }

@@ -4,6 +4,8 @@ import type {
   ContractCollectorBody,
   ContractDetailResponse,
   ContractInstallmentsBody,
+  ContractPenaltyBody,
+  ContractPenaltyResponse,
   ContractScheduleResponse,
   ContractTerminateBody,
   ContractTerminateResponse,
@@ -114,6 +116,7 @@ export const useAddCondition = (code: ContractCode) =>
   )
 
 /** `POST /sales/contracts/:code/terminate` — final, no approval (ADR 0107).
+ *  `CONTRACT_BOOK_KEY` also covers the contract summary (its key sits under it).
  *  Every count that read the contract as a sale moves: the deal leaves `won`,
  *  the lead may lose "has bought", and the overview's win rate and reasons
  *  shift. A refusal re-reads the contract, since a 409 usually means someone
@@ -142,6 +145,28 @@ export function useTerminateContract(code: ContractCode) {
       ])
         void client.invalidateQueries({ queryKey: key })
       invalidateLeadState(client)
+    },
+    onError: () => void client.invalidateQueries({ queryKey: detailKey }),
+  })
+}
+
+/** `PUT /sales/contracts/:code/penalty` — the one write a terminated contract
+ *  still takes (ADR 0124). The penalty never reaches a KPI, so only the detail
+ *  and the book move; the book key also covers the summary band's totals. */
+export function useSavePenalty(code: ContractCode) {
+  const client = useQueryClient()
+  const detailKey = contractDetailQuery(code).queryKey
+
+  return useMutation<ContractPenaltyResponse, ApiError, ContractPenaltyBody>({
+    mutationFn: (body) =>
+      api.write<ContractPenaltyResponse>(`/sales/contracts/${encodeURIComponent(code)}/penalty`, {
+        method: 'PUT',
+        body,
+        need: { branch: 'Sales', permission: 'contract.terminate', scoped: true },
+      }),
+    onSuccess: (row) => {
+      client.setQueryData(detailKey, row)
+      void client.invalidateQueries({ queryKey: CONTRACT_BOOK_KEY })
     },
     onError: () => void client.invalidateQueries({ queryKey: detailKey }),
   })

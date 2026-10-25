@@ -530,3 +530,20 @@ Raised while removing `verifying` (ADR 0123).
       filled. _(see ADR 0123)_
       **Answered 25/10/2026: no gate — "Mở cơ hội" stays open from step 2,
       contact or not; the sale decides (ADR 0123).**
+
+## Termination penalty (added 25/10/2026)
+
+Raised while adding the termination penalty (ADR 0124).
+
+120.  **Should a penalty added, changed or settled after termination ring the
+      director (a new bell kind)?** Default: no. _(see ADR 0124 §7)_
+
+121.  **Who may mark a penalty settled — also the collector PIC / accountant?**
+      Default: only `contract.terminate` holders. _(see ADR 0124 §5)_
+
+122.  **Should a penalty be payable in several parts?** Default: no, whole
+      amount at once. _(see ADR 0124 §2)_
+
+123.  **Should the overview (home) show penalties per period too?** Default:
+      no, contract book header only (owner chose this 25/10). _(see ADR 0124 §6)_
+      **Answered 25/10/2026: no — the contract book header only (ADR 0124 §6).**

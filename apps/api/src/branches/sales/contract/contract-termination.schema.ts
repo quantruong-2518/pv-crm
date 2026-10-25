@@ -1,5 +1,6 @@
-import { bigint, check, index, text, timestamp } from 'drizzle-orm/pg-core'
+import { bigint, check, date, index, text, timestamp } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+import type { ContractPenaltyDirection } from '@pv/contracts'
 import { actor } from '@api/platform/db/platform.schema'
 import { sales } from '../sales.schema'
 import { contract } from './contract.schema'
@@ -12,7 +13,10 @@ import { contract } from './contract.schema'
  *  derived on read, so the two stored numbers can never disagree with a third.
  *
  *  Joins the `pv_change` map (0128) as contract, opportunity, workstream and
- *  lead: all four now read it, and a termination writes no other row. */
+ *  lead: all four now read it, and a termination writes no other row.
+ *
+ *  The penalty (ADR 0124, 0146) lives on this row, not in a child table: a
+ *  termination is final and unique, so it carries at most one penalty. */
 export const contractTermination = sales.table(
   'contract_termination',
   {
@@ -33,6 +37,18 @@ export const contractTermination = sales.table(
      *  contract's currency. A snapshot: an undo later must not rewrite it. */
     collectedAmount: bigint('collected_amount', { mode: 'number' }).notNull(),
     refundedAmount: bigint('refunded_amount', { mode: 'number' }).notNull(),
+
+    /** Who pays whom: `'customer-pays' | 'company-pays'`. NULL = no penalty.
+     *  Text + CHECK, not an enum type, so a third direction is a readable migration. */
+    penaltyDirection: text('penalty_direction').$type<ContractPenaltyDirection>(),
+    /** In the contract's currency, like `refunded_amount`. No ceiling against
+     *  `collected_amount`: a penalty is a separate debt, not a slice of what came in. */
+    penaltyAmount: bigint('penalty_amount', { mode: 'number' }),
+    /** The calendar day the user says the money moved, possibly back-dated,
+     *  never now(); a `Day` on the wire, so no timezone to drift. NULL = pending. */
+    penaltySettledOn: date('penalty_settled_on'),
+    /** Who recorded the settlement. Real fence: every signed-in person has an `actor` row. */
+    penaltySettledById: text('penalty_settled_by_id').references(() => actor.id),
 
     terminatedAt: timestamp('terminated_at', { withTimezone: true }).notNull(),
     /** Real fence: only a signed-in head of sales or director reaches the
@@ -56,6 +72,26 @@ export const contractTermination = sales.table(
     check(
       'contract_termination_refund_within_collected',
       sql`"refunded_amount" <= "collected_amount"`,
+    ),
+    check(
+      'contract_termination_penalty_direction_known',
+      sql`"penalty_direction" IN ('customer-pays', 'company-pays')`,
+    ),
+    check('contract_termination_penalty_amount_positive', sql`"penalty_amount" > 0`),
+    /** A penalty is a direction AND an amount, or neither. */
+    check(
+      'contract_termination_penalty_direction_amount',
+      sql`("penalty_direction" IS NULL) = ("penalty_amount" IS NULL)`,
+    ),
+    /** A settlement is a day AND a recorder, or neither. */
+    check(
+      'contract_termination_penalty_settled_pair',
+      sql`("penalty_settled_on" IS NULL) = ("penalty_settled_by_id" IS NULL)`,
+    ),
+    /** Nothing to settle without a penalty. */
+    check(
+      'contract_termination_penalty_settled_needs_penalty',
+      sql`"penalty_settled_on" IS NULL OR "penalty_direction" IS NOT NULL`,
     ),
   ],
 )

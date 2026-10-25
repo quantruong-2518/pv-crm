@@ -136,7 +136,7 @@ function ContractScreen({ contract }: { contract: Contract }) {
       }
       main={
         <>
-          {ended && <TerminationCard termination={ended} currency={contract.currency} />}
+          {ended && <TerminationCard contract={contract} termination={ended} />}
           <ContractTodo inside={run.inside} read={run.read} next={next} />
           <ContractMoney
             contract={contract}

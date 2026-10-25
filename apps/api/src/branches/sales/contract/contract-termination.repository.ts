@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
 import { DB, type Db } from '@api/platform/db/db.module'
@@ -6,6 +6,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { lead } from '../lead/lead.schema'
 import { leadLive } from '../lead/lead-scope'
+import { toVndSql } from '../money'
 import { leadDealsAllLost } from '../open-deal'
 import { opportunity } from '../opportunity/opportunity.schema'
 import { contract, contractInstallment } from './contract.schema'
@@ -17,14 +18,23 @@ import {
 
 const LIST = 'CONTRACT_TERMINATION_REASON'
 const terminator = alias(actor, 'terminated_by')
+const settler = alias(actor, 'penalty_settled_by')
 
-/** One termination row with the two names the wire needs. `reasonName` is NULL
- *  for the virtual `other` key (and a catalogue row deleted outright). */
+/** One termination row with the names the wire needs. `reasonName` is NULL
+ *  for the virtual `other` key (and a catalogue row deleted outright);
+ *  `settledByName` is NULL while the penalty is absent or pending. */
 export type TerminationRead = {
   row: ContractTerminationRowDb
   byName: string
   reasonName: string | null
+  settledByName: string | null
 }
+
+/** The four penalty columns (ADR 0124), all NULL when there is no penalty. */
+export type PenaltyValues = Pick<
+  ContractTerminationValues,
+  'penaltyDirection' | 'penaltyAmount' | 'penaltySettledOn' | 'penaltySettledById'
+>
 
 /** The termination rows of a page of contracts, one query. A plain function so
  *  `ContractRepository`, also provided by other modules, gains no dependency. */
@@ -34,9 +44,15 @@ export async function terminationsOf(
 ): Promise<Map<string, TerminationRead>> {
   if (codes.length === 0) return new Map()
   const rows = await db
-    .select({ row: contractTermination, byName: terminator.name, reasonName: configEntry.name })
+    .select({
+      row: contractTermination,
+      byName: terminator.name,
+      reasonName: configEntry.name,
+      settledByName: settler.name,
+    })
     .from(contractTermination)
     .innerJoin(terminator, eq(terminator.id, contractTermination.terminatedById))
+    .leftJoin(settler, eq(settler.id, contractTermination.penaltySettledById))
     .leftJoin(
       configEntry,
       and(eq(configEntry.id, contractTermination.reasonKey), eq(configEntry.list, LIST)),
@@ -136,5 +152,58 @@ export class ContractTerminationRepository {
 
   async insert(tx: Db, values: ContractTerminationValues): Promise<void> {
     await tx.insert(contractTermination).values(values)
+  }
+
+  /** The termination's penalty columns, read under the contract's lock;
+   *  `null` = the contract is not terminated. */
+  async penaltyOf(tx: Db, code: string): Promise<PenaltyValues | null> {
+    const [found] = await tx
+      .select({
+        penaltyDirection: contractTermination.penaltyDirection,
+        penaltyAmount: contractTermination.penaltyAmount,
+        penaltySettledOn: contractTermination.penaltySettledOn,
+        penaltySettledById: contractTermination.penaltySettledById,
+      })
+      .from(contractTermination)
+      .where(eq(contractTermination.contractCode, code))
+    return found ?? null
+  }
+
+  /** Only the four penalty columns: the collected / refunded snapshot stays. */
+  async setPenalty(tx: Db, code: string, values: PenaltyValues): Promise<void> {
+    await tx
+      .update(contractTermination)
+      .set(values)
+      .where(eq(contractTermination.contractCode, code))
+  }
+}
+
+/** The summary's penalty band (ADR 0124): company numbers, unscoped, in VND by
+ *  the rate table. Terminated contracts only, so NOT the book's `LIVE` filter. */
+export async function penaltySummary(db: Db) {
+  const vnd = toVndSql(contractTermination.penaltyAmount, contract.currency)
+  const sum = (where: SQL) =>
+    sql<number | string>`COALESCE(SUM(${vnd}) FILTER (WHERE ${where}), 0)::bigint`
+  const customer = sql`${contractTermination.penaltyDirection} = 'customer-pays'`
+  const company = sql`${contractTermination.penaltyDirection} = 'company-pays'`
+  const settled = sql`${contractTermination.penaltySettledOn} IS NOT NULL`
+  const [found] = await db
+    .select({
+      terminatedCount: count(),
+      customerPays: sum(customer),
+      customerPaysSettled: sum(sql`${customer} AND ${settled}`),
+      companyPays: sum(company),
+      companyPaysSettled: sum(sql`${company} AND ${settled}`),
+    })
+    .from(contractTermination)
+    .innerJoin(contract, eq(contract.code, contractTermination.contractCode))
+    .innerJoin(lead, eq(lead.code, contract.leadCode))
+    .where(leadLive)
+  return {
+    terminatedCount: found?.terminatedCount ?? 0,
+    penaltyCustomerPaysVnd: Number(found?.customerPays ?? 0),
+    penaltyCustomerPaysSettledVnd: Number(found?.customerPaysSettled ?? 0),
+    penaltyCompanyPaysVnd: Number(found?.companyPays ?? 0),
+    penaltyCompanyPaysSettledVnd: Number(found?.companyPaysSettled ?? 0),
   }
 }

@@ -48,7 +48,11 @@ import {
   type ContractRowDb,
 } from './contract.schema'
 import { seqCodes } from '../code-seq'
-import { terminationsOf, type TerminationRead } from './contract-termination.repository'
+import {
+  penaltySummary,
+  terminationsOf,
+  type TerminationRead,
+} from './contract-termination.repository'
 
 /** The payment PIC's name, joined beside the commission holder's. */
 const collector = alias(actor, 'collector')
@@ -474,9 +478,9 @@ export class ContractRepository {
 
   /** The whole book folded to one row — `GET /sales/contracts/summary`.
    *
-   *  Four queries rather than one welded statement: they scan three different
-   *  tables and the last groups a series, so joining them would only push the
-   *  same four scans into the planner behind a shape nobody can read.
+   *  Five queries rather than one welded statement: they scan four different
+   *  tables and one groups a series, so joining them would only push the
+   *  same scans into the planner behind a shape nobody can read.
    *
    *  No `Actor` and no scope axis, the same call both scorecards made: these
    *  are the desk's numbers, and cutting them by who owns what makes everyone
@@ -496,7 +500,7 @@ export class ContractRepository {
     const dueSoon = sql`${unpaid} AND ${due} >= ${VN_TODAY_START}
       AND ${due} < ${VN_TODAY_START} + ${sql.raw(String(DUE_NEAR_DAYS + 1))} * interval '1 day'`
 
-    const [signed, schedule, late, byMonth] = await Promise.all([
+    const [signed, schedule, late, byMonth, penalties] = await Promise.all([
       this.db
         .select({
           signedCount: count(),
@@ -548,6 +552,7 @@ export class ContractRepository {
           ),
         ),
       this.trend(),
+      penaltySummary(this.db),
     ])
 
     const a = signed[0]
@@ -566,6 +571,7 @@ export class ContractRepository {
       dueSoonCount: b?.dueSoonCount ?? 0,
       lateConditionsOurs: c?.ours ?? 0,
       lateConditionsTheirs: c?.theirs ?? 0,
+      ...penalties,
       byMonth,
     }
   }

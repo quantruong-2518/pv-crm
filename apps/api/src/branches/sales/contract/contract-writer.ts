@@ -42,6 +42,16 @@ export const mayChangeCollector = (
   who.roleIds.some((r) => OVER_EVERY_CONTRACT.includes(r)) &&
   access.allows(who, 'contract.edit')
 
+/** The penalty door's own gate (ADR 0124): its permission, the contract write
+ *  seat it asserts, and a paper already terminated — the reverse of the rest. */
+export const mayEditPenalty = (
+  access: AccessControl,
+  who: Actor,
+  ownerId: string | null,
+  terminated: boolean,
+): boolean =>
+  terminated && mayWriteContract(who, ownerId) && access.allows(who, 'contract.terminate')
+
 export function assertMayChangeCollector(who: Actor): void {
   if (who.roleIds.some((r) => OVER_EVERY_CONTRACT.includes(r))) return
   throw denied('permission-denied', 'Chỉ trưởng phòng hoặc giám đốc được đổi người thu tiền.')

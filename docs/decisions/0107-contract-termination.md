@@ -5,6 +5,8 @@ Source: project owner's decisions, 21/10/2026
 
 > Superseded in part by 0109: "Out of scope" — a terminated contract that leaves nothing live now parks the lead in the nurturing list.
 
+> Amended by 0124: a terminated contract may carry one tracked penalty; the one write allowed after termination.
+
 ## Context
 
 A contract row alone makes a deal "won" everywhere. The dashboard's panel of

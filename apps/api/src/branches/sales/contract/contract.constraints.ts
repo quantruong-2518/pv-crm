@@ -101,4 +101,41 @@ export const CONTRACT_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     message: 'Không tìm thấy tài khoản của bạn. Đăng nhập lại.',
   },
+
+  /** The 0146 penalty fences (ADR 0124). zod and the service refuse first, so
+   *  these only answer a body that slipped past both. */
+  contract_termination_penalty_direction_known: {
+    kind: 'invalid',
+    fields: ['penalty.direction'],
+    message: 'Chọn bên trả phạt.',
+  },
+
+  contract_termination_penalty_amount_positive: {
+    kind: 'invalid',
+    fields: ['penalty.amount'],
+    message: 'Tiền phạt phải lớn hơn 0.',
+  },
+
+  contract_termination_penalty_direction_amount: {
+    kind: 'invalid',
+    fields: ['penalty.amount'],
+    message: 'Tiền phạt cần có cả bên trả và số tiền.',
+  },
+
+  contract_termination_penalty_settled_pair: {
+    kind: 'invalid',
+    fields: ['penalty.settledOn'],
+    message: 'Ngày tiền phạt chưa ghi được. Thử lại.',
+  },
+
+  contract_termination_penalty_settled_needs_penalty: {
+    kind: 'invalid',
+    fields: ['penalty.settledOn'],
+    message: 'Chưa có tiền phạt nên chưa ghi được ngày trả.',
+  },
+
+  contract_termination_penalty_settled_by_id_actor_id_fk: {
+    kind: 'invalid',
+    message: 'Không tìm thấy tài khoản của bạn. Đăng nhập lại.',
+  },
 }

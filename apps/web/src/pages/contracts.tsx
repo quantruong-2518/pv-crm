@@ -38,6 +38,7 @@ import { BOOK_PAGE_SIZE } from '@/components/book-columns'
 import { TableFooter } from '@/components/table-bits'
 import { useRowIntent } from '@/components/row-intent'
 import { contractCells, contractColumns } from './contracts-columns'
+import { ContractsPenaltyBand } from './contracts-penalty-band'
 import { useContractFilters } from './contracts-filters'
 
 /** Level 0 of the contract drill — the book, then a contract, then one
@@ -176,7 +177,12 @@ export function ContractsPage() {
       <ScreenLayout>
         <BookPage
           title="Hợp đồng"
-          score={<ContractScore />}
+          score={
+            <div className="flex flex-col gap-4">
+              <ContractScore />
+              <ContractsPenaltyBand onOpen={() => onStatus('terminated')} />
+            </div>
+          }
           tabs={
             <SegmentedControl
               label="Tình trạng thu"
