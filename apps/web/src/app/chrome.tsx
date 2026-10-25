@@ -26,6 +26,7 @@ import {
   Timer,
   Users,
 } from '@pv/ui'
+import { openReleaseNotes, useReleaseNotes } from '@/app/release-notes'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { AppShellProps, BottomNavKey, HeaderAction, HeaderApp } from '@pv/ui'
@@ -459,6 +460,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
   const { pathname } = useLocation()
   const actor = useSession((s) => s.actor)
   const signOut = useSession((s) => s.signOut)
+  const { unseen: unseenReleases } = useReleaseNotes()
   /* A badge is a claim: re-ask every minute, or someone else's request shows
      only when the reader happens to remount the shell. */
   const { data: pendingApprovals } = useQuery({
@@ -585,6 +587,12 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
       records,
     },
     accountActions: [
+      {
+        icon: Megaphone,
+        label: 'Có gì mới',
+        count: unseenReleases,
+        onClick: openReleaseNotes,
+      },
       {
         /* "Đăng xuất", not "Đổi vai": sign-in has had no role picker since
            23/08, so leaving the session is the only thing this can do. */

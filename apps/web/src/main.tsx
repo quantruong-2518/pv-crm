@@ -10,6 +10,7 @@ import { queryClient } from '@/app/query-client'
 import { startReleaseWatch } from '@/app/release'
 import { AppToasts } from '@/components/app-toasts'
 import { MasMailComposerHost } from '@/components/mas-mail-composer-host'
+import { ReleaseNotesDrawer } from '@/components/release-notes-drawer'
 import { router } from '@/routes'
 import '@/styles/app.css'
 
@@ -42,6 +43,7 @@ createRoot(host).render(
       <RouterProvider router={router} />
       <MasMailComposerHost />
       <AppToasts />
+      <ReleaseNotesDrawer />
       {/* Above every screen and every other layer: when the server is gone, the
           session lock cannot let anyone back in either. See `server-down.tsx`. */}
       <ServerDown />
