@@ -62,8 +62,8 @@ export class DebriefService {
 
   /** The call / chat / mail buttons and the mobile log: a comm owned by the
    *  caller, always empty (its text is the confirm summary). Refused up front
-   *  when the caller could never confirm it. On a lead it is an exchange, so the
-   *  lead moves exactly as a logged turn moves it (`MESSAGE_LOGGED_HOOK`). */
+   *  when the caller could never confirm it. On a lead or a deal it is an exchange, so
+   *  the subject moves exactly as a logged turn moves it (`MESSAGE_LOGGED_HOOK`). */
   async create(who: Actor, body: CommRecordCreateBody): Promise<CommRecordCreateResponse> {
     const hook = this.hook
     if (!hook) throw new Error('comms: COMM_DEBRIEF_HOOK is not bound; no contact to file under')
@@ -77,10 +77,14 @@ export class DebriefService {
     }
     if (body.contactCode) await this.inReach(who, body.contactCode)
     const logged = this.logged
-    const moveLead =
-      subject.kind === 'LD' && logged
+    const moveSubject =
+      (subject.kind === 'LD' || subject.kind === 'OP') && logged
         ? (tx: Db) =>
-            logged.afterLogged(tx, { subjectKind: 'LD', subjectCode: subject.code, actor: who })
+            logged.afterLogged(tx, {
+              subjectKind: subject.kind,
+              subjectCode: subject.code,
+              actor: who,
+            })
         : undefined
     const opened = await this.records.open(
       {
@@ -91,7 +95,7 @@ export class DebriefService {
         addresses: contact,
         sameLead: contact.sameLead,
       },
-      moveLead,
+      moveSubject,
     )
     return CommRecordCreateResponse.parse({
       debriefId: opened.debriefId,
