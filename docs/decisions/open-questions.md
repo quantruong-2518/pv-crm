@@ -537,6 +537,7 @@ Raised while adding the termination penalty (ADR 0124).
 
 120.  **Should a penalty added, changed or settled after termination ring the
       director (a new bell kind)?** Default: no. _(see ADR 0124 §7)_
+      **Answered 26/10/2026: yes — `contract-penalty-changed` rings the director (ADR 0124 §7).**
 
 121.  **Who may mark a penalty settled — also the collector PIC / accountant?**
       Default: only `contract.terminate` holders. _(see ADR 0124 §5)_

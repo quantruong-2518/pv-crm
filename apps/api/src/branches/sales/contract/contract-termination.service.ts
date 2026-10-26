@@ -1,5 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { CONTRACT_TERMINATED, type AccessControl, type Actor } from '@pv/engines'
+import {
+  CONTRACT_PENALTY_CHANGED,
+  CONTRACT_TERMINATED,
+  type AccessControl,
+  type Actor,
+} from '@pv/engines'
 import {
   ContractPenaltyResponse,
   ContractTerminateResponse,
@@ -111,6 +116,7 @@ export class ContractTerminationService {
       const note = `contract terminated (${body.reasonKey}), refunded ${body.refundedAmount} of ${collected}, ${penaltyNote(body.penalty ?? null)}`
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
       await this.ring(tx, who, code)
+      if (body.penalty) await this.ringPenalty(tx, who, code)
       if (await this.repo.leadParks(tx, leadCode)) return this.parkLead(tx, who, leadCode)
       /* The lead's run was closed WON on this contract; it re-derives without it. */
       await syncLeadRuns(tx, [leadCode])
@@ -140,8 +146,11 @@ export class ContractTerminationService {
       assertPriced(row.currency, body.penalty)
       await this.repo.setPenalty(tx, code, penaltyValues(who, body.penalty, before))
       /* The columns are overwritten in place, so the audit row is the only memory of the old value. */
-      const note = `contract penalty changed: ${storedNote(before)} -> ${penaltyNote(body.penalty)}`
+      const was = storedNote(before)
+      const now = penaltyNote(body.penalty)
+      const note = `contract penalty changed: ${was} -> ${now}`
       await this.audit.write({ actorId: who.id, action: 'edit', code, note }, tx)
+      if (was !== now) await this.ringPenalty(tx, who, code)
     })
     return ContractPenaltyResponse.parse(await this.reread(who, code))
   }
@@ -174,6 +183,23 @@ export class ContractTerminationService {
     if (!(await this.repo.reasonLive(tx, reasonKey))) {
       throw conflict('Không tìm thấy lý do này. Chọn lại.')
     }
+  }
+
+  /** Company-level money (ADR 0124): the director alone hears a penalty move. */
+  private async ringPenalty(tx: Db, who: Actor, code: string): Promise<void> {
+    const heard = await this.hub.bellRead(tx, `audience of ${code}`, null, (savepoint) =>
+      this.schedule.bellAudience(savepoint, code),
+    )
+    await this.hub.announce(tx, {
+      event: {
+        name: CONTRACT_PENALTY_CHANGED,
+        ref: { code },
+        actorId: who.id,
+        audiences: { director: await this.hub.sharedInRoles(tx, ['director'], 'Sales') },
+      },
+      subject: { kind: 'contract', code, label: heard?.label ?? code },
+      detail: { [NOTIFICATION_DETAIL_CONTRACT]: code },
+    })
   }
 
   /** The sign line's three audiences (`announceSigned`), keyed on the contract.

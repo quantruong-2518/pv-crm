@@ -73,6 +73,7 @@ export const NotificationKind = z.enum([
   'kpi-team-share-assigned',
   'contract-terminated',
   'contract-collector-changed',
+  'contract-penalty-changed',
   'kpi-stand-in',
   'customer-recare-due',
 ])
@@ -163,6 +164,7 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'kpi-team-share-assigned': 'Nhóm được giao chỉ tiêu',
   'contract-terminated': 'Hợp đồng đã chấm dứt',
   'contract-collector-changed': 'Đã đổi người thu tiền hợp đồng',
+  'contract-penalty-changed': 'Tiền phạt hợp đồng đã thay đổi',
   'kpi-stand-in': 'Bạn đang làm thay việc KPI của người khác',
   'customer-recare-due': 'Đến kỳ chăm sóc khách đã mua',
 }
@@ -260,6 +262,7 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'kpi-team-share-assigned': 'kpi',
   'contract-terminated': 'contract',
   'contract-collector-changed': 'contract',
+  'contract-penalty-changed': 'contract',
   'kpi-stand-in': 'kpi',
   'customer-recare-due': 'contract',
 }
@@ -333,6 +336,7 @@ export const NOTIFICATION_KIND_POLICY: Record<
   'kpi-team-share-assigned': { important: true, locked: false },
   'contract-terminated': { important: false, locked: false },
   'contract-collector-changed': { important: true, locked: false },
+  'contract-penalty-changed': { important: false, locked: false },
   /* ADR 0117 default 3: work now waits on someone who did not ask for it. */
   'kpi-stand-in': { important: true, locked: false },
   'customer-recare-due': { important: false, locked: false },
@@ -448,6 +452,7 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'kpi-team-share-assigned': ['kpi-team'],
     'contract-terminated': ['contract'],
     'contract-collector-changed': ['contract'],
+    'contract-penalty-changed': ['contract'],
     /* The seat's own waiting list: a team page for a lead's stand-in (who may hold
        only `kpi.view`), the allocations screen for a target setter's. */
     'kpi-stand-in': ['kpi-team', 'kpi-allocation'],

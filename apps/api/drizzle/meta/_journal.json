@@ -995,6 +995,13 @@
       "when": 1795590600000,
       "tag": "0146_contract_termination_penalty",
       "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1795590660000,
+      "tag": "0147_contract_penalty_bell",
+      "breakpoints": true
     }
   ]
 }

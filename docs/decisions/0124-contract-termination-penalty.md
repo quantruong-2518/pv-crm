@@ -51,8 +51,9 @@ existing cards; clicking it opens the terminated tab.
 
 ### 7 · Notification
 
-No new bell kind. The existing `contract-terminated` bell still rings on termination but says nothing about the
-penalty; a penalty added, changed or settled later is silent.
+Bell kind `contract-penalty-changed` (migration 0147, owner 26/10/2026), heard by the director only: it rings when
+a termination carries a penalty, and whenever the penalty door actually changes the penalty (record, change, settle,
+clear). The `contract-terminated` bell is unchanged.
 
 ### 8 · Deploy order
 
