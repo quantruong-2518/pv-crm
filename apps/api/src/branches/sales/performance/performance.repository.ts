@@ -162,9 +162,8 @@ export class PerformanceRepository {
              COALESCE(SUM(${toVndSql(opportunity.amount, opportunity.currency)}), 0)::bigint AS open_amount
         FROM span s
         LEFT JOIN ${opportunity}
-               ON ${opportunity.stage} IS NOT NULL AND NOT ${dealHeld(opportunity.code)}
+               ON ${OPEN_DEAL}
               AND ${opportunity.expectedClose} >= s."lo" AND ${opportunity.expectedClose} < s."hi"
-              AND EXISTS (SELECT 1 FROM ${lead} WHERE ${lead.code} = ${opportunity.leadCode} AND ${leadLive})
        GROUP BY s."key"
     `)) as { rows: { key: string; open_count: number; open_amount: number | string }[] }
     return new Map(
@@ -172,6 +171,12 @@ export class PerformanceRepository {
     )
   }
 }
+
+/** "Open" as the opportunity scorecard reads it: `stage` set, not held, live
+ *  lead. Over the unaliased `sales.opportunity`; the money entries list the
+ *  same deals `openBySpan` sums. */
+export const OPEN_DEAL = sql`${opportunity.stage} IS NOT NULL AND NOT ${dealHeld(opportunity.code)}
+  AND EXISTS (SELECT 1 FROM ${lead} WHERE ${lead.code} = ${opportunity.leadCode} AND ${leadLive})`
 
 /** Each live lead's first real exchange and first deal. MATERIALIZED: one pass
  *  over the leads serves every span instead of one pass per span. */

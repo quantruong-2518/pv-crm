@@ -14,8 +14,9 @@ import { money, num } from './home-model'
  *
  *  The money read and the figures read carry the same buckets in the same
  *  order, so one column is the pair of both: what was collected and what fell
- *  due unpaid (money), plus the open deals expected to close in that slice
- *  (figures). Expected revenue is actual plus what is still owed and still open. */
+ *  due unpaid or is still to fall due (money), plus the open deals expected to
+ *  close in that slice (figures). Expected revenue is actual plus everything not
+ *  yet collected: owed, upcoming and open. */
 
 export type RevenueColumn = {
   view: BucketView
@@ -23,8 +24,9 @@ export type RevenueColumn = {
   /** A refund can push a slice's collected sum below zero; a bar cannot. */
   collected: number
   due: number
+  upcoming: number
   open: number
-  /** The column's frame: collected + due + open. */
+  /** The column's frame: collected + due + upcoming + open. */
   total: number
 }
 
@@ -33,6 +35,7 @@ export type Revenue = {
   actual: number
   open: number
   due: number
+  upcoming: number
   expected: number
   penaltyIn: SalesPenaltyFigure
   penaltyOut: SalesPenaltyFigure
@@ -49,8 +52,9 @@ export function revenueOf(perf: SalesPerformanceResponse, cash: SalesMoneyRespon
       money: m,
       collected,
       due: m.dueUnpaidVnd,
+      upcoming: m.upcomingVnd,
       open,
-      total: collected + m.dueUnpaidVnd + open,
+      total: collected + m.dueUnpaidVnd + m.upcomingVnd + open,
     }
   })
   const t = cash.totals
@@ -61,7 +65,8 @@ export function revenueOf(perf: SalesPerformanceResponse, cash: SalesMoneyRespon
     actual: t.actualVnd,
     open,
     due: t.dueUnpaidVnd,
-    expected: t.actualVnd + t.dueUnpaidVnd + open,
+    upcoming: t.upcomingVnd,
+    expected: t.actualVnd + t.dueUnpaidVnd + t.upcomingVnd + open,
     penaltyIn: t.penaltyIn,
     penaltyOut: t.penaltyOut,
   }
@@ -71,9 +76,18 @@ export function revenueOf(perf: SalesPerformanceResponse, cash: SalesMoneyRespon
 export const hasData = ({ view, total, money: m }: RevenueColumn) =>
   view.state !== 'future' || total > 0 || m.penaltyIn.count > 0 || m.penaltyOut.count > 0
 
-/** Whether the column has rows to open: money collected (or refunded) or due. */
-export const hasEntries = ({ money: m }: RevenueColumn) =>
-  m.collectedVnd !== 0 || m.dueUnpaidVnd > 0
+/** The column's sections bottom-up, as the frame stacks them; empty ones are left out. */
+export const columnKinds = ({ money: m, due, upcoming, open }: RevenueColumn) =>
+  (
+    [
+      [m.collectedVnd !== 0, 'collected'],
+      [due > 0, 'due-unpaid'],
+      [upcoming > 0, 'upcoming'],
+      [open > 0, 'open-deal'],
+    ] as const
+  )
+    .filter(([on]) => on)
+    .map(([, kind]): SalesMoneyFigureKind => kind)
 
 /** Every figure of the chart and its strip, in millions with at most one decimal. */
 export const millions = (vnd: number) => num(vnd / 1_000_000)
@@ -85,6 +99,8 @@ export const signedMoney = (vnd: number) => (vnd < 0 ? `−${money(-vnd)}` : mon
 export const KIND_TITLE: Record<SalesMoneyFigureKind, string> = {
   collected: 'Đã thu',
   'due-unpaid': 'Đến hạn chưa thu',
+  upcoming: 'Sắp đến hạn',
+  'open-deal': 'Cơ hội dự kiến chốt',
   'penalty-in': 'Khách thanh toán',
   'penalty-out': 'Mình thanh toán',
 }
@@ -105,6 +121,8 @@ export const BUCKET_UNIT: Record<SalesGrain, string> = {
 export const KIND_INK: Record<SalesMoneyFigureKind, string> = {
   collected: 'text-success',
   'due-unpaid': 'text-on-tint-warning',
+  upcoming: 'text-success',
+  'open-deal': 'text-accent-foreground',
   'penalty-in': 'text-channel-meeting',
   'penalty-out': 'text-destructive-foreground',
 }

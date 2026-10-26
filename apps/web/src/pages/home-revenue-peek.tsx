@@ -17,7 +17,9 @@ import { NOTE } from './home-tiles'
  *  Rows and their skeletons share one height, so the card keeps its size when
  *  the read lands; each section is its own read with its own sum. */
 
-const ROW = 'grid h-7 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-[12px] leading-4'
+/** One line per row; a row naming its customer takes a second line under it. */
+const ROW =
+  'grid min-h-7 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 py-1 text-[12px] leading-4'
 
 const amountOf = (kind: SalesMoneyFigureKind, vnd: number) =>
   kind === 'penalty-out'
@@ -30,15 +32,18 @@ const monthOf = (day: string, home: string) =>
   `T${Number(day.slice(5, 7))}${day.slice(0, 4) === home.slice(0, 4) ? '' : `/${day.slice(0, 4)}`}`
 
 function detailOf(entry: SalesMoneyEntry): string {
+  const day = rangeLabel({ first: entry.day, last: entry.day })
   if (entry.kind === 'penalty-in' || entry.kind === 'penalty-out') {
-    const signed = `Chấm dứt · ký ${monthOf(entry.signedOn, entry.day)}`
-    return entry.pending ? `${signed} · chưa trả` : signed
+    const ended = entry.signedOn
+      ? `Chấm dứt · ký ${monthOf(entry.signedOn, entry.day)}`
+      : 'Chấm dứt'
+    return entry.pending ? `${ended} · chưa trả` : ended
   }
+  if (entry.kind === 'open-deal') return `Dự kiến chốt ${day}`
   const part =
     entry.installmentNo !== null && entry.installmentCount !== null
       ? `Đợt ${entry.installmentNo}/${entry.installmentCount}`
       : (entry.label ?? (entry.kind === 'refund' ? 'Hoàn tiền' : ''))
-  const day = rangeLabel({ first: entry.day, last: entry.day })
   return part ? `${part} · ${day}` : day
 }
 
@@ -70,10 +75,12 @@ function Section({
           )}
           {read.data.entries.map((entry, i) => (
             <div
-              key={`${entry.contractCode}-${entry.kind}-${entry.installmentNo ?? ''}-${i}`}
+              key={`${entry.contractCode ?? entry.opportunityCode ?? ''}-${entry.kind}-${entry.installmentNo ?? ''}-${i}`}
               className={cn(ROW, 'border-surface-ink/6 border-t')}
             >
-              <span className="font-mono font-semibold">{entry.contractCode}</span>
+              <span className="font-mono font-semibold">
+                {entry.contractCode ?? entry.opportunityCode ?? '—'}
+              </span>
               <span
                 className="text-muted-foreground tnum font-num truncate"
                 title={detailOf(entry)}
@@ -83,6 +90,11 @@ function Section({
               <span className={cn('tnum font-num font-bold', ink)}>
                 {amountOf(kind, entry.amountVnd)}
               </span>
+              {entry.title && (
+                <span className="col-span-3 truncate" title={entry.title}>
+                  {entry.title}
+                </span>
+              )}
             </div>
           ))}
           <div className="border-surface-ink/12 flex h-7 items-center justify-between border-t text-[13px] font-bold leading-[18px]">

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common'
+import { EnginesModule } from '@api/platform/engines/engines.module'
 import { OpportunityModule } from '../opportunity/opportunity.module'
 import { PerformanceController } from './performance.controller'
 import { PerformanceExitsRepository } from './performance-exits.repository'
@@ -13,11 +14,10 @@ import { PerformanceService } from './performance.service'
  *  the open pipeline is asked of `OpportunityService.scorecard` so the overview
  *  and the opportunity book cannot print two readings of "open".
  *
- *  No `EnginesModule`: the door is unscoped and asks E2 nothing beyond what
- *  `@Need` already declares; the money doors' `ownOnly` refusal reads the
- *  actor's own flag. `exports` is empty: no module asks this one. */
+ *  `EnginesModule` for one question: the money entries' open-deal list asks E2
+ *  for the deal book's permission. `exports` is empty: no module asks this one. */
 @Module({
-  imports: [OpportunityModule],
+  imports: [OpportunityModule, EnginesModule],
   controllers: [PerformanceController],
   providers: [
     PerformanceService,

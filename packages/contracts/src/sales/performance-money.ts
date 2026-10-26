@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ContractCode, Day, MoneyVnd } from '../primitives'
+import { ContractCode, Day, MoneyVnd, ObjectCode } from '../primitives'
 import { SalesDayRange, SalesPerformanceParams, SalesPeriodKey } from './performance'
 
 /** `GET /sales/performance/:period/money` — money moved in the period, per bucket.
@@ -32,6 +32,8 @@ export const SalesMoneyFigures = z.object({
   actualVnd: SignedVnd,
   /** Installments due before today VN, still unpaid, on a contract not terminated. */
   dueUnpaidVnd: MoneyVnd,
+  /** Installments due today or later in the slice, still unpaid, on a contract not terminated: planned cash. */
+  upcomingVnd: MoneyVnd,
   /** In: the customer pays the company. Out: the company pays the customer. */
   penaltyIn: SalesPenaltyFigure,
   penaltyOut: SalesPenaltyFigure,
@@ -47,7 +49,14 @@ export const SalesMoneyResponse = z.object({
   totals: SalesMoneyFigures,
 })
 
-export const SalesMoneyFigureKind = z.enum(['collected', 'due-unpaid', 'penalty-in', 'penalty-out'])
+export const SalesMoneyFigureKind = z.enum([
+  'collected',
+  'due-unpaid',
+  'upcoming',
+  'open-deal',
+  'penalty-in',
+  'penalty-out',
+])
 
 export const SalesMoneyEntriesQuery = z.object({
   bucket: z.string().min(1),
@@ -59,24 +68,29 @@ export const SalesMoneyEntryKind = z.enum([
   'installment-paid',
   'refund',
   'due-unpaid',
+  'upcoming',
+  'open-deal',
   'penalty-in',
   'penalty-out',
 ])
 
 export const SalesMoneyEntry = z.object({
-  contractCode: ContractCode,
+  /** Null on an open deal, which has no contract yet; it carries its own code and title. */
+  contractCode: ContractCode.nullable(),
+  opportunityCode: ObjectCode.nullable(),
+  title: z.string().nullable(),
   kind: SalesMoneyEntryKind,
   /** Null on a penalty or a refund, which belong to no installment. */
   installmentNo: z.number().int().positive().nullable(),
   installmentCount: z.number().int().positive().nullable(),
   label: z.string().nullable(),
-  /** Paid day, due day or termination day — whichever placed it in the bucket. */
+  /** Paid, due, termination or expected-close day — whichever placed it in the bucket. */
   day: Day,
   /** Negative for a refund only. */
   amountVnd: SignedVnd,
   /** Not yet settled; only a penalty can be. */
   pending: z.boolean(),
-  signedOn: Day,
+  signedOn: Day.nullable(),
   fromEarlier: z.boolean(),
 })
 

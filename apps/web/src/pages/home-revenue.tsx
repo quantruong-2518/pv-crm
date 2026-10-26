@@ -66,7 +66,8 @@ function Figures({ r }: { r: ReturnType<typeof revenueOf> }) {
         <span className={FIGURE_LABEL}>Doanh thu dự kiến</span>
         <span className={FIGURE_VALUE}>{signedMoney(r.expected)}</span>
         <span className="text-on-tint-primary-muted tnum font-num text-[12px] leading-4">
-          {signedMoney(r.actual)} thực tế + {money(r.open)} cơ hội dự kiến chốt
+          {signedMoney(r.actual)} thực tế + {money(r.upcoming)} đợt sắp thu + {money(r.open)} cơ hội
+          dự kiến chốt
         </span>
         {r.due > 0 && (
           <span className="text-on-tint-warning tnum font-num text-[12px] font-semibold leading-4">

@@ -2,17 +2,23 @@ import type { CSSProperties } from 'react'
 import type { SalesMoneyFigureKind } from '@pv/contracts'
 import { cn } from '@pv/ui'
 import { MARK_EASE, staggerMs } from './home-look'
-import { hasData, hasEntries, millions, type RevenueColumn } from './home-revenue-model'
+import {
+  KIND_TITLE,
+  columnKinds,
+  hasData,
+  millions,
+  type RevenueColumn,
+} from './home-revenue-model'
 import type { ZoneProps } from './home-revenue-hover'
 import { NOTE } from './home-tiles'
 
 /** The revenue tile's chart: one column per bucket, its x labels, and the
  *  penalty strip on the same columns. A column's frame is all the money the
- *  slice may bring (collected + due unpaid + open deals); inside it, from the
- *  foot, what was collected and then what fell due unpaid. Net actual revenue
+ *  slice may bring; inside it, from the foot: collected, due unpaid, upcoming
+ *  installments, and the dashed rest is the open deals. Net actual revenue
  *  is not printed per column: penalties sit in their own strip instead.
  *
- *  Each money zone (the collected bar, the due hatch, a penalty cell) is its own
+ *  Each money zone (the four parts of a column, a penalty cell) is its own
  *  button for a mouse and a keyboard. A finger gets the whole column instead (a
  *  segment can be 4px tall), through a cover button only coarse pointers see.
  *  Heights ride `--max`, so a short viewport shrinks the plot in CSS. Focus
@@ -28,6 +34,9 @@ export const COLLECTED_FILL = 'bg-success'
 /** The installments past due: a hatch of the warning hue, so it reads as owed. */
 export const DUE_HATCH =
   'bg-[repeating-linear-gradient(135deg,color-mix(in_srgb,var(--warning)_42%,transparent)_0_3px,color-mix(in_srgb,var(--warning)_12%,transparent)_3px_7px)]'
+/** Installments of signed contracts still to fall due: the collected hue, washed,
+ *  with a solid top edge, so it reads as planned and firm. */
+export const UPCOMING_FILL = 'bg-success/25 [box-shadow:inset_0_2px_0_0_var(--success)]'
 export const OPEN_FRAME =
   'bg-accent outline-dashed outline-[1.5px] -outline-offset-[1.5px] outline-primary/45'
 /** Two shadows shifted up-left and up-right: top and sides only, the bar stands on the axis. */
@@ -44,6 +53,9 @@ const ZONE_LOOK =
   'hover:brightness-110 aria-expanded:brightness-110 aria-expanded:[box-shadow:inset_0_0_0_2px_var(--ring)]'
 /** Segments give way to the column's cover on a coarse pointer. */
 const SEGMENT = `block w-full shrink-0 pointer-coarse:pointer-events-none ${ZONE_LOOK} ${FOCUS_IN}`
+
+const SEGMENT_FIGURE =
+  'text-background tnum font-num flex items-center justify-center text-[12px] font-bold'
 
 const share = (vnd: number, top: number) => (vnd > 0 ? vnd / top : 0)
 const grow = `starting:h-0 transition-[height] ${MARK_EASE}`
@@ -63,10 +75,19 @@ function Column({
   name: string
   zone: Zone
 }) {
-  const { view, collected, due, total } = col
+  const { view, collected, due, upcoming, open, total } = col
   const g = share(collected, top)
   const key = view.bucket.key
   const delay = { transitionDelay: `${staggerMs(index, count)}ms` }
+  /* Top-down in the DOM, since the frame stacks from its foot. */
+  const segments = [
+    { kind: 'upcoming', vnd: upcoming, look: UPCOMING_FILL },
+    { kind: 'due-unpaid', vnd: due, look: DUE_HATCH },
+    { kind: 'collected', vnd: collected, look: cn(COLLECTED_FILL, SEGMENT_FIGURE) },
+  ] as const
+  const kinds = columnKinds(col)
+  const said = (kind: SalesMoneyFigureKind, vnd: number) =>
+    `${KIND_TITLE[kind].toLowerCase()} ${millions(vnd)} triệu`
   return (
     <div className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 self-stretch">
       <span
@@ -84,45 +105,56 @@ function Column({
           className={cn(
             'flex h-[max(6px,calc(var(--f)*var(--max)))] w-[64%] max-w-14 flex-col justify-end overflow-hidden rounded-t-[10px]',
             grow,
-            total > collected + due && OPEN_FRAME,
+            open > 0 && OPEN_FRAME,
             view.state === 'now' && RING_NOW,
           )}
         >
-          {due > 0 && (
+          {open > 0 && (
             <button
               type="button"
-              aria-label={`${name}: đến hạn chưa thu ${millions(due)} triệu`}
-              {...zone(key, 'due-unpaid', ['due-unpaid'])}
-              style={{ ...({ '--h': String(share(due, top)) } as CSSProperties), ...delay }}
-              className={cn('h-[max(4px,calc(var(--h)*var(--max)))]', DUE_HATCH, grow, SEGMENT)}
+              aria-label={`${name}: ${said('open-deal', open)}`}
+              {...zone(key, 'open-deal', ['open-deal'])}
+              className={cn('min-h-0 flex-1', SEGMENT)}
             />
           )}
-          {g > 0 && (
-            <button
-              type="button"
-              aria-label={`${name}: đã thu ${millions(collected)} triệu`}
-              {...zone(key, 'collected', ['collected'])}
-              style={{ ...({ '--g': String(g) } as CSSProperties), ...delay }}
-              className={cn(
-                'text-background tnum font-num flex h-[max(4px,calc(var(--g)*var(--max)))] items-center justify-center text-[12px] font-bold',
-                COLLECTED_FILL,
-                grow,
-                SEGMENT,
-              )}
-            >
-              {g >= FIGURE_ROOM ? millions(collected) : ''}
-            </button>
+          {segments.map(
+            ({ kind, vnd, look }) =>
+              vnd > 0 && (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-label={`${name}: ${said(kind, vnd)}`}
+                  {...zone(key, kind, [kind])}
+                  style={{ ...({ '--s': String(share(vnd, top)) } as CSSProperties), ...delay }}
+                  className={cn('h-[max(4px,calc(var(--s)*var(--max)))]', grow, SEGMENT, look)}
+                >
+                  {kind === 'collected' && g >= FIGURE_ROOM ? millions(collected) : ''}
+                </button>
+              ),
           )}
         </span>
       ) : (
         hasData(col) && <span aria-hidden className="bg-muted-foreground h-1 w-[64%] max-w-14" />
       )}
-      {hasEntries(col) && (
+      {kinds.length > 0 && (
         <button
           type="button"
           tabIndex={-1}
-          aria-label={`${name}: đã thu ${millions(col.money.collectedVnd)} triệu${due > 0 ? `, đến hạn chưa thu ${millions(due)} triệu` : ''}`}
-          {...zone(key, 'column', due > 0 ? ['collected', 'due-unpaid'] : ['collected'])}
+          aria-label={`${name}: ${kinds
+            .map((k) =>
+              said(
+                k,
+                k === 'collected'
+                  ? col.money.collectedVnd
+                  : k === 'due-unpaid'
+                    ? due
+                    : k === 'upcoming'
+                      ? upcoming
+                      : open,
+              ),
+            )
+            .join(', ')}`}
+          {...zone(key, 'column', kinds)}
           className="aria-expanded:bg-surface-ink/4 pointer-coarse:block absolute inset-0 hidden rounded-t-xl"
         />
       )}
@@ -311,8 +343,9 @@ export function Legend() {
   return (
     <div className={cn(NOTE, 'flex flex-wrap items-center gap-x-4 gap-y-1')}>
       <Swatch className={COLLECTED_FILL} label="Đã thu" />
-      <Swatch className={OPEN_FRAME} label="Doanh thu dự kiến" />
       <Swatch className={DUE_HATCH} label="Đến hạn chưa thu" />
+      <Swatch className={UPCOMING_FILL} label="Sắp đến hạn" />
+      <Swatch className={OPEN_FRAME} label="Cơ hội dự kiến chốt" />
     </div>
   )
 }
@@ -327,17 +360,19 @@ export function FiguresTable({ columns, unit }: { columns: RevenueColumn[]; unit
           <th scope="col">Kỳ</th>
           <th scope="col">Đã thu</th>
           <th scope="col">Đến hạn chưa thu</th>
+          <th scope="col">Sắp đến hạn</th>
           <th scope="col">Cơ hội dự kiến chốt</th>
           <th scope="col">Khách thanh toán</th>
           <th scope="col">Mình thanh toán</th>
         </tr>
       </thead>
       <tbody>
-        {columns.map(({ view, money: m, due, open }) => (
+        {columns.map(({ view, money: m, due, upcoming, open }) => (
           <tr key={view.bucket.key}>
             <th scope="row">{view.sub ? `${view.label} ${view.sub}` : view.label}</th>
             <td>{millions(m.collectedVnd)}</td>
             <td>{millions(due)}</td>
+            <td>{millions(upcoming)}</td>
             <td>{millions(open)}</td>
             <td>{millions(m.penaltyIn.amountVnd)}</td>
             <td>{millions(m.penaltyOut.amountVnd)}</td>

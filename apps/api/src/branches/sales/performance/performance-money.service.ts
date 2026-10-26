@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common'
-import type { Actor } from '@pv/engines'
+import { Inject, Injectable } from '@nestjs/common'
+import type { AccessControl, Actor } from '@pv/engines'
 import {
   lastDayOf,
   SalesMoneyEntriesResponse,
@@ -8,6 +8,7 @@ import {
   type SalesMoneyFigures,
   type SalesPeriodKey,
 } from '@pv/contracts'
+import { ACCESS } from '@api/platform/engines/tokens'
 import { denied, invalid } from '@api/platform/http/problem'
 import { spansOf } from './performance-period'
 import { PerformanceMoneyRepository, type MovedFigures } from './performance-money.repository'
@@ -18,12 +19,14 @@ import { PerformanceRepository } from './performance.repository'
  *
  *  Money is the whole contract book's (owner's call): `contract.view` at the
  *  door, and an `ownOnly` reader — who opens only the contracts they hold —
- *  is refused here rather than handed a figure cut to their own slice. */
+ *  is refused here rather than handed a figure cut to their own slice. Axis 3
+ *  is one flag for every book, so that refusal covers own-only deal readers. */
 @Injectable()
 export class PerformanceMoneyService {
   constructor(
     private readonly repo: PerformanceMoneyRepository,
     private readonly performance: PerformanceRepository,
+    @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
   async read(who: Actor, period: SalesPeriodKey): Promise<SalesMoneyResponse> {
@@ -49,6 +52,10 @@ export class PerformanceMoneyService {
     q: SalesMoneyEntriesQuery,
   ): Promise<SalesMoneyEntriesResponse> {
     assertWholeBook(who)
+    /* Open-deal rows name deals, so they also need the deal book's door. */
+    if (q.kind === 'open-deal' && !this.access.check(who, OPPORTUNITY_VIEW).ok) {
+      throw denied('permission-denied', 'Bạn không xem được danh sách cơ hội.')
+    }
     const { current, buckets } = spansOf(period)
     const bucket = buckets.find((b) => b.key === q.bucket)
     if (!bucket) throw invalid({ bucket: ['Khoảng này không thuộc kỳ đã chọn.'] })
@@ -74,11 +81,14 @@ const withActual = (f: MovedFigures): SalesMoneyFigures => ({
   actualVnd: f.collectedVnd - f.penaltyOut.amountVnd + f.penaltyIn.amountVnd,
 })
 
+const OPPORTUNITY_VIEW = { branch: 'Sales', permission: 'opportunity.view' } as const
+
 const NO_PENALTY = { amountVnd: 0, count: 0, pending: 0, fromEarlier: 0 }
 const ZERO: SalesMoneyFigures = {
   collectedVnd: 0,
   actualVnd: 0,
   dueUnpaidVnd: 0,
+  upcomingVnd: 0,
   penaltyIn: NO_PENALTY,
   penaltyOut: NO_PENALTY,
 }
@@ -92,6 +102,7 @@ const add = (a: SalesMoneyFigures, b: SalesMoneyFigures): SalesMoneyFigures => (
   collectedVnd: a.collectedVnd + b.collectedVnd,
   actualVnd: a.actualVnd + b.actualVnd,
   dueUnpaidVnd: a.dueUnpaidVnd + b.dueUnpaidVnd,
+  upcomingVnd: a.upcomingVnd + b.upcomingVnd,
   penaltyIn: addPenalty(a.penaltyIn, b.penaltyIn),
   penaltyOut: addPenalty(a.penaltyOut, b.penaltyOut),
 })
