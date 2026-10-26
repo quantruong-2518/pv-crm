@@ -153,6 +153,32 @@ export class OpportunityLifecycle {
     return this.activity(tx, deal, care.stage, kind, by, step, floor.activity)
   }
 
+  /** The first real touch — a call, a logged message, a letter that went out —
+   *  moves a deal standing at `assigned` to `engaged`, as it moves a lead to
+   *  `working` (ADR 0126). Any other stage, a held deal or a lost one: nothing,
+   *  and no error, since the touch itself is already recorded by its own door. */
+  async contacted(tx: Db, deal: DealAt, by: By, at: Date): Promise<void> {
+    if (deal.row.state !== 'open' || deal.row.stage !== 'assigned' || deal.held) return
+    const [written] = await tx
+      .update(opportunity)
+      .set({ stage: 'engaged', stageSince: at })
+      .where(
+        and(
+          eq(opportunity.code, deal.row.code),
+          eq(opportunity.state, 'open'),
+          eq(opportunity.stage, 'assigned'),
+        ),
+      )
+      .returning()
+    if (!written) return
+    await this.after(tx, deal, written, by, {
+      at,
+      from: 'assigned',
+      kind: 'stage-changed',
+      note: NOTE.moved('assigned', 'engaged'),
+    })
+  }
+
   /** The earliest moment each care door accepts (ADR 0072 §3–4): an activity
    *  from the acceptance; a quotation from entry into the current column, or on
    *  a won deal from its latest signing. The door and the profile both ask here.

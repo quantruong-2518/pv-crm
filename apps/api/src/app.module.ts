@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common'
 import { APP_FILTER, APP_GUARD } from '@nestjs/core'
-import { LeadCommsHook } from './branches/sales/lead/lead-comms.hook'
+import { SalesCommsHook } from './branches/sales/opportunity/opportunity-comms.hook'
 import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
@@ -121,8 +121,8 @@ import { RolesModule } from './platform/roles/roles.module'
        lead moves its state — see `message-logged.hook.ts` — and that closing a comm
        writes the object's next step (`comm-debrief.hook.ts`). */
     CommsModule.withHook({
-      imports: [LeadModule, NextStepModule],
-      hook: LeadCommsHook,
+      imports: [LeadModule, OpportunityModule, NextStepModule],
+      hook: SalesCommsHook,
       debriefHook: NextStepDebriefHook,
     }),
     MailModule,

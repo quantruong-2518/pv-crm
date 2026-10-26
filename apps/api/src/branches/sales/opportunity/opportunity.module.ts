@@ -11,6 +11,7 @@ import { SettingModule } from '@api/platform/setting/setting.module'
 import { MasRepository } from '../campaign/mas.repository'
 import { ContractCollectors } from '../contract/contract-collector.service'
 import { ContractRepository } from '../contract/contract.repository'
+import { LeadModule } from '../lead/lead.module'
 import { LeadStateModule } from '../lead/lead-state'
 import { MeetingModule } from '../meeting/meeting.module'
 import { QuotationRepository } from '../quotation/quotation.repository'
@@ -29,6 +30,7 @@ import { OpportunityController } from './opportunity.controller'
 import { OpportunityLifecycle } from './opportunity-lifecycle'
 import { OpportunityMailComposer } from './opportunity-mail.composer'
 import { OpportunityMailSentHook } from './opportunity-mail-sent.hook'
+import { SalesCommsHook } from './opportunity-comms.hook'
 import { OpportunityMoves } from './opportunity-moves.service'
 import { OpportunityImportRepository } from './opportunity-import.repository'
 import { OpportunityOpenRepository } from './opportunity-open.repository'
@@ -94,6 +96,7 @@ import { OpportunityService } from './opportunity.service'
     NotificationModule,
     TouchModule,
     WorkstreamModule,
+    LeadModule,
     LeadStateModule,
     MeetingModule,
     /* `RolePermissionRepository`, for the permission reads of the mail-sent hook. */
@@ -140,8 +143,9 @@ import { OpportunityService } from './opportunity.service'
        (ADR 0069 §7); `MasRepository` answers which template that was. */
     MasRepository,
     OpportunityMailSentHook,
+    SalesCommsHook,
   ],
-  exports: [OpportunityService, OpportunityMailComposer, OpportunityMailSentHook],
+  exports: [OpportunityService, OpportunityMailComposer, OpportunityMailSentHook, SalesCommsHook],
 })
 export class OpportunityModule implements OnModuleInit {
   constructor(

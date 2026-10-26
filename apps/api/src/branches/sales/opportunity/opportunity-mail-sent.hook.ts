@@ -45,6 +45,7 @@ export class OpportunityMailSentHook implements MailSentHook {
 
   async afterSent(tx: Db, sent: MailSent): Promise<void> {
     if (!toCustomer(sent)) return
+    await this.firstTouch(tx, sent.aggregateId)
     const found = await this.templates.sentMilestone(tx, sent.mailRunId)
     if (!found) return
 
@@ -79,6 +80,14 @@ export class OpportunityMailSentHook implements MailSentHook {
       if (!(error instanceof PvError) || error.getStatus() >= 500) throw error
       this.log.warn(`Milestone ${found.milestone} not recorded on ${code}: ${error.message}`)
     }
+  }
+
+  /** A letter that went out is the deal's first touch whoever sent it (ADR 0126),
+   *  so the move is the holder's. A deal with no holder stays where it is. */
+  private async firstTouch(tx: Db, code: string): Promise<void> {
+    const read = await this.deals.lockedByCode(null, code, tx)
+    if (!read?.holder) return
+    await this.lifecycle.contacted(tx, dealAtOf(read, read.pendingSign), read.holder, new Date())
   }
 
   /** Nothing is written: a lost letter moves no rung, and the mail timeline
