@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type CSSProperties } from 'react'
+import { useRef, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ChartAnalysis, Icon, cn } from '@pv/ui'
 import {
@@ -11,15 +11,8 @@ import { useCan } from '@/app/auth'
 import { periodLabel } from '@/data/period-pick'
 import { dealsHref, money, num } from './home-model'
 import { ICON_TONE, WASH_HERO } from './home-look'
-import {
-  FiguresTable,
-  Labels,
-  Legend,
-  OPEN_FRAME,
-  PenaltyStrip,
-  Plot,
-  type PeekKind,
-} from './home-revenue-chart'
+import { FiguresTable, Labels, Legend, OPEN_FRAME, PenaltyStrip, Plot } from './home-revenue-chart'
+import { useMoneyCard } from './home-revenue-hover'
 import {
   BUCKET_UNIT,
   KIND_TITLE,
@@ -28,7 +21,7 @@ import {
   signedMoney,
   type RevenueColumn,
 } from './home-revenue-model'
-import { PEEK_WIDTH, RevenuePeek } from './home-revenue-peek'
+import { MoneyCardView } from './home-revenue-peek'
 import { CARD_SHELL, IconTile, NOTE, PILL_LINK } from './home-tiles'
 
 /** The hero tile of the overview for a reader of the whole contract book:
@@ -128,35 +121,6 @@ function Recognised({ actual, expected }: { actual: number; expected: number }) 
   )
 }
 
-type Peek = {
-  period: string
-  key: string
-  kind: PeekKind
-  opener: HTMLElement
-  left: number
-  bottom: number
-}
-
-/** Px offsets inside the chart box: just over the pressed column's bar, clamped to the box. */
-function placeOf(box: HTMLElement, key: string) {
-  const outer = box.getBoundingClientRect()
-  const col = box.querySelector<HTMLElement>(`[data-col="${CSS.escape(key)}"]`)
-  const c = col?.getBoundingClientRect() ?? outer
-  const frame = col?.querySelector('[data-frame]')?.getBoundingClientRect()
-  const left = c.left + c.width / 2 - outer.left - PEEK_WIDTH / 2
-  return {
-    left: Math.max(0, Math.min(left, outer.width - PEEK_WIDTH)),
-    bottom: outer.bottom - (frame?.top ?? c.bottom) + 40,
-  }
-}
-
-const peekKinds = (kind: PeekKind, col: RevenueColumn) =>
-  kind === 'column'
-    ? col.due > 0
-      ? (['collected', 'due-unpaid'] as const)
-      : (['collected'] as const)
-    : ([kind] as const)
-
 export function RevenueTile({
   perf,
   cash,
@@ -171,22 +135,10 @@ export function RevenueTile({
   const canViewDeals = useCan('opportunity.view')
   const r = revenueOf(perf, cash)
   const unit = BUCKET_UNIT[salesGrainOf(perf.period)]
-  const box = useRef<HTMLDivElement>(null)
-  const [peek, setPeek] = useState<Peek | null>(null)
-  const close = useCallback(() => setPeek(null), [])
-  /* A popover left open on one period never reopens on the next one's bucket of the same key. */
-  const peeked = peek?.period === perf.period ? peek : null
-  const pick = (key: string, kind: PeekKind, opener: HTMLElement) => {
-    const place = box.current && placeOf(box.current, key)
-    setPeek((p) =>
-      p?.period === perf.period && p.key === key && p.kind === kind
-        ? null
-        : place && { period: perf.period, key, kind, opener, ...place },
-    )
-  }
+  const content = useRef<HTMLDivElement>(null)
+  const { card, zoneProps, cardProps, close } = useMoneyCard(perf.period, content)
   const nameOf = (col: RevenueColumn) => columnName(perf, col.view)
-  const open = peeked && r.columns.find((c) => c.view.bucket.key === peeked.key)
-  const kinds = open ? [...peekKinds(peeked.kind, open)] : []
+  const shown = card && r.columns.find((c) => c.view.bucket.key === card.key)
 
   return (
     <section
@@ -233,37 +185,36 @@ export function RevenueTile({
           <Legend />
         </div>
         {/* On a coarse pointer a column keeps 56px, so a penalty cell inside it is
-            48px; twelve months then scroll sideways together. */}
-        <div ref={box} className="relative">
-          <div className="overflow-x-auto" onScroll={close}>
-            <div
-              style={{ '--cols': String(r.columns.length) } as CSSProperties}
-              className="pointer-coarse:min-w-[calc(var(--cols)*56px)] flex flex-col"
-            >
-              <Plot columns={r.columns} nameOf={nameOf} onPick={pick} peeked={peeked} />
-              <div className="bg-muted-foreground/35 h-px" />
-              <Labels columns={r.columns} />
-              <PenaltyStrip
-                columns={r.columns}
-                any={r.penaltyIn.count + r.penaltyOut.count > 0}
-                onPick={pick}
-                peeked={peeked}
-              />
-            </div>
-          </div>
-          {peeked && open && (
-            <RevenuePeek
-              key={`${peeked.key}-${peeked.kind}`}
-              period={perf.period}
-              bucket={peeked.key}
-              kinds={kinds}
-              title={kinds.length > 1 ? nameOf(open) : `${KIND_TITLE[kinds[0]!]} · ${nameOf(open)}`}
-              left={peeked.left}
-              bottom={peeked.bottom}
-              opener={peeked.opener}
-              onClose={close}
+            48px; twelve months then scroll sideways, the card with them. */}
+        <div className="pointer-coarse:overflow-x-auto">
+          <div
+            ref={content}
+            style={{ '--cols': String(r.columns.length) } as CSSProperties}
+            className="pointer-coarse:min-w-[calc(var(--cols)*56px)] relative flex flex-col"
+          >
+            <Plot columns={r.columns} nameOf={nameOf} zone={zoneProps} />
+            <div className="bg-muted-foreground/35 h-px" />
+            <Labels columns={r.columns} />
+            <PenaltyStrip
+              columns={r.columns}
+              any={r.penaltyIn.count + r.penaltyOut.count > 0}
+              nameOf={nameOf}
+              zone={zoneProps}
             />
-          )}
+            {card && shown && (
+              <MoneyCardView
+                key={`${card.key}-${card.zone}`}
+                card={card}
+                title={
+                  card.kinds.length > 1
+                    ? nameOf(shown)
+                    : `${KIND_TITLE[card.kinds[0]!]} · ${nameOf(shown)}`
+                }
+                cardProps={cardProps}
+                onClose={close}
+              />
+            )}
+          </div>
         </div>
         <FiguresTable columns={r.columns} unit={unit} />
       </div>

@@ -6,20 +6,18 @@ import { isApiError, userMessage } from '@/app/api'
 import { salesMoneyEntriesQuery } from '@/data/home-charts'
 import { rangeLabel } from '@/data/period-pick'
 import { money } from './home-model'
+import { CARD_WIDTH, type MoneyCard, type useMoneyCard } from './home-revenue-hover'
 import { KIND_INK, KIND_TITLE, signedMoney } from './home-revenue-model'
 import { NOTE } from './home-tiles'
 
-/** The rows behind one chart column or one penalty cell: which contract, which
- *  installment, which day, how much. Local because `@pv/ui` has no click
- *  popover (InfoTip opens on hover only). Non-modal: focus lands on its close
- *  button; Escape, that button or a press outside shuts it, and focus goes back
- *  to the mark that opened it. Each section is its own read with its own sum. */
+/** The rows behind one money zone: contract, installment or label, day, amount,
+ *  one line each. Local because `@pv/ui` has no hover card (InfoTip has no
+ *  pinning and portals out of the chart). Drawn inside the chart content, so
+ *  it scrolls with the columns. Not a modal: no backdrop, no focus trap.
+ *  Rows and their skeletons share one height, so the card keeps its size when
+ *  the read lands; each section is its own read with its own sum. */
 
-/** Marks that open a popover carry this, so pressing one is not "outside". */
-export const PEEK_TRIGGER = 'data-peek-trigger'
-
-/** The popover's width in px; the tile clamps its left edge with it. */
-export const PEEK_WIDTH = 296
+const ROW = 'grid h-7 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 text-[12px] leading-4'
 
 const amountOf = (kind: SalesMoneyFigureKind, vnd: number) =>
   kind === 'penalty-out'
@@ -53,7 +51,7 @@ function Section({
   period: string
   bucket: string
   kind: SalesMoneyFigureKind
-  /** Printed when the popover holds more than one section. */
+  /** Printed when the card holds more than one section. */
   heading: boolean
 }) {
   const read = useQuery(salesMoneyEntriesQuery(period, bucket, kind))
@@ -68,23 +66,26 @@ function Section({
       {read.data ? (
         <>
           {read.data.entries.length === 0 && (
-            <span className={cn(NOTE, 'py-2')}>Không có khoản nào.</span>
+            <span className={cn(NOTE, 'flex h-7 items-center')}>Không có khoản nào.</span>
           )}
           {read.data.entries.map((entry, i) => (
             <div
               key={`${entry.contractCode}-${entry.kind}-${entry.installmentNo ?? ''}-${i}`}
-              className="border-surface-ink/6 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 border-t py-2 text-[12px] leading-4"
+              className={cn(ROW, 'border-surface-ink/6 border-t')}
             >
               <span className="font-mono font-semibold">{entry.contractCode}</span>
+              <span
+                className="text-muted-foreground tnum font-num truncate"
+                title={detailOf(entry)}
+              >
+                {detailOf(entry)}
+              </span>
               <span className={cn('tnum font-num font-bold', ink)}>
                 {amountOf(kind, entry.amountVnd)}
               </span>
-              <span className="text-muted-foreground tnum font-num col-span-2">
-                {detailOf(entry)}
-              </span>
             </div>
           ))}
-          <div className="border-surface-ink/12 flex justify-between border-t pt-2 text-[13px] font-bold leading-[18px]">
+          <div className="border-surface-ink/12 flex h-7 items-center justify-between border-t text-[13px] font-bold leading-[18px]">
             <span>Cộng</span>
             <span className={cn('tnum font-num', ink)}>{amountOf(kind, read.data.totalVnd)}</span>
           </div>
@@ -104,88 +105,64 @@ function Section({
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <Skeleton />
-          <Skeleton width="70%" />
-        </div>
+        [0, 1, 2].map((i) => (
+          <div key={i} className="flex h-7 items-center">
+            <Skeleton width={i === 2 ? '50%' : '100%'} />
+          </div>
+        ))
       )}
     </section>
   )
 }
 
-export function RevenuePeek({
-  period,
-  bucket,
-  kinds,
+export function MoneyCardView({
+  card,
   title,
-  left,
-  bottom,
-  opener,
+  cardProps,
   onClose,
 }: {
-  period: string
-  bucket: string
-  /** One section per figure, in this order. */
-  kinds: SalesMoneyFigureKind[]
+  card: MoneyCard
   title: string
-  /** Px inside the chart box, measured from the column when it was pressed. */
-  left: number
-  bottom: number
-  opener: HTMLElement
+  cardProps: ReturnType<typeof useMoneyCard>['cardProps']
   onClose: () => void
 }) {
-  const panel = useRef<HTMLDivElement>(null)
   const closer = useRef<HTMLButtonElement>(null)
-
   useEffect(() => {
-    closer.current?.focus()
-    const outside = (e: PointerEvent) => {
-      const target = e.target as Element
-      if (!panel.current?.contains(target) && !target.closest(`[${PEEK_TRIGGER}]`)) onClose()
-    }
-    const escape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      onClose()
-      opener.focus()
-    }
-    document.addEventListener('pointerdown', outside)
-    document.addEventListener('keydown', escape)
-    return () => {
-      document.removeEventListener('pointerdown', outside)
-      document.removeEventListener('keydown', escape)
-    }
-  }, [onClose, opener])
+    if (card.focus) closer.current?.focus()
+  }, [card.focus])
 
   return (
     <div
-      ref={panel}
+      {...cardProps}
       role="dialog"
       aria-label={title}
-      style={{ left, bottom, width: PEEK_WIDTH }}
-      className="glass-overlay absolute z-30 flex max-h-80 flex-col gap-3 overflow-y-auto whitespace-normal rounded-2xl p-3 text-left"
+      style={{ ...card.place, width: CARD_WIDTH }}
+      className="glass-overlay absolute z-30 flex flex-col gap-2 overflow-y-auto overscroll-contain whitespace-normal rounded-2xl p-3 text-left"
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex min-h-7 items-center justify-between gap-2">
         <span className="text-[13px] font-semibold leading-[18px]">{title}</span>
-        <button
-          ref={closer}
-          type="button"
-          aria-label="Đóng"
-          onClick={() => {
-            onClose()
-            opener.focus()
-          }}
-          className="text-muted-foreground hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:size-12 flex size-7 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2"
-        >
-          <Icon icon={X} size={16} />
-        </button>
+        {card.pinned && (
+          <button
+            ref={closer}
+            type="button"
+            aria-label="Đóng"
+            onClick={() => {
+              onClose()
+              card.opener.focus()
+            }}
+            className="text-muted-foreground hover:bg-surface-ink/8 focus-visible:outline-ring pointer-coarse:size-12 flex size-7 shrink-0 items-center justify-center rounded-lg focus-visible:outline-2"
+          >
+            <Icon icon={X} size={16} />
+          </button>
+        )}
       </div>
-      {kinds.map((kind) => (
+      {card.kinds.map((kind) => (
         <Section
           key={kind}
-          period={period}
-          bucket={bucket}
+          period={card.period}
+          bucket={card.key}
           kind={kind}
-          heading={kinds.length > 1}
+          heading={card.kinds.length > 1}
         />
       ))}
     </div>

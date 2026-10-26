@@ -179,7 +179,10 @@ function Donut({
         <span className="tnum font-num text-[22px] font-bold leading-[26px] tracking-[-0.02em]">
           {num(total)}
         </span>
-        <span className="text-muted-foreground text-[12px] leading-4">{unit}</span>
+        {/* The hole is 60% of the ring: at 88px the longest unit in 12px spilled over it. */}
+        <span className="text-muted-foreground max-w-[64%] truncate text-[11px] leading-[14px]">
+          {unit}
+        </span>
       </span>
     </div>
   )
@@ -314,7 +317,9 @@ function ReasonGroup({
     <section
       className={cn(
         'bg-linear-to-br flex flex-col rounded-[20px] p-4',
-        side ? 'gap-2 [@media(max-height:860px)]:gap-1 [@media(max-height:860px)]:p-3' : 'gap-3',
+        side
+          ? 'flex-1 justify-center gap-2 [@media(max-height:860px)]:gap-1 [@media(max-height:860px)]:p-3'
+          : 'gap-3',
         look.panel,
       )}
     >
@@ -404,7 +409,7 @@ export function ReasonsTile({
         <div
           className={
             side
-              ? 'flex flex-col gap-3 [@media(max-height:860px)]:gap-2'
+              ? 'flex flex-1 flex-col gap-3 [@media(max-height:860px)]:gap-2'
               : 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,max(320px,calc((100%_-_2rem)/3))),1fr))] gap-4'
           }
         >

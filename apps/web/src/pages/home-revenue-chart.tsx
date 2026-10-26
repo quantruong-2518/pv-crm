@@ -1,8 +1,9 @@
 import type { CSSProperties } from 'react'
+import type { SalesMoneyFigureKind } from '@pv/contracts'
 import { cn } from '@pv/ui'
 import { MARK_EASE, staggerMs } from './home-look'
 import { hasData, hasEntries, millions, type RevenueColumn } from './home-revenue-model'
-import { PEEK_TRIGGER } from './home-revenue-peek'
+import type { ZoneProps } from './home-revenue-hover'
 import { NOTE } from './home-tiles'
 
 /** The revenue tile's chart: one column per bucket, its x labels, and the
@@ -11,10 +12,11 @@ import { NOTE } from './home-tiles'
  *  foot, what was collected and then what fell due unpaid. Net actual revenue
  *  is not printed per column: penalties sit in their own strip instead.
  *
- *  A whole column is one button (a segment can be 4px tall, no finger hits
- *  that); penalty cells are their own buttons. Heights ride `--max`, so a short
- *  viewport shrinks the plot in CSS. Every focus ring is inset: the chart sits
- *  in a horizontal scroll box that would clip an outside ring. */
+ *  Each money zone (the collected bar, the due hatch, a penalty cell) is its own
+ *  button for a mouse and a keyboard. A finger gets the whole column instead (a
+ *  segment can be 4px tall), through a cover button only coarse pointers see.
+ *  Heights ride `--max`, so a short viewport shrinks the plot in CSS. Focus
+ *  rings are inset: on a tablet the chart sits in a scroll box that would clip them. */
 
 /* A short viewport (1280×800) shrinks the 160px plot to 112px, bars from 120px to 80px. */
 const PLOT =
@@ -34,9 +36,14 @@ const RING_NOW = '[box-shadow:-2px_-2px_0_0_var(--primary),2px_-2px_0_0_var(--pr
 const FOCUS_IN =
   'focus-visible:outline-ring focus-visible:outline-2 focus-visible:-outline-offset-2'
 
-export type PeekKind = 'column' | 'penalty-in' | 'penalty-out'
-export type Pick = (key: string, kind: PeekKind, el: HTMLElement) => void
-export type Peeked = { key: string; kind: PeekKind } | null
+/** Hands out the hover-card wiring of one zone. */
+export type Zone = (key: string, zone: string, kinds: SalesMoneyFigureKind[]) => ZoneProps
+
+/** A zone that is hovered or shows the card lifts a little and takes the focus ring tone. */
+const ZONE_LOOK =
+  'hover:brightness-110 aria-expanded:brightness-110 aria-expanded:[box-shadow:inset_0_0_0_2px_var(--ring)]'
+/** Segments give way to the column's cover on a coarse pointer. */
+const SEGMENT = `block w-full shrink-0 pointer-coarse:pointer-events-none ${ZONE_LOOK} ${FOCUS_IN}`
 
 const share = (vnd: number, top: number) => (vnd > 0 ? vnd / top : 0)
 const grow = `starting:h-0 transition-[height] ${MARK_EASE}`
@@ -47,23 +54,21 @@ function Column({
   index,
   count,
   name,
-  onPick,
-  peeked,
+  zone,
 }: {
   col: RevenueColumn
   top: number
   index: number
   count: number
   name: string
-  onPick: Pick
-  peeked: Peeked
+  zone: Zone
 }) {
   const { view, collected, due, total } = col
   const g = share(collected, top)
   const key = view.bucket.key
   const delay = { transitionDelay: `${staggerMs(index, count)}ms` }
-  const body = (
-    <>
+  return (
+    <div className="relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 self-stretch">
       <span
         aria-hidden
         className="tnum font-num flex flex-col items-center whitespace-nowrap text-[12px] leading-4"
@@ -75,7 +80,6 @@ function Column({
       </span>
       {total > 0 ? (
         <span
-          data-frame
           style={{ ...({ '--f': String(share(total, top)) } as CSSProperties), ...delay }}
           className={cn(
             'flex h-[max(6px,calc(var(--f)*var(--max)))] w-[64%] max-w-14 flex-col justify-end overflow-hidden rounded-t-[10px]',
@@ -85,52 +89,44 @@ function Column({
           )}
         >
           {due > 0 && (
-            <span
+            <button
+              type="button"
+              aria-label={`${name}: đến hạn chưa thu ${millions(due)} triệu`}
+              {...zone(key, 'due-unpaid', ['due-unpaid'])}
               style={{ ...({ '--h': String(share(due, top)) } as CSSProperties), ...delay }}
-              className={cn('h-[max(4px,calc(var(--h)*var(--max)))] shrink-0', DUE_HATCH, grow)}
+              className={cn('h-[max(4px,calc(var(--h)*var(--max)))]', DUE_HATCH, grow, SEGMENT)}
             />
           )}
           {g > 0 && (
-            <span
+            <button
+              type="button"
+              aria-label={`${name}: đã thu ${millions(collected)} triệu`}
+              {...zone(key, 'collected', ['collected'])}
               style={{ ...({ '--g': String(g) } as CSSProperties), ...delay }}
               className={cn(
-                'text-background tnum font-num flex h-[max(4px,calc(var(--g)*var(--max)))] shrink-0 items-center justify-center text-[12px] font-bold',
+                'text-background tnum font-num flex h-[max(4px,calc(var(--g)*var(--max)))] items-center justify-center text-[12px] font-bold',
                 COLLECTED_FILL,
                 grow,
+                SEGMENT,
               )}
             >
               {g >= FIGURE_ROOM ? millions(collected) : ''}
-            </span>
+            </button>
           )}
         </span>
       ) : (
         hasData(col) && <span aria-hidden className="bg-muted-foreground h-1 w-[64%] max-w-14" />
       )}
-    </>
-  )
-  const shell = 'relative flex min-w-0 flex-1 flex-col items-center justify-end gap-1 self-stretch'
-  if (!hasEntries(col))
-    return (
-      <div data-col={key} className={shell}>
-        {body}
-      </div>
-    )
-  return (
-    <button
-      type="button"
-      data-col={key}
-      {...{ [PEEK_TRIGGER]: '' }}
-      aria-label={`${name}: đã thu ${millions(col.money.collectedVnd)} triệu${due > 0 ? `, đến hạn chưa thu ${millions(due)} triệu` : ''}, xem từng khoản`}
-      aria-expanded={peeked?.key === key && peeked.kind === 'column'}
-      onClick={(e) => onPick(key, 'column', e.currentTarget)}
-      className={cn(
-        shell,
-        'hover:bg-surface-ink/4 duration-(--motion-duration) ease-(--motion-ease) rounded-t-xl transition-colors motion-reduce:transition-none',
-        FOCUS_IN,
+      {hasEntries(col) && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={`${name}: đã thu ${millions(col.money.collectedVnd)} triệu${due > 0 ? `, đến hạn chưa thu ${millions(due)} triệu` : ''}`}
+          {...zone(key, 'column', due > 0 ? ['collected', 'due-unpaid'] : ['collected'])}
+          className="aria-expanded:bg-surface-ink/4 pointer-coarse:block absolute inset-0 hidden rounded-t-xl"
+        />
       )}
-    >
-      {body}
-    </button>
+    </div>
   )
 }
 
@@ -138,13 +134,11 @@ function Column({
 export function Plot({
   columns,
   nameOf,
-  onPick,
-  peeked,
+  zone,
 }: {
   columns: RevenueColumn[]
   nameOf: (col: RevenueColumn) => string
-  onPick: Pick
-  peeked: Peeked
+  zone: Zone
 }) {
   const top = Math.max(1, ...columns.map((c) => c.total))
   return (
@@ -157,8 +151,7 @@ export function Plot({
           index={index}
           count={columns.length}
           name={nameOf(col)}
-          onPick={onPick}
-          peeked={peeked}
+          zone={zone}
         />
       ))}
     </div>
@@ -201,21 +194,22 @@ function PenaltyRow({
   columns,
   kind,
   label,
-  onPick,
-  peeked,
+  nameOf,
+  zone,
 }: {
   columns: RevenueColumn[]
   kind: 'penalty-in' | 'penalty-out'
   label: string
-  onPick: Pick
-  peeked: Peeked
+  nameOf: (col: RevenueColumn) => string
+  zone: Zone
 }) {
   const incoming = kind === 'penalty-in'
   return (
     <>
       <span className={NOTE}>{label}</span>
       <div className="flex">
-        {columns.map(({ view, money: m }) => {
+        {columns.map((col) => {
+          const { view, money: m } = col
           const figure = incoming ? m.penaltyIn : m.penaltyOut
           const amount = millions(figure.amountVnd)
           return (
@@ -223,13 +217,12 @@ function PenaltyRow({
               {figure.amountVnd > 0 ? (
                 <button
                   type="button"
-                  {...{ [PEEK_TRIGGER]: '' }}
-                  aria-label={`${label} ${amount} triệu${figure.fromEarlier > 0 ? ', có hợp đồng ký kỳ trước' : ''}, xem chi tiết`}
-                  aria-expanded={peeked?.key === view.bucket.key && peeked.kind === kind}
-                  onClick={(e) => onPick(view.bucket.key, kind, e.currentTarget)}
+                  aria-label={`${nameOf(col)}: ${label.toLowerCase()} ${amount} triệu${figure.fromEarlier > 0 ? ', có hợp đồng ký kỳ trước' : ''}`}
+                  {...zone(view.bucket.key, kind, [kind])}
                   className={cn(
                     CELL,
                     FOCUS_IN,
+                    ZONE_LOOK,
                     incoming
                       ? 'bg-channel-meeting/6 text-channel-meeting'
                       : 'bg-destructive/10 text-on-tint-destructive',
@@ -262,13 +255,13 @@ function PenaltyRow({
 export function PenaltyStrip({
   columns,
   any,
-  onPick,
-  peeked,
+  nameOf,
+  zone,
 }: {
   columns: RevenueColumn[]
   any: boolean
-  onPick: Pick
-  peeked: Peeked
+  nameOf: (col: RevenueColumn) => string
+  zone: Zone
 }) {
   return (
     <div className="border-muted-foreground/25 mt-3 flex flex-col gap-1 border-t border-dashed pt-3 [@media(max-height:860px)]:mt-2 [@media(max-height:860px)]:pt-2">
@@ -287,15 +280,15 @@ export function PenaltyStrip({
             columns={columns}
             kind="penalty-in"
             label="Khách thanh toán"
-            onPick={onPick}
-            peeked={peeked}
+            nameOf={nameOf}
+            zone={zone}
           />
           <PenaltyRow
             columns={columns}
             kind="penalty-out"
             label="Mình thanh toán"
-            onPick={onPick}
-            peeked={peeked}
+            nameOf={nameOf}
+            zone={zone}
           />
         </>
       ) : (
