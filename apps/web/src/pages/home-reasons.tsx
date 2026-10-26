@@ -22,8 +22,10 @@ import { periodLabel } from '@/data/period-pick'
  *
  *  A reason is neither good nor bad, so a group uses one hue at falling
  *  strength rather than a rainbow. The count and share beside every legend row
- *  carry the number, so no segment is read by colour alone. The tile spans a
- *  full row and the groups sit side by side, each at most a column wide. */
+ *  carry the number, so no segment is read by colour alone. On a full row the
+ *  groups sit side by side, each at most a column wide; beside the hero
+ *  (`layout="side"`) they stack, with a smaller donut and the top reason
+ *  inside the legend column. */
 
 /** Rows a group prints before folding the rest: groups share a row side by
  *  side, so each stays short and none outgrows its neighbours. */
@@ -94,10 +96,22 @@ function topReason(rows: readonly Row[]) {
   return { first: all[0], distinct: all.length }
 }
 
+/** Beside the hero on a short viewport (1280×800) a group folds one row earlier,
+ *  so the stacked groups still end at the fold. */
+const SHORT_ROWS = 2
+/* Both folds are drawn and CSS shows one, so nothing in JS reads the viewport. */
+const SHORT = {
+  tall: '[@media(max-height:860px)]:hidden',
+  short: 'hidden [@media(max-height:860px)]:flex',
+}
+
 /** Top rows as slices, then one slice for everything folded away. */
-function slicesOf(rows: readonly Row[]): { shown: Slice[]; rest: { n: number; count: number } } {
-  const hidden = rows.slice(REASON_ROWS)
-  return { shown: rows.slice(0, REASON_ROWS), rest: { n: hidden.length, count: sumOf(hidden) } }
+function slicesOf(
+  rows: readonly Row[],
+  limit = REASON_ROWS,
+): { shown: Slice[]; rest: { n: number; count: number } } {
+  const hidden = rows.slice(limit)
+  return { shown: rows.slice(0, limit), rest: { n: hidden.length, count: sumOf(hidden) } }
 }
 
 function Donut({
@@ -106,12 +120,14 @@ function Donut({
   total,
   look,
   unit,
+  size,
 }: {
   slices: readonly Slice[]
   rest: number
   total: number
   look: (typeof LOOK)['lead']
   unit: string
+  size: string
 }) {
   let used = 0
   const arc = (count: number, stroke: string, key: string) => {
@@ -141,7 +157,7 @@ function Donut({
   }
 
   return (
-    <div className="relative size-32 shrink-0">
+    <div className={cn('relative shrink-0', size)}>
       <svg
         viewBox="0 0 80 80"
         role="img"
@@ -218,6 +234,7 @@ function ReasonGroup({
   unit,
   rows,
   hrefOf,
+  side,
 }: {
   kind: keyof typeof LOOK
   title: string
@@ -225,20 +242,47 @@ function ReasonGroup({
   rows: readonly Row[]
   /** The list a row opens; undefined leaves the row unlinked. */
   hrefOf: (row: Row) => string | undefined
+  side: boolean
 }) {
   const look = LOOK[kind]
   const total = sumOf(rows)
-  const { shown, rest } = slicesOf(rows)
   const { first, distinct } = topReason(rows)
   const share = rateOf(first?.count ?? 0, total)
+  const top = first && share !== null && (
+    <div
+      className={cn(
+        'flex items-center gap-2 text-[12px] leading-4',
+        side ? 'px-2 py-1' : 'bg-card/75 rounded-xl px-3 py-2',
+      )}
+    >
+      <Icon icon={Lightbulb} size={14} className={look.bulb} />
+      <span className="tnum font-num">
+        {distinct === 1 ? (
+          <>
+            Chỉ có một lý do: <strong className="font-semibold">{first.label}</strong>.
+          </>
+        ) : (
+          <>
+            Nhiều nhất: <strong className="font-semibold">{first.label}</strong> ·{' '}
+            <strong className="font-semibold">{percent(share)}</strong>
+          </>
+        )}
+      </span>
+    </div>
+  )
 
-  return (
-    <section className={cn('bg-linear-to-br flex flex-col gap-3 rounded-[20px] p-4', look.panel)}>
-      <div className="flex flex-col gap-1">
-        <h4 className="text-[13px] font-semibold leading-[18px]">{title}</h4>
-      </div>
-      <div className="flex flex-wrap items-center gap-4">
-        <Donut slices={shown} rest={rest.count} total={total} look={look} unit={unit} />
+  const fold = (limit: number, donut: string, className?: string) => {
+    const { shown, rest } = slicesOf(rows, limit)
+    return (
+      <div className={cn('flex flex-wrap items-center gap-4', className)}>
+        <Donut
+          slices={shown}
+          rest={rest.count}
+          total={total}
+          look={look}
+          unit={unit}
+          size={donut}
+        />
         {/* Capped so a lone group spanning the row keeps each count next to its reason. */}
         <div className="flex min-w-0 max-w-md flex-1 basis-44 flex-col gap-1">
           {shown.map((r, i) => (
@@ -260,30 +304,49 @@ function ReasonGroup({
               share={rateOf(rest.count, total)}
             />
           )}
+          {side && top}
         </div>
       </div>
-      {first && share !== null && (
-        <div className="bg-card/75 flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] leading-4">
-          <Icon icon={Lightbulb} size={14} className={look.bulb} />
-          <span className="tnum font-num">
-            {distinct === 1 ? (
-              <>
-                Chỉ có một lý do: <strong className="font-semibold">{first.label}</strong>.
-              </>
-            ) : (
-              <>
-                Nhiều nhất: <strong className="font-semibold">{first.label}</strong> ·{' '}
-                <strong className="font-semibold">{percent(share)}</strong>
-              </>
-            )}
-          </span>
-        </div>
+    )
+  }
+
+  return (
+    <section
+      className={cn(
+        'bg-linear-to-br flex flex-col rounded-[20px] p-4',
+        side ? 'gap-2 [@media(max-height:860px)]:gap-1 [@media(max-height:860px)]:p-3' : 'gap-3',
+        look.panel,
       )}
+    >
+      <div className="flex flex-col gap-1">
+        <h4 className="text-[13px] font-semibold leading-[18px]">{title}</h4>
+      </div>
+      {!side ? (
+        fold(REASON_ROWS, 'size-32')
+      ) : rows.length > SHORT_ROWS ? (
+        <>
+          {fold(REASON_ROWS, 'size-28', SHORT.tall)}
+          {fold(SHORT_ROWS, 'size-22', SHORT.short)}
+        </>
+      ) : (
+        fold(REASON_ROWS, 'size-28 [@media(max-height:860px)]:size-22')
+      )}
+      {!side && top}
     </section>
   )
 }
 
-export function ReasonsTile({ data, className }: { data: SalesExitsResponse; className?: string }) {
+export function ReasonsTile({
+  data,
+  layout = 'row',
+  className,
+}: {
+  data: SalesExitsResponse
+  /** `side`: beside the hero, the groups stacked. */
+  layout?: 'row' | 'side'
+  className?: string
+}) {
+  const side = layout === 'side'
   const leadTotal = sumOf(data.leadExits)
   const dealTotal = sumOf(data.dealStops)
   const canLeads = useCan('lead.view')
@@ -294,7 +357,15 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
   const total = leadTotal + dealTotal + endedTotal
 
   return (
-    <GlassCard className={cn('flex min-w-0 flex-col', CHART_TILE, 'gap-4', className)}>
+    <GlassCard
+      className={cn(
+        'flex min-w-0 flex-col',
+        CHART_TILE,
+        'gap-4',
+        side && '[@media(max-height:860px)]:gap-3 [@media(max-height:860px)]:p-5',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <ToneTile icon={Ban} tone="destructive" />
@@ -330,10 +401,17 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
       ) : (
         // At most three columns, each at least 320px; auto-fit drops the tracks no
         // group fills, so two groups share the row instead of leaving a blank third.
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,max(320px,calc((100%_-_2rem)/3))),1fr))] gap-4">
+        <div
+          className={
+            side
+              ? 'flex flex-col gap-3 [@media(max-height:860px)]:gap-2'
+              : 'grid grid-cols-[repeat(auto-fit,minmax(min(100%,max(320px,calc((100%_-_2rem)/3))),1fr))] gap-4'
+          }
+        >
           {data.leadExits.length > 0 && (
             <ReasonGroup
               kind="lead"
+              side={side}
               title={`Lead vào ${LEAD_STATE_LABEL.nurturing}`}
               unit="lead"
               rows={data.leadExits}
@@ -343,6 +421,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
           {data.dealStops.length > 0 && (
             <ReasonGroup
               kind="deal"
+              side={side}
               title="Cơ hội đã dừng"
               unit="cơ hội"
               rows={data.dealStops}
@@ -354,6 +433,7 @@ export function ReasonsTile({ data, className }: { data: SalesExitsResponse; cla
           {data.contractTerminations.length > 0 && (
             <ReasonGroup
               kind="contract"
+              side={side}
               title="Hợp đồng đã chấm dứt"
               unit="hợp đồng"
               rows={data.contractTerminations}

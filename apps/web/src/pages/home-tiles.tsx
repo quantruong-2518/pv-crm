@@ -147,7 +147,7 @@ const winRate = (f: SalesPerformanceResponse['current']) => rateOf(f.wonDeals, c
 function WinRing({ rate }: { rate: number }) {
   return (
     <div className="relative size-20 shrink-0">
-      <svg viewBox="0 0 64 64" role="img" aria-label={`Tỷ lệ thắng ${percent(rate)}`}>
+      <svg viewBox="0 0 64 64" role="img" aria-label={`Tỷ lệ chốt đơn ${percent(rate)}`}>
         <circle
           cx={32}
           cy={32}
@@ -194,7 +194,7 @@ export function WinRateTile({ data, className }: Figures) {
         <IconTile icon={Target} className={ICON_TONE.success} />
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex flex-col gap-1">
-            <h3 className={CARD_TITLE}>Tỷ lệ thắng</h3>
+            <h3 className={CARD_TITLE}>Tỷ lệ chốt đơn</h3>
             <span className={cn(NOTE, 'tnum font-num')}>
               {rate === null
                 ? 'Chưa có cơ hội đóng trong kỳ'

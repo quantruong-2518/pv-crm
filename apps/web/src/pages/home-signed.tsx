@@ -7,20 +7,13 @@ import { dealsHref, deltaOf, money, num } from './home-model'
 import { bucketViews, periodLabel, type BucketView } from '@/data/period-pick'
 import { CARD_SHELL, DeltaLine, IconTile, NOTE, PILL_LINK } from './home-tiles'
 import { ICON_TONE, MARK_EASE, WASH_HERO, staggerMs } from './home-look'
+import { BUCKET_UNIT } from './home-revenue-model'
 
 /** The hero tile of the overview: contracts signed in the period beside the
  *  open book, in one chart. Each column is the open deals expected to close in
  *  that slice plus what was signed in it; the signed part fills from the foot.
  *  The open book keeps no history, so its columns are today's deals placed by
  *  their expected close day, never a past reading. */
-
-/** What one column of the chart covers, by the grain of the picked period. */
-const BUCKET_UNIT: Record<SalesGrain, string> = {
-  week: 'ngày',
-  month: 'tuần',
-  quarter: 'tháng',
-  year: 'tháng',
-}
 
 /** Half the gap between two columns, by how many columns the grain draws: three
  *  months may breathe, twelve must not starve their bars. */

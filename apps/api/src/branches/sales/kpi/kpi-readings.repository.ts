@@ -12,6 +12,7 @@ import { actor } from '@api/platform/db/platform.schema'
 import { toVndSql } from '../money'
 import { contractTerminated, dealLost, dealTerminated, dealWon } from '../open-deal'
 import type { PeriodSpan } from '../performance/performance-period'
+import { collectedMoves } from '../performance/collected-moves'
 import { realExchanges } from '../performance/real-exchange'
 import { kpiMonthClose, kpiMonthValue } from './kpi-close.schema'
 import { adjustedByEnd, cumulativeByEnd } from './kpi-weekly.sql'
@@ -263,21 +264,17 @@ const ROOM: Partial<Record<KpiMetricKey, KpiMetricSql>> = {
       ${OVERDUE}`,
     total: SUM,
   },
-  /* Cash stays on its paid day even if the contract is terminated later; the
-     refund is a negative row on the termination day (ADR 0119). Tag
+  /* `collectedMoves` holds the rule (ADR 0119); a refund row keeps tag
      `terminated`, the one the contributions list already labels. */
   'collected-value': {
     basis: () => sql`
-      SELECT NULL AS actor_id, ${INSTALLMENT}, i.paid_at AS at, ${worth(installmentVnd, 'collected')}
-      FROM sales.contract_installment i
-      JOIN sales.contract k ON k.code = i.contract_code ${LIVE}
-      WHERE ${within(sql`i.paid_at`)}
-      UNION ALL
-      SELECT NULL AS actor_id, 'contract' AS kind, k.code, t.terminated_at AS at,
-             ${worth(sql`-(${toVndSql(sql`t.refunded_amount`, sql`k.currency`)})`, 'terminated')}
-      FROM sales.contract_termination t
-      JOIN sales.contract k ON k.code = t.contract_code ${LIVE}
-      WHERE t.refunded_amount > 0 AND ${within(sql`t.terminated_at`)}`,
+      SELECT NULL AS actor_id,
+             CASE WHEN c.installment_no IS NULL THEN 'contract' ELSE 'installment' END AS kind,
+             CASE WHEN c.installment_no IS NULL THEN c.contract_code
+                  ELSE c.contract_code || '/' || c.installment_no END AS code,
+             c.at, c.vnd AS value,
+             CASE WHEN c.installment_no IS NULL THEN 'terminated' ELSE 'collected' END::text AS tag
+      FROM (${collectedMoves(within)}) c`,
     total: SUM,
   },
   'approval-turnaround-hours': {

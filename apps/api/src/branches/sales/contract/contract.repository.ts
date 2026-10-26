@@ -174,7 +174,7 @@ const NEXT_DUE = sql`(CASE WHEN ${LIVE} THEN (SELECT min(ci.due) FROM sales.cont
 /** Start of today on the Vietnam calendar. "Overdue" is a due before it — due
  *  today is not yet late, the rule KPI and the overdue-reason door count by — and
  *  comparing the raw column keeps `due` indexable. */
-const VN_TODAY_START = sql`((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
+export const VN_TODAY_START = sql`((now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date::timestamp AT TIME ZONE 'Asia/Ho_Chi_Minh')`
 
 const listOf = (csv: string) => csv.split(',').filter(Boolean)
 
