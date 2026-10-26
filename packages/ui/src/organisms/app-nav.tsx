@@ -44,6 +44,7 @@ function AppButton({
   /* A split entry: the label navigates, a separate chevron owns the menu. */
   const split = hasItems && Boolean(app.onClick)
   const menuButton = hasItems && !split
+  const lit = app.active || open
   const mainRef = useRef<HTMLButtonElement>(null)
   const main = (
     <button
@@ -67,8 +68,12 @@ function AppButton({
          Dimming the whole button measured 2.29:1, below law 13's 4.5:1. */
       className={cn(
         'motion-std pointer-coarse:h-12 group flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 text-[14px] font-medium max-xl:w-10 max-xl:px-0',
-        app.active || open ? 'bg-primary/15 text-on-tint-primary' : 'text-foreground/80',
-        app.locked ? 'cursor-not-allowed' : 'hover:bg-surface-ink/10 hover:text-foreground',
+        /* A split half paints nothing: tint and hover belong to the one pill around both. */
+        split && 'rounded-r-none pr-0',
+        lit ? cn(!split && 'bg-primary/15', 'text-on-tint-primary') : 'text-foreground/80',
+        app.locked
+          ? 'cursor-not-allowed'
+          : cn(!split && 'hover:bg-surface-ink/10', 'hover:text-foreground'),
       )}
     >
       <Icon icon={app.icon} size={18} className={cn(app.locked && 'opacity-55')} />
@@ -98,7 +103,12 @@ function AppButton({
   )
   if (!split) return main
   return (
-    <span className="flex shrink-0 items-center">
+    <span
+      className={cn(
+        'motion-std flex shrink-0 items-center rounded-md',
+        lit ? 'bg-primary/15' : 'hover:bg-surface-ink/10',
+      )}
+    >
       {main}
       <button
         type="button"
@@ -108,9 +118,9 @@ function AppButton({
         aria-controls={open ? menuId : undefined}
         onClick={() => mainRef.current && onToggle(mainRef.current)}
         className={cn(
-          'motion-std pointer-coarse:h-12 pointer-coarse:w-12 flex h-10 w-6 items-center justify-center rounded-md',
-          app.active || open ? 'bg-primary/15 text-on-tint-primary' : 'text-foreground/80',
-          'hover:bg-surface-ink/10 hover:text-foreground',
+          'motion-std pointer-coarse:h-12 pointer-coarse:w-12 pointer-coarse:justify-center pointer-coarse:px-0 flex h-10 items-center rounded-r-md pl-1 pr-3',
+          lit ? 'text-on-tint-primary' : 'text-foreground/80',
+          'hover:text-foreground',
         )}
       >
         <Icon icon={ChevronDown} size={14} className={cn('motion-std', open && 'rotate-180')} />
