@@ -25,7 +25,7 @@ import { RecordCard } from '@/components/record/record-card'
 import { RecordHeader } from '@/components/record/record-header'
 import { RecordShell } from '@/components/record/record-shell'
 import { ContractStanding, TerminatedBadge } from '@/components/contract-bits'
-import { TerminateDrawer, TerminationCard } from '@/components/contract-terminate'
+import { TerminateDrawer } from '@/components/contract-terminate'
 import { RunDocuments } from '@/components/run/run-documents'
 import { RunStrip } from '@/components/record/run-strip'
 import { CommJourney } from '@/components/run/comm-journey'
@@ -136,7 +136,6 @@ function ContractScreen({ contract }: { contract: Contract }) {
       }
       main={
         <>
-          {ended && <TerminationCard contract={contract} termination={ended} />}
           <ContractTodo inside={run.inside} read={run.read} next={next} />
           <ContractMoney
             contract={contract}

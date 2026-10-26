@@ -73,6 +73,9 @@ export function useCreateCommRecord() {
       /* The record opens a turn on the subject, and a logged turn may move a
          lead to `working` (ADR 0063) — the server decides, the cache follows. */
       invalidateLeadState(client)
+      /* Likewise a deal moves to `engaged` on its first logged turn (ADR 0126). */
+      void client.invalidateQueries({ queryKey: ['sales', 'ops'] })
+      void client.invalidateQueries({ queryKey: ['sales', 'ops-book'] })
     },
   })
 }
