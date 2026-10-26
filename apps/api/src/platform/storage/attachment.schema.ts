@@ -1,6 +1,6 @@
 import { check, index, integer, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
-import type { CommAttachmentMime, ScanUploadMime } from '@pv/contracts'
+import type { CommAttachmentMime, ScanUploadMime, WorkstreamDocumentMime } from '@pv/contracts'
 import { actor, platform } from '@api/platform/db/platform.schema'
 
 /** One stored file — the metadata only; the bytes live in object storage.
@@ -28,7 +28,9 @@ export const attachment = platform.table(
     /** The name as picked on the user's disk — a label, not a key. */
     name: text('name').notNull(),
     /** Per owner kind, as `attachment_mime_known` below; readers narrow by kind. */
-    mime: text('mime').$type<ScanUploadMime | CommAttachmentMime>().notNull(),
+    mime: text('mime')
+      .$type<ScanUploadMime | CommAttachmentMime | WorkstreamDocumentMime>()
+      .notNull(),
     /** `integer`: `SCAN_MAX_PDF_BYTES` is 25 MB, far under `int4`. */
     bytes: integer('bytes').notNull(),
     /** Lower-case hex of the ORIGINAL picked file, as the browser computed it. */
@@ -56,8 +58,11 @@ export const attachment = platform.table(
     check(
       'attachment_mime_known',
       sql`("owner_kind" = 'lead' AND "mime" IN ('image/webp', 'image/jpeg', 'application/pdf'))
-          OR ("owner_kind" = 'workstream' AND "mime" IN ('image/webp', 'image/jpeg', 'image/png', 'application/pdf',
-           'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'))
+          OR ("owner_kind" = 'workstream' AND "mime" IN ('image/webp', 'image/jpeg', 'image/png', 'image/gif',
+           'application/pdf', 'application/msword',
+           'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel',
+           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'text/markdown',
+           'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg'))
           OR ("owner_kind" = 'comm' AND "mime" IN ('audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg',
            'image/png', 'image/jpeg', 'image/webp', 'application/pdf',
            'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'))`,

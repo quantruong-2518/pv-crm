@@ -27,12 +27,16 @@
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@vietmap/vietmap-gl-js": "6.0.1",
+    "docx-preview": "^0.4.1",
     "heic2any": "^0.0.4",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-markdown": "10.1.0",
     "react-router-dom": "^7.18.2",
     "read-excel-file": "^9.3.10",
+    "remark-gfm": "4.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

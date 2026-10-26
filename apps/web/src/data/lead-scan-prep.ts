@@ -145,7 +145,7 @@ async function decodeHeic(file: File): Promise<Blob> {
 
 let pdfjsReady: Promise<typeof Pdfjs> | null = null
 
-function loadPdfjs(): Promise<typeof Pdfjs> {
+export function loadPdfjs(): Promise<typeof Pdfjs> {
   pdfjsReady ??= Promise.all([
     import('pdfjs-dist'),
     import('pdfjs-dist/build/pdf.worker.min.mjs?url'),

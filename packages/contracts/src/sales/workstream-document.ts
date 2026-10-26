@@ -12,16 +12,27 @@ import { ContractCode, ObjectCode, textInput } from '../primitives'
  *
  *  GET answers `LeadAttachmentsResponse` and also lists the scan sources of the
  *  run's leads (they carry a `batchCode`; only an upload can be deleted). The
- *  mime list is the comm one minus audio; the 5 MB cap lives here only —
- *  scan PDFs on the same table go up to 25 MB. Declare takes an optional `step`
- *  and GET returns it on the row. */
+ *  mime list is the comm one plus GIF, Markdown, legacy Word and both Excel
+ *  formats; the caps live here only — scan PDFs on the same table go up to
+ *  25 MB. Declare takes an optional `step` and GET returns it on the row. */
 export const WORKSTREAM_DOCUMENT_MIME = [
   'image/png',
   'image/jpeg',
   'image/webp',
+  'image/gif',
   'application/pdf',
+  'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'text/plain',
+  'text/markdown',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/x-m4a',
+  'audio/wav',
+  'audio/webm',
+  'audio/ogg',
 ] as const
 export const WorkstreamDocumentMime = z.enum(
   WORKSTREAM_DOCUMENT_MIME,
@@ -29,6 +40,10 @@ export const WorkstreamDocumentMime = z.enum(
 )
 
 export const WORKSTREAM_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
+/** A call recording runs long; the comm cap, so one file fits both doors. */
+export const WORKSTREAM_RECORDING_MAX_BYTES = 50 * 1024 * 1024
+export const workstreamDocumentCapOf = (mime: string) =>
+  mime.startsWith('audio/') ? WORKSTREAM_RECORDING_MAX_BYTES : WORKSTREAM_DOCUMENT_MAX_BYTES
 
 export const WorkstreamDocumentParams = z.object({ code: ObjectCode, documentId: z.uuid() })
 
@@ -44,17 +59,18 @@ export const WorkstreamDocumentStep = z.discriminatedUnion('kind', [
   }),
 ])
 
-export const WorkstreamDocumentDeclareBody = z.object({
-  name: textInput(255),
-  mime: WorkstreamDocumentMime,
-  bytes: z
-    .number()
-    .int()
-    .positive('Tệp rỗng.')
-    .max(WORKSTREAM_DOCUMENT_MAX_BYTES, 'Tệp tối đa 5 MB.'),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Tệp chưa đọc được. Chọn lại tệp.'),
-  step: WorkstreamDocumentStep.optional(),
-})
+export const WorkstreamDocumentDeclareBody = z
+  .object({
+    name: textInput(255),
+    mime: WorkstreamDocumentMime,
+    bytes: z.number().int().positive('Tệp rỗng.'),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Tệp chưa đọc được. Chọn lại tệp.'),
+    step: WorkstreamDocumentStep.optional(),
+  })
+  .refine((f) => f.bytes <= workstreamDocumentCapOf(f.mime), {
+    message: 'Tệp quá lớn: ghi âm tối đa 50 MB, tệp khác tối đa 5 MB.',
+    path: ['bytes'],
+  })
 
 export const WorkstreamDocumentDeclareResponse = z.object({ id: z.uuid(), putUrl: z.url() })
 

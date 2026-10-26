@@ -1,11 +1,11 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LeadAttachmentsResponse,
-  WORKSTREAM_DOCUMENT_MAX_BYTES,
   WORKSTREAM_DOCUMENT_MIME,
   WorkstreamDocumentDeclareResponse,
   type WorkstreamDocumentMime,
   type WorkstreamDocumentStep,
+  workstreamDocumentCapOf,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { whileLive } from '@/app/query-client'
@@ -36,18 +36,42 @@ export const workstreamDocumentsQuery = (code: string) =>
     refetchInterval: whileLive(REFRESH_MS),
   })
 
+/** The bytes behind a presigned link: the preview reads them, and a download
+ *  saves them under the file's own name — `<a download>` is ignored cross-origin.
+ *  Keyed by id: the link rotates every few minutes, the file never does. */
+export const documentBlobQuery = (file: { id: string; url: string }) =>
+  queryOptions({
+    queryKey: ['sales', 'workstream-document-blob', file.id] as const,
+    queryFn: async ({ signal }) => {
+      const reply = await fetch(file.url, { signal })
+      if (!reply.ok) throw new Error(`storage ${reply.status}`)
+      return reply.blob()
+    },
+    staleTime: Infinity,
+    gcTime: 60_000,
+  })
+
 const EXTENSION_MIME: Record<string, WorkstreamDocumentMime> = {
   '.pdf': 'application/pdf',
+  '.doc': 'application/msword',
   '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.txt': 'text/plain',
+  '.md': 'text/markdown',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/x-m4a',
+  '.wav': 'audio/wav',
+  '.webm': 'audio/webm',
+  '.ogg': 'audio/ogg',
 }
 
 export const DOCUMENT_EXTENSIONS = Object.keys(EXTENSION_MIME)
-export const DOCUMENT_MAX_BYTES = WORKSTREAM_DOCUMENT_MAX_BYTES
 
 /** The wire mime of a picked file, from its type or else its extension. */
 export function documentMimeOf(file: File): WorkstreamDocumentMime | null {
@@ -72,9 +96,11 @@ export function checkFiles(picked: File[], room = MAX_PER_DROP) {
       : []
   const ok: File[] = []
   for (const file of files) {
-    if (!documentMimeOf(file)) problems.push(`“${file.name}”: loại tệp không nhận.`)
-    else if (file.size > DOCUMENT_MAX_BYTES) {
-      problems.push(`“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt 5 MB.`)
+    const mime = documentMimeOf(file)
+    if (!mime) problems.push(`“${file.name}”: loại tệp không nhận.`)
+    else if (file.size > workstreamDocumentCapOf(mime)) {
+      const cap = fileSizeLabel(workstreamDocumentCapOf(mime))
+      problems.push(`“${file.name}” nặng ${fileSizeLabel(file.size)}, vượt ${cap}.`)
     } else ok.push(file)
   }
   return { ok, problems }

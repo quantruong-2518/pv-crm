@@ -13,6 +13,7 @@ import {
   useUploadDocument,
   useWorkstreamDocuments,
 } from '@/data/workstream-documents'
+import { DocumentPreview } from './document-preview'
 import { RunBlock } from './run-block'
 
 const NEWEST = 5
@@ -109,16 +110,18 @@ export function DocList({
 }) {
   const remove = useDeleteDocument(code)
   const me = useSession((st) => st.actor?.id)
+  const [openId, setOpenId] = useState<string | null>(null)
+  // Looked up by id, so a list refetch hands the open preview its fresh link.
+  const open = rows.find((file) => file.id === openId) ?? null
 
   return (
     <ul className="m-0 flex list-none flex-col gap-1 p-0">
       {rows.map((file) => (
         <li key={file.id} className="flex min-w-0 items-center gap-1">
-          <a
-            href={file.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="motion-std hover:bg-surface-ink/8 pointer-coarse:min-h-12 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1"
+          <button
+            type="button"
+            onClick={() => setOpenId(file.id)}
+            className="motion-std hover:bg-surface-ink/8 pointer-coarse:min-h-12 flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left"
           >
             <span className="bg-surface-ink/9 flex size-10 shrink-0 items-center justify-center rounded-md">
               <Icon icon={FileText} size={16} className="text-muted-foreground" />
@@ -126,10 +129,10 @@ export function DocList({
             <span className="flex min-w-0 flex-col">
               <span className="text-foreground truncate text-[13px]">{file.name}</span>
               <span className="text-muted-foreground tnum truncate text-[12px]">
-                {fileSizeLabel(file.bytes)} · {file.createdBy.name} · {dayOf(file.createdAt)}
+                {metaOf(file)}
               </span>
             </span>
-          </a>
+          </button>
           {canRemove && !file.batchCode && file.createdBy.id === me && (
             <Button
               size="sm"
@@ -149,9 +152,17 @@ export function DocList({
           )}
         </li>
       ))}
+      <DocumentPreview
+        file={open}
+        subtitle={open ? metaOf(open) : undefined}
+        onClose={() => setOpenId(null)}
+      />
     </ul>
   )
 }
+
+const metaOf = (file: LeadAttachment) =>
+  `${fileSizeLabel(file.bytes)} · ${file.createdBy.name} · ${dayOf(file.createdAt)}`
 
 /** Many files, one at a time: the contract has no batch door, and a failure
  *  names its own file instead of sinking the rest. `step` tags every upload. */
@@ -237,7 +248,7 @@ export function DropArea({
           Chọn tệp
         </Button>
         <p className="text-muted-foreground m-0 text-[11.5px]">
-          PDF, Word, ảnh, văn bản · tối đa 5 MB mỗi tệp
+          PDF, Word, Excel, ảnh, ghi âm, văn bản · ghi âm tối đa 50 MB, tệp khác 5 MB
         </p>
         <input
           ref={picker}

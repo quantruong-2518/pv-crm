@@ -2,6 +2,7 @@ import type { AccessControl, Actor, Channel, ObjectKind, ObjectRef } from '@pv/e
 import {
   email,
   type CommAttachment,
+  type CommAttachmentMime,
   type CommsChannel,
   type DebriefStepTarget,
   type DebriefSummary,
@@ -316,7 +317,8 @@ export function toCommAttachment(read: CommAttachmentRead, url: string | null): 
   return {
     id: row.id,
     name: row.name,
-    mime: row.mime,
+    // A comm row: `attachment_mime_known` holds it to the comm list.
+    mime: row.mime as CommAttachmentMime,
     bytes: row.bytes,
     url,
     createdAt: row.createdAt.toISOString(),
