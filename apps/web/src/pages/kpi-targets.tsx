@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { AppShell, ScreenHeader, ScreenLayout, SectionTitle, Skeleton } from '@pv/ui'
-import type { RoleId } from '@pv/contracts'
+import { isTieredPeriod, type RoleId } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
@@ -13,6 +13,8 @@ import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { keyOf } from './home-model'
 import { landsOnStep } from './kpi-allocate-model'
 import { NOTE } from './home-tiles'
+import { TieredNote } from './kpi-assign-confirm'
+import { statusHref } from './kpi-assign-model'
 import { CounterDrawer, type CounterOwner } from './kpi-counter-detail'
 import { MonthCloseBar } from './kpi-month-close'
 import { monthPick, useMonthParam } from './kpi-model'
@@ -145,6 +147,8 @@ export function KpiTargetsPage() {
               closing,
               closingClose: toClose.data?.monthClose,
             })
+            /* A tiered month refuses every old door; the close and the reasons are not doors of it. */
+            const tiered = isTieredPeriod(t.period)
             return (
               <>
                 {(canSet || canApprove) && (
@@ -153,7 +157,7 @@ export function KpiTargetsPage() {
                     {waitReady ? (
                       <WaitingList
                         catalog={defs}
-                        waiting={waiting}
+                        waiting={tiered ? { ...waiting, items: [] } : waiting}
                         reasonsFailed={reasons.isError}
                         onOpenStep={openStep}
                         onOpenCounter={(x) =>
@@ -174,7 +178,9 @@ export function KpiTargetsPage() {
                   )
                 )}
 
-                {shown ? (
+                {tiered ? (
+                  <TieredNote to={statusHref(t.period)} label="Mở Tình trạng giao" />
+                ) : shown ? (
                   <RoleSteps
                     catalog={defs}
                     targets={t}
@@ -194,16 +200,18 @@ export function KpiTargetsPage() {
                   <p className={NOTE}>Chưa có vai trò nào có KPI.</p>
                 )}
 
-                <CounterDrawer
-                  who={owner}
-                  onClose={() => setOwner(null)}
-                  period={t.period}
-                  counters={c.counters}
-                  packages={a.allocations}
-                  closed={t.closed}
-                  canSet={canSet}
-                  me={me}
-                />
+                {!tiered && (
+                  <CounterDrawer
+                    who={owner}
+                    onClose={() => setOwner(null)}
+                    period={t.period}
+                    counters={c.counters}
+                    packages={a.allocations}
+                    closed={t.closed}
+                    canSet={canSet}
+                    me={me}
+                  />
+                )}
               </>
             )
           }}

@@ -229,6 +229,7 @@ const ACCOUNT = '/account'
 const RUN_BOOK = '/sales/campaigns/mail-runs'
 const KPI_ME = '/sales/kpi/me'
 const KPI_TARGETS = '/sales/kpi/targets'
+const KPI_ASSIGN = '/sales/kpi/assign'
 
 /** The KPI screens read `month`, then `role` and `team` (the targets desk's open package). */
 function kpiQuery(month: string, role?: string, team?: string): string {
@@ -270,8 +271,12 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
     return `${KPI_TARGETS}${kpiQuery(month, role, team)}`
   },
   'kpi-team': (code) => `/sales/kpi/team/${encodeURIComponent(code)}`,
-  /* `<period>:<role>[:<unitId>]` (ADR 0120). The assignment screen is not built yet, so both land on "my KPI". */
-  'kpi-assignment': (code) => `${KPI_ME}${kpiQuery(code.split(':')[0] ?? '')}`,
+  /* `<period>:<role>` is a person's own lines; `<period>:<role>:<unitId>` a unit's set (ADR 0120). */
+  'kpi-assignment': (code) => {
+    const [month = '', role = '', unit] = code.split(':')
+    if (!unit) return `${KPI_ME}${kpiQuery(month)}`
+    return `${KPI_ASSIGN}?${new URLSearchParams({ month, role, unit }).toString()}`
+  },
 }
 
 /** An overdue-installment row, read back. `detail` keys are named by the

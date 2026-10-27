@@ -13,7 +13,7 @@ import { KpiAssignmentReader } from './kpi-assignment-read.service'
 import { KpiAssignmentService } from './kpi-assignment.service'
 
 /** `/sales/kpi/:period/assignments/:role…` — targets handed down the org tree
- *  (ADR 0120). Five doors, all `kpi.view` (ADR 0004): a head of a unit may hold
+ *  (ADR 0120). Six doors, all `kpi.view` (ADR 0004): a head of a unit may hold
  *  nothing more, so who sits on the unit's seat — head, stand-in, a head above,
  *  else the setters — is the tree's fact and the service's check (§7). Writes
  *  that answer with refreshed state are 200. */
@@ -38,6 +38,12 @@ export class KpiAssignmentController {
   @Need({ branch: 'Sales', permission: 'kpi.view' })
   mine(@CurrentActor() who: Actor, @Param(zod(KpiRoleParams)) params: KpiRoleParams) {
     return this.reader.mine(who, params.period, params.role)
+  }
+
+  @Get(':period/assignments/:role/tree')
+  @Need({ branch: 'Sales', permission: 'kpi.view' })
+  tree(@CurrentActor() who: Actor, @Param(zod(KpiRoleParams)) params: KpiRoleParams) {
+    return this.reader.tree(who, params.period, params.role)
   }
 
   @Put(':period/assignments/:role/draft')

@@ -436,6 +436,15 @@ export const SALES_MODULES: SalesModule[] = [
     group: 'manage',
   },
   {
+    no: 0,
+    icon: ListChecks,
+    label: 'Tình trạng giao',
+    path: '/sales/kpi/assign/status',
+    permission: 'kpi.view-all',
+    question: 'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận',
+    group: 'manage',
+  },
+  {
     no: 6,
     icon: Target,
     label: 'Kế hoạch',

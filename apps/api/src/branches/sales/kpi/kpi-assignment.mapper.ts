@@ -1,6 +1,7 @@
 import {
-  KPI_ASSIGNMENT_DEADLINE_DAY,
-  KPI_ASSIGNMENT_OVER_RATIO,
+  kpiAssignmentDeadline,
+  kpiAssignmentNeedsSet,
+  kpiAssignmentSum,
   kpiMetricShare,
   type KpiAssignmentLine,
   type KpiAssignmentLineKind,
@@ -11,11 +12,9 @@ import {
   type KpiMetricKey,
   type KpiMetricShare,
   type KpiPeriodKey,
-  type OrgUnitKind,
   type RoleId,
 } from '@pv/contracts'
 import { subtreeOf } from '@api/platform/org/org-heads'
-import { spansOf } from '../performance/performance-period'
 import { defOf } from './kpi-allocation.mapper'
 import type { KpiSetLineRow, KpiSetRow } from './kpi-assignment.repository'
 import type { KpiOrgMember, KpiOrgTree } from './kpi-team.repository'
@@ -92,6 +91,33 @@ export const isCompany = (tree: KpiOrgTree, unitId: string): boolean =>
 export const defaulted = (l: Pick<Line, 'confirmedAt'>, today: string, due: string): boolean =>
   !l.confirmedAt && today > due
 
+/** Depth-first from the company, siblings by name: the order the tree screen reads. */
+export function treeOrder(tree: KpiOrgTree): { unitId: string; depth: number }[] {
+  const out: { unitId: string; depth: number }[] = []
+  const walk = (parentId: string | null, depth: number) => {
+    const kids = tree.nodes
+      .filter((n) => n.parentId === parentId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+    for (const n of kids) {
+      out.push({ unitId: n.unitId, depth })
+      walk(n.unitId, depth + 1)
+    }
+  }
+  walk(null, 0)
+  return out
+}
+
+/** People with person lines on a set, and how many have answered every one. */
+export function confirmedIn(lines: readonly Line[]): { confirmed: number; total: number } {
+  const byPerson = new Map<string, boolean>()
+  for (const l of lines) {
+    if (l.kind !== 'person' || !l.personId) continue
+    byPerson.set(l.personId, (byPerson.get(l.personId) ?? true) && l.confirmedAt !== null)
+  }
+  const all = [...byPerson.values()]
+  return { confirmed: all.filter(Boolean).length, total: all.length }
+}
+
 /** Locked people hold no line: they could never confirm it. */
 const holds = (m: KpiOrgMember, role: RoleId) => !m.locked && m.roleIds.includes(role)
 
@@ -117,8 +143,8 @@ export function needsSet(
   role: RoleId,
   unitId: string,
 ): boolean {
-  if (defs.length === 0 || holdersUnder(tree, role, unitId).length === 0) return false
-  return isCompany(tree, unitId) || defs.some((d) => kpiMetricShare(d) !== 'total')
+  const holders = holdersUnder(tree, role, unitId).length > 0
+  return kpiAssignmentNeedsSet(defs, isCompany(tree, unitId), holders)
 }
 
 /** What `unitId` got from the set in force one level up, per metric. */
@@ -208,24 +234,15 @@ export function sumsOf(
   return defs
     .filter((d) => kpiMetricShare(d) === 'additive')
     .map((d) => {
-      const got = received.get(d.key) ?? 0
       const assigned = lines
         .filter((l) => l.metricKey === d.key && l.kind !== 'total')
         .reduce((n, l) => n + l.value, 0)
-      const ratio = got > 0 ? assigned / got : null
-      const flag =
-        assigned < got
-          ? 'below'
-          : ratio !== null && ratio > KPI_ASSIGNMENT_OVER_RATIO
-            ? 'over'
-            : null
-      return { metricKey: d.key, received: got, assigned, ratio, flag }
+      return kpiAssignmentSum(d.key, received.get(d.key) ?? 0, assigned)
     })
 }
 
-/** The last day of month P−1 for a level, as a Vietnam day. */
-export const deadlineOf = (period: KpiPeriodKey, level: OrgUnitKind | 'person'): string =>
-  `${spansOf(period).previous.key}-${String(KPI_ASSIGNMENT_DEADLINE_DAY[level]).padStart(2, '0')}`
+/** The contract's rule, under the name the doors and the sweep already call. */
+export const deadlineOf = kpiAssignmentDeadline
 
 /** A person's answer on their lines of one set (ADR 0120 §6, 0114's flag). */
 export function personState(

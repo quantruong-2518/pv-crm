@@ -10,7 +10,7 @@ import {
   SectionTitle,
   cn,
 } from '@pv/ui'
-import type { KpiTeamViewResponse, RoleId } from '@pv/contracts'
+import { isTieredPeriod, type KpiTeamViewResponse, type RoleId } from '@pv/contracts'
 import { isApiError } from '@/app/api'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -20,6 +20,8 @@ import { dm } from '@/lib/date'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { monthQuery } from './kpi-allocate-model'
+import { TieredNote } from './kpi-assign-confirm'
+import { assignHref, statusHref } from './kpi-assign-model'
 import { COMPANY_PATH, ME_PATH, MONTH_PARAM, dayOfMonth, pickFromUrl } from './kpi-model'
 import { MonthPicker, QueryBlock } from './kpi-parts'
 import { TeamCounters } from './kpi-team-counters'
@@ -46,10 +48,12 @@ function Body({
   catalog,
   view,
   me,
+  seesAll,
 }: {
   catalog: KpiCatalog
   view: KpiTeamViewResponse
   me: string | undefined
+  seesAll: boolean
 }) {
   const closed = isClosed(view)
   const roles = sharedRoles(view.shares)
@@ -72,13 +76,20 @@ function Body({
         <TeamMembers period={view.period} catalog={catalog} people={view.people} />
       </section>
 
-      {roles.length === 0 && (
+      {/* A head of the company who does not lead this team reads the whole tree instead. */}
+      {isTieredPeriod(view.period) &&
+        (seesAll && !view.actsForLead ? (
+          <TieredNote to={statusHref(view.period)} label="Mở Tình trạng giao" />
+        ) : (
+          <TieredNote to={assignHref(view.period)} label="Mở Giao chỉ tiêu" />
+        ))}
+      {!isTieredPeriod(view.period) && roles.length === 0 && (
         <section className="flex flex-col gap-3">
           <SectionTitle size="lg">Chia cho thành viên</SectionTitle>
           <p className={NOTE}>Phòng chưa giao phần cho nhóm.</p>
         </section>
       )}
-      {roles.map((role) => {
+      {(isTieredPeriod(view.period) ? [] : roles).map((role) => {
         const pkg = packageOf(view.allocations, role)
         const shares = new Map(
           view.shares.filter((s) => s.role === role).map((s) => [s.metricKey, s.value]),
@@ -98,18 +109,20 @@ function Body({
         )
       })}
 
-      <section className="flex flex-col gap-3">
-        <SectionTitle size="lg">Đề xuất</SectionTitle>
-        <TeamCounters
-          period={view.period}
-          teamId={view.team.id}
-          counters={view.counters}
-          statusOf={statusOf}
-          may={view.actsForLead}
-          closed={closed}
-          me={me}
-        />
-      </section>
+      {!isTieredPeriod(view.period) && (
+        <section className="flex flex-col gap-3">
+          <SectionTitle size="lg">Đề xuất</SectionTitle>
+          <TeamCounters
+            period={view.period}
+            teamId={view.team.id}
+            counters={view.counters}
+            statusOf={statusOf}
+            may={view.actsForLead}
+            closed={closed}
+            me={me}
+          />
+        </section>
+      )}
     </>
   )
 }
@@ -163,7 +176,7 @@ export function KpiTeamPage() {
           </GlassCard>
         ) : (
           <QueryBlock query={withCatalog(view, catalog)} what="KPI của nhóm" variant="b">
-            {([data, defs]) => <Body catalog={defs} view={data} me={me} />}
+            {([data, defs]) => <Body catalog={defs} view={data} me={me} seesAll={seesAll} />}
           </QueryBlock>
         )}
       </ScreenLayout>

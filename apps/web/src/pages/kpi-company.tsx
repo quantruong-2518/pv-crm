@@ -12,6 +12,7 @@ import {
   SectionTitle,
   cn,
 } from '@pv/ui'
+import { isTieredPeriod } from '@pv/contracts'
 import { useCan, useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
 import { kpiCompanyQuery, kpiPeopleQuery, kpiTargetsQuery } from '@/data/kpi'
@@ -23,6 +24,8 @@ import { kpiTeamRosterQuery } from '@/data/kpi-team-roster'
 import { keyOf, num } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { TARGETS_PATH, monthQuery } from './kpi-allocate-model'
+import { TieredNote } from './kpi-assign-confirm'
+import { statusHref } from './kpi-assign-model'
 import { KpiForecastBlock } from './kpi-company-forecast'
 import { AttentionBlock, RankedHeatmap, type TeamOf } from './kpi-company-people'
 import { RolesBlock } from './kpi-company-roles'
@@ -225,6 +228,9 @@ export function KpiCompanyPage() {
               </section>
             )}
 
+            {isTieredPeriod(period) && (
+              <TieredNote to={statusHref(period)} label="Mở Tình trạng giao" />
+            )}
             <TargetsDoor period={period} waiting={waiting} />
           </>
         )}

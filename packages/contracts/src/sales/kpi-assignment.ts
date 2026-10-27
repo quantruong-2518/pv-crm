@@ -4,10 +4,11 @@ import { RoleId } from '../auth'
 import { Problem } from '../problem'
 import { OrgUnitKind } from '../platform/org-unit'
 import { KpiMetricKey, KpiMonthClose, KpiPeriodKey, KpiTargetActor, type KpiMetricDef } from './kpi'
+import { stepSalesPeriod } from './sales-period'
 
 /** `/sales/kpi/:period/assignments/:role…` — targets handed down the org tree (ADR 0120).
  *
- *  `GET ?unitId=` (the head's page) · `GET me` (a person's lines) ·
+ *  `GET ?unitId=` (the head's page) · `GET me` (a person's lines) · `GET tree` ·
  *  `PUT draft` · `POST send` · `POST confirm`. Params are `KpiRoleParams`.
  *  Draft and send answer `KpiAssignmentPageResponse`; confirm answers `KpiAssignmentMineResponse`.
  *
@@ -25,13 +26,23 @@ export const isTieredPeriod = (period: KpiPeriodKey): boolean => period >= TIERE
 /** Above this share of what was received, a send still goes through but warns (Q2). */
 export const KPI_ASSIGNMENT_OVER_RATIO = 1.2
 
+/** A deadline level: the three unit kinds send, `person` confirms. */
+export const KpiAssignmentLevel = z.enum([...OrgUnitKind.options, 'person'])
+
 /** Day of month P−1 (Vietnam time, end of day) each level must have sent or confirmed by. */
 export const KPI_ASSIGNMENT_DEADLINE_DAY = {
   company: 20,
   department: 23,
   team: 25,
   person: 28,
-} as const satisfies Record<z.infer<typeof OrgUnitKind> | 'person', number>
+} as const satisfies Record<z.infer<typeof KpiAssignmentLevel>, number>
+
+/** The last day of month P−1 for a level, as a Vietnam day. */
+export const kpiAssignmentDeadline = (
+  period: KpiPeriodKey,
+  level: z.infer<typeof KpiAssignmentLevel>,
+): string =>
+  `${stepSalesPeriod(period, -1)}-${String(KPI_ASSIGNMENT_DEADLINE_DAY[level]).padStart(2, '0')}`
 
 export const KpiMetricShare = z.enum(['additive', 'copied', 'total'])
 
@@ -40,6 +51,15 @@ export const kpiMetricShare = (def: KpiMetricDef): z.infer<typeof KpiMetricShare
   const tally = def.unit === 'count' || def.unit === 'money'
   return tally && def.higherIsBetter ? 'additive' : 'copied'
 }
+
+/** ADR 0120 §2 and §4: a unit owes a set for a role when someone under it holds
+ *  the role, and below the company only when the role has more than room metrics. */
+export const kpiAssignmentNeedsSet = (
+  defs: readonly KpiMetricDef[],
+  company: boolean,
+  hasHolders: boolean,
+): boolean =>
+  defs.length > 0 && hasHolders && (company || defs.some((d) => kpiMetricShare(d) !== 'total'))
 
 const amount = z.number().nonnegative()
 const actorId = z.string().min(1).max(64)
@@ -131,6 +151,22 @@ export const KpiAssignmentSum = z.object({
   flag: KpiAssignmentSumFlag.nullable(),
 })
 
+/** ADR 0120 §4: short of what was received is refused, above the over ratio warns. */
+export function kpiAssignmentSum(
+  metricKey: z.infer<typeof KpiMetricKey>,
+  received: number,
+  assigned: number,
+): z.infer<typeof KpiAssignmentSum> {
+  const ratio = received > 0 ? assigned / received : null
+  const flag =
+    assigned < received
+      ? 'below'
+      : ratio !== null && ratio > KPI_ASSIGNMENT_OVER_RATIO
+        ? 'over'
+        : null
+  return { metricKey, received, assigned, ratio, flag }
+}
+
 export const KpiAssignmentQuery = z.object({
   /** Absent = the unit the caller heads; a stand-in names the seat they act for. */
   unitId: unitId.optional(),
@@ -178,6 +214,42 @@ export const KpiAssignmentMineResponse = z.object({
   confirmedAt: Moment.nullable(),
   acceptedByDefault: z.boolean(),
   deadline: Day,
+})
+
+const count = z.number().int().nonnegative()
+const confirmedOf = { confirmed: count, total: count }
+
+export const KpiAssignmentStep = z.object({
+  level: KpiAssignmentLevel,
+  /** Last day of month P−1 for this level. */
+  due: Day,
+  /** `null` on the `person` step. */
+  units: z.object({ sent: count, sentByDefault: count, notSent: count }).nullable(),
+  /** People with lines and how many confirmed them all; `null` on a unit step. */
+  people: z.object(confirmedOf).nullable(),
+})
+
+/** One unit that hands the role down, in tree order (depth-first, by name). */
+export const KpiAssignmentTreeUnit = z.object({
+  unitId,
+  kind: OrgUnitKind,
+  name: z.string().min(1),
+  /** 0 for the company. */
+  depth: z.number().int().nonnegative(),
+  head: KpiTargetActor.extend({ away: z.boolean() }).nullable(),
+  state: KpiAssignmentUnitState,
+  sentAt: Moment.nullable(),
+  /** People on this unit's own set in force, not its subtree. */
+  ...confirmedOf,
+})
+
+/** `GET tree`: the whole month for one role, for `kpi.view-all` or the company seat. */
+export const KpiAssignmentTreeResponse = z.object({
+  period: KpiPeriodKey,
+  role: RoleId,
+  monthClose: KpiMonthClose,
+  steps: z.array(KpiAssignmentStep),
+  units: z.array(KpiAssignmentTreeUnit),
 })
 
 const draftLine = z.discriminatedUnion('kind', [
@@ -229,5 +301,9 @@ export type KpiAssignmentQuery = z.infer<typeof KpiAssignmentQuery>
 export type KpiAssignmentPageResponse = z.infer<typeof KpiAssignmentPageResponse>
 export type KpiAssignmentSendResponse = z.infer<typeof KpiAssignmentSendResponse>
 export type KpiAssignmentMineResponse = z.infer<typeof KpiAssignmentMineResponse>
+export type KpiAssignmentLevel = z.infer<typeof KpiAssignmentLevel>
+export type KpiAssignmentStep = z.infer<typeof KpiAssignmentStep>
+export type KpiAssignmentTreeUnit = z.infer<typeof KpiAssignmentTreeUnit>
+export type KpiAssignmentTreeResponse = z.infer<typeof KpiAssignmentTreeResponse>
 export type KpiAssignmentDraftBody = z.infer<typeof KpiAssignmentDraftBody>
 export type KpiAssignmentSendBody = z.infer<typeof KpiAssignmentSendBody>

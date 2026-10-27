@@ -20,8 +20,10 @@ const metaPillVariants = cva('inline-flex items-center gap-2 rounded-sm px-2 py-
          stacked drop `--glass-foreground` to 3.91:1 — under law 13. */
       muted: 'bg-surface-ink/9 text-muted-foreground',
       accent: 'bg-primary/24 text-accent-foreground',
-      warning: 'bg-warning/20 text-on-tint-warning',
-      success: 'bg-success/20 text-on-tint-success',
+      /* The stone theme's tint colour is its text colour, so /20 there reads 4.09–4.47:1;
+         lighter stone tints keep ≥ 4.87 with headroom for the aurora glow. */
+      warning: 'bg-warning/20 stone:bg-warning/10 text-on-tint-warning',
+      success: 'bg-success/20 stone:bg-success/8 text-on-tint-success',
     },
     /** ngày và mã đọc bằng mắt theo cột — mono + tabular giữ chúng thẳng hàng */
     mono: {

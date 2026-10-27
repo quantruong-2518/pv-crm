@@ -1,6 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { AppShell, Button, GlassCard, ScreenHeader, ScreenLayout, SectionTitle, cn } from '@pv/ui'
-import type { KpiAllocation, KpiForecastResponse, KpiScorecard, RoleId } from '@pv/contracts'
+import {
+  RoleId,
+  isTieredPeriod,
+  type KpiAllocation,
+  type KpiForecastResponse,
+  type KpiScorecard,
+} from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { useSession } from '@/app/auth'
 import { useAppChrome } from '@/app/chrome'
@@ -15,6 +21,7 @@ import { ROLE_LABEL } from '@/data/users'
 import { keyOf } from './home-model'
 import { NOTE, TILE } from './home-tiles'
 import { AbsenceBlock } from './kpi-absence'
+import { AssignLink, ConfirmCard } from './kpi-assign-confirm'
 import { ContributionsPanel, FrozenNote } from './kpi-contributions'
 import { DESCRIPTION, acknowledgementOf, needsAcknowledgement, useMonthParam } from './kpi-model'
 import {
@@ -72,7 +79,7 @@ function RoleBoard({
         >
           {ROLE_LABEL[card.role]}
         </SectionTitle>
-        {!closed && !allocated && needsAcknowledgement(ack) && (
+        {!closed && !allocated && !isTieredPeriod(period) && needsAcknowledgement(ack) && (
           <Button
             className="pointer-coarse:h-12 shrink-0 self-start"
             disabled={acknowledge.isPending}
@@ -165,6 +172,8 @@ export function KpiMePage() {
         {ledTeams.map((team) => (
           <TeamLeadLink key={team.id} team={team} period={period} />
         ))}
+        {/* Any role's page read finds the unit the reader heads. */}
+        {isTieredPeriod(period) && <AssignLink period={period} role={RoleId.enum.sale} />}
         {actorId && <AbsenceBlock me={actorId} />}
 
         <QueryBlock query={withCatalog(me, catalog)} what="KPI của bạn">
@@ -174,15 +183,18 @@ export function KpiMePage() {
               !data.closed &&
               seen &&
               data.scorecards.some((c) => flagsOf(defs, c.role, seen).length > 0)
-            const assigned = allocations.data && packs.length > 0 && (
-              <AssignedTargets
-                period={data.period}
-                closed={data.closed}
-                packs={packs}
-                packages={allocations.data.allocations}
-                me={actorId}
-              />
-            )
+            /* Old packages answer 409 on a tiered month; its lines are in the confirm cards. */
+            const assigned = allocations.data &&
+              packs.length > 0 &&
+              !isTieredPeriod(data.period) && (
+                <AssignedTargets
+                  period={data.period}
+                  closed={data.closed}
+                  packs={packs}
+                  packages={allocations.data.allocations}
+                  me={actorId}
+                />
+              )
             const first = !data.closed && pending > 0
             return (
               <>
@@ -202,6 +214,16 @@ export function KpiMePage() {
                   />
                 )}
                 {first && assigned}
+                {isTieredPeriod(data.period) &&
+                  data.scorecards.map((card) => (
+                    <ConfirmCard
+                      key={`confirm/${card.role}`}
+                      catalog={defs}
+                      period={data.period}
+                      role={card.role}
+                      closed={data.closed}
+                    />
+                  ))}
                 {legend && seen && <ThresholdNote thresholds={seen.thresholds} />}
                 {data.scorecards.length === 0 && packs.length === 0 && (
                   <GlassCard className={cn(TILE, 'text-[12.5px]')}>

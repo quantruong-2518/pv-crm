@@ -5,7 +5,9 @@ import {
   kpiMetricShare,
   KpiAssignmentMineResponse,
   KpiAssignmentPageResponse,
+  KpiAssignmentTreeResponse,
   RoleId,
+  type KpiAssignmentUnitState,
   type KpiMetricDef,
   type KpiMonthClose,
   type KpiPeriodKey,
@@ -18,9 +20,11 @@ import { denied, notFound } from '@api/platform/http/problem'
 import { headOf } from '@api/platform/org/org-heads'
 import { spansOf } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
+import { KpiAbsenceRepository } from './kpi-absence.repository'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAssignmentRepository } from './kpi-assignment.repository'
 import {
+  confirmedIn,
   deadlineOf,
   defaulted,
   draftOf,
@@ -36,6 +40,7 @@ import {
   sortLines,
   sumsOf,
   totalsIn,
+  treeOrder,
   toWireLine,
   toWireSet,
   withCopied,
@@ -81,6 +86,7 @@ export class KpiAssignmentReader {
     private readonly targets: KpiTargetsRepository,
     private readonly allocations: KpiAllocationRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly absences: KpiAbsenceRepository,
   ) {}
 
   /** Sequential reads: on a transaction handle they share one connection. */
@@ -228,6 +234,65 @@ export class KpiAssignmentReader {
       acceptedByDefault: own.some((l) => defaulted(l, today, due)),
       deadline: due,
     })
+  }
+
+  /** The director's assignment status screen: every unit that hands `role` down, in tree
+   *  order, and the four deadline steps. `kpi.view-all`, or the company's seat. */
+  async tree(who: Actor, period: KpiPeriodKey, role: RoleId): Promise<KpiAssignmentTreeResponse> {
+    assertTieredMonth(period)
+    const book = await this.bookOf(period)
+    const { tree, sets } = book
+    const company = tree.nodes.find((n) => n.parentId === null)!.unitId
+    const seat = async () => (await this.seats.unitSeats(tree, [company])).get(company) ?? []
+    if (!this.access.allows(who, 'kpi.view-all') && !(await seat()).includes(who.id))
+      throw denied('permission-denied', 'Bạn không có quyền xem tình trạng giao chỉ tiêu.')
+    const [catalog, monthClose, away] = await Promise.all([
+      this.config.effectiveCatalog(),
+      this.closes.of(period),
+      this.absences.awayOn(vietnamToday()),
+    ])
+    const units = treeOrder(tree)
+      .filter(({ unitId }) => needsSet(tree, catalog[role], role, unitId))
+      .map(({ unitId, depth }) => {
+        const node = nodeOf(tree, unitId)!
+        const head = headOf(tree, unitId)
+        const held = inForceOf(sets, role, unitId)
+        return {
+          unitId,
+          kind: node.kind,
+          name: node.name,
+          depth,
+          head: head ? { ...face(tree, head), away: away.has(head) } : null,
+          state: unitState(held),
+          sentAt: held?.sentAt?.toISOString() ?? null,
+          ...confirmedIn(held ? linesOf(book, held.id) : []),
+        }
+      })
+    const levels = ['company', 'department', 'team'] as const
+    const count = (rows: typeof units, state: KpiAssignmentUnitState) =>
+      rows.filter((u) => u.state === state).length
+    const steps = [
+      ...levels.map((level) => {
+        const at = units.filter((u) => u.kind === level)
+        const sent = { sent: count(at, 'sent'), sentByDefault: count(at, 'sent-by-default') }
+        return {
+          level,
+          due: deadlineOf(period, level),
+          units: { ...sent, notSent: count(at, 'not-sent') },
+          people: null,
+        }
+      }),
+      {
+        level: 'person' as const,
+        due: deadlineOf(period, 'person'),
+        units: null,
+        people: {
+          confirmed: units.reduce((n, u) => n + u.confirmed, 0),
+          total: units.reduce((n, u) => n + u.total, 0),
+        },
+      },
+    ]
+    return KpiAssignmentTreeResponse.parse({ period, role, monthClose, steps, units })
   }
 
   /** ADR 0120 §9: sets still owed, sets the sweep wrote, people who have not answered. */

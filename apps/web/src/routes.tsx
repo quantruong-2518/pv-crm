@@ -507,6 +507,22 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/kpi-person'),
   },
   {
+    /* Not in the nav: every Sales person holds kpi.view; the API checks the seat (ADR 0120). */
+    path: '/sales/kpi/assign',
+    name: 'Giao chỉ tiêu',
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-assign'),
+  },
+  {
+    /* `kpi.view`: the company seat may lack view-all; the API answers 403 to the rest. */
+    path: '/sales/kpi/assign/status',
+    name: 'Tình trạng giao',
+    branch: 'Sales',
+    permission: 'kpi.view',
+    load: () => import('@/pages/kpi-assign-status'),
+  },
+  {
     path: '/sales/plan',
     name: 'Số liệu & kế hoạch',
     branch: 'Sales',
