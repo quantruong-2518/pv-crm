@@ -15,12 +15,12 @@ import { NOTE } from './home-tiles'
 /** The revenue tile's chart: one column per bucket, its x labels, and the
  *  penalty strip on the same columns. A column's frame is all the money the
  *  slice may bring; inside it, from the foot: collected, due unpaid, upcoming
- *  installments, and the dashed rest is the open deals. Net actual revenue
+ *  installments. Net actual revenue
  *  is not printed per column: penalties sit in their own strip instead.
  *
- *  Each money zone (the four parts of a column, a penalty cell) is its own
- *  button for a mouse and a keyboard. A finger gets the whole column instead (a
- *  segment can be 4px tall), through a cover button only coarse pointers see.
+ *  A pointer gets the whole column as one zone, through a cover button (a
+ *  segment can be 4px tall); the parts of a column and a penalty cell stay their
+ *  own buttons for the keyboard, and a penalty cell for the pointer.
  *  Heights ride `--max`, so a short viewport shrinks the plot in CSS. Focus
  *  rings are inset: on a tablet the chart sits in a scroll box that would clip them. */
 
@@ -51,8 +51,8 @@ export type Zone = (key: string, zone: string, kinds: SalesMoneyFigureKind[]) =>
 /** A zone that is hovered or shows the card lifts a little and takes the focus ring tone. */
 const ZONE_LOOK =
   'hover:brightness-110 aria-expanded:brightness-110 aria-expanded:[box-shadow:inset_0_0_0_2px_var(--ring)]'
-/** Segments give way to the column's cover on a coarse pointer. */
-const SEGMENT = `block w-full shrink-0 pointer-coarse:pointer-events-none ${ZONE_LOOK} ${FOCUS_IN}`
+/** Segments sit under the column's cover: a pointer never reaches them. */
+const SEGMENT = `block w-full shrink-0 ${ZONE_LOOK} ${FOCUS_IN}`
 
 const SEGMENT_FIGURE =
   'text-background tnum font-num flex items-center justify-center text-[12px] font-bold'
@@ -75,7 +75,7 @@ function Column({
   name: string
   zone: Zone
 }) {
-  const { view, collected, due, upcoming, open, total } = col
+  const { view, collected, due, upcoming, total } = col
   const g = share(collected, top)
   const key = view.bucket.key
   const delay = { transitionDelay: `${staggerMs(index, count)}ms` }
@@ -105,18 +105,9 @@ function Column({
           className={cn(
             'flex h-[max(6px,calc(var(--f)*var(--max)))] w-[64%] max-w-14 flex-col justify-end overflow-hidden rounded-t-[10px]',
             grow,
-            open > 0 && OPEN_FRAME,
             view.state === 'now' && RING_NOW,
           )}
         >
-          {open > 0 && (
-            <button
-              type="button"
-              aria-label={`${name}: ${said('open-deal', open)}`}
-              {...zone(key, 'open-deal', ['open-deal'])}
-              className={cn('min-h-0 flex-1', SEGMENT)}
-            />
-          )}
           {segments.map(
             ({ kind, vnd, look }) =>
               vnd > 0 && (
@@ -144,18 +135,19 @@ function Column({
             .map((k) =>
               said(
                 k,
-                k === 'collected'
-                  ? col.money.collectedVnd
-                  : k === 'due-unpaid'
-                    ? due
-                    : k === 'upcoming'
-                      ? upcoming
-                      : open,
+                {
+                  collected: col.money.collectedVnd,
+                  'due-unpaid': due,
+                  upcoming,
+                  'penalty-in': col.money.penaltyIn.amountVnd,
+                  'penalty-out': col.money.penaltyOut.amountVnd,
+                  settled: col.money.settledVnd,
+                }[k],
               ),
             )
             .join(', ')}`}
           {...zone(key, 'column', kinds)}
-          className="aria-expanded:bg-surface-ink/4 pointer-coarse:block absolute inset-0 hidden rounded-t-xl"
+          className="aria-expanded:bg-surface-ink/4 absolute inset-0 block rounded-t-xl"
         />
       )}
     </div>
@@ -345,7 +337,6 @@ export function Legend() {
       <Swatch className={COLLECTED_FILL} label="Đã thu" />
       <Swatch className={DUE_HATCH} label="Đến hạn chưa thu" />
       <Swatch className={UPCOMING_FILL} label="Sắp đến hạn" />
-      <Swatch className={OPEN_FRAME} label="Cơ hội dự kiến chốt" />
     </div>
   )
 }
@@ -361,19 +352,17 @@ export function FiguresTable({ columns, unit }: { columns: RevenueColumn[]; unit
           <th scope="col">Đã thu</th>
           <th scope="col">Đến hạn chưa thu</th>
           <th scope="col">Sắp đến hạn</th>
-          <th scope="col">Cơ hội dự kiến chốt</th>
           <th scope="col">Khách thanh toán</th>
           <th scope="col">Mình thanh toán</th>
         </tr>
       </thead>
       <tbody>
-        {columns.map(({ view, money: m, due, upcoming, open }) => (
+        {columns.map(({ view, money: m, due, upcoming }) => (
           <tr key={view.bucket.key}>
             <th scope="row">{view.sub ? `${view.label} ${view.sub}` : view.label}</th>
             <td>{millions(m.collectedVnd)}</td>
             <td>{millions(due)}</td>
             <td>{millions(upcoming)}</td>
-            <td>{millions(open)}</td>
             <td>{millions(m.penaltyIn.amountVnd)}</td>
             <td>{millions(m.penaltyOut.amountVnd)}</td>
           </tr>

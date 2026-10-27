@@ -30,6 +30,8 @@ export const SalesMoneyFigures = z.object({
   collectedVnd: SignedVnd,
   /** collected − company-paid penalties + customer-paid penalties: the owner's actual revenue. */
   actualVnd: SignedVnd,
+  /** Installments due in the slice and already paid, on a contract not terminated: the paid part of the expected revenue. */
+  settledVnd: MoneyVnd,
   /** Installments due before today VN, still unpaid, on a contract not terminated. */
   dueUnpaidVnd: MoneyVnd,
   /** Installments due today or later in the slice, still unpaid, on a contract not terminated: planned cash. */
@@ -51,9 +53,9 @@ export const SalesMoneyResponse = z.object({
 
 export const SalesMoneyFigureKind = z.enum([
   'collected',
+  'settled',
   'due-unpaid',
   'upcoming',
-  'open-deal',
   'penalty-in',
   'penalty-out',
 ])
@@ -69,14 +71,13 @@ export const SalesMoneyEntryKind = z.enum([
   'refund',
   'due-unpaid',
   'upcoming',
-  'open-deal',
   'penalty-in',
   'penalty-out',
 ])
 
 export const SalesMoneyEntry = z.object({
-  /** Null on an open deal, which has no contract yet; it carries its own code and title. */
   contractCode: ContractCode.nullable(),
+  /** Always null since open deals left the money read; kept so the shape does not move. */
   opportunityCode: ObjectCode.nullable(),
   title: z.string().nullable(),
   kind: SalesMoneyEntryKind,
@@ -84,7 +85,7 @@ export const SalesMoneyEntry = z.object({
   installmentNo: z.number().int().positive().nullable(),
   installmentCount: z.number().int().positive().nullable(),
   label: z.string().nullable(),
-  /** Paid, due, termination or expected-close day — whichever placed it in the bucket. */
+  /** Paid, due or termination day — whichever placed it in the bucket. */
   day: Day,
   /** Negative for a refund only. */
   amountVnd: SignedVnd,
@@ -92,6 +93,8 @@ export const SalesMoneyEntry = z.object({
   pending: z.boolean(),
   signedOn: Day.nullable(),
   fromEarlier: z.boolean(),
+  /** The contract has a termination: its cash stays in actual revenue, its installments leave expected. */
+  terminated: z.boolean(),
 })
 
 export const SalesMoneyEntriesResponse = z.object({

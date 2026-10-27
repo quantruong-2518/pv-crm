@@ -87,7 +87,13 @@ export function contractCells(
         />
       </span>
     </span>,
-    <NextDueCell key="next" next={row.next} ended={ended} currency={contract.currency} />,
+    <NextDueCell
+      key="next"
+      next={row.next}
+      ended={ended}
+      currency={contract.currency}
+      penalty={contract.termination?.penalty}
+    />,
   ]
 }
 

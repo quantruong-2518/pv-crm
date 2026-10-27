@@ -1,8 +1,13 @@
 import { ArrowLeft, ArrowRight, Badge, Icon, cn } from '@pv/ui'
-import { OPPORTUNITY_STATE_LABEL } from '@pv/contracts'
+import {
+  CONTRACT_PENALTY_DIRECTION_LABEL,
+  OPPORTUNITY_STATE_LABEL,
+  type ContractPenalty,
+} from '@pv/contracts'
 import type { DueLevel } from '@pv/engines'
 import type { ConditionSide, InstallmentView } from '@/data/contracts'
 import { COLLECTED_LABEL, DUE_LABEL, daysPhrase, standingOf } from '@/data/contracts'
+import { PENALTY_STATE_WORD } from '@/data/contract-penalty'
 import { dmy } from '@/lib/date'
 import { MoneyCell } from '@/components/money-cell'
 import { BADGE_INK } from '@/data/opportunities'
@@ -107,15 +112,27 @@ export function NextDueCell({
   next,
   ended,
   currency,
+  penalty,
 }: {
   next: InstallmentView | null
   ended: boolean
   currency: string | null
+  /** A terminated contract's penalty, printed under its badge. */
+  penalty?: ContractPenalty | null
 }) {
   if (ended) {
+    const word = penalty && PENALTY_STATE_WORD[penalty.direction]
     return (
-      <span className="flex justify-end">
+      <span className="flex min-w-0 flex-col items-end gap-1">
         <TerminatedBadge />
+        {penalty && word && (
+          <span className="text-muted-foreground tnum font-num max-w-full truncate text-[11.5px]">
+            {CONTRACT_PENALTY_DIRECTION_LABEL[penalty.direction]}{' '}
+            {penalty.amount.toLocaleString('vi-VN')}
+            {currency && currency !== 'VND' ? ` ${currency}` : ''} ·{' '}
+            {penalty.settledOn ? word.done.toLowerCase() : word.wait.toLowerCase()}
+          </span>
+        )}
       </span>
     )
   }

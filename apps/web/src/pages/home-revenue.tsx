@@ -61,19 +61,19 @@ function Figures({ r }: { r: ReturnType<typeof revenueOf> }) {
       <div className={cn(FIGURE_CARD, 'bg-success/10 text-on-tint-success')}>
         <span className={FIGURE_LABEL}>Doanh thu thực tế</span>
         <span className={FIGURE_VALUE}>{signedMoney(r.actual)}</span>
+        <span className="text-on-tint-success tnum font-num text-[12px] leading-4">
+          {signedMoney(r.collected)} thu trong kỳ
+          {r.penaltyOut.amountVnd > 0 && ` − ${money(r.penaltyOut.amountVnd)} phạt mình trả`}
+          {r.penaltyIn.amountVnd > 0 && ` + ${money(r.penaltyIn.amountVnd)} phạt khách trả`}
+        </span>
       </div>
       <div className={cn(FIGURE_CARD, OPEN_FRAME, 'text-accent-foreground')}>
         <span className={FIGURE_LABEL}>Doanh thu dự kiến</span>
         <span className={FIGURE_VALUE}>{signedMoney(r.expected)}</span>
         <span className="text-on-tint-primary-muted tnum font-num text-[12px] leading-4">
-          {signedMoney(r.actual)} thực tế + {money(r.upcoming)} đợt sắp thu + {money(r.open)} cơ hội
-          dự kiến chốt
+          {money(r.paid)} đã thu + {money(r.upcoming)} sắp đến hạn
+          {r.due > 0 && ` + ${money(r.due)} đến hạn chưa thu`}
         </span>
-        {r.due > 0 && (
-          <span className="text-on-tint-warning tnum font-num text-[12px] font-semibold leading-4">
-            Còn {money(r.due)} đến hạn chưa thu
-          </span>
-        )}
       </div>
       <div className={cn(FIGURE_CARD, 'bg-surface-ink/4')}>
         <span className={cn(FIGURE_LABEL, 'text-muted-foreground')}>Tiền phạt</span>
@@ -206,6 +206,7 @@ export function RevenueTile({
               <MoneyCardView
                 key={`${card.key}-${card.zone}`}
                 card={card}
+                bucket={shown.money}
                 title={
                   card.kinds.length > 1
                     ? nameOf(shown)

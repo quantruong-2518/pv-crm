@@ -491,7 +491,8 @@ export class ContractRepository {
    *  SQL would blow up on a book worth a few thousand billion dong. */
   async summary(): Promise<ContractSummary> {
     const due = contractInstallment.due
-    const money = contractInstallment.amount
+    /* An installment is in its contract's currency, like the contract's own amount. */
+    const money = toVndSql(contractInstallment.amount, contract.currency)
     const unpaid = sql`${contractInstallment.paidAt} IS NULL`
     const overdue = sql`${unpaid} AND ${due} < ${VN_TODAY_START}`
     /* Bounded on BOTH sides so an installment already late is counted as late
@@ -510,8 +511,7 @@ export class ContractRepository {
         .from(contract)
         .innerJoin(lead, ON_LEAD)
         .where(and(leadLive, LIVE)),
-      /* Installments carry no currency column — the schedule is drafted in
-         dong — so these four sums add the column itself. */
+      /* Converted per contract, so a USD schedule adds up in dong beside the rest. */
       this.db
         .select({
           scheduledVnd: sql<number | string>`COALESCE(SUM(${money}), 0)::bigint`,

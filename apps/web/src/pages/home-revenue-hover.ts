@@ -22,14 +22,22 @@ import { salesMoneyEntriesQuery } from '@/data/home-charts'
  *  with the chart when it scrolls instead of being re-measured against the page. */
 
 const DELAY_MS = 150
-export const CARD_WIDTH = 288
-const CARD_MAX = 288
+export const CARD_WIDTH = 360
+const CARD_MAX = 440
 const GAP = 8
 
 /** Every zone opener carries this, so pressing one is not "outside". */
 export const ZONE = 'data-money-zone'
 
-export type Place = { left: number; top?: number; bottom?: number; maxHeight: number }
+/** `arrow` is the zone's centre in the card's own x, where its pointer sits; `below` flips it to the top edge. */
+export type Place = {
+  left: number
+  top?: number
+  bottom?: number
+  maxHeight: number
+  arrow: number
+  below: boolean
+}
 
 export type MoneyCard = {
   period: string
@@ -55,13 +63,14 @@ function placeOf(content: HTMLElement, zone: HTMLElement): Place {
   const clipped = content.parentElement
     ? getComputedStyle(content.parentElement).overflowX !== 'visible'
     : false
-  const above = { left, bottom: box.height - top + GAP }
+  const arrow = Math.max(24, Math.min(z.left - box.left + z.width / 2 - left, CARD_WIDTH - 24))
+  const above = { left, bottom: box.height - top + GAP, arrow, below: false }
   if (!clipped) return { ...above, maxHeight: CARD_MAX }
   const roomAbove = top - GAP
   const roomBelow = box.height - bottom - GAP
   return roomAbove >= Math.min(CARD_MAX, roomBelow)
     ? { ...above, maxHeight: Math.min(CARD_MAX, roomAbove) }
-    : { left, top: bottom + GAP, maxHeight: Math.min(CARD_MAX, roomBelow) }
+    : { left, top: bottom + GAP, arrow, below: true, maxHeight: Math.min(CARD_MAX, roomBelow) }
 }
 
 export function useMoneyCard(period: string, content: RefObject<HTMLDivElement | null>) {
