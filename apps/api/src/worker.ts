@@ -15,6 +15,7 @@ import { AfterSaleReminderModule } from './branches/sales/after-sale/after-sale-
 import { AfterSaleReminderSweeper } from './branches/sales/after-sale/after-sale-reminder.sweeper'
 import { ContractOverdueSweeper } from './branches/sales/contract/contract-overdue.sweeper'
 import { KpiAlertSweeper } from './branches/sales/kpi/kpi-alert.sweeper'
+import { KpiAssignmentSweeper } from './branches/sales/kpi/kpi-assignment-sweep'
 import { MeetingCancelSweeper } from './branches/sales/meeting/meeting-cancel.sweeper'
 import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sweeper'
 import { LeadModule } from './branches/sales/lead/lead.module'
@@ -138,6 +139,7 @@ async function bootstrap(): Promise<void> {
   const recare = app.get(AfterSaleReminderSweeper)
   const meetings = app.get(MeetingCancelSweeper)
   const kpiAlerts = app.get(KpiAlertSweeper)
+  const kpiSets = app.get(KpiAssignmentSweeper)
   const overdue = app.get(ContractOverdueSweeper)
   const leadScans = app.get(LeadScanSweeper)
   const sessions = app.get(SessionSweeper)
@@ -273,6 +275,8 @@ async function bootstrap(): Promise<void> {
   const sweepMeetings = pass('Meeting calendar sweep failed', () => meetings.sweep())
   // Same: one pass a day, the first tick after boot is the boot pass.
   const sweepKpiAlerts = pass('KPI alert sweep failed', () => kpiAlerts.sweep())
+  // Same: hourly; a level past its deadline gets last month's targets (ADR 0120 §6).
+  const sweepKpiSets = pass('KPI default sets failed', () => kpiSets.sweep())
   // Same: contract overdue bells hourly, scan expiry every 15 minutes, expired sessions hourly.
   const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
   const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
@@ -286,6 +290,7 @@ async function bootstrap(): Promise<void> {
     sweepRecare()
     sweepMeetings()
     sweepKpiAlerts()
+    sweepKpiSets()
     sweepOverdue()
     sweepLeadScans()
     sweepSessions()

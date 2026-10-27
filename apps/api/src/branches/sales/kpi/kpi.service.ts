@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { KPI_TARGET_AGREED, KPI_TARGET_PROPOSED, type AccessControl, type Actor } from '@pv/engines'
 import {
+  isTieredPeriod,
   ROLE_LABEL,
   KpiCompanyResponse,
   KpiMeResponse,
@@ -25,6 +26,7 @@ import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import type { KpiPeriodContext } from './kpi-allocation.service'
 import { targetSources } from './kpi-allocation.mapper'
+import { KpiAssignmentTargets } from './kpi-assignment-targets'
 import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
@@ -32,7 +34,14 @@ import { assertReadsPerson } from './kpi-person-access'
 import { KpiReadingsRepository, type Actors } from './kpi-readings.repository'
 import { KpiTargetsRepository } from './kpi-targets.repository'
 import { KpiTeamRepository } from './kpi-team.repository'
-import { assertTargetValues, awayRefusal, monthClock, stillOpen, vietnamToday } from './kpi-rules'
+import {
+  assertOldMonth,
+  assertTargetValues,
+  awayRefusal,
+  monthClock,
+  stillOpen,
+  vietnamToday,
+} from './kpi-rules'
 import { KpiSeatService } from './kpi-seat.service'
 import { slotsOf, toReadings, toRoleTargets, toScorecard, type ScoreContext } from './kpi.mapper'
 
@@ -58,6 +67,7 @@ export class KpiService {
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly seats: KpiSeatService,
+    private readonly assigned: KpiAssignmentTargets,
   ) {}
 
   async me(who: Actor, period: KpiPeriodKey): Promise<KpiMeResponse> {
@@ -72,7 +82,8 @@ export class KpiService {
   }
 
   /** The director's card: every metric on it is a room figure, so it is read
-   *  for no actor and carries nothing to acknowledge. */
+   *  for no actor and carries nothing to acknowledge. A tiered month reads the
+   *  company set's room totals (ADR 0120 §8), not the role targets. */
   async company(period: KpiPeriodKey): Promise<KpiCompanyResponse> {
     const catalog = await this.config.effectiveCatalog()
     const seats = catalog.director.map((def) => ({ role: 'director' as const, def }))
@@ -88,7 +99,11 @@ export class KpiService {
       this.targets.ofPeriod(period),
       this.config.tolerance(),
     ])
-    const ctx = { ...this.context(period, catalog, values, rows, tolerance), adjustments }
+    const base = this.context(period, catalog, values, rows, tolerance)
+    const slots = isTieredPeriod(period)
+      ? (await this.assigned.sources(period, [])).slotsFor('')
+      : base.slots
+    const ctx = { ...base, slots, adjustments }
     return KpiCompanyResponse.parse({
       period,
       monthClose,
@@ -153,6 +168,7 @@ export class KpiService {
     body: KpiProposeBody,
   ): Promise<KpiTargetsResponse> {
     stillOpen(period)
+    assertOldMonth(period)
     const entries = body.targets.map((t) => ({ metricKey: t.key, value: t.value }))
     assertTargetValues((await this.config.effectiveCatalog())[role], entries, 'targets')
 
@@ -201,6 +217,7 @@ export class KpiService {
     body: KpiAgreeBody,
   ): Promise<KpiTargetsResponse> {
     stillOpen(period)
+    assertOldMonth(period)
     const stale = conflict('Chỉ tiêu đang chờ duyệt đã thay đổi. Tải lại rồi duyệt lại.')
     await this.targets.run(async (tx) => {
       if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()
@@ -236,13 +253,19 @@ export class KpiService {
       throw denied('permission-denied', 'Bạn không giữ vai này nên không nhận được chỉ tiêu.')
     }
     stillOpen(period)
-    await this.targets.run((tx) => this.lines.receive(tx, who, period, role))
+    assertOldMonth(period)
+    /* Audited like the allocation door's acknowledgement (ADR 0120 §11). */
+    await this.targets.run(async (tx) => {
+      const metricKeys = await this.lines.receive(tx, who, period, role)
+      await this.note(tx, who, { kpi: 'target-acknowledged', period, role, metricKeys })
+    })
     return this.me(who, period)
   }
 
   /** One read for however many people: figures grouped by actor, the month's
    *  targets, the month's acknowledgements — then welded per person × role.
-   *  Which target a slot reads is `targetSources`' call (ADR 0098 §4). */
+   *  Which target a slot reads is `targetSources`' call (ADR 0098 §4), or from
+   *  the cutover the tiered sets' (ADR 0120 §8). */
   private async scorecards(
     period: KpiPeriodKey,
     holders: readonly Holder[],
@@ -269,20 +292,17 @@ export class KpiService {
     ])
     const base = { ...this.context(period, catalog, values, rows, tolerance), adjustments }
     const today = vietnamToday()
-    const sources = targetSources(rows, lines)
+    const tiered = isTieredPeriod(period) ? await this.assigned.sources(period, only) : null
+    const sources = tiered ?? targetSources(rows, lines)
     const ackAt = new Map(acks.map((a) => [`${a.actorId}|${a.role}`, a.acknowledgedAt]))
+    const stamp = (id: string, role: RoleId) =>
+      tiered ? tiered.confirmedAt(id, role) : (ackAt.get(`${id}|${role}`) ?? null)
 
     const cards = new Map(
       holders.map((h) => {
         const ctx = { ...base, slots: sources.slotsFor(h.id) }
         const card = (role: RoleId) =>
-          toScorecard(
-            role,
-            h.id,
-            ctx,
-            ackAt.get(`${h.id}|${role}`) ?? null,
-            sources.acksFor(h.id, role, today),
-          )
+          toScorecard(role, h.id, ctx, stamp(h.id, role), sources.acksFor(h.id, role, today))
         return [h.id, h.roleIds.map(card)]
       }),
     )

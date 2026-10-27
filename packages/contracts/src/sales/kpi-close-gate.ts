@@ -32,6 +32,10 @@ export const KpiCloseGateCounts = z.object({
   packagesReturned: gateCount,
   packagesDraft: gateCount,
   targetsProposed: gateCount,
+  /** Tiered months only (ADR 0120 §9); optional so a snapshot stored before them still parses. */
+  setsNotSent: gateCount.optional(),
+  setsByDefault: gateCount.optional(),
+  peopleNotConfirmed: gateCount.optional(),
 })
 
 /** Stored with the close (ADR 0116 §3, default 3): counts and flagged keys only,

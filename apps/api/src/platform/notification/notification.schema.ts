@@ -101,7 +101,9 @@ export const notification = platform.table(
                      'meeting-calendar-failed', 'contract-terminated',
                      'contract-collector-changed', 'kpi-allocation-waiting',
                      'kpi-counter-proposed', 'kpi-month-unclosed', 'kpi-stand-in',
-                     'customer-recare-due', 'contract-penalty-changed')`,
+                     'customer-recare-due', 'contract-penalty-changed',
+                     'kpi-assignment-received', 'kpi-assignment-late',
+                     'kpi-away-declared')`,
     ),
     /** The `NotificationSubject` values, copied out for the same reason. */
     check(
@@ -109,7 +111,7 @@ export const notification = platform.table(
       sql`"subject_kind" IN ('lead', 'lead-pool', 'opportunity', 'approval', 'lead-scan', 'mail-run',
                              'user', 'google-link', 'contract', 'campaign', 'kpi-target', 'comm',
                              'lead-batch', 'opportunity-batch', 'comm-record', 'kpi-scorecard',
-                             'kpi-allocation', 'kpi-team')`,
+                             'kpi-allocation', 'kpi-team', 'kpi-assignment')`,
     ),
   ],
 )
@@ -176,7 +178,9 @@ export const notificationKindPolicy = platform.table(
                      'meeting-calendar-failed', 'contract-terminated',
                      'contract-collector-changed', 'kpi-allocation-waiting',
                      'kpi-counter-proposed', 'kpi-month-unclosed', 'kpi-stand-in',
-                     'customer-recare-due', 'contract-penalty-changed')`,
+                     'customer-recare-due', 'contract-penalty-changed',
+                     'kpi-assignment-received', 'kpi-assignment-late',
+                     'kpi-away-declared')`,
     ),
     /** `actor_role_ids_known`'s list: a typo'd role would mute nobody, silently. */
     check(

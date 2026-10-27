@@ -56,6 +56,11 @@ export const KPI_COUNTER_PROPOSED = 'sales.kpi.counter-proposed'
 export const KPI_MONTH_UNCLOSED = 'sales.kpi.month-unclosed'
 /** Someone now acts for a person away or locked (ADR 0117); the absence door and the daily sweep emit it. */
 export const KPI_STAND_IN = 'sales.kpi.stand-in'
+/** Someone declared ANOTHER person away (ADR 0120 §7); a self-declaration rings nothing. */
+export const KPI_AWAY_DECLARED = 'sales.kpi.away-declared'
+/** A tiered set was sent, by its head or by the deadline sweep, or a level missed its day (ADR 0120). */
+export const KPI_ASSIGNMENT_SENT = 'sales.kpi.assignment-sent'
+export const KPI_ASSIGNMENT_LATE = 'sales.kpi.assignment-late'
 /** An overdue installment's reason was sent, or decided (ADR 0100). */
 export const OVERDUE_REASON_SENT = 'sales.contract.overdue-reason-sent'
 export const OVERDUE_REASON_DECIDED = 'sales.contract.overdue-reason-decided'
@@ -180,6 +185,9 @@ export const NOTIFICATION_RULES: readonly NotificationRule[] = [
   bell('kpi-counter-resolved', KPI_COUNTER_RESOLVED, 'proposer'),
   bell('kpi-team-share-assigned', KPI_TEAM_SHARE_ASSIGNED, 'lead'),
   bell('kpi-stand-in', KPI_STAND_IN, 'standIn'),
+  bell('kpi-away-declared', KPI_AWAY_DECLARED, 'absent'),
+  bell('kpi-assignment-received', KPI_ASSIGNMENT_SENT, 'receivers'),
+  bell('kpi-assignment-late', KPI_ASSIGNMENT_LATE, 'above'),
   bell('kpi-about-to-miss', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'slip'),
   bell('kpi-about-to-hit', KPI_FORECAST_FLAGGED, 'holder', (p) => p.data?.flag === 'hit'),
   bell('overdue-reason-waiting', OVERDUE_REASON_SENT, 'approvers'),

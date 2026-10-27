@@ -33,15 +33,15 @@ import { kpiTeam } from './kpi-team.schema'
  *  copies of `kpi.schema.ts`'s, for the same reason those are hand copies. */
 
 /** `actor_role_ids_known`'s seven values, in its order. */
-const roleKnown = (): SQL =>
+export const roleKnown = (): SQL =>
   sql`"role" IN ('director', 'head-of-sales', 'marketing', 'bd', 'presales', 'sale', 'account-executive')`
 
 /** `KpiPeriodKey`'s regex: a month key only. */
-const periodShape = (): SQL => sql`"period" ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'`
+export const periodShape = (): SQL => sql`"period" ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'`
 
 /** The fourteen `KpiMetricKey` values. The role-to-key pairing is
  *  `KPI_CATALOG`'s, enforced at the door, as on `kpi_target`. */
-const metricKnown = (): SQL =>
+export const metricKnown = (): SQL =>
   sql`"metric_key" IN ('leads-sourced', 'lead-to-opportunity-rate', 'sourced-signed-value',
                        'opportunities-opened', 'first-response-hours',
                        'opportunity-accept-rate', 'demos-joined', 'signed-value', 'win-rate',

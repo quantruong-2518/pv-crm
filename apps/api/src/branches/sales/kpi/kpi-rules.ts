@@ -1,12 +1,15 @@
 import {
+  isTieredPeriod,
   KPI_METRIC_LABEL,
+  TIERED_FROM,
   type KpiAckState,
+  type KpiAssignmentErrorCode,
   type KpiAckStatus,
   type KpiMetricDef,
   type KpiMetricKey,
   type KpiPeriodKey,
 } from '@pv/contracts'
-import { conflict, invalid } from '@api/platform/http/problem'
+import { conflict, invalid, type PvError } from '@api/platform/http/problem'
 import { spansOf } from '../performance/performance-period'
 import { elapsedOf, phaseOf } from './kpi-verdict'
 
@@ -73,6 +76,10 @@ export function assertNotLapsed(states: readonly KpiAckState[]): void {
   }
 }
 
+/** The month after `period`, as a month key. */
+export const nextMonth = (period: KpiPeriodKey): KpiPeriodKey =>
+  spansOf(period).current.to.slice(0, 7)
+
 /** Where a month stands today; shared with the allocation doors so both read one clock. */
 export function monthClock(period: KpiPeriodKey): {
   elapsed: number
@@ -114,3 +121,33 @@ export function assertTargetValues(
 
 /** An away setter drops out of the pool and its doors (ADR 0117 §5). */
 export const awayRefusal = () => conflict('Bạn đang trong kỳ vắng nên việc này do người khác làm.')
+
+/** A `KpiAssignmentRefusal`: the code rides beside the Problem fields (`extra`). */
+export const assignmentRefusal = (
+  code: KpiAssignmentErrorCode,
+  title: string,
+  metricKeys?: readonly KpiMetricKey[],
+): PvError =>
+  Object.assign(conflict(title), { extra: metricKeys ? { code, metricKeys } : { code } })
+
+const TIERED_LABEL = `tháng ${Number(TIERED_FROM.slice(5))}/${TIERED_FROM.slice(0, 4)}`
+
+/** ADR 0120 §1: every old write door is closed from the cutover month on. */
+export function assertOldMonth(period: KpiPeriodKey): void {
+  if (isTieredPeriod(period)) {
+    throw assignmentRefusal(
+      'kpi-month-tiered',
+      `Từ ${TIERED_LABEL}, chỉ tiêu được giao theo phòng ban và nhóm.`,
+    )
+  }
+}
+
+/** ADR 0120 §1: and every new door is closed before it. */
+export function assertTieredMonth(period: KpiPeriodKey): void {
+  if (!isTieredPeriod(period)) {
+    throw assignmentRefusal(
+      'kpi-month-not-tiered',
+      `Giao chỉ tiêu theo phòng ban và nhóm bắt đầu từ ${TIERED_LABEL}.`,
+    )
+  }
+}

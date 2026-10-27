@@ -53,7 +53,14 @@ import {
   type KpiKnown,
   type KpiPerson,
 } from './kpi-readings.repository'
-import { assertTargetValues, awayRefusal, monthClock, stillOpen, vietnamToday } from './kpi-rules'
+import {
+  assertOldMonth,
+  assertTargetValues,
+  awayRefusal,
+  monthClock,
+  stillOpen,
+  vietnamToday,
+} from './kpi-rules'
 import { KpiTargetsRepository, type KpiTargetRow } from './kpi-targets.repository'
 import { KpiSeatService } from './kpi-seat.service'
 import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
@@ -279,6 +286,7 @@ export class KpiAllocationService {
     teamId: string | null,
   ): Promise<KpiTier> {
     stillOpen(period)
+    assertOldMonth(period)
     const { role } = body
     const [people, rosterRows] = await Promise.all([
       this.readings.people(),
@@ -380,6 +388,7 @@ export class KpiAllocationService {
     teamId: string | null,
   ): Promise<void> {
     stillOpen(period)
+    assertOldMonth(period)
     /* Read before the transaction: a second connection inside it would wait on it. */
     const people = await this.readings.people()
     if (teamId) await this.assertActsFor(who, rosterOf(await this.teams.rosterAt(period)), teamId)
@@ -422,6 +431,7 @@ export class KpiAllocationService {
     body: KpiAllocationDecideBody,
   ): Promise<KpiAllocationResponse> {
     stillOpen(period)
+    assertOldMonth(period)
     const teamId = body.teamId ?? null
     await this.repo.run(async (tx) => {
       if (await this.seats.isAway(who.id, undefined, tx)) throw awayRefusal()

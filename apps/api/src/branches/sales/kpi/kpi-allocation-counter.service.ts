@@ -31,6 +31,7 @@ import {
   ackDueOn,
   ackStateOf,
   assertNotLapsed,
+  assertOldMonth,
   assertTargetValues,
   awayRefusal,
   lapseOf,
@@ -62,6 +63,8 @@ const PENDING = { ackStatus: 'pending' as const, ackedAt: null, ackedByDefault: 
  *  sender (ADR 0101 default 9). A holder's line is found in whichever tier has it. */
 const leadsOwn = () =>
   denied('permission-denied', 'Đề xuất của trưởng nhóm do người giao chỉ tiêu xử lý.')
+const teamsOwn = () =>
+  denied('permission-denied', 'Đề xuất trong nhóm do trưởng nhóm xử lý ở trang nhóm.')
 
 @Injectable()
 export class KpiAllocationCounterService {
@@ -110,6 +113,7 @@ export class KpiAllocationCounterService {
     keys: readonly KpiMetricKey[] | null = null,
     strict = false,
   ): Promise<KpiMetricKey[]> {
+    assertOldMonth(period)
     const live = await this.holderPackage(tx, period, role, who.id)
     if (!live || !handedDown(live)) {
       if (strict) throw conflict('Vai này chưa có chỉ tiêu được giao cho bạn.')
@@ -151,6 +155,7 @@ export class KpiAllocationCounterService {
     body: KpiCounterBody,
   ): Promise<KpiAllocationResponse> {
     stillOpen(period)
+    assertOldMonth(period)
     const proposal = { metricKey: body.metricKey, value: body.proposedValue }
     assertTargetValues(await this.packages.roleDefs(role), [proposal], 'proposedValue')
     const already = conflict('Bạn đã có một đề xuất chờ xử lý cho chỉ tiêu này.')
@@ -260,6 +265,7 @@ export class KpiAllocationCounterService {
     leadOf?: string,
   ): Promise<void> {
     stillOpen(period)
+    assertOldMonth(period)
     if (leadOf) {
       await this.packages.assertActsFor(who, rosterOf(await this.teams.rosterAt(period)), leadOf)
     }
@@ -271,6 +277,13 @@ export class KpiAllocationCounterService {
       /* Matched in JS first: the id comes off the URL and need not be a uuid. */
       const c = (await this.repo.counters(period, tx)).find((x) => x.id === counterId)
       if (!c || (leadOf && c.teamId !== leadOf)) throw notFound('đề xuất chỉ tiêu')
+      /* ADR 0120 §11: a team counter is its lead's, on the team door; only the lead's own line comes here. */
+      if (
+        !leadOf &&
+        c.teamId &&
+        rosterOf(await this.teams.rosterAt(period, tx)).leadOf(c.teamId) !== c.actorId
+      )
+        throw teamsOwn()
       /* The roster lead's own counter is the setters' (ADR 0101), on the room door,
          even while a member stands in: nobody settles their own lead's target. */
       if (leadOf && roster?.leadOf(leadOf) === c.actorId) throw leadsOwn()
@@ -347,6 +360,7 @@ export class KpiAllocationCounterService {
     at: LineKey,
     value: string,
   ): Promise<void> {
+    assertOldMonth(pkg.period)
     /* The old line stays in force until the next agreement, answered. */
     if ((await this.repo.setLines(tx, pkg, [at], PENDING)) !== 1) throw stale()
     const lines = await this.repo.lines([pkg.id], tx)

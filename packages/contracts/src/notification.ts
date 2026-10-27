@@ -76,6 +76,9 @@ export const NotificationKind = z.enum([
   'contract-penalty-changed',
   'kpi-stand-in',
   'customer-recare-due',
+  'kpi-assignment-received',
+  'kpi-assignment-late',
+  'kpi-away-declared',
 ])
 export type NotificationKind = z.infer<typeof NotificationKind>
 
@@ -99,6 +102,7 @@ export const NotificationSubject = z.enum([
   'kpi-scorecard',
   'kpi-allocation',
   'kpi-team',
+  'kpi-assignment',
 ])
 export type NotificationSubject = z.infer<typeof NotificationSubject>
 
@@ -167,6 +171,9 @@ export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
   'contract-penalty-changed': 'Tiền phạt hợp đồng đã thay đổi',
   'kpi-stand-in': 'Bạn đang làm thay việc KPI của người khác',
   'customer-recare-due': 'Đến kỳ chăm sóc khách đã mua',
+  'kpi-assignment-received': 'Bạn được giao chỉ tiêu tháng mới',
+  'kpi-assignment-late': 'Cấp dưới chưa giao chỉ tiêu đúng hạn, đã lấy mức tháng trước',
+  'kpi-away-declared': 'Bạn được khai vắng việc KPI',
 }
 
 /** The filter chips on the bell screen. */
@@ -265,6 +272,9 @@ export const NOTIFICATION_KIND_GROUP: Record<NotificationKind, NotificationGroup
   'contract-penalty-changed': 'contract',
   'kpi-stand-in': 'kpi',
   'customer-recare-due': 'contract',
+  'kpi-assignment-received': 'kpi',
+  'kpi-assignment-late': 'kpi',
+  'kpi-away-declared': 'kpi',
 }
 
 /** Defaults of ADR 0093 §1 when no `notification_kind_policy` row exists (or
@@ -340,6 +350,11 @@ export const NOTIFICATION_KIND_POLICY: Record<
   /* ADR 0117 default 3: work now waits on someone who did not ask for it. */
   'kpi-stand-in': { important: true, locked: false },
   'customer-recare-due': { important: false, locked: false },
+  'kpi-assignment-received': { important: true, locked: false },
+  /* A late level is already on last month's figure; the head above must look now. */
+  'kpi-assignment-late': { important: true, locked: false },
+  /* ADR 0120 §7: someone else now holds your seat; you must hear it at once. */
+  'kpi-away-declared': { important: true, locked: false },
 }
 
 /** A stored `important` of `null` (or no row) follows the contract default,
@@ -374,6 +389,8 @@ export const NOTIFICATION_SUBJECT_PERMISSION: Record<NotificationSubject, Permis
   'kpi-allocation': 'kpi.view-all',
   /* A team lead holds `kpi.view` only; the team page checks the lead itself. */
   'kpi-team': 'kpi.view',
+  /* A head reads their subtree with `kpi.view` alone (ADR 0120 §7). */
+  'kpi-assignment': 'kpi.view',
 }
 
 /** Kinds the hub rings even when the reader cannot open the subject (ADR 0093
@@ -455,8 +472,12 @@ export const NOTIFICATION_KIND_SUBJECTS: Record<NotificationKind, readonly Notif
     'contract-penalty-changed': ['contract'],
     /* The seat's own waiting list: a team page for a lead's stand-in (who may hold
        only `kpi.view`), the allocations screen for a target setter's. */
-    'kpi-stand-in': ['kpi-team', 'kpi-allocation'],
+    'kpi-stand-in': ['kpi-team', 'kpi-allocation', 'kpi-assignment'],
     'customer-recare-due': ['contract'],
+    'kpi-assignment-received': ['kpi-assignment'],
+    'kpi-assignment-late': ['kpi-assignment'],
+    /* The person's own KPI page of the month the absence starts in. */
+    'kpi-away-declared': ['kpi-scorecard'],
   }
 
 /** Key of the failed-letter count in `detail` on a closing `mail-run-sent` or
@@ -504,7 +525,8 @@ export type NotificationRow = z.infer<typeof NotificationRow>
 
 /** The whole sentence of a line built from its counts, or `null` for the
  *  kind's fixed label. The bell line and the popup both ask here, so the two
- *  never say different things. Owner's wording, 15/10/2026. */
+ *  never say different things. Owner's wording, 15/10/2026. A `kpi-away-declared`
+ *  line's subject label is its whole sentence: who declared, the days, the stand-in. */
 export function notificationSentence(
   row: Pick<NotificationRow, 'kind' | 'subject' | 'detail'>,
 ): string | null {
@@ -539,6 +561,7 @@ export function notificationSentence(
   if (row.kind === 'meeting-calendar-failed' && typeof title === 'string') {
     return `Chưa đưa được lịch họp “${title}” với ${name} lên Google Calendar sau nhiều lần thử. Mở lịch họp và lưu lại, hoặc tự thêm vào Google Calendar.`
   }
+  if (row.kind === 'kpi-away-declared') return name
   if (row.kind === 'comm-record-late') return `Thông tin liên hệ ở ${name} đã quá hạn bổ sung`
   return null
 }

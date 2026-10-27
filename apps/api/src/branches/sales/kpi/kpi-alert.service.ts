@@ -5,6 +5,7 @@ import {
   KPI_COUNTER_PROPOSED,
   KPI_COUNTER_RESOLVED,
   KPI_MONTH_UNCLOSED,
+  KPI_AWAY_DECLARED,
   KPI_STAND_IN,
   KPI_TEAM_SHARE_ASSIGNED,
   type Actor,
@@ -21,6 +22,7 @@ import {
 } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import type { KpiAbsenceRow } from './kpi-absence.repository'
 import { KpiAllocationRepository, type KpiCounterRow } from './kpi-allocation.repository'
 import type { KpiAllocationRowDb } from './kpi-allocation.schema'
 import { rosterOf } from './kpi-allocation-team'
@@ -32,7 +34,7 @@ export type StandInLine = {
   forName: string
   waiting: number
   occurrence: string
-  subject: { kind: 'kpi-team' | 'kpi-allocation'; code: string; label: string }
+  subject: { kind: 'kpi-team' | 'kpi-allocation' | 'kpi-assignment'; code: string; label: string }
 }
 
 /** The month as a bell line prints it after the subject: month number, slash, year. */
@@ -224,6 +226,28 @@ export class KpiAlertService {
       detail: {
         [NOTIFICATION_DETAIL_FOR]: line.forName,
         [NOTIFICATION_DETAIL_COUNT]: line.waiting,
+      },
+    })
+  }
+
+  /** The person someone else declared away hears who, which days and who stands
+   *  in (ADR 0120 §7), keyed on the absence; the line opens their own KPI month. */
+  async awayDeclared(tx: Db, who: Actor, row: KpiAbsenceRow): Promise<void> {
+    const day = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+    const days =
+      row.fromDay === row.toDay ? day(row.fromDay) : `${day(row.fromDay)}–${day(row.toDay)}`
+    await this.hub.announce(tx, {
+      event: {
+        name: KPI_AWAY_DECLARED,
+        ref: { code: row.fromDay.slice(0, 7) },
+        occurrence: row.id,
+        actorId: who.id,
+        audiences: { absent: [row.actorId] },
+      },
+      subject: {
+        kind: 'kpi-scorecard',
+        code: row.fromDay.slice(0, 7),
+        label: `${row.declaredByName} khai bạn vắng ${days} · ${row.standInName} làm thay`,
       },
     })
   }

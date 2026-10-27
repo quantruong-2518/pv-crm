@@ -2,20 +2,27 @@ import { and, eq, inArray, isNotNull, lte, max, ne, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { KpiPeriodKey, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { orgMember, orgNode } from '@api/platform/db/org.schema'
+import {
+  orgMember,
+  orgNode,
+  type OrgMemberRowDb,
+  type OrgNodeRowDb,
+} from '@api/platform/db/org.schema'
 import { actor } from '@api/platform/db/platform.schema'
 import { firstOrgVersion, isOrgUnit, orgVersionAt } from '@api/platform/org/org-version'
-import { spansOf } from '../performance/performance-period'
 import { kpiAllocation } from './kpi-allocation.schema'
-import { vietnamToday } from './kpi-rules'
+import { kpiAssignment } from './kpi-assignment.schema'
+import { nextMonth, vietnamToday } from './kpi-rules'
 import { kpiTeam, kpiTeamMember, kpiTeamRoster, type KpiTeamMemberValues } from './kpi-team.schema'
 
 /** One person in one team of one roster; the shape the allocation side reads. */
 export type RosterEntry = { teamId: string; teamName: string; actorId: string; lead: boolean }
 export type ActorFace = { id: string; name: string; roleIds: RoleId[] }
 export type RosterFace = ActorFace & { locked: boolean }
-
-const nextMonth = (period: KpiPeriodKey): KpiPeriodKey => spansOf(period).current.to.slice(0, 7)
+/** One version of the org tree with each member's face: the assignment doors
+ *  judge roles and locks on the same read as the seats (ADR 0120). */
+export type KpiOrgMember = OrgMemberRowDb & Omit<RosterFace, 'id'>
+export type KpiOrgTree = { from: string; nodes: OrgNodeRowDb[]; members: KpiOrgMember[] }
 
 /** SQL of the team roster (ADR 0101). Decides nothing: who may be a member,
  *  which month a write lands on, what a refusal says — all the service's.
@@ -82,6 +89,27 @@ export class KpiTeamRepository {
     return orgVersionAt(handle, period)
   }
 
+  /** The version in force for `period` with its members' faces; null before the tree. */
+  async orgTreeAt(period: string, handle: Db = this.db): Promise<KpiOrgTree | null> {
+    const from = await this.treeAt(period, handle)
+    if (!from) return null
+    const nodes = await handle.select().from(orgNode).where(eq(orgNode.fromPeriod, from))
+    const members = await handle
+      .select({
+        fromPeriod: orgMember.fromPeriod,
+        actorId: orgMember.actorId,
+        unitId: orgMember.unitId,
+        head: orgMember.head,
+        name: actor.name,
+        roleIds: actor.roleIds,
+        locked: sql<boolean>`${actor.disabledAt} IS NOT NULL`,
+      })
+      .from(orgMember)
+      .innerJoin(actor, eq(actor.id, orgMember.actorId))
+      .where(eq(orgMember.fromPeriod, from))
+    return { from, nodes, members }
+  }
+
   /** The tree's first month, or null while no version exists. */
   treeStart(handle: Db = this.db): Promise<string | null> {
     return firstOrgVersion(handle)
@@ -92,16 +120,25 @@ export class KpiTeamRepository {
     return isOrgUnit(handle, teamId)
   }
 
-  /** The month after the last one anything was sent for, at either tier, and
-   *  never before this month: a header written earlier would also be the roster
-   *  in force for every later month already sent. `superseded` counts as sent. */
+  /** The month after the last one anything was sent for, at either tier or as
+   *  a tiered set (ADR 0120 §9), and never before this month: a header written
+   *  earlier would also be the roster in force for every later month already
+   *  sent. `superseded` counts as sent. */
   async effectiveFrom(handle: Db = this.db): Promise<KpiPeriodKey> {
     const now = vietnamToday().slice(0, 7)
     const [row] = await handle
       .select({ last: max(kpiAllocation.period) })
       .from(kpiAllocation)
       .where(and(sql`${kpiAllocation.period} >= ${now}`, ne(kpiAllocation.status, 'draft')))
-    return row?.last ? nextMonth(row.last) : now
+    const [set] = await handle
+      .select({ last: max(kpiAssignment.period) })
+      .from(kpiAssignment)
+      .where(and(sql`${kpiAssignment.period} >= ${now}`, ne(kpiAssignment.status, 'draft')))
+    const last = [row?.last, set?.last]
+      .filter((p): p is string => !!p)
+      .sort()
+      .at(-1)
+    return last ? nextMonth(last) : now
   }
 
   /** Names and roles of the given actors, enabled or not: a roster keeps showing

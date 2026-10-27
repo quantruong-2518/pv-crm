@@ -3,10 +3,11 @@ import type { Actor, Permission } from '@pv/engines'
 import type { KpiPeriodKey, KpiTargetActor } from '@pv/contracts'
 import type { Db } from '@api/platform/db/db.module'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
+import { headOf, headsOver, membersUnder } from '@api/platform/org/org-heads'
 import { KpiAbsenceRepository } from './kpi-absence.repository'
 import { rosterOf, type Roster } from './kpi-allocation-team'
 import { vietnamToday } from './kpi-rules'
-import { KpiTeamRepository } from './kpi-team.repository'
+import { KpiTeamRepository, type KpiOrgTree } from './kpi-team.repository'
 
 /** `seatActors` (ADR 0117 §3, §6): THE one answer to "who acts on this KPI
  *  item today"; it replaces both copies of ADR 0101 default 16.
@@ -16,7 +17,8 @@ import { KpiTeamRepository } from './kpi-team.repository'
  *  away and still fit for THIS seat (a team lead's: a member of that team in
  *  that month's roster, or a setter; a sender's: a setter); else the setters
  *  not away. "Setter" is one definition: `kpi.set-target` and `kpi.view-all`
- *  (ADR 0117 default 5). Nobody gains a permission by standing in.
+ *  (ADR 0117 default 5). Nobody gains a permission by standing in. A unit
+ *  head's seat (ADR 0120 §7) tries the nearest fit head above before the setters.
  *
  *  Two paths. Doors and waiting lists read `seatActors`/`leadSeats`: strict,
  *  and pool doors add `isAway`. Bells read `bellActors`/`bellLeadSeats`/
@@ -26,8 +28,9 @@ import { KpiTeamRepository } from './kpi-team.repository'
 export type KpiStandInSeat =
   { kind: 'team-lead'; teamId: string } | { kind: 'sender'; actorId: string } | { kind: 'setters' }
 
-/** A holder and who may stand in for them on this seat, beyond the setters. */
-type Holder = { id: string | null; members: readonly string[] }
+/** A holder, who may stand in for them on this seat beyond the setters, and
+ *  the heads tried, nearest first, before the setters (unit seats only). */
+type Holder = { id: string | null; members: readonly string[]; above?: readonly string[] }
 
 const present = (ids: readonly string[], away: ReadonlyMap<string, string>): string[] =>
   ids.filter((id) => !away.has(id))
@@ -109,6 +112,40 @@ export class KpiSeatService {
     return new Map(teamIds.map((id, i) => [id, acting[i] ?? []]))
   }
 
+  /** Who acts for each unit's head under `tree` (ADR 0120 §7). One read for many units. */
+  async unitSeats(
+    tree: KpiOrgTree,
+    unitIds: readonly string[],
+    today = vietnamToday(),
+    handle: Db = this.absences.readonlyHandle,
+  ): Promise<Map<string, string[]>> {
+    const holders = unitIds.map((id) => ({
+      id: headOf(tree, id),
+      members: membersUnder(tree, id),
+      above: headsOver(tree, id),
+    }))
+    const acting = await this.acting(holders, today, handle)
+    return new Map(unitIds.map((id, i) => [id, acting[i] ?? []]))
+  }
+
+  /** The bell path of `unitSeats`, per unit as `bellActors`. */
+  async bellUnitSeats(
+    tree: KpiOrgTree,
+    unitIds: readonly string[],
+    today = vietnamToday(),
+    handle: Db = this.absences.readonlyHandle,
+    without: readonly string[] = [],
+  ): Promise<Map<string, string[]>> {
+    const seats = await this.unitSeats(tree, unitIds, today, handle)
+    const bells = await this.orPool(
+      unitIds.map((id) => seats.get(id) ?? []),
+      today,
+      handle,
+      without,
+    )
+    return new Map(unitIds.map((id, i) => [id, bells[i] ?? []]))
+  }
+
   /** Reading follows the seat (ADR 0117 §6): the roster's lead keeps the team
    *  while away, and whoever acts for the lead today reads it too. */
   async readsTeam(who: Actor, roster: Roster, teamId: string): Promise<boolean> {
@@ -165,17 +202,22 @@ export class KpiSeatService {
    *  a roster or a grant may have changed since. */
   private async acting(holders: readonly Holder[], today: string, handle: Db) {
     const away = await this.absences.awayOn(today, handle)
-    const people = holders.flatMap((h) => (h.id ? [h.id, away.get(h.id) ?? h.id] : []))
+    const people = holders.flatMap((h) => [
+      ...(h.id ? [h.id, away.get(h.id) ?? h.id] : []),
+      ...(h.above ?? []),
+    ])
     const locked = await this.teams.disabledAmong([...new Set(people)], handle)
     const holding = await this.setterHolders(handle)
     const setters = present(holding, away)
     const fit = (who: string) => !locked.has(who) && !away.has(who)
-    return holders.map(({ id, members }): string[] => {
-      if (!id) return setters
+    return holders.map(({ id, members, above = [] }): string[] => {
+      const up = above.find(fit)
+      const fallback = up ? [up] : setters
+      if (!id) return fallback
       if (fit(id)) return [id]
       const standIn = away.get(id)
       const allowed = standIn && (holding.includes(standIn) || members.includes(standIn))
-      return standIn && allowed && fit(standIn) ? [standIn] : setters
+      return standIn && allowed && fit(standIn) ? [standIn] : fallback
     })
   }
 

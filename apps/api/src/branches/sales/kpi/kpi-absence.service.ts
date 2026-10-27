@@ -3,6 +3,7 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   KpiAbsence,
   KpiAbsenceListResponse,
+  RoleId,
   KpiStandInCandidatesResponse,
   type KpiAbsenceCreate,
   type KpiAbsenceUpdate,
@@ -12,9 +13,14 @@ import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, invalid, notFound } from '@api/platform/http/problem'
+import { membersUnder } from '@api/platform/org/org-heads'
 import { KpiAbsenceRepository, type KpiAbsenceRow } from './kpi-absence.repository'
 import { rosterOf } from './kpi-allocation-team'
 import { KpiAlertService, monthLabel } from './kpi-alert.service'
+import { setCode } from './kpi-assignment-bells'
+import { KpiAssignmentReader } from './kpi-assignment-read.service'
+import { needsSet, nodeOf } from './kpi-assignment.mapper'
+import { KpiConfigService } from './kpi-config.service'
 import { vietnamToday } from './kpi-rules'
 import { KpiSeatService } from './kpi-seat.service'
 import { KpiTeamRepository } from './kpi-team.repository'
@@ -52,6 +58,8 @@ export class KpiAbsenceService {
     private readonly alerts: KpiAlertService,
     private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly assignments: KpiAssignmentReader,
+    private readonly config: KpiConfigService,
   ) {}
 
   /** Live and coming absences, plus this month's cancelled ones: everyone's
@@ -99,6 +107,8 @@ export class KpiAbsenceService {
       })
       await this.note(tx, who, { kpi: 'absence-declared', absence: made, actor: personId })
       const row = await this.repo.byId(made, tx)
+      /* ADR 0120 §7: declared away by someone else, told at once; oneself, nothing new. */
+      if (row && personId !== who.id) await this.alerts.awayDeclared(tx, who, row)
       if (row && row.fromDay === today) await this.ringStandIn(tx, row, today)
       return made
     })
@@ -170,7 +180,7 @@ export class KpiAbsenceService {
         await this.alerts.standIn(tx, {
           to: seats.get(team.teamId) ?? [],
           forName: lead.name,
-          waiting: await this.repo.waitingFor(lead.id, [team.teamId], period, tx),
+          waiting: await this.waitingFor(lead.id, [team.teamId], today, tx),
           occurrence: `locked/${lead.id}/${vietnamToday(lead.disabledAt.getTime())}`,
           subject: { kind: 'kpi-team', code: team.teamId, label: team.teamName },
         })
@@ -187,29 +197,40 @@ export class KpiAbsenceService {
     const entries = await this.teams.rosterAt(period, tx)
     const led = entries.filter((e) => e.lead && e.actorId === row.actorId)
     const team = led[0]
-    const waiting = await this.repo.waitingFor(
+    const waiting = await this.waitingFor(
       row.actorId,
       led.map((e) => e.teamId),
-      period,
+      today,
       tx,
     )
     const sender = { kind: 'sender', actorId: row.actorId } as const
+    const unit = team ? null : await this.unitSeat(row.actorId, today, tx)
     /* No seat to act for and nothing waiting: a stand-in bell would say nothing. */
-    if (!team && waiting === 0 && !(await this.seats.setterHolders(tx)).includes(row.actorId))
+    if (
+      !team &&
+      !unit &&
+      waiting === 0 &&
+      !(await this.seats.setterHolders(tx)).includes(row.actorId)
+    )
       return
-    const seats = team
-      ? [
-          ...(
-            await this.seats.bellLeadSeats(
-              rosterOf(entries),
-              led.map((e) => e.teamId),
-              today,
-              tx,
-              [row.actorId],
-            )
-          ).values(),
-        ]
-      : [await this.seats.bellActors(sender, period, today, tx, [row.actorId])]
+    const bell = unit
+      ? (await this.seats.bellUnitSeats(unit.tree, unit.unitIds, today, tx, [row.actorId])).values()
+      : null
+    const seats = bell
+      ? [...bell]
+      : team
+        ? [
+            ...(
+              await this.seats.bellLeadSeats(
+                rosterOf(entries),
+                led.map((e) => e.teamId),
+                today,
+                tx,
+                [row.actorId],
+              )
+            ).values(),
+          ]
+        : [await this.seats.bellActors(sender, period, today, tx, [row.actorId])]
     await this.alerts.standIn(tx, {
       to: [...new Set(seats.flat())],
       forName: row.actorName,
@@ -217,8 +238,32 @@ export class KpiAbsenceService {
       occurrence: `absence/${row.id}`,
       subject: team
         ? { kind: 'kpi-team', code: team.teamId, label: team.teamName }
-        : { kind: 'kpi-allocation', code: period, label: monthLabel(period) },
+        : (unit?.subject ?? { kind: 'kpi-allocation', code: period, label: monthLabel(period) }),
     })
+  }
+
+  /** The old count plus the tiered sets still owed by the units the person heads. */
+  private async waitingFor(actorId: string, teamIds: readonly string[], today: string, tx: Db) {
+    const old = await this.repo.waitingFor(actorId, teamIds, today.slice(0, 7), tx)
+    return old + (await this.assignments.waitingOn(actorId, today, tx))
+  }
+
+  /** A department or company head's seats (ADR 0120 §7); the link opens the
+   *  first unit's set of the first role it hands down. */
+  private async unitSeat(actorId: string, today: string, tx: Db) {
+    const [seat] = await this.assignments.headedBy(actorId, today, tx)
+    if (!seat) return null
+    const catalog = await this.config.effectiveCatalog(tx)
+    const unitId = seat.unitIds[0]!
+    const role = RoleId.options.find((r) => needsSet(seat.book.tree, catalog[r], r, unitId))
+    if (!role) return null
+    const code = setCode(seat.book.period, role, unitId)
+    const label = nodeOf(seat.book.tree, unitId)?.name ?? monthLabel(seat.book.period)
+    return {
+      tree: seat.book.tree,
+      unitIds: seat.unitIds,
+      subject: { kind: 'kpi-assignment' as const, code, label },
+    }
   }
 
   /** ADR 0117 §2: a setter for anyone (another setter for a setter); for a
@@ -230,7 +275,11 @@ export class KpiAbsenceService {
       entries.filter((e) => e.lead && e.actorId === personId).map((e) => e.teamId),
     )
     const members = entries.filter((e) => led.has(e.teamId)).map((e) => e.actorId)
-    const ids = [...new Set([...(await this.seats.setterHolders(db)), ...members])]
+    /* A unit head's stand-in may be anyone placed under that unit (ADR 0120 §7). */
+    const under = (await this.assignments.headedBy(personId, vietnamToday(), db)).flatMap((s) =>
+      s.unitIds.flatMap((u) => membersUnder(s.book.tree, u)),
+    )
+    const ids = [...new Set([...(await this.seats.setterHolders(db)), ...members, ...under])]
     const locked = await this.teams.disabledAmong(ids, db)
     return ids.filter((id) => id !== personId && !locked.has(id))
   }

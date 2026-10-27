@@ -15,8 +15,9 @@ import { invalid, notFound } from '@api/platform/http/problem'
 import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationService, notLead } from './kpi-allocation.service'
 import { additive, defOf } from './kpi-allocation.mapper'
+import { readsInTree } from './kpi-person-access'
 import { monthClock } from './kpi-rules'
-import { rosterOf } from './kpi-allocation-team'
+import { rosterOf, type Roster } from './kpi-allocation-team'
 import { KpiSeatService } from './kpi-seat.service'
 import { teamsOf } from './kpi-team.mapper'
 import { KpiTeamRepository, type RosterEntry } from './kpi-team.repository'
@@ -64,7 +65,7 @@ export class KpiTeamViewService {
     const all = this.access.allows(who, 'kpi.view-all')
     /* Reading follows the seat (ADR 0117 §6): the lead even while away, or whoever acts for them. */
     const actsForLead = await this.packages.actsFor(who, roster, teamId)
-    if (!all && !actsForLead && !(await this.seats.readsTeam(who, roster, teamId))) throw notLead()
+    if (!all && !actsForLead && !(await this.reads(who, period, roster, teamId))) throw notLead()
     if (!roster.team(teamId)) throw notFound('nhóm')
 
     const members = new Set(roster.membersOf(teamId))
@@ -166,6 +167,15 @@ export class KpiTeamViewService {
   ): Promise<KpiAllocationResponse> {
     await this.counters.settleCounter(who, period, counterId, body, teamId)
     return this.packages.teamResponse(period, teamId)
+  }
+
+  /** The roster's lead and their seat, or a head above the team (ADR 0120 §7). */
+  private async reads(who: Actor, period: KpiPeriodKey, roster: Roster, teamId: string) {
+    if (await this.seats.readsTeam(who, roster, teamId)) return true
+    const tree = await this.teams.orgTreeAt(period)
+    return tree !== null && tree.nodes.some((n) => n.unitId === teamId)
+      ? readsInTree(this.seats, tree, who, teamId)
+      : false
   }
 
   /** Names come from `actor` whether or not the person is still enabled. */

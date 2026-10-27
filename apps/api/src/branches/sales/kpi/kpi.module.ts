@@ -14,6 +14,13 @@ import { KpiAllocationCounterService } from './kpi-allocation-counter.service'
 import { KpiAllocationController } from './kpi-allocation.controller'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
 import { KpiAllocationService } from './kpi-allocation.service'
+import { KpiAssignmentBells } from './kpi-assignment-bells'
+import { KpiAssignmentController } from './kpi-assignment.controller'
+import { KpiAssignmentReader } from './kpi-assignment-read.service'
+import { KpiAssignmentRepository } from './kpi-assignment.repository'
+import { KpiAssignmentService } from './kpi-assignment.service'
+import { KpiAssignmentSweeper } from './kpi-assignment-sweep'
+import { KpiAssignmentTargets } from './kpi-assignment-targets'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiCloseGateService } from './kpi-close-gate.service'
 import { KpiCloseService } from './kpi-close.service'
@@ -51,7 +58,8 @@ import { KpiTeamViewService } from './kpi-team-view.service'
  *  forecast thresholds. `SalesConfigModule` for the config gate (ADR 0099 §2).
  *  `NotificationModule` for the bell (ADR 0093, 0099 §4). `ContractModule` for
  *  the overdue reasons the close gate lists (ADR 0116). `KpiSeatModule` for the
- *  seat rule (ADR 0117). `exports` names the reconcile pass (ADR 0115):
+ *  seat rule (ADR 0117). The tiered sets (ADR 0120) are the `KpiAssignment*`
+ *  providers; their sweeper rides the worker's tick. `exports` names the reconcile pass (ADR 0115):
  *  callable from an application context (acceptance runs call it). */
 @Module({
   imports: [
@@ -73,6 +81,7 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiTeamController,
     KpiTeamViewController,
     KpiAbsenceController,
+    KpiAssignmentController,
   ],
   providers: [
     KpiService,
@@ -98,6 +107,12 @@ import { KpiTeamViewService } from './kpi-team-view.service'
     KpiReconcileRepository,
     KpiReconcileService,
     KpiAbsenceService,
+    KpiAssignmentRepository,
+    KpiAssignmentReader,
+    KpiAssignmentService,
+    KpiAssignmentTargets,
+    KpiAssignmentBells,
+    KpiAssignmentSweeper,
   ],
   exports: [KpiReconcileService],
 })

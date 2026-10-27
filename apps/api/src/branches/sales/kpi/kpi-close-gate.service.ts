@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
+  isTieredPeriod,
   KPI_CLOSE_GATE_LIST_CAP,
   KpiCloseGateResponse,
   type KpiCloseGateSnapshot,
@@ -12,6 +13,7 @@ import { ACCESS } from '@api/platform/engines/tokens'
 import { ContractOverdueReasonService } from '../contract/contract-overdue-reason.service'
 import { spansOf } from '../performance/performance-period'
 import { KpiAllocationRepository, type KpiPackageRow } from './kpi-allocation.repository'
+import { KpiAssignmentReader } from './kpi-assignment-read.service'
 import { bigContracts, lateHeavy } from './kpi-close-gate.mapper'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { catalogDef } from './kpi-config.overlay'
@@ -59,6 +61,7 @@ export class KpiCloseGateService {
     private readonly reasons: ContractOverdueReasonService,
     private readonly closes: KpiCloseRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
+    private readonly assignments: KpiAssignmentReader,
   ) {}
 
   /** Overdue reasons, live or as stored at close, only for whoever may approve them. */
@@ -116,6 +119,8 @@ export class KpiCloseGateService {
         this.readings.basisRows(own, span, handle),
         this.readings.basisAverage(room, before, handle),
       ])
+    /* Tiered months only, so an old month's counts keep their old keys (ADR 0120 §9). */
+    const tiered = isTieredPeriod(period) ? await this.assignments.gateCounts(period, handle) : {}
     const proposed = toRoleTargets(slotsOf(targetRows), catalog).flatMap(({ role, metrics }) =>
       metrics.flatMap((m) => (m.pending ? [{ role, metricKey: m.key, ...m.pending }] : [])),
     )
@@ -128,6 +133,7 @@ export class KpiCloseGateService {
       proposed,
       big: bigContracts(month, owned, earlier),
       late: lateHeavy(owned, span.to),
+      tiered,
     }
   }
 }
@@ -139,4 +145,5 @@ const countsOf = (f: Facts) => ({
   packagesReturned: f.returned.length,
   packagesDraft: f.drafts.length,
   targetsProposed: f.proposed.length,
+  ...f.tiered,
 })

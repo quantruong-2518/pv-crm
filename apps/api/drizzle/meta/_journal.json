@@ -1016,6 +1016,13 @@
       "when": 1795600000000,
       "tag": "0149_stop_log_recontact",
       "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1795600060000,
+      "tag": "0150_kpi_tiered_assignment",
+      "breakpoints": true
     }
   ]
 }

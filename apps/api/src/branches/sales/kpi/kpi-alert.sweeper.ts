@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common'
 import { KPI_FORECAST_FLAGGED } from '@pv/engines'
-import { KPI_METRIC_LABEL, type KpiForecast, type KpiPeriodKey } from '@pv/contracts'
+import {
+  isTieredPeriod,
+  kpiMetricShare,
+  KPI_METRIC_LABEL,
+  type KpiForecast,
+  type KpiPeriodKey,
+} from '@pv/contracts'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { spansOf } from '../performance/performance-period'
 import { KpiAbsenceService } from './kpi-absence.service'
@@ -8,6 +14,8 @@ import { KpiAlertService, monthLabel } from './kpi-alert.service'
 import { KpiAlertRepository, type KpiAlertKey } from './kpi-alert.repository'
 import { additive } from './kpi-allocation.mapper'
 import { KpiAllocationRepository, type KpiAgreedLine } from './kpi-allocation.repository'
+import { KpiAssignmentRepository } from './kpi-assignment.repository'
+import { KpiAssignmentTargets, type TargetSources } from './kpi-assignment-targets'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { catalogDef } from './kpi-config.overlay'
 import { KpiForecastService } from './kpi-forecast.service'
@@ -54,6 +62,8 @@ export class KpiAlertSweeper {
     private readonly targets: KpiTargetsRepository,
     private readonly reconcile: KpiReconcileService,
     private readonly absences: KpiAbsenceService,
+    private readonly assigned: KpiAssignmentTargets,
+    private readonly sets: KpiAssignmentRepository,
   ) {}
 
   /** Called on every worker tick. `null` = this tick was not a pass. The clock
@@ -110,7 +120,11 @@ export class KpiAlertSweeper {
       this.closes.of(period),
       this.targets.ofPeriod(period),
     ])
-    if (closed || !targets.some((t) => t.agreedAt)) return
+    /* A tiered month runs on KPI once a set was sent (ADR 0120 §8), whatever the role targets say. */
+    const ran = isTieredPeriod(period)
+      ? (await this.sets.sets(period)).some((s) => s.sentAt)
+      : targets.some((t) => t.agreedAt)
+    if (closed || !ran) return
     await this.repo.run((tx) => this.alerts.monthUnclosed(tx, period))
   }
 
@@ -121,12 +135,13 @@ export class KpiAlertSweeper {
     /* Running means today lies in `period`, so today's day is the month's. */
     const day = Number(vietnamToday().slice(8, 10))
     if (monthClock(period).phase !== 'running' || day < ALERT_FROM_DAY) return 0
-    const [{ items }, lines] = await Promise.all([
+    const [{ items }, lines, tiered] = await Promise.all([
       this.forecast.everyone(period),
       this.allocations.agreedLines(period),
+      isTieredPeriod(period) ? this.assigned.sources(period) : null,
     ])
     const flagged = items.flatMap((i): KpiAlertKey[] =>
-      i.flag && judgedOnOwnLine(i, lines)
+      i.flag && judgedOnOwnLine(i, lines, tiered)
         ? [{ period, actorId: i.actorId, role: i.role, metricKey: i.metricKey, flag: i.flag }]
         : [],
     )
@@ -165,10 +180,20 @@ export class KpiAlertSweeper {
  *  (ADR 0098 §1): the role target is the whole role's sum, so one person's
  *  figure set against it says nothing. The screen keeps the forecast's own
  *  flag; only the bell waits. Room figures and unsummable metrics keep the
- *  role target, which is theirs. */
-function judgedOnOwnLine(item: KpiForecast, lines: readonly KpiAgreedLine[]): boolean {
+ *  role target, which is theirs. A tiered month asks its own lines (ADR 0120 §8). */
+function judgedOnOwnLine(
+  item: KpiForecast,
+  lines: readonly KpiAgreedLine[],
+  tiered: TargetSources | null,
+): boolean {
   const def = catalogDef(item.role, item.metricKey)
-  if (!def || !additive(def)) return true
+  if (!def) return true
+  if (tiered) {
+    if (kpiMetricShare(def) !== 'additive') return true
+    const own = tiered.acksFor(item.actorId, item.role, vietnamToday())
+    return own.some((l) => l.metricKey === item.metricKey)
+  }
+  if (!additive(def)) return true
   return lines.some(
     (l) =>
       l.actorId === item.actorId && l.metricKey === item.metricKey && l.package.role === item.role,

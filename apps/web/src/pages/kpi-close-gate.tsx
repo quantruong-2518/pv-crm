@@ -53,6 +53,9 @@ const PENDING_WORDS: Record<keyof KpiCloseGateCounts, { title: string; short: st
   packagesReturned: { title: 'Gói chỉ tiêu bị trả lại', short: 'gói bị trả lại' },
   packagesDraft: { title: 'Gói chỉ tiêu chưa gửi', short: 'gói chưa gửi' },
   targetsProposed: { title: 'Chỉ tiêu chờ duyệt', short: 'chỉ tiêu chờ duyệt' },
+  setsNotSent: { title: 'Đơn vị chưa giao chỉ tiêu', short: 'đơn vị chưa giao' },
+  setsByDefault: { title: 'Đơn vị giao mặc định', short: 'đơn vị giao mặc định' },
+  peopleNotConfirmed: { title: 'Người chưa xác nhận chỉ tiêu', short: 'người chưa xác nhận' },
 }
 
 const R = KPI_CLOSE_GATE_RULES

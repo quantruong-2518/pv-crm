@@ -270,6 +270,8 @@ const SUBJECT_PATH: Record<NotificationSubject, (code: string) => string> = {
     return `${KPI_TARGETS}${kpiQuery(month, role, team)}`
   },
   'kpi-team': (code) => `/sales/kpi/team/${encodeURIComponent(code)}`,
+  /* `<period>:<role>[:<unitId>]` (ADR 0120). The assignment screen is not built yet, so both land on "my KPI". */
+  'kpi-assignment': (code) => `${KPI_ME}${kpiQuery(code.split(':')[0] ?? '')}`,
 }
 
 /** An overdue-installment row, read back. `detail` keys are named by the

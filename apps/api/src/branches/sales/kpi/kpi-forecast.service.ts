@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   isCumulative,
+  isTieredPeriod,
   KpiForecastResponse,
   KpiWeeklyResponse,
   type KpiForecast,
@@ -17,6 +18,7 @@ import { SettingService } from '@api/platform/setting/setting.service'
 import { spansOf } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
+import { KpiAssignmentTargets } from './kpi-assignment-targets'
 import { KpiCloseRepository } from './kpi-close.repository'
 import { KpiConfigService } from './kpi-config.service'
 import { assertReadsPerson } from './kpi-person-access'
@@ -35,7 +37,8 @@ import { agreedIn, toReadings } from './kpi.mapper'
  *  a forecast cannot disagree with the card it sits beside.
  *
  *  Which target a figure is judged against is `targetSources`' call (ADR 0098
- *  §4) — the same one the scorecard makes, so the two cannot disagree. */
+ *  §4), or the tiered sets' from the cutover (ADR 0120 §8) — the same one the
+ *  scorecard makes, so the two cannot disagree. */
 
 type Holder = { id: string; name: string; roleIds: readonly RoleId[] }
 type Thresholds = { slipRatio: number; hitRatio: number }
@@ -94,6 +97,7 @@ export class KpiForecastService {
     private readonly teams: KpiTeamRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly seats: KpiSeatService,
+    private readonly assigned: KpiAssignmentTargets,
   ) {}
 
   async everyone(period: KpiPeriodKey): Promise<KpiForecastResponse> {
@@ -186,7 +190,10 @@ export class KpiForecastService {
       this.targets.ofPeriod(period),
       this.allocations.agreedLines(period, actorId),
     ])
-    const agreed = agreedIn(targetSources(rows, lines).slotsFor(actorId), role, key)
+    const sources = isTieredPeriod(period)
+      ? await this.assigned.sources(period, actorId)
+      : targetSources(rows, lines)
+    const agreed = agreedIn(sources.slotsFor(actorId), role, key)
     return agreed ? Number(agreed.value) : null
   }
 
@@ -215,7 +222,9 @@ export class KpiForecastService {
     ])
     const { elapsed, phase } = monthClock(period)
     const running = phase === 'running'
-    const sources = targetSources(rows, lines)
+    const sources = isTieredPeriod(period)
+      ? await this.assigned.sources(period, only)
+      : targetSources(rows, lines)
 
     const items = holders.flatMap((h) =>
       h.roleIds.flatMap((role) => {
