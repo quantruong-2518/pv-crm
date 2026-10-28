@@ -10,8 +10,10 @@ import {
   type AiProvider,
   type AiRequest,
 } from './ai-client'
+import { ModelBreaker } from './ai-breaker'
 import { AiOutputError, AiTransientError, AiUnavailableError, type AiAttempt } from './ai-errors'
 import { AiLedger } from './ai-ledger'
+import { ProviderLimiter } from './ai-limiter'
 import { AiRouteRepository } from './ai-route.repository'
 import type { AiRouteRowDb } from './ai-route.schema'
 import { nextStep, type AiFailureKind } from './ai-policy'
@@ -19,9 +21,10 @@ import { nextStep, type AiFailureKind } from './ai-policy'
 /** The one door every AI feature calls (gateway spec, ADR 0102's successor).
  *
  *  Per call it reads the task's route (no cache), runs the pre-flight, sends to
- *  the primary model or its fallback under `ai-policy.ts`, writes one ledger
- *  row per attempt in its own statement, and parses the answer by the caller's
- *  zod schema — the JSON schema sent to the vendor is derived from the same one.
+ *  the primary model or its fallback under `ai-policy.ts` (skipping a model
+ *  `ai-breaker.ts` has paused, within `ai-limiter.ts`'s per-vendor slots),
+ *  writes one ledger row per attempt with its latency, and parses the answer by
+ *  the caller's zod schema — the JSON schema sent is derived from the same one.
  *  Logs and errors carry model, vendor status and reason; never prompt, answer
  *  or file bytes. */
 
@@ -47,6 +50,8 @@ type Run<T> = {
 @Injectable()
 export class AiGateway {
   private readonly log = new Logger('AiGateway')
+  private readonly breaker = new ModelBreaker()
+  private readonly limiter = new ProviderLimiter()
 
   constructor(
     private readonly routes: AiRouteRepository,
@@ -67,7 +72,13 @@ export class AiGateway {
     schema: ZodType<T>,
     who: AiCaller,
   ): Promise<AiResult<T>> {
-    const { route, models } = await this.admit(task, who.actorId, this.db, !who.admitted)
+    const admitted = await this.admit(task, who.actorId, this.db, !who.admitted)
+    const { route } = admitted
+    const models = admitted.models.filter((m) => !this.breaker.paused(m))
+    /* Every model paused: fail now, not after a timeout; a queued caller retries later. */
+    if (models.length === 0) {
+      throw new AiTransientError(`ai ${task}: every model is paused after repeated failures`, [])
+    }
     /* `$schema` is dropped: neither vendor lists the dialect marker among its keywords. */
     const jsonSchema = { ...z.toJSONSchema(schema), $schema: undefined }
     const run: Run<T> = { task, route, request, schema, jsonSchema, who, attempts: [] }
@@ -119,19 +130,28 @@ export class AiGateway {
 
   /** One request to one model, after the input ceiling when the route sets one. */
   private async attempt<T>(run: Run<T>, model: string): Promise<Outcome<T>> {
-    const client = this.clients[providerOf(model)]
+    const provider = providerOf(model)
+    const client = this.clients[provider]
     const over = await overCeiling(run, client, model)
     if (over) return over
     let answer: AiAnswer
+    let started = 0
     try {
-      answer = await client.generate(model, run.request, run.jsonSchema, run.route)
+      answer = await this.limiter.run(provider, () => {
+        started = Date.now()
+        return client.generate(model, run.request, run.jsonSchema, run.route)
+      })
     } catch (error) {
       if (!(error instanceof AiVendorError)) throw error
-      await this.record(run, model, null, 'error')
+      if (error.kind === 'refused') this.breaker.answered(model)
+      else this.breaker.failed(model)
+      await this.record(run, model, null, 'error', Date.now() - started)
       return failed(error)
     }
+    this.breaker.answered(model)
+    const latencyMs = Date.now() - started
     const outcome = parseAnswer(answer, run.schema)
-    await this.record(run, model, answer, outcome.ok ? 'ok' : 'error')
+    await this.record(run, model, answer, outcome.ok ? 'ok' : 'error', latencyMs)
     return outcome
   }
 
@@ -141,6 +161,7 @@ export class AiGateway {
     model: string,
     answer: AiAnswer | null,
     outcome: AiAttempt['outcome'],
+    latencyMs: number,
   ): Promise<void> {
     const call: AiAttempt = {
       model,
@@ -148,14 +169,23 @@ export class AiGateway {
       tokensOut: answer?.tokensOut ?? 0,
       outcome,
     }
-    await this.ledger.record(this.db, {
+    run.attempts.push(call)
+    const row = {
       ...call,
       task: run.task,
       actorId: run.who.actorId,
       subjectCode: run.who.subjectCode,
-      attempt: run.attempts.length + 1,
+      attempt: run.attempts.length,
+      latencyMs,
+    }
+    /* The vendor has billed already: a failed insert must not fail the call, or
+     *  the caller's retry would pay a second time. The log keeps the counts. */
+    await this.ledger.record(this.db, row).catch((error: unknown) => {
+      const { task, tokensIn, tokensOut, attempt } = row
+      this.log.error(
+        `ai ${task}: ledger write failed for ${model} attempt ${attempt} (in ${tokensIn}, out ${tokensOut}, ${outcome}) — ${String(error)}`,
+      )
     })
-    run.attempts.push(call)
   }
 }
 

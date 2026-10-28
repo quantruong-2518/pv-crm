@@ -50,6 +50,9 @@ export const aiCall = platform.table(
     /** 1 = first try, 2+ = a retry or the fallback model; each attempt that
      *  reached a vendor is its own row, so a retry's tokens are not hidden. */
     attempt: smallint('attempt').notNull().default(1),
+    /** Wall time of the attempt's vendor request. NULL only on rows written
+     *  before 0152 — the gateway sets it on every live write. */
+    latencyMs: integer('latency_ms'),
   },
   (t) => [
     /** A constraint, not a partial index, so `ON CONFLICT (source_key)` can name it. */
@@ -65,6 +68,7 @@ export const aiCall = platform.table(
     check('ai_call_tokens_out_not_negative', sql`"tokens_out" >= 0`),
     /** The gateway's attempt cap (3), copied by hand. */
     check('ai_call_attempt_range', sql`"attempt" BETWEEN 1 AND 3`),
+    check('ai_call_latency_not_negative', sql`"latency_ms" IS NULL OR "latency_ms" >= 0`),
   ],
 )
 

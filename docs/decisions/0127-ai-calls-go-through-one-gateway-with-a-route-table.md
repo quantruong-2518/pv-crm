@@ -83,6 +83,27 @@ with the gateway as the only writer no feature can forget to record. The cost
 is that a rolled-back feature leaves its ledger rows behind, which is the
 truth: the vendor billed them.
 
+A failed ledger insert does not fail the call: the vendor has billed already,
+and failing would make the caller retry and pay twice. The error log keeps the
+model and token counts so the gap can be filled by hand.
+
+### 5b · Latency, pausing a failing model, and per-vendor slots
+
+Added with migration 0152, so tuning rests on numbers rather than guesses:
+
+- Every ledger row carries `latency_ms`, the wall time of that attempt's vendor
+  request. Rows from before 0152 are NULL.
+- A model that fails three times in a row with `transient` or `vendor` is
+  skipped for two minutes; any answer resets it, and one failure after the
+  pause skips it again. With every model of a route paused the call fails at
+  once as transient, so a queued job backs off instead of waiting out a timeout.
+- At most four requests in flight to one vendor per process, so tasks added
+  later cannot together hit the vendor's per-minute quota.
+
+All three live in process memory: the api and each worker learn on their own
+and a restart forgets. The numbers are starting values, to be tuned from
+`latency_ms`.
+
 ### 6 · Configuration
 
 `SCAN_GEMINI_MODEL` and `SCAN_DAILY_TOKEN_BUDGET` are removed; the route row
