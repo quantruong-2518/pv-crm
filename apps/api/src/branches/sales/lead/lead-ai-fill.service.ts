@@ -15,6 +15,7 @@ import { LeadAiFillRepository } from './lead-ai-fill.repository'
 import { byOf, TouchService } from '../touch/touch.service'
 import { aiFillBlock, emptyFillable, type AiFillBlock } from './lead-ai-fill.rule'
 import { LeadEnricher, type LeadSuggestions } from './lead-enrich'
+import { pickable, settleIndustries } from './lead-industry.sql'
 import { LEAD_NOTE, type LeadValues } from './lead-write.mapper'
 import type { LeadRowDb } from './lead.schema'
 import { LeadRepository } from './lead.repository'
@@ -53,9 +54,9 @@ export class LeadAiFillService {
     if (!before) throw notFound('lead', code)
     if (!before.holds) throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
     const row = before.row
-    const block = aiFillBlock(row)
+    const block = aiFillBlock(row, before.industries.length)
     if (block) throw conflict(BLOCKED[block])
-    const wanted = emptyFillable(row)
+    const wanted = emptyFillable(row, before.industries.length)
 
     const found = await this.suggest(row, wanted, who)
     const conflicts = await this.clash(found, row.accountCode)
@@ -76,8 +77,10 @@ export class LeadAiFillService {
     wanted: LeadAiFillField[],
     who: Actor,
   ): Promise<LeadSuggestions> {
+    const lists = await this.repo.industryLists()
     try {
-      return await this.enricher.suggest(row, wanted, { actorId: who.id, subjectCode: row.code })
+      const caller = { actorId: who.id, subjectCode: row.code }
+      return await this.enricher.suggest(row, wanted, caller, lists)
     } catch (error) {
       if (error instanceof AiUnavailableError) throw UNAVAILABLE[error.reason]()
       if (error instanceof AiTransientError) throw new BusyError()
@@ -115,18 +118,33 @@ export class LeadAiFillService {
     /* Rolls back the person write above too. */
     if (!locked.holds) throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
 
-    const still = new Set([...emptyFillable(locked.row), ...personWritten])
-    const fields = LeadAiFillField.options.filter((f) => found[f] && still.has(f))
+    const industries = await this.repo.industryCount(tx, code)
+    const still = new Set([...emptyFillable(locked.row, industries), ...personWritten])
+    const open = LeadAiFillField.options.filter((f) => found[f] && still.has(f))
+    /* Industries re-judged under the lock against the category the row will hold,
+       so a category or list changed meanwhile drops them instead of failing the fill. */
+    const categoryId = open.includes('category')
+      ? (found.category!.value as string)
+      : locked.row.categoryId
+    const named = open.includes('industries') ? (found.industries!.value as string[]) : []
+    const live = categoryId ? await pickable(tx, categoryId, named) : new Set<string>()
+    const picked = named.filter((id) => live.has(id))
+    if (found.industries) found.industries.value = picked
+    const fields = open.filter((f) => f !== 'industries' || picked.length > 0)
     if (fields.length === 0) return []
     const at = new Date().toISOString()
     const values: Record<string, unknown> = {}
     const marks: LeadAiFillMarks = {}
     for (const field of fields) {
       const { value, source, unsure } = found[field]!
-      if (!isPerson(field)) values[field] = value
+      if (field === 'category') values.categoryId = value
+      else if (!isPerson(field) && field !== 'industries') values[field] = value
       marks[field] = { source, unsure, at }
     }
     await this.repo.write(tx, code, values as Partial<LeadValues>, marks)
+    if (picked.length > 0) {
+      await settleIndustries(tx, { code, categoryId, want: picked, recategorised: false })
+    }
     const note = LEAD_NOTE.aiFilled(fields.length)
     await this.touch.record(tx, [
       { subjectCode: code, subjectKind: 'lead', kind: 'field-filled', ...byOf(who), note },

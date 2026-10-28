@@ -4,6 +4,7 @@ import {
   ActivityFreshnessPatch,
   RecareCyclesPatch,
   ConfigEntryCreate,
+  ConfigEntryMerge,
   ConfigEntryPatch,
   ConfigList,
   ConfigOrderPatch,
@@ -184,6 +185,15 @@ export class SalesConfigController {
     return this.config.proposeMotion(who, motion, body)
   }
 
+  /** Industries only: the one list where two rows can mean one thing (old
+   *  free-text spellings, 0154). Two static segments, so `:list` never meets it. */
+  @Post('INDUSTRY/merge')
+  @HttpCode(202)
+  @Need({ branch: 'Sales', permission: 'config.propose' })
+  merge(@CurrentActor() who: Actor, @Body(zod(ConfigEntryMerge)) body: ConfigEntryMerge) {
+    return this.config.merge(who, body)
+  }
+
   @Post(':list')
   @HttpCode(202)
   @Need({ branch: 'Sales', permission: 'config.propose' })
@@ -243,6 +253,20 @@ export class LeadLabelController {
   @Need({ branch: 'Sales', permission: 'lead.view' })
   list() {
     return this.config.leadLabels()
+  }
+}
+
+/** `GET /sales/lead-industries` — categories and industries, on `lead.view` for
+ *  `LeadLabelController`'s reason: whoever types or filters leads picks from
+ *  them without `config.view`. */
+@Controller('sales/lead-industries')
+export class LeadIndustryController {
+  constructor(private readonly config: SalesConfigService) {}
+
+  @Get()
+  @Need({ branch: 'Sales', permission: 'lead.view' })
+  list() {
+    return this.config.leadIndustries()
   }
 }
 

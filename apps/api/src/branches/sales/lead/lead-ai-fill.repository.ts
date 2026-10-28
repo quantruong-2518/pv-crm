@@ -1,11 +1,13 @@
-import { and, asc, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, count, eq, isNotNull, ne, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import type { LeadAiFillMarks } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { account } from '../account/account.schema'
+import { configEntry } from '../config/config.schema'
+import type { IndustryLists } from './lead-enrich'
 import { leadHolderScope, leadLive } from './lead-scope'
-import { lead, type LeadRowDb } from './lead.schema'
+import { lead, leadIndustry, type LeadRowDb } from './lead.schema'
 import type { LeadValues } from './lead-write.mapper'
 
 /** The AI fill's SQL (`POST /sales/leads/:code/ai-fill`). Decides nothing:
@@ -36,6 +38,44 @@ export class LeadAiFillRepository {
       .limit(1)
       .for('update')
     return found ?? null
+  }
+
+  /** How many industries the lead holds — `emptyFillable`'s count, under the lock. */
+  async industryCount(tx: Db, code: string): Promise<number> {
+    const [row] = await tx
+      .select({ n: count() })
+      .from(leadIndustry)
+      .where(eq(leadIndustry.leadCode, code))
+    return row?.n ?? 0
+  }
+
+  /** The live categories and grouped industries, in config order. An
+   *  uncategorised industry is never a new pick, so it is not offered. */
+  async industryLists(): Promise<IndustryLists> {
+    const rows = await this.db
+      .select({
+        id: configEntry.id,
+        name: configEntry.name,
+        list: configEntry.list,
+        parentId: configEntry.parentId,
+      })
+      .from(configEntry)
+      .where(
+        and(
+          eq(configEntry.active, true),
+          or(
+            eq(configEntry.list, 'CATEGORY'),
+            and(eq(configEntry.list, 'INDUSTRY'), isNotNull(configEntry.parentId)),
+          ),
+        ),
+      )
+      .orderBy(asc(configEntry.ord))
+    return {
+      categories: rows.filter((r) => r.list === 'CATEGORY').map(({ id, name }) => ({ id, name })),
+      industries: rows.flatMap(({ id, name, parentId }) =>
+        parentId ? [{ id, name, categoryId: parentId }] : [],
+      ),
+    }
   }
 
   /** The values, and their provenance merged into `ai_fill` key by key. */

@@ -11,7 +11,7 @@ import { leadContactsQuery } from '@/data/contacts'
 import { useLeadDealReach } from '@/data/deal-sale'
 import { useLeadDraft } from '@/data/lead-draft'
 import { useResumeLead } from '@/data/lead-exit'
-import { leadOf, leadProfileQuery } from '@/data/lead-profile'
+import { leadProfileQuery } from '@/data/lead-profile'
 import { isOpenState } from '@/data/lead-state'
 import { opportunitiesOfLeadQuery, railOf } from '@/data/opportunities'
 import { assignDoorOf } from '@/components/assign-door'
@@ -215,7 +215,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
       {/* Opened from the bar's more menu, whose trigger the drawer hands focus
           back to on close. */}
       <AssignMenu
-        lead={leadOf(lead)}
+        lead={lead}
         profile={lead}
         readOnly={dealReach}
         trigger={false}

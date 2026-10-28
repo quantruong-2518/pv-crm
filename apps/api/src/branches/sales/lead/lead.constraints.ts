@@ -128,4 +128,12 @@ export const LEAD_CONSTRAINTS: ConstraintBook = {
     fields: ['campaignId'],
     message: 'Không tìm thấy chiến dịch.',
   },
+
+  /** `lead_campaign_fk`'s composite trick on the CATEGORY list (0154); the
+   *  write doors ask `liveCategoryName` first. */
+  lead_category_fk: {
+    kind: 'invalid',
+    fields: ['categoryId'],
+    message: 'Không tìm thấy nhóm ngành này. Chọn lại.',
+  },
 }

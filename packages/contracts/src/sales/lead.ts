@@ -14,12 +14,11 @@ import {
 } from '../primitives'
 import { PageQuery, SortDir, paged } from '../pagination'
 import { ObjectChainLink, PipelinePositionView } from '../position'
-import { ConfigCode } from './config'
+import { ConfigCode, ConfigRef } from './config'
 
 import {
   ContactChannel,
   CurrencyCode,
-  LeadCategory,
   LeadMotion,
   LeadSourceKind,
   LeadState,
@@ -32,7 +31,6 @@ import {
   counted,
   channelUrlOptional,
   deadlineDay,
-  industryTags,
   taxCodeClearable,
   taxCodeOptional,
   websiteClearable,
@@ -84,6 +82,18 @@ export const REQUIRED_SLOTS = 6
  *  no catalogue read. */
 export const LeadLabel = z.object({ id: ConfigCode, name: z.string().min(1) })
 
+/** One `INDUSTRY` on a lead. `categoryId: null` is a legacy tag nobody has
+ *  grouped yet: it stays and shows, but is never offered as a new pick. */
+export const LeadIndustry = ConfigRef.extend({ categoryId: ConfigCode.nullable() })
+
+/** The WHOLE industry set of a lead, as `INDUSTRY` ids. Duplicates collapse
+ *  before the count, as the old tags did. That every new id sits in the lead's
+ *  category is a relation to the stored row, so the service judges it. */
+const industryIds = z
+  .array(ConfigCode)
+  .transform((ids) => [...new Set(ids)])
+  .pipe(z.array(z.string()).max(LEAD_NUM.industriesMax, `Tối đa ${LEAD_NUM.industriesMax} ngành.`))
+
 export const LeadRow = z.object({
   code: ObjectCode,
   /** The customer-journey run this lead started. Null only for leads written
@@ -108,7 +118,10 @@ export const LeadRow = z.object({
   contactTitle: z.string().min(1).optional(),
 
   province: z.string().min(1).optional(),
-  category: LeadCategory.optional(),
+  /** The `CATEGORY` entry; `null` = not chosen yet. */
+  category: ConfigRef.nullable(),
+  /** On the row, not only the profile: the book has an industry column. `[]` when none. */
+  industries: z.array(LeadIndustry),
   /** Optional and independent of state; absent until a PIC grades the lead. */
   tier: LeadTier.optional(),
   phone: z.string().min(1).optional(),
@@ -280,7 +293,10 @@ export const OWNER_NONE = 'unassigned'
  *  though only the enum filters were before. */
 export const LeadBookQuery = PageQuery.extend({
   tier: LeadTier.optional(),
-  category: LeadCategory.optional(),
+  /** `CATEGORY` id, exact match on the lead's own category. */
+  categoryId: ConfigCode.optional(),
+  /** `INDUSTRY` id: leads carrying it — the industry report's row click. */
+  industryId: ConfigCode.optional(),
 
   state: LeadStateFilter.default('active'),
   /** `true` = ONLY the leads switched off (`disabledAt`), for the people who
@@ -533,8 +549,6 @@ export const LeadProfile = LeadRow.extend({
   /** Bare host, see `normaliseWebsite`. */
   website: z.string().min(1).optional(),
   mainProduct: z.string().min(1).optional(),
-  /** Notes only, never routing. Always present; `[]` when none. */
-  industries: z.array(z.string()),
   /** Fields whose current value is the AI's, with where it came from.
    *  Defaulted so a web that ships before the API still parses its profile. */
   aiFill: LeadAiFillMarks.default({}),
@@ -718,9 +732,9 @@ export const LeadCreate = z
     website: websiteOptional,
     address: textInputOptional(LEAD_MAX.address),
     province: textInputOptional(LEAD_MAX.province),
-    category: LeadCategory.optional(),
+    categoryId: ConfigCode.optional(),
     mainProduct: textInputOptional(LEAD_MAX.mainProduct),
-    industries: industryTags.default([]),
+    industryIds: industryIds.default([]),
     headcount: counted('Số người', LEAD_NUM.headcountMax).optional(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).optional(),
 
@@ -890,11 +904,12 @@ export const LeadPatch = z
     website: websiteClearable,
     address: clearableText(LEAD_MAX.address),
     province: clearableText(LEAD_MAX.province),
-    category: LeadCategory.nullish(),
+    /** A new category keeps only the industries of that category. */
+    categoryId: ConfigCode.nullish(),
     /** Tier is decoupled from state: patchable in any state. Not clearable once set. */
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
-    industries: industryTags.optional(),
+    industryIds: industryIds.optional(),
     headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).nullish(),
 
@@ -1020,10 +1035,16 @@ export const LeadStopReasonResponse = z.object({ rows: z.array(LeadStopReasonOpt
 export type LeadStopReasonOption = z.infer<typeof LeadStopReasonOption>
 export type LeadStopReasonResponse = z.infer<typeof LeadStopReasonResponse>
 
-/** Industry tags already typed on other leads, most used first — what the tag
- *  box suggests while a rep types, so one industry keeps one spelling. */
-export const LeadIndustryTagsResponse = z.object({ tags: z.array(z.string()) })
-export type LeadIndustryTagsResponse = z.infer<typeof LeadIndustryTagsResponse>
+/** `GET /sales/lead-industries` — the `CATEGORY` and `INDUSTRY` lists for people
+ *  who type leads but hold no `config.view`, same rule as `LeadStopReasonResponse`.
+ *  `ownerId` is the category's Sale, which assignment ranks by. */
+export const LeadIndustryOptionsResponse = z.object({
+  categories: z.array(
+    ConfigRef.extend({ ownerId: z.string().min(1).nullable(), active: z.boolean() }),
+  ),
+  industries: z.array(LeadIndustry.extend({ active: z.boolean() })),
+})
+export type LeadIndustryOptionsResponse = z.infer<typeof LeadIndustryOptionsResponse>
 
 // ---------------------------------------------------------------------------
 // MOVING THROUGH THE LIFECYCLE — the PIC's own call (ADR 0058, ADR 0109)
@@ -1120,6 +1141,7 @@ export type LeadNurtureResponse = z.infer<typeof LeadNurtureResponse>
 export type LeadResumeResponse = z.infer<typeof LeadResumeResponse>
 export type LeadHoldResponse = z.infer<typeof LeadHoldResponse>
 export type LeadLabel = z.infer<typeof LeadLabel>
+export type LeadIndustry = z.infer<typeof LeadIndustry>
 export type LeadLabelsBody = z.infer<typeof LeadLabelsBody>
 export type LeadLabelsResponse = z.infer<typeof LeadLabelsResponse>
 export type LeadLabelOption = z.infer<typeof LeadLabelOption>

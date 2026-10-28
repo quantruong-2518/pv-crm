@@ -1324,7 +1324,7 @@
       "count": 9
     },
     "aurora/comments-in-english": {
-      "count": 78
+      "count": 77
     },
     "max-lines": {
       "count": 1
@@ -1374,10 +1374,10 @@
   },
   "apps/web/src/data/lead-profile.ts": {
     "aurora/comment-budget": {
-      "count": 6
+      "count": 4
     },
     "aurora/comments-in-english": {
-      "count": 3
+      "count": 1
     }
   },
   "apps/web/src/data/leads.ts": {

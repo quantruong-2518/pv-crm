@@ -21,12 +21,10 @@ import {
   type LeadMotion,
 } from '@pv/engines'
 import {
-  LEAD_CATEGORIES,
   LEAD_TIERS,
   REQUIRED_SLOTS,
   SOURCES,
   type Lead,
-  type LeadCategory,
   type LeadTier,
   type Opportunity,
   type OriginKind,
@@ -317,7 +315,6 @@ export type ImportSpec = {
   sampleStem: string
 }
 
-const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const SOURCE_OPTIONS = SOURCES.map((s) => ({ value: s.code, label: s.label }))
 const CHANNEL_OPTIONS = Object.entries(CHANNEL_LABEL).map(([value, label]) => ({ value, label }))
@@ -330,6 +327,17 @@ const CHANNEL_OPTIONS = Object.entries(CHANNEL_LABEL).map(([value, label]) => ({
  *  Chưa có người thì `options` vắng, và ô nhập thành ô chữ tự do đúng như mọi
  *  ô không có danh sách đóng — KHÔNG phải danh sách rỗng, thứ sẽ từ chối sạch
  *  mọi dòng của một tệp 5.000 dòng chỉ vì sổ người về chậm hơn tệp. */
+/** The categories are config: once loaded, a cell outside them is dropped
+ *  here, as any closed list's is. The server matches the name again. */
+export function withCategories(spec: ImportSpec, names: readonly string[]): ImportSpec {
+  if (names.length === 0) return spec
+  const options = names.map((name) => ({ value: name, label: name }))
+  return {
+    ...spec,
+    fields: spec.fields.map((f) => (f.key === 'category' ? { ...f, options } : f)),
+  }
+}
+
 export function withPeople(spec: ImportSpec, people: readonly Actor[]): ImportSpec {
   if (people.length === 0) return spec
   const byName = peopleNameOptions(people)
@@ -424,14 +432,11 @@ export const LEAD_SPEC: ImportSpec = {
     },
     {
       key: 'category',
-      label: 'Ngành',
-      /* KHÔNG bắt buộc, và danh sách đóng là chính lý do: bốn ngành của
-         `LEAD_CATEGORIES` là cách PV One chia thị trường, không phải cách
-         Apollo hay ZoomInfo chia. Bắt buộc + danh sách đóng nghĩa là mọi tệp
-         mua về chết ở dòng đầu tiên. Nay ô lệch danh sách bị bỏ, ngành để
-         trống, và ô số 2 của cổng init data đơn giản là chưa điền. */
+      label: 'Nhóm ngành',
+      /* Not required, and the closed list is why: the config categories are how
+         PV One splits the market, not how Apollo does. A cell off the list is
+         dropped (`withCategories`), leaving slot 2 of the init gate unfilled. */
       aliases: ['nganh', 'linh vuc', 'nhom nganh', 'category', 'industry'],
-      options: CATEGORY_OPTIONS,
       sample: 'Chip',
     },
     {
@@ -1300,7 +1305,7 @@ export function rowsToLeads(
       code,
       company: v.company ?? '',
       province: v.province ?? '',
-      category: (v.category ?? 'chip') as LeadCategory,
+      category: (v.category ?? 'chip') as Lead['category'],
       tier: tierOfRow(v.tier, requiredFilled),
       requiredFilled,
       optionalFilled: 0,

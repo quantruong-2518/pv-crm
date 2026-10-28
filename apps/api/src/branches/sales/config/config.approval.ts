@@ -72,12 +72,28 @@ import { frameConsequenceOf, isFrameChange, type FrameChange } from './step-fram
  *  trong `draft` vì máy chủ sinh chúng lúc ÁP DỤNG — hai đề nghị cùng chờ mà đã
  *  giữ sẵn `ord` thì cái được gật sau mang một số đã cũ. */
 export type ConfigChange =
-  | { kind: 'create'; list: ConfigList; draft: ConfigDraft }
+  /** `parentName`: words only, the industry's category as the proposer saw it. */
+  | { kind: 'create'; list: ConfigList; draft: ConfigDraft; parentName?: string }
   /** `was` and `names` are WORDS ONLY, like `FrameChange`'s: the entry's name
    *  (the new order's names, for a reorder) as the proposer saw it, so the
    *  sentence can say it instead of a code. The apply step never reads them. */
-  | { kind: 'update'; list: ConfigList; id: string; patch: ConfigPatchDb; was?: string }
+  | {
+      kind: 'update'
+      list: ConfigList
+      id: string
+      patch: ConfigPatchDb
+      was?: string
+      parentName?: string
+    }
   | { kind: 'reorder'; list: ConfigList; ids: string[]; names?: string[] }
+  /** Fold `sourceId` into `targetId` (0154); `names` = [source, target], words only. */
+  | {
+      kind: 'merge'
+      list: 'INDUSTRY'
+      sourceId: string
+      targetId: string
+      names?: [string, string]
+    }
   /** A motion's own declaration — no `list`, because the six motions are not a
    *  vocabulary list: they cannot be added to, removed or reordered, and each
    *  carries four unrelated fields. Same approval path, different table. */
@@ -130,12 +146,23 @@ function consequenceOf(change: ConfigChange): string {
   if (isFrameChange(change)) return frameConsequenceOf(change)
   if (isKpiConfigChange(change)) return kpiConsequenceOf(change)
   const list =
-    change.kind === 'create' || change.kind === 'update' || change.kind === 'reorder'
+    change.kind === 'create' ||
+    change.kind === 'update' ||
+    change.kind === 'reorder' ||
+    change.kind === 'merge'
       ? CONFIG_LIST_LABEL[change.list]
       : ''
-  if (change.kind === 'create') return `Thêm "${change.draft.name}" vào ${list}`
+  if (change.kind === 'create') {
+    const under = change.parentName ? `, nhóm "${change.parentName}"` : ''
+    return `Thêm "${change.draft.name}" vào ${list}${under}`
+  }
   if (change.kind === 'update') {
-    return `Sửa "${change.was ?? change.id}" trong ${list}: ${patchWords(change.patch).join(' · ')}`
+    const said = patchWords(change.patch, change.parentName).join(' · ')
+    return `Sửa "${change.was ?? change.id}" trong ${list}: ${said}`
+  }
+  if (change.kind === 'merge') {
+    const [from, into] = change.names ?? [change.sourceId, change.targetId]
+    return `Gộp "${from}" vào "${into}" trong ${list}: lead đang gắn "${from}" chuyển sang "${into}", "${from}" tắt`
   }
   if (change.kind === 'reorder') {
     const order = change.names?.map((n) => `"${n}"`).join(' → ') ?? `${change.ids.length} dòng`
@@ -153,8 +180,14 @@ function consequenceOf(change: ConfigChange): string {
 }
 
 /** What an update changes, so the approver sees the new value, not just the row id. */
-function patchWords(patch: ConfigPatchDb): string[] {
+function patchWords(patch: ConfigPatchDb, parentName: string | undefined): string[] {
   const said: string[] = []
+  if (patch.parentId !== undefined)
+    said.push(
+      patch.parentId === null
+        ? 'bỏ khỏi nhóm ngành'
+        : `chuyển sang nhóm "${parentName ?? patch.parentId}"`,
+    )
   if (patch.name !== undefined) said.push(`tên mới "${patch.name}"`)
   if (patch.active !== undefined) said.push(patch.active ? 'bật lại' : 'tắt')
   if (patch.limitDays !== undefined) said.push(`hạn ${patch.limitDays} ngày`)

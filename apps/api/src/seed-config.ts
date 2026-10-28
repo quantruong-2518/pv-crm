@@ -1,11 +1,4 @@
-import {
-  CONFIG_PREFIX,
-  ContactChannel,
-  LeadCategory,
-  LeadTier,
-  StageKey,
-  type ConfigList,
-} from '@pv/contracts'
+import { CONFIG_PREFIX, ContactChannel, LeadTier, StageKey, type ConfigList } from '@pv/contracts'
 import { STAFF } from './staff'
 import { PRODUCTS, SOURCES } from './seed-book'
 
@@ -28,12 +21,27 @@ const STAGE_CONFIG: Record<StageKey, [string, number]> = {
   quotation: ['Báo giá', 30],
 }
 const TIER_NAME: Record<LeadTier, string> = { prospect: 'Đầu mối', mql: 'MQL', sql: 'SQL' }
-const CATEGORY_CONFIG: Record<LeadCategory, [string, string]> = {
-  chip: ['Chip', 'u-sale'],
-  mechanical: ['Cơ khí', 'u-am'],
-  automotive: ['Ô tô', 'u-am'],
-  pharma: ['Dược', 'u-grace'],
-}
+/* In id order: `seed-companies.ts` names them CT-01..04 and IN-01..10. */
+const CATEGORY_CONFIG: [string, string][] = [
+  ['Chip', 'u-sale'],
+  ['Cơ khí', 'u-am'],
+  ['Ô tô', 'u-am'],
+  ['Dược', 'u-grace'],
+]
+/* Name, then the category's index in `CATEGORY_CONFIG`; `null` = not grouped,
+   the bucket 0154's backfill fills with old free-text tags. */
+const INDUSTRY_CONFIG: [string, number | null][] = [
+  ['Bán dẫn', 0],
+  ['Đóng gói, kiểm thử', 0],
+  ['Linh kiện điện tử', 0],
+  ['Thiết kế vi mạch', 0],
+  ['Gia công kim loại', 1],
+  ['Khuôn mẫu', 1],
+  ['Phụ tùng ô tô', 2],
+  ['Dược phẩm', 3],
+  ['Thiết bị y tế', 3],
+  ['Điện tử', null],
+]
 /** Seed-local keys for the stop reasons the catalogue starts with (ADR 0070);
  *  the closed contract enum is gone, and what a lead stores is the `EX-` id.
  *  The last three are the machine's (migrations 0111 and 0129), in id order:
@@ -132,6 +140,7 @@ type ConfigSeed = {
   kind?: string
   stage?: StageKey
   criterionId?: string
+  parentId?: string
 }
 
 function configRows(list: ConfigList, items: ConfigSeed[]) {
@@ -145,9 +154,14 @@ function configRows(list: ConfigList, items: ConfigSeed[]) {
     kind: it.kind ?? null,
     stage: it.stage ?? null,
     criterionId: it.criterionId ?? null,
+    parentId: it.parentId ?? null,
   }))
 }
 
+const categoryRows = configRows(
+  'CATEGORY',
+  CATEGORY_CONFIG.map(([name, owner]) => ({ name, ownerId: person(owner).id })),
+)
 const sourceRows = configRows(
   'SOURCE',
   SOURCES.map((s) => ({ name: s.name, kind: s.kind })),
@@ -220,11 +234,12 @@ export const configSeed = [
     'TIER',
     LeadTier.options.map((k) => ({ name: TIER_NAME[k] })),
   ),
+  ...categoryRows,
   ...configRows(
-    'CATEGORY',
-    LeadCategory.options.map((k) => ({
-      name: CATEGORY_CONFIG[k][0],
-      ownerId: person(CATEGORY_CONFIG[k][1]).id,
+    'INDUSTRY',
+    INDUSTRY_CONFIG.map(([name, at]) => ({
+      name,
+      ...(at === null ? {} : { parentId: categoryRows[at]!.id }),
     })),
   ),
   ...exitRows,

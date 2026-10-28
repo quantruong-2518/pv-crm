@@ -3,6 +3,7 @@ import { companyDomain, foldCompanyName, foldText } from '@pv/engines'
 import {
   AI_FILL_TOKENS,
   AiFillSource,
+  LEAD_NUM,
   LeadEnrichModelOutput,
   LeadPatch,
   type LeadAiFillField,
@@ -10,6 +11,7 @@ import {
 } from '@pv/contracts'
 import { AiOutputError } from '@api/platform/ai/ai-errors'
 import { AiGateway, type AiCaller } from '@api/platform/ai/ai-gateway'
+import { patchFieldOf } from './lead-ai-fill.rule'
 import { TAX_REGISTRY, type TaxRecord, type TaxRegistry } from './lead-enrich.tax-registry'
 
 /** The enricher: a plain lead draft in, per-field suggestions out. It reads and
@@ -34,6 +36,14 @@ export type LeadDraft = {
   taxCode?: string | null
   province?: string | null
   website?: string | null
+  categoryId?: string | null
+}
+
+/** The live CATEGORY and INDUSTRY rows: the closed vocabulary the model picks
+ *  from. Passed in, so the enricher still reads no table. */
+export type IndustryLists = {
+  categories: { id: string; name: string }[]
+  industries: { id: string; name: string; categoryId: string }[]
 }
 
 export type LeadSuggestion = {
@@ -54,8 +64,8 @@ Return JSON that matches the schema. Each field is { value, sourceUrl, confident
 - Never invent or guess. Copy names and addresses exactly as written, keeping every Vietnamese diacritic.
 - legalName: the registered name. taxCode: the Vietnamese tax code (MST): 10 digits, or 10 digits, a dash and 3 digits. taxCodeCandidates: any other tax codes you met for this company.
 - website: the company's own site. province: the province or city of the head office.
-- category: exactly one of chip (semiconductors, electronics), mechanical (machinery, metalwork), automotive (vehicles and parts), pharma (pharmaceuticals); null when none fits.
-- mainProduct: what the company mainly makes or sells, a short phrase. industries: short industry tags. headcount: number of employees, an integer.
+- category: exactly one name from the Categories list below, spelled as listed; null when none fits.
+- mainProduct: what the company mainly makes or sells, a short phrase. industries: up to ${LEAD_NUM.industriesMax} names from the Industries list of the lead's category below, spelled as listed. headcount: number of employees, an integer.
 - phone: the phone of the contact person named below, only when the company publishes it for that person (their page or a staff list on the company's site). Never the switchboard or a general company line. contactTitle: that person's job title, under the same rule.
 - confident: false when the page may be about another company or the value is unclear.`
 
@@ -74,11 +84,12 @@ export class LeadEnricher {
     draft: LeadDraft,
     wanted: readonly LeadAiFillField[],
     who: AiCaller,
+    lists: IndustryLists,
   ): Promise<LeadSuggestions> {
     const want = new Set(wanted)
     const domain = mailDomain(draft.email)
     const [answer, known] = await Promise.all([
-      this.ask(draft, domain, wanted, who),
+      this.ask(draft, domain, wanted, who, lists),
       draft.taxCode ? this.verify(draft, [draft.taxCode]) : null,
     ])
 
@@ -86,7 +97,14 @@ export class LeadEnricher {
     const put = (field: LeadAiFillField, found: LeadSuggestion | null) => {
       if (found && want.has(field)) out[field] = found
     }
-    for (const field of wanted) put(field, answer ? fromModel(field, answer[field]) : null)
+    const named = answer ? { ...answer, category: categoryIdOf(answer.category, lists) } : null
+    for (const field of wanted) {
+      if (field !== 'industries') put(field, named ? fromModel(field, named[field]) : null)
+    }
+    /* After the category is final: industries need one to sit in, the lead's or a kept suggestion. */
+    const under = draft.categoryId ?? (out.category?.value as string | undefined)
+    if (named && under)
+      put('industries', fromModel('industries', industryIdsOf(named.industries, lists, under)))
     const site = domain ? suggestion('website', domain, 'email-domain', true) : null
     if (site) {
       site.unsure = out.website?.value !== site.value
@@ -110,6 +128,7 @@ export class LeadEnricher {
     domain: string | null,
     wanted: readonly LeadAiFillField[],
     who: AiCaller,
+    lists: IndustryLists,
   ): Promise<LeadEnrichModelOutput | null> {
     const known = [
       `Company: ${draft.company}`,
@@ -119,6 +138,7 @@ export class LeadEnricher {
       domain && `Email domain: ${domain}`,
       draft.website && `Website: ${draft.website}`,
       draft.province && `Province: ${draft.province}`,
+      ...vocabularyLines(draft.categoryId ?? null, wanted, lists),
       `Fields needed: ${wanted.join(', ')}. Return null for every other field.`,
     ]
     const text = known.filter(Boolean).join('\n')
@@ -167,6 +187,51 @@ const fold = (name: string | null | undefined): string => (name && foldCompanyNa
 const provinceKey = (province: string): string =>
   foldText(province).replace(/^(thanh pho|tp|tinh)\s+/, '')
 
+/** The closed lists in the prompt: every live category when the lead has none
+ *  (with each one's industries), else its own category's industries. */
+function vocabularyLines(
+  categoryId: string | null,
+  wanted: readonly LeadAiFillField[],
+  lists: IndustryLists,
+): string[] {
+  const names = (id: string) =>
+    lists.industries.filter((i) => i.categoryId === id).map((i) => i.name)
+  const own = lists.categories.find((c) => c.id === categoryId)
+  const lines = own ? [`Category: ${own.name}`] : []
+  if (!own && wanted.includes('category'))
+    lines.push(`Categories: ${lists.categories.map((c) => c.name).join('; ')}`)
+  if (wanted.includes('industries')) {
+    for (const c of own ? [own] : lists.categories)
+      lines.push(`Industries of ${c.name}: ${names(c.id).join('; ') || '(none)'}`)
+  }
+  return lines
+}
+
+type Found<T> = { value: T; sourceUrl: string | null; confident: boolean } | null
+const key = (name: string) => name.trim().toLowerCase()
+
+/** The model's category NAME -> its live id; a name on no list is dropped. */
+function categoryIdOf(found: Found<string>, lists: IndustryLists): Found<string> {
+  const hit = found && lists.categories.find((c) => key(c.name) === key(found.value))
+  return hit && found ? { ...found, value: hit.id } : null
+}
+
+/** The model's industry NAMES -> ids under `categoryId`; others dropped, four kept. */
+function industryIdsOf(
+  found: Found<string[]>,
+  lists: IndustryLists,
+  categoryId: string,
+): Found<string[]> {
+  const ids = (found?.value ?? []).flatMap((name) => {
+    const hit = lists.industries.find(
+      (i) => i.categoryId === categoryId && key(i.name) === key(name),
+    )
+    return hit ? [hit.id] : []
+  })
+  const kept = [...new Set(ids)].slice(0, LEAD_NUM.industriesMax)
+  return found && kept.length ? { ...found, value: kept } : null
+}
+
 /** A value the patch door would accept for `field`, else null. */
 function suggestion(
   field: LeadAiFillField,
@@ -174,7 +239,7 @@ function suggestion(
   source: AiFillSource,
   unsure: boolean,
 ): LeadSuggestion | null {
-  const parsed = LeadPatch.shape[field].safeParse(raw)
+  const parsed = LeadPatch.shape[patchFieldOf(field)].safeParse(raw)
   const data: unknown = parsed.success ? parsed.data : null
   const empty = data === null || data === undefined || (Array.isArray(data) && data.length === 0)
   return empty ? null : { value: data as LeadAiFillValue, source, unsure }

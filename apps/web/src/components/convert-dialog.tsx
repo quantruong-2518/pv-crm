@@ -62,6 +62,12 @@ export function ConvertDialog(props: Props) {
   return <OpenDrawer key={session} {...props} />
 }
 
+/** A config category id names no fixture category, so the fixture's Sale
+ *  fallback inside `draftOpportunity` sits out; the owners come from the lead. */
+type FixtureCategory = Parameters<typeof draftOpportunity>[0]['category']
+const seedOf = (profile: LeadProfile, staff: Parameters<typeof draftOpportunity>[1]) =>
+  draftOpportunity({ ...profileForm(profile), category: '' as FixtureCategory }, staff)
+
 function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   const staff = useDirectory()
   const me = useSession((s) => s.actor)
@@ -71,10 +77,7 @@ function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
      tags compare the draft against. The close date starts empty: only the
      seller can say it, and a guessed one gets submitted unread. */
   const seed = useMemo(
-    () => ({
-      ...withCreatorOwners(draftOpportunity(profileForm(profile), staff), me, profile),
-      closedDate: '',
-    }),
+    () => ({ ...withCreatorOwners(seedOf(profile, staff), me, profile), closedDate: '' }),
     [staff, me, profile],
   )
   const [draft, setDraft] = useState<OpportunityDraft>(seed)

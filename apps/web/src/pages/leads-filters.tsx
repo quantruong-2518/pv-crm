@@ -8,7 +8,9 @@ import {
   type LeadFacets,
   type LeadRow,
 } from '@pv/contracts'
+import { useQuery } from '@tanstack/react-query'
 import { useDirectory, useSalesPeople } from '@/data/directory'
+import { configName, leadIndustryOptionsQuery } from '@/data/industries'
 import { NO_CREATOR_TITLE, NO_OWNER_TITLE } from '@/data/leads'
 import { useMotionLabel } from '@/data/sales-motions'
 import { LEAD_HEADER } from './leads-model'
@@ -20,6 +22,7 @@ import {
 } from '@/components/active-filters'
 import { labelOptions, peopleOptions } from '@/components/book-columns'
 import { DayRangeFilter, ListFilter } from '@/components/book-filters'
+import { IndustryFilter } from '@/components/industry-filter'
 
 /** The lead book's header filters and chips, kept off `leads.tsx` so the page
  *  function does not grow. Every key a header or a shared link can set is
@@ -83,6 +86,12 @@ export function useLeadFilters(
         onChange={(owner) => patch({ owner })}
       />
     ),
+    industry: (
+      <IndustryFilter
+        value={{ categoryId: query.categoryId, industryId: query.industryId }}
+        onChange={patch}
+      />
+    ),
   }
 }
 
@@ -108,6 +117,8 @@ export function useLeadFilterChips(
   const originName = (id: string) =>
     counts?.origins.find((o) => o.id === id)?.name ?? 'Nguồn đã chọn'
   const labelName = (id: string) => counts?.labels.find((l) => l.id === id)?.name ?? 'Nhãn đã chọn'
+  const { data: industries } = useQuery(leadIndustryOptionsQuery)
+  const industryName = (id: string) => configName(industries, id)
   const drop = (key: keyof LeadBookQuery) => () => patch({ [key]: undefined })
 
   return [
@@ -130,6 +141,8 @@ export function useLeadFilterChips(
       personNameOf(staff, NO_CREATOR_TITLE),
       drop('createdBy'),
     ),
+    ...listChip('categoryId', 'Nhóm ngành', query.categoryId, industryName, drop('categoryId')),
+    ...listChip('industryId', 'Ngành', query.industryId, industryName, drop('industryId')),
     ...listChip('label', 'Nhãn', query.label, labelName, drop('label')),
     ...listChip('motion', 'Cách tiếp cận', query.motion, motionName, drop('motion')),
     ...listChip(

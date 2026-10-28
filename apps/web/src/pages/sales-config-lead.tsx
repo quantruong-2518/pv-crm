@@ -5,6 +5,7 @@ import { AddStopReason } from './sales-config-add-rows'
 import { AddEntry, CommCriteriaConfig, EntryRow, FlatListConfig } from './sales-config-comm'
 import { byOrd, motionPickerWaiting } from './sales-config-model'
 import { MotionSection } from './sales-config-parts'
+import { IndustriesSection } from './sales-config-industries'
 import { RecareCyclesConfig } from './sales-config-recare'
 import { EntryCount, Section, WaitingCount, type AreaProps } from './sales-config-section'
 
@@ -21,12 +22,15 @@ export function IntakeArea() {
 }
 
 /** Assignment — what each motion declares about who takes the lead and how
- *  fast. */
-export function AssignArea() {
+ *  fast, and the categories whose Sale a new lead is offered to. */
+export function AssignArea({ catalog }: Pick<AreaProps, 'catalog'>) {
   return (
-    <Section at="motion-policy">
-      <MotionSection />
-    </Section>
+    <>
+      <Section at="motion-policy">
+        <MotionSection />
+      </Section>
+      <IndustriesSection catalog={catalog} />
+    </>
   )
 }
 

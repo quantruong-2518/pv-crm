@@ -1,6 +1,7 @@
 import type { ObjectRef } from '@pv/engines'
 import type {
   Hold,
+  LeadIndustry,
   LeadLabel,
   LeadMailEventRow,
   LeadMailTimelineRow,
@@ -106,8 +107,12 @@ export type LeadRead = {
   signed: boolean
   /** From the book's correlated subquery; absent on write-door re-reads. */
   duplicateOf?: (string | null)[] | null
+  /** Name of `category_id`'s row, from the config left join (`campaignName`'s way). */
+  categoryName: string | null
   /** Waiting labels, read beside the row (`labelsOf`) like a deal's products. */
   labels: LeadLabel[]
+  /** Industries, read beside the row (`industriesOf`) like the labels. */
+  industries: LeadIndustry[]
   /** The open hold, read beside the row (`openHoldsOf`); `null` when none. */
   hold: HoldRead | null
 }
@@ -168,7 +173,9 @@ export function toContract(read: LeadRead, today: string): LeadRow {
     email: row.email,
     ...(row.contactTitle ? { contactTitle: row.contactTitle } : {}),
     ...(row.province ? { province: row.province } : {}),
-    ...(row.category ? { category: row.category } : {}),
+    category:
+      row.categoryId && read.categoryName ? { id: row.categoryId, name: read.categoryName } : null,
+    industries: read.industries,
     ...(row.tier ? { tier: row.tier } : {}),
     ...(row.phone ? { phone: row.phone } : {}),
     ...(row.contactChannel ? { contactChannel: row.contactChannel } : {}),
@@ -255,9 +262,6 @@ export function toProfile(
     ...(row.address ? { address: row.address } : {}),
     ...(row.website ? { website: row.website } : {}),
     ...(row.mainProduct ? { mainProduct: row.mainProduct } : {}),
-    /* Always present, `[]` included: the contract spells it required so the tag
-       input never has to special-case a missing key. */
-    industries: row.industries,
     /* Typed loosely by the column; the contract parse on the way out owns the shape. */
     aiFill: (row.aiFill ?? {}) as LeadProfile['aiFill'],
     /* `!== null` and not a truthiness test, unlike the strings above: `0` plants

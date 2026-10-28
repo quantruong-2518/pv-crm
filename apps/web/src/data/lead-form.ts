@@ -1,7 +1,6 @@
 import {
   CURRENCIES,
   INIT_DATA_QUESTIONS,
-  LEAD_CATEGORIES,
   LEAD_TIERS,
   PIPELINE_STAGES,
   SLOT_FIELDS,
@@ -90,8 +89,13 @@ export type FormMode = 'edit' | 'create'
 export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 'tags' | 'read'
 
 /** The profile as the form holds it: the frozen fixture shape plus the wire
- *  fields it never had. `industries` is notes only, so it joins no slot. */
-export type ProfileValues = LeadProfile & { industries: string[]; website: string }
+ *  fields it never had. `category` and `industries` hold config ids; the
+ *  industries join no slot. */
+export type ProfileValues = Omit<LeadProfile, 'category'> & {
+  category: string
+  industries: string[]
+  website: string
+}
 
 /** The create door draws boxes no stored profile has a column for — `motion`,
  *  then ONE of `origin` · `campaignCode` · `refCode`, as the motion's `asks`
@@ -143,7 +147,8 @@ export type FormValues = ProfileValues & {
   refCode?: string
 }
 
-const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
+/** The categories themselves are config, appended at draw time (`FieldRow`). */
+const NO_CATEGORY = [{ value: '', label: 'Chưa chọn nhóm ngành' }]
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: c.label }))
 
@@ -220,19 +225,17 @@ export const PROFILE_FIELDS: ProfileField[] = [
     kind: 'select',
     group: 'company',
     slot: 'industry',
-    options: CATEGORY_OPTIONS,
-    hint: 'Đổi ngành có thể đổi người phụ trách mặc định.',
+    options: NO_CATEGORY,
+    hint: 'Đổi nhóm ngành sẽ bỏ các ngành của nhóm cũ.',
   },
   {
     key: 'industries',
-    label: 'Ngành',
+    label: `Ngành · tối đa ${LEAD_NUM.industriesMax}`,
     kind: 'tags',
     group: 'company',
-    /* No `slot`: free notes, read by no gate and no routing — `category` above
-       is what decides the default holder. */
+    /* No `slot`: read by no gate and no routing — `category` above is what
+       decides the default holder. */
     notesOnly: true,
-    placeholder: 'Gõ ngành rồi Enter',
-    hint: 'Ghi chú tham khảo.',
   },
   {
     key: 'mainProduct',
@@ -411,6 +414,8 @@ export const PROFILE_FIELDS: ProfileField[] = [
 export const PROFILE_TO_WIRE: Partial<Record<FieldKey, keyof LeadCreate>> = {
   channel: 'contactChannel',
   channelUrl: 'contactChannelUrl',
+  category: 'categoryId',
+  industries: 'industryIds',
 }
 
 /** Narrowed to the one method these lookups ask a schema for, same reason
@@ -431,14 +436,6 @@ const NUM_MAX: Record<string, number | undefined> = {
   budget: digitsOf(LEAD_NUM.budgetMax),
 }
 
-/** A tag box has two ceilings — characters per tag and tags per lead — both
- *  the contract's own, keyed by wire name like the two tables above. */
-const TAG_MAX: Record<string, { chars: number; count: number } | undefined> = {
-  industries: { chars: LEAD_MAX.industryTag, count: LEAD_NUM.industriesMax },
-}
-
-export const tagLimitsOf = (field: FormField) => TAG_MAX[PROFILE_TO_WIRE[field.key] ?? field.key]
-
 /** How many characters this box accepts — `maxLength` on the control, and never
  *  a second opinion about the rule: it is the contract's own ceiling, read off
  *  the same table `LeadCreate` and `LeadPatch` are built from.
@@ -453,10 +450,9 @@ export const tagLimitsOf = (field: FormField) => TAG_MAX[PROFILE_TO_WIRE[field.k
  *  mailbox and a phone number are bounded by what is deliverable and what is
  *  dialable, not by what this book chose to store. */
 export function maxCharsOf(field: FormField): number | undefined {
-  if (field.kind === 'read' || field.kind === 'select' || field.kind === 'date') return undefined
+  if (['read', 'select', 'date', 'tags'].includes(field.kind)) return undefined
   const wire: string = PROFILE_TO_WIRE[field.key] ?? field.key
   if (field.kind === 'num' || field.kind === 'money') return NUM_MAX[wire]
-  if (field.kind === 'tags') return TAG_MAX[wire]?.chars
   if (wire === 'email') return EMAIL_MAX
   if (wire === 'phone') return PHONE_MAX
   if (wire === 'website') return WEBSITE_MAX

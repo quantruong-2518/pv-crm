@@ -73,6 +73,8 @@ export const LEAD_FILTER_KEYS = [
   'state',
   'pinned',
   'label',
+  'categoryId',
+  'industryId',
 ] as const
 
 /** Header names double as filter titles, so the two can never disagree. */
@@ -82,4 +84,5 @@ export const LEAD_HEADER = {
   created: 'Ngày tạo',
   creator: 'Người tạo',
   owner: 'Người phụ trách',
+  industry: 'Ngành',
 } as const

@@ -9,6 +9,7 @@ import { CONTACT_CONSTRAINTS } from './contact/contact.constraints'
 import { CONFIG_CONSTRAINTS } from './config/config.constraints'
 import { HOLD_CONSTRAINTS } from './hold/hold.constraints'
 import { HoldModule } from './hold/hold.module'
+import { IndustryReportModule } from './industry-report/industry-report.module'
 import { SalesConfigModule } from './config/config.module'
 import { CONTRACT_CONSTRAINTS } from './contract/contract.constraints'
 import { ContractModule } from './contract/contract.module'
@@ -102,6 +103,8 @@ registerConstraints(HOLD_CONSTRAINTS)
     AfterSaleModule,
     /* The stop log (ADR 0125): reads all three books' stops, none imports it. */
     StopLogModule,
+    /* The industry report (0154): reads all three books, none imports it. */
+    IndustryReportModule,
     /* The hourly Google retry for cancelled meetings — here, not in
        `MeetingModule`, so the one-off scripts never start it. */
     MeetingCancelSweepModule,

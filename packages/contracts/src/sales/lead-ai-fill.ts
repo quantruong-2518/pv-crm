@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { Moment } from '../primitives'
-import { LeadCategory } from './enums'
 
 /** AI fill of a lead's empty company fields — the parts `LeadProfile` reads.
  *
@@ -55,7 +54,9 @@ export const LeadEnrichModelOutput = z.object({
   website: found(z.string()),
   address: found(z.string()),
   province: found(z.string()),
-  category: found(LeadCategory),
+  /* NAMES from the live CATEGORY / INDUSTRY lists the prompt carries; the server
+   * maps them to ids and drops any name not on the list. */
+  category: found(z.string()),
   mainProduct: found(z.string()),
   industries: found(z.array(z.string())),
   /* Loose on purpose: one bad number must not void the whole answer; the

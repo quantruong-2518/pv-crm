@@ -15,20 +15,15 @@ import {
   type TableColumn,
   TriangleAlert,
 } from '@pv/ui'
-import {
-  OWNER_NONE,
-  type LeadBookQuery,
-  type LeadBookResponse,
-  type LeadCategory,
-  type LeadTier,
-} from '@pv/contracts'
+import { OWNER_NONE, type LeadBookQuery, type LeadBookResponse, type LeadTier } from '@pv/contracts'
 import { isApiError, userMessage } from '@/app/api'
 import { useSelectionGesture } from '@/components/book-selection'
 import { CompanyCell, MomentCell } from '@/components/lead-cells'
 import { LabelChips } from '@/components/lead-labels'
 import { AvatarCell, PersonCell, SelectionCell } from '@/components/table-bits'
-import { LEAD_CATEGORIES, LEAD_TIERS } from '@/data/campaigns'
+import { LEAD_TIERS } from '@/data/campaigns'
 import { useSalesPeople } from '@/data/directory'
+import { categoryOptions, leadIndustryOptionsQuery } from '@/data/industries'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { NO_OWNER_TITLE, leadBookQuery } from '@/data/leads'
 import { searchableText } from '@/lib/search-box'
@@ -38,7 +33,6 @@ import { searchableText } from '@/lib/search-box'
  *  the lead book's setup (select-page box, column filters, avatar owner, reset
  *  button) but keeps its own selection, owned by `AudienceTab`. */
 
-const CATEGORY_OPTIONS = LEAD_CATEGORIES.map((c) => ({ value: c.key, label: c.label }))
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 
 const AUDIENCE_PAGE_SIZE = 100
@@ -55,10 +49,10 @@ const SEARCH_DELAY_MS = 300
 
 /** The picker's filters, in LOCAL state rather than the address: the picker
  *  lives in a drawer, and a filter left on the URL would outlive it and greet
- *  the next opening with a book narrowed by the last visit. `category` and
+ *  the next opening with a book narrowed by the last visit. `categoryId` and
  *  `tier` stay one value each because `LeadBookQuery` takes one of each. */
 type PickerFilters = {
-  category?: LeadCategory
+  categoryId?: string
   tier?: LeadTier
   owner: string[]
   /** Waiting label ids; a lead carrying ANY of them matches. */
@@ -105,7 +99,7 @@ export function AudiencePicker({
       sort: 'createdAt',
       dir: 'desc',
       ...(search === '' ? {} : { q: search }),
-      category: filters.category,
+      categoryId: filters.categoryId,
       tier: filters.tier,
       owner: filters.owner.length > 0 ? filters.owner.join(',') : undefined,
       label: filters.label.length > 0 ? filters.label.join(',') : undefined,
@@ -123,7 +117,7 @@ export function AudiencePicker({
   const rows = page.filter((l) => !alreadyIn.has(l.code))
   const alreadyOnPage = page.length - rows.length
   const narrowed = Boolean(
-    filters.category ||
+    filters.categoryId ||
     filters.tier ||
     filters.owner.length > 0 ||
     filters.label.length > 0 ||
@@ -156,6 +150,8 @@ export function AudiencePicker({
   const labelOptions = (labelCatalog?.rows ?? [])
     .filter((l) => l.active)
     .map((l) => ({ value: l.id, label: l.name }))
+  const { data: industries } = useQuery(leadIndustryOptionsQuery)
+  const groupOptions = categoryOptions(industries, filters.categoryId)
 
   return (
     <div className="flex flex-col gap-3">
@@ -190,6 +186,7 @@ export function AudiencePicker({
           patch,
           ownerOptions,
           labelOptions,
+          groupOptions,
         })}
         alreadyOnPage={alreadyOnPage}
         wholeMatchShown={(data?.total ?? 0) <= page.length}
@@ -219,6 +216,7 @@ function pickerColumns({
   patch,
   ownerOptions,
   labelOptions,
+  groupOptions,
 }: {
   rows: LeadBookResponse['rows']
   selected: ReadonlySet<string>
@@ -227,6 +225,7 @@ function pickerColumns({
   patch: (next: Partial<PickerFilters>) => void
   ownerOptions: { value: string; label: string }[]
   labelOptions: { value: string; label: string }[]
+  groupOptions: { value: string; label: string }[]
 }): TableColumn[] {
   const shownSelected = rows.filter((r) => selected.has(r.code)).length
   const allShown = rows.length > 0 && shownSelected === rows.length
@@ -253,15 +252,13 @@ function pickerColumns({
     { header: 'Công ty / Người liên hệ', width: 'minmax(0,2.4fr)' },
     {
       header: (
-        <ColumnFilter label="Ngành" active={Boolean(filters.category)}>
+        <ColumnFilter label="Nhóm ngành" active={Boolean(filters.categoryId)}>
           {(close) => (
             <ColumnFilterList
-              options={CATEGORY_OPTIONS}
-              selected={filters.category ? [filters.category] : []}
+              options={groupOptions}
+              selected={filters.categoryId ? [filters.categoryId] : []}
               close={close}
-              onApply={(v) =>
-                patch({ category: v.length === 1 ? (v[0] as LeadCategory) : undefined })
-              }
+              onApply={(v) => patch({ categoryId: v.length === 1 ? v[0] : undefined })}
             />
           )}
         </ColumnFilter>
@@ -427,14 +424,7 @@ function PickerTable({
                 onChange={(on) => onSetOne(l.code, on)}
               />,
               <CompanyCell key="c" lead={l} />,
-              <PersonCell
-                key="cat"
-                value={
-                  l.category &&
-                  (LEAD_CATEGORIES.find((c) => c.key === l.category)?.label ?? l.category)
-                }
-                missing="Chưa phân ngành"
-              />,
+              <PersonCell key="cat" value={l.category?.name} missing="Chưa chọn nhóm ngành" />,
               <PersonCell
                 key="tier"
                 value={l.tier && (LEAD_TIERS.find((t) => t.key === l.tier)?.label ?? l.tier)}

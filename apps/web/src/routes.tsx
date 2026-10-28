@@ -523,6 +523,13 @@ export const SCREENS: ScreenDef[] = [
     load: () => import('@/pages/kpi-assign-status'),
   },
   {
+    path: '/sales/reports/industries',
+    name: 'Báo cáo theo ngành',
+    branch: 'Sales',
+    permission: 'campaign.view',
+    load: () => import('@/pages/industry-report'),
+  },
+  {
     path: '/sales/plan',
     name: 'Số liệu & kế hoạch',
     branch: 'Sales',

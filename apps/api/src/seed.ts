@@ -16,7 +16,7 @@ import { configEntry } from '@api/branches/sales/config/config.schema'
 import { stepTemplate } from '@api/branches/sales/config/step-frame.schema'
 import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
-import { lead } from '@api/branches/sales/lead/lead.schema'
+import { lead, leadIndustry } from '@api/branches/sales/lead/lead.schema'
 import { LEAD_PARK_REASON } from '@api/branches/sales/lead/lead-state'
 import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
@@ -84,6 +84,7 @@ const out = {
   accounts: [] as (typeof account.$inferInsert)[],
   runs: [] as (typeof workstream.$inferInsert)[],
   leads: [] as (typeof lead.$inferInsert)[],
+  leadIndustries: [] as (typeof leadIndustry.$inferInsert)[],
   contacts: [] as (typeof contact.$inferInsert)[],
   members: [] as (typeof campaignMember.$inferInsert)[],
   deals: [] as (typeof opportunity.$inferInsert)[],
@@ -119,7 +120,7 @@ function plantAccounts(): void {
       legalName: a.legalName,
       address: a.address,
       province: a.province,
-      category: a.category,
+      categoryId: a.categoryId,
       headcount: a.headcount,
       plants: a.plants,
       ownerId: owner?.id ?? null,
@@ -307,6 +308,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     state,
   })
   out.edges.push({ fromCode: ld, toCode: ac, kind: 'belongs-to' })
+  out.leadIndustries.push(...a.industryIds.map((industryId) => ({ leadCode: ld, industryId })))
   out.leads.push({
     code: ld,
     createdAt: born,
@@ -316,7 +318,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     legalName: filled(a.legalName),
     address: filled(a.address),
     province: a.province,
-    category: a.category,
+    categoryId: a.categoryId,
     mainProduct: filled(a.mainProduct),
     headcount: filled(a.headcount),
     plants: filled(a.plants),
@@ -709,6 +711,7 @@ async function seed(): Promise<void> {
     /* Keyed here, not in `plantJourney`: the admission gate looks leads up by it. */
     const keyed = out.leads.map((l) => ({ ...l, phoneKey: l.phone ? phoneKeyOf(l.phone) : null }))
     await tx.insert(lead).values(keyed)
+    await tx.insert(leadIndustry).values(out.leadIndustries)
     await tx.insert(contact).values(out.contacts)
     await tx.insert(edge).values(out.edges)
     await tx.insert(campaign).values(campaigns.map((c) => c.row))

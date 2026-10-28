@@ -1,4 +1,4 @@
-import { LeadAiFillField } from '@pv/contracts'
+import { LeadAiFillField, type LeadPatch } from '@pv/contracts'
 import { UNKNOWN_NAME } from './lead-person-name'
 import type { LeadRowDb } from './lead.schema'
 
@@ -10,18 +10,25 @@ import type { LeadRowDb } from './lead.schema'
 
 export type AiFillBlock = 'no-company-or-contact' | 'nothing-empty'
 
-/** Fillable fields with no value; `industries` is empty as `[]`. */
-export function emptyFillable(row: LeadRowDb): LeadAiFillField[] {
-  return LeadAiFillField.options.filter((field) => {
-    const value = row[field]
-    return value === null || (Array.isArray(value) && value.length === 0)
-  })
+/** Fillable fields with no value. `category` is `category_id`; `industries`
+ *  live in `sales.lead_industry`, so the caller passes how many the lead holds. */
+export function emptyFillable(row: LeadRowDb, industries: number): LeadAiFillField[] {
+  return LeadAiFillField.options.filter((field) =>
+    field === 'industries'
+      ? industries === 0
+      : (field === 'category' ? row.categoryId : row[field]) === null,
+  )
 }
+
+/** The patch door's field for each fillable one: a person's edit there drops
+ *  the AI mark, and the enricher's values pass its schema. Two are id fields. */
+export const patchFieldOf = (field: LeadAiFillField): keyof LeadPatch =>
+  field === 'category' ? 'categoryId' : field === 'industries' ? 'industryIds' : field
 
 /** The scan stores the mailbox as the company and `UNKNOWN_NAME` as the person
  *  when the file printed neither: nothing to search for. */
-export function aiFillBlock(row: LeadRowDb): AiFillBlock | null {
+export function aiFillBlock(row: LeadRowDb, industries: number): AiFillBlock | null {
   const company = row.company.trim() !== '' && !row.company.includes('@')
   if (!company || row.contactName === UNKNOWN_NAME) return 'no-company-or-contact'
-  return emptyFillable(row).length === 0 ? 'nothing-empty' : null
+  return emptyFillable(row, industries).length === 0 ? 'nothing-empty' : null
 }

@@ -104,6 +104,16 @@ export const configEntry = sales.table(
     criterionList: text('criterion_list').generatedAlwaysAs(
       (): SQL => sql`CASE WHEN "criterion_id" IS NULL THEN NULL ELSE 'COMM_CRITERION' END`,
     ),
+
+    /** Only `INDUSTRY` — the CATEGORY it belongs to (0154). Unlike `criterion_id`,
+     *  NULL is a state, not a gap: the uncategorised bucket the old free-text
+     *  tags landed in, which an admin later moves or merges. */
+    parentId: text('parent_id'),
+    /** Key half only, `criterion_list`'s trick: an industry cannot hang on a
+     *  stage or on another industry. */
+    parentList: text('parent_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "parent_id" IS NULL THEN NULL ELSE 'CATEGORY' END`,
+    ),
   },
   (t) => [
     /** Trống là `NULL`, không bao giờ là `''` — cùng quy ước với `lead`. */
@@ -153,6 +163,18 @@ export const configEntry = sales.table(
       foreignColumns: [t.id, t.list],
     }),
 
+    /** One-directional, unlike `config_criterion_only_answer`: an INDUSTRY with no
+     *  parent is the uncategorised bucket, a legitimate state. */
+    check('config_parent_only_industry', sql`"parent_id" IS NULL OR "list" = 'INDUSTRY'`),
+
+    /** Real for `config_criterion_fk`'s reason; `parent_list` makes the target a
+     *  CATEGORY row, so the CHECK above need not say so. */
+    foreignKey({
+      name: 'config_parent_fk',
+      columns: [t.parentId, t.parentList],
+      foreignColumns: [t.id, t.list],
+    }),
+
     /** `StageKey.options`, copied out rather than generated, for
      *  `opportunity_stopped_at_stage_known`'s reason: the day the ladder grows,
      *  that has to be a migration a person reads. */
@@ -199,9 +221,13 @@ export const configEntry = sales.table(
      *
      *  Since 0075 a COMM_ANSWER name is unique per question, not per list, so
      *  "Chưa" can answer two questions. `coalesce` folds every other list's
-     *  NULL `criterion_id` to one value, keeping their old per-list rule. */
+     *  NULL `criterion_id` to one value, keeping their old per-list rule.
+     *
+     *  Since 0154 an INDUSTRY name is unique per CATEGORY (the two parents never
+     *  share a list): a lead picks only inside its category, and the clean target
+     *  of a merge can be made beside an uncategorised spelling of it. */
     uniqueIndex('config_name_live')
-      .on(t.list, sql`coalesce("criterion_id", '')`, sql`lower("name")`)
+      .on(t.list, sql`coalesce("criterion_id", "parent_id", '')`, sql`lower("name")`)
       .where(sql`"active"`),
   ],
 )

@@ -65,6 +65,7 @@ import { PartnerCode } from './partner'
 export const LEAD_IMPORT_FIELDS = [
   'company',
   'province',
+  /** A `CATEGORY` NAME as typed; the server matches it case-insensitively. */
   'category',
   'source',
   'owner',

@@ -181,13 +181,24 @@ export const lead = sales.table(
     province: text('province'),
     /** Host only (`example.com`), normalised by the contract. */
     website: text('website'),
+    /** The old slug; superseded by `category_id` (0154), which 0154's legacy
+     *  sync triggers keep in step until this column drops in a later ship. */
     category: text('category').$type<LeadCategory>(),
+    /** A CATEGORY config id; the contract owns the shape. Nullable: a lead may
+     *  arrive before anyone knows its trade. */
+    categoryId: text('category_id'),
+    /** Key half only, `campaign_list`'s trick (read it below). */
+    categoryList: text('category_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "category_id" IS NULL THEN NULL ELSE 'CATEGORY' END`,
+    ),
     /** Ô 2 chỉ đo cột này. `category` có sẵn từ lúc lead vào sổ nên không phải
      *  thứ moi được — đúng như `SLOT_FIELDS` bên engine đã khai. */
     mainProduct: text('main_product'),
     /** Free-text industry tags a rep types as notes. NOT a routing input:
      *  `category` alone decides who gets the lead, so nothing may branch on this
-     *  column. Bounded by the two `lead_industries_*` CHECKs below. */
+     *  column. Bounded by the two `lead_industries_*` CHECKs below. Superseded by
+     *  `lead_industry` (0154), synced into it by 0154's legacy trigger until
+     *  this column drops in a later ship. */
     industries: text('industries')
       .array()
       .notNull()
@@ -409,6 +420,8 @@ export const lead = sales.table(
     index('lead_state_idx').on(t.state),
     index('lead_exit_idx').on(t.exitReason),
     index('lead_campaign_idx').on(t.campaignId),
+    /** "Leads of category X" — the lead book filter and the config usage count. */
+    index('lead_category_id_idx').on(t.categoryId),
     /** "How many leads came from origin X" — the Performance breakdown under
      *  each motion, and the repoint step of an origin merge. */
     index('lead_origin_idx').on(t.originId),
@@ -450,6 +463,12 @@ export const lead = sales.table(
     foreignKey({
       name: 'lead_campaign_fk',
       columns: [t.campaignId, t.campaignList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
+    /** The category has to exist and be a CATEGORY row, `lead_campaign_fk`'s reason. */
+    foreignKey({
+      name: 'lead_category_fk',
+      columns: [t.categoryId, t.categoryList],
       foreignColumns: [configEntry.id, configEntry.list],
     }),
 
@@ -569,3 +588,31 @@ export const leadLabel = sales.table(
 )
 
 export type LeadLabelRowDb = typeof leadLabel.$inferSelect
+
+/** An industry on a lead (0154) — `lead_label`'s shape on the INDUSTRY list. The
+ *  four-per-lead cap and "new picks come from the lead's category" live in the
+ *  service: the backfilled uncategorised links sit on leads that have a category. */
+export const leadIndustry = sales.table(
+  'lead_industry',
+  {
+    leadCode: text('lead_code')
+      .notNull()
+      .references(() => lead.code, { onDelete: 'cascade' }),
+    industryId: text('industry_id').notNull(),
+    industryList: text('industry_list').$type<'INDUSTRY'>().notNull().default('INDUSTRY'),
+  },
+  (t) => [
+    primaryKey({ name: 'lead_industry_pk', columns: [t.leadCode, t.industryId] }),
+    /** "Leads of industry X" — the lead book filter, the report's rows and the
+     *  merge that relinks a source industry's leads. */
+    index('lead_industry_industry_idx').on(t.industryId),
+    foreignKey({
+      name: 'lead_industry_config_fk',
+      columns: [t.industryId, t.industryList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
+    check('lead_industry_list', sql`"industry_list" = 'INDUSTRY'`),
+  ],
+)
+
+export type LeadIndustryRowDb = typeof leadIndustry.$inferSelect

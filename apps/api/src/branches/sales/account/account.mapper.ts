@@ -35,7 +35,7 @@ export function fromForm(body: AccountCreate): AccountValues {
     address: body.address ?? null,
     province: body.province ?? null,
     website: body.website ?? null,
-    category: body.category ?? null,
+    categoryId: body.categoryId ?? null,
     headcount: body.headcount ?? null,
     plants: body.plants ?? null,
     note: body.note ?? null,
@@ -79,7 +79,7 @@ export type LeadCompanyFacts = {
   address?: string | null
   province?: string | null
   website?: string | null
-  category?: AccountCreate['category'] | null
+  categoryId?: string | null
   headcount?: number | null
   plants?: number | null
 }
@@ -124,7 +124,10 @@ export function toContract(read: AccountRead): AccountRow {
     ...(read.address ? { address: read.address } : {}),
     ...(read.province ? { province: read.province } : {}),
     ...(read.website ? { website: read.website } : {}),
-    category: read.category ?? null,
+    category:
+      read.categoryId && read.categoryName
+        ? { id: read.categoryId, name: read.categoryName }
+        : null,
     headcount: read.headcount,
     plants: read.plants,
     ...(read.note ? { note: read.note } : {}),

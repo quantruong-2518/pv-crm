@@ -8,6 +8,7 @@ import {
   Handshake,
   Icon,
   Inbox,
+  PillOverflow,
   RefreshCw,
   Send,
   StatCard,
@@ -293,4 +294,20 @@ export function LeadPicCell({ lead }: { lead: LeadRow }) {
     ) : undefined
 
   return <PicCell people={people} empty={NO_OWNER_TITLE} max={2} action={claim} />
+}
+
+/** The first industry, the rest behind "+N"; the category names the popover. */
+export function IndustryCell({ lead }: { lead: LeadRow }) {
+  if (lead.industries.length === 0) return <span className="text-muted-foreground">—</span>
+  const n = lead.industries.length
+  return (
+    <PillOverflow
+      items={lead.industries.map((i) => ({ id: i.id, label: i.name }))}
+      max={1}
+      label={`Ngành của ${lead.company}`}
+      moreLabel={(total) => `Xem cả ${total} ngành`}
+      heading={lead.category ? `${n} ngành · nhóm ${lead.category.name}` : `${n} ngành`}
+      className="flex-nowrap"
+    />
+  )
 }

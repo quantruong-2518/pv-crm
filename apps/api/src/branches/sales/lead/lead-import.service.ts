@@ -282,10 +282,11 @@ export class LeadImportService {
       ),
     ]
 
-    const [staff, live, origins] = await Promise.all([
+    const [staff, live, origins, categories] = await Promise.all([
       this.repo.staff(handle),
       this.repo.campaignCodes(handle, campaigns),
       this.origins.index(),
+      this.repo.liveCategories(handle),
     ])
     if (body.origin && 'id' in body.origin && !origins.byId.get(body.origin.id)?.active) {
       throw invalid({ origin: ['Không tìm thấy nguồn này, hoặc nguồn đang tắt. Chọn lại.'] })
@@ -305,6 +306,7 @@ export class LeadImportService {
       ...(mayAssign ? {} : { onlyOwner: who.id }),
       ...(mayAssign || !who.ownOnly ? {} : { blankOwner: { id: who.id, name: who.name } }),
       campaigns: live,
+      categories: new Map(categories.map((c) => [c.name.toLowerCase(), c])),
     })
     return { ...checked, origins }
   }

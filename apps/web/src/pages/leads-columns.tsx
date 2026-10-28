@@ -10,6 +10,7 @@ import {
   CreatedByCell,
   DisabledAtCell,
   EnteredCell,
+  IndustryCell,
   LeadPicCell,
   SourceCell,
   StatusCell,
@@ -50,6 +51,7 @@ export function leadColumns(
     { header: 'Công ty / Người liên hệ', width: COL.name, sortKey: 'company' },
     { header: LEAD_HEADER.source, width: COL.text, filter: filters.origin },
     { header: LEAD_HEADER.status, width: COL.status, filter: filters.states },
+    { header: LEAD_HEADER.industry, width: COL.text, filter: filters.industry },
     view.heldView
       ? { header: 'Ngày hẹn gặp lại', width: COL.date }
       : {
@@ -87,6 +89,7 @@ export function leadCells(l: LeadRow, view: View, on: LeadCellHandlers): ReactNo
     <CompanyCell key="c" lead={l} onEmail={on.onEmail} />,
     <SourceCell key="s" lead={l} />,
     <StatusCell key="w" lead={l} />,
+    <IndustryCell key="i" lead={l} />,
     view.heldView ? (
       <span key="d">{l.hold && <HoldUntilCell hold={l.hold} />}</span>
     ) : (

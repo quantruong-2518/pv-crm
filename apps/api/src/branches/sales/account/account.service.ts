@@ -13,6 +13,7 @@ import {
 import { ObjectMirror } from '@api/platform/graph/object-mirror'
 import { notFound } from '@api/platform/http/problem'
 import type { Db } from '@api/platform/db/db.module'
+import { liveCategoryName } from '../lead/lead-industry.sql'
 import { AccountFacetsRepository } from './account-facets.repository'
 import { AccountRepository } from './account.repository'
 import {
@@ -114,6 +115,7 @@ export class AccountService {
     const values = { ...fromForm(body), createdBy }
 
     await this.repo.run(async (tx) => {
+      if (body.categoryId) await liveCategoryName(tx, body.categoryId)
       /* Mirror row BEFORE the business row, the same order every service with
          an E1 object uses: `account.code` foreign-keys into
          `platform.object(code)`, so the reverse order kills the first INSERT
@@ -133,8 +135,11 @@ export class AccountService {
 
   async update(code: ObjectCode, body: AccountUpdate): Promise<AccountRow> {
     const values = fromForm(body)
+    /* A retired category the company already holds may stay; a new pick must be live. */
+    const kept = body.categoryId && (await this.repo.byCode(code))?.categoryId === body.categoryId
 
     const written = await this.repo.run(async (tx) => {
+      if (body.categoryId && !kept) await liveCategoryName(tx, body.categoryId)
       const row = await this.repo.update(tx, code, values)
       if (!row) return null
       /* If the company name changes, the label on ContextRail must change in
@@ -224,7 +229,7 @@ export class AccountService {
       address: lead.address ?? null,
       province: lead.province ?? null,
       website: lead.website ?? null,
-      category: lead.category ?? null,
+      categoryId: lead.categoryId ?? null,
       headcount: lead.headcount ?? null,
       plants: lead.plants ?? null,
       note: null,

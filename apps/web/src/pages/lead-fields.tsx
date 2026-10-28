@@ -1,10 +1,28 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AiFillField, Input, Select, TagInput, Textarea, billions, cn, vnd } from '@pv/ui'
+import {
+  AiFillField,
+  Combobox,
+  Input,
+  PillOverflow,
+  Select,
+  Textarea,
+  billions,
+  cn,
+  vnd,
+} from '@pv/ui'
+import { LEAD_NUM } from '@pv/contracts'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
-import { leadIndustryTagsQuery, leadStopReasonsQuery } from '@/data/leads'
+import {
+  categoryOptions,
+  configName,
+  industriesOf,
+  industryChoices,
+  leadIndustryOptionsQuery,
+} from '@/data/industries'
+import { leadStopReasonsQuery } from '@/data/leads'
 import { stopReasonLabel } from '@/data/sales-config'
 import type { LeadDraft } from '@/data/lead-draft'
 import {
@@ -14,9 +32,9 @@ import {
   inputModeOf,
   isRequired,
   maxCharsOf,
+  PROFILE_FIELDS,
   readField,
   readTags,
-  tagLimitsOf,
   type FieldKey,
   type FormField,
   type FormValues,
@@ -117,6 +135,7 @@ function FieldControl({
   field,
   value,
   tags,
+  category,
   required,
   invalid,
   options,
@@ -128,6 +147,8 @@ function FieldControl({
   value: string
   /** What a `tags` box holds; `value` is the same list printed as one line. */
   tags: string[]
+  /** The lead's category id, which bounds what the industries box offers. */
+  category: string
   required: boolean
   invalid: boolean
   /** The select's list. Handed in rather than read off `field.options`: the
@@ -137,10 +158,22 @@ function FieldControl({
   onChange: (raw: string | string[]) => void
   /** Absent on the boxes that commit the moment they change. */
   onBlur?: () => void
-  /** A tag box's blur: focus has left the WHOLE box, final list in hand. */
+  /** The industries popover shut, final list in hand — the one save for it. */
   onLeave: (tags: string[]) => void
 }) {
   const marked = required || undefined
+
+  if (field.key === 'industries') {
+    return (
+      <IndustriesControl
+        ids={tags}
+        categoryId={category}
+        readOnly={field.kind === 'read'}
+        onChange={onChange}
+        onDone={() => onLeave(tags)}
+      />
+    )
+  }
 
   if (field.kind === 'read') {
     /* `exitReason` prints a config id or `'other'` on the wire (ADR 0070), not
@@ -171,18 +204,6 @@ function FieldControl({
         onChange={onChange}
         neutralValue={value}
         className="[&_button]:pointer-coarse:h-12 w-full [&_button]:h-11 [&_button]:text-[13px]"
-      />
-    )
-  }
-
-  if (field.kind === 'tags') {
-    return (
-      <TagsControl
-        field={field}
-        tags={tags}
-        invalid={invalid}
-        onChange={onChange}
-        onLeave={onLeave}
       />
     )
   }
@@ -393,6 +414,10 @@ export function FieldRow({
      followed by names and roles. */
   const people = useSalesPeople()
   const staffOptions = useMemo(() => peopleRoleOptions(people), [people])
+  const { data: industries } = useQuery({
+    ...leadIndustryOptionsQuery,
+    enabled: fields.some((f) => f.key === 'category'),
+  })
 
   /* One picker fills both address boxes, so they are drawn as a pair — but
      only while both may still be typed into. */
@@ -411,9 +436,12 @@ export function FieldRow({
         const drawn = drawnField(field, draft, writable)
         const error = draft.fieldError(field.key)
         const instant = savesOnChange(drawn)
+        const value = readField(draft.values, field.key)
         const options = field.people
           ? [{ value: '', label: field.people }, ...staffOptions]
-          : (field.options ?? [])
+          : field.key === 'category'
+            ? [...(field.options ?? []), ...categoryOptions(industries, value)]
+            : (field.options ?? [])
 
         return (
           <FieldShell
@@ -431,8 +459,9 @@ export function FieldRow({
               field.key,
               <FieldControl
                 field={drawn}
-                value={readField(draft.values, field.key)}
+                value={value}
                 tags={readTags(draft.values, field.key)}
+                category={readField(draft.values, 'category')}
                 required={writable && isRequired(field, draft.mode)}
                 invalid={error !== undefined}
                 options={options}
@@ -441,6 +470,11 @@ export function FieldRow({
                 onChange={(raw) => {
                   if (!writable) return
                   draft.set(field, raw)
+                  /* The server drops industries of another category on the same write. */
+                  if (field.key === 'category' && typeof raw === 'string') {
+                    const kept = industriesOf(industries, readTags(draft.values, 'industries'), raw)
+                    draft.set(INDUSTRIES_FIELD, kept)
+                  }
                   if (instant) draft.commit(field)
                 }}
                 onBlur={!writable || instant ? undefined : () => draft.commit(field)}
@@ -462,38 +496,76 @@ export function FieldRow({
   )
 }
 
-/** The tag box, split out for the same reason as `StopReasonRead` below: only
- *  this box pays for the vocabulary query.
- *
- *  A pending or failed read is simply no suggestions — the box takes typed
- *  text either way, so the query's error is never shown. */
-function TagsControl({
-  field,
-  tags,
-  invalid,
-  onChange,
-  onLeave,
-}: {
-  field: FormField
-  tags: string[]
-  invalid: boolean
-  onChange: (tags: string[]) => void
-  onLeave: (tags: string[]) => void
-}) {
-  const { data } = useQuery(leadIndustryTagsQuery)
-  const limits = tagLimitsOf(field)
+const INDUSTRIES_FIELD = PROFILE_FIELDS.find((f) => f.key === 'industries')!
 
+/** A lead's industries: the first two as pills, the rest and the editing in
+ *  the popover. Only active industries of the lead's category are offered;
+ *  an older one with no category stays shown and can still be taken off. */
+function IndustriesControl({
+  ids,
+  categoryId,
+  readOnly,
+  onChange,
+  onDone,
+}: {
+  ids: string[]
+  categoryId: string
+  readOnly: boolean
+  onChange: (ids: string[]) => void
+  onDone: () => void
+}) {
+  const { data } = useQuery(leadIndustryOptionsQuery)
+  const [query, setQuery] = useState('')
+  const items = ids.map((id) => ({ id, label: configName(data, id) }))
+  const group = categoryId === '' ? undefined : configName(data, categoryId)
+  const full = ids.length >= LEAD_NUM.industriesMax
+  const needle = query.trim().toLowerCase()
+  const left = industryChoices(data, categoryId, ids)
+  const choices = left.filter((i) => i.name.toLowerCase().includes(needle))
+  const note = !group
+    ? 'Chọn nhóm ngành trước.'
+    : full
+      ? `Đã đủ ${LEAD_NUM.industriesMax} ngành. Bỏ bớt để thêm ngành khác.`
+      : undefined
+
+  if (readOnly && items.length === 0) {
+    return <span className="text-muted-foreground flex h-11 items-center text-[13px]">—</span>
+  }
   return (
-    <TagInput
-      value={tags}
-      onChange={onChange}
-      onLeave={onLeave}
-      suggestions={data?.tags}
-      label={field.label}
-      placeholder={field.placeholder}
-      maxLength={limits?.chars}
-      max={limits?.count}
-      invalid={invalid}
+    <PillOverflow
+      items={items}
+      max={2}
+      label="Các ngành của lead"
+      moreLabel={(n) => `Xem cả ${n} ngành`}
+      className="min-h-11"
+      heading={group ? `${ids.length} ngành · nhóm ${group}` : `${ids.length} ngành`}
+      editLabel={readOnly ? undefined : ids.length === 0 ? 'Thêm ngành' : 'Sửa ngành'}
+      onRemove={readOnly ? undefined : (id) => onChange(ids.filter((x) => x !== id))}
+      /* Also fires when the box unmounts with the popover open, so an edit is not lost. */
+      onClose={onDone}
+      addSlot={
+        !readOnly && (
+          <div className="flex flex-col gap-2">
+            <Combobox
+              label="Thêm ngành"
+              hideLabel
+              value=""
+              query={query}
+              onQueryChange={setQuery}
+              options={choices.map((i) => ({ value: i.id, label: i.name }))}
+              onSelect={(o) => {
+                onChange([...ids, o.value])
+                setQuery('')
+              }}
+              placeholder={group ? `Tìm ngành trong nhóm ${group}` : 'Tìm ngành'}
+              emptyText={left.length > 0 ? 'Không có ngành khớp' : 'Không còn ngành nào để thêm'}
+              disabled={!group || full}
+              className="[&_input]:pointer-coarse:h-12"
+            />
+            {note && <span className="text-muted-foreground text-[11px]">{note}</span>}
+          </div>
+        )
+      }
     />
   )
 }

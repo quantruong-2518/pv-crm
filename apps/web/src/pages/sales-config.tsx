@@ -153,7 +153,7 @@ function AreaBody({ area, ...props }: AreaProps & { area: AreaKey }) {
     case 'intake':
       return <IntakeArea />
     case 'assign':
-      return <AssignArea />
+      return <AssignArea catalog={props.catalog} />
     case 'care':
       return <CareArea {...props} />
     case 'deal':

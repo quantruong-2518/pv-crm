@@ -1044,6 +1044,13 @@
       "when": 1795600240000,
       "tag": "0153_lead_ai_fill",
       "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1795600300000,
+      "tag": "0154_category_industry_config",
+      "breakpoints": true
     }
   ]
 }

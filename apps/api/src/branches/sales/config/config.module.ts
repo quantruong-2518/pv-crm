@@ -4,6 +4,7 @@ import { ApprovalAppliers } from '@api/platform/approval/approval.service'
 import { SettingModule } from '@api/platform/setting/setting.module'
 import {
   LeadMotionController,
+  LeadIndustryController,
   LeadLabelController,
   LeadStopReasonController,
   CommVocabularyController,
@@ -54,6 +55,7 @@ import { StepFrameService } from './step-frame.service'
     LeadMotionController,
     LeadStopReasonController,
     LeadLabelController,
+    LeadIndustryController,
     CommVocabularyController,
   ],
   providers: [

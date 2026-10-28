@@ -1,7 +1,16 @@
-import { check, index, integer, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
-import { sql } from 'drizzle-orm'
+import {
+  check,
+  foreignKey,
+  index,
+  integer,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core'
+import { sql, type SQL } from 'drizzle-orm'
 import type { LeadCategory } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
 
 /** The customer COMPANY — the row every lead, contact and deal hangs off.
@@ -91,7 +100,15 @@ export const account = sales.table(
     province: text('province'),
     /** Host only (`example.com`), normalised by the contract. */
     website: text('website'),
+    /** The old slug; superseded by `category_id` (0154), which 0154's legacy
+     *  sync triggers keep in step until this column drops in a later ship. */
     category: text('category').$type<LeadCategory>(),
+    /** A CATEGORY config id; the contract owns the shape. */
+    categoryId: text('category_id'),
+    /** Key half only, `lead.campaign_list`'s trick. */
+    categoryList: text('category_list').generatedAlwaysAs(
+      (): SQL => sql`CASE WHEN "category_id" IS NULL THEN NULL ELSE 'CATEGORY' END`,
+    ),
 
     headcount: integer('headcount'),
     plants: integer('plants'),
@@ -160,6 +177,14 @@ export const account = sales.table(
 
     index('account_province_idx').on(t.province),
     index('account_category_idx').on(t.category),
+    /** "Companies of category X" — the account book filter and its facet. */
+    index('account_category_id_idx').on(t.categoryId),
+    /** A CATEGORY row, never a stage or an industry — `lead_category_fk`'s twin. */
+    foreignKey({
+      name: 'account_category_fk',
+      columns: [t.categoryId, t.categoryList],
+      foreignColumns: [configEntry.id, configEntry.list],
+    }),
   ],
 )
 

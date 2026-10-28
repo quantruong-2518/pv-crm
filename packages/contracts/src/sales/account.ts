@@ -9,7 +9,8 @@ import {
   textInput,
   textInputOptional,
 } from '../primitives'
-import { LeadCategory, LeadState } from './enums'
+import { ConfigCode, ConfigRef } from './config'
+import { LeadState } from './enums'
 import { websiteOptional } from './lead-fields'
 
 /** The CUSTOMER COMPANY book — `/sales/accounts`.
@@ -68,7 +69,8 @@ export const AccountRow = z.object({
 
   address: z.string().optional(),
   province: z.string().optional(),
-  category: LeadCategory.nullable(),
+  /** The `CATEGORY` entry; `null` = not chosen. */
+  category: ConfigRef.nullable(),
   website: z.string().optional(),
 
   headcount: z.number().int().nonnegative().nullable(),
@@ -174,11 +176,11 @@ export const AccountBookQuery = PageQuery.extend({
   q: searchText,
   /** One province, or several joined by commas. */
   province: z.string().trim().min(1).max(1200).optional(),
-  /** One category, or several joined by commas. */
-  category: z
+  /** One `CATEGORY` id, or several joined by commas. */
+  categoryId: z
     .string()
     .max(200)
-    .refine((v) => v.split(',').every((c) => LeadCategory.safeParse(c).success))
+    .refine((v) => v.split(',').every((c) => ConfigCode.safeParse(c).success))
     .optional(),
 
   /** `1` = only companies that have signed something; `0` = only those that
@@ -207,7 +209,7 @@ const FacetCount = z.number().int().nonnegative()
  *  filter EXCEPT its own, so a picked value never hides its siblings. */
 export const AccountFacetsResponse = z.object({
   provinces: z.array(z.object({ value: z.string(), count: FacetCount })),
-  categories: z.array(z.object({ value: LeadCategory, count: FacetCount })),
+  categories: z.array(ConfigRef.extend({ count: FacetCount })),
   /** The customer tabs: companies that have signed, and those that have not. */
   byCustomer: z.object({ signed: FacetCount, unsigned: FacetCount }),
 })
@@ -234,7 +236,7 @@ const companyFields = {
 
   address: textInputOptional(ACCOUNT_ADDRESS_MAX.address),
   province: textInputOptional(ACCOUNT_ADDRESS_MAX.province),
-  category: LeadCategory.optional(),
+  categoryId: ConfigCode.optional(),
   website: websiteOptional,
 
   headcount: z.number().int().nonnegative().max(1_000_000).optional(),

@@ -3,7 +3,6 @@ import { pipelinePosition, type AccessControl, type Actor } from '@pv/engines'
 import {
   LeadBookResponse,
   LeadFacets,
-  LeadIndustryTagsResponse,
   LeadMailEventsResponse,
   LeadMailTimelineResponse,
   LeadProfile,
@@ -190,7 +189,7 @@ export class LeadService {
     return LeadProfile.parse({
       ...toProfile(found, today),
       canEdit,
-      canAiFill: canEdit && aiFillBlock(found.row) === null,
+      canAiFill: canEdit && aiFillBlock(found.row, found.industries.length) === null,
       position: positionOf(found, tierRows, tierSince, approvals),
       chain: story.chain.map(toChainLink),
       hold: found.hold ? toHold(found.hold, today) : null,
@@ -369,12 +368,6 @@ export class LeadService {
    *  Bốn con số ĐẾM, không phải tỉ lệ — xem `LeadScorecard`. */
   async scorecard(): Promise<LeadScorecard> {
     return LeadScorecard.parse(await this.repo.scorecard())
-  }
-
-  /** `GET /sales/leads/industry-tags`. Deliberately NOT scoped: the vocabulary
-   *  is shared so spellings converge, and it carries tag strings only. */
-  async industryTags(): Promise<LeadIndustryTagsResponse> {
-    return LeadIndustryTagsResponse.parse({ tags: await this.repo.industryTags() })
   }
 
   /** The lead exists and this caller may read it (or, with `edit`, hold it).

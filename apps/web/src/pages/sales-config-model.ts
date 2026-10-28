@@ -67,7 +67,10 @@ export const CONFIG_AREAS = [
     key: 'assign',
     label: 'Phân công',
     step: 2,
-    sections: [{ id: 'motion-policy', no: '5.9', title: 'Hạn liên hệ lần đầu' }],
+    sections: [
+      { id: 'motion-policy', no: '5.9', title: 'Hạn liên hệ lần đầu' },
+      { id: 'industries', no: '5.20', title: 'Nhóm ngành và ngành' },
+    ],
   },
   {
     key: 'care',
@@ -169,6 +172,28 @@ export function addsWaiting(
       ? [p.consequence]
       : [],
   )
+}
+
+/** Industries waiting to join one category; `null` = the not-grouped bucket. */
+export function industryAddsWaiting(proposals: ConfigProposal[], parentId: string | null) {
+  return proposals.flatMap((p) =>
+    p.change.kind === 'create' &&
+    p.change.list === 'INDUSTRY' &&
+    (p.change.draft.parentId ?? null) === parentId
+      ? [p.consequence]
+      : [],
+  )
+}
+
+/** One industry's waiting edits and merges, in the approver's sentence. */
+export function industryWaiting(proposals: ConfigProposal[], id: string): string | null {
+  const said = proposals.flatMap((p) =>
+    (p.change.kind === 'update' && p.change.list === 'INDUSTRY' && p.change.id === id) ||
+    (p.change.kind === 'merge' && p.change.sourceId === id)
+      ? [p.consequence]
+      : [],
+  )
+  return said.length > 0 ? said.join(' · ') : null
 }
 
 export function freshnessWaiting(proposals: ConfigProposal[]): string | null {

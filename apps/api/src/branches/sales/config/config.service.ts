@@ -12,6 +12,7 @@ import {
   isLadder,
   MotionPolicyResponse,
   LeadMotionOptionResponse,
+  LeadIndustryOptionsResponse,
   LeadLabelOptionsResponse,
   LeadStopReasonResponse,
   type ActivityFreshnessPatch,
@@ -19,6 +20,7 @@ import {
   type LeadMotion,
   type MotionPolicyPatch,
   type ConfigEntryCreate,
+  type ConfigEntryMerge,
   type ConfigEntryPatch,
   type ConfigList,
   type ConfigOrderPatch,
@@ -105,6 +107,7 @@ export class SalesConfigService implements ApprovalApplier {
         ...(body.stage === undefined ? {} : { stage: body.stage }),
         ...(body.doNotContact === undefined ? {} : { doNotContact: body.doNotContact }),
         ...(body.criterionId === undefined ? {} : { criterionId: body.criterionId }),
+        ...(body.parentId === undefined ? {} : { parentId: body.parentId }),
       },
     }
     this.assertAttrs(list, body)
@@ -115,9 +118,10 @@ export class SalesConfigService implements ApprovalApplier {
     this.assertShapeKept(change, rows)
     await this.assertOwnerReal(body.ownerId)
     await this.assertCriterionReal(body.criterionId)
-    this.assertNameFree(rows, body.name, undefined, body.criterionId)
+    const parentName = await this.parentNameOf(body.parentId)
+    this.assertNameFree(rows, body.name, undefined, body.criterionId ?? body.parentId)
 
-    return this.propose(who, change)
+    return this.propose(who, { ...change, ...(parentName && { parentName }) })
   }
 
   async patch(
@@ -133,13 +137,31 @@ export class SalesConfigService implements ApprovalApplier {
     if (!rows.some((r) => r.id === id)) throw notFound(`mục của danh mục ${list}`, id)
 
     const was = rows.find((r) => r.id === id)?.name
-    const change: ConfigChange = { kind: 'update', list, id, patch: body, ...(was && { was }) }
+    const parentName = await this.parentNameOf(body.parentId ?? undefined)
+    const change: ConfigChange = {
+      kind: 'update',
+      list,
+      id,
+      patch: body,
+      ...(was && { was }),
+      ...(parentName && { parentName }),
+    }
     this.assertShapeKept(change, rows)
     if (body.ownerId) await this.assertOwnerReal(body.ownerId)
     await this.assertCriterionReal(body.criterionId)
     this.assertPatchNameFree(rows, id, body)
+    await this.assertCategoryEmptied(list, id, body)
+    await this.assertParentOn(list, rows, id, body)
 
     return this.propose(who, change)
+  }
+
+  /** `POST /sales/config/INDUSTRY/merge` — two live industries, or nothing to fold.
+   *  No name check: the source is switched off, so it frees its name. */
+  async merge(who: Actor, body: ConfigEntryMerge): Promise<ConfigProposalReceipt> {
+    const rows = await this.repo.list('INDUSTRY')
+    const names = this.assertMergeable(rows, body.sourceId, body.targetId)
+    return this.propose(who, { kind: 'merge', list: 'INDUSTRY', ...body, names })
   }
 
   /** Đổi thứ tự cả danh mục.
@@ -195,6 +217,29 @@ export class SalesConfigService implements ApprovalApplier {
     const rows = await this.repo.list('WAITING_LABEL')
     return LeadLabelOptionsResponse.parse({
       rows: rows.map(({ id, name, active }) => ({ id, name, active })),
+    })
+  }
+
+  /** Categories and industries for whoever types a lead, retired rows flagged:
+   *  a lead may still carry one, and the pickers offer the active ones only. */
+  async leadIndustries(): Promise<LeadIndustryOptionsResponse> {
+    const [categories, industries] = await Promise.all([
+      this.repo.list('CATEGORY'),
+      this.repo.list('INDUSTRY'),
+    ])
+    return LeadIndustryOptionsResponse.parse({
+      categories: categories.map(({ id, name, ownerId, active }) => ({
+        id,
+        name,
+        ownerId,
+        active,
+      })),
+      industries: industries.map(({ id, name, parentId, active }) => ({
+        id,
+        name,
+        categoryId: parentId,
+        active,
+      })),
     })
   }
 
@@ -380,17 +425,26 @@ export class SalesConfigService implements ApprovalApplier {
     }
 
     const rows = await this.repo.list(change.list, tx)
+    if (change.kind === 'merge') {
+      this.assertMergeable(rows, change.sourceId, change.targetId)
+      return this.repo.mergeIndustry(tx, change.sourceId, change.targetId)
+    }
     /* Proposals raised before the lock may still be waiting. */
     this.assertShapeKept(change, rows)
 
     if (change.kind === 'create') {
-      this.assertNameFree(rows, change.draft.name, undefined, change.draft.criterionId)
+      const { criterionId, parentId } = change.draft
+      await this.parentNameOf(parentId, tx)
+      this.assertNameFree(rows, change.draft.name, undefined, criterionId ?? parentId)
       await this.repo.create(tx, change.list, change.draft)
       return
     }
 
     if (change.kind === 'update') {
+      await this.parentNameOf(change.patch.parentId ?? undefined, tx)
       this.assertPatchNameFree(rows, change.id, change.patch)
+      await this.assertCategoryEmptied(change.list, change.id, change.patch, tx)
+      await this.assertParentOn(change.list, rows, change.id, change.patch, tx)
       /* `patch` answers `null` when `(list, id)` no longer resolves — the row
          was removed while the request waited. Dropping that answer would record
          an approval for a write that touched nothing. */
@@ -427,6 +481,7 @@ export class SalesConfigService implements ApprovalApplier {
       stage?: StageKey | null
       doNotContact?: boolean
       criterionId?: string
+      parentId?: string | null
     },
   ): void {
     const wrong: Record<string, string[]> = {}
@@ -445,6 +500,7 @@ export class SalesConfigService implements ApprovalApplier {
     only('stage', 'LOSS_REASON', v.stage !== undefined)
     only('doNotContact', 'LOSS_REASON', v.doNotContact !== undefined)
     only('criterionId', 'COMM_ANSWER', v.criterionId !== undefined)
+    only('parentId', 'INDUSTRY', v.parentId !== undefined)
 
     /* A new rung of a ladder used to be REQUIRED to arrive with a deadline.
        It no longer is, for the reason written where the CHECK lives: since
@@ -467,6 +523,7 @@ export class SalesConfigService implements ApprovalApplier {
     const reshapes =
       change.kind === 'create' ||
       change.kind === 'reorder' ||
+      change.kind === 'merge' ||
       (change.patch.active !== undefined &&
         rows.find((r) => r.id === change.id)?.active !== change.patch.active)
     if (!reshapes) return
@@ -494,20 +551,21 @@ export class SalesConfigService implements ApprovalApplier {
     )
   }
 
-  /** `criterionId` mirrors `config_name_live`: an answer's name is unique
-   *  within its question; every other row has none, so its whole list counts. */
+  /** `scope` mirrors `config_name_live`'s `coalesce(criterion_id, parent_id)`:
+   *  an answer's name is unique within its question, an industry's within its
+   *  category; every other row has neither, so its whole list counts. */
   private assertNameFree(
     rows: ConfigRowDb[],
     name: string,
     exceptId?: string,
-    criterionId: string | null = null,
+    scope: string | null = null,
   ): void {
     const key = name.toLowerCase()
     const clash = rows.find(
       (r) =>
         r.active &&
         r.id !== exceptId &&
-        r.criterionId === criterionId &&
+        (r.criterionId ?? r.parentId) === scope &&
         r.name.toLowerCase() === key,
     )
     if (clash) throw conflict(`Danh mục này đã có mục tên "${clash.name}" (${clash.id}).`)
@@ -519,13 +577,75 @@ export class SalesConfigService implements ApprovalApplier {
   private assertPatchNameFree(
     rows: ConfigRowDb[],
     id: string,
-    patch: Pick<ConfigPatchDb, 'name' | 'criterionId' | 'active'>,
+    patch: Pick<ConfigPatchDb, 'name' | 'criterionId' | 'parentId' | 'active'>,
   ): void {
     const row = rows.find((r) => r.id === id)
     if (!row) return
     const revives = patch.active === true && !row.active
-    if (patch.name === undefined && patch.criterionId === undefined && !revives) return
-    this.assertNameFree(rows, patch.name ?? row.name, id, patch.criterionId ?? row.criterionId)
+    const moves = patch.criterionId !== undefined || patch.parentId !== undefined
+    if (patch.name === undefined && !moves && !revives) return
+    const parentId = patch.parentId === undefined ? row.parentId : patch.parentId
+    this.assertNameFree(
+      rows,
+      patch.name ?? row.name,
+      id,
+      patch.criterionId ?? row.criterionId ?? parentId,
+    )
+  }
+
+  /** Both live INDUSTRY rows, distinct; answers their names for the sentence. */
+  private assertMergeable(
+    rows: ConfigRowDb[],
+    sourceId: string,
+    targetId: string,
+  ): [string, string] {
+    const live = (id: string) => rows.find((r) => r.id === id && r.active)
+    const [source, target] = [live(sourceId), live(targetId)]
+    if (!source) throw invalid({ sourceId: [`Không tìm thấy ngành đang dùng "${sourceId}".`] })
+    if (!target) throw invalid({ targetId: [`Không tìm thấy ngành đang dùng "${targetId}".`] })
+    /* Owner's rule: only a stray spelling, or a twin in the same category, folds in. */
+    if (source.parentId !== null && source.parentId !== target.parentId) {
+      throw conflict('Chỉ gộp được ngành chưa xếp nhóm hoặc cùng nhóm ngành.')
+    }
+    return [source.name, target.name]
+  }
+
+  /** A category is switched off only once none of its industries is on: a live
+   *  industry under a dead category could still be picked, and nowhere shown. */
+  private async assertCategoryEmptied(
+    list: ConfigList,
+    id: string,
+    patch: Pick<ConfigPatchDb, 'active'>,
+    db?: Db,
+  ): Promise<void> {
+    if (list !== 'CATEGORY' || patch.active !== false) return
+    const industries = await this.repo.list('INDUSTRY', db)
+    if (!industries.some((i) => i.active && i.parentId === id)) return
+    throw conflict('Còn ngành đang dùng trong nhóm này. Chuyển hoặc tắt các ngành đó trước.')
+  }
+
+  /** Switching an industry back on under a category that is off would make a
+   *  pick nobody can see; a NEW parent in the same patch is `parentNameOf`'s. */
+  private async assertParentOn(
+    list: ConfigList,
+    rows: ConfigRowDb[],
+    id: string,
+    patch: Pick<ConfigPatchDb, 'active' | 'parentId'>,
+    db?: Db,
+  ): Promise<void> {
+    if (list !== 'INDUSTRY' || patch.active !== true || patch.parentId !== undefined) return
+    const parentId = rows.find((r) => r.id === id)?.parentId
+    if (!parentId || (await this.repo.byId('CATEGORY', parentId, db))?.active) return
+    throw conflict('Nhóm ngành của ngành này đang tắt. Bật nhóm ngành trước.')
+  }
+
+  /** An industry hangs only on a live CATEGORY: the FK knows the row exists, not
+   *  that it is still on. Re-asked at approval through `tx`; answers its name. */
+  private async parentNameOf(id: string | undefined, db?: Db): Promise<string | undefined> {
+    if (id === undefined) return undefined
+    const row = await this.repo.byId('CATEGORY', id, db)
+    if (row?.active) return row.name
+    throw invalid({ parentId: [`Không tìm thấy nhóm ngành đang dùng "${id}".`] })
   }
 
   /** The self-FK refuses too, but only at approval; the typist hears it now.

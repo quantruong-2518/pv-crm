@@ -19,13 +19,11 @@ import {
 import {
   canPromoteToSql,
   DAS_VINA_LEAD,
-  domainsOf,
   isOverSla,
   isRunning,
   PIPELINE_STAGES,
   REQUIRED_SLOTS,
   leadContact,
-  saleOfCategory,
   type FrozenLead,
   type Lead,
   type LeadContact,
@@ -33,13 +31,14 @@ import {
   type StageKey,
 } from '@pv/engines/fixtures/das-vina'
 import type { Actor } from '@pv/engines'
-import {
-  LeadFacetsQuery,
-  LeadIndustryTagsResponse,
-  LeadScorecard,
-  LeadStopReasonResponse,
+import { LeadFacetsQuery, LeadScorecard, LeadStopReasonResponse } from '@pv/contracts'
+import type {
+  LeadBookQuery,
+  LeadBookResponse,
+  LeadFacets,
+  LeadIndustryOptionsResponse,
+  LeadRow,
 } from '@pv/contracts'
-import type { LeadBookQuery, LeadBookResponse, LeadFacets, LeadRow } from '@pv/contracts'
 import { api } from '@/app/api'
 import { cacheTier } from '@/app/query-client'
 import { DEFAULT_LEAD_BOOK_QUERY, leadBookQueryToParams } from '@/app/url'
@@ -164,23 +163,6 @@ export const leadStopReasonsQuery = queryOptions({
     api.read('/sales/lead-stop-reasons', {
       need: { branch: 'Sales', permission: 'lead.view' },
       schema: LeadStopReasonResponse,
-      signal,
-    }),
-  ...cacheTier.reference,
-})
-
-/** `GET /sales/leads/industry-tags` — every industry tag already written on a
- *  lead, offered while a rep types so one industry keeps one spelling.
- *
- *  Reference tier: a colleague's new tag has no invalidation to ride on and
- *  shows after the tier expires. This tab's own saves do invalidate it
- *  (`lead-patch.ts`, `lead-create.ts`). */
-export const leadIndustryTagsQuery = queryOptions({
-  queryKey: ['sales', 'lead-industry-tags'] as const,
-  queryFn: ({ signal }) =>
-    api.read<LeadIndustryTagsResponse>('/sales/leads/industry-tags', {
-      need: { branch: 'Sales', permission: 'lead.view' },
-      schema: LeadIndustryTagsResponse,
       signal,
     }),
   ...cacheTier.reference,
@@ -629,25 +611,29 @@ export type AssigneeOption = {
  *  need to build a full `Lead` object just to rank assignees. */
 export type AssigneeCandidateLead = Pick<LeadRow, 'category' | 'tier' | 'requiredFilled'>
 
+/** `categories` carry each category's Sale (`ownerId`), from `leadIndustryOptionsQuery`. */
 export function assigneeOptions(
   lead: AssigneeCandidateLead,
   actors: readonly Actor[],
   meId: string | undefined,
+  categories: LeadIndustryOptionsResponse['categories'],
 ): AssigneeOption[] {
   const missing = Math.max(0, REQUIRED_SLOTS - lead.requiredFilled)
-  const owner = lead.category ? saleOfCategory(lead.category) : undefined
+  const owner = categories.find((c) => c.id === lead.category?.id)?.ownerId ?? undefined
+  const domainsOf = (id: string) =>
+    categories.filter((c) => c.active && c.ownerId === id).map((c) => c.name)
 
   const scored = actors
     .filter((a) => a.branches.includes('Sales'))
     .map((a) => {
-      const domains = domainsOf(a.name)
+      const domains = domainsOf(a.id)
       let rank = 90
       let why = 'Trong phòng kinh doanh'
 
       if (a.id === meId) {
         rank = 0
         why = 'Bạn tự nhận'
-      } else if (a.name === owner) {
+      } else if (a.id === owner) {
         rank = 10
         why = `Sale phụ trách ngành ${domains.join(' · ')}`
       } else if (a.roleIds.includes('bd') && missing > 0) {

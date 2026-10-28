@@ -100,8 +100,8 @@ function refusalMessage(errors: FieldErrors): string {
     .join(' · ')
 }
 
-/** `industries.2` → `industries`: a complaint about one tag belongs under the
- *  tag box, which is the only box carrying that wire name. */
+/** `industryIds.2` → `industryIds`: a complaint about one industry belongs
+ *  under the industries box, the only box carrying that wire name. */
 function byBox(errors: FieldErrors): FieldErrors {
   const out: FieldErrors = {}
   for (const [wire, messages] of Object.entries(errors)) {

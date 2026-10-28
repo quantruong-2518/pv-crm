@@ -8,19 +8,10 @@ import {
   type AccountProfile,
   type AccountRow,
   type AccountUpdate,
-  type LeadCategory,
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
 import { bookQueryParams, keepPageUnderSameFilters } from '@/app/book-query'
-
-/** The stored key is English; every account screen prints this name instead. */
-export const CATEGORY_LABEL: Record<LeadCategory, string> = {
-  chip: 'Chip',
-  mechanical: 'Cơ khí',
-  automotive: 'Ô tô',
-  pharma: 'Dược',
-}
 
 /** Account module · the customer company book — `/sales/accounts`.
  *
@@ -71,7 +62,7 @@ export function accountFacetsQuery(q: AccountBookQuery) {
   const filters: AccountFacetsQuery = {
     q: q.q,
     province: q.province,
-    category: q.category,
+    categoryId: q.categoryId,
     customer: q.customer,
     openDeals: q.openDeals,
   }
@@ -152,7 +143,8 @@ export type AccountDraft = {
   website: string
   address: string
   province: string
-  category: string
+  /** A `CATEGORY` id, `''` when none. */
+  categoryId: string
   headcount: string
   plants: string
   note: string
@@ -166,7 +158,7 @@ export const BLANK_ACCOUNT: AccountDraft = {
   website: '',
   address: '',
   province: '',
-  category: '',
+  categoryId: '',
   headcount: '',
   plants: '',
   note: '',
@@ -189,7 +181,7 @@ export function accountDraftOf(row: AccountRow | AccountProfile): AccountDraft {
     website: row.website ?? '',
     address: row.address ?? '',
     province: row.province ?? '',
-    category: row.category ?? '',
+    categoryId: row.category?.id ?? '',
     headcount: row.headcount === null ? '' : String(row.headcount),
     plants: row.plants === null ? '' : String(row.plants),
     note: row.note ?? '',
@@ -218,9 +210,7 @@ export function accountBodyOf(draft: AccountDraft): AccountCreate {
     ...(some(draft.website) === undefined ? {} : { website: some(draft.website) }),
     ...(some(draft.address) === undefined ? {} : { address: some(draft.address) }),
     ...(some(draft.province) === undefined ? {} : { province: some(draft.province) }),
-    ...(draft.category === ''
-      ? {}
-      : { category: draft.category as NonNullable<AccountCreate['category']> }),
+    ...(draft.categoryId === '' ? {} : { categoryId: draft.categoryId }),
     ...(someInt(draft.headcount) === undefined ? {} : { headcount: someInt(draft.headcount) }),
     ...(someInt(draft.plants) === undefined ? {} : { plants: someInt(draft.plants) }),
     ...(some(draft.note) === undefined ? {} : { note: some(draft.note) }),

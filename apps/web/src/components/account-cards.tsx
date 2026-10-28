@@ -1,6 +1,6 @@
 import { MapPin, MetaPill, cn } from '@pv/ui'
 import type { AccountRow } from '@pv/contracts'
-import { CATEGORY_LABEL, accountProfileQuery } from '@/data/accounts'
+import { accountProfileQuery } from '@/data/accounts'
 import { useRowIntent } from './row-intent'
 import { BOOK_CARD } from './book-cards'
 import {
@@ -25,10 +25,7 @@ import {
 
 export function AccountCard({ account: a }: { account: AccountRow }) {
   const intent = useRowIntent(accountProfileQuery, () => import('@/pages/account-detail'))
-  const facts = [
-    a.category ? CATEGORY_LABEL[a.category] : undefined,
-    a.taxCode && `MST ${a.taxCode}`,
-  ].filter(Boolean)
+  const facts = [a.category?.name, a.taxCode && `MST ${a.taxCode}`].filter(Boolean)
   return (
     <article className={cn(BOOK_CARD, CARD_FRAME)}>
       {a.logoUrl && <LogoWatermark src={a.logoUrl} />}

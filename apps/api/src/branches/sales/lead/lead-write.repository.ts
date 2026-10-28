@@ -135,6 +135,14 @@ export class LeadWriteRepository {
     return new Set(rows.map((r) => r.id))
   }
 
+  /** Live CATEGORY rows — the file's category cell is matched by name. */
+  liveCategories(tx: Db): Promise<{ id: string; name: string }[]> {
+    return tx
+      .select({ id: configEntry.id, name: configEntry.name })
+      .from(configEntry)
+      .where(and(eq(configEntry.list, 'CATEGORY'), eq(configEntry.active, true)))
+  }
+
   /** The two create-door rules a motion carries (0057, `asks` since 0059).
    *  `null` = no row, which only a hand-deleted row could cause. */
   async motionRule(

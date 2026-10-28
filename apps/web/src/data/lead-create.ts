@@ -5,7 +5,7 @@ import {
   type LeadCreateResponse,
   type MotionAsks,
 } from '@pv/contracts'
-import type { CurrencyCode, LeadCategory, LeadTier } from '@pv/engines/fixtures/das-vina'
+import type { CurrencyCode, LeadTier } from '@pv/engines/fixtures/das-vina'
 import { api, type ApiError, type ApiNeed, type FieldErrors } from '@/app/api'
 import {
   createWireOf,
@@ -17,7 +17,6 @@ import {
   type FieldKey,
   type FormValues,
 } from '@/data/lead-form'
-import { leadIndustryTagsQuery } from '@/data/leads'
 
 /** Module 2 · `POST /sales/leads` — the HAND-TYPED door of the lead book.
  *
@@ -109,11 +108,8 @@ export function useCreateLead() {
 
   return useMutation<LeadCreateResponse, ApiError, LeadCreate>({
     mutationFn: (body) => createLead(body),
-    onSuccess: (_, body) => {
+    onSuccess: () => {
       void client.invalidateQueries({ queryKey: LEAD_BOOK_KEY })
-      if (body.industries.length > 0) {
-        void client.invalidateQueries({ queryKey: leadIndustryTagsQuery.queryKey })
-      }
     },
   })
 }
@@ -138,7 +134,7 @@ export const emptyDraft = (): FormValues => ({
   website: '',
   address: '',
   province: '',
-  category: '' as LeadCategory,
+  category: '',
   mainProduct: '',
   industries: [],
   headcount: null,
@@ -233,7 +229,7 @@ const ASKED_KEYS = new Set<FieldKey>(Object.values(ASKED))
  *  ------------------------------------------------------------------
  *  `textInputOptional` turns `''` into `undefined` by itself, so an untouched
  *  text box would survive being sent as `''`. An untouched SELECT or DATE
- *  would not: `LeadCategory.optional()` and `Day.optional()` accept a valid
+ *  would not: `ConfigCode.optional()` and `Day.optional()` accept a valid
  *  value or nothing at all, and `''` is neither — the user gets "Invalid
  *  option" on an industry they never chose. So the rule is by absence, not by
  *  control type: leave an optional field out entirely when it is blank.

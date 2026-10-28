@@ -33,6 +33,8 @@ export type ConfigDraft = {
   stage?: StageKey
   doNotContact?: boolean
   criterionId?: string
+  /** Only `INDUSTRY`: its `CATEGORY`; absent = not grouped. */
+  parentId?: string
 }
 
 /** Phần sửa. Vắng mặt = không đụng tới; `ownerId: null` = XOÁ người phụ trách.
@@ -47,6 +49,8 @@ export type ConfigPatchDb = {
   stage?: StageKey | null
   doNotContact?: boolean
   criterionId?: string
+  /** Only `INDUSTRY`; `null` = back to not grouped. */
+  parentId?: string | null
 }
 
 /** One row of the merged tally query — see `usage()`. Three flat columns rather
@@ -127,8 +131,13 @@ export class SalesConfigRepository {
       SELECT 'TIER', tier, count(*)::int
         FROM sales.lead WHERE tier IS NOT NULL AND disabled_at IS NULL GROUP BY tier
       UNION ALL
-      SELECT 'CATEGORY', category, count(*)::int
-        FROM sales.lead WHERE category IS NOT NULL AND disabled_at IS NULL GROUP BY category
+      SELECT 'CATEGORY', category_id, count(*)::int
+        FROM sales.lead WHERE category_id IS NOT NULL AND disabled_at IS NULL GROUP BY category_id
+      UNION ALL
+      SELECT 'INDUSTRY', li.industry_id, count(*)::int
+        FROM sales.lead_industry li
+        JOIN sales.lead l ON l.code = li.lead_code AND l.disabled_at IS NULL
+       GROUP BY li.industry_id
       UNION ALL
       /* Stop EVENTS, not leads parked now (ADR 0070): every exit and park
          keeps its reason on its own touch, so a loop never erases a count. */
@@ -285,8 +294,8 @@ export class SalesConfigRepository {
     return db.select().from(configEntry).where(eq(configEntry.list, list)).orderBy(configEntry.ord)
   }
 
-  async byId(list: ConfigList, id: string): Promise<ConfigRowDb | null> {
-    const [row] = await this.db
+  async byId(list: ConfigList, id: string, db: Db = this.db): Promise<ConfigRowDb | null> {
+    const [row] = await db
       .select()
       .from(configEntry)
       .where(and(eq(configEntry.list, list), eq(configEntry.id, id)))
@@ -361,6 +370,7 @@ export class SalesConfigRepository {
         stage: draft.stage ?? null,
         doNotContact: draft.doNotContact ?? false,
         criterionId: draft.criterionId ?? null,
+        parentId: draft.parentId ?? null,
       })
       .returning()
 
@@ -386,6 +396,7 @@ export class SalesConfigRepository {
     if (patch.stage !== undefined) set.stage = patch.stage
     if (patch.doNotContact !== undefined) set.doNotContact = patch.doNotContact
     if (patch.criterionId !== undefined) set.criterionId = patch.criterionId
+    if (patch.parentId !== undefined) set.parentId = patch.parentId
 
     const [row] = await tx
       .update(configEntry)
@@ -393,6 +404,19 @@ export class SalesConfigRepository {
       .where(and(eq(configEntry.list, list), eq(configEntry.id, id)))
       .returning()
     return row ?? null
+  }
+
+  /** Fold one industry into another (migration 0154): every lead's link moves to
+   *  `targetId`, one link when the lead held both — `lead_industry_pk` refuses a
+   *  bare UPDATE there — then the source is switched off. */
+  async mergeIndustry(tx: Db, sourceId: string, targetId: string): Promise<void> {
+    await tx.execute(sql`
+      INSERT INTO sales.lead_industry (lead_code, industry_id)
+      SELECT lead_code, ${targetId} FROM sales.lead_industry WHERE industry_id = ${sourceId}
+      ON CONFLICT DO NOTHING
+    `)
+    await tx.execute(sql`DELETE FROM sales.lead_industry WHERE industry_id = ${sourceId}`)
+    await this.patch(tx, 'INDUSTRY', sourceId, { active: false })
   }
 
   /** Đánh số lại cả danh mục theo thứ tự `ids` gửi lên.

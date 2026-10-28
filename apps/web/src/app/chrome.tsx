@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Coins,
   Contact,
+  Factory,
   FileCheck,
   Gauge,
   Handshake,
@@ -442,6 +443,15 @@ export const SALES_MODULES: SalesModule[] = [
     path: '/sales/kpi/assign/status',
     permission: 'kpi.view-all',
     question: 'Cấp nào đã giao chỉ tiêu, ai chưa xác nhận',
+    group: 'manage',
+  },
+  {
+    no: 0,
+    icon: Factory,
+    label: 'Báo cáo theo ngành',
+    path: '/sales/reports/industries',
+    permission: 'campaign.view',
+    question: 'Lead, cơ hội và hợp đồng của từng ngành',
     group: 'manage',
   },
   {

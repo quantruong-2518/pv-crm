@@ -52,6 +52,7 @@ import { contact } from '../contact/contact.schema'
 import { realExchanges } from '../performance/real-exchange'
 import { lead, leadLabel } from './lead.schema'
 import { labelsOf, leadLabelledAny } from './lead-label.sql'
+import { industriesOf, leadInIndustry } from './lead-industry.sql'
 import { recareCounts, recareFilter, recareOrder } from './lead-recare.sql'
 import { leadHolderScope, leadLive, leadScope } from './lead-scope'
 import type {
@@ -88,6 +89,12 @@ const creator = alias(actor, 'creator')
 const marketingOwner = alias(actor, 'marketing_owner')
 /** The other live leads on one mailbox, for `duplicateOf` (ADR 0070). */
 const twin = alias(lead, 'twin')
+/** `config_entry` a second time: the campaign join holds the bare name. */
+const categoryEntry = alias(configEntry, 'category_entry')
+const CATEGORY_ON = and(
+  eq(categoryEntry.id, lead.categoryId),
+  eq(categoryEntry.list, lead.categoryList),
+)
 
 /** The campaign a lead is attributed to, joined for its NAME.
  *
@@ -233,6 +240,7 @@ export class LeadRepository {
           ownerEmail: actor.email,
           createdByName: creator.name,
           campaignName: configEntry.name,
+          categoryName: categoryEntry.name,
           originName: leadOrigin.name,
           partnerName: partner.name,
           daysHere: DAYS_HERE,
@@ -243,6 +251,7 @@ export class LeadRepository {
         .leftJoin(actor, eq(actor.id, lead.ownerId))
         .leftJoin(creator, eq(creator.id, lead.createdBy))
         .leftJoin(configEntry, CAMPAIGN_ON)
+        .leftJoin(categoryEntry, CATEGORY_ON)
         .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
         .leftJoin(partner, eq(partner.code, lead.partnerCode))
         .where(and(...filters, scope))
@@ -260,14 +269,16 @@ export class LeadRepository {
     ] as const)
 
     const codes = rows.map((r) => r.row.code)
-    const [labels, holds] = await Promise.all([
+    const [labels, holds, industries] = await Promise.all([
       labelsOf(this.db, codes),
       openHoldsOf(this.db, 'lead', codes),
+      industriesOf(this.db, codes),
     ])
     return {
       rows: rows.map((r) => ({
         ...r,
         labels: labels.get(r.row.code) ?? [],
+        industries: industries.get(r.row.code) ?? [],
         hold: holds.get(r.row.code) ?? null,
       })),
       total: scoped_,
@@ -438,6 +449,7 @@ export class LeadRepository {
         marketingOwnerName: marketingOwner.name,
         marketingOwnerEmail: marketingOwner.email,
         campaignName: configEntry.name,
+        categoryName: categoryEntry.name,
         originName: leadOrigin.name,
         partnerName: partner.name,
         daysHere: DAYS_HERE,
@@ -451,17 +463,24 @@ export class LeadRepository {
       .leftJoin(bdOwner, eq(bdOwner.id, lead.bdOwnerId))
       .leftJoin(marketingOwner, eq(marketingOwner.id, lead.marketingOwnerId))
       .leftJoin(configEntry, CAMPAIGN_ON)
+      .leftJoin(categoryEntry, CATEGORY_ON)
       .leftJoin(leadOrigin, eq(leadOrigin.id, lead.originId))
       .leftJoin(partner, eq(partner.code, lead.partnerCode))
       .where(and(eq(lead.code, code), withDisabled ? undefined : leadLive))
       .limit(1)
 
     if (!row) return null
-    const [labels, holds] = await Promise.all([
+    const [labels, holds, industries] = await Promise.all([
       labelsOf(this.db, [code]),
       openHoldsOf(this.db, 'lead', [code]),
+      industriesOf(this.db, [code]),
     ])
-    return { ...row, labels: labels.get(code) ?? [], hold: holds.get(code) ?? null }
+    return {
+      ...row,
+      labels: labels.get(code) ?? [],
+      industries: industries.get(code) ?? [],
+      hold: holds.get(code) ?? null,
+    }
   }
 
   /** The two verdicts of `byCode` and nothing else — what a 404/403 fence
@@ -750,7 +769,8 @@ export class LeadRepository {
   private filtersOf(q: LeadFacetsQuery & { codes?: string }): (SQL | undefined)[] {
     return [
       q.tier ? eq(lead.tier, q.tier) : undefined,
-      q.category ? eq(lead.category, q.category) : undefined,
+      q.categoryId ? eq(lead.categoryId, q.categoryId) : undefined,
+      q.industryId ? leadInIndustry(lead.code, q.industryId) : undefined,
       /* Lead PIC. `OWNER_NONE` is the wire's word for "nobody has taken it" —
          the screen's own sentinel carries a NUL byte and must not travel, see
          the constant's docblock — so it asks the column for NULL rather than
@@ -833,34 +853,6 @@ export class LeadRepository {
       opportunities: row?.opportunities ?? 0,
       contracts: row?.contracts ?? 0,
     }
-  }
-
-  /** Our own bound on the payload, not a ratified number: past it the rarest
-   *  tags stop being suggested, which is the wrong end to lose if it ever bites. */
-  private static readonly INDUSTRY_TAGS_SHOWN = 200
-
-  /** Industry tags typed on leads, case-folded, most used first then A-Z.
-   *
-   *  Folding on `lower()` keeps the commonest spelling so the typeahead pushes
-   *  one industry toward one spelling; the cap bounds the payload. Ties break
-   *  in codepoint order so PGlite and Neon cut the cap at the same tag. */
-  async industryTags(): Promise<string[]> {
-    const r = (await this.db.execute(sql`
-      WITH spelled AS (
-        SELECT tag, count(*) AS n
-        FROM (SELECT unnest("industries") AS tag FROM "sales"."lead"
-               WHERE "disabled_at" IS NULL) t
-        GROUP BY tag
-      ),
-      folded AS (
-        SELECT sum(n) AS total, (array_agg(tag ORDER BY n DESC, tag))[1] AS tag
-        FROM spelled
-        GROUP BY lower(tag)
-      )
-      SELECT tag FROM folded ORDER BY total DESC, lower(tag) COLLATE "C", tag COLLATE "C"
-      LIMIT ${LeadRepository.INDUSTRY_TAGS_SHOWN}
-    `)) as { rows: { tag: string }[] }
-    return r.rows.map((row) => row.tag)
   }
 
   /** When the lead reached this tier: the latest `verified`/`tier-raised`

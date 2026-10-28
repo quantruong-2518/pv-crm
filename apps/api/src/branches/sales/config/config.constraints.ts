@@ -8,7 +8,8 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  frame), so these speak to an approver whose request
  *  collided with a change applied while it waited. */
 export const CONFIG_CONSTRAINTS: ConstraintBook = {
-  /** Since 0075 unique per question for answers, per list for every other row. */
+  /** Since 0075 unique per question for answers, since 0154 per category for
+   *  industries, per list for every other row. */
   config_name_live: {
     kind: 'conflict',
     fields: ['name'],
@@ -25,6 +26,19 @@ export const CONFIG_CONSTRAINTS: ConstraintBook = {
     kind: 'invalid',
     fields: ['criterionId'],
     message: 'Không tìm thấy câu hỏi này. Chọn lại.',
+  },
+
+  /** An industry's category must be a CATEGORY row (0154). */
+  config_parent_fk: {
+    kind: 'invalid',
+    fields: ['parentId'],
+    message: 'Không tìm thấy nhóm ngành này. Chọn lại.',
+  },
+
+  config_parent_only_industry: {
+    kind: 'invalid',
+    fields: ['parentId'],
+    message: 'Chỉ ngành mới thuộc một nhóm ngành, mục khác thì không.',
   },
 
   step_template_name_live: {

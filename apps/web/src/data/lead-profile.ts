@@ -1,10 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import {
-  filledSlots,
   type CurrencyCode,
   type ExitReason,
-  type Lead,
-  type LeadCategory,
   type LeadContact,
   type LeadTier,
 } from '@pv/engines/fixtures/das-vina'
@@ -27,15 +24,13 @@ import type { ProfileValues } from '@/data/lead-form'
  *  (`lead-create.ts`, `lead-import-wire.ts`).
  *
  *  ------------------------------------------------------------------
- *  TWO ADAPTERS, AND WHY THEY ARE HERE RATHER THAN IN THE SCREEN
+ *  ADAPTERS, AND WHY THEY ARE HERE RATHER THAN IN THE SCREEN
  *  ------------------------------------------------------------------
- *  The detail screen predates the endpoint: its form and its desk-backed
- *  blocks are written against the FROZEN fixture shapes, which spell "not dug
- *  out yet" as `''` / `null` and carry a few columns the table no longer has.
- *  `profileForm` and `leadOf` are the two translations between what the wire
- *  sends and what those blocks read. They live in `data/` because they are
- *  data-shape knowledge, not layout, and because both are meant to be DELETED
- *  — see the note on `leadOf`. */
+ *  The detail screen predates the endpoint: its form is written against the
+ *  FROZEN fixture shape, which spells "not dug out yet" as `''` / `null` and
+ *  carries a few columns the table no longer has. `profileForm` translates
+ *  what the wire sends into what the form reads; it lives in `data/` because
+ *  it is data-shape knowledge, not layout, and it is meant to be DELETED. */
 
 // ---------------------------------------------------------------------------
 // The wire
@@ -93,12 +88,10 @@ export const leadProfileQuery = (code: string) =>
  *  headcount — `0` is a real answer ("nobody on site") and the two must not
  *  collapse into one.
  *
- *  The three casts (`category` · `tier` · `currency`) are the seam between a
- *  wire type where the value is OPTIONAL and a frozen fixture type that has no
- *  spelling for "unknown". `''` is the value every lookup around them already
- *  treats as unknown — `LEAD_CATEGORIES.find(…)` misses, `saleOfCategory`
- *  returns `undefined`, the `<select>` shows blank — so an absent category
- *  degrades to "no default Sale" instead of naming the wrong one.
+ *  The two casts (`tier` · `currency`) are the seam between a wire type where
+ *  the value is OPTIONAL and a frozen fixture type that has no spelling for
+ *  "unknown"; `''` is what every lookup around them treats as unknown. The
+ *  category and industries are config ids, `''` and `[]` when none.
  *
  *  ------------------------------------------------------------------
  *  TWO FIELDS THE TABLE NO LONGER HAS
@@ -116,11 +109,10 @@ export function profileForm(p: LeadProfile): ProfileValues {
     website: p.website ?? '',
     address: p.address ?? '',
     province: p.province ?? '',
-    category: (p.category ?? '') as LeadCategory,
+    category: p.category?.id ?? '',
     mainProduct: p.mainProduct ?? '',
-    /* `?? []` only while the API rolls out without the field; the contract
-       always sends it. */
-    industries: p.industries ?? [],
+    /* Ids, as the write takes them; the picker names them from the catalogue. */
+    industries: p.industries.map((i) => i.id),
     headcount: p.headcount ?? null,
     plants: p.plants ?? null,
 
@@ -155,7 +147,7 @@ export function profileForm(p: LeadProfile): ProfileValues {
     source: p.source.campaignId ?? '',
     /* NAMES, because these three are `select` controls whose options are
        spelled by name. The ids travel next to them on the wire and are what
-       anything comparing people must read — see `leadOf` and the PIC block of
+       anything comparing people must read — see the PIC block of
        the toolbar. */
     owner: p.ownerName ?? '',
     bdOwner: p.bdOwnerName ?? '',
@@ -170,104 +162,6 @@ export function profileForm(p: LeadProfile): ProfileValues {
        admin-edited now (ADR 0070), so a fixed lookup table cannot cover it.
        The screen resolves the label with `stopReasonLabel` instead. */
     exitReason: (p.exitReason ?? '') as ExitReason,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Wire → the frozen `Lead` shape · A BRIDGE, and it is meant to be removed
-// ---------------------------------------------------------------------------
-
-/** The wire profile dressed as a fixture `Lead` row.
- *
- *  ------------------------------------------------------------------
- *  WHY THIS EXISTS AT ALL
- *  ------------------------------------------------------------------
- *  Five blocks of the detail screen are desk-backed (pins, notes, assignment,
- *  convert, exit) and have no endpoint yet, so they stay exactly
- *  as they are. They — and the three shared derivations they call
- *  (`nextActions`, `assigneeOptions`, `peopleOn` in `data/leads.ts`) — are
- *  typed against the frozen `Lead`. This is the one place that shape is built
- *  from server data, instead of every block growing its own conversion.
- *
- *  ------------------------------------------------------------------
- *  WHAT IT REFUSES TO FILL IN
- *  ------------------------------------------------------------------
- *   · `history` is `[]` — `sales.touch` does not exist, so there are no
- *     touches to list. Not "no touches happened": no table to read them from.
- *     `leadTranscript` and `leadResearch` both fall to their empty answer on
- *     it, which is the honest one.
- *   · `dealCode` / `contractCode` are left OUT (both optional) rather than
- *     carried over from the fixture. `isRunning` reads `contractCode`, so on
- *     this bridge it cannot see a signed lead — nothing on this screen calls
- *     it, and the field that answers the question is `signed`.
- *   · `filled` is computed from the REAL profile (`filledSlots`), not from a
- *     positional guess off the two counters, so the init-data gate says the
- *     same thing here as it does inside the form.
- *   · `source` is left EMPTY rather than carrying the server's `SR-…` id — see
- *     the comment on the field.
- *
- *  ------------------------------------------------------------------
- *  WHY THIS BRIDGE IS NOW SAFE TO KEEP — 28/08
- *  ------------------------------------------------------------------
- *  The bridge never lied about VALUES; what it could not say was that its
- *  result is not a frozen row. Three separate bugs came out of that one gap —
- *  `nextActions` reaching for `leadContact()`, `OriginCard` for `leadOrigin()`,
- *  `draftOpportunity` for `leadProfile()` — each one an invented person or a
- *  blank screen, each fixed on its own.
- *
- *  `@pv/engines` now brands the frozen rows (`FrozenLead`), and every GENERATOR
- *  in the fixture demands that brand. Only `LEADS` carries it. So the `Lead`
- *  built here is, by construction, accepted by everything that merely reads
- *  fields and rejected AT COMPILE TIME by everything that would invent data
- *  from a code. The prose warning became a type; the fourth bug of this family
- *  cannot be written.
- *
- *  ------------------------------------------------------------------
- *  THE ONE THING THAT USED TO LIE — FIXED, `realContact` BELOW IS THE SEAM
- *  ------------------------------------------------------------------
- *  `nextActions` used to call `leadContact()` internally — the frozen
- *  generator that INVENTS a contact name and phone from the lead code. For the
- *  100 frozen codes it agreed with the seeded rows; for a code outside them
- *  (the Apollo import, `LD-0201…LD-0219`) it made up a person, and the
- *  suggestion chips offered a "Gọi …" button that dialed a number nobody ever
- *  gave. `nextActions` now takes an explicit `contact: LeadContact | null`
- *  argument instead of reaching for the generator itself — `realContact`
- *  below builds that argument from the WIRE, so the caller with a real
- *  profile in hand (`lead-detail.tsx`) never goes near `leadContact()`. The
- *  one caller that still legitimately does is `myWork()` in `data/leads.ts`,
- *  because it only ever sees the frozen book (`LEADS`), which by construction
- *  never contains a code outside `LD-0101…LD-0200` — the generator is exactly
- *  right there. */
-export function leadOf(p: LeadProfile): Lead {
-  const filled = filledSlots(profileForm(p))
-
-  return {
-    code: p.code,
-    company: p.company,
-    province: p.province ?? '',
-    category: (p.category ?? '') as LeadCategory,
-    tier: (p.tier ?? '') as LeadTier,
-    requiredFilled: p.requiredFilled,
-    optionalFilled: p.optionalFilled,
-    answered: p.requiredFilled + p.optionalFilled,
-    filled,
-    owner: p.ownerName,
-    daysHere: p.daysHere,
-    /* EMPTY on purpose, and this is the one field that must not be filled in.
-       `Lead.source` documents itself as "mã nguồn — trỏ vào `SOURCES`", the
-       frozen eight-row table. The wire carries `SR-…`, an id from the server's
-       own `config_entry`. Those are two different namespaces, and putting the
-       second one in a slot that promises the first is exactly the lie that
-       made `leadOrigin()` throw on every profile the screen opened.
-       Nothing on this side reads the field (the origin card reads
-       `p.source` — the real two-part object — directly), so the honest value
-       is "no frozen source code", which is what `''` means here. */
-    source: '',
-    createdAt: p.createdAt,
-    /* Raw key, same reasoning as `profileForm` above — no label lookup here. */
-    exitReason: p.exitReason ? (p.exitReason as ExitReason) : undefined,
-    exitedAt: p.exitedAt,
-    history: [],
   }
 }
 

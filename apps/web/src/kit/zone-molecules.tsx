@@ -36,6 +36,7 @@ import {
   MetaPill,
   millions,
   NavItem,
+  PillOverflow,
   Progress,
   RichText,
   RichTextView,
@@ -361,6 +362,32 @@ function ComboboxDemo() {
   )
 }
 
+function PillOverflowDemo() {
+  const all = ['Khuôn mẫu', 'Ép nhựa', 'Gia công CNC', 'Kết cấu thép']
+  const [picked, setPicked] = useState(all)
+  const items = picked.map((l) => ({ id: l, label: l }))
+  return (
+    <div className="flex flex-col gap-3">
+      <PillOverflow items={items} max={1} label="Các ngành của lead" />
+      <PillOverflow
+        items={items}
+        max={2}
+        label="Các ngành của lead"
+        heading={`${picked.length} ngành · nhóm Cơ khí`}
+        editLabel="Thêm ngành"
+        onRemove={(id) => setPicked(picked.filter((p) => p !== id))}
+        addSlot={
+          <span className="text-muted-foreground text-[11px]">
+            {picked.length >= 4
+              ? 'Đã đủ 4 ngành. Bỏ bớt để thêm ngành khác.'
+              : 'Ô thêm ngành do màn gọi tự đặt vào đây.'}
+          </span>
+        }
+      />
+    </div>
+  )
+}
+
 export function ZoneMolecules() {
   return (
     <section id="zone-02" className="pb-2 pt-12">
@@ -470,6 +497,16 @@ export function ZoneMolecules() {
           footer="tiêu đề cột là nút lọc · chọn nhiều giá trị · chấm azure khi đang lọc"
         >
           <ColumnFilterDemo />
+        </SpecCard>
+
+        {/* M-26 */}
+        <SpecCard
+          code="M-26"
+          name="PillOverflow"
+          bodyClassName="px-4 py-4"
+          footer="N pill đầu · phần còn lại gói vào +K · popover có nút bỏ và ô thêm của màn gọi"
+        >
+          <PillOverflowDemo />
         </SpecCard>
 
         {/* M-05 */}

@@ -564,3 +564,20 @@ Raised while adding "Điền ô còn thiếu" (ADR 0128).
 
 127.  **Does collecting contacts from the web need legal review (Luật 91/2025)?**
       Default: only what the company publishes, always with source. _(see ADR 0128 §2)_
+
+## Category and industry lists (added 28/10/2026)
+
+Raised while making them config lists (ADR 0129).
+
+128.  **Should the report show the "no category" row to everyone, or only to
+      those who may edit the lists?** Default: everyone who reads the report.
+      _(see ADR 0129 §5)_
+
+129.  **Should `seed-reference-config` replant the four categories?** Today
+      only migration 0154 inserts them where missing. _(see ADR 0129 §6)_
+
+130.  **Should the audience preview in the source form stop counting fixture
+      data?** It still does. _(see ADR 0129 §5)_
+
+131.  **Should an opportunity converted from a lead take the category owner as
+      its default seller?** Not done. _(see ADR 0129 §5)_

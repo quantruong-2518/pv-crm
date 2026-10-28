@@ -3,7 +3,6 @@ import {
   ContactChannel,
   LEAD_MAX,
   LEAD_NUM,
-  LeadCategory,
   LeadTier,
   ORIGIN_NAME_MAX,
   email as emailField,
@@ -107,6 +106,8 @@ export type ImportCheckInput = {
    *  what makes the difference between "fix one cell" and "the import is
    *  broken". */
   campaigns: ReadonlySet<string>
+  /** Live CATEGORY rows by lower-cased name: the cell holds a name as typed. */
+  categories: ReadonlyMap<string, { id: string; name: string }>
 }
 
 /** A file line as the report quotes it. */
@@ -225,7 +226,7 @@ export function checkBatch(input: ImportCheckInput): ImportCheck {
   const gone = new Set<number>()
 
   for (const row of input.rows) {
-    const outcome = checkRow(row, input, staff, input.campaigns)
+    const outcome = checkRow(row, input, staff, input.campaigns, input.categories)
     if (!outcome.ok) {
       errors.push(outcome.error)
       gone.add(row.line)
@@ -390,6 +391,7 @@ function checkRow(
   >,
   staff: Map<string, ActorLite[]>,
   campaigns: ReadonlySet<string>,
+  categories: ImportCheckInput['categories'],
 ): Outcome {
   const cells = row.values
   const out: Cells = {}
@@ -438,9 +440,12 @@ function checkRow(
   if (pain.value !== undefined) out.pain = pain.value
 
   // ── closed lists · a value outside the list is a mapping mistake ─────────
-  const category = closedList(cells, 'category', LeadCategory)
-  if (!category.ok) return fail('category', category.reason)
-  if (category.value !== undefined) out.category = category.value
+  const categoryCell = cells.category?.trim()
+  const category = categoryCell ? categories.get(categoryCell.toLowerCase()) : undefined
+  if (categoryCell && !category) {
+    return fail('category', `${LABEL.category} "${categoryCell}" không có trong danh sách`)
+  }
+  if (category) out.category = category.name
 
   const channel = closedList(cells, 'channel', ContactChannel)
   if (!channel.ok) return fail('channel', channel.reason)
@@ -521,7 +526,7 @@ function checkRow(
         taxCode: taxCode.value ?? null,
         address: address.value ?? null,
         province: province.value ?? null,
-        category: category.value ?? null,
+        categoryId: category?.id ?? null,
         headcount: headcount.value ?? null,
 
         contactTitle: contactTitle.value ?? null,

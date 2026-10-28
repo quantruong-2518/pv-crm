@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 import { Input, Select, Textarea } from '@pv/ui'
-import { ACCOUNT_ADDRESS_MAX, LeadCategory, WEBSITE_MAX } from '@pv/contracts'
+import { ACCOUNT_ADDRESS_MAX, WEBSITE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
-import { CATEGORY_LABEL, type AccountDraft } from '@/data/accounts'
+import type { AccountDraft } from '@/data/accounts'
+import { categoryOptions, leadIndustryOptionsQuery } from '@/data/industries'
 import { AddressField } from './address-field'
 import { Field } from './ops-fields'
 
@@ -34,6 +36,7 @@ export function AccountFields({
   onSet: <K extends keyof AccountDraft>(key: K, value: AccountDraft[K]) => void
   errors?: FieldErrors
 }) {
+  const { data: categories } = useQuery(leadIndustryOptionsQuery)
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -105,20 +108,20 @@ export function AccountFields({
         />
 
         <Field
-          label="Ngành"
+          label="Nhóm ngành"
           plain
-          errors={errors.category}
-          hint="Ngành quyết định ai nhận lead mới. Xem Thiết lập · Ngành và Sale phụ trách."
+          errors={errors.categoryId}
+          hint="Nhóm ngành quyết định ai nhận lead mới."
         >
           <Select
-            label="Ngành"
+            label="Nhóm ngành"
             hideLabel
-            value={draft.category}
+            value={draft.categoryId}
             neutralValue=""
-            onChange={(v) => onSet('category', v)}
+            onChange={(v) => onSet('categoryId', v)}
             options={[
-              { value: '', label: 'Chưa xếp ngành' },
-              ...LeadCategory.options.map((c) => ({ value: c, label: CATEGORY_LABEL[c] })),
+              { value: '', label: 'Chưa chọn nhóm ngành' },
+              ...categoryOptions(categories, draft.categoryId),
             ]}
             className="w-full"
           />

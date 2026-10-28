@@ -27,6 +27,7 @@ export function toContract(row: ConfigRowDb): ConfigEntry {
     ...(row.stage === null ? {} : { stage: row.stage }),
     ...(row.list === 'LOSS_REASON' ? { doNotContact: row.doNotContact } : {}),
     ...(row.criterionId === null ? {} : { criterionId: row.criterionId }),
+    ...(row.list === 'INDUSTRY' ? { parentId: row.parentId } : {}),
   }
 }
 
@@ -63,6 +64,7 @@ export function toUsage(tallies: UsageTally[]): ConfigUsage {
     CONTRACT_KIND: {},
     WAITING_LABEL: {},
     CONTRACT_TERMINATION_REASON: {},
+    INDUSTRY: {},
     slots: {},
     roles: {},
     signedDeals: 0,
@@ -100,6 +102,7 @@ export function toBundle(rows: ConfigRowDb[], usage: ConfigUsage): ConfigBundle 
     CONTRACT_KIND: [],
     WAITING_LABEL: [],
     CONTRACT_TERMINATION_REASON: [],
+    INDUSTRY: [],
     usage,
   }
   for (const row of rows) bundle[row.list].push(toContract(row))

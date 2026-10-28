@@ -13,7 +13,8 @@ import { leadProfileQuery } from '@/data/lead-profile'
 import { toast } from '@/app/toast'
 import { isApiError, userMessage } from '@/app/api'
 import { useDirectory } from '@/data/directory'
-import { LEAD_SPEC, originTally, withPeople } from '@/data/intake'
+import { LEAD_SPEC, originTally, withCategories, withPeople } from '@/data/intake'
+import { leadIndustryOptionsQuery } from '@/data/industries'
 import { leadImportSurvivors, useLeadImport } from '@/data/lead-import'
 import { usePins } from '@/data/pins'
 import { ImportZone, type ImportCommit } from '@/components/import-zone'
@@ -176,7 +177,11 @@ export function LeadsPage() {
      danh sách đó là những người ĐANG làm ở đây — không phải bảy cái tên từng
      nằm trong fixture. */
   const staff = useDirectory()
-  const leadSpec = useMemo(() => withPeople(LEAD_SPEC, staff), [staff])
+  const { data: industries } = useQuery(leadIndustryOptionsQuery)
+  const leadSpec = useMemo(() => {
+    const names = (industries?.categories ?? []).filter((c) => c.active).map((c) => c.name)
+    return withPeople(withCategories(LEAD_SPEC, names), staff)
+  }, [staff, industries])
 
   const loadFile = useLeadImport()
 

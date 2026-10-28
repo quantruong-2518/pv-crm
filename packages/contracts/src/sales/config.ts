@@ -91,6 +91,9 @@ export const ConfigList = z.enum([
   /** Why a signed contract was terminated. Not `LOSS_REASON`: that one explains
    *  a deal that never signed. Virtual key `'other'` needs a note, same rule. */
   'CONTRACT_TERMINATION_REASON',
+  /** An industry inside one `CATEGORY` (`parentId`; null = not grouped yet). A
+   *  lead holds up to `LEAD_NUM.industriesMax` of them through `sales.lead_industry`. */
+  'INDUSTRY',
 ])
 
 export type ConfigProposalReceipt = z.infer<typeof ConfigProposalReceipt>
@@ -114,6 +117,7 @@ export const CONFIG_LIST_LABEL: Record<ConfigList, string> = {
   CONTRACT_KIND: 'loại hợp đồng',
   WAITING_LABEL: 'nhãn nhóm chờ',
   CONTRACT_TERMINATION_REASON: 'lý do chấm dứt hợp đồng',
+  INDUSTRY: 'danh sách ngành',
 }
 
 /** Tiền tố id của từng danh mục. Máy chủ sinh `<tiền tố>-<số thứ tự>`.
@@ -139,6 +143,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
   WAITING_LABEL: 'WL',
   /* Not 'CT': CATEGORY owns it, and `config_entry.id` alone is the primary key. */
   CONTRACT_TERMINATION_REASON: 'TN',
+  INDUSTRY: 'IN',
 }
 
 /** Mã một dòng cấu hình — 'ST-01', 'EX-06'. BẤT BIẾN kể từ lúc sinh.
@@ -149,7 +154,7 @@ export const CONFIG_PREFIX: Record<ConfigList, string> = {
  *  `:id` nuốt mất — chuỗi 'order' không khớp dạng này. */
 export const ConfigCode = z
   .string()
-  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK|WL|TN)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
+  .regex(/^(ST|TR|CT|EX|CH|SR|PD|LR|CQ|CA|SK|QR|CK|WL|TN|IN)-\d{2,4}$/, 'Mã cấu hình sai dạng.')
 
 export type ConfigCode = z.infer<typeof ConfigCode>
 
@@ -191,7 +196,13 @@ export const ConfigEntry = z.object({
   doNotContact: z.boolean().optional(),
   /** Only `COMM_ANSWER`, and always there — the question this answer belongs to. */
   criterionId: ConfigCode.optional(),
+  /** Only `INDUSTRY`, and always there — its `CATEGORY`; `null` = not grouped yet. */
+  parentId: ConfigCode.nullable().optional(),
 })
+
+/** An entry named where it is used (a lead's category, an account's): the name
+ *  rides along so the reader needs no catalogue read. */
+export const ConfigRef = z.object({ id: ConfigCode, name: z.string().min(1) })
 
 export const LOSS_REASON_DO_NOT_CONTACT_LABEL = 'Không liên hệ'
 
@@ -220,8 +231,8 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
  *     `sales.touch.reason_id` since ADR 0070 moved the reason off the old
  *     six-value enum. `EXIT_REASON` counts STOP EVENTS — every exit and every
  *     park, a loop never erasing one — not "leads currently nurturing".
- *   · `STAGE` · `TIER` · `CATEGORY` — the key is the lower-case slug the
- *     column holds ('quotation', 'chip'), because `sales.lead` does not carry
+ *   · `STAGE` · `TIER` — the key is the lower-case slug the
+ *     column holds ('quotation', 'prospect'), because `sales.lead` does not carry
  *     config ids yet. The server does NOT invent a name-to-slug join to paper
  *     over that debt, because a join that has to be guessed is a join that
  *     goes wrong silently the day somebody edits a label.
@@ -238,7 +249,10 @@ const Tally = z.record(z.string(), z.number().int().nonnegative())
 export const ConfigUsage = z.object({
   STAGE: Tally,
   TIER: Tally,
+  /** Keyed by config id — leads on `sales.lead.category_id`. */
   CATEGORY: Tally,
+  /** Keyed by config id — leads linked in `sales.lead_industry`. */
+  INDUSTRY: Tally,
   /** Keyed by config id, like `SOURCE` — count of STOP EVENTS on `sales.touch`,
    *  not of leads currently `nurturing`. See the rule above. */
   EXIT_REASON: Tally,
@@ -310,6 +324,7 @@ export const ConfigBundle = z.object({
   CONTRACT_KIND: z.array(ConfigEntry),
   WAITING_LABEL: z.array(ConfigEntry),
   CONTRACT_TERMINATION_REASON: z.array(ConfigEntry),
+  INDUSTRY: z.array(ConfigEntry),
   usage: ConfigUsage,
 })
 
@@ -406,6 +421,8 @@ export const ConfigEntryCreate = z.object({
   doNotContact: z.boolean().optional(),
   /** Only `COMM_ANSWER`, where it is required — judged by the service like `stage`. */
   criterionId: ConfigCode.optional(),
+  /** Only `INDUSTRY`: an active `CATEGORY` id, judged by the service. Absent = not grouped. */
+  parentId: ConfigCode.optional(),
 })
 
 /** Sửa MỘT dòng. Trường vắng mặt = không đụng tới.
@@ -426,9 +443,22 @@ export const ConfigEntryPatch = z
     doNotContact: z.boolean().optional(),
     /** No `null`: an answer without a question breaks `CHECK` on the table. */
     criterionId: ConfigCode.optional(),
+    /** Only `INDUSTRY` — moves it to another category; `null` = back to not grouped. */
+    parentId: ConfigCode.nullable().optional(),
   })
   .refine((p) => Object.values(p).some((v) => v !== undefined), {
     message: 'Không có gì để sửa.',
+  })
+
+/** `POST /sales/config/INDUSTRY/merge` — fold `sourceId` into `targetId`: every
+ *  lead's link moves to the target (one link when a lead held both) and the
+ *  source is switched off. `INDUSTRY` only, through the same approval as every
+ *  write here; a merge, not a rename, because two spellings are two rows. */
+export const ConfigEntryMerge = z
+  .object({ sourceId: ConfigCode, targetId: ConfigCode })
+  .refine((m) => m.sourceId !== m.targetId, {
+    message: 'Chọn hai ngành khác nhau để gộp.',
+    path: ['targetId'],
   })
 
 /** Đổi thứ tự cả danh mục bằng MỘT lần gửi.
@@ -512,6 +542,12 @@ export const ConfigProposalChange = z.discriminatedUnion('kind', [
     patch: ConfigEntryPatch,
   }),
   z.object({ kind: z.literal('reorder'), list: ConfigList, ids: z.array(ConfigCode).min(1) }),
+  z.object({
+    kind: z.literal('merge'),
+    list: z.literal('INDUSTRY'),
+    sourceId: ConfigCode,
+    targetId: ConfigCode,
+  }),
   z.object({ kind: z.literal('motion'), motion: LeadMotion, patch: MotionPolicyPatch }),
   z.object({ kind: z.literal('activity-freshness'), value: ActivityFreshness }),
   z.object({ kind: z.literal('recare-cycles'), value: RecareCycles }),
@@ -549,5 +585,7 @@ export type ConfigListResponse = z.infer<typeof ConfigListResponse>
 export type ConfigEntryCreate = z.infer<typeof ConfigEntryCreate>
 export type ConfigEntryPatch = z.infer<typeof ConfigEntryPatch>
 export type ConfigOrderPatch = z.infer<typeof ConfigOrderPatch>
+export type ConfigEntryMerge = z.infer<typeof ConfigEntryMerge>
+export type ConfigRef = z.infer<typeof ConfigRef>
 export type CommVocabularyOption = z.infer<typeof CommVocabularyOption>
 export type CommVocabularyResponse = z.infer<typeof CommVocabularyResponse>

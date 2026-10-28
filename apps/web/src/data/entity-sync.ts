@@ -18,7 +18,8 @@ import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { LEAD_STATE_KEYS } from '@/data/lead-exit'
 import { LEAD_ORIGINS_KEY, STATS_KEY as LEAD_SOURCE_STATS_KEY } from '@/data/lead-origins'
 import { LEAD_SCAN_KEY } from '@/data/lead-scan'
-import { leadIndustryTagsQuery, leadStopReasonsQuery } from '@/data/leads'
+import { INDUSTRY_REPORT_KEY, leadIndustryOptionsQuery } from '@/data/industries'
+import { leadStopReasonsQuery } from '@/data/leads'
 import { LETTERS_KEY, masTemplatesQuery } from '@/data/mas'
 import { MAIL_RUN_KEY } from '@/data/mail-runs'
 import { MEETING_KEY } from '@/data/meetings'
@@ -63,8 +64,8 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
     ...LEAD_STATE_KEYS,
     LEAD_ORIGINS_KEY,
     LEAD_SOURCE_STATS_KEY,
+    INDUSTRY_REPORT_KEY,
     PARTNERS_KEY,
-    leadIndustryTagsQuery.queryKey,
     LEAD_SCOPED_KEY,
     NEXT_STEP_KEY,
   ],
@@ -90,6 +91,7 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
   config: [
     SALES_CONFIG_KEY,
     leadLabelOptionsQuery.queryKey,
+    leadIndustryOptionsQuery.queryKey,
     leadStopReasonsQuery.queryKey,
     leadMotionsQuery().queryKey,
     commVocabularyQuery.queryKey,

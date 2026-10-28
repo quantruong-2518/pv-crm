@@ -28,6 +28,7 @@ import { z } from 'zod'
  *  The sentence names the FIELD and does not repeat the allowed values: the
  *  screen is already showing them, and a value outside the list means a column
  *  was mapped wrong, not that somebody failed to choose. */
+// Legacy: types only the old `category` text columns until they drop; new code uses `categoryId`.
 export const LeadCategory = z.enum(
   ['chip', 'mechanical', 'automotive', 'pharma'],
   'Ngành không có trong danh sách',

@@ -14,18 +14,14 @@ import {
   ColumnFilterList,
   type TableSort,
 } from '@pv/ui'
-import { AccountBookQuery, AccountSortKey, type LeadCategory } from '@pv/contracts'
+import { AccountBookQuery, AccountSortKey } from '@pv/contracts'
 import { useAppChrome } from '@/app/chrome'
 import { searchHint } from '@/lib/search-box'
 import { useCan } from '@/app/auth'
 import { isApiError, userMessage } from '@/app/api'
 import { useBookPageClamp, useBookQuery } from '@/app/book-query'
-import {
-  accountBookQuery,
-  accountFacetsQuery,
-  accountProfileQuery,
-  CATEGORY_LABEL,
-} from '@/data/accounts'
+import { accountBookQuery, accountFacetsQuery, accountProfileQuery } from '@/data/accounts'
+import { configName, leadIndustryOptionsQuery } from '@/data/industries'
 import { useRowIntent } from '@/components/row-intent'
 import { BookCount, BookPage } from '@/components/book-page'
 import { FilterMenu, TableFooter } from '@/components/table-bits'
@@ -133,29 +129,30 @@ export default function AccountsPage() {
   const pageSize = view === 'grid' ? GRID_PAGE_SIZE : PAGE_SIZE
   const book = useBookQuery(AccountBookQuery, {
     size: pageSize,
-    filterKeys: ['province', 'category', 'customer', 'openDeals'],
+    filterKeys: ['province', 'categoryId', 'customer', 'openDeals'],
   })
   const { query } = book
 
   const { data, isPending, error, refetch } = useQuery(accountBookQuery(query))
   const { data: facets } = useQuery(accountFacetsQuery(query))
+  const { data: industries } = useQuery(leadIndustryOptionsQuery)
 
   const rows = data?.rows ?? []
   const total = data?.total ?? 0
   const { pageIndex } = useBookPageClamp(book, data?.total)
 
   const provincePicked = csvOf(query.province)
-  const categoryPicked = csvOf(query.category)
+  const categoryPicked = csvOf(query.categoryId)
   const provinceOptions = facetOptions(facets?.provinces ?? [], provincePicked, (v) => v)
   const categoryOptions = facetOptions(
-    facets?.categories ?? [],
+    (facets?.categories ?? []).map((c) => ({ value: c.id, count: c.count })),
     categoryPicked,
-    (v) => CATEGORY_LABEL[v as LeadCategory] ?? v,
+    (v) => configName(industries, v),
   )
 
   const listFilter = (
     label: string,
-    key: 'province' | 'category',
+    key: 'province' | 'categoryId',
     options: { value: string; label: string }[],
     iconOnly?: boolean,
   ) => (
@@ -258,7 +255,7 @@ export default function AccountsPage() {
                     label="Bộ lọc sổ công ty"
                     active={
                       (query.province ? 1 : 0) +
-                      (query.category ? 1 : 0) +
+                      (query.categoryId ? 1 : 0) +
                       (query.openDeals !== undefined ? 1 : 0)
                     }
                   >
@@ -272,13 +269,13 @@ export default function AccountsPage() {
                         }
                       />
                     </FilterSection>
-                    <FilterSection title="Ngành">
+                    <FilterSection title="Nhóm ngành">
                       <ColumnFilterList
                         options={categoryOptions}
                         selected={categoryPicked}
                         close={noop}
                         onApply={(v) =>
-                          book.patch({ category: v.length ? v.join(',') : undefined })
+                          book.patch({ categoryId: v.length ? v.join(',') : undefined })
                         }
                       />
                     </FilterSection>
@@ -348,7 +345,10 @@ export default function AccountsPage() {
                       sortKey: 'province',
                       filter: listFilter('Tỉnh/thành', 'province', provinceOptions, true),
                     },
-                    { header: listFilter('Ngành', 'category', categoryOptions), width: '0.8fr' },
+                    {
+                      header: listFilter('Nhóm ngành', 'categoryId', categoryOptions),
+                      width: '0.8fr',
+                    },
                     {
                       header: 'Số lead',
                       width: 'minmax(72px,0.6fr)',
@@ -395,7 +395,7 @@ export default function AccountsPage() {
                         {a.province ?? '—'}
                       </span>,
                       <span key="g" className="block truncate">
-                        {a.category ? CATEGORY_LABEL[a.category] : '—'}
+                        {a.category?.name ?? '—'}
                       </span>,
                       <CountCell key="l" value={a.leads} />,
                       <CountCell key="o" value={a.openDeals} />,

@@ -1,10 +1,11 @@
 import { and, asc, count, desc, eq, inArray, not, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccountBookQuery, AccountFacetsQuery, LeadCategory } from '@pv/contracts'
+import type { AccountBookQuery, AccountFacetsQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
+import { configEntry } from '../config/config.schema'
 import { contract } from '../contract/contract.schema'
 import { leadLive } from '../lead/lead-scope'
 import { lead } from '../lead/lead.schema'
@@ -140,7 +141,15 @@ const HAS_OPEN_DEALS = sql`EXISTS (
  *  other place the expression may appear. */
 const IDENTITY = sql`coalesce(nullif(btrim(${account.taxCode}), ''), lower(btrim(${account.name})))`
 
+/** The account's CATEGORY row, joined for its name. Exported for the facets. */
+export const CATEGORY_ON = and(
+  eq(configEntry.id, account.categoryId),
+  eq(configEntry.list, account.categoryList),
+)
+
 export type AccountRead = AccountRowDb & {
+  /** Name of `category_id`'s row, from the config left join. */
+  categoryName: string | null
   leads: number
   openDeals: number
   signedDeals: number
@@ -209,12 +218,14 @@ export class AccountRepository {
       db
         .select({
           row: account,
+          categoryName: configEntry.name,
           leads: LEAD_COUNT,
           openDeals: OPEN_DEALS,
           signedDeals: SIGNED_DEALS,
           signedAmountVnd: SIGNED_AMOUNT_VND,
         })
         .from(account)
+        .leftJoin(configEntry, CATEGORY_ON)
         .where(where)
         .orderBy(...this.orderBy(q))
         .limit(q.size)
@@ -229,6 +240,7 @@ export class AccountRepository {
     return {
       rows: rows.map((r) => ({
         ...r.row,
+        categoryName: r.categoryName,
         leads: r.leads,
         openDeals: r.openDeals,
         signedDeals: r.signedDeals,
@@ -242,18 +254,21 @@ export class AccountRepository {
     const [found] = await this.db
       .select({
         row: account,
+        categoryName: configEntry.name,
         leads: LEAD_COUNT,
         openDeals: OPEN_DEALS,
         signedDeals: SIGNED_DEALS,
         signedAmountVnd: SIGNED_AMOUNT_VND,
       })
       .from(account)
+      .leftJoin(configEntry, CATEGORY_ON)
       .where(eq(account.code, code))
       .limit(1)
 
     if (!found) return null
     return {
       ...found.row,
+      categoryName: found.categoryName,
       leads: found.leads,
       openDeals: found.openDeals,
       signedDeals: found.signedDeals,
@@ -384,8 +399,8 @@ export class AccountRepository {
 
     if (q.province !== undefined)
       parts.push(inArray(account.province, q.province.split(',').filter(Boolean)))
-    if (q.category !== undefined)
-      parts.push(inArray(account.category, q.category.split(',') as LeadCategory[]))
+    if (q.categoryId !== undefined)
+      parts.push(inArray(account.categoryId, q.categoryId.split(',').filter(Boolean)))
 
     /* A company is a customer exactly when a contract exists under one of its
        leads — the two frozen scenarios, asked of the live book. */

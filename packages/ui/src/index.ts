@@ -48,7 +48,7 @@ export * from './ui/status-dot'
 export * from './ui/tag-input'
 export * from './ui/textarea'
 
-// ---- Zone 02 · Molecules (M-01 … M-24) ----
+// ---- Zone 02 · Molecules (M-01 … M-26) ----
 export * from './patterns/accordion'
 export * from './patterns/ai-action'
 export * from './patterns/ai-fill'
@@ -62,6 +62,7 @@ export * from './patterns/empty-state'
 export * from './patterns/file-drop'
 export * from './patterns/flow-vector'
 export * from './patterns/nav-item'
+export * from './patterns/pill-overflow'
 export * from './patterns/rich-text'
 export * from './patterns/scan-field'
 export * from './patterns/search-field'

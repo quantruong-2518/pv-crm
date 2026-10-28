@@ -10,6 +10,12 @@ import type { ConstraintBook } from '@api/platform/http/db-error'
  *  means "open the existing company", a duplicate name might mean "add the tax
  *  code to tell them apart". */
 export const ACCOUNT_CONSTRAINTS: ConstraintBook = {
+  /** `lead_category_fk`'s twin (0154). */
+  account_category_fk: {
+    kind: 'invalid',
+    fields: ['categoryId'],
+    message: 'Không tìm thấy nhóm ngành này. Chọn lại.',
+  },
   account_identity_uniq: {
     kind: 'invalid',
     fields: ['taxCode', 'name'],

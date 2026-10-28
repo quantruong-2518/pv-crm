@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftRight, Check, Inbox, UserRoundPlus } from '@pv/ui'
 import { Avatar, Button, Drawer, Icon, MetaPill, SearchField, cn } from '@pv/ui'
 import type { LeadRow } from '@pv/contracts'
@@ -10,6 +11,7 @@ import { assignDoorOf } from '@/components/assign-door'
 import { HandoverDeals } from '@/components/handover-deals'
 import { ROW_ICON } from '@/components/table-bits'
 import { useDirectory } from '@/data/directory'
+import { leadIndustryOptionsQuery } from '@/data/industries'
 import { useHandoverChoice, useSetLeadOwner } from '@/data/lead-owner'
 import { isOpenState } from '@/data/lead-state'
 import { assigneeOptions, type AssigneeOption, type AssigneeCandidateLead } from '@/data/leads'
@@ -25,8 +27,8 @@ import { assigneeOptions, type AssigneeOption, type AssigneeCandidateLead } from
 type MenuProps = {
   /** Only used to rank `assigneeOptions` (reads `category`, `stage`, `tier`,
    *  `requiredFilled`). Nothing on it is sent to the server. `LeadRow` (book
-   *  row) already carries these four fields, so both the book row and the
-   *  detail page's `leadOf()` bridge can pass it straight through. */
+   *  row) already carries these four fields, and so does the detail page's
+   *  `LeadProfile`, so both pass it straight through. */
   lead: AssigneeCandidateLead
   /** Source of the code, account name and current holder. Everything the
    *  write sends comes from here, not from `lead`. `LeadProfile` extends
@@ -126,7 +128,12 @@ export function AssignMenu({
 
   const handover = useHandoverChoice(profile.code, held, open && mayAssign)
 
-  const people = useMemo(() => assigneeOptions(lead, staff, me?.id), [lead, staff, me?.id])
+  const { data: industries } = useQuery({ ...leadIndustryOptionsQuery, enabled: open })
+  const categories = industries?.categories
+  const people = useMemo(
+    () => assigneeOptions(lead, staff, me?.id, categories ?? []),
+    [lead, staff, me?.id, categories],
+  )
   const self = people.find((person) => person.group === 'mine')
   /* Người đang giữ đã ở đúng chỗ rồi — chọn lại họ là một cú ghi không đổi gì. */
   const others = useMemo(

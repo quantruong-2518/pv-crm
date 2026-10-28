@@ -36,6 +36,8 @@ import {
 } from './lead-write.mapper'
 import type { LeadRowDb } from './lead.schema'
 import { toContract } from './lead.mapper'
+import { industriesOf, liveCategoryName, settleIndustries } from './lead-industry.sql'
+import { patchFieldOf } from './lead-ai-fill.rule'
 import { LeadService } from './lead.service'
 import { LeadRepository } from './lead.repository'
 import { LeadWriteRepository } from './lead-write.repository'
@@ -218,6 +220,8 @@ export class LeadWriteService {
     /* Read before the write, beside the owner lookup and for the same reason:
        the response is a full book row, and a book row prints names, not ids. */
     const campaignName = campaignId ? await this.assertCampaign(handle, campaignId) : null
+    const categoryId = body.categoryId ?? null
+    const categoryName = categoryId ? await liveCategoryName(handle, categoryId) : null
     const code = await this.leads.nextCode()
     const run = await this.runs.nextCode()
 
@@ -244,7 +248,10 @@ export class LeadWriteService {
         accountCode: admitted.accountCode,
       })
       if (body.campaignCode) await this.campaigns.enrol(tx, body.campaignCode, [code])
-      return { written, originName: origin.name }
+      const want = body.industryIds
+      if (want.length) await settleIndustries(tx, { code, categoryId, want, recategorised: false })
+      const industries = want.length ? ((await industriesOf(tx, [code])).get(code) ?? []) : []
+      return { written, originName: origin.name, industries }
     })
     /* The entry joined a lead already in the book: answer with that lead's
        row, read after the commit because the pool is one connection on PGlite. */
@@ -267,10 +274,12 @@ export class LeadWriteService {
           ownerEmail: owner?.email ?? null,
           createdByName: who.name,
           campaignName,
+          categoryName,
           originName: row.originName,
           partnerName: referrer?.name ?? null,
           signed: false,
           labels: [],
+          industries: row.industries,
           hold: null,
         },
         vnDay(new Date()),
@@ -602,10 +611,13 @@ export class LeadWriteService {
 
     /* The five person columns belong to the primary contact's writer; the
        wire shape is unchanged, only who writes them. */
-    const { contactName, contactTitle, email, phone, contactChannel, ...own } = body
+    const { contactName, contactTitle, email, phone, contactChannel, industryIds, ...own } = body
     const person = fromPatch({ contactName, contactTitle, email, phone, contactChannel })
     const values = fromPatch(own)
     const raised = body.tier !== undefined && rungOf(body.tier) > rungOf(before.row.tier)
+    const categoryId = body.categoryId === undefined ? before.row.categoryId : body.categoryId
+    const recategorised = categoryId !== before.row.categoryId
+    if (recategorised && categoryId) await liveCategoryName(this.repo.readonlyHandle, categoryId)
 
     await this.repo.run(async (tx) => {
       /* Contact first: it locks contact then lead, the order every contact
@@ -614,8 +626,11 @@ export class LeadWriteService {
       if (Object.keys(values).length > 0 && !(await this.repo.patchLead(tx, code, values))) {
         throw notFound('lead', code)
       }
+      if (industryIds !== undefined || recategorised) {
+        await settleIndustries(tx, { code, categoryId, want: industryIds, recategorised })
+      }
       /* The screen's undo after an AI fill is a patch clearing those fields, so it lands here too. */
-      const edited = LeadAiFillField.options.filter((f) => body[f] !== undefined)
+      const edited = LeadAiFillField.options.filter((f) => body[patchFieldOf(f)] !== undefined)
       if (edited.length > 0) await this.repo.forgetAiFill(tx, code, edited)
 
       await this.touch.record(tx, [
@@ -624,7 +639,9 @@ export class LeadWriteService {
           subjectKind: 'lead',
           kind: 'field-filled',
           ...byOf(who),
-          note: LEAD_NOTE.corrected(Object.keys(values).length + Object.keys(person).length),
+          note: LEAD_NOTE.corrected(
+            Object.keys(values).length + Object.keys(person).length + (industryIds ? 1 : 0),
+          ),
         },
         ...(raised && body.tier
           ? [

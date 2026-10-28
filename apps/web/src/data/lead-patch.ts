@@ -8,7 +8,6 @@ import {
   type FormValues,
   type ProfileField,
 } from '@/data/lead-form'
-import { leadIndustryTagsQuery } from '@/data/leads'
 
 /** Module 2 · `PATCH /sales/leads/:code` — the autosave door of the profile
  *  card. Since 17/09 there is no save button: a value that leaves a box goes
@@ -77,12 +76,8 @@ export function useUpdateLeadProfile() {
         body,
         need: PATCH_NEED,
       }),
-    onSuccess: (_, { body }) => {
+    onSuccess: () => {
       for (const key of TOUCHED_KEYS) void client.invalidateQueries({ queryKey: key })
-      /* A tag typed a moment ago is offered on the next lead. */
-      if (body.industries !== undefined) {
-        void client.invalidateQueries({ queryKey: leadIndustryTagsQuery.queryKey })
-      }
     },
   })
 }
