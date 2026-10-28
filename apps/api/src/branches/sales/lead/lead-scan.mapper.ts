@@ -20,7 +20,7 @@ import type {
   ScanPreview,
   WorkstreamDocumentStep,
 } from '@pv/contracts'
-import { normalisePhone as toE164 } from '@pv/contracts'
+import { normalisePhone as toE164, websiteOptional } from '@pv/contracts'
 import type { AttachmentRowDb } from '@api/platform/storage/attachment.schema'
 import type { DocumentStepRowDb } from '../workstream/workstream-document.schema'
 import type { ScanBatchRowDb } from './lead-scan.schema'
@@ -185,11 +185,15 @@ export function headcountOf(raw: string | undefined): number | null {
  *  they mirror the primary CONTACT, and a company switchboard is not that. */
 export function companyValuesOf(g: ScanPlanGroup): Partial<LeadValues> {
   const value = (field: string) => g.fields.find((f) => f.field === field)?.value
+  /* The plan shows the site as printed; the column holds the contract's host,
+     and a reading the contract refuses is left out. */
+  const site = websiteOptional.safeParse(value('website'))
   const out: Partial<LeadValues> = {
     legalName: value('legalName'),
     taxCode: value('taxCode'),
     address: value('address'),
     province: value('province'),
+    website: site.success ? site.data : undefined,
     headcount: headcountOf(value('headcount')) ?? undefined,
   }
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))

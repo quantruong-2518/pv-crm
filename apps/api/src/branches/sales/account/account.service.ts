@@ -223,6 +223,7 @@ export class AccountService {
       taxCode: lead.taxCode ?? null,
       address: lead.address ?? null,
       province: lead.province ?? null,
+      website: lead.website ?? null,
       category: lead.category ?? null,
       headcount: lead.headcount ?? null,
       plants: lead.plants ?? null,

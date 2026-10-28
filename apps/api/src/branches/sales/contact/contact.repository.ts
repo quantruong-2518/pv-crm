@@ -403,6 +403,12 @@ export class ContactRepository {
         phoneKey: row.phone ? normalisePhone(row.phone) : null,
         contactChannel: row.channel,
         ...(row.email ? { email: row.email } : {}),
+        /* A title or phone that changes here is no longer the AI's: its mark goes
+           (old values on the right of SET), so every contact door clears it. */
+        aiFill: sql`${lead.aiFill} - array_remove(ARRAY[
+          CASE WHEN ${lead.contactTitle} IS DISTINCT FROM ${row.title}::text THEN 'contactTitle' END,
+          CASE WHEN ${lead.phone} IS DISTINCT FROM ${row.phone}::text THEN 'phone' END
+        ], NULL)`,
       })
       .where(and(eq(lead.code, leadCode), leadLive))
   }

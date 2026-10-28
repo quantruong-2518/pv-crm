@@ -184,6 +184,25 @@ export class ContactService {
     await this.repo.mirrorOntoLead(tx, leadCode, row)
   }
 
+  /** AI fill's person fields: only those still empty on the lead once the
+   *  contact is locked (nothing else writes them past that lock), then through
+   *  `editPrimary` like any edit. Returns the keys written. */
+  async fillPrimaryEmpty(
+    tx: Db,
+    leadCode: string,
+    fields: Partial<Pick<LeadContactMirror, 'contactTitle' | 'phone'>>,
+    who: { id: string; name: string },
+  ): Promise<string[]> {
+    await this.repo.primaryOf(tx, leadCode)
+    const lead = await this.repo.leadMirrorOf(tx, leadCode)
+    if (!lead) throw notFound('lead', leadCode)
+    const empty = Object.fromEntries(
+      Object.entries(fields).filter(([key]) => !lead[key as keyof typeof fields]),
+    )
+    if (Object.keys(empty).length > 0) await this.editPrimary(tx, leadCode, empty, who)
+    return Object.keys(empty)
+  }
+
   /** Scanned people onto a lead, on the caller's `tx`, never as primary: the
    *  primary is seeded with the lead, or already exists on a merge target.
    *  Someone already on the lead is skipped, keyed by mailbox, else name,

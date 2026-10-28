@@ -34,6 +34,7 @@ import { RunContacts } from '@/components/run/run-contacts'
 import { RunDocuments } from '@/components/run/run-documents'
 import { LeadDisabledNotice, LeadHeader, LeadTodo } from './lead-blocks'
 import { barPeopleOf, leadMoreChoices, mailBlockedOf } from './lead-model'
+import { useAiFillRun } from './lead-ai-fill'
 import { LeadForm } from './lead-parts'
 
 /** Module 2 · one lead's profile — `/sales/leads/:code`, on the record shell
@@ -111,6 +112,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
   const claim = useResumeLead(lead.code)
   /* ONE draft for the whole screen, seeded from the server's copy. */
   const draft = useLeadDraft({ mode: 'edit', profile: lead })
+  const aiFill = useAiFillRun(lead, draft, canWrite)
   const dockRow = useDockRow({ kind: 'lead', code: lead.code }, canWrite)
   const [converting, setConverting] = useState(false)
   const [nurturing, setNurturing] = useState(false)
@@ -172,7 +174,7 @@ function LeadScreen({ lead }: { lead: LeadProfile }) {
             canStep={canWrite && isOpenState(lead.state) && lead.state !== 'nurturing'}
           />
           <LeadLabelsCard lead={lead} canEdit={canWrite && isOpenState(lead.state)} />
-          <LeadForm draft={draft} code={lead.code} canEdit={canWrite} />
+          <LeadForm draft={draft} code={lead.code} canEdit={canWrite} ai={aiFill} />
         </>
       }
       railLabel="Lịch sử liên hệ, người liên hệ và tài liệu của lead"

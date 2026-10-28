@@ -9,9 +9,9 @@ import {
   type AiRequest,
 } from './ai-client'
 
-/** Gemini behind `AiClient`: JSON mode with the gateway's schema, the lowest
- *  thinking level the models accept, and the route's ceiling and timeout per
- *  request.
+/** Gemini behind `AiClient`: JSON mode with the gateway's schema, Google
+ *  Search grounding when the request asks for the web, the lowest thinking
+ *  level the models accept, and the route's ceiling and timeout per request.
  *
  *  `retryOptions: { attempts: 1 }`: the SDK would otherwise retry 408/429/5xx
  *  on its own, hiding attempts from the gateway's policy and from the ledger. */
@@ -41,6 +41,8 @@ export class GeminiClient implements AiClient {
           maxOutputTokens: limits.maxTokensOut,
           responseMimeType: 'application/json',
           responseJsonSchema: schema,
+          /* Gemini 3 accepts the JSON schema and search grounding together (preview). */
+          ...(request.webSearch ? { tools: [{ googleSearch: {} }] } : {}),
           /* LOW, not MINIMAL: gemini-3.8-flash refuses MINIMAL with a 400. */
           thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           httpOptions: { timeout: limits.timeoutMs },

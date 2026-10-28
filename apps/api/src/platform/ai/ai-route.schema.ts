@@ -34,7 +34,7 @@ export const aiRoute = platform.table(
   },
   () => [
     /** `AiTask`, copied by hand: a new task kind must be a migration a person reads. */
-    check('ai_route_task_known', sql`"task" IN ('lead-scan')`),
+    check('ai_route_task_known', sql`"task" IN ('lead-scan', 'lead-enrich')`),
     /** The two vendors' prefixes, copied by hand like `AiModel` in the contract. */
     check('ai_route_primary_model_known', sql`"primary_model" ~ '^(claude|gemini)-[a-z0-9.-]+$'`),
     check(

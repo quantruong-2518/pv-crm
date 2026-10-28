@@ -48,9 +48,10 @@ export * from './ui/status-dot'
 export * from './ui/tag-input'
 export * from './ui/textarea'
 
-// ---- Zone 02 · Molecules (M-01 … M-20) ----
+// ---- Zone 02 · Molecules (M-01 … M-24) ----
 export * from './patterns/accordion'
 export * from './patterns/ai-action'
+export * from './patterns/ai-fill'
 export * from './patterns/approval-chain'
 export * from './patterns/bar-chart'
 export * from './patterns/column-filter'

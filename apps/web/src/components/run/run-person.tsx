@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Avatar, Button, Icon, MetaPill, Pencil, UserRoundPlus, cn, type IconGlyph } from '@pv/ui'
 
@@ -31,7 +31,8 @@ export function PersonRow({
   empty?: string
   to?: string | undefined
   tag?: string | false | null | undefined
-  lines?: (string | null | undefined | false)[]
+  /** A string prints as a muted line; any other node (a caption) as it is. */
+  lines?: ReactNode[]
   door?: { label: string; icon: IconGlyph; onClick: () => void } | undefined
   /** An edit pencil beside the name, for a person the reader may change. */
   edit?: { label: string; onClick: () => void } | undefined
@@ -83,11 +84,15 @@ export function PersonRow({
             </Button>
           )}
         </span>
-        {lines.filter(Boolean).map((line) => (
-          <span key={line as string} className={LINE}>
-            {line}
-          </span>
-        ))}
+        {lines.filter(Boolean).map((line, i) =>
+          typeof line === 'string' ? (
+            <span key={line} className={LINE}>
+              {line}
+            </span>
+          ) : (
+            <Fragment key={i}>{line}</Fragment>
+          ),
+        )}
       </span>
       {door && (
         <Button

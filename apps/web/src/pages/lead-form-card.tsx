@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
+import { AiFillButton, SegmentedControl, Textarea, type SegmentedOption } from '@pv/ui'
 import { useLeadDesk } from '@/app/desk'
 import type { LeadDraft } from '@/data/lead-draft'
 import type { SaveState } from '@/data/lead-patch'
 import { fieldsOf, PROFILE_GROUPS, readField, type FormMode } from '@/data/lead-form'
 import { RecordCard } from '@/components/record/record-card'
 import { LeadAdmissionPanel } from './lead-admission-panel'
+import type { AiFillRun } from './lead-ai-fill'
 import { FieldRow } from './lead-fields'
 
 /** Module 2 · The profile card — one tab row and the boxes of the open tab.
@@ -58,10 +59,13 @@ export function LeadForm({
    *  DEFAULTS TO DENY — a reader handed typing earns a 403 on every blur. The
    *  create door omits it. */
   canEdit = false,
+  ai,
 }: {
   draft: LeadDraft
   code: string | null
   canEdit?: boolean
+  /** Edit door only: the AI fill run, its button beside the save state. */
+  ai?: AiFillRun
 }) {
   const [tab, setTab] = useState<TabKey>(() => firstTab(draft))
   /* Same reset-during-render as the draft itself: stepping to another lead must
@@ -91,7 +95,23 @@ export function LeadForm({
       title="Thông tin lead"
       tone={editing ? 'reference' : 'work'}
       hint={purpose}
-      actions={editing && <SaveStateNote state={draft.saveState} />}
+      actions={
+        editing && (
+          <>
+            <SaveStateNote state={draft.saveState} />
+            {ai?.offered && (
+              <AiFillButton
+                busy={ai.busy}
+                onClick={() => {
+                  /* The fill lands in the company tab; open it so it is seen. */
+                  setTab('company')
+                  ai.press()
+                }}
+              />
+            )}
+          </>
+        )
+      }
     >
       <SegmentedControl
         label="Phần hồ sơ"
@@ -105,7 +125,7 @@ export function LeadForm({
       {tab === 'note' ? (
         <NoteBox code={code} />
       ) : (
-        <FieldRow fields={boxesOf(tab, draft.mode)} draft={draft} canEdit={canEdit} />
+        <FieldRow fields={boxesOf(tab, draft.mode)} draft={draft} canEdit={canEdit} ai={ai?.view} />
       )}
 
       {/* Which boxes refuse to stay empty is the contract's answer, given

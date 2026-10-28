@@ -135,6 +135,7 @@ const DEFAULT_MOTION: LeadCreate['motion'] = 'INBOUND'
 export const emptyDraft = (): FormValues => ({
   legalName: '',
   taxCode: '',
+  website: '',
   address: '',
   province: '',
   category: '' as LeadCategory,

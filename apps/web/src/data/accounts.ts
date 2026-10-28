@@ -149,6 +149,7 @@ export type AccountDraft = {
   name: string
   legalName: string
   taxCode: string
+  website: string
   address: string
   province: string
   category: string
@@ -162,6 +163,7 @@ export const BLANK_ACCOUNT: AccountDraft = {
   name: '',
   legalName: '',
   taxCode: '',
+  website: '',
   address: '',
   province: '',
   category: '',
@@ -184,6 +186,7 @@ export function accountDraftOf(row: AccountRow | AccountProfile): AccountDraft {
     name: row.name,
     legalName: row.legalName ?? '',
     taxCode: row.taxCode ?? '',
+    website: row.website ?? '',
     address: row.address ?? '',
     province: row.province ?? '',
     category: row.category ?? '',
@@ -212,6 +215,7 @@ export function accountBodyOf(draft: AccountDraft): AccountCreate {
     name: draft.name.trim(),
     ...(some(draft.legalName) === undefined ? {} : { legalName: some(draft.legalName) }),
     ...(some(draft.taxCode) === undefined ? {} : { taxCode: some(draft.taxCode) }),
+    ...(some(draft.website) === undefined ? {} : { website: some(draft.website) }),
     ...(some(draft.address) === undefined ? {} : { address: some(draft.address) }),
     ...(some(draft.province) === undefined ? {} : { province: some(draft.province) }),
     ...(draft.category === ''

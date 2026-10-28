@@ -34,6 +34,7 @@ export function fromForm(body: AccountCreate): AccountValues {
     taxCode: body.taxCode ?? null,
     address: body.address ?? null,
     province: body.province ?? null,
+    website: body.website ?? null,
     category: body.category ?? null,
     headcount: body.headcount ?? null,
     plants: body.plants ?? null,
@@ -64,7 +65,7 @@ export function identityOf(input: { name: string; taxCode?: string | null }): st
   return tax !== undefined && tax !== '' ? tax : input.name.trim().toLowerCase()
 }
 
-/** The eight columns of a lead that describe its COMPANY.
+/** The nine columns of a lead that describe its COMPANY.
  *
  *  Declared here rather than imported from the lead module, and the direction
  *  matters: `sales.account` must not depend on the shape of `sales.lead`, or a
@@ -77,6 +78,7 @@ export type LeadCompanyFacts = {
   taxCode?: string | null
   address?: string | null
   province?: string | null
+  website?: string | null
   category?: AccountCreate['category'] | null
   headcount?: number | null
   plants?: number | null
@@ -121,6 +123,7 @@ export function toContract(read: AccountRead): AccountRow {
     ...(read.taxCode ? { taxCode: read.taxCode } : {}),
     ...(read.address ? { address: read.address } : {}),
     ...(read.province ? { province: read.province } : {}),
+    ...(read.website ? { website: read.website } : {}),
     category: read.category ?? null,
     headcount: read.headcount,
     plants: read.plants,

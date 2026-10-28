@@ -16,6 +16,7 @@ import {
   LeadCreate,
   LeadPatch,
   PHONE_MAX,
+  WEBSITE_MAX,
 } from '@pv/contracts'
 import { CHANNEL_LABEL } from '@/data/sales-config'
 
@@ -90,7 +91,7 @@ export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 
 
 /** The profile as the form holds it: the frozen fixture shape plus the wire
  *  fields it never had. `industries` is notes only, so it joins no slot. */
-export type ProfileValues = LeadProfile & { industries: string[] }
+export type ProfileValues = LeadProfile & { industries: string[]; website: string }
 
 /** The create door draws boxes no stored profile has a column for — `motion`,
  *  then ONE of `origin` · `campaignCode` · `refCode`, as the motion's `asks`
@@ -204,6 +205,7 @@ export const PROFILE_FIELDS: ProfileField[] = [
     mono: true,
     placeholder: '10 chữ số',
   },
+  { key: 'website', label: 'Website', kind: 'text', group: 'company', placeholder: 'abc.com.vn' },
   {
     key: 'address',
     label: 'Địa chỉ nhà máy',
@@ -457,6 +459,7 @@ export function maxCharsOf(field: FormField): number | undefined {
   if (field.kind === 'tags') return TAG_MAX[wire]?.chars
   if (wire === 'email') return EMAIL_MAX
   if (wire === 'phone') return PHONE_MAX
+  if (wire === 'website') return WEBSITE_MAX
   return TEXT_MAX[wire]
 }
 

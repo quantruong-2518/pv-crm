@@ -10,6 +10,7 @@ import {
   textInputOptional,
 } from '../primitives'
 import { LeadCategory, LeadState } from './enums'
+import { websiteOptional } from './lead-fields'
 
 /** The CUSTOMER COMPANY book — `/sales/accounts`.
  *
@@ -68,6 +69,7 @@ export const AccountRow = z.object({
   address: z.string().optional(),
   province: z.string().optional(),
   category: LeadCategory.nullable(),
+  website: z.string().optional(),
 
   headcount: z.number().int().nonnegative().nullable(),
   plants: z.number().int().nonnegative().nullable(),
@@ -233,6 +235,7 @@ const companyFields = {
   address: textInputOptional(ACCOUNT_ADDRESS_MAX.address),
   province: textInputOptional(ACCOUNT_ADDRESS_MAX.province),
   category: LeadCategory.optional(),
+  website: websiteOptional,
 
   headcount: z.number().int().nonnegative().max(1_000_000).optional(),
   plants: z.number().int().nonnegative().max(1_000).optional(),

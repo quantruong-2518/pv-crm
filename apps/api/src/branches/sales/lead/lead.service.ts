@@ -39,6 +39,7 @@ import { toHold } from '../hold/hold.mapper'
 import { vnDay } from '../opportunity/opportunity-lifecycle'
 import { MeetingService } from '../meeting/meeting.service'
 import { TouchService } from '../touch/touch.service'
+import { aiFillBlock } from './lead-ai-fill.rule'
 import { toContract, toMailEvent, toMailTimeline, toProfile, toRef } from './lead.mapper'
 import { LeadRepository, type LeadProfileFound } from './lead.repository'
 
@@ -184,10 +185,12 @@ export class LeadService {
     /* Cùng lý do với `book()`: kiểm chính dữ liệu mình trả ra bằng hợp đồng.
        Một cột đổi kiểu, một trường quên map — cả hai lọt qua `tsc` nếu mapper
        sai theo, không lọt qua đây. Một dòng thì giá bằng không. */
+    /* A deal owner reads the lead but does not edit it: only `holds` does. */
+    const canEdit = found.holds && this.access.allows(who, 'lead.edit')
     return LeadProfile.parse({
       ...toProfile(found, today),
-      /* A deal owner reads the lead but does not edit it: only `holds` does. */
-      canEdit: found.holds && this.access.allows(who, 'lead.edit'),
+      canEdit,
+      canAiFill: canEdit && aiFillBlock(found.row) === null,
       position: positionOf(found, tierRows, tierSince, approvals),
       chain: story.chain.map(toChainLink),
       hold: found.hold ? toHold(found.hold, today) : null,

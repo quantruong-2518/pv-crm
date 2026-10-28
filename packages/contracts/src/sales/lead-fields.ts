@@ -56,6 +56,42 @@ export const LEAD_MAX = {
   fileName: 255,
 } as const
 
+/** A company site, stored as a bare lower-case host: `https://WWW.Abc.vn/vi?x=1`
+ *  and `abc.vn` are one site, and a host is all the dedupe and the link need.
+ *  Shared by the lead and the account book so both hold the same spelling.
+ *  `websiteHost` in `@pv/engines` (lead-keys.ts) takes the same steps for the
+ *  dedupe key: change one, change both. */
+export const WEBSITE_MAX = 200
+const WEBSITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/
+const WEBSITE_WRONG = 'Nhập địa chỉ trang web, ví dụ abc.com.vn.'
+
+export function normaliseWebsite(s: string): string {
+  const host = s
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .split(/[/?#]/)[0]!
+    .replace(/^www\./, '')
+  return host
+}
+
+const websiteHost = z
+  .string('Nhập chữ.')
+  .max(WEBSITE_MAX, `Tối đa ${WEBSITE_MAX} ký tự.`)
+  .transform(normaliseWebsite)
+
+/** Optional on create doors; empty means absent. */
+export const websiteOptional = websiteHost
+  .transform((s) => (s === '' ? undefined : s))
+  .pipe(z.string().regex(WEBSITE_HOST, WEBSITE_WRONG).optional())
+  .optional()
+
+/** Patch door: `''` or `null` clears. See `taxCodeClearable` for why the pair exists. */
+export const websiteClearable = websiteHost
+  .transform((s): string | null => (s === '' ? null : s))
+  .pipe(z.string().regex(WEBSITE_HOST, WEBSITE_WRONG).nullable())
+  .nullish()
+
 /** Numeric ceilings, for the same reason and with one addition.
  *
  *  `budget` used to have no upper bound at all while `headcount` and `plants`

@@ -10,7 +10,8 @@ export type IconProps = {
    *  dành cho watermark trang trí chìm trong nền StatCard
    *  14 chỉ dành cho icon delta nằm cùng dòng với chữ 11.5px trong StatCard,
    *  và ổ khoá của NavItem `locked` — nó đứng chỗ badge số 10.5px, 16 sẽ to hơn badge */
-  size?: 14 | 16 | 17 | 18 | 20 | 24 | 26 | 64
+  /* 12 is only for `AiFieldMark`: the orbit riding a 12px caption line under a field. */
+  size?: 12 | 14 | 16 | 17 | 18 | 20 | 24 | 26 | 64
   /** 1.75 mặc định; 1.9 chỉ cho icon nằm trên nền azure đặc (nút quét, khối AI) */
   strokeWidth?: 1.75 | 1.9
   className?: string

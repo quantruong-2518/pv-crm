@@ -5,6 +5,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   primaryKey,
   smallint,
   text,
@@ -178,6 +179,8 @@ export const lead = sales.table(
     taxCode: text('tax_code'),
     address: text('address'),
     province: text('province'),
+    /** Host only (`example.com`), normalised by the contract. */
+    website: text('website'),
     category: text('category').$type<LeadCategory>(),
     /** Ô 2 chỉ đo cột này. `category` có sẵn từ lúc lead vào sổ nên không phải
      *  thứ moi được — đúng như `SLOT_FIELDS` bên engine đã khai. */
@@ -191,6 +194,13 @@ export const lead = sales.table(
       .default(sql`'{}'::text[]`),
     headcount: integer('headcount'),
     plants: integer('plants'),
+    /** Provenance of AI-filled fields, `{ [field]: { source, unsure, at } }`; the
+     *  contract owns the shape. A person's edit of a field drops its key, so the
+     *  "AI filled" caption never outlives the value it described. */
+    aiFill: jsonb('ai_fill')
+      .$type<Record<string, { source: string; unsure: boolean; at: string }>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
 
     // ── contact · nói chuyện với ai ────────────────── ô 4 · 5 ─────────────
     contactName: text('contact_name').notNull(),
@@ -514,6 +524,9 @@ export const lead = sales.table(
     ),
     /** Four, set by the owner; mirrors `LEAD_NUM.industriesMax`. */
     check('lead_industries_max', sql`cardinality("industries") <= 4`),
+    /** Its own CHECK so `lead_no_blank` is not dropped and re-added: a blank
+     *  website would read as filled to the server and empty to the screen. */
+    check('lead_website_not_blank', sql`"website" <> ''`),
     /** `lead_no_blank` cannot cover an array. A blank tag (empty, whitespace or
      *  NULL) shows as an empty gap once joined on chr(31); `cardinality = 0` is
      *  exempt because an empty array joins to '' too. */

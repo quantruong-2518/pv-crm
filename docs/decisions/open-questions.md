@@ -548,3 +548,19 @@ Raised while adding the termination penalty (ADR 0124).
 123.  **Should the overview (home) show penalties per period too?** Default:
       no, contract book header only (owner chose this 25/10). _(see ADR 0124 §6)_
       **Answered 25/10/2026: no — the contract book header only (ADR 0124 §6).**
+
+## AI fill of a lead (added 28/10/2026)
+
+Raised while adding "Điền ô còn thiếu" (ADR 0128).
+
+124.  **Should the tax registry's name match stay exact after folding, or accept
+      containment (one name inside the other)?** Default: exact. _(see ADR 0128 §3)_
+
+125.  **Should the per-search vendor cost go into the ledger?** Default: not
+      yet, tokens only. _(see ADR 0128 §5)_
+
+126.  **What are VietQR's terms and limits for this use?** Unverified; the
+      registry sits behind an interface so it can be swapped. _(see ADR 0128 §3)_
+
+127.  **Does collecting contacts from the web need legal review (Luật 91/2025)?**
+      Default: only what the company publishes, always with source. _(see ADR 0128 §2)_

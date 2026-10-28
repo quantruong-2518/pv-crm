@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftRight, Drawer, Skeleton, cn } from '@pv/ui'
 import {
@@ -9,6 +9,7 @@ import {
 import { isApiError, userMessage } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { ContactEditDrawer, ContactsCard } from '@/components/contacts-card'
+import { LeadAiMark } from '@/components/lead-ai-mark'
 import { NO_ROLE_LABEL } from '@/components/open-deal-contacts'
 import { accountProfileQuery } from '@/data/accounts'
 import { leadContactsQuery } from '@/data/contacts'
@@ -38,6 +39,8 @@ type Person = {
   line: string | null
   /** How to reach them — information, not an action. */
   reach?: string | null
+  /** The AI fill's captions under `line` and `reach` (lead's primary contact). */
+  marks?: { line?: ReactNode; reach?: ReactNode }
   /** Where the name leads. */
   to?: string
   /** Opens the person's edit drawer; absent = no pencil. */
@@ -78,6 +81,13 @@ function LeadContacts({ code }: { code: string }) {
     primary: c.isPrimary,
     line: c.title ?? null,
     reach: reachOf(c),
+    /* The fill writes the lead's own title and phone, which the primary shows. */
+    marks: c.isPrimary
+      ? {
+          line: c.title && <LeadAiMark mark={lead?.aiFill.contactTitle} />,
+          reach: c.phone && <LeadAiMark mark={lead?.aiFill.phone} />,
+        }
+      : undefined,
   }))
 
   return (
@@ -285,7 +295,7 @@ function PeopleBody({
           to={p.to}
           edit={p.edit && { label: `Sửa ${p.name}`, onClick: p.edit }}
           tag={p.primary && 'Chính'}
-          lines={[p.line, p.reach]}
+          lines={[p.line, p.marks?.line, p.reach, p.marks?.reach]}
           door={
             i === 0 && onChange
               ? { label: 'Đổi người liên hệ', icon: ArrowLeftRight, onClick: onChange }

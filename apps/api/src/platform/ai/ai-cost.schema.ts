@@ -62,7 +62,7 @@ export const aiCall = platform.table(
     /** "One person's calls in a date range" — the spend of a person, scoped by month. */
     index('ai_call_actor_at_idx').on(t.actorId, t.at),
     /** `AiTask`, copied by hand: a new task kind must be a migration a person reads. */
-    check('ai_call_task_known', sql`"task" IN ('lead-scan')`),
+    check('ai_call_task_known', sql`"task" IN ('lead-scan', 'lead-enrich')`),
     check('ai_call_outcome_known', sql`"outcome" IN ('ok', 'error')`),
     check('ai_call_tokens_in_not_negative', sql`"tokens_in" >= 0`),
     check('ai_call_tokens_out_not_negative', sql`"tokens_out" >= 0`),

@@ -89,6 +89,8 @@ export const account = sales.table(
 
     address: text('address'),
     province: text('province'),
+    /** Host only (`example.com`), normalised by the contract. */
+    website: text('website'),
     category: text('category').$type<LeadCategory>(),
 
     headcount: integer('headcount'),
@@ -131,6 +133,7 @@ export const account = sales.table(
      *  `config_entry` hold, and the reason the identity index below can use
      *  `nullif` on the tax code and get a truthful answer. */
     check('account_name_not_blank', sql`"name" <> ''`),
+    check('account_website_not_blank', sql`"website" <> ''`),
     /** https only: the app is served over https, so an http image is blocked. */
     check(
       'account_logo_url_https',

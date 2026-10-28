@@ -9,7 +9,9 @@
 import type { AiFailureKind } from './ai-policy'
 
 export type AiPart = { text: string } | { file: { mime: string; bytes: Buffer } }
-export type AiRequest = { system: string; parts: readonly AiPart[] }
+/** `webSearch`: the model may search the web first. Known debt: both vendors
+ *  bill each search on top of tokens, and the ledger records tokens only. */
+export type AiRequest = { system: string; parts: readonly AiPart[]; webSearch?: boolean }
 export type AiLimits = { maxTokensOut: number; timeoutMs: number }
 
 /** `complete` is false when the vendor stopped early (token ceiling, safety). */

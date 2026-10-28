@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Input, Select, TagInput, Textarea, billions, cn, vnd } from '@pv/ui'
+import { AiFillField, Input, Select, TagInput, Textarea, billions, cn, vnd } from '@pv/ui'
 import { CURRENCIES, toMoneyVnd, type CurrencyCode } from '@pv/engines/fixtures/das-vina'
 import { AddressField, type AddressBoxKey } from '@/components/address-field'
 import { peopleRoleOptions, useSalesPeople } from '@/data/directory'
@@ -17,9 +17,11 @@ import {
   readField,
   readTags,
   tagLimitsOf,
+  type FieldKey,
   type FormField,
   type FormValues,
 } from '@/data/lead-form'
+import type { AiFillView } from './lead-ai-fill'
 
 /** Module 2 · The controls one box of the lead form is made of — label, star,
  *  control, and the complaint when a save was refused.
@@ -48,6 +50,7 @@ function FieldShell({
   required,
   error,
   plain,
+  under,
   children,
 }: {
   field: FormField
@@ -56,6 +59,9 @@ function FieldShell({
   required: boolean
   error?: string
   plain?: boolean
+  /** Below the hint, outside the label: the AI caption and conflict line hold
+   *  links and buttons that must not share the box's label. */
+  under?: ReactNode
   children: ReactNode
 }) {
   const head = (
@@ -91,8 +97,14 @@ function FieldShell({
           <span className="text-muted-foreground text-[12px] leading-[1.6]">{field.hint}</span>
         )
       )}
+      {under}
     </div>
   )
+}
+
+/** The box under an AI fill run's layers, or the bare box when no run is wired. */
+function filling(ai: AiFillView | undefined, key: FieldKey, control: ReactNode) {
+  return ai ? <AiFillField state={ai.stateOf(key)}>{control}</AiFillField> : control
 }
 
 /** Thousands separators for a number in a box — law 6.
@@ -211,24 +223,23 @@ function FieldControl({
 
   if (field.kind === 'num' || field.kind === 'money') {
     return (
-      <span className="flex items-center gap-2">
-        <Input
-          inputMode="numeric"
-          value={grouped(value)}
-          invalid={invalid}
-          aria-label={field.label}
-          aria-required={marked}
-          className="h-11 min-w-0 flex-1 font-mono text-[13px]"
-          /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
-             while the value behind it is `1000000`, so a character ceiling on
-             the control would cut the number short by the separators. */
-          onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, maxCharsOf(field)))}
-          onBlur={onBlur}
-        />
-        {field.unit && (
-          <span className="text-muted-foreground shrink-0 text-[12.5px]">{field.unit}</span>
-        )}
-      </span>
+      /* The unit rides inside the box (`suffix`), so an AI fill's layers cover
+         exactly the box and nothing beside it. */
+      <Input
+        inputMode="numeric"
+        value={grouped(value)}
+        invalid={invalid}
+        aria-label={field.label}
+        aria-required={marked}
+        suffix={field.unit}
+        shellClassName="h-11"
+        className="h-11 min-w-0 flex-1 font-mono text-[13px]"
+        /* Clamped by DIGITS, not by `maxLength`: the box shows `1.000.000`
+           while the value behind it is `1000000`, so a character ceiling on
+           the control would cut the number short by the separators. */
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, maxCharsOf(field)))}
+        onBlur={onBlur}
+      />
     )
   }
 
@@ -263,11 +274,13 @@ function LeadAddressBoxes({
   province,
   draft,
   writable,
+  ai,
 }: {
   address: FormField
   province: FormField
   draft: LeadDraft
   writable: boolean
+  ai?: AiFillView
 }) {
   const boxOf = (key: AddressBoxKey) => (key === 'address' ? address : province)
   const complaint = (field: FormField) => {
@@ -302,8 +315,9 @@ function LeadAddressBoxes({
           required={writable && isRequired(boxOf(key), draft.mode)}
           error={errors?.[0]}
           plain={plain}
+          under={ai?.under(key)}
         >
-          {children}
+          {filling(ai, key, children)}
         </FieldShell>
       )}
     />
@@ -364,10 +378,13 @@ export function FieldRow({
   fields,
   draft,
   canEdit = false,
+  ai,
 }: {
   fields: FormField[]
   draft: LeadDraft
   canEdit?: boolean
+  /** The edit door's AI fill run; absent on every other card. */
+  ai?: AiFillView
 }) {
   const writable = draft.mode === 'create' || canEdit
 
@@ -386,7 +403,9 @@ export function FieldRow({
       {fields.map((field) => {
         if (pair && field.key === 'province') return null
         if (pair && field.key === 'address') {
-          return <LeadAddressBoxes key={field.key} {...pair} draft={draft} writable={writable} />
+          return (
+            <LeadAddressBoxes key={field.key} {...pair} draft={draft} writable={writable} ai={ai} />
+          )
         }
 
         const drawn = drawnField(field, draft, writable)
@@ -405,29 +424,34 @@ export function FieldRow({
             /* A tag box holds buttons: a wrapping label would aim its click at
                the first pill's remove button. */
             plain={drawn.kind === 'select' || drawn.kind === 'read' || drawn.kind === 'tags'}
+            under={ai?.under(field.key)}
           >
-            <FieldControl
-              field={drawn}
-              value={readField(draft.values, field.key)}
-              tags={readTags(draft.values, field.key)}
-              required={writable && isRequired(field, draft.mode)}
-              invalid={error !== undefined}
-              options={options}
-              /* `onSet` gets the ORIGINAL field: a label swapped for the eye
+            {filling(
+              ai,
+              field.key,
+              <FieldControl
+                field={drawn}
+                value={readField(draft.values, field.key)}
+                tags={readTags(draft.values, field.key)}
+                required={writable && isRequired(field, draft.mode)}
+                invalid={error !== undefined}
+                options={options}
+                /* `onSet` gets the ORIGINAL field: a label swapped for the eye
                  must not change where the value is written. */
-              onChange={(raw) => {
-                if (!writable) return
-                draft.set(field, raw)
-                if (instant) draft.commit(field)
-              }}
-              onBlur={!writable || instant ? undefined : () => draft.commit(field)}
-              /* The list `onLeave` hands over, not the draft's: it carries the
+                onChange={(raw) => {
+                  if (!writable) return
+                  draft.set(field, raw)
+                  if (instant) draft.commit(field)
+                }}
+                onBlur={!writable || instant ? undefined : () => draft.commit(field)}
+                /* The list `onLeave` hands over, not the draft's: it carries the
                  text still being typed. `commit` writes nothing if unchanged. */
-              onLeave={(tags) => {
-                draft.set(field, tags)
-                draft.commit(field)
-              }}
-            />
+                onLeave={(tags) => {
+                  draft.set(field, tags)
+                  draft.commit(field)
+                }}
+              />,
+            )}
             {drawn.kind === 'money' && (
               <MoneyRead work={draft.values} value={readField(draft.values, field.key)} />
             )}

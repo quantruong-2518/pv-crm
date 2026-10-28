@@ -85,6 +85,8 @@ export const LEAD_NOTE = {
    *  boxes rather than naming them — twenty-one field names would make a
    *  timeline row nobody reads to the end. */
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
+  /** Same count, written by `POST :code/ai-fill` — the fill is a save nobody typed. */
+  aiFilled: (fields: number) => `AI điền · ${fields} ô`,
   contacted: 'Đã gọi khách',
   /** The rung sentences `LeadStateWriter` writes as it moves the lead. Each sentence
    *  says WHAT happened, not which door pressed it and not which state it landed
@@ -172,6 +174,7 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       taxCode: body.taxCode ?? null,
       address: body.address ?? null,
       province: body.province ?? null,
+      website: body.website ?? null,
       category: body.category ?? null,
       mainProduct: body.mainProduct ?? null,
       industries: body.industries,

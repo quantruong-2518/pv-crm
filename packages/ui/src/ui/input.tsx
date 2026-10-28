@@ -18,6 +18,9 @@ export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
    *  building this shape by hand copies both rings and they drift on the next
    *  edit to this file. */
   suffix?: React.ReactNode
+  /** With `suffix`, `className` styles the bare field inside; the box's own
+   *  size (height) goes here. */
+  shellClassName?: string
 }
 
 /** ONE literal for the 14px side padding, which is off the 8-step scale and an
@@ -33,7 +36,7 @@ const INVALID_RING =
   'text-destructive-foreground shadow-[0_0_0_2px_color-mix(in_srgb,var(--destructive)_50%,transparent)]'
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, invalid, suffix, ...props }, ref) => {
+  ({ className, invalid, suffix, shellClassName, ...props }, ref) => {
     const field = (
       <input
         ref={ref}
@@ -61,6 +64,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           FIELD_PAD,
           'focus-within:shadow-[0_0_0_2px_color-mix(in_srgb,var(--ring)_55%,transparent)]',
           invalid && INVALID_RING,
+          shellClassName,
         )}
       >
         {React.cloneElement(field, {

@@ -113,6 +113,7 @@ export function profileForm(p: LeadProfile): ProfileValues {
     // ── 1 · who the customer is ─────────────────────────────────────────────
     legalName: p.legalName ?? '',
     taxCode: p.taxCode ?? '',
+    website: p.website ?? '',
     address: p.address ?? '',
     province: p.province ?? '',
     category: (p.category ?? '') as LeadCategory,

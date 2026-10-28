@@ -18,6 +18,11 @@ import { MeetingModule } from '../meeting/meeting.module'
 import { PartnerModule } from '../partner/partner.module'
 import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
+import { LeadAiFillController } from './lead-ai-fill.controller'
+import { LeadAiFillRepository } from './lead-ai-fill.repository'
+import { LeadAiFillService } from './lead-ai-fill.service'
+import { LeadEnricher } from './lead-enrich'
+import { TAX_REGISTRY, VietQrTaxRegistry } from './lead-enrich.tax-registry'
 import { LeadContactController } from './lead-contact.controller'
 import { LeadController } from './lead.controller'
 import { LeadRepository } from './lead.repository'
@@ -111,7 +116,13 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     /* The commit re-reads the uploader as an `Actor` to re-ask E2. */
     SessionModule,
   ],
-  controllers: [LeadController, LeadIntakeController, LeadContactController, LeadScanController],
+  controllers: [
+    LeadController,
+    LeadIntakeController,
+    LeadContactController,
+    LeadScanController,
+    LeadAiFillController,
+  ],
   providers: [
     LeadService,
     LeadRepository,
@@ -144,6 +155,11 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadScanCommit,
     /* Ticked by `worker.ts`, which finds it anywhere in the tree. */
     LeadScanSweeper,
+    /* AI fill: the enricher and the registry it verifies tax codes against. */
+    LeadEnricher,
+    LeadAiFillService,
+    LeadAiFillRepository,
+    { provide: TAX_REGISTRY, useValue: new VietQrTaxRegistry() },
     /* What `worker.ts` runs for the two scan queues — `platform/` cannot name us. */
     {
       provide: SCAN_JOB_HANDLER,

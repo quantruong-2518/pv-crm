@@ -1,11 +1,11 @@
 import { Input, Select, Textarea } from '@pv/ui'
-import { ACCOUNT_ADDRESS_MAX, LeadCategory } from '@pv/contracts'
+import { ACCOUNT_ADDRESS_MAX, LeadCategory, WEBSITE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
 import { CATEGORY_LABEL, type AccountDraft } from '@/data/accounts'
 import { AddressField } from './address-field'
 import { Field } from './ops-fields'
 
-/** The company form's ten fields, shared between TWO places.
+/** The company form's fields, shared between TWO places.
  *
  *  Same reason `ops-fields.tsx` exists: the "Open new company" popup on the
  *  book and the edit form on the profile must ask exactly the same
@@ -76,6 +76,18 @@ export function AccountFields({
             className="font-mono"
             invalid={Boolean(errors.taxCode)}
             onChange={(e) => onSet('taxCode', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Website" errors={errors.website}>
+          <Input
+            inputMode="url"
+            value={draft.website}
+            maxLength={WEBSITE_MAX}
+            placeholder="abc.com.vn"
+            aria-label="Website"
+            invalid={Boolean(errors.website)}
+            onChange={(e) => onSet('website', e.target.value)}
           />
         </Field>
 

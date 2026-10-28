@@ -342,6 +342,19 @@ export class LeadWriteRepository {
     return rows.length > 0
   }
 
+  /** Drops the AI provenance of the fields a person just wrote, so the "AI
+   *  filled" caption never outlives the value it described. */
+  async forgetAiFill(tx: Db, code: string, fields: readonly string[]): Promise<void> {
+    const keys = sql.join(
+      fields.map((f) => sql`${f}`),
+      sql`, `,
+    )
+    await tx
+      .update(lead)
+      .set({ aiFill: sql`${lead.aiFill} - ARRAY[${keys}]::text[]` })
+      .where(eq(lead.code, code))
+  }
+
   /** Fill-empty-only: each column keeps what it holds and takes `values` only
    *  where it is NULL, decided per row inside the UPDATE, so a value written
    *  a moment ago by somebody else is never overwritten. True = at least one

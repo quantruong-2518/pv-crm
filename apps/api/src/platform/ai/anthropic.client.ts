@@ -1,5 +1,5 @@
 import Anthropic, { APIError } from '@anthropic-ai/sdk'
-import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
+import type { ContentBlock, ContentBlockParam } from '@anthropic-ai/sdk/resources/messages'
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import {
   AiVendorError,
@@ -16,8 +16,17 @@ import {
  *  gateway still parses the answer by the full zod contract), images and PDFs
  *  as content blocks, effort low.
  *
+ *  With `webSearch` the schema goes into the system text instead: web search
+ *  always returns citations, and the API refuses citations beside
+ *  `output_config.format` with a 400. The gateway's zod parse still decides.
+ *
  *  `maxRetries: 0`: the SDK would otherwise retry on its own, hiding attempts
  *  from the gateway's policy and from the ledger. */
+
+/** Basic search, called directly: five searches are plenty for one company.
+ *  Known limit: a `pause_turn` stop reads as cut short, so the gateway's retry
+ *  starts the searches over (and pays for them again) rather than resuming. */
+const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as const
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
 type ImageMime = (typeof IMAGE_MIME)[number]
@@ -37,24 +46,28 @@ export class AnthropicClient implements AiClient {
     schema: object,
     limits: AiLimits,
   ): Promise<AiAnswer> {
+    const search = request.webSearch === true
     const message = await this.ready()
       .messages.create(
         {
           model,
           max_tokens: limits.maxTokensOut,
-          system: request.system,
+          system: search ? `${request.system}\n\n${schemaInstruction(schema)}` : request.system,
           messages: [{ role: 'user', content: blocksOf(request) }],
+          ...(search ? { tools: [WEB_SEARCH] } : {}),
           /* Lowest effort, thinking left adaptive: Sonnet 5.5 and Opus 5.5 refuse
            *  `thinking: disabled` with a 400, and extraction needs little thought. */
           output_config: {
             effort: 'low',
-            format: { type: 'json_schema', schema: transformJSONSchema(schema) },
+            ...(search
+              ? {}
+              : { format: { type: 'json_schema', schema: transformJSONSchema(schema) } }),
           },
         },
         { timeout: limits.timeoutMs },
       )
       .catch(vendorError)
-    const text = message.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')
+    const text = search ? jsonOf(message.content) : textOf(message.content)
     return {
       text: text || undefined,
       complete: message.stop_reason === 'end_turn',
@@ -80,6 +93,23 @@ export class AnthropicClient implements AiClient {
     return this.sdk
   }
 }
+
+const textOf = (blocks: readonly ContentBlock[]): string =>
+  blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')
+
+/** The answer is the text after the last search; cited spans split it into
+ *  several blocks, and the model may wrap the object in a sentence or a fence. */
+function jsonOf(blocks: readonly ContentBlock[]): string {
+  let first = blocks.length
+  while (first > 0 && blocks[first - 1]?.type === 'text') first -= 1
+  const text = textOf(blocks.slice(first))
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  return start >= 0 && end > start ? text.slice(start, end + 1) : ''
+}
+
+const schemaInstruction = (schema: object) =>
+  `Answer with one JSON object and nothing else. It must match this JSON schema:\n${JSON.stringify(schema)}`
 
 /** A file the API has no block for is the request's fault, so it is final. */
 function blocksOf(request: AiRequest): ContentBlockParam[] {

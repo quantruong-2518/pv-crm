@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { LEAD_HANDED_OVER, type AccessControl, type Actor } from '@pv/engines'
 import {
   NOTIFICATION_DETAIL_DEALS,
+  LeadAiFillField,
   LeadCreateResponse,
   LeadOwnerResponse,
   LeadTier,
@@ -613,6 +614,9 @@ export class LeadWriteService {
       if (Object.keys(values).length > 0 && !(await this.repo.patchLead(tx, code, values))) {
         throw notFound('lead', code)
       }
+      /* The screen's undo after an AI fill is a patch clearing those fields, so it lands here too. */
+      const edited = LeadAiFillField.options.filter((f) => body[f] !== undefined)
+      if (edited.length > 0) await this.repo.forgetAiFill(tx, code, edited)
 
       await this.touch.record(tx, [
         {

@@ -35,7 +35,10 @@ import {
   industryTags,
   taxCodeClearable,
   taxCodeOptional,
+  websiteClearable,
+  websiteOptional,
 } from './lead-fields'
+import { LeadAiFillMarks } from './lead-ai-fill'
 import { Hold } from './hold'
 import { AdmissionChoice } from './lead-admission'
 import { MOTION_BY_CHANNEL } from './lead-intake'
@@ -511,6 +514,10 @@ export const LeadProfile = LeadRow.extend({
    *  it only by standing on one of its live deals (ADR 0071): they read and
    *  mail, the lead's holder edits. */
   canEdit: z.boolean(),
+  /** Whether the AI fill button can run: `canEdit`, a real company name and
+   *  contact, and at least one fillable field empty. The server owns the rule;
+   *  the default lets a web that ships first still parse an older API. */
+  canAiFill: z.boolean().default(false),
 
   // ── info · who the customer is ────────────────────── slots 1 · 2 · 3 ────
   //
@@ -523,9 +530,14 @@ export const LeadProfile = LeadRow.extend({
   /** Free text, matching the column: 10 digits, or 13 with a branch suffix. */
   taxCode: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
+  /** Bare host, see `normaliseWebsite`. */
+  website: z.string().min(1).optional(),
   mainProduct: z.string().min(1).optional(),
   /** Notes only, never routing. Always present; `[]` when none. */
   industries: z.array(z.string()),
+  /** Fields whose current value is the AI's, with where it came from.
+   *  Defaulted so a web that ships before the API still parses its profile. */
+  aiFill: LeadAiFillMarks.default({}),
 
   /** Headcount and plants — `nonnegative`, not `positive`, and the difference
    *  is deliberate. `LeadCreate` narrows both to `positive()` because a person
@@ -703,6 +715,7 @@ export const LeadCreate = z
      *  free text. Worth knowing: the importer's dedupe key strips it down to
      *  digits, so two spellings of one code are one key there. */
     taxCode: taxCodeOptional,
+    website: websiteOptional,
     address: textInputOptional(LEAD_MAX.address),
     province: textInputOptional(LEAD_MAX.province),
     category: LeadCategory.optional(),
@@ -874,6 +887,7 @@ export const LeadPatch = z
      *  for a value, both doors — a tax code the form refuses must not be
      *  reachable by editing the profile afterwards. */
     taxCode: taxCodeClearable,
+    website: websiteClearable,
     address: clearableText(LEAD_MAX.address),
     province: clearableText(LEAD_MAX.province),
     category: LeadCategory.nullish(),

@@ -51,6 +51,13 @@ export type LeadDraft = {
   /** Edit door only: value left a box → PATCH that one field if it changed.
    *  No-op on the create door. */
   commit: (field: FormField) => void
+  /** Edit door only: values the SERVER just wrote (AI fill, its undo) go into
+   *  the boxes as already sent, so no blur writes the old value back. Ignored
+   *  once the reader has stepped to another lead. */
+  absorb: (code: string, written: Partial<FormValues>) => void
+  /** Of `written`, the keys the boxes still hold as written and no save is in
+   *  flight for — what an undo may clear without wiping a person's typing. */
+  untouched: (code: string, written: Partial<FormValues>) => FieldKey[]
   /** Edit door only: does saving this box reach the server — `isEditable`. */
   editable: (field: FormField) => boolean
   dirty: FieldKey[]
@@ -103,6 +110,34 @@ function byBox(errors: FieldErrors): FieldErrors {
   }
   return out
 }
+
+type Refs = {
+  live: { current: FormValues }
+  sent: { current: Partial<Record<FieldKey, unknown>> }
+  openCode: { current: string }
+}
+
+/** `LeadDraft.absorb`, outside the hook only to keep the hook short. */
+const absorber =
+  (refs: Refs, setValues: (next: FormValues) => void, drop: (key: FieldKey) => void) =>
+  (code: string, written: Partial<FormValues>) => {
+    if (refs.openCode.current !== code) return
+    const next = { ...refs.live.current, ...written }
+    for (const key of Object.keys(written) as FieldKey[]) {
+      refs.sent.current[key] = next[key]
+      drop(key)
+    }
+    refs.live.current = next
+    setValues(next)
+  }
+
+/** `LeadDraft.untouched`, read off the live refs like `absorber`. */
+const untouchedOf = (refs: Refs) => (code: string, written: Partial<FormValues>) =>
+  refs.openCode.current !== code
+    ? []
+    : (Object.keys(written) as FieldKey[]).filter(
+        (key) => !(key in refs.sent.current) && sameValue(refs.live.current[key], written[key]),
+      )
 
 export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
   const mode: FormMode = args.mode
@@ -286,6 +321,8 @@ export function useLeadDraft(args: UseLeadDraftArgs): LeadDraft {
     base,
     set,
     commit,
+    absorb: absorber({ live, sent, openCode }, setValues, dropComplaint),
+    untouched: untouchedOf({ live, sent, openCode }),
     editable: (field) => profile !== null && isEditable(field),
     dirty: changedFields(base, values),
     reset,

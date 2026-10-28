@@ -64,19 +64,25 @@ export function taxRoot(raw: string): string | null {
   return match ? match[1]! : null
 }
 
+/** Same steps as `normaliseWebsite` in `@pv/contracts` (sales/lead-fields.ts),
+ *  which writes the stored column: change one, change both, or a stored site
+ *  stops matching its own key. Null when no dotted host is left. */
 export function websiteHost(raw: string): string | null {
   const host = raw
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, '')
+    .split(/[/?#]/)[0]!
     .replace(/^www\./, '')
-    .split('/')[0]!
   return host.includes('.') ? host : null
 }
 
+/** VNPT hands `*.vnn.vn` mailboxes to its subscribers: the host names the ISP. */
+const ISP_MAIL = /(^|\.)vnn\.vn$/
+
 /** Null for a free-mail host: it names a mail provider, not an employer. */
 export function companyDomain(host: string | null): string | null {
-  return host && !FREE_MAIL_DOMAINS.has(host) ? host : null
+  return host && !FREE_MAIL_DOMAINS.has(host) && !ISP_MAIL.test(host) ? host : null
 }
 
 // ---------------------------------------------------------------------------
