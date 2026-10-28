@@ -1051,6 +1051,13 @@
       "when": 1795600300000,
       "tag": "0154_category_industry_config",
       "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1795600360000,
+      "tag": "0155_seed_categories_industries",
+      "breakpoints": true
     }
   ]
 }
