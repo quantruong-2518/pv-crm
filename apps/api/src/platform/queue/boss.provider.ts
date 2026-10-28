@@ -228,7 +228,7 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
     retryLimit: SCAN_RETRY_LIMIT,
     retryDelay: 10,
     retryBackoff: true,
-    /* Above one model call with its retry, and above a 50-file commit. */
+    /* Above one gateway call (3 attempts × `AI_TIMEOUT_MAX_MS`), and above a 50-file commit. */
     expireInSeconds: 300,
     retentionSeconds: 7 * DAY_SECONDS,
     notify,

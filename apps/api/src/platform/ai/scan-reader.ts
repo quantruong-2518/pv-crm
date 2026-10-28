@@ -1,14 +1,16 @@
 import type { ScanExtraction, ScanUploadMime } from '@pv/contracts'
+import type { AiCaller } from './ai-gateway'
 
 /** WHAT THE SCAN DOOR ASKS OF A MODEL — one file in, one `ScanExtraction` out.
  *
  *  A token and an interface so the Sales branch never learns which vendor
- *  reads its cards; `gemini.scan-reader.ts` is today's answer. Grouping by
+ *  reads its cards; `gateway.scan-reader.ts` is today's answer, over
+ *  `AiGateway`. Failures are the gateway's three error classes. Grouping by
  *  company and matching the book stay server rules — never the model's. */
 export const SCAN_READER = Symbol('pv.ai.scan-reader')
 
-export type ScanReadInput = { bytes: Buffer; mime: ScanUploadMime }
-/** `model` is the vendor id actually sent: the cost ledger prices by it (ADR 0102). */
+export type ScanReadInput = { bytes: Buffer; mime: ScanUploadMime; who: AiCaller }
+/** `model` is the one that answered; tokens are summed over every attempt. */
 export type ScanReadResult = {
   extraction: ScanExtraction
   model: string
@@ -17,37 +19,5 @@ export type ScanReadResult = {
 }
 
 export interface ScanReader {
-  /** False without `GEMINI_API_KEY`: the screen can say "not configured"
-   *  before anyone uploads fifty files into a queue that cannot drain. */
-  enabled: boolean
   read(input: ScanReadInput): Promise<ScanReadResult>
-}
-
-/** Not worth a retry — no key. */
-export class ScanReaderDisabledError extends Error {
-  constructor() {
-    super('scan reader disabled: GEMINI_API_KEY is not set')
-    this.name = 'ScanReaderDisabledError'
-  }
-}
-
-/** No usable extraction, and retrying will not change that: the vendor
- *  refused the request (a 4xx other than 408/429 — too large, unsupported,
- *  bad key) or answered blocked, truncated or off-schema. Always final. */
-export class ScanOutputError extends Error {
-  /** Set only when the vendor answered: an unusable answer is still billed, so
-   *  the daily budget must count it. A refused request carries none. */
-  readonly tokensIn?: number
-  readonly tokensOut?: number
-
-  constructor(
-    message: string,
-    readonly model: string,
-    usage?: Pick<ScanReadResult, 'tokensIn' | 'tokensOut'>,
-  ) {
-    super(message)
-    this.name = 'ScanOutputError'
-    this.tokensIn = usage?.tokensIn
-    this.tokensOut = usage?.tokensOut
-  }
 }

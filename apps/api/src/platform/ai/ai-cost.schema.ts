@@ -5,6 +5,7 @@ import {
   integer,
   numeric,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -46,6 +47,9 @@ export const aiCall = platform.table(
     /** `'scan_file:' || id`, written by 0123's backfill only, so re-running it
      *  adds nothing. NULL on every live write; NULLs never collide in a UNIQUE. */
     sourceKey: text('source_key'),
+    /** 1 = first try, 2+ = a retry or the fallback model; each attempt that
+     *  reached a vendor is its own row, so a retry's tokens are not hidden. */
+    attempt: smallint('attempt').notNull().default(1),
   },
   (t) => [
     /** A constraint, not a partial index, so `ON CONFLICT (source_key)` can name it. */
@@ -59,6 +63,8 @@ export const aiCall = platform.table(
     check('ai_call_outcome_known', sql`"outcome" IN ('ok', 'error')`),
     check('ai_call_tokens_in_not_negative', sql`"tokens_in" >= 0`),
     check('ai_call_tokens_out_not_negative', sql`"tokens_out" >= 0`),
+    /** The gateway's attempt cap (3), copied by hand. */
+    check('ai_call_attempt_range', sql`"attempt" BETWEEN 1 AND 3`),
   ],
 )
 

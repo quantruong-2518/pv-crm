@@ -17,17 +17,12 @@ import {
   type ScanUploadMime,
   type ScanUploadSlot,
 } from '@pv/contracts'
-import { ENV, type Env } from '@api/platform/config/env'
 import { conflict, invalid, notFound, rateLimited } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { StorageObjectMissingError, StorageService } from '@api/platform/storage/storage.service'
-import {
-  SCAN_READER,
-  ScanOutputError,
-  ScanReaderDisabledError,
-  type ScanReader,
-} from '@api/platform/ai/scan-reader'
-import { AiLedger, type AiCallRecord } from '@api/platform/ai/ai-ledger'
+import { SCAN_READER, type ScanReader } from '@api/platform/ai/scan-reader'
+import { AiGateway } from '@api/platform/ai/ai-gateway'
+import { AiCallError, AiOutputError, AiUnavailableError, spentOf } from '@api/platform/ai/ai-errors'
 import { SCAN_ENQUEUE, type ScanAttempt, type ScanEnqueue } from '@api/platform/queue/scan-jobs'
 import type { Db } from '@api/platform/db/db.module'
 import type { ScanBatchRowDb } from './lead-scan.schema'
@@ -62,8 +57,6 @@ const PREVIEWED = ['READY', 'DONE'] as const
 /** Before the commit press, a batch's file set may still change or be dropped. */
 const OPEN: readonly ScanBatchState[] = ['UPLOADING', 'READING', 'READY']
 const closed = (code: string) => conflict(`Lô ${code} đã đóng.`)
-/** One model call, as the read job learns it; the batch fills in who and what for. */
-type ScanCall = Pick<AiCallRecord, 'model' | 'tokensIn' | 'tokensOut' | 'outcome'>
 
 const EXT: Record<ScanUploadMime, string> = {
   'image/webp': 'webp',
@@ -84,9 +77,8 @@ export class LeadScanService {
     private readonly storage: StorageService,
     @Inject(SCAN_READER) private readonly reader: ScanReader,
     @Inject(SCAN_ENQUEUE) private readonly queue: ScanEnqueue,
-    @Inject(ENV) private readonly env: Env,
     private readonly hub: NotificationHub,
-    private readonly ledger: AiLedger,
+    private readonly ai: AiGateway,
   ) {}
 
   /** The uploader hears what the worker or the sweeper did to their batch
@@ -101,7 +93,7 @@ export class LeadScanService {
 
   /** `POST /sales/leads/scan`. */
   async create(who: Actor, body: LeadScanCreateBody): Promise<LeadScanCreateResponse> {
-    await this.admit()
+    await this.admit(who.id)
     const motion = body.campaignCode ? 'EVENT' : 'OUTBOUND'
     await this.write.scanCampaign(motion, body.campaignCode)
     const code = await this.repo.nextCode()
@@ -136,7 +128,7 @@ export class LeadScanService {
     body: LeadScanAddFilesBody,
   ): Promise<LeadScanAddFilesResponse> {
     await this.mine(who, code)
-    await this.admit()
+    await this.admit(who.id)
     const slots = await this.repo.run(async (tx) => {
       const batch = await this.repo.lockBatch(tx, code)
       if (!batch || !OPEN.includes(batch.state)) throw closed(code)
@@ -195,7 +187,7 @@ export class LeadScanService {
       )
       const hit = new Map(cached.map((c) => [c.sha256, c]))
       const toRead = listed.filter((f) => !hit.has(f.sha256)).map((f) => f.id)
-      if (toRead.length > 0) await this.spendable(tx)
+      if (toRead.length > 0) await this.admit(who.id, tx)
       for (const f of listed) {
         const c = hit.get(f.sha256)
         if (!c) continue
@@ -321,15 +313,15 @@ export class LeadScanService {
     const claimed = await this.repo.claimFile(fileId)
     const file = claimed && (await this.repo.file(fileId))
     if (!claimed || !file) return
+    const batch = await this.repo.batch(claimed.batchCode)
     let values: Parameters<LeadScanRepository['finishFile']>[2]
-    let call: ScanCall | null = null
     try {
       const bytes = await this.storage.read(file.storageKey)
-      const { extraction, model, tokensIn, tokensOut } = await this.reader.read({
+      const { extraction, tokensIn, tokensOut } = await this.reader.read({
         bytes,
         mime: file.mime,
+        who: { actorId: batch?.createdBy ?? null, subjectCode: claimed.batchCode },
       })
-      call = { model, tokensIn, tokensOut, outcome: 'ok' }
       values = {
         state: isEmpty(extraction) ? 'EMPTY' : 'READ',
         kind: extraction.kind,
@@ -345,13 +337,8 @@ export class LeadScanService {
       if (!attempt.final && !isFinal(error)) {
         throw new Error(`scan file ${fileId}: transient read failure (${kind})`)
       }
-      /* An unusable answer was still billed; the budget must see it. */
-      const spent = error instanceof ScanOutputError ? error : null
-      /* Only this error says the model was reached; the others never called it or carry no model. */
-      if (spent) {
-        const { model, tokensIn = 0, tokensOut = 0 } = spent
-        call = { model, tokensIn, tokensOut, outcome: 'error' }
-      }
+      /* The gateway already wrote each attempt to the ledger; the file keeps the sum. */
+      const spent = error instanceof AiCallError ? spentOf(error.attempts) : null
       values = {
         state: 'FAILED',
         error: FILE_FAILED,
@@ -361,39 +348,19 @@ export class LeadScanService {
     }
     await this.repo.run(async (tx) => {
       await this.repo.finishFile(tx, fileId, values)
-      if (call) await this.record(tx, claimed.batchCode, call)
       const uploader = await this.repo.readyIfDone(tx, claimed.batchCode)
       if (uploader) await this.tell(tx, LEAD_SCAN_READY, claimed.batchCode, uploader)
     })
   }
 
-  /** The ledger row for one read, beside the file row that holds its result (ADR 0102). */
-  private async record(tx: Db, code: string, call: ScanCall): Promise<void> {
-    const batch = await this.repo.batch(code, tx)
-    await this.ledger.record(tx, {
-      ...call,
-      task: 'lead-scan',
-      actorId: batch?.createdBy ?? null,
-      subjectCode: code,
-    })
-  }
-
-  /** Server setting, then the company's AI spend. The per-uploader quota is
-   *  counted inside `create`'s insert transaction instead. */
-  private async admit(): Promise<void> {
-    /* 409 like `PV_MAS_ENABLED`: the answer is a server setting, not a grant. */
-    if (!this.reader.enabled) {
-      throw conflict('Chưa bật nạp lead từ ảnh. Báo quản trị viên.')
-    }
-    await this.spendable(this.repo.pool)
-  }
-
-  /** Refuses new model work once the rolling 24 h budget is spent; reads
-   *  already queued still run, so a batch is never cut mid-read. */
-  private async spendable(db: Db): Promise<void> {
-    const budget = this.env.SCAN_DAILY_TOKEN_BUDGET
-    if (budget > 0 && (await this.repo.tokensLastDay(db)) >= budget) {
-      throw rateLimited('Đã hết hạn mức đọc ảnh trong 24 giờ qua. Thử lại sau.')
+  /** The `lead-scan` route's pre-flight before new model work is queued. The
+   *  per-uploader batch quota is counted inside `create`'s insert transaction. */
+  private async admit(actorId: string, db?: Db): Promise<void> {
+    try {
+      await this.ai.check('lead-scan', actorId, db)
+    } catch (error) {
+      if (!(error instanceof AiUnavailableError)) throw error
+      throw UNAVAILABLE[error.reason]()
     }
   }
 
@@ -468,12 +435,22 @@ export class LeadScanService {
   }
 }
 
-/** No key, an unusable answer (vendor 4xx arrive wrapped as one), or no
- *  bytes to read: another attempt would fail the same way. */
+/** 409 for the route being off, like `PV_MAS_ENABLED`: a server setting, not
+ *  a grant. 429 for a daily limit, which passes on its own. */
+const UNAVAILABLE: Record<AiUnavailableError['reason'], () => Error> = {
+  disabled: () => conflict('Chưa bật nạp lead từ ảnh. Báo quản trị viên.'),
+  'no-key': () => conflict('Chưa bật nạp lead từ ảnh. Báo quản trị viên.'),
+  'user-limit': () => rateLimited('Bạn đã hết lượt đọc ảnh trong 24 giờ qua. Thử lại sau.'),
+  budget: () => rateLimited('Đã hết hạn mức đọc ảnh trong 24 giờ qua. Thử lại sau.'),
+}
+
+/** Refused before calling, no usable answer after the gateway's own retry, or
+ *  no bytes to read: another delivery would fail the same way. A transient
+ *  gateway error stays retryable for pg-boss. */
 function isFinal(error: unknown): boolean {
   return (
-    error instanceof ScanReaderDisabledError ||
-    error instanceof ScanOutputError ||
+    error instanceof AiUnavailableError ||
+    error instanceof AiOutputError ||
     error instanceof StorageObjectMissingError
   )
 }

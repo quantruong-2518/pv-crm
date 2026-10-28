@@ -1,6 +1,6 @@
 # 0102 · AI calls are written to a cost ledger and priced on read
 
-Status: accepted
+Status: accepted; the ledger write and the scan env vars amended by 0127
 Source: project owner's decisions, 19/10/2026
 
 ## Context

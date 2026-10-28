@@ -142,19 +142,6 @@ export class LeadScanRepository {
     return row?.n ?? 0
   }
 
-  /** Model tokens every read of the last 24 hours cost, all uploaders. */
-  async tokensLastDay(db: Db = this.db): Promise<number> {
-    const [row] = await db
-      .select({
-        n: sql<number>`coalesce(sum(coalesce(${scanFile.tokensIn}, 0) + coalesce(${scanFile.tokensOut}, 0)), 0)`.mapWith(
-          Number,
-        ),
-      })
-      .from(scanFile)
-      .where(gt(scanFile.readAt, LAST_DAY))
-    return row?.n ?? 0
-  }
-
   /** `created_at` then id: the door stamps body order into `created_at`. */
   async files(code: string, db: Db = this.db): Promise<ScanFileJoined[]> {
     return db

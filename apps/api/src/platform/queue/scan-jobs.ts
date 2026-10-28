@@ -22,9 +22,10 @@ export const SCAN_READ_CONCURRENCY = 4
 /** One: a commit creates leads and matches the book, and two commits racing
  *  over the same accounts is the duplicate this whole door exists to avoid. */
 export const SCAN_COMMIT_CONCURRENCY = 1
-/** Attempts after the first. The reader already retries a 429/5xx once, so
- *  these cover a worker dying or the database dropping mid-job. */
-export const SCAN_RETRY_LIMIT = 2
+/** Deliveries after the first, with backoff. The gateway does not retry a
+ *  vendor outage on the same model, so these carry a 429/5xx as well as a
+ *  worker dying mid-job: six deliveries, as many vendor tries as before. */
+export const SCAN_RETRY_LIMIT = 5
 
 export const SCAN_ENQUEUE = Symbol('pv.queue.scan-enqueue')
 

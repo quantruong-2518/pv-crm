@@ -1,7 +1,7 @@
 # 0066 · A fourth lead intake door reads photos and files through Gemini, deterministic grouping, no AI-preview block
 
 Status: accepted; §6 narrowed by 0067 (a parked `SCAN` lead may be put into a
-campaign)
+campaign); §5's env budget and model moved to the AI route row by 0127
 Source: project owner's decision in session, 28/09/2026
 
 ## Context

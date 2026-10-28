@@ -382,13 +382,10 @@ const Env = z
     AWS_ACCESS_KEY_ID: z.string().default(''),
     AWS_SECRET_ACCESS_KEY: z.string().default(''),
     AWS_REGION: z.string().default('auto'),
-    /** Empty = the scan door stays up but reads nothing (`ScanReader.enabled`). */
+    /** Empty = that vendor's models are skipped; a route with no keyed model is
+     *  refused (`no-key`). Model, budget and limits live in `platform.ai_route`. */
     GEMINI_API_KEY: z.string().default(''),
-    SCAN_GEMINI_MODEL: z.string().default('gemini-3.8-flash'),
-    /** Owner-approved global Gemini ceiling over a rolling 24 h of `scan_file` tokens_in +
-     *  tokens_out: reaching it refuses new batches and added or replaced files, while reads
-     *  already in flight finish. 0 = no cap. */
-    SCAN_DAILY_TOKEN_BUDGET: z.coerce.number().int().min(0).default(3_000_000),
+    ANTHROPIC_API_KEY: z.string().default(''),
 
     // GOOGLE — per-employee Calendar sync (`platform/google`)
     /** All four empty = feature off: no connect button, every meeting answers

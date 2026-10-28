@@ -12,13 +12,16 @@ export type AiCallRecord = {
   /** `null` for a system job. */
   actorId: string | null
   subjectCode: string | null
+  /** 1 = first try, 2+ = a retry or the fallback; capped at 3 by the gateway. */
+  attempt: number
 }
 
 /** The one writer of `platform.ai_call` (ADR 0102). Counts only — the record
  *  has no field for prompt or answer text, so no caller can pass one.
  *
- *  Takes the caller's `tx`, like `AuditRepository.write`: the call is recorded
- *  in the same transaction as the row that holds its result. */
+ *  Called by `AiGateway` alone, once per attempt, in its own write right after
+ *  the vendor answers: the money is spent whether or not the feature's result
+ *  transaction later commits (amends ADR 0102's "same transaction"). */
 @Injectable()
 export class AiLedger {
   async record(tx: Db, call: AiCallRecord): Promise<void> {
