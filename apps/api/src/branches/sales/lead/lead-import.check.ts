@@ -3,11 +3,13 @@ import {
   ContactChannel,
   LEAD_MAX,
   LEAD_NUM,
+  LEAD_SIZE_BAND_LABEL,
   LeadTier,
   ORIGIN_NAME_MAX,
   email as emailField,
   foldText,
   leadDupKey,
+  normaliseProvince,
   originKey,
   phoneOptional,
   taxCodeOptional,
@@ -21,9 +23,11 @@ import {
   type LeadImportRowOut,
   type LeadMotion,
   type LeadOriginPick,
+  type LeadSizeBand,
 } from '@pv/contracts'
 import type { ContactSeed } from '../contact/contact.service'
 import type { OriginIndex } from '../lead-origin/lead-origin.service'
+import { sizeBandOfCount, sizeBandOfLabel } from './lead-size-band'
 import { stateAtBirth, type LeadWrite } from './lead-write.mapper'
 
 /** THE ONE CHECK BOTH IMPORT ENDPOINTS RUN.
@@ -177,7 +181,7 @@ const TEXT = {
   origin: textInputOptional(ORIGIN_NAME_MAX),
 }
 
-/** Headcount as a spreadsheet writes it: digits, optionally grouped.
+/** A count in the size column as a spreadsheet writes it: digits, optionally grouped.
  *
  *  '1400' · '1.400' · '1,400' · '1 400' are one number written four ways, and
  *  a column is a column. A cell carrying a word ('1.400 người') is NOT
@@ -417,7 +421,8 @@ function checkRow(
   // ── free text · absent stays absent and the column takes NULL ────────────
   const province = optional(cells, 'province', TEXT.province)
   if (!province.ok) return fail('province', province.reason)
-  if (province.value !== undefined) out.province = province.value
+  /* The preview shows the province as it will be stored (the insert normalises it too). */
+  if (province.value !== undefined) out.province = normaliseProvince(province.value)
 
   const legalName = optional(cells, 'legalName', TEXT.legalName)
   if (!legalName.ok) return fail('legalName', legalName.reason)
@@ -464,10 +469,10 @@ function checkRow(
      written — so this door drops it too. One rule, both doors. */
   if (phone.value !== undefined) out.phone = phone.value
 
-  // ── headcount ───────────────────────────────────────────────────────────
-  const headcount = readHeadcount(cells.headcount)
-  if (!headcount.ok) return fail('headcount', headcount.reason)
-  if (headcount.value !== undefined) out.headcount = String(headcount.value)
+  // ── headcount · the size column, stored as a band ────────────────────
+  const sizeBand = readSizeBand(cells.headcount)
+  if (!sizeBand.ok) return fail('headcount', sizeBand.reason)
+  if (sizeBand.value !== undefined) out.headcount = LEAD_SIZE_BAND_LABEL[sizeBand.value]
 
   // ── owner · a NAME in the file, an id in the column ──────────────────────
   const owner = readOwner(cells.owner, staff)
@@ -527,7 +532,7 @@ function checkRow(
         address: address.value ?? null,
         province: province.value ?? null,
         categoryId: category?.id ?? null,
-        headcount: headcount.value ?? null,
+        sizeBand: sizeBand.value ?? null,
 
         contactTitle: contactTitle.value ?? null,
         phone: phone.value ?? null,
@@ -606,10 +611,17 @@ function closedList<T extends string>(
   return { ok: true, value: parsed.data }
 }
 
-function readHeadcount(cell: string | undefined): Read<number | undefined> {
+/** The size column (`LABEL.headcount`) keeps its key `headcount` (files and the web's column
+ *  map name it so): a count lands in its band, a band key or label is taken as is. */
+function readSizeBand(cell: string | undefined): Read<LeadSizeBand | undefined> {
   if (cell === undefined || cell === '') return { ok: true, value: undefined }
+  const named = sizeBandOfLabel(cell)
+  if (named) return { ok: true, value: named }
   if (!GROUPED_INT.test(cell)) {
-    return { ok: false, reason: `${LABEL.headcount} "${cell}" phải là số` }
+    return {
+      ok: false,
+      reason: `${LABEL.headcount} "${cell}" phải là số người hoặc một khoảng như "200–500 người"`,
+    }
   }
   const n = Number(cell.replace(/\D/g, ''))
   /* Same bounds as `LeadCreate.headcount` — read from the same table, so the
@@ -621,7 +633,7 @@ function readHeadcount(cell: string | undefined): Read<number | undefined> {
       reason: `${LABEL.headcount} "${cell}" phải từ 1 đến ${LEAD_NUM.headcountMax.toLocaleString('vi-VN')}`,
     }
   }
-  return { ok: true, value: n }
+  return { ok: true, value: sizeBandOfCount(n) }
 }
 
 /** The file carries a person's NAME; `lead.owner_id` references `actor.id`.

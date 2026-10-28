@@ -66,7 +66,10 @@ export function ConvertDialog(props: Props) {
  *  fallback inside `draftOpportunity` sits out; the owners come from the lead. */
 type FixtureCategory = Parameters<typeof draftOpportunity>[0]['category']
 const seedOf = (profile: LeadProfile, staff: Parameters<typeof draftOpportunity>[1]) =>
-  draftOpportunity({ ...profileForm(profile), category: '' as FixtureCategory }, staff)
+  draftOpportunity(
+    { ...profileForm(profile), headcount: null, sizeBand: null, category: '' as FixtureCategory },
+    staff,
+  )
 
 function OpenDrawer({ profile, open, onClose, onCreated }: Props) {
   const staff = useDirectory()

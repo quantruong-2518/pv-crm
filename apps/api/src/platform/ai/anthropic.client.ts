@@ -14,7 +14,7 @@ import {
 /** Claude behind `AiClient`: structured JSON output with the gateway's schema
  *  (narrowed by the SDK's own transform to the keywords the API accepts — the
  *  gateway still parses the answer by the full zod contract), images and PDFs
- *  as content blocks, effort low.
+ *  as content blocks, the request's effort (low by default).
  *
  *  With `webSearch` the schema goes into the system text instead: web search
  *  always returns citations, and the API refuses citations beside
@@ -27,6 +27,9 @@ import {
  *  Known limit: a `pause_turn` stop reads as cut short, so the gateway's retry
  *  starts the searches over (and pays for them again) rather than resuming. */
 const WEB_SEARCH = { type: 'web_search_20250305', name: 'web_search', max_uses: 5 } as const
+/** Opens a URL from the prompt or a search result; citations stay off (its default).
+ *  Five opens: the home page plus the four pages the site prompt names; each page's text is billed as input. */
+const WEB_FETCH = { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5 } as const
 
 const IMAGE_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const
 type ImageMime = (typeof IMAGE_MIME)[number]
@@ -54,11 +57,11 @@ export class AnthropicClient implements AiClient {
           max_tokens: limits.maxTokensOut,
           system: search ? `${request.system}\n\n${schemaInstruction(schema)}` : request.system,
           messages: [{ role: 'user', content: blocksOf(request) }],
-          ...(search ? { tools: [WEB_SEARCH] } : {}),
-          /* Lowest effort, thinking left adaptive: Sonnet 5.5 and Opus 5.5 refuse
-           *  `thinking: disabled` with a 400, and extraction needs little thought. */
+          ...(search ? { tools: [WEB_SEARCH, ...(request.readPages ? [WEB_FETCH] : [])] } : {}),
+          /* Low effort unless asked, thinking left adaptive: Sonnet 5.5 and Opus 5.5
+           *  refuse `thinking: disabled` with a 400, and extraction needs little thought. */
           output_config: {
-            effort: 'low',
+            effort: request.effort ?? 'low',
             ...(search
               ? {}
               : { format: { type: 'json_schema', schema: transformJSONSchema(schema) } }),

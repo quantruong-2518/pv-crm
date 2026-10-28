@@ -85,8 +85,7 @@ export const leadProfileQuery = (code: string) =>
  *  slot as empty on the same three values, and `FieldControl` prints "—" for a
  *  read-only one. So the translation is mechanical and it adds NOTHING: no
  *  invented currency, no invented category, no `0` standing in for an unknown
- *  headcount — `0` is a real answer ("nobody on site") and the two must not
- *  collapse into one.
+ *  plant count — `0` is a real answer and the two must not collapse into one.
  *
  *  The two casts (`tier` · `currency`) are the seam between a wire type where
  *  the value is OPTIONAL and a frozen fixture type that has no spelling for
@@ -113,7 +112,7 @@ export function profileForm(p: LeadProfile): ProfileValues {
     mainProduct: p.mainProduct ?? '',
     /* Ids, as the write takes them; the picker names them from the catalogue. */
     industries: p.industries.map((i) => i.id),
-    headcount: p.headcount ?? null,
+    sizeBand: p.sizeBand ?? '',
     plants: p.plants ?? null,
 
     // ── 2 · who we talk to ──────────────────────────────────────────────────

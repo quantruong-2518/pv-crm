@@ -229,7 +229,7 @@ export class SalesConfigRepository {
         SELECT
           (count(*) FILTER (WHERE (legal_name IS NOT NULL OR tax_code IS NOT NULL OR address IS NOT NULL)))::int AS slot1,
           (count(*) FILTER (WHERE main_product IS NOT NULL))::int AS slot2,
-          (count(*) FILTER (WHERE (headcount IS NOT NULL OR plants IS NOT NULL)))::int AS slot3,
+          (count(*) FILTER (WHERE (size_band IS NOT NULL OR plants IS NOT NULL)))::int AS slot3,
           (count(*) FILTER (WHERE contact_title IS NOT NULL))::int AS slot4,
           (count(*) FILTER (WHERE (phone IS NOT NULL OR contact_channel IS NOT NULL)))::int AS slot5,
           (count(*) FILTER (WHERE pain IS NOT NULL))::int AS slot6,

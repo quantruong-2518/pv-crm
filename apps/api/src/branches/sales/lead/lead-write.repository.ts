@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import { normalisePhone, type Actor } from '@pv/engines'
-import type { LeadMotion, MotionAsks, RoleId } from '@pv/contracts'
+import { normaliseProvince, type LeadMotion, type MotionAsks, type RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor, audit } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
@@ -218,7 +218,7 @@ export class LeadWriteRepository {
     if (rows.length === 0) return []
     /* `phone_key` here, the one insert every door reaches, so none can skip it. */
     const keyed = rows.map((r) => ({
-      ...r,
+      ...stored(r),
       createdBy,
       phoneKey: r.phone ? normalisePhone(r.phone) : null,
     }))
@@ -343,7 +343,7 @@ export class LeadWriteRepository {
   ): Promise<boolean> {
     const rows = await tx
       .update(lead)
-      .set(values)
+      .set(stored(values))
       .where(and(eq(lead.code, code), leadLive))
       .returning({ code: lead.code })
 
@@ -372,6 +372,7 @@ export class LeadWriteRepository {
     code: string,
     values: Partial<Omit<LeadValues, keyof LeadContactMirror>>,
   ): Promise<boolean> {
+    values = stored(values)
     const columns = Object.keys(values).map((key) => lead[key as keyof typeof lead.$inferSelect])
     if (columns.length === 0) return false
     const set = Object.fromEntries(
@@ -432,3 +433,8 @@ const reachedRung = sql<LeadReach>`CASE
      WHEN EXISTS (SELECT 1 FROM sales.touch lr_w WHERE lr_w.subject_code = ${lead.code} AND lr_w.kind IN ('verified', 'exchange-logged')) THEN 'working'
      ELSE 'assigned'
    END`
+
+/** `province` as stored — the bare post-2025 unit — on every lead write: the
+ *  insert, the patch and the fill-empty are the doors every caller reaches. */
+const stored = <T extends { province?: string | null }>(values: T): T =>
+  values.province ? { ...values, province: normaliseProvince(values.province) } : values

@@ -26,6 +26,7 @@ import type { DocumentStepRowDb } from '../workstream/workstream-document.schema
 import type { ScanBatchRowDb } from './lead-scan.schema'
 import type { Needles } from './lead-admission.mapper'
 import { UNKNOWN_NAME } from './lead-person-name'
+import { sizeBandOfText } from './lead-size-band'
 import type { ScanFileJoined } from './lead-scan.repository'
 import { stateAtBirth, type LeadValues, type LeadWrite } from './lead-write.mapper'
 
@@ -174,13 +175,6 @@ export function toAttachment(
   }
 }
 
-/** First integer printed ("200+", "1.200 staff"); null when none. */
-export function headcountOf(raw: string | undefined): number | null {
-  const digits = raw?.match(/\d[\d.,]*/)?.[0].replace(/\D/g, '')
-  const n = digits ? Number(digits) : NaN
-  return Number.isSafeInteger(n) && n > 0 ? n : null
-}
-
 /** Company columns a group can supply. Phone and email are left out: on a lead
  *  they mirror the primary CONTACT, and a company switchboard is not that. */
 export function companyValuesOf(g: ScanPlanGroup): Partial<LeadValues> {
@@ -194,7 +188,7 @@ export function companyValuesOf(g: ScanPlanGroup): Partial<LeadValues> {
     address: value('address'),
     province: value('province'),
     website: site.success ? site.data : undefined,
-    headcount: headcountOf(value('headcount')) ?? undefined,
+    sizeBand: sizeBandOfText(value('headcount')) ?? undefined,
   }
   return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined))
 }

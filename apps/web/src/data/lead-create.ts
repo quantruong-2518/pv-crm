@@ -137,7 +137,7 @@ export const emptyDraft = (): FormValues => ({
   category: '',
   mainProduct: '',
   industries: [],
-  headcount: null,
+  sizeBand: '',
   plants: null,
 
   contactName: '',

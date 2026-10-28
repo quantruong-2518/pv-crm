@@ -177,7 +177,7 @@ export function fromCreate(body: LeadCreate, ownerName: string | null): LeadWrit
       website: body.website ?? null,
       categoryId: body.categoryId ?? null,
       mainProduct: body.mainProduct ?? null,
-      headcount: body.headcount ?? null,
+      sizeBand: body.sizeBand ?? null,
       plants: body.plants ?? null,
 
       contactTitle: body.contactTitle ?? null,

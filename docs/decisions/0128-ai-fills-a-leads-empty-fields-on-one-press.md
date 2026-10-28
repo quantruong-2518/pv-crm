@@ -101,3 +101,7 @@ carries no component of its own (M-25 in the kit is the example of it).
 - A mistaken fill costs one press of "Hoàn tác" within 10 s, or editing the
   field by hand afterwards.
 - Open questions 124–127 hang on this decision.
+
+## Amendment 28/10/2026 (see 0130)
+
+"Headcount" in §1 is now `sizeBand`, a band; the pipeline in §3 is two model calls, identify then read the site. Migration 0156 renames the `headcount` key in `lead.ai_fill`.

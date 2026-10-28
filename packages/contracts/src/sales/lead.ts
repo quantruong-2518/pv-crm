@@ -31,12 +31,13 @@ import {
   counted,
   channelUrlOptional,
   deadlineDay,
+  LeadSizeBand,
   taxCodeClearable,
   taxCodeOptional,
   websiteClearable,
   websiteOptional,
 } from './lead-fields'
-import { LeadAiFillMarks } from './lead-ai-fill'
+import { LeadAiFillMarksRead } from './lead-ai-fill'
 import { Hold } from './hold'
 import { AdmissionChoice } from './lead-admission'
 import { MOTION_BY_CHANNEL } from './lead-intake'
@@ -118,6 +119,7 @@ export const LeadRow = z.object({
   contactTitle: z.string().min(1).optional(),
 
   province: z.string().min(1).optional(),
+  sizeBand: LeadSizeBand.optional(),
   /** The `CATEGORY` entry; `null` = not chosen yet. */
   category: ConfigRef.nullable(),
   /** On the row, not only the profile: the book has an industry column. `[]` when none. */
@@ -551,11 +553,12 @@ export const LeadProfile = LeadRow.extend({
   mainProduct: z.string().min(1).optional(),
   /** Fields whose current value is the AI's, with where it came from.
    *  Defaulted so a web that ships before the API still parses its profile. */
-  aiFill: LeadAiFillMarks.default({}),
+  aiFill: LeadAiFillMarksRead.default({}),
 
   /** Headcount and plants — `nonnegative`, not `positive`, and the difference
-   *  is deliberate. `LeadCreate` narrows both to `positive()` because a person
-   *  typing "0 employees" is typing a mistake. This is the READ side: it has
+   *  is deliberate. `headcount` is read-only now (`sizeBand` replaced it on the
+   *  write doors; dropped next ship). `LeadCreate` narrows plants to
+   *  `positive()` because a person typing "0 plants" is typing a mistake. This is the READ side: it has
    *  to describe every value the `integer` column can legally hold, including
    *  the `0` that an imported file can carry, or a row already in the table
    *  fails its own response contract and the profile answers 500 for a lead
@@ -735,7 +738,7 @@ export const LeadCreate = z
     categoryId: ConfigCode.optional(),
     mainProduct: textInputOptional(LEAD_MAX.mainProduct),
     industryIds: industryIds.default([]),
-    headcount: counted('Số người', LEAD_NUM.headcountMax).optional(),
+    sizeBand: LeadSizeBand.optional(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).optional(),
 
     // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────
@@ -910,7 +913,7 @@ export const LeadPatch = z
     tier: LeadTier.optional(),
     mainProduct: clearableText(LEAD_MAX.mainProduct),
     industryIds: industryIds.optional(),
-    headcount: counted('Số người', LEAD_NUM.headcountMax).nullish(),
+    sizeBand: LeadSizeBand.nullish(),
     plants: counted('Số nhà máy', LEAD_NUM.plantsMax).nullish(),
 
     // ── contact · who we talk to ──────────────────────── slots 4 · 5 ────────

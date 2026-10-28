@@ -118,3 +118,7 @@ current Sonnet and Opus models refuse thinking switched off.
 - A new vendor is a new client and a new model prefix.
 - Ship order: the migration before the API, because the new API reads the
   route on every call.
+
+## Amendment 28/10/2026 (see 0130)
+
+Every ledger row also carries `prompt_version`, the `id@version` of the prompt the call used.

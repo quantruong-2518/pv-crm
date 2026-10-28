@@ -3,6 +3,7 @@ import { Input, Select, Textarea } from '@pv/ui'
 import { ACCOUNT_ADDRESS_MAX, WEBSITE_MAX } from '@pv/contracts'
 import type { FieldErrors } from '@/app/api'
 import type { AccountDraft } from '@/data/accounts'
+import { SIZE_OPTIONS } from '@/data/lead-form'
 import { categoryOptions, leadIndustryOptionsQuery } from '@/data/industries'
 import { AddressField } from './address-field'
 import { Field } from './ops-fields'
@@ -127,14 +128,15 @@ export function AccountFields({
           />
         </Field>
 
-        <Field label="Số nhân sự" errors={errors.headcount} hint="Để trống nếu chưa biết.">
-          <Input
-            type="number"
-            min={0}
-            value={draft.headcount}
-            aria-label="Số nhân sự"
-            invalid={Boolean(errors.headcount)}
-            onChange={(e) => onSet('headcount', e.target.value)}
+        <Field label="Quy mô" plain errors={errors.sizeBand}>
+          <Select
+            label="Quy mô"
+            hideLabel
+            value={draft.sizeBand}
+            neutralValue=""
+            onChange={(v) => onSet('sizeBand', v)}
+            options={SIZE_OPTIONS}
+            className="w-full"
           />
         </Field>
       </div>

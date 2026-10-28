@@ -1058,6 +1058,13 @@
       "when": 1795600360000,
       "tag": "0155_seed_categories_industries",
       "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1795600420000,
+      "tag": "0156_size_band_province_prompt_version",
+      "breakpoints": true
     }
   ]
 }

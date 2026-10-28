@@ -12,6 +12,7 @@ import type { LeadCategory } from '@pv/contracts'
 import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { sales } from '../sales.schema'
+import type { SizeBand } from '../lead/lead.schema'
 
 /** The customer COMPANY — the row every lead, contact and deal hangs off.
  *
@@ -110,7 +111,10 @@ export const account = sales.table(
       (): SQL => sql`CASE WHEN "category_id" IS NULL THEN NULL ELSE 'CATEGORY' END`,
     ),
 
+    /** Superseded by `size_band` (0156); kept for the old api, drops next ship. */
     headcount: integer('headcount'),
+    /** `lead.size_band`'s keys and fence (`account_size_band_known`). */
+    sizeBand: text('size_band').$type<SizeBand>(),
     plants: integer('plants'),
 
     /** The ACCOUNT MANAGER — the one seller who answers for this company.
@@ -151,6 +155,11 @@ export const account = sales.table(
      *  `nullif` on the tax code and get a truthful answer. */
     check('account_name_not_blank', sql`"name" <> ''`),
     check('account_website_not_blank', sql`"website" <> ''`),
+    /** `LeadSizeBand`, copied by hand like `lead_size_band_known`. */
+    check(
+      'account_size_band_known',
+      sql`"size_band" IN ('lt50', '50-200', '200-500', '500-1000', 'gt1000')`,
+    ),
     /** https only: the app is served over https, so an http image is blocked. */
     check(
       'account_logo_url_https',

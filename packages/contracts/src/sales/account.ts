@@ -11,7 +11,7 @@ import {
 } from '../primitives'
 import { ConfigCode, ConfigRef } from './config'
 import { LeadState } from './enums'
-import { websiteOptional } from './lead-fields'
+import { LeadSizeBand, websiteOptional } from './lead-fields'
 
 /** The CUSTOMER COMPANY book — `/sales/accounts`.
  *
@@ -73,7 +73,9 @@ export const AccountRow = z.object({
   category: ConfigRef.nullable(),
   website: z.string().optional(),
 
+  /** Read-only this ship; `sizeBand` replaced it on the write doors. */
   headcount: z.number().int().nonnegative().nullable(),
+  sizeBand: LeadSizeBand.nullable(),
   plants: z.number().int().nonnegative().nullable(),
 
   note: z.string().optional(),
@@ -239,7 +241,7 @@ const companyFields = {
   categoryId: ConfigCode.optional(),
   website: websiteOptional,
 
-  headcount: z.number().int().nonnegative().max(1_000_000).optional(),
+  sizeBand: LeadSizeBand.optional(),
   plants: z.number().int().nonnegative().max(1_000).optional(),
 
   note: textInputOptional(1_000),

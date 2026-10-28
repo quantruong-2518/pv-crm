@@ -8,6 +8,7 @@ import {
   type AccountProfile,
   type AccountRow,
   type AccountUpdate,
+  type LeadSizeBand,
   type ObjectCode,
 } from '@pv/contracts'
 import { api, type ApiError, type ApiNeed } from '@/app/api'
@@ -145,7 +146,8 @@ export type AccountDraft = {
   province: string
   /** A `CATEGORY` id, `''` when none. */
   categoryId: string
-  headcount: string
+  /** A `LeadSizeBand` key, `''` when nobody has said. */
+  sizeBand: string
   plants: string
   note: string
   logoUrl: string
@@ -159,16 +161,16 @@ export const BLANK_ACCOUNT: AccountDraft = {
   address: '',
   province: '',
   categoryId: '',
-  headcount: '',
+  sizeBand: '',
   plants: '',
   note: '',
   logoUrl: '',
 }
 
-/** Two NUMBER fields kept as STRINGS in the form, and that is not laziness.
+/** `plants` is a NUMBER kept as a STRING in the form, and that is not laziness.
  *
- *  `headcount` left blank means "nobody has counted", while 0 means "nobody
- *  works here" — two different statements about a company. A `number | null`
+ *  Blank means "nobody has counted", while 0 means "no plant" — two different
+ *  statements about a company. A `number | null`
  *  in state would need converting both ways on every keystroke, and the input
  *  loses its cursor when the user clears all the digits. Keeping it a string
  *  until right before submit is the cheapest way to let "empty" flow straight
@@ -182,7 +184,7 @@ export function accountDraftOf(row: AccountRow | AccountProfile): AccountDraft {
     address: row.address ?? '',
     province: row.province ?? '',
     categoryId: row.category?.id ?? '',
-    headcount: row.headcount === null ? '' : String(row.headcount),
+    sizeBand: row.sizeBand ?? '',
     plants: row.plants === null ? '' : String(row.plants),
     note: row.note ?? '',
     logoUrl: row.logoUrl ?? '',
@@ -197,7 +199,7 @@ const someInt = (s: string) => {
   const n = Number(t)
   /* Not a number sends `undefined`, never `NaN`: zod rejects `NaN` with a type
      error ("Expected number"), which cannot tell the user they just typed
-     letters into a headcount field. The input is `type="number"`, so this
+     letters into a plants field. The input is `type="number"`, so this
      only happens on paste. */
   return Number.isFinite(n) ? Math.trunc(n) : undefined
 }
@@ -211,7 +213,7 @@ export function accountBodyOf(draft: AccountDraft): AccountCreate {
     ...(some(draft.address) === undefined ? {} : { address: some(draft.address) }),
     ...(some(draft.province) === undefined ? {} : { province: some(draft.province) }),
     ...(draft.categoryId === '' ? {} : { categoryId: draft.categoryId }),
-    ...(someInt(draft.headcount) === undefined ? {} : { headcount: someInt(draft.headcount) }),
+    ...(draft.sizeBand === '' ? {} : { sizeBand: draft.sizeBand as LeadSizeBand }),
     ...(someInt(draft.plants) === undefined ? {} : { plants: someInt(draft.plants) }),
     ...(some(draft.note) === undefined ? {} : { note: some(draft.note) }),
     ...(some(draft.logoUrl) === undefined ? {} : { logoUrl: some(draft.logoUrl) }),

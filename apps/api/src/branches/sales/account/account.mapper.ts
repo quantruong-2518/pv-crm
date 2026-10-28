@@ -36,7 +36,7 @@ export function fromForm(body: AccountCreate): AccountValues {
     province: body.province ?? null,
     website: body.website ?? null,
     categoryId: body.categoryId ?? null,
-    headcount: body.headcount ?? null,
+    sizeBand: body.sizeBand ?? null,
     plants: body.plants ?? null,
     note: body.note ?? null,
     logoUrl: body.logoUrl ?? null,
@@ -80,7 +80,7 @@ export type LeadCompanyFacts = {
   province?: string | null
   website?: string | null
   categoryId?: string | null
-  headcount?: number | null
+  sizeBand?: AccountValues['sizeBand']
   plants?: number | null
 }
 
@@ -129,6 +129,7 @@ export function toContract(read: AccountRead): AccountRow {
         ? { id: read.categoryId, name: read.categoryName }
         : null,
     headcount: read.headcount,
+    sizeBand: read.sizeBand ?? null,
     plants: read.plants,
     ...(read.note ? { note: read.note } : {}),
     ...(read.logoUrl ? { logoUrl: read.logoUrl } : {}),

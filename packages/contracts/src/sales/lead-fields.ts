@@ -110,6 +110,22 @@ export const LEAD_NUM = {
   industriesMax: 4,
 } as const
 
+/** Company size as a band, replacing the free `headcount` count (decision 3 of
+ *  slice A-1): nobody knows a customer's exact staff, everybody knows its order
+ *  of magnitude. Keys reach `CHECK lead_size_band_known` / `account_size_band_known` in
+ *  migration 0156 — change them there too. */
+export const LEAD_SIZE_BANDS = ['lt50', '50-200', '200-500', '500-1000', 'gt1000'] as const
+export const LeadSizeBand = z.enum(LEAD_SIZE_BANDS, 'Chọn một quy mô trong danh sách.')
+export type LeadSizeBand = z.infer<typeof LeadSizeBand>
+
+export const LEAD_SIZE_BAND_LABEL: Record<LeadSizeBand, string> = {
+  lt50: 'Dưới 50 người',
+  '50-200': '50–200 người',
+  '200-500': '200–500 người',
+  '500-1000': '500–1.000 người',
+  gt1000: 'Trên 1.000 người',
+}
+
 /** A COUNT of something: whole, above zero, under a stated ceiling.
  *
  *  A helper rather than three chained calls at each site, because the three

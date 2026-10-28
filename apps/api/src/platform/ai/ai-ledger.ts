@@ -15,6 +15,8 @@ export type AiCallRecord = {
   /** 1 = first try, 2+ = a retry or the fallback; capped at 3 by the gateway. */
   attempt: number
   latencyMs: number
+  /** `id@version` of the registered prompt; `null` for a call with none. */
+  promptVersion: string | null
 }
 
 /** The one writer of `platform.ai_call` (ADR 0102). Counts only — the record

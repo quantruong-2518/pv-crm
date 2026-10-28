@@ -173,6 +173,7 @@ export function toContract(read: LeadRead, today: string): LeadRow {
     email: row.email,
     ...(row.contactTitle ? { contactTitle: row.contactTitle } : {}),
     ...(row.province ? { province: row.province } : {}),
+    ...(row.sizeBand ? { sizeBand: row.sizeBand } : {}),
     category:
       row.categoryId && read.categoryName ? { id: row.categoryId, name: read.categoryName } : null,
     industries: read.industries,

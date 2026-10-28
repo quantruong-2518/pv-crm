@@ -29,6 +29,9 @@ import { partner } from '../partner/partner.schema'
 import { sales } from '../sales.schema'
 import { workstream } from '../workstream/workstream.schema'
 
+/** Local copy of `LeadSizeBand` from @pv/contracts, which owns it. */
+export type SizeBand = 'lt50' | '50-200' | '200-500' | '500-1000' | 'gt1000'
+
 /** Chuỗi rỗng KHÔNG phải một giá trị.
  *
  *  Ba tầng đang có ba quy ước cho "trống": `Lead` dùng `undefined`,
@@ -203,7 +206,11 @@ export const lead = sales.table(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** Superseded by `size_band` (0156); kept for the old api, drops next ship. */
     headcount: integer('headcount'),
+    /** `LeadSizeBand` — the contract owns the keys; fenced by `lead_size_band_known`.
+     *  A band, not a count: nobody knows a customer's exact staff. */
+    sizeBand: text('size_band').$type<SizeBand>(),
     plants: integer('plants'),
     /** Provenance of AI-filled fields, `{ [field]: { source, unsure, at } }`; the
      *  contract owns the shape. A person's edit of a field drops its key, so the
@@ -365,7 +372,7 @@ export const lead = sales.table(
         sql`((
         ("legal_name" IS NOT NULL OR "tax_code" IS NOT NULL OR "address" IS NOT NULL)::int
       + ("main_product" IS NOT NULL)::int
-      + ("headcount" IS NOT NULL OR "plants" IS NOT NULL)::int
+      + ("size_band" IS NOT NULL OR "plants" IS NOT NULL)::int
       + ("contact_title" IS NOT NULL)::int
       + ("phone" IS NOT NULL OR "contact_channel" IS NOT NULL)::int
       + ("pain" IS NOT NULL)::int
@@ -546,6 +553,11 @@ export const lead = sales.table(
     /** Its own CHECK so `lead_no_blank` is not dropped and re-added: a blank
      *  website would read as filled to the server and empty to the screen. */
     check('lead_website_not_blank', sql`"website" <> ''`),
+    /** `LeadSizeBand`, copied by hand: a new band is a migration a person reads. */
+    check(
+      'lead_size_band_known',
+      sql`"size_band" IN ('lt50', '50-200', '200-500', '500-1000', 'gt1000')`,
+    ),
     /** `lead_no_blank` cannot cover an array. A blank tag (empty, whitespace or
      *  NULL) shows as an empty gap once joined on chr(31); `cardinality = 0` is
      *  exempt because an empty array joins to '' too. */

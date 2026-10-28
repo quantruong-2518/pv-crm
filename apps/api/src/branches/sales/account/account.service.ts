@@ -230,7 +230,7 @@ export class AccountService {
       province: lead.province ?? null,
       website: lead.website ?? null,
       categoryId: lead.categoryId ?? null,
-      headcount: lead.headcount ?? null,
+      sizeBand: lead.sizeBand ?? null,
       plants: lead.plants ?? null,
       note: null,
       ...keysOf({ name: lead.company, taxCode: lead.taxCode }),

@@ -581,3 +581,17 @@ Raised while making them config lists (ADR 0129).
 
 131.  **Should an opportunity converted from a lead take the category owner as
       its default seller?** Not done. _(see ADR 0129 §5)_
+
+## Prompts and fill quality (added 28/10/2026)
+
+Raised while standardising the prompts (ADR 0130).
+
+132.  **Should a category carry a description for the prompt?** The config has
+      no description column, so categories are explained to the model only by
+      their industries. _(see ADR 0130 §1)_
+
+133.  **Should the lead scan's prompt become a `PromptSpec`?** It is not one
+      yet. _(see ADR 0130 §1)_
+
+134.  **Does Gemini's `urlContext` tool work together with JSON output on
+      `gemini-3.8-flash`?** Unverified. _(see ADR 0130 §2)_

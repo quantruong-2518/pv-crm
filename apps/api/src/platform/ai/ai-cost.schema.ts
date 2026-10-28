@@ -53,6 +53,9 @@ export const aiCall = platform.table(
     /** Wall time of the attempt's vendor request. NULL only on rows written
      *  before 0152 — the gateway sets it on every live write. */
     latencyMs: integer('latency_ms'),
+    /** `id@version` of the registered prompt, so a quality change can be traced
+     *  to a prompt edit. NULL before 0156 and for calls with no registered prompt. */
+    promptVersion: text('prompt_version'),
   },
   (t) => [
     /** A constraint, not a partial index, so `ON CONFLICT (source_key)` can name it. */
@@ -69,6 +72,11 @@ export const aiCall = platform.table(
     /** The gateway's attempt cap (3), copied by hand. */
     check('ai_call_attempt_range', sql`"attempt" BETWEEN 1 AND 3`),
     check('ai_call_latency_not_negative', sql`"latency_ms" IS NULL OR "latency_ms" >= 0`),
+    /** Shape only (`x@y`): the prompt registry owns the id and version spelling. */
+    check(
+      'ai_call_prompt_version_shape',
+      sql`"prompt_version" IS NULL OR "prompt_version" ~ '^\\S+@\\S+$'`,
+    ),
   ],
 )
 

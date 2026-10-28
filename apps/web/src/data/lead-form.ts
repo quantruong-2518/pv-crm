@@ -12,6 +12,8 @@ import {
   EMAIL_MAX,
   LEAD_MAX,
   LEAD_NUM,
+  LEAD_SIZE_BAND_LABEL,
+  LEAD_SIZE_BANDS,
   LeadCreate,
   LeadPatch,
   PHONE_MAX,
@@ -91,10 +93,13 @@ export type FieldKind = 'text' | 'long' | 'num' | 'money' | 'date' | 'select' | 
 /** The profile as the form holds it: the frozen fixture shape plus the wire
  *  fields it never had. `category` and `industries` hold config ids; the
  *  industries join no slot. */
-export type ProfileValues = Omit<LeadProfile, 'category'> & {
+export type ProfileValues = Omit<LeadProfile, 'category' | 'headcount' | 'sizeBand'> & {
   category: string
   industries: string[]
   website: string
+  /** A `LeadSizeBand` key, `''` when nobody has said. Replaces the fixture's
+   *  `headcount` count, which the write doors no longer take. */
+  sizeBand: string
 }
 
 /** The create door draws boxes no stored profile has a column for — `motion`,
@@ -149,6 +154,11 @@ export type FormValues = ProfileValues & {
 
 /** The categories themselves are config, appended at draw time (`FieldRow`). */
 const NO_CATEGORY = [{ value: '', label: 'Chưa chọn nhóm ngành' }]
+/** One list for the lead form and the company form. */
+export const SIZE_OPTIONS = [
+  { value: '', label: 'Chưa có' },
+  ...LEAD_SIZE_BANDS.map((value) => ({ value, label: LEAD_SIZE_BAND_LABEL[value] })),
+]
 const TIER_OPTIONS = LEAD_TIERS.map((t) => ({ value: t.key, label: t.label }))
 const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: c.label }))
 
@@ -245,12 +255,12 @@ export const PROFILE_FIELDS: ProfileField[] = [
     slot: 'industry',
   },
   {
-    key: 'headcount',
-    label: 'Số người tại chỗ',
-    kind: 'num',
+    key: 'sizeBand',
+    label: 'Quy mô',
+    kind: 'select',
     group: 'company',
     slot: 'scale',
-    unit: 'người',
+    options: SIZE_OPTIONS,
   },
   { key: 'tier', label: 'Bậc', kind: 'select', group: 'company', options: TIER_OPTIONS },
 
@@ -432,7 +442,6 @@ const TEXT_MAX: Record<string, number | undefined> = LEAD_MAX
 const digitsOf = (n: number) => String(n).length
 
 const NUM_MAX: Record<string, number | undefined> = {
-  headcount: digitsOf(LEAD_NUM.headcountMax),
   budget: digitsOf(LEAD_NUM.budgetMax),
 }
 

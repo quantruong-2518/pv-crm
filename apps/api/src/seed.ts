@@ -18,6 +18,7 @@ import { contact } from '@api/branches/sales/contact/contact.schema'
 import { contract, contractInstallment } from '@api/branches/sales/contract/contract.schema'
 import { lead, leadIndustry } from '@api/branches/sales/lead/lead.schema'
 import { LEAD_PARK_REASON } from '@api/branches/sales/lead/lead-state'
+import { sizeBandOfCount } from '@api/branches/sales/lead/lead-size-band'
 import { LEAD_NOTE } from '@api/branches/sales/lead/lead-write.mapper'
 import { meeting, meetingAttendee } from '@api/branches/sales/meeting/meeting.schema'
 import { salePrimaryOf } from '@api/branches/sales/opportunity/opportunity-owners'
@@ -121,7 +122,7 @@ function plantAccounts(): void {
       address: a.address,
       province: a.province,
       categoryId: a.categoryId,
-      headcount: a.headcount,
+      sizeBand: sizeBandOfCount(a.headcount),
       plants: a.plants,
       ownerId: owner?.id ?? null,
       note: a.note ?? null,
@@ -320,7 +321,7 @@ function plantJourney(j: JourneySeed, i: number): void {
     province: a.province,
     categoryId: a.categoryId,
     mainProduct: filled(a.mainProduct),
-    headcount: filled(a.headcount),
+    sizeBand: filled(sizeBandOfCount(a.headcount)),
     plants: filled(a.plants),
     contactName: primary.name,
     contactTitle: primary.title,

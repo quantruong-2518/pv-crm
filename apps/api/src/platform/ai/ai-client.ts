@@ -10,8 +10,19 @@ import type { AiFailureKind } from './ai-policy'
 
 export type AiPart = { text: string } | { file: { mime: string; bytes: Buffer } }
 /** `webSearch`: the model may search the web first. Known debt: both vendors
- *  bill each search on top of tokens, and the ledger records tokens only. */
-export type AiRequest = { system: string; parts: readonly AiPart[]; webSearch?: boolean }
+ *  bill each search on top of tokens, and the ledger records tokens only.
+ *  `readPages`: it may also open the URLs it is given or finds (Gemini URL
+ *  context, Claude web fetch). `effort`: `medium` for research, `low` otherwise.
+ *  `prompt`: the registered prompt's `id@version`, for the ledger only. */
+export type AiRequest = {
+  system: string
+  parts: readonly AiPart[]
+  webSearch?: boolean
+  readPages?: boolean
+  effort?: AiEffort
+  prompt?: string
+}
+export type AiEffort = 'low' | 'medium'
 export type AiLimits = { maxTokensOut: number; timeoutMs: number }
 
 /** `complete` is false when the vendor stopped early (token ceiling, safety). */

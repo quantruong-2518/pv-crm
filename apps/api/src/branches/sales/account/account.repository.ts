@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, inArray, not, sql, type SQL } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { Inject, Injectable } from '@nestjs/common'
-import type { AccountBookQuery, AccountFacetsQuery } from '@pv/contracts'
+import { normaliseProvince, type AccountBookQuery, type AccountFacetsQuery } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { directProbe, fuzzyAny, fuzzyRank, readsUnderFloor } from '@api/platform/db/fuzzy'
 import { actor } from '@api/platform/db/platform.schema'
@@ -355,7 +355,7 @@ export class AccountRepository {
   // ── write ────────────────────────────────────────────────────────────────
 
   async insert(tx: Db, row: AccountValues & { code: string }): Promise<AccountRowDb> {
-    const [written] = await tx.insert(account).values(row).returning()
+    const [written] = await tx.insert(account).values(stored(row)).returning()
     if (!written) throw new Error(`sales.account: INSERT ${row.code} không trả về dòng nào`)
     return written
   }
@@ -363,7 +363,7 @@ export class AccountRepository {
   async update(tx: Db, code: string, values: AccountValues): Promise<AccountRowDb | null> {
     const [written] = await tx
       .update(account)
-      .set({ ...values, updatedAt: new Date() })
+      .set({ ...stored(values), updatedAt: new Date() })
       .where(eq(account.code, code))
       .returning()
     return written ?? null
@@ -433,3 +433,7 @@ export class AccountRepository {
     return [...rank, dir(column), asc(account.code)]
   }
 }
+
+/** `province` as stored — the bare post-2025 unit — on both account writes. */
+const stored = <T extends Pick<AccountValues, 'province'>>(values: T): T =>
+  values.province ? { ...values, province: normaliseProvince(values.province) } : values

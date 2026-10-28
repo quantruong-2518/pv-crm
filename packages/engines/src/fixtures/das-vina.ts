@@ -5,6 +5,7 @@ import {
   USD_VND,
   toMoneyVnd,
   type CurrencyCode,
+  type LeadSizeBand,
 } from '@pv/contracts'
 import { loadScenario, type Scenario } from './scenario'
 import type { Actor } from '../types'
@@ -2984,7 +2985,10 @@ export type LeadProfile = {
   category: LeadCategory
   /** ô 2 */
   mainProduct: string
-  /** ô 3 */
+  /** Slot 3 since migration 0156. Optional: the frozen fixture predates bands;
+   *  its slot-3 counts hold through `plants`, set wherever `headcount` is. */
+  sizeBand?: LeadSizeBand | null
+  /** Superseded by `sizeBand` and out of slot 3 (0156); read until the column drops. */
   headcount: number | null
   /** ô 3 */
   plants: number | null
@@ -3044,11 +3048,14 @@ export type LeadProfile = {
  *
  *  MỘT Ô CÓ GÌ LÀ ĐÃ MOI ĐƯỢC. Ô 1 chở ba trường (tên pháp nhân · mã số thuế ·
  *  địa chỉ); xoá mã số thuế mà còn tên pháp nhân thì ô vẫn tính là có — cổng
- *  hỏi "đã biết công ty là ai chưa", không hỏi "đã điền hết ba dòng chưa". */
+ *  hỏi "đã biết công ty là ai chưa", không hỏi "đã điền hết ba dòng chưa".
+ *
+ *  Slot 3 matches `lead.required_filled` (migration 0156): the band or `plants`.
+ *  `headcount` is out — 0156 backfills a band wherever a headcount was. */
 export const SLOT_FIELDS: Record<QuestionKey, (keyof LeadProfile)[]> = {
   'legal-entity': ['legalName', 'taxCode', 'address'],
   industry: ['mainProduct'],
-  scale: ['headcount', 'plants'],
+  scale: ['sizeBand', 'plants'],
   contact: ['contactName', 'contactTitle'],
   channel: ['phone', 'email', 'channel'],
   pain: ['pain'],

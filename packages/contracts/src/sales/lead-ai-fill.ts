@@ -22,7 +22,7 @@ export const LeadAiFillField = z.enum([
   'category',
   'mainProduct',
   'industries',
-  'headcount',
+  'sizeBand',
   'contactTitle',
   'phone',
 ])
@@ -43,28 +43,47 @@ export type AiFillMark = z.infer<typeof AiFillMark>
 export const LeadAiFillMarks = z.partialRecord(LeadAiFillField, AiFillMark)
 export type LeadAiFillMarks = z.infer<typeof LeadAiFillMarks>
 
+/** The READ side of the marks, for `LeadProfile`: a row marked before 0156 says
+ *  `headcount` (renamed `sizeBand`, an existing `sizeBand` wins) and a key no
+ *  longer fillable is dropped, so an old or newer mark never fails a profile.
+ *  Writes keep the strict `LeadAiFillMarks`. */
+export const LeadAiFillMarksRead = z
+  .record(z.string(), AiFillMark)
+  .transform(({ headcount, ...marks }): LeadAiFillMarks => {
+    const named = headcount && !marks.sizeBand ? { ...marks, sizeBand: headcount } : marks
+    const fillable = LeadAiFillField.options as readonly string[]
+    return Object.fromEntries(Object.entries(named).filter(([key]) => fillable.includes(key)))
+  })
+
 /** What the model must return. Flat per-field objects, no unions: the vendors'
  *  JSON-schema subsets cannot express them. `null` = not found. */
 const found = <T extends z.ZodType>(value: T) =>
   z.object({ value, sourceUrl: z.string().nullable(), confident: z.boolean() }).nullable()
 
-export const LeadEnrichModelOutput = z.object({
-  legalName: found(z.string()),
-  taxCode: found(z.string()),
+/** Call 1 — IDENTIFY the company by web search. `address` is the head office. */
+export const LeadIdentifyModelOutput = z.object({
   website: found(z.string()),
+  taxCode: found(z.string()),
+  /** Other tax codes the search met for this company, to be checked by registry. */
+  taxCodeCandidates: z.array(z.string()),
+  legalName: found(z.string()),
   address: found(z.string()),
   province: found(z.string()),
+})
+export type LeadIdentifyModelOutput = z.infer<typeof LeadIdentifyModelOutput>
+
+/** Call 2 — READ the identified company's own site. */
+export const LeadSiteModelOutput = z.object({
   /* NAMES from the live CATEGORY / INDUSTRY lists the prompt carries; the server
    * maps them to ids and drops any name not on the list. */
   category: found(z.string()),
-  mainProduct: found(z.string()),
   industries: found(z.array(z.string())),
-  /* Loose on purpose: one bad number must not void the whole answer; the
-   * server checks each value against LeadPatch's own field before writing. */
-  headcount: found(z.number()),
+  mainProduct: found(z.string()),
+  /* Plain string, not the enum: one off-list band must not void the whole
+   * answer; the server checks it against `LeadSizeBand` before writing. */
+  sizeBand: found(z.string()),
+  factoryAddress: found(z.string()),
   contactTitle: found(z.string()),
   phone: found(z.string()),
-  /** Other tax codes the search met for this company, to be checked by registry. */
-  taxCodeCandidates: z.array(z.string()),
 })
-export type LeadEnrichModelOutput = z.infer<typeof LeadEnrichModelOutput>
+export type LeadSiteModelOutput = z.infer<typeof LeadSiteModelOutput>

@@ -5,13 +5,15 @@ import {
   vendorMessage,
   type AiAnswer,
   type AiClient,
+  type AiEffort,
   type AiLimits,
   type AiRequest,
 } from './ai-client'
 
 /** Gemini behind `AiClient`: JSON mode with the gateway's schema, Google
- *  Search grounding when the request asks for the web, the lowest thinking
- *  level the models accept, and the route's ceiling and timeout per request.
+ *  Search grounding and URL context when the request asks for the web, the
+ *  request's thinking level (LOW, the lowest the models accept, unless it
+ *  asks for more), and the route's ceiling and timeout per request.
  *
  *  `retryOptions: { attempts: 1 }`: the SDK would otherwise retry 408/429/5xx
  *  on its own, hiding attempts from the gateway's policy and from the ledger. */
@@ -32,6 +34,10 @@ export class GeminiClient implements AiClient {
     schema: object,
     limits: AiLimits,
   ): Promise<AiAnswer> {
+    const tools = [
+      ...(request.webSearch ? [{ googleSearch: {} }] : []),
+      ...(request.readPages ? [{ urlContext: {} }] : []),
+    ]
     const response = await this.ready()
       .models.generateContent({
         model,
@@ -41,10 +47,10 @@ export class GeminiClient implements AiClient {
           maxOutputTokens: limits.maxTokensOut,
           responseMimeType: 'application/json',
           responseJsonSchema: schema,
-          /* Gemini 3 accepts the JSON schema and search grounding together (preview). */
-          ...(request.webSearch ? { tools: [{ googleSearch: {} }] } : {}),
+          /* Gemini 3 accepts the JSON schema beside search and URL context (preview). */
+          ...(tools.length > 0 ? { tools } : {}),
           /* LOW, not MINIMAL: gemini-3.8-flash refuses MINIMAL with a 400. */
-          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          thinkingConfig: { thinkingLevel: THINKING[request.effort ?? 'low'] },
           httpOptions: { timeout: limits.timeoutMs },
         },
       })
@@ -77,6 +83,11 @@ export class GeminiClient implements AiClient {
     if (!this.sdk) throw new AiVendorError('vendor', 'gemini: GEMINI_API_KEY is not set')
     return this.sdk
   }
+}
+
+const THINKING: Record<AiEffort, ThinkingLevel> = {
+  low: ThinkingLevel.LOW,
+  medium: ThinkingLevel.MEDIUM,
 }
 
 function partsOf(request: AiRequest): Part[] {

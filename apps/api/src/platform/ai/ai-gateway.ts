@@ -177,6 +177,7 @@ export class AiGateway {
       subjectCode: run.who.subjectCode,
       attempt: run.attempts.length,
       latencyMs,
+      promptVersion: run.request.prompt ?? null,
     }
     /* The vendor has billed already: a failed insert must not fail the call, or
      *  the caller's retry would pay a second time. The log keeps the counts. */
