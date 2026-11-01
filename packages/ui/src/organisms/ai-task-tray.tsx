@@ -179,7 +179,7 @@ export function AiTaskTray({
   /* Under overlays (50) like ActionBanner, over the nav (40). */
   const corner = inline
     ? ''
-    : 'fixed right-4 bottom-[calc(84px+env(safe-area-inset-bottom)+16px)] z-[45] lg:right-4 lg:bottom-6'
+    : 'fixed right-4 bottom-[calc(84px+env(safe-area-inset-bottom)+16px+var(--sticky-bar-h,0px))] z-[45] lg:right-4 lg:bottom-[calc(24px+var(--sticky-bar-h,0px))]'
 
   if (!open) {
     return (

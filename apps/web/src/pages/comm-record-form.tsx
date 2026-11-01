@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { cn } from '@pv/ui'
 import type { DebriefView } from '@pv/contracts'
 import { CommStepper, type CommStepState } from '@/components/comm-record-frame'
@@ -78,12 +78,30 @@ export function CommFormSteps({
   )
 }
 
+const STICKY_BAR_VAR = '--sticky-bar-h'
+
 /** Sticky under the open card: what is still missing, then the buttons.
  *  Lifted over the bottom nav on a phone; on a laptop narrow enough that the
  *  column meets the assistant button, it stops short of it. */
 export function CommFormBar({ problem, children }: { problem: FormProblem; children: ReactNode }) {
+  const bar = useRef<HTMLDivElement>(null)
+  /* The AI tray sits in this same corner: published so it floats above these buttons. */
+  useLayoutEffect(() => {
+    const el = bar.current
+    if (!el) return
+    const root = document.documentElement
+    const publish = () => root.style.setProperty(STICKY_BAR_VAR, `${el.offsetHeight + 12}px`)
+    publish()
+    const watch = new ResizeObserver(publish)
+    watch.observe(el)
+    return () => {
+      watch.disconnect()
+      root.style.removeProperty(STICKY_BAR_VAR)
+    }
+  }, [])
   return (
     <div
+      ref={bar}
       role="group"
       aria-label="Thao tác liên hệ"
       className="glass-overlay sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 flex flex-wrap items-center gap-3 rounded-lg px-4 py-3 lg:bottom-6 lg:max-xl:w-[calc(100%-72px)]"

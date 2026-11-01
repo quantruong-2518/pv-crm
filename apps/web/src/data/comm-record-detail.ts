@@ -500,13 +500,15 @@ export function stepInputOf(
   options: StepOptionsResponse | undefined,
 ): DebriefStepInput {
   /* Listed-only: the template's own words and kind, whatever an older draft
-     still holds — the server refuses any other pair. A typed step names no template. */
-  const fixed = options?.freeEntry === false ? pickedTemplateOf(draft, options) : undefined
+     still holds — the server refuses any other pair. Free entry may reword a pick;
+     the server keeps the template only while the words still match. */
+  const picked = pickedTemplateOf(draft, options)
+  const fixed = options?.freeEntry === false ? picked : undefined
   return {
     kindId: fixed?.kind.id ?? draft.kindId,
     text: fixed?.name ?? draft.text.trim(),
     due: draft.due,
-    ...(fixed && { templateId: fixed.id }),
+    ...(picked && { templateId: picked.id }),
   }
 }
 
