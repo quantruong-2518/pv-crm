@@ -625,3 +625,49 @@ Raised while adding the AI report to an open comm (ADR 0132).
 140.  **Recordings: reading audio needs recording consent (ADR 0011;
       `comms.consent` does not exist in code) and a test on about 20 real
       Vietnamese recordings.** Audio is not read until then. _(see ADR 0132 §4)_
+
+## CRM Agent (added 01/11/2026)
+
+Raised while settling the CRM Agent and its wave 0 (ADR 0133).
+
+141.  **Should peers (two heads of sales) be able to reset or lock each other?**
+      Default in code: yes (`>=`). _(see ADR 0133 D1)_
+
+142.  **How long is the `ai-read` trail kept, and who reads it through what
+      door?** `audit-log.view` also includes account-executive. _(see ADR 0133
+      D4)_
+
+143.  **Should lead-enrich and the document scan also write `ai-read`?** Not
+      done; only the agent's tools do. _(see ADR 0133 D4)_
+
+144.  **Do list rows count as AI reads?** Default: yes. _(see ADR 0133 D4)_
+
+145.  **"Có N mục bạn không có quyền xem" can only come from books, since search
+      and profile deliberately never count hidden rows. Narrow the closed
+      decision to books?** _(see ADR 0133 §2)_
+
+146.  **For `ownOnly` users, do numbers show room-wide or own figures?** Wave 3.
+      _(see ADR 0133 §2)_
+
+147.  **Does taking multiple rows of contact data through the agent need
+      `data.export`?** Wave 1. _(see ADR 0133 D2)_
+
+148.  **Does the morning brief, Monday to Friday, include public holidays?**
+      Acceptable as is? Wave 2. _(see ADR 0133 §2)_
+
+149.  **The `assistant-deep` model is provisional, and the summary trigger is
+      undecided.** _(see ADR 0133 D8)_
+
+150.  **Should the deal door show a Sale a contact sitting on another seller's
+      lead?** `dealContacts` in `opportunity-facts.repository.ts` has no lead
+      fence, while search fences the same contact. The agent repeats what the
+      door shows, so decide before the pilot. _(see ADR 0133 D2)_
+
+151.  **Should an own-only manager be unable to give someone else the whole
+      book?** Today there is no own-only ceiling on others. _(see ADR 0133 D1)_
+
+152.  **Should a head of sales keep the right to reset or invite accounts
+      holding branches they lack?** Dormant today. _(see ADR 0133 D1)_
+
+153.  **Should a read after a search hit in one turn write its own `ai-read`
+      line?** _(see ADR 0133 D4)_

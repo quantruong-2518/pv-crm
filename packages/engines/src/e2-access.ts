@@ -221,9 +221,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  Three permissions are held back, for two different reasons. `cấu-hình.*`
    *  and `performance.view` are withheld because those two screens stay with the
    *  head of department — a decision about who reads them, not about what this
-   *  seat can do. `user.manage` is withheld because keeping it would
-   *  UNDO the other two: whoever edits their own `roleIds` can hand themselves
-   *  any row in this table, including one that has all three back. */
+   *  seat can do. `user.manage` is withheld because deciding who gets in stays
+   *  there too: rank caps what its holder could hand out (`mayAdminister`), but
+   *  it would still open accounts and reset passwords across this seat's peers. */
   'account-executive': [
     'campaign.view',
     'campaign.edit',

@@ -3,13 +3,19 @@ import type { ContentBlock, ContentBlockParam } from '@anthropic-ai/sdk/resource
 import { transformJSONSchema } from '@anthropic-ai/sdk/lib/transform-json-schema'
 import {
   AiVendorError,
+  NOTHING_SPENT,
+  plainReason,
   statusKind,
   vendorMessage,
   type AiAnswer,
   type AiClient,
+  type AiConverseRequest,
   type AiLimits,
   type AiRequest,
+  type AiRound,
+  type AiSpent,
 } from './ai-client'
+import { anthropicRound } from './anthropic.converse'
 
 /** Claude behind `AiClient`: structured JSON output with the gateway's schema
  *  (narrowed by the SDK's own transform to the keywords the API accepts — the
@@ -21,7 +27,9 @@ import {
  *  `output_config.format` with a 400. The gateway's zod parse still decides.
  *
  *  `maxRetries: 0`: the SDK would otherwise retry on its own, hiding attempts
- *  from the gateway's policy and from the ledger. */
+ *  from the gateway's policy and from the ledger. `logLevel: 'off'`: on a bad
+ *  stream frame the SDK prints the raw frame, and `ANTHROPIC_LOG=debug` prints
+ *  whole requests; both are customer data. */
 
 /** Basic search, called directly: five searches are plenty for one company.
  *  Known limit: a `pause_turn` stop reads as cut short, so the gateway's retry
@@ -40,7 +48,7 @@ export class AnthropicClient implements AiClient {
 
   constructor(apiKey: string) {
     this.keyed = apiKey.length > 0
-    this.sdk = this.keyed ? new Anthropic({ apiKey, maxRetries: 0 }) : null
+    this.sdk = this.keyed ? new Anthropic({ apiKey, maxRetries: 0, logLevel: 'off' }) : null
   }
 
   async generate(
@@ -91,6 +99,18 @@ export class AnthropicClient implements AiClient {
     return count.input_tokens
   }
 
+  async converse(
+    model: string,
+    r: AiConverseRequest,
+    limits: AiLimits & { signal: AbortSignal },
+    onText: (delta: string) => void,
+  ): Promise<AiRound> {
+    const spent = { ...NOTHING_SPENT }
+    return anthropicRound(this.ready(), model, r, limits, onText, spent).catch((error: unknown) =>
+      vendorError(error, spent),
+    )
+  }
+
   private ready(): Anthropic {
     if (!this.sdk) throw new AiVendorError('vendor', 'anthropic: ANTHROPIC_API_KEY is not set')
     return this.sdk
@@ -133,14 +153,14 @@ const isImage = (mime: string): mime is ImageMime =>
   (IMAGE_MIME as readonly string[]).includes(mime)
 
 /** A status means the API answered; none means a timeout or a dropped connection. */
-function vendorError(error: unknown): never {
+function vendorError(error: unknown, spent?: AiSpent): never {
   if (error instanceof APIError && error.status !== undefined) {
     throw new AiVendorError(
       statusKind(error.status),
       vendorMessage('anthropic', error.status, error.message),
+      spent,
     )
   }
   const name = error instanceof Error ? error.name : 'unknown'
-  const message = error instanceof Error ? error.message : ''
-  throw new AiVendorError('transient', vendorMessage('anthropic', name, message))
+  throw new AiVendorError('transient', vendorMessage('anthropic', name, plainReason(error)), spent)
 }

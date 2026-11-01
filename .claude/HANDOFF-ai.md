@@ -24,6 +24,16 @@ nhận bản nháp lead), `apps/api/src/branches/sales/lead/lead-ai-fill.service
 Claude Haiku 5.5); phân loại nhanh → Claude Haiku 5.5; tìm web → Gemini 3.8 Flash + Google
 (dự phòng Claude Sonnet 5.5). Sửa ở `PUT /ai/routes/:task`, không cần deploy.
 
+## Đợt 0 CRM Agent (ADR 0133, 01/11/2026)
+
+Đã dựng và push lên master. Migration 0159 chưa lên Neon. Bốn tuyến `assistant*` seed ở trạng
+thái tắt. Chưa ship API. Cổng 0 còn MỞ: chờ khoá nhà cung cấp trên một máy. Việc kế tiếp: chạy
+`pnpm ai:eval -- --suite assistant --live --yes --model <id>` có khoá, cho cả hai hãng.
+
+**Deploy API từ master phải chạy 0159 lên Neon trước.** Lệnh ghi `ai_call` nêu đủ cột mới, nên
+API mới trên DB cũ làm hỏng mọi lần ghi sổ AI, kể cả tự điền lead và báo cáo liên hệ. Giữa lúc
+migrate và deploy, API cũ trả 500 ở `GET /ai/routes` vì chưa biết bốn tác vụ mới.
+
 ## Nợ còn mở
 
 - Migration dọn dẹp (một lần, sau khi bản API mới chạy ổn): xoá `lead.category`,

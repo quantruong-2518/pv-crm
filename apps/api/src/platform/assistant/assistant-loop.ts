@@ -1,0 +1,426 @@
+import { randomUUID } from 'node:crypto'
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
+import type {
+  AiUnavailableReason,
+  AssistantEndedBy,
+  AssistantEvent,
+  AssistantMessageState,
+} from '@pv/contracts'
+import type { Actor } from '@pv/engines'
+import type { AiMessage, AiRound, AiToolCall } from '../ai/ai-client'
+import { AiCallError, AiTransientError, AiUnavailableError } from '../ai/ai-errors'
+import { AiGateway } from '../ai/ai-gateway'
+import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
+import {
+  ASSISTANT_PROMPT_VERSION,
+  fenced,
+  newFence,
+  openingMessages,
+  requestOf,
+} from './assistant-context'
+import { AssistantToolGate, notRun, type ToolVerdict } from './assistant-tools'
+import { AssistantRepository, type TurnBegun, type TurnRefused } from './assistant.repository'
+import type { AssistantToolCallValues } from './assistant.schema'
+
+/** One turn of the assistant: the capped loop over the gateway's conversation
+ *  (ADR 0133 D7). Agent policy lives here so the gateway stays free of it.
+ *
+ *  Per round: model call, parse and gate each input, run under a semaphore, write
+ *  the audit, and only then build the next request. A failed write ends the turn
+ *  with nothing sent, and no transaction spans a model call.
+ *
+ *  The sink is not a connection: a closed socket drops events and the turn runs
+ *  on. Logs carry counts and error classes, never a question, argument or result. */
+
+const MAX_ROUNDS = 8
+const TURN_MS = 60_000
+/* Past this no tool round starts: the rest of the turn is the writing round. */
+const LAST_TOOL_ROUND_MS = 48_000
+const TOOL_TOKEN_CAP = 40_000
+const CALLS_PER_ROUND = 6
+const PARALLEL_TOOLS = 3
+
+const WRITE_NOW = 'No more tool calls in this turn. Answer now from what you already have.'
+const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử lại sau ít phút.'
+const BUSY = 'Trợ lý đang bận. Thử lại sau ít phút.'
+
+const REFUSED: Record<TurnRefused['reason'], string> = {
+  'no-session': 'Không tìm thấy cuộc trò chuyện này.',
+  'hourly-limit': 'Bạn đã hết lượt hỏi trong 1 giờ qua. Thử lại sau.',
+  running: 'Câu trước chưa trả lời xong. Chờ một chút rồi hỏi lại.',
+}
+
+const UNAVAILABLE: Record<AiUnavailableReason, string> = {
+  disabled: 'Chưa bật Trợ lý. Báo quản trị viên.',
+  'no-key': 'Chưa bật Trợ lý. Báo quản trị viên.',
+  'user-limit': 'Bạn đã hết lượt Trợ lý trong 24 giờ qua. Thử lại sau.',
+  budget: 'Đã hết hạn mức Trợ lý trong 24 giờ qua. Thử lại sau.',
+}
+
+const STATE_OF: Record<AssistantEndedBy, Exclude<AssistantMessageState, 'running'>> = {
+  answer: 'done',
+  'cap-rounds': 'done',
+  'cap-time': 'done',
+  'cap-tokens': 'done',
+  vendor: 'failed',
+  disabled: 'failed',
+  crash: 'failed',
+  stopped: 'stopped',
+}
+
+export type TurnContext = {
+  who: Actor
+  sessionId: string
+  question: string
+  /** Sent by the screen; the model reads it as context, nothing is decided on it. */
+  screen: string | null
+  task: 'assistant' | 'assistant-deep'
+}
+
+type Cap = Extract<AssistantEndedBy, `cap-${string}`>
+
+type Turn = {
+  id: string
+  who: Actor
+  signal: AbortSignal
+  startedAt: number
+  emit: (event: AssistantEvent) => void
+  messages: AiMessage[]
+  text: string
+  rounds: number
+  toolTokens: number
+  firstTextMs: number | null
+  model: string | null
+  /** The cap that ran out: the next round writes and calls no tool. */
+  cap: Cap | null
+  /** Made once per turn, after the first data is read (D5). */
+  fence: string | null
+  /** Codes with an `ai-read` line this turn: one line per record. */
+  audited: Set<string>
+}
+
+/** A call on its way to the audit and to `assistant_tool_call`. `id` is ours, not
+ *  the vendor's: it joins the audit note to the row and no model string reaches it. */
+type RoundCall = ToolVerdict & {
+  id: string
+  call: AiToolCall
+  tokens: number
+  truncated: boolean
+}
+
+/** Set only by whoever needs to move time; production reads the real clock. */
+export const ASSISTANT_CLOCK = Symbol('pv.assistant.clock')
+
+const SHAPE = /[^a-z_]/g
+
+/** A model can invent a name, and the table's CHECK would turn that into a crash. */
+const storableName = (name: string): string =>
+  name.toLowerCase().replace(SHAPE, '_').slice(0, 64) || 'unknown'
+
+const tokensOf = (data: object): number =>
+  Math.ceil(Buffer.byteLength(JSON.stringify(data), 'utf8') / 3)
+
+/* Postgres stores \u0000 in neither `text` nor `jsonb`, keys included. */
+const withoutNul = (text: string): string => text.replaceAll('\u0000', '')
+
+const storableJson = (value: unknown): unknown => {
+  if (typeof value === 'string') return withoutNul(value)
+  if (Array.isArray(value)) return value.map(storableJson)
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => [withoutNul(key), storableJson(item)]),
+  )
+}
+
+/** `size` workers over `items`; answers keep the order of the calls. */
+async function inPool<T, R>(
+  items: readonly T[],
+  size: number,
+  work: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const answers: R[] = []
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++
+      answers[index] = await work(items[index] as T, index)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker))
+  return answers
+}
+
+/** The token cap, in call order: an over-cap result reaches neither the model nor
+ *  the audit, because nothing of it was read. */
+function capped(
+  turn: Turn,
+  calls: readonly AiToolCall[],
+  verdicts: readonly ToolVerdict[],
+): RoundCall[] {
+  return verdicts.map((verdict, i) => {
+    const base = { ...verdict, id: randomUUID(), call: calls[i] as AiToolCall }
+    const tokens = tokensOf(verdict.output)
+    if (turn.toolTokens + tokens <= TOOL_TOKEN_CAP) {
+      turn.toolTokens += tokens
+      return { ...base, tokens, truncated: false }
+    }
+    turn.cap ??= 'cap-tokens'
+    const output = { truncated: true }
+    return { ...base, outcome: 'over-cap', output, codes: [], tokens: 0, truncated: true }
+  })
+}
+
+/** D4, plus the refusal line `AccessGuard` writes at the same fence. */
+function auditLines(turn: Turn, calls: readonly RoundCall[]): AuditEntry[] {
+  const actorId = turn.who.id
+  return calls.flatMap((c): AuditEntry[] => {
+    const note = `assistant.${c.call.name} · turn ${turn.id} · call ${c.id}`
+    if (c.denied) return [{ actorId, action: 'view', note: `chặn ${note} · ${c.denied}` }]
+    if (c.outcome !== 'ok') return []
+    const fresh = c.codes.filter((code) => !turn.audited.has(code))
+    for (const code of fresh) turn.audited.add(code)
+    const lines: AuditEntry[] = [...new Set(fresh)].map((code) => ({
+      actorId,
+      action: 'ai-read',
+      code,
+      note,
+    }))
+    const rowCount = c.rowCount ?? 0
+    const hidden = c.hidden ?? 0
+    if (hidden > 0 || (c.codes.length === 0 && rowCount > 0)) {
+      lines.push({
+        actorId,
+        action: 'ai-read',
+        note: `${note} · ${rowCount} row(s) · ${hidden} hidden`,
+      })
+    }
+    return lines
+  })
+}
+
+const toolCallRow = (turn: Turn, c: RoundCall, position: number): AssistantToolCallValues => ({
+  id: c.id,
+  messageId: turn.id,
+  round: turn.rounds,
+  position,
+  name: storableName(c.call.name),
+  input: storableJson(c.call.input) as AssistantToolCallValues['input'],
+  codes: [...c.codes],
+  rowCount: c.rowCount,
+  hidden: c.hidden,
+  truncated: c.truncated,
+  toolTokens: c.tokens,
+  outcome: c.outcome,
+  latencyMs: c.latencyMs,
+})
+
+/** The vendor's turn first, then one result per call: both vendors refuse a
+ *  request whose calls lack results. The results go in only after the writes. */
+function appendRound(turn: Turn, round: AiRound, calls: readonly RoundCall[]): void {
+  const fence = (turn.fence ??= newFence())
+  turn.messages.push(
+    { role: 'assistant-round', text: round.text, calls: round.calls, vendor: round.vendor },
+    {
+      role: 'tool',
+      results: calls.map((c) => ({
+        callId: c.call.id,
+        name: c.call.name,
+        output: fenced(fence, c.output),
+        isError: c.outcome !== 'ok',
+      })),
+      ...(turn.cap ? { note: WRITE_NOW } : {}),
+    },
+  )
+}
+
+/** The end of a round that does not go on; `null` = run its tools and go on. */
+function endOfRound(turn: Turn, round: AiRound): AssistantEndedBy | null {
+  if (round.stop === 'tools' && round.calls.length > 0 && !turn.cap) return null
+  if (round.stop === 'end' && turn.text !== '') return turn.cap ?? 'answer'
+  addCutShort(turn)
+  return round.stop === 'tools' && turn.cap ? turn.cap : 'vendor'
+}
+
+/** D7: the writing round failed, so a fixed sentence follows the partial text. */
+function addCutShort(turn: Turn): void {
+  const sentence = turn.text === '' ? CUT_SHORT : `\n\n${CUT_SHORT}`
+  turn.text += sentence
+  turn.emit({ type: 'text', delta: sentence })
+}
+
+@Injectable()
+export class AssistantRunner {
+  private readonly log = new Logger('Assistant')
+
+  constructor(
+    private readonly gateway: AiGateway,
+    private readonly repo: AssistantRepository,
+    private readonly audit: AuditRepository,
+    private readonly tools: AssistantToolGate,
+    @Optional() @Inject(ASSISTANT_CLOCK) private readonly now: () => number = Date.now,
+  ) {}
+
+  /** Rejects only when the turn cannot be opened at all, and then no row stands. */
+  async runTurn(
+    ctx: TurnContext,
+    sink: (event: AssistantEvent) => void,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const emit = (event: AssistantEvent): void => {
+      try {
+        sink(event)
+      } catch {
+        /* A dead connection is the client's loss, never the turn's. */
+      }
+    }
+    const begun = await this.repo.beginTurn(ctx.who.id, ctx.sessionId, ctx.question)
+    if (!begun.ok) return emit({ type: 'error', message: REFUSED[begun.reason] })
+
+    const turn = this.open(ctx, begun, emit, signal)
+    const endedBy = await this.drive(turn, ctx, begun).catch((error: unknown) =>
+      this.endOfError(turn, error),
+    )
+    await this.close(turn, endedBy)
+  }
+
+  private open(ctx: TurnContext, begun: TurnBegun, emit: Turn['emit'], signal: AbortSignal): Turn {
+    const startedAt = this.now()
+    const at = new Date(startedAt)
+    return {
+      id: begun.turnId,
+      who: ctx.who,
+      signal,
+      startedAt,
+      emit,
+      messages: openingMessages(begun, { ...ctx, at }),
+      text: '',
+      rounds: 0,
+      toolTokens: 0,
+      firstTextMs: null,
+      model: null,
+      cap: null,
+      fence: null,
+      audited: new Set(),
+    }
+  }
+
+  private async drive(turn: Turn, ctx: TurnContext, begun: TurnBegun): Promise<AssistantEndedBy> {
+    const conversation = await this.gateway.conversation(ctx.task, {
+      actorId: turn.who.id,
+      subjectCode: begun.subject?.code ?? null,
+      turnId: turn.id,
+      deadlineAt: turn.startedAt + TURN_MS,
+      reserveMs: TURN_MS - LAST_TOOL_ROUND_MS,
+    })
+    const effort = ctx.task === 'assistant-deep' ? 'medium' : 'low'
+    let before = 0
+    const onText = (delta: string): void => {
+      turn.firstTextMs ??= this.now() - turn.startedAt
+      /* Each round writes on its own: run together they read as one broken sentence. */
+      const text = before > 0 && turn.text.length === before ? `\n\n${delta}` : delta
+      turn.text += text
+      turn.emit({ type: 'text', delta: text })
+    }
+    for (;;) {
+      if (turn.signal.aborted) return 'stopped'
+      this.noteLate(turn)
+      turn.emit({ type: 'step', round: turn.rounds + 1 })
+      const choice = turn.cap ? 'none' : 'auto'
+      /* A copy: a request must stay what was sent while the turn grows past it. */
+      const messages = [...turn.messages]
+      const request = requestOf(turn.who, this.tools.declarations(), choice, messages, effort)
+      before = turn.text.length
+      const round = await conversation
+        .round(request, onText, turn.signal)
+        .catch((error: unknown) => {
+          this.noteLate(turn)
+          const holds = turn.messages.some((m) => m.role === 'tool')
+          const wrote = turn.text.length > before
+          const transient = error instanceof AiTransientError && !turn.signal.aborted
+          /* The reserve timer killed a tool round: what was read still gets its answer. */
+          if (choice === 'auto' && turn.cap && holds && !wrote && transient) return null
+          throw error
+        })
+      if (!round) continue
+      turn.rounds += 1
+      turn.model = round.model
+      const end = endOfRound(turn, round)
+      if (end) return end
+      await this.runTools(turn, round)
+    }
+  }
+
+  private noteLate(turn: Turn): void {
+    if (this.now() - turn.startedAt >= LAST_TOOL_ROUND_MS) turn.cap ??= 'cap-time'
+  }
+
+  /** The order is the safety: nothing enters `turn.messages` until both writes
+   *  have landed, so a failed audit leaves the model with nothing to read. */
+  private async runTools(turn: Turn, round: AiRound): Promise<void> {
+    /* A slow model can return past the mark: its calls still need results. */
+    this.noteLate(turn)
+    const late = turn.cap !== null
+    const verdicts = await inPool(round.calls, PARALLEL_TOOLS, (call, index) => {
+      if (late || index >= CALLS_PER_ROUND) {
+        return Promise.resolve(notRun('over-cap', { error: 'over-cap' }))
+      }
+      turn.emit({ type: 'step', round: turn.rounds, tool: storableName(call.name) })
+      return this.tools.call(turn.who, call)
+    })
+    const calls = capped(turn, round.calls, verdicts)
+    await this.audit.writeMany(auditLines(turn, calls))
+    await this.repo.recordToolCalls(calls.map((c, i) => toolCallRow(turn, c, i)))
+    if (turn.rounds + 1 >= MAX_ROUNDS) turn.cap ??= 'cap-rounds'
+    appendRound(turn, round, calls)
+    for (const c of calls) {
+      turn.emit({
+        type: 'tool-result',
+        result: {
+          tool: storableName(c.call.name),
+          outcome: c.outcome,
+          rowCount: c.rowCount,
+          hidden: c.hidden,
+          truncated: c.truncated,
+        },
+      })
+    }
+  }
+
+  private endOfError(turn: Turn, error: unknown): AssistantEndedBy {
+    if (turn.signal.aborted) return 'stopped'
+    if (error instanceof AiUnavailableError) {
+      turn.emit({ type: 'error', message: UNAVAILABLE[error.reason] })
+      return 'disabled'
+    }
+    if (error instanceof AiCallError) {
+      addCutShort(turn)
+      return this.now() - turn.startedAt >= TURN_MS ? 'cap-time' : 'vendor'
+    }
+    this.log.error(`turn ${turn.id} crashed: ${error instanceof Error ? error.name : 'unknown'}`)
+    turn.emit({ type: 'error', message: BUSY })
+    return 'crash'
+  }
+
+  /** A failed write leaves the row running for the sweep; the client still hears. */
+  private async close(turn: Turn, endedBy: AssistantEndedBy): Promise<void> {
+    const body = withoutNul(turn.text)
+    /* The fixed sentence is not an answer: a cap that left only that failed the turn. */
+    const unanswered = endedBy.startsWith('cap-') && body.replace(CUT_SHORT, '').trim() === ''
+    await this.repo
+      .finishTurn(turn.id, {
+        state: unanswered ? 'failed' : STATE_OF[endedBy],
+        endedBy,
+        body,
+        model: turn.model,
+        rounds: turn.rounds,
+        toolTokens: turn.toolTokens,
+        firstTextMs: turn.firstTextMs,
+        promptVersion: ASSISTANT_PROMPT_VERSION,
+      })
+      .catch((error: unknown) => {
+        const kind = error instanceof Error ? error.name : 'unknown'
+        this.log.error(`turn ${turn.id} finish failed: ${kind}`)
+      })
+    turn.emit({ type: 'done', messageId: turn.id, endedBy })
+  }
+}

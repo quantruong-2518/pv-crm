@@ -1,14 +1,19 @@
-import { ApiError, GoogleGenAI, ThinkingLevel, type Part } from '@google/genai'
+import { ApiError, GoogleGenAI, type Part } from '@google/genai'
 import {
   AiVendorError,
+  NOTHING_SPENT,
+  plainReason,
   statusKind,
   vendorMessage,
   type AiAnswer,
   type AiClient,
-  type AiEffort,
+  type AiConverseRequest,
   type AiLimits,
   type AiRequest,
+  type AiRound,
+  type AiSpent,
 } from './ai-client'
+import { geminiRound, THINKING } from './gemini.converse'
 
 /** Gemini behind `AiClient`: JSON mode with the gateway's schema, Google
  *  Search grounding and URL context when the request asks for the web, the
@@ -79,15 +84,22 @@ export class GeminiClient implements AiClient {
     return response.totalTokens ?? 0
   }
 
+  async converse(
+    model: string,
+    r: AiConverseRequest,
+    limits: AiLimits & { signal: AbortSignal },
+    onText: (delta: string) => void,
+  ): Promise<AiRound> {
+    const spent = { ...NOTHING_SPENT }
+    return geminiRound(this.ready(), model, r, limits, onText, spent).catch((error: unknown) =>
+      vendorError(error, spent),
+    )
+  }
+
   private ready(): GoogleGenAI {
     if (!this.sdk) throw new AiVendorError('vendor', 'gemini: GEMINI_API_KEY is not set')
     return this.sdk
   }
-}
-
-const THINKING: Record<AiEffort, ThinkingLevel> = {
-  low: ThinkingLevel.LOW,
-  medium: ThinkingLevel.MEDIUM,
 }
 
 function partsOf(request: AiRequest): Part[] {
@@ -100,14 +112,14 @@ function partsOf(request: AiRequest): Part[] {
 
 /** An `ApiError` carries the vendor's status; anything else is a timeout or a
  *  dropped connection, which another model may well survive. */
-function vendorError(error: unknown): never {
+function vendorError(error: unknown, spent?: AiSpent): never {
   if (error instanceof ApiError) {
     throw new AiVendorError(
       statusKind(error.status),
       vendorMessage('gemini', error.status, error.message),
+      spent,
     )
   }
   const name = error instanceof Error ? error.name : 'unknown'
-  const message = error instanceof Error ? error.message : ''
-  throw new AiVendorError('transient', vendorMessage('gemini', name, message))
+  throw new AiVendorError('transient', vendorMessage('gemini', name, plainReason(error)), spent)
 }

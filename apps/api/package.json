@@ -34,7 +34,7 @@
     "db:backfill:quotation-gap": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/quotation/quotation-gap.backfill.ts",
     "//db:backfill:meeting-cancel": "Run once AFTER the deploy that follows migration 0124: soft-cancels future meetings of deals already lost and leads already stopped or switched off, then removes their Google events. No bell. Preview by default; --apply writes. Idempotent.",
     "db:backfill:meeting-cancel": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/branches/sales/meeting/meeting-cancel.backfill.ts",
-    "//ai:eval": "Runs the REAL lead enricher over apps/api/.ai-eval/leads.json (gitignored, real customer data, never committed) and prints per-field accuracy. Costs money: prints an estimate and calls nothing without --yes. Pass DATABASE_URL explicitly.",
+    "//ai:eval": "Runs the REAL lead enricher over apps/api/.ai-eval/leads.json (gitignored, real customer data, never committed) and prints per-field accuracy. Costs money: prints an estimate and calls nothing without --yes. Pass DATABASE_URL explicitly. `--suite assistant` runs the keyless agent suite instead.",
     "ai:eval": "node --env-file-if-exists=.env -r ts-node/register -r tsconfig-paths/register src/scripts/ai-eval.ts"
   },
   "dependencies": {

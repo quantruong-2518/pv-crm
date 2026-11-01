@@ -1,6 +1,6 @@
 # 0130 · Prompts are versioned specs; lead fill reads the company in two calls; size is a band; provinces use the 2025 names
 
-Status: accepted (amends 0128: headcount becomes `sizeBand`, one search call becomes two; amends 0127: the ledger carries `prompt_version`)
+Status: accepted (amends 0128: headcount becomes `sizeBand`, one search call becomes two; amends 0127: the ledger carries `prompt_version`; amended by 0133: chat prompts have no returned fields)
 Source: project owner's decisions in session, 28/10/2026 (slice A-1 of `.claude/HANDOFF-ai.md`)
 
 ## Context

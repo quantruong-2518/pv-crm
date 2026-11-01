@@ -26,4 +26,10 @@ export class AuditRepository {
   async write(entry: AuditEntry, tx: Db = this.db): Promise<void> {
     await tx.insert(audit).values(entry)
   }
+
+  /** One multi-row INSERT, so a batch lands whole or not at all: the assistant
+   *  sends nothing to the model when this fails (ADR 0133 D4). */
+  async writeMany(entries: readonly AuditEntry[]): Promise<void> {
+    if (entries.length > 0) await this.db.insert(audit).values([...entries])
+  }
 }

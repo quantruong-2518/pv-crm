@@ -529,6 +529,10 @@ export class AuthService {
     return this.repo.revokeAllForActor(actorId, tx)
   }
 
+  voidOpenInvites(actorId: string, tx: Db): Promise<void> {
+    return this.repo.voidOpenInvites(actorId, tx)
+  }
+
   /** Hand somebody `DEFAULT_PASSWORD` and mark the debt. The administrator's
    *  reset, called by `UsersService` — which owns the refusals and the audit
    *  line, the same split `invite` already uses.

@@ -24,6 +24,15 @@ export const outranks = (
   ownerRoleIds: readonly RoleId[],
 ): boolean => highestRank(actorRoleIds) > highestRank(ownerRoleIds)
 
+/** May this person run that account, and hand it these roles. Unlike `outranks`
+ *  a peer passes: a sole director has to be able to appoint a second. */
+export const mayAdminister = (
+  actorRoleIds: readonly RoleId[],
+  targetRoleIds: readonly RoleId[],
+  nextRoleIds: readonly RoleId[] = [],
+): boolean =>
+  highestRank(actorRoleIds) >= Math.max(highestRank(targetRoleIds), highestRank(nextRoleIds))
+
 export const MEETING_CLOSER_ROLES: readonly RoleId[] = [
   'bd',
   'account-executive',

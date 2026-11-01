@@ -17,14 +17,22 @@ export type AiCallRecord = {
   latencyMs: number
   /** `id@version` of the registered prompt; `null` for a call with none. */
   promptVersion: string | null
+  /** The assistant turn this attempt served; left out by every other task. */
+  turnId?: string
+  /** The turn's round; `attempt` restarts inside each one. */
+  round?: number
+  /** Parts of `tokensIn`, which stays the whole input. */
+  tokensCached?: number
+  tokensCacheWrite?: number
 }
 
 /** The one writer of `platform.ai_call` (ADR 0102). Counts only — the record
  *  has no field for prompt or answer text, so no caller can pass one.
  *
- *  Called by `AiGateway` alone, once per attempt, in its own write right after
- *  the vendor answers: the money is spent whether or not the feature's result
- *  transaction later commits (amends ADR 0102's "same transaction"). */
+ *  Called by `AiGateway` and `AiConversation` alone, once per attempt, in its own
+ *  write right after the vendor answers: the money is spent whether or not the
+ *  feature's result transaction later commits (amends ADR 0102's "same
+ *  transaction"). */
 @Injectable()
 export class AiLedger {
   async record(tx: Db, call: AiCallRecord): Promise<void> {

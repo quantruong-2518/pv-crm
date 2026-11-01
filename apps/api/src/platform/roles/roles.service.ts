@@ -1,12 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { Inject, Injectable, Logger } from '@nestjs/common'
 import { ModuleRef } from '@nestjs/core'
-import { ROLE_GRANTS_REPLACED, type Actor, type Permission, type RoleId } from '@pv/engines'
+import {
+  ROLE_GRANTS_REPLACED,
+  mayAdminister,
+  type Actor,
+  type Permission,
+  type RoleId,
+} from '@pv/engines'
 import { RoleId as ContractRoleId, type RoleGrants, type RoleMatrixView } from '@pv/contracts'
 import { AuditRepository } from '../audit/audit.repository'
 import { ADMIN_KEYS, lockAdminSurface } from '../db/admin-surface'
 import { DB, type Db } from '../db/db.module'
-import { conflict } from '../http/problem'
+import { conflict, denied } from '../http/problem'
 import { NotificationHub } from '../notification/notification.hub'
 import { RolePermissionRepository } from './role-permission.repository'
 
@@ -57,6 +63,7 @@ export class RolesService {
       await lockAdminSurface(tx)
 
       const before = await this.repo.grantsFor([roleId], tx)
+      this.refuseBeyondReach(who, roleId, before, wanted)
       await this.assertNotLockingSelfOut(tx, who, roleId, wanted)
       await this.assertSomebodyKeepsTheKeys(tx, roleId, wanted)
 
@@ -157,6 +164,28 @@ export class RolesService {
       throw conflict(
         `Bỏ ${key} khỏi vai này thì không còn tài khoản đang hoạt động nào giữ quyền đó. Cấp ${key} cho một vai đang có người trước.`,
       )
+    }
+  }
+
+  /** RULE 3 · nobody hands out more than they hold.
+   *
+   *  `role.manage` alone would otherwise be a way up: edit the role you wear, or
+   *  strip a role above you. Only what the save ADDS counts, because the screen
+   *  re-sends the role's whole list. Rank covers what the role already held. */
+  private refuseBeyondReach(
+    who: Actor,
+    roleId: RoleId,
+    before: readonly Permission[],
+    wanted: readonly Permission[],
+  ): void {
+    if (!mayAdminister(who.roleIds, [roleId])) {
+      throw denied('permission-denied', 'Bạn không sửa được quyền của vai cao hơn vai của bạn.')
+    }
+    /* Nobody sits above the top rank, so holding it to this rule would make an
+       unticked permission impossible to give back. */
+    if (mayAdminister(who.roleIds, ['director'])) return
+    if (wanted.some((p) => !before.includes(p) && !who.permissions.includes(p))) {
+      throw denied('permission-denied', 'Bạn chỉ cấp được những quyền bạn đang có.')
     }
   }
 

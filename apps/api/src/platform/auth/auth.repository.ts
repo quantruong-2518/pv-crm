@@ -303,4 +303,19 @@ export class AuthRepository {
       .returning({ id: passwordReset.id })
     return rows.length
   }
+
+  /** A raised account must not open on a link a junior manager may hold, which
+   *  is the case `invalidatePendingResetTickets` leaves alone on purpose. */
+  async voidOpenInvites(actorId: string, tx: Db): Promise<void> {
+    await tx
+      .update(passwordReset)
+      .set({ usedAt: sql`now()` })
+      .where(
+        and(
+          eq(passwordReset.actorId, actorId),
+          eq(passwordReset.purpose, 'invite'),
+          isNull(passwordReset.usedAt),
+        ),
+      )
+  }
 }

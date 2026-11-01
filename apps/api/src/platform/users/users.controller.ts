@@ -36,8 +36,8 @@ import { UsersService } from './users.service'
  *  of the wire, so a route and a query that drift apart are found by diffing
  *  two lines.
  *
- *  The permission itself is the widest one in E2 — whoever holds it can grant
- *  themselves every other permission by editing their own `roleIds` — which is
+ *  The permission itself is the widest one in E2 — whoever holds it decides who
+ *  gets in, up to their own rank and branches (`UsersService` rule 3) — which is
  *  why only `director` and `head-of-sales` have it. That reasoning lives beside
  *  the entry in `packages/engines/src/e2-access.ts` and is not repeated here.
  *  The two fences E2 cannot express, because they are about one specific row

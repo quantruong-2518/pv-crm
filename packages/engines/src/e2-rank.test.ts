@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canCloseMeetingOnBehalf, highestRank, outranks, roleRank } from './e2-rank'
+import { canCloseMeetingOnBehalf, highestRank, mayAdminister, outranks, roleRank } from './e2-rank'
 
 /** Locks the seniority ladder: the on-behalf rule is strict, so peers are false. */
 describe('e2-rank', () => {
@@ -30,6 +30,30 @@ describe('e2-rank', () => {
     expect(outranks(['director'], ['head-of-sales'])).toBe(true)
     expect(outranks(['sale'], [])).toBe(true)
     expect(outranks([], [])).toBe(false)
+  })
+
+  it('mayAdminister lets a peer pass, so a sole director can appoint a second', () => {
+    expect(mayAdminister(['director'], ['director'])).toBe(true)
+    expect(mayAdminister(['director'], [], ['director'])).toBe(true)
+    expect(mayAdminister(['head-of-sales'], ['head-of-sales'], ['head-of-sales'])).toBe(true)
+  })
+
+  it('mayAdminister refuses a higher target and a higher next role', () => {
+    expect(mayAdminister(['head-of-sales'], ['director'])).toBe(false)
+    expect(mayAdminister(['head-of-sales'], ['sale'], ['director'])).toBe(false)
+    expect(mayAdminister(['head-of-sales'], [], ['director'])).toBe(false)
+    expect(mayAdminister(['head-of-sales'], ['director'], ['sale'])).toBe(false)
+  })
+
+  it('mayAdminister reads the highest of several roles on every side', () => {
+    expect(mayAdminister(['sale', 'head-of-sales'], ['bd', 'account-executive'])).toBe(true)
+    expect(mayAdminister(['head-of-sales'], ['sale', 'director'])).toBe(false)
+    expect(mayAdminister(['head-of-sales'], ['sale'], ['bd', 'director'])).toBe(false)
+  })
+
+  it('mayAdminister with no roles anywhere compares 0 with 0', () => {
+    expect(mayAdminister([], [], [])).toBe(true)
+    expect(mayAdminister([], ['sale'])).toBe(false)
   })
 
   it('closing a meeting needs a closer role AND a higher rank', () => {

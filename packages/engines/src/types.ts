@@ -249,7 +249,7 @@ export const PERMISSIONS = [
    *  that table.
    *
    *  Withheld from the other five roles for `user.manage`'s reason: whoever can
-   *  edit the matrix grants themselves everything in one click. */
+   *  edit the matrix hands out everything they hold, up to their own rank. */
   'role.manage',
   'approval.decide',
   'data.export',

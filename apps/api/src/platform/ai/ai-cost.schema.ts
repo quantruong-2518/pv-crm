@@ -56,6 +56,15 @@ export const aiCall = platform.table(
     /** `id@version` of the registered prompt, so a quality change can be traced
      *  to a prompt edit. NULL before 0156 and for calls with no registered prompt. */
     promptVersion: text('prompt_version'),
+    /** The `assistant_message` row this attempt served; NULL outside the assistant.
+     *  No FK: the 90-day session purge removes that row, so CASCADE would erase the
+     *  spend and NO ACTION would block the purge. */
+    turnId: uuid('turn_id'),
+    /** The turn's round; `attempt` restarts inside each one. NULL outside a turn. */
+    round: smallint('round'),
+    /** Parts of `tokens_in`, which stays the whole input: vendors price them apart. */
+    tokensCached: integer('tokens_cached').notNull().default(0),
+    tokensCacheWrite: integer('tokens_cache_write').notNull().default(0),
   },
   (t) => [
     /** A constraint, not a partial index, so `ON CONFLICT (source_key)` can name it. */
@@ -65,12 +74,19 @@ export const aiCall = platform.table(
     /** "One person's calls in a date range" — the spend of a person, scoped by month. */
     index('ai_call_actor_at_idx').on(t.actorId, t.at),
     /** `AiTask`, copied by hand: a new task kind must be a migration a person reads. */
-    check('ai_call_task_known', sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report')`),
+    check(
+      'ai_call_task_known',
+      sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report', 'assistant', 'assistant-deep',
+                     'assistant-summary', 'assistant-brief')`,
+    ),
     check('ai_call_outcome_known', sql`"outcome" IN ('ok', 'error')`),
     check('ai_call_tokens_in_not_negative', sql`"tokens_in" >= 0`),
     check('ai_call_tokens_out_not_negative', sql`"tokens_out" >= 0`),
     /** The gateway's attempt cap (3), copied by hand. */
     check('ai_call_attempt_range', sql`"attempt" BETWEEN 1 AND 3`),
+    /** The assistant loop's round cap, copied by hand. */
+    check('ai_call_round_range', sql`"round" IS NULL OR "round" BETWEEN 1 AND 8`),
+    check('ai_call_cache_within_input', sql`"tokens_cached" + "tokens_cache_write" <= "tokens_in"`),
     check('ai_call_latency_not_negative', sql`"latency_ms" IS NULL OR "latency_ms" >= 0`),
     /** Shape only (`x@y`): the prompt registry owns the id and version spelling. */
     check(

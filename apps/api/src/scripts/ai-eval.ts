@@ -35,7 +35,7 @@ import { DB, DB_HANDLE, DbModule, type Db } from '@api/platform/db/db.module'
  *  where category and industries are NAMES as listed in config; only the fields in
  *  `expected` are asked. A value counts as right when it folds (case, diacritics,
  *  punctuation) to the expected one; arrays compare as sets.
- *
+ *  `--suite assistant` runs the keyless agent suite instead.
  *      DATABASE_URL=pglite://… pnpm --filter @pv/api ai:eval -- [--file path] [--yes] [--prod] */
 
 const args = process.argv.slice(2)
@@ -127,6 +127,7 @@ async function spent(db: Db, since: Date): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (args.includes('--suite')) return (await import('./ai-eval/entry')).runSuite(args)
   const cases = JSON.parse(readFileSync(FILE, 'utf8')) as Case[]
   const app = await NestFactory.createApplicationContext(AiEvalModule, {
     logger: ['error', 'warn'],

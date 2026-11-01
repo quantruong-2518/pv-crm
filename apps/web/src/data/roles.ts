@@ -15,7 +15,7 @@ import { cacheTier } from '@/app/query-client'
  *  because there is no owner column to cut by — a role belongs to nobody.
  *
  *  `role.manage` is as wide as `user.manage` and wide in the same way: whoever
- *  holds it can grant themselves every other permission in one save. That is
+ *  holds it hands out everything they hold, up to their own rank. That is
  *  why there is no separate "read the matrix" gate — splitting read from write
  *  would build a door whose far side is the whole matrix anyway.
  *

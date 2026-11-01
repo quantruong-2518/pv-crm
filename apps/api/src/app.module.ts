@@ -8,6 +8,8 @@ import { OpportunityModule } from './branches/sales/opportunity/opportunity.modu
 import { NextStepDebriefHook } from './branches/sales/next-step/comm-debrief.hook'
 import { NextStepModule } from './branches/sales/next-step/next-step.module'
 import { SalesModule } from './branches/sales/sales.module'
+import { SalesAssistantModule } from './branches/sales/assistant/sales-assistant.module'
+import { SalesAssistantTools } from './branches/sales/assistant/sales-assistant-tools'
 import { AccessGuard } from './platform/access/access.guard'
 import { AccessModule } from './platform/access/access.module'
 import { AuditModule } from './platform/audit/audit.module'
@@ -30,6 +32,7 @@ import { CrossSiteGuard } from './platform/http/cross-site.guard'
 import { ProblemFilter } from './platform/http/problem.filter'
 import { ActorGuard } from './platform/session/actor.guard'
 import { AiModule } from './platform/ai/ai.module'
+import { AssistantModule } from './platform/assistant/assistant.module'
 import { SettingModule } from './platform/setting/setting.module'
 import { OrgModule } from './platform/org/org.module'
 import { KpiSeatModule } from './branches/sales/kpi/kpi-seat.module'
@@ -136,6 +139,8 @@ import { RolesModule } from './platform/roles/roles.module'
        the disk driver's upload door, even though Sales imports it too. */
     StorageModule,
     SalesModule,
+    /* No door: here so a tool without a `@Need` stops the boot (ADR 0133 D2). */
+    AssistantModule.withTools({ imports: [SalesAssistantModule], source: SalesAssistantTools }),
   ],
   providers: [
     /** THỨ TỰ CÓ NGHĨA. Nest chạy guard toàn cục theo đúng thứ tự khai báo, và

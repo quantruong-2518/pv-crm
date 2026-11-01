@@ -11,6 +11,7 @@ import {
   type AiRequest,
 } from './ai-client'
 import { ModelBreaker } from './ai-breaker'
+import { AiConversation, type AiTurnCaller } from './ai-converse'
 import { AiOutputError, AiTransientError, AiUnavailableError, type AiAttempt } from './ai-errors'
 import { AiLedger } from './ai-ledger'
 import { ProviderLimiter } from './ai-limiter'
@@ -119,6 +120,24 @@ export class AiGateway {
           : new AiOutputError(message, run.attempts)
       }
     }
+  }
+
+  /** Admits one assistant turn: its quotas are read here and never again in it. */
+  async conversation(
+    task: 'assistant' | 'assistant-deep',
+    who: AiTurnCaller,
+  ): Promise<AiConversation> {
+    const { models } = await this.admit(task, who.actorId, this.db, !who.admitted)
+    const { routes, ledger, clients, breaker, limiter, log, db } = this
+    return new AiConversation(task, who, models, {
+      routes,
+      ledger,
+      clients,
+      breaker,
+      limiter,
+      log,
+      db,
+    })
   }
 
   /** The route, and its models that have a key, primary first. */

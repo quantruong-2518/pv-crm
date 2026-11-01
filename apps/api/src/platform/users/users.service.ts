@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common'
 import {
   USER_ACCESS_CHANGED,
   USER_PASSWORD_RESET,
+  highestRank,
+  mayAdminister,
   type Actor,
   type RoleId as EngineRoleId,
 } from '@pv/engines'
@@ -24,7 +26,7 @@ import type { ActorRow } from '../db/platform.schema'
 import { isDbConstraint } from '../http/db-error'
 import { conflict, denied, invalid, notFound } from '../http/problem'
 import { NotificationHub } from '../notification/notification.hub'
-import { toActorColumns, toActorDraft, toUserRow } from './users.mapper'
+import { toActorColumns, toActorDraft, toUserRow, withCore } from './users.mapper'
 import { UsersRepository } from './users.repository'
 import { WORK_HANDOVER, type WorkHandover } from './work-handover'
 
@@ -196,6 +198,7 @@ export class UsersService {
    *  Every attempt is its own transaction, because a failed INSERT aborts the
    *  one it ran in and nothing further can be done inside it. */
   async create(who: Actor, body: UserCreate): Promise<UserRow> {
+    this.refuseBeyondReach(who, null, body)
     const seed = this.seedFor(body)
 
     for (let attempt = 1; attempt <= ID_ATTEMPTS; attempt++) {
@@ -287,8 +290,12 @@ export class UsersService {
       const target = await this.repo.byIdForUpdate(tx, id)
       if (!target) throw notFound('người dùng', id)
 
+      this.refuseBeyondReach(who, target, body)
+      const raised = this.raisesRank(target, body)
+      if (raised) this.refuseRaiseOnSharedPassword(target)
       await this.assertSomebodyKeepsTheKeys(tx, target, body)
       const move = body.disabled === true ? await this.lockHandover(tx, target, toId) : null
+      if (raised) await this.auth.voidOpenInvites(target.id, tx)
 
       const columns = toActorColumns(body)
       /* Locking an account that is already locked must NOT move "khoá từ bao
@@ -416,6 +423,12 @@ export class UsersService {
   async invite(who: Actor, id: string): Promise<InviteView> {
     const target = await this.repo.byId(id)
     if (!target) throw notFound('người dùng', id)
+    if (!mayAdminister(who.roleIds, target.roleIds)) {
+      throw denied(
+        'permission-denied',
+        'Bạn không gửi được thư đặt mật khẩu cho người có vai cao hơn bạn.',
+      )
+    }
 
     /* A ticket for a locked account is a link that is dead the moment it is
        clicked — `AuthService` refuses every reset ticket whose actor is
@@ -475,18 +488,27 @@ export class UsersService {
    *  account, which makes resetting before unlocking a sensible order to do
    *  things in.
    *
-   *  Refuses on YOURSELF, and that is rule 1 of the two fences below wearing a
+   *  Refuses on YOURSELF, and that is rule 1 of the fences below wearing a
    *  different hat: resetting your own password locks you onto the
    *  change-password screen until you finish, and an administrator who walks
    *  away mid-form has left the system with one fewer working pair of hands for
    *  no reason. The self-service door is right there and does not have that
-   *  failure mode. */
+   *  failure mode.
+   *
+   *  Refuses on anyone who outranks the caller: the password handed out here is
+   *  public, so without this it is a sign-in as the director. */
   async resetPassword(who: Actor, id: string): Promise<UserRow> {
     const target = await this.repo.byId(id)
     if (!target) throw notFound('người dùng', id)
 
     if (who.id === id) {
       throw conflict('Bạn không tự đặt lại mật khẩu của chính mình ở đây. Dùng màn Đổi mật khẩu.')
+    }
+    if (!mayAdminister(who.roleIds, target.roleIds)) {
+      throw denied(
+        'permission-denied',
+        'Bạn không đặt lại được mật khẩu của người có vai cao hơn bạn.',
+      )
     }
 
     await this.repo.run(async (tx) => {
@@ -534,7 +556,7 @@ export class UsersService {
   }
 
   // -------------------------------------------------------------------------
-  // The two fences
+  // The fences
   // -------------------------------------------------------------------------
 
   /** RULE 1 · nobody edits their own role or their own lock.
@@ -548,8 +570,8 @@ export class UsersService {
    *
    *  Everything else on your own row is fine and stays fine: renaming yourself,
    *  relabelling your own job title, even narrowing your own `ownOnly` locks
-   *  nobody out — it costs you rows you can see, and it is undone by any other
-   *  administrator, or by widening it back.
+   *  nobody out — it costs you rows you can see, and any other administrator
+   *  can widen it back. You cannot: rule 3.
    *
    *  The refusal is on the FIELD BEING PRESENT, not on it differing from what
    *  is already stored. A body that re-sends your current role is
@@ -557,6 +579,7 @@ export class UsersService {
    *  different" test has to trust a comparison against a row that can change
    *  between the read and the write. The screen sends only what actually
    *  changed (`diffUser`), so the strict version costs a real manager nothing.
+   *  Own `ownOnly` is the exception and lives in rule 3: narrowing it is allowed.
    *
    *  403 rather than 400: the body is well-formed, the caller is simply not
    *  allowed to be the one asking. `permission-denied` also lands on the branch
@@ -628,6 +651,64 @@ export class UsersService {
         `${target.name} là tài khoản cuối cùng còn hoạt động giữ ${key}. Mở hoặc mở khoá một tài khoản khác giữ quyền đó trước.`,
       )
     }
+  }
+
+  /** RULE 3 · nobody reaches past their own rank and branches.
+   *
+   *  `user.manage` alone would otherwise be a way up: open a director account,
+   *  promote a junior, or edit the director's row. Rank bounds the roles, the
+   *  caller's own licences bound the branches, and only what a save ADDS counts,
+   *  so a branch the director gave somebody survives a save by a lesser manager.
+   *  Own-only scope binds the caller alone: they can still give another person the
+   *  whole book, because `ownOnly` is not checked against theirs.
+   *
+   *  `target` is `null` on create, where every branch is added. Reads the locked
+   *  row on patch: `who` is a snapshot from before the lock was taken. */
+  private refuseBeyondReach(
+    who: Actor,
+    target: ActorRow | null,
+    body: UserCreate | UserPatch,
+  ): void {
+    if (target && !mayAdminister(who.roleIds, target.roleIds)) {
+      throw denied('permission-denied', 'Bạn không sửa được tài khoản có vai cao hơn bạn.')
+    }
+    if (body.roleIds && !mayAdminister(who.roleIds, [], body.roleIds.map(toEngineRole))) {
+      throw denied('permission-denied', 'Bạn không gán được vai cao hơn vai của bạn.')
+    }
+
+    const next = body.branches ? withCore(body.branches) : []
+    const added = next.filter((b) => !target?.branches.includes(b) && !who.branches.includes(b))
+    if (added.length > 0) {
+      throw denied(
+        'permission-denied',
+        `Bạn không có nhánh ${added.join(', ')} nên không cấp được.`,
+      )
+    }
+
+    if (target?.id === who.id && target.ownOnly && body.ownOnly === false) {
+      throw denied(
+        'permission-denied',
+        'Bạn không tự mở rộng phạm vi dữ liệu của chính mình. Nhờ quản trị viên khác làm.',
+      )
+    }
+  }
+
+  /** RULE 4 · nobody is raised on a password someone else knows.
+   *
+   *  `resetPassword` lets a manager hand a junior the public default. Promoted
+   *  before they change it, the junior's row outranks that manager, who can then
+   *  sign in on it: rule 3 alone is walked round in two steps by two people.
+   *  Reads the locked row, so the mark cannot be set between this and the save.
+   *  An open invite is voided instead: refusing would stall a promotion for its
+   *  seven days, and the link can simply be sent again. */
+  private refuseRaiseOnSharedPassword(target: ActorRow): void {
+    if (target.mustChangePasswordAt === null) return
+    throw conflict(`${target.name} phải đổi xong mật khẩu rồi mới gán được vai cao hơn.`)
+  }
+
+  private raisesRank(target: ActorRow, body: UserPatch): boolean {
+    if (!body.roleIds) return false
+    return highestRank(body.roleIds.map(toEngineRole)) > highestRank(target.roleIds)
   }
 
   // -------------------------------------------------------------------------

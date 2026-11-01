@@ -48,7 +48,8 @@ export class AiRouteRepository {
   }
 
   /** Calls one person started: first attempts only, so a retry or a fallback
-   *  is not charged to them twice. Served by `ai_call_actor_at_idx`. */
+   *  is not charged to them twice, and of a turn only its first round, so a
+   *  tool loop counts once. Served by `ai_call_actor_at_idx`. */
   async callsLastDay(task: AiTask, actorId: string, db: Db = this.db): Promise<number> {
     const [row] = await db
       .select({ n: sql<number>`count(*)::int` })
@@ -59,6 +60,7 @@ export class AiRouteRepository {
           gt(aiCall.at, LAST_DAY),
           eq(aiCall.task, task),
           eq(aiCall.attempt, 1),
+          sql`coalesce(${aiCall.round}, 1) = 1`,
         ),
       )
     return row?.n ?? 0
