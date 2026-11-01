@@ -595,3 +595,15 @@ Raised while standardising the prompts (ADR 0130).
 
 134.  **Does Gemini's `urlContext` tool work together with JSON output on
       `gemini-3.8-flash`?** Unverified. _(see ADR 0130 §2)_
+
+## Background fill tray (added 28/10/2026)
+
+Raised while moving the lead fill into a background job (ADR 0131).
+
+135.  **Should a finished job also ring the bell when the person is on
+      another page?** Default: no; the tray is the only signal.
+      _(see ADR 0131 §8)_
+
+136.  **Should scan batches and the later bulk fill appear in the same tray?**
+      Default: no, not in A-2; decide when the bulk fill is built.
+      _(see ADR 0131 §10)_

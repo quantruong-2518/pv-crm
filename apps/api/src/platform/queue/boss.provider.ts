@@ -5,6 +5,7 @@ import type { Env } from '../config/env'
 import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
+import { AI_FILL_CONCURRENCY, AI_FILL_QUEUE, AI_FILL_RETRY_LIMIT } from './ai-fill-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -106,7 +107,11 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
        listener. The sender only ever inserts, so it needs almost nothing —
        and on Neon every idle connection is a compute that will not sleep. */
     options.max = worker
-      ? env.PV_EMAIL_WORKER_CONCURRENCY + SCAN_READ_CONCURRENCY + SCAN_COMMIT_CONCURRENCY + 3
+      ? env.PV_EMAIL_WORKER_CONCURRENCY +
+        SCAN_READ_CONCURRENCY +
+        SCAN_COMMIT_CONCURRENCY +
+        AI_FILL_CONCURRENCY +
+        3
       : 2
   }
 
@@ -237,4 +242,16 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
     await boss.createQueue(name, { policy: 'exclusive', ...scan })
     await boss.updateQueue(name, scan)
   }
+
+  const aiFill: QueueSettings = {
+    retryLimit: AI_FILL_RETRY_LIMIT,
+    retryDelay: 10,
+    retryBackoff: true,
+    /* Above two sequential gateway calls × 3 attempts × up to 60 s each. */
+    expireInSeconds: 600,
+    retentionSeconds: 7 * DAY_SECONDS,
+    notify,
+  }
+  await boss.createQueue(AI_FILL_QUEUE, { policy: 'exclusive', ...aiFill })
+  await boss.updateQueue(AI_FILL_QUEUE, aiFill)
 }

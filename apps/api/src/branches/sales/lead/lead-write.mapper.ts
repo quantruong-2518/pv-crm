@@ -87,6 +87,8 @@ export const LEAD_NOTE = {
   corrected: (fields: number) => `Sửa hồ sơ · ${fields} ô`,
   /** Same count, written by `POST :code/ai-fill` — the fill is a save nobody typed. */
   aiFilled: (fields: number) => `AI điền · ${fields} ô`,
+  /** Written by `POST /sales/ai-jobs/:id/undo`: the boxes the fill wrote, emptied again. */
+  aiUndone: (fields: number) => `Hoàn tác AI điền · ${fields} ô`,
   contacted: 'Đã gọi khách',
   /** The rung sentences `LeadStateWriter` writes as it moves the lead. Each sentence
    *  says WHAT happened, not which door pressed it and not which state it landed

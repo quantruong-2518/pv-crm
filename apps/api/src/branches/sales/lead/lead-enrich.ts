@@ -8,6 +8,7 @@ import {
   type AiFillSource,
   type LeadAiFillField,
   type LeadAiFillValue,
+  type LeadAiJobStepKey,
 } from '@pv/contracts'
 import type { ZodType } from 'zod'
 import { AiOutputError } from '@api/platform/ai/ai-errors'
@@ -53,6 +54,13 @@ export type IndustryLists = {
 
 export type LeadSuggestion = { value: LeadAiFillValue; source: AiFillSource; unsure: boolean }
 export type LeadSuggestions = Partial<Record<LeadAiFillField, LeadSuggestion>>
+
+/** Called once per step the enricher owns, with its milliseconds; a skipped step
+ *  reports too, so a background job's progress always reaches its end. */
+export type EnrichStep = (
+  step: Extract<LeadAiJobStepKey, 'web-search' | 'tax-lookup'>,
+  ms: number,
+) => void
 
 type Identified = LeadIdentifyModelOutput
 type Hit = { code: string; record: TaxRecord; sure: boolean }
@@ -104,7 +112,15 @@ export class LeadEnricher {
     wanted: readonly LeadAiFillField[],
     who: AiCaller,
     lists: IndustryLists,
+    onStep: EnrichStep = () => {},
   ): Promise<LeadSuggestions> {
+    const started = Date.now()
+    const done =
+      (step: Parameters<EnrichStep>[0], since = started) =>
+      <T>(value: T): T => {
+        onStep(step, Date.now() - since)
+        return value
+      }
     const domain = M.mailDomain(draft.email)
     const siteNeeded = keysFor(SITE_KEYS, wanted)
     const registryWanted = REGISTRY_FIELDS.some((f) => wanted.includes(f))
@@ -120,7 +136,7 @@ export class LeadEnricher {
             M.identifyInput(draft, domain, identifyNeeded),
           )
         : null,
-      draft.taxCode ? this.verify(draft, [draft.taxCode]) : null,
+      draft.taxCode ? this.verify(draft, [draft.taxCode]).then(done('tax-lookup')) : null,
     ])
 
     /* A site the model found is read only when it was sure of it. */
@@ -136,14 +152,22 @@ export class LeadEnricher {
     /* One fill = two calls on the per-user count; the second skips the check, so a
        fill its first call admitted is never refused halfway. */
     const second = { ...who, admitted: who.admitted || identifyNeeded.length > 0 }
+    const reading = siteNeeded.length > 0 && !!host
+    if (!reading) done('web-search')(null)
+    const lookup = !draft.taxCode && registryWanted
     const [read, hit] = await Promise.all([
-      siteNeeded.length > 0 && host
+      reading
         ? this.ask(SITE, LeadSiteModelOutput, second, true, () =>
             M.siteInput(draft, host, legal, siteNeeded, lists),
-          )
+          ).then(done('web-search'))
         : null,
-      draft.taxCode ? known : registryWanted ? this.verify(draft, codes) : null,
+      draft.taxCode
+        ? known
+        : lookup
+          ? this.verify(draft, codes).then(done('tax-lookup', Date.now()))
+          : null,
     ])
+    if (!draft.taxCode && !lookup) onStep('tax-lookup', 0)
     return merge({ draft, wanted, lists, domain, host, identified, read, hit })
   }
 

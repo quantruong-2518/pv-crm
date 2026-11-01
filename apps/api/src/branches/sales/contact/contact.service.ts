@@ -203,6 +203,28 @@ export class ContactService {
     return Object.keys(empty)
   }
 
+  /** The undo of `fillPrimaryEmpty`: empties each field that, under the same
+   *  lock, still holds `expected` AND the AI mark stamped `at`, so a value a
+   *  person typed since is kept. `mirrorOntoLead` drops the marks. Returns the keys emptied. */
+  async clearPrimaryIf(
+    tx: Db,
+    leadCode: string,
+    expected: Partial<Pick<LeadContactMirror, 'contactTitle' | 'phone'>>,
+    at: string,
+    who: { id: string; name: string },
+  ): Promise<string[]> {
+    await this.repo.primaryOf(tx, leadCode)
+    const lead = await this.repo.leadMirrorOf(tx, leadCode)
+    if (!lead) throw notFound('lead', leadCode)
+    const marks = await this.repo.leadAiMarks(tx, leadCode)
+    const same = (Object.keys(expected) as (keyof typeof expected)[]).filter(
+      (key) => lead[key] === expected[key] && marks[key]?.at === at,
+    )
+    const cleared = Object.fromEntries(same.map((key) => [key, null]))
+    if (same.length > 0) await this.editPrimary(tx, leadCode, cleared, who)
+    return same
+  }
+
   /** Scanned people onto a lead, on the caller's `tx`, never as primary: the
    *  primary is seeded with the lead, or already exists on a merge target.
    *  Someone already on the lead is skipped, keyed by mailbox, else name,

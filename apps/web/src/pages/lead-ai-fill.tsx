@@ -2,33 +2,35 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { AI_FLASH_MS, AiFieldConflict, type AiFillState } from '@pv/ui'
-import type { LeadAiFillField, LeadAiFillResult, LeadProfile } from '@pv/contracts'
+import type { LeadAiFillField, LeadAiJob, LeadProfile } from '@pv/contracts'
 import { userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { toast, toastDone, toastFail } from '@/app/toast'
 import { LeadAiMark } from '@/components/lead-ai-mark'
-import { leadContactsQuery } from '@/data/contacts'
+import { useAttachLeadAccount, type AiFillConflict } from '@/data/lead-ai-fill'
 import {
-  emptyFillable,
-  filledValues,
-  inlineLabel,
-  undoOf,
-  useAttachLeadAccount,
-  useLeadAiFill,
-  type AiFillConflict,
-} from '@/data/lead-ai-fill'
+  activeJobOf,
+  aiJobsQuery,
+  openAiTray,
+  refusalLine,
+  useAiJobs,
+  useAiJobTurns,
+  usePressAiFill,
+  type AiJobTurn,
+} from '@/data/lead-ai-job'
 import type { LeadDraft } from '@/data/lead-draft'
-import type { FieldKey } from '@/data/lead-form'
-import { useUpdateLeadProfile } from '@/data/lead-patch'
+import type { FieldKey, FormValues } from '@/data/lead-form'
+import { leadProfileQuery, profileForm } from '@/data/lead-profile'
 
-/** Module 2 · one press of the AI fill button on a lead, as the boxes show it.
+/** Module 2 · the AI fill of a lead as its boxes show it (ADR 0131).
  *
- *  Pending: every empty fillable box is a skeleton. Answered: the new values go
- *  into the draft at once as already written (`LeadDraft.absorb`), so autosave
- *  never sends the old empty value back; the skeletons then lift one box at a
- *  time, 120 ms apart, each with the `AI_FLASH_MS` flash. Reduced motion lifts them all
- *  at once. The run lives on this screen only; the captions come from the
- *  server's `aiFill`, so they survive a reload and leave when a person edits. */
+ *  The press only queues a job; the tray in the corner shows its steps and
+ *  holds Undo. While this lead has a job moving, the boxes it may fill are
+ *  skeletons. When a job this page saw moving turns DONE, the new values go
+ *  into the draft as already written (`LeadDraft.absorb`) and the skeletons
+ *  lift one box at a time, 120 ms apart, each with the `AI_FLASH_MS` flash;
+ *  reduced motion lifts them all at once. An Undo pressed in the tray is
+ *  absorbed the same way, so no blur writes the AI value back. */
 
 const STEP_MS = 120
 
@@ -40,34 +42,30 @@ export type AiFillView = {
 
 export type AiFillRun = {
   view: AiFillView
-  /** The button is drawn: the server's `canAiFill`, or a fill is running. */
+  /** The button is drawn: the server's `canAiFill`, or a job is running. */
   offered: boolean
   busy: boolean
   press: () => void
 }
 
-type Run = {
-  code: string
-  phase: Partial<Record<FieldKey, AiFillState>>
-  conflicts: AiFillConflict[]
-}
+type Run = { code: string; phase: Partial<Record<FieldKey, AiFillState>> }
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const failureLine = (error: ApiError) =>
-  error.kind === 'conflict' || error.kind === 'forbidden' || error.kind === 'rate-limited'
-    ? (error.serverTitle ?? userMessage(error))
-    : undefined
+const pick = (values: FormValues, keys: readonly FieldKey[]) =>
+  Object.fromEntries(keys.map((key) => [key, values[key]])) as Partial<FormValues>
 
-export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boolean): AiFillRun {
-  const navigate = useNavigate()
+/** The conflicts worth a door: from the lead's latest fill still standing. */
+const standingOf = (jobs: readonly LeadAiJob[], code: string) =>
+  jobs
+    .filter((job) => job.leadCode === code && job.state === 'DONE' && !job.undoneAt)
+    .reduce<LeadAiJob | undefined>((a, b) => (a && a.createdAt > b.createdAt ? a : b), undefined)
+
+/** The boxes as they stand when a job lands or is undone: what the server now
+ *  holds goes in, except boxes a person typed into meanwhile. */
+function useLanding(lead: LeadProfile, draft: LeadDraft) {
   const client = useQueryClient()
-  const canOpenAccount = useCan('account.view')
-  const fill = useLeadAiFill()
-  const attach = useAttachLeadAccount()
-  const save = useUpdateLeadProfile()
   const [stored, setRun] = useState<Run | null>(null)
-  const run = stored?.code === lead.code ? stored : null
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
 
   useEffect(() => () => timers.current.forEach(clearTimeout), [])
@@ -75,14 +73,9 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
   const setPhase = (key: FieldKey, state: AiFillState | undefined) =>
     setRun((cur) => cur && { ...cur, phase: { ...cur.phase, [key]: state } })
 
-  const reveal = (code: string, result: LeadAiFillResult) => {
-    const keys = result.filled.map((entry) => entry.field)
+  const reveal = (code: string, keys: FieldKey[]) => {
     const step = reducedMotion() ? 0 : STEP_MS
-    setRun({
-      code,
-      phase: Object.fromEntries(keys.map((key) => [key, 'waiting'])),
-      conflicts: result.conflicts,
-    })
+    setRun({ code, phase: Object.fromEntries(keys.map((key) => [key, 'waiting'])) })
     keys.forEach((key, i) =>
       timers.current.push(setTimeout(() => setPhase(key, 'flash'), i * step)),
     )
@@ -90,93 +83,90 @@ export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boole
     timers.current.push(setTimeout(() => setRun((cur) => cur && { ...cur, phase: {} }), done))
   }
 
-  const undo = (code: string, result: LeadAiFillResult) => {
-    const written = filledValues(result)
-    /* Asked of the LIVE boxes: one a person has typed into since, or whose
-       save is still in flight, is theirs now and stays. */
-    const keys = draft.untouched(code, written)
-    const plan = keys.length > 0 ? undoOf(result, keys) : null
-    if (!plan) return
-    draft.absorb(code, plan.emptied)
-    save.mutate(
-      { code, body: plan.body },
-      {
-        onSuccess: () =>
-          void client.invalidateQueries({ queryKey: leadContactsQuery(code).queryKey }),
-        onError: (error) => {
-          draft.absorb(code, Object.fromEntries(keys.map((key) => [key, written[key]])))
-          toastFail('Chưa hoàn tác được.', userMessage(error))
-        },
-      },
-    )
-  }
-
-  const report = (code: string, result: LeadAiFillResult) => {
-    const filled = result.filled.length
-    if (filled === 0) {
-      if (result.conflicts.length === 0)
-        toast('Không tìm thấy thông tin công khai của công ty này.', { tone: 'info' })
-      return
+  const land = (job: LeadAiJob, turn: AiJobTurn) => {
+    const code = job.leadCode
+    const keys = (job.result?.filled ?? []).map((entry) => entry.field as FieldKey)
+    if (code !== lead.code || keys.length === 0) return
+    /* Read now: by the time the profile is back, a person may have typed. */
+    const before = pick(draft.values, keys)
+    if (turn === 'done')
+      setRun({ code, phase: Object.fromEntries(keys.map((key) => [key, 'waiting'])) })
+    const settle = (fresh: LeadProfile | undefined) => {
+      if (!fresh) return setRun(null)
+      draft.absorb(code, pick(profileForm(fresh) as FormValues, draft.untouched(code, before)))
+      if (turn === 'done') reveal(code, keys)
     }
-    const unsure = result.filled.filter((entry) => entry.unsure).length
-    toast(`Đã điền ${filled} ô${unsure > 0 ? `, ${unsure} ô chưa chắc` : ''}.`, {
-      tone: 'success',
-      detail:
-        result.notFound.length > 0
-          ? `Không tìm thấy ${result.notFound.map(inlineLabel).join(', ')}.`
-          : undefined,
-      action: { label: 'Hoàn tác', onClick: () => undo(code, result) },
-      ttlMs: 10_000,
-    })
+    const profile = leadProfileQuery(code)
+    void client
+      .fetchQuery({ ...profile, staleTime: 0 })
+      .then(settle, () => settle(client.getQueryData(profile.queryKey)))
   }
 
-  const press = () => {
-    const code = lead.code
-    const waiting = emptyFillable(draft.base)
-    setRun({ code, phase: Object.fromEntries(waiting.map((k) => [k, 'waiting'])), conflicts: [] })
-    fill.mutate(code, {
-      onSuccess: (result) => {
-        draft.absorb(code, filledValues(result))
-        reveal(code, result)
-        report(code, result)
-      },
-      onError: (error) => {
-        setRun(null)
-        const line = failureLine(error)
-        if (line) toast(line, { tone: 'danger' })
-        else
-          toast('Chưa điền được. Thử lại sau ít phút.', {
-            tone: 'danger',
-            action: { label: 'Thử lại', onClick: press },
-          })
-      },
-    })
+  return { run: stored?.code === lead.code ? stored : null, land }
+}
+
+export function useAiFillRun(lead: LeadProfile, draft: LeadDraft, canEdit: boolean): AiFillRun {
+  const navigate = useNavigate()
+  const client = useQueryClient()
+  const canOpenAccount = useCan('account.view')
+  const jobs = useAiJobs()
+  const fill = usePressAiFill()
+  const attach = useAttachLeadAccount()
+  const { run, land } = useLanding(lead, draft)
+  const [attached, setAttached] = useState<ReadonlySet<string>>(() => new Set())
+  useAiJobTurns(jobs, land)
+
+  const active = activeJobOf(jobs, lead.code)
+  const refused = async (code: string, error: ApiError) => {
+    if (error.kind === 'conflict') {
+      const now = await client.fetchQuery({ ...aiJobsQuery, staleTime: 0 }).catch(() => [])
+      if (activeJobOf(now, code)) return openAiTray()
+    }
+    const line = refusalLine(error)
+    if (line) toast(line, { tone: 'danger' })
+    else
+      toast('Chưa điền được. Thử lại sau ít phút.', {
+        tone: 'danger',
+        action: { label: 'Thử lại', onClick: press },
+      })
   }
+
+  function press() {
+    if (active) return openAiTray()
+    const code = lead.code
+    fill.mutate(code, { onError: (error) => void refused(code, error) })
+  }
+
+  const standing = standingOf(jobs, lead.code)
+  const tag = (conflict: AiFillConflict) => `${standing?.id}:${conflict.accountCode}`
+  const conflicts = (standing?.result?.conflicts ?? []).filter((c) => !attached.has(tag(c)))
 
   const attachTo = (conflict: AiFillConflict) =>
     attach.mutate(
       { code: lead.code, accountCode: conflict.accountCode },
       {
         onSuccess: () => {
-          setRun((cur) => cur && { ...cur, conflicts: cur.conflicts.filter((c) => c !== conflict) })
+          setAttached((cur) => new Set(cur).add(tag(conflict)))
           toastDone(`Đã gắn vào ${conflict.accountName}.`)
         },
         onError: (error) => toastFail('Chưa gắn được.', userMessage(error)),
       },
     )
 
+  /* Boxes stay editable while the job runs; absorb skips any a person typed in. */
   const stateOf = (key: FieldKey) => run?.phase[key]
   /* One hook instance serves every lead the screen steps through. */
-  const busy = fill.isPending && fill.variables === lead.code
+  const busy = active !== undefined || (fill.isPending && fill.variables === lead.code)
 
   const under = (key: FieldKey): ReactNode => {
-    const mark = stateOf(key) === 'waiting' ? undefined : lead.aiFill[key as LeadAiFillField]
-    const conflicts = key === 'taxCode' ? (run?.conflicts ?? []) : []
-    if (!mark && conflicts.length === 0) return null
+    const shut = stateOf(key) === 'waiting'
+    const mark = shut ? undefined : lead.aiFill[key as LeadAiFillField]
+    const doors = key === 'taxCode' && !shut ? conflicts : []
+    if (!mark && doors.length === 0) return null
     return (
       <>
         <LeadAiMark mark={mark} />
-        {conflicts.map((conflict) => (
+        {doors.map((conflict) => (
           <AiFieldConflict
             key={conflict.accountCode}
             value={conflict.value}

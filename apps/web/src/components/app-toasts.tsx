@@ -17,5 +17,12 @@ consumeGoogleReturn()
 export function AppToasts() {
   const items = useToasts((s) => s.items)
   const dismiss = useToasts((s) => s.dismiss)
-  return <ToastHost items={items} onDismiss={dismiss} />
+  /* Stacks above the AI task tray, whose height is published as `--ai-tray-h` (height plus a gap). */
+  return (
+    <ToastHost
+      items={items}
+      onDismiss={dismiss}
+      className="bottom-[calc(118px+var(--ai-tray-h,0px))] lg:bottom-[calc(24px+var(--ai-tray-h,0px))]"
+    />
+  )
 }

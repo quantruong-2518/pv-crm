@@ -1,97 +1,121 @@
-import { Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import { leadKeys, type Actor } from '@pv/engines'
 import {
   LeadAiFillField,
-  LeadAiFillResult,
   type LeadAiFillMarks,
+  type LeadAiJob,
+  type LeadAiJobResult,
   type ObjectCode,
 } from '@pv/contracts'
-import { AiTransientError, AiUnavailableError } from '@api/platform/ai/ai-errors'
+import { AiUnavailableError } from '@api/platform/ai/ai-errors'
+import { AiGateway } from '@api/platform/ai/ai-gateway'
+import { AiRouteRepository } from '@api/platform/ai/ai-route.repository'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
-import { BusyError, conflict, denied, notFound, rateLimited } from '@api/platform/http/problem'
+import { isDbConstraint } from '@api/platform/http/db-error'
+import { BusyError, conflict, notFound, rateLimited } from '@api/platform/http/problem'
+import { AI_FILL_ENQUEUE, type AiFillEnqueue } from '@api/platform/queue/ai-fill-jobs'
 import { ContactService } from '../contact/contact.service'
 import { LeadAiFillRepository } from './lead-ai-fill.repository'
 import { byOf, TouchService } from '../touch/touch.service'
-import { aiFillBlock, emptyFillable, type AiFillBlock } from './lead-ai-fill.rule'
-import { LeadEnricher, type LeadSuggestions } from './lead-enrich'
+import { aiFillBlock, emptyFillable } from './lead-ai-fill.rule'
+import { AI_FILL_BLOCKED, AI_FILL_REFUSED, notHeld } from './lead-ai-fill.words'
+import { LeadAiJobRepository } from './lead-ai-job.repository'
+import { isPerson, PERSON_FIELDS, toLeadAiJob } from './lead-ai-job.mapper'
+import type { LeadSuggestions } from './lead-enrich'
 import { pickable, settleIndustries } from './lead-industry.sql'
 import { LEAD_NOTE, type LeadValues } from './lead-write.mapper'
-import type { LeadRowDb } from './lead.schema'
 import { LeadRepository } from './lead.repository'
-import { LeadService } from './lead.service'
 
-/** `POST /sales/leads/:code/ai-fill` — the enricher's suggestions applied to a
- *  stored lead (spec: AI lead fill, server steps 1–5).
+/** `POST /sales/leads/:code/ai-fill` — the press, and the apply step the
+ *  `lead.ai-fill` worker runs (ADR 0128, 0131).
  *
- *  Same two refusals and words as `PATCH :code` (404, 403 `out-of-scope`), asked
- *  again under the lock: the model call takes seconds, the lead may change hands.
- *  A registry-verified tax code another company already holds is a conflict
- *  (owner's decision); an unverified one is dropped, never shown as a conflict.
- *  One transaction writes only the fields still empty — the person fields first,
+ *  The press asks what the old blocking fill asked (404, 403 `out-of-scope`,
+ *  409 nothing to fill, the route's quota) and then only opens a job and
+ *  enqueues it. `apply` is asked again under the lock: the job runs later, the
+ *  lead may change hands. A registry-verified tax code another company already
+ *  holds is a conflict (owner's decision); an unverified one is dropped. One
+ *  transaction writes only the fields still empty — the person fields first,
  *  through the contact writer and its lock order — with provenance, one
  *  `field-filled` touch and one audit line. Logs carry counts, never values. */
 
-type Conflict = LeadAiFillResult['conflicts'][number]
-
-/** Contact person columns: the primary contact's writer owns them. */
-const PERSON_FIELDS = ['contactTitle', 'phone'] as const satisfies readonly LeadAiFillField[]
+type Conflict = LeadAiJobResult['conflicts'][number]
 
 @Injectable()
 export class LeadAiFillService {
+  private readonly log = new Logger('LeadAiFill')
+
   constructor(
     private readonly leads: LeadRepository,
     private readonly repo: LeadAiFillRepository,
-    private readonly enricher: LeadEnricher,
+    private readonly jobs: LeadAiJobRepository,
     private readonly contacts: ContactService,
     private readonly audit: AuditRepository,
     private readonly touch: TouchService,
-    private readonly profiles: LeadService,
+    private readonly ai: AiGateway,
+    private readonly routes: AiRouteRepository,
+    @Inject(AI_FILL_ENQUEUE) private readonly queue: AiFillEnqueue,
   ) {}
 
-  async fill(who: Actor, code: ObjectCode): Promise<LeadAiFillResult> {
+  async press(who: Actor, code: ObjectCode): Promise<LeadAiJob> {
     const before = await this.leads.byCode(who, code)
     if (!before) throw notFound('lead', code)
-    if (!before.holds) throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
-    const row = before.row
-    const block = aiFillBlock(row, before.industries.length)
-    if (block) throw conflict(BLOCKED[block])
-    const wanted = emptyFillable(row, before.industries.length)
+    if (!before.holds) throw notHeld(code)
+    const block = aiFillBlock(before.row, before.industries.length)
+    if (block) throw conflict(AI_FILL_BLOCKED[block])
 
-    const found = await this.suggest(row, wanted, who)
-    const conflicts = await this.clash(found, row.accountCode)
-
-    const written = await this.repo.run((tx) => this.apply(tx, who, code, found))
-    const filled = written.map((field) => ({ field, ...found[field]! }))
-    const missing = wanted.filter((f) => !found[f] && !conflicts.some((c) => c.field === f))
-    return LeadAiFillResult.parse({
-      filled,
-      conflicts,
-      notFound: missing,
-      profile: await this.profiles.profile(who, code),
+    const job = await this.jobs.run(async (tx) => {
+      await this.jobs.lockActor(tx, who.id)
+      /* Before the quota: a press on a running lead opens the tray, never a 429. */
+      const running = await this.jobs.activeFor(code, tx)
+      if (running) throw alreadyRunning(running)
+      await this.admit(tx, who.id)
+      return this.open(tx, code, who.id)
     })
+    /* After the insert committed: the worker must find the row it is handed. */
+    try {
+      await this.queue.enqueue(job.id)
+    } catch (error) {
+      this.log.error(`ai-fill ${job.id}: enqueue failed — ${String(error)}`)
+      await this.jobs.fail(job.id, 'busy', NOT_SENT)
+      throw new BusyError()
+    }
+    return toLeadAiJob(job, before.row.company, false)
   }
 
-  private async suggest(
-    row: LeadRowDb,
-    wanted: LeadAiFillField[],
-    who: Actor,
-  ): Promise<LeadSuggestions> {
-    const lists = await this.repo.industryLists()
+  /** The route's own check, then its per-person limit counting the presses not
+   *  yet run: they have no ledger row, and the worker runs them as admitted.
+   *  Two calls each, the most a fill makes. The token budget has no per-job
+   *  figure to reserve, so it stays the gateway's check alone. */
+  private async admit(tx: Db, actorId: string): Promise<void> {
     try {
-      const caller = { actorId: who.id, subjectCode: row.code }
-      return await this.enricher.suggest(row, wanted, caller, lists)
+      await this.ai.check('lead-enrich', actorId, tx)
     } catch (error) {
-      if (error instanceof AiUnavailableError) throw UNAVAILABLE[error.reason]()
-      if (error instanceof AiTransientError) throw new BusyError()
+      if (error instanceof AiUnavailableError) throw refusal(error.reason)
       throw error
+    }
+    const perUser = (await this.routes.get('lead-enrich', tx))?.dailyCallsPerUser ?? 0
+    if (perUser <= 0) return
+    const calls = await this.routes.callsLastDay('lead-enrich', actorId, tx)
+    const waiting = await this.jobs.activeCount(actorId, tx)
+    if (calls + 2 * waiting >= perUser) throw refusal('user-limit')
+  }
+
+  /** The partial unique index is the fence two racing presses meet; the
+   *  loser is told which job is already running, so the screen opens the tray. */
+  private async open(tx: Db, code: string, actorId: string) {
+    try {
+      return await this.jobs.insert(tx, code, actorId)
+    } catch (error) {
+      if (!isDbConstraint(error, 'lead_ai_job_one_active_uq')) throw error
+      throw alreadyRunning(await this.jobs.activeFor(code, tx))
     }
   }
 
   /** A tax code another company holds is never written. Only a verified one
    *  (sure = the registry confirmed it) is worth a duplicate-company line; an
    *  unverified one is dropped. Read before the tx: PGlite has one connection. */
-  private async clash(found: LeadSuggestions, own: string | null): Promise<Conflict[]> {
+  async clash(found: LeadSuggestions, own: string | null): Promise<Conflict[]> {
     const tax = found.taxCode
     const value = typeof tax?.value === 'string' ? tax.value : null
     const root = value ? leadKeys({ taxCode: value }, []).taxRoot : null
@@ -102,12 +126,14 @@ export class LeadAiFillService {
     return [{ field: 'taxCode', value, accountCode: holder.code, accountName: holder.name }]
   }
 
-  /** The fields written, in field order. */
-  private async apply(
+  /** The fields written, in field order; `at` stamps every mark, and the job's
+   *  `finished_at`, so Undo can tell this fill's marks from a later one's. */
+  async apply(
     tx: Db,
     who: Actor,
     code: string,
     found: LeadSuggestions,
+    at: Date,
   ): Promise<LeadAiFillField[]> {
     const person = Object.fromEntries(
       PERSON_FIELDS.flatMap((f) => (found[f] ? [[f, found[f].value as string]] : [])),
@@ -116,7 +142,7 @@ export class LeadAiFillService {
     const locked = await this.repo.lock(tx, who, code)
     if (!locked) throw notFound('lead', code)
     /* Rolls back the person write above too. */
-    if (!locked.holds) throw denied('out-of-scope', `Lead ${code} không do bạn phụ trách.`)
+    if (!locked.holds) throw notHeld(code)
 
     const industries = await this.repo.industryCount(tx, code)
     const still = new Set([...emptyFillable(locked.row, industries), ...personWritten])
@@ -132,14 +158,13 @@ export class LeadAiFillService {
     if (found.industries) found.industries.value = picked
     const fields = open.filter((f) => f !== 'industries' || picked.length > 0)
     if (fields.length === 0) return []
-    const at = new Date().toISOString()
     const values: Record<string, unknown> = {}
     const marks: LeadAiFillMarks = {}
     for (const field of fields) {
       const { value, source, unsure } = found[field]!
       if (field === 'category') values.categoryId = value
       else if (!isPerson(field) && field !== 'industries') values[field] = value
-      marks[field] = { source, unsure, at }
+      marks[field] = { source, unsure, at: at.toISOString() }
     }
     await this.repo.write(tx, code, values as Partial<LeadValues>, marks)
     if (picked.length > 0) {
@@ -154,18 +179,12 @@ export class LeadAiFillService {
   }
 }
 
-const isPerson = (field: LeadAiFillField): boolean =>
-  (PERSON_FIELDS as readonly LeadAiFillField[]).includes(field)
+const NOT_SENT = 'Chưa gửi được việc cho AI.'
 
-const BLOCKED: Record<AiFillBlock, string> = {
-  'no-company-or-contact': 'Cần có tên công ty và người liên hệ trước khi điền.',
-  'nothing-empty': 'Không còn ô trống nào để điền.',
-}
+const alreadyRunning = (jobId: string | null): Error =>
+  Object.assign(conflict('AI đang điền lead này.'), { extra: { jobId } })
 
-/** Same split as the scan door: off is a setting (409), a daily limit passes (429). */
-const UNAVAILABLE: Record<AiUnavailableError['reason'], () => Error> = {
-  disabled: () => conflict('Chưa bật điền bằng AI. Báo quản trị viên.'),
-  'no-key': () => conflict('Chưa bật điền bằng AI. Báo quản trị viên.'),
-  'user-limit': () => rateLimited('Bạn đã hết lượt điền bằng AI trong 24 giờ qua. Thử lại sau.'),
-  budget: () => rateLimited('Đã hết hạn mức điền bằng AI trong 24 giờ qua. Thử lại sau.'),
+const refusal = (reason: AiUnavailableError['reason']): Error => {
+  const { kind, error } = AI_FILL_REFUSED[reason]
+  return kind === 'limit' ? rateLimited(error) : conflict(error)
 }

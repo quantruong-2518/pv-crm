@@ -6,6 +6,8 @@ import { EnginesModule } from '@api/platform/engines/engines.module'
 import { GraphModule } from '@api/platform/graph/graph.module'
 import { MailModule } from '@api/platform/mail/mail.module'
 import { NotificationModule } from '@api/platform/notification/notification.module'
+import { AiFillQueueModule } from '@api/platform/queue/ai-fill-enqueue'
+import { AI_FILL_JOB_HANDLER, type AiFillJobHandler } from '@api/platform/queue/ai-fill-jobs'
 import { ScanQueueModule } from '@api/platform/queue/scan-enqueue'
 import { SCAN_JOB_HANDLER, type ScanJobHandler } from '@api/platform/queue/scan-jobs'
 import { SessionModule } from '@api/platform/session/session.module'
@@ -20,7 +22,12 @@ import { TouchModule } from '../touch/touch.module'
 import { WorkstreamModule } from '../workstream/workstream.module'
 import { LeadAiFillController } from './lead-ai-fill.controller'
 import { LeadAiFillRepository } from './lead-ai-fill.repository'
+import { LeadAiFillRunner } from './lead-ai-fill.runner'
 import { LeadAiFillService } from './lead-ai-fill.service'
+import { LeadAiJobController } from './lead-ai-job.controller'
+import { LeadAiJobRepository } from './lead-ai-job.repository'
+import { LeadAiJobService } from './lead-ai-job.service'
+import { LeadAiJobSweeper } from './lead-ai-job.sweeper'
 import { LeadEnricher } from './lead-enrich'
 import { TAX_REGISTRY, VietQrTaxRegistry } from './lead-enrich.tax-registry'
 import { LeadContactController } from './lead-contact.controller'
@@ -113,6 +120,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     StorageModule,
     AiModule,
     ScanQueueModule,
+    AiFillQueueModule,
     /* The commit re-reads the uploader as an `Actor` to re-ask E2. */
     SessionModule,
   ],
@@ -122,6 +130,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadContactController,
     LeadScanController,
     LeadAiFillController,
+    LeadAiJobController,
   ],
   providers: [
     LeadService,
@@ -159,6 +168,11 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadEnricher,
     LeadAiFillService,
     LeadAiFillRepository,
+    LeadAiFillRunner,
+    LeadAiJobRepository,
+    LeadAiJobService,
+    /* Ticked by `worker.ts`, like `LeadScanSweeper`. */
+    LeadAiJobSweeper,
     { provide: TAX_REGISTRY, useValue: new VietQrTaxRegistry() },
     /* What `worker.ts` runs for the two scan queues — `platform/` cannot name us. */
     {
@@ -167,6 +181,14 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
       useFactory: (scans: LeadScanService, commit: LeadScanCommit): ScanJobHandler => ({
         readFile: (fileId, attempt) => scans.readFile(fileId, attempt),
         commitBatch: (code, attempt) => commit.commitBatch(code, attempt),
+      }),
+    },
+    /* What `worker.ts` runs for `lead.ai-fill`, same reason. */
+    {
+      provide: AI_FILL_JOB_HANDLER,
+      inject: [LeadAiFillRunner],
+      useFactory: (runner: LeadAiFillRunner): AiFillJobHandler => ({
+        run: (jobId, attempt) => runner.run(jobId, attempt),
       }),
     },
   ],
@@ -178,6 +200,7 @@ import { LeadScanSweeper } from './lead-scan.sweeper'
     LeadMailComposer,
     LeadCommsHook,
     SCAN_JOB_HANDLER,
+    AI_FILL_JOB_HANDLER,
     LeadMailSentHook,
   ],
 })

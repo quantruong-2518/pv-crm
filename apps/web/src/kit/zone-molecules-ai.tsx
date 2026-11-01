@@ -4,13 +4,14 @@ import {
   AiFieldMark,
   AiFillButton,
   AiFillField,
+  AiTaskSteps,
+  AiTaskTray,
   Button,
   Input,
-  Toast,
 } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 
-/** Zone 02 · the AI fill family (M-21…M-25), set beside AIAction (M-09).
+/** Zone 02 · the AI fill family (M-21…M-24, M-27, O-12), set beside AIAction (M-09).
  *  Own file because zone-molecules is a catalog already past 800 lines; the
  *  cards return as a fragment so they flow in the zone's three-column grid.
  *  Copy and states follow the approved canvas "Theme kit · Component AI". */
@@ -64,7 +65,7 @@ export function AiFillCards() {
         note="bấm là điền"
         noteAccent
         bodyClassName="flex flex-col gap-3 p-4"
-        footer="secondary · icon Orbit 16 · busy = aria-disabled + aria-busy, giữ màu secondary, con trỏ chờ · disabledReason = một dòng dưới nút · tablet h-12"
+        footer="chỉ còn icon Orbit 20, chữ ở title và aria-label · busy = nền nhạt màu chính + chấm, bấm mở khay · disabledReason = một dòng dưới nút · tablet 48px"
       >
         <KitState>Sẵn sàng</KitState>
         <AiFillButton onClick={() => {}} />
@@ -73,9 +74,9 @@ export function AiFillCards() {
         <KitState>Chưa đủ dữ liệu</KitState>
         <AiFillButton onClick={() => {}} disabledReason="Cần tên công ty và người liên hệ trước." />
         <p className="text-muted-foreground text-[11.5px] leading-[1.7]">
-          Nằm ở hàng tiêu đề của thẻ Thông tin lead, cạnh dòng trạng thái lưu. Bấm là điền thẳng vào
-          ô trống, không có bước duyệt; sau đó có Hoàn tác. Không có quyền sửa lead hoặc hết ô trống
-          thì không hiện.
+          Nằm ở hàng tiêu đề của thẻ Thông tin lead, cạnh dòng trạng thái lưu. Bấm là đẩy việc chạy
+          nền, điền thẳng vào ô trống, không có bước duyệt; Hoàn tác nằm ở khay việc. Không có quyền
+          sửa lead hoặc hết ô trống thì không hiện.
         </p>
       </SpecCard>
 
@@ -161,44 +162,84 @@ export function AiFillCards() {
           dùng chọn gắn lead vào công ty đó hoặc bỏ qua.
         </p>
       </SpecCard>
+    </>
+  )
+}
+
+const DEMO_STEPS = [
+  { label: 'Đọc hồ sơ lead', state: 'done', note: '0,2 giây' },
+  { label: 'Tìm thông tin trên web', state: 'done', note: '6 giây' },
+  { label: 'Tra cứu mã số thuế', state: 'now', note: 'đang chạy' },
+  { label: 'Kiểm tra trùng công ty', state: 'wait' },
+  { label: 'Điền vào lead', state: 'wait' },
+] as const
+
+export function AiTaskCards() {
+  const [open, setOpen] = useState(true)
+  return (
+    <>
+      <SpecCard
+        code="M-27"
+        name="AiTaskSteps"
+        note="năm bước của một việc"
+        bodyClassName="flex flex-col gap-3 p-4"
+        footer="xong = dấu tích + thời gian · đang chạy = chữ đậm, vòng quay · chờ = nhạt · lỗi = đỏ, các bước sau dừng"
+      >
+        <AiTaskSteps steps={[...DEMO_STEPS]} />
+        <AiTaskSteps steps={[{ label: 'Tìm thông tin trên web', state: 'fail', note: 'lỗi' }]} />
+      </SpecCard>
 
       <SpecCard
-        code="M-25"
-        name="AiFillResult"
-        note="dùng lại Toast O-08"
-        bodyClassName="flex flex-col gap-3 p-4"
-        footer="Toast O-08, không component mới · Hoàn tác: ttlMs 10000 · lỗi = tone danger, không tự tắt"
+        className="col-span-2"
+        code="O-12"
+        name="AiTaskTray"
+        note="khay việc AI"
+        bodyClassName="flex flex-col gap-4 p-4"
+        footer="góc dưới bên phải, nổi trên mọi màn, không có việc thì không hiện · việc xong ở lại tới khi xoá hoặc sau 24 giờ"
       >
-        <Toast
-          item={{
-            id: 'kit-ai-1',
-            tone: 'success',
-            title: 'Đã điền 7 ô, 2 ô chưa chắc.',
-            detail: 'Không tìm thấy số người tại chỗ.',
-            action: { label: 'Hoàn tác', onClick: () => {} },
-            ttlMs: 10_000,
+        <AiTaskTray
+          inline
+          open={open}
+          onOpenChange={setOpen}
+          onClearDone={() => {}}
+          copy={{
+            title: 'Việc AI',
+            running: (n) => `${n} đang chạy`,
+            failed: (n) => `${n} lỗi`,
+            done: (n) => `${n} xong`,
+            clear: 'Xoá việc đã xong',
+            collapse: 'Thu gọn khay',
           }}
-          onDismiss={() => {}}
-          defaultTtlMs={6000}
-        />
-        <Toast
-          item={{
-            id: 'kit-ai-2',
-            tone: 'info',
-            title: 'Không tìm thấy thông tin công khai của công ty này.',
-          }}
-          onDismiss={() => {}}
-          defaultTtlMs={6000}
-        />
-        <Toast
-          item={{
-            id: 'kit-ai-3',
-            tone: 'danger',
-            title: 'Chưa điền được. Thử lại sau ít phút.',
-            action: { label: 'Thử lại', onClick: () => {} },
-          }}
-          onDismiss={() => {}}
-          defaultTtlMs={6000}
+          tasks={[
+            {
+              id: 'a',
+              title: 'Điền hồ sơ · DAS Vina',
+              status: 'running',
+              badge: 'Bước 3/5',
+              steps: [...DEMO_STEPS],
+            },
+            {
+              id: 'c',
+              title: 'Điền hồ sơ · An Phú Điện Tử',
+              status: 'failed',
+              badge: 'Lỗi',
+              steps: [{ label: 'Bước 2/5 · Tìm thông tin trên web', state: 'fail', note: 'lỗi' }],
+              summary: 'Chưa điền gì. Dịch vụ tìm kiếm không trả lời.',
+              actions: [{ label: 'Thử lại', onClick: () => {}, primary: true }],
+            },
+            {
+              id: 'b',
+              title: 'Điền hồ sơ · Bán Dẫn Sao Mai',
+              status: 'done',
+              badge: 'Xong',
+              summary: 'Đã điền 7 ô, 2 ô chưa chắc. Không tìm thấy chức danh.',
+              meta: '5 bước · 11 giây',
+              actions: [
+                { label: 'Mở lead', onClick: () => {}, primary: true },
+                { label: 'Hoàn tác', onClick: () => {} },
+              ],
+            },
+          ]}
         />
       </SpecCard>
     </>

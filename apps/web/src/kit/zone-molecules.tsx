@@ -16,7 +16,7 @@ import {
   UserMinus,
   Users,
 } from '@pv/ui'
-import { AiFillCards } from './zone-molecules-ai'
+import { AiFillCards, AiTaskCards } from './zone-molecules-ai'
 import { SpecCard } from './chrome/spec-card'
 import { ZoneBody, ZoneHeader } from './chrome/zone'
 import {
@@ -623,6 +623,7 @@ export function ZoneMolecules() {
         </SpecCard>
 
         <AiFillCards />
+        <AiTaskCards />
 
         {/* M-10 */}
         <SpecCard

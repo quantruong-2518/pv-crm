@@ -108,6 +108,16 @@ export class ContactRepository {
     return found ?? null
   }
 
+  /** The lead's AI provenance marks (`sales.lead.ai_fill`), on the caller's `tx`. */
+  async leadAiMarks(tx: Db, leadCode: string): Promise<Record<string, { at: string }>> {
+    const [found] = await tx
+      .select({ marks: lead.aiFill })
+      .from(lead)
+      .where(eq(lead.code, leadCode))
+      .limit(1)
+    return found?.marks ?? {}
+  }
+
   /** The lead's own copy of the five, read on the caller's `tx`. */
   async leadMirrorOf(tx: Db, leadCode: string): Promise<LeadContactMirror | null> {
     const [found] = await tx

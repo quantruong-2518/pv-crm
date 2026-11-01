@@ -9,8 +9,8 @@ import { cn } from '../lib/cn'
 /** M-21…M-24 · AI fill — the pieces of "fill the empty fields" on a record.
  *
  *  Unlike M-09 the press IS the consent (owner's decision, no review step):
- *  values land straight in empty fields and the result toast (O-08 `Toast`
- *  with an undo action) is the way back. The basis law 9 asks for is
+ *  values land straight in empty fields and Undo on the finished job in the
+ *  task tray (O-12) is the way back. The basis law 9 asks for is
  *  carried per field by `AiFieldMark`, which names where each value came from.
  *
  *  Fixed Vietnamese copy lives here, as in `AiAction`, so every screen says
@@ -26,15 +26,15 @@ const TOUCH_HALO =
 
 export type AiFillButtonProps = {
   onClick: () => void
-  /** The request is out: busy wording, clicks swallowed. Not `disabled`, which
-   *  would fade it under 4.5:1 and drop focus to the page body. */
+  /** A job is running: the button is tinted with a dot, and a press opens the
+   *  tray (the caller decides) instead of starting a second job. */
   busy?: boolean
   /** Given = the button is off and this line, under it, says what is missing. */
   disabledReason?: string
   className?: string
 }
 
-/** M-21 · AiFillButton */
+/** M-21 · AiFillButton — icon only; the words live in `title` and `aria-label`. */
 export function AiFillButton({
   onClick,
   busy = false,
@@ -42,19 +42,25 @@ export function AiFillButton({
   className,
 }: AiFillButtonProps) {
   const reasonId = useId()
+  const label = busy ? 'Đang điền bằng AI, xem trong khay việc' : 'Điền ô còn thiếu bằng AI'
   return (
     <span className={cn('inline-flex flex-col items-start gap-1', className)}>
       <Button
         variant="secondary"
-        className={cn('pointer-coarse:h-12', busy && 'cursor-progress')}
+        className={cn(
+          'pointer-coarse:size-12 relative size-10 px-0',
+          busy && 'bg-primary/24 text-accent-foreground',
+        )}
         disabled={disabledReason !== undefined}
-        aria-disabled={busy || undefined}
-        aria-busy={busy || undefined}
+        aria-label={label}
+        title={label}
         aria-describedby={disabledReason ? reasonId : undefined}
-        onClick={busy ? undefined : onClick}
+        onClick={onClick}
       >
-        <Icon icon={Orbit} />
-        {busy ? 'Đang điền…' : 'Điền ô còn thiếu'}
+        <Icon icon={Orbit} size={20} />
+        {busy && (
+          <span aria-hidden className="bg-primary absolute right-1.5 top-1.5 size-2 rounded-full" />
+        )}
       </Button>
       {disabledReason && (
         <span id={reasonId} className="text-muted-foreground text-[12px] leading-[1.6]">

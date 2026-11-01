@@ -623,6 +623,7 @@ export const EntityKind = z.enum([
   'mail',
   'campaign',
   'scan',
+  'ai-job',
   'config',
   'kpi',
   'hold',

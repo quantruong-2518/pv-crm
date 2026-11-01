@@ -43,6 +43,7 @@ import { SCAN_READER, type ScanReader } from './scan-reader'
     AiCostRepository,
     AiCostService,
   ],
-  exports: [SCAN_READER, AiGateway],
+  /* `AiRouteRepository`: the lead fill counts its queued presses against the route's limit. */
+  exports: [SCAN_READER, AiGateway, AiRouteRepository],
 })
 export class AiModule {}

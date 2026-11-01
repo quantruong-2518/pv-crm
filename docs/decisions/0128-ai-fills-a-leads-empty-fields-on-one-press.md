@@ -105,3 +105,7 @@ carries no component of its own (M-25 in the kit is the example of it).
 ## Amendment 28/10/2026 (see 0130)
 
 "Headcount" in §1 is now `sizeBand`, a band; the pipeline in §3 is two model calls, identify then read the site. Migration 0156 renames the `headcount` key in `lead.ai_fill`.
+
+## Amendment 28/10/2026 (see 0131)
+
+§1: the press no longer waits for the fill. It starts a background job shown in a tray, and "Hoàn tác" is on the finished job for 24 h, not a 10 s toast. Undo is a server call that only empties fields still equal to what the AI wrote, not a PATCH from the browser.

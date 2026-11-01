@@ -1065,6 +1065,13 @@
       "when": 1795600420000,
       "tag": "0156_size_band_province_prompt_version",
       "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1795600480000,
+      "tag": "0157_lead_ai_job",
+      "breakpoints": true
     }
   ]
 }

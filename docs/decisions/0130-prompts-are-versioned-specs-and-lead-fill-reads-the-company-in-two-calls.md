@@ -77,6 +77,8 @@ One press is now two calls. Migration 0156 raises the `lead-enrich` route to
 8192 output tokens, 60000 ms and 200 calls per user per day, only where the row
 still holds 0153's seed values; an admin's edit is never overwritten.
 
+_Amendment 28/10/2026 (see 0131): the migration in fact left `timeout_ms` at 30000, so "60000 ms" above was not true when written. Migration 0157 raises it to 60000, only where it still holds 30000._
+
 ### 8 · Ship order and the follow-up
 
 Migrate before deploy. Until the new API runs, temporary triggers
@@ -91,6 +93,8 @@ expression.
 ### 9 · Not in this slice
 
 Many contacts (A-3) and the background tray (A-2); see `.claude/HANDOFF-ai.md`.
+
+_Amendment 28/10/2026 (see 0131): the background tray (A-2) is decided in 0131. Many contacts (A-3) is still not in this slice._
 
 ## Consequences
 

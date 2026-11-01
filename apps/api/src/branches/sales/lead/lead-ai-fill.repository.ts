@@ -1,7 +1,7 @@
 import { and, asc, count, eq, isNotNull, ne, or, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
-import type { LeadAiFillMarks } from '@pv/contracts'
+import type { LeadAiFillField, LeadAiFillMarks } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { account } from '../account/account.schema'
 import { configEntry } from '../config/config.schema'
@@ -88,6 +88,24 @@ export class LeadAiFillRepository {
     await tx
       .update(lead)
       .set({ ...values, aiFill: sql`${lead.aiFill} || ${JSON.stringify(marks)}::jsonb` })
+      .where(eq(lead.code, code))
+  }
+
+  /** Undo of `write` for the lead's own columns: each emptied, its mark dropped.
+   *  `industries` has no column here; the caller settles that table first. */
+  async clear(tx: Db, code: string, fields: readonly LeadAiFillField[]): Promise<void> {
+    const values = Object.fromEntries(
+      fields.flatMap((f) =>
+        f === 'industries' ? [] : [[f === 'category' ? 'categoryId' : f, null]],
+      ),
+    ) as Partial<LeadValues>
+    const keys = sql.join(
+      fields.map((f) => sql`${f}`),
+      sql`, `,
+    )
+    await tx
+      .update(lead)
+      .set({ ...values, aiFill: sql`${lead.aiFill} - ARRAY[${keys}]::text[]` })
       .where(eq(lead.code, code))
   }
 

@@ -21,6 +21,7 @@ import { MailWaveGateSweeper } from './branches/sales/campaign/mail-wave-gate.sw
 import { LeadModule } from './branches/sales/lead/lead.module'
 import { LeadMailComposer } from './branches/sales/lead/lead-mail.composer'
 import { LeadMailSentHook } from './branches/sales/lead/lead-mail-sent.hook'
+import { LeadAiJobSweeper } from './branches/sales/lead/lead-ai-job.sweeper'
 import { LeadScanSweeper } from './branches/sales/lead/lead-scan.sweeper'
 import { OpportunityModule } from './branches/sales/opportunity/opportunity.module'
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
@@ -33,6 +34,14 @@ import { MasMailComposer } from './platform/mail/mas.composer'
 import { ENV, type Env } from './platform/config/env'
 import { EMAIL_QUEUE, type EmailJob } from './platform/mail/mail.contract'
 import { BOSS, MailConsumer, MailRelay, QueueModule } from './platform/queue/queue.module'
+import {
+  AI_FILL_CONCURRENCY,
+  AI_FILL_JOB_HANDLER,
+  AI_FILL_QUEUE,
+  AI_FILL_RETRY_LIMIT,
+  type AiFillJob,
+  type AiFillJobHandler,
+} from './platform/queue/ai-fill-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -142,6 +151,7 @@ async function bootstrap(): Promise<void> {
   const kpiSets = app.get(KpiAssignmentSweeper)
   const overdue = app.get(ContractOverdueSweeper)
   const leadScans = app.get(LeadScanSweeper)
+  const aiJobs = app.get(LeadAiJobSweeper)
   const sessions = app.get(SessionSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
@@ -215,6 +225,17 @@ async function bootstrap(): Promise<void> {
     },
   )
 
+  /* Its own retry limit: `attemptOf` above counts to the scan's 5, which this
+     queue never reaches, so its final attempt would never write FAILED. */
+  const aiFill = app.get<AiFillJobHandler>(AI_FILL_JOB_HANDLER)
+  await boss.work(
+    AI_FILL_QUEUE,
+    { ...scanPoll, includeMetadata: true, localConcurrency: AI_FILL_CONCURRENCY },
+    async ([job]: JobWithMetadata<AiFillJob>[]) => {
+      if (job) await aiFill.run(job.data.jobId, { final: job.retryCount >= AI_FILL_RETRY_LIMIT })
+    },
+  )
+
   /* ------------------------------------------------------------------
      BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
      ------------------------------------------------------------------
@@ -280,6 +301,7 @@ async function bootstrap(): Promise<void> {
   // Same: contract overdue bells hourly, scan expiry every 15 minutes, expired sessions hourly.
   const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
   const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
+  const sweepAiJobs = pass('AI fill sweep failed', () => aiJobs.sweep())
   const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
   const sweep = setInterval(() => {
     sweepRelay()
@@ -293,6 +315,7 @@ async function bootstrap(): Promise<void> {
     sweepKpiSets()
     sweepOverdue()
     sweepLeadScans()
+    sweepAiJobs()
     sweepSessions()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
@@ -301,6 +324,7 @@ async function bootstrap(): Promise<void> {
   log.log(
     `Worker đã lên · ${EMAIL_QUEUE} · ${env.PV_EMAIL_WORKER_CONCURRENCY} luồng · ` +
       `${SCAN_READ_QUEUE} · ${SCAN_READ_CONCURRENCY} readers · ` +
+      `${AI_FILL_QUEUE} · ${AI_FILL_CONCURRENCY} fillers · ` +
       `poll ${env.PV_QUEUE_POLL_SECONDS}s · gửi thật: ${env.PV_EMAIL_ENABLED ? 'BẬT' : 'tắt'}`,
   )
 
@@ -343,9 +367,10 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', close)
 }
 
-/** Dưới hạn đếm ngược của Fly (mặc định 5 phút), và trên `expireInSeconds` của
- *  hàng đợi — một job quá mốc đó đã được coi là chết rồi, chờ thêm không đổi
- *  được gì. */
+/** Under Fly's kill countdown (5 min by default) and above the mail queue's 60 s
+ *  expiry, but below the scan (300 s) and `lead.ai-fill` (600 s) ones, by choice:
+ *  a deploy mid-fill stops waiting here, the job stays active, and pg-boss
+ *  redelivers it once it expires — a fill shows up to 600 s late, never lost. */
 const SHUTDOWN_TIMEOUT_MS = 90_000
 
 /* A Neon rejection while pg-boss connects no longer reaches here —
