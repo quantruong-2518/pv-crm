@@ -33,6 +33,8 @@ export type AiActionProps = {
   variant?: 'strip' | 'panel'
   /** trạng thái sau khi người bấm nút */
   done?: boolean
+  /** What pressing did, when it did not finish the work: a filled form is not saved yet. */
+  doneLabel?: string
   className?: string
 }
 
@@ -47,6 +49,7 @@ export function AiAction({
   inspectLabel = 'Xem căn cứ',
   variant = 'strip',
   done = false,
+  doneLabel = 'Đã thực hiện',
   className,
 }: AiActionProps) {
   return (
@@ -75,13 +78,15 @@ export function AiAction({
         <div className="flex shrink-0 gap-2.5">
           {done ? (
             <span className="text-on-tint-success-strong self-center text-[12.5px] font-semibold">
-              Đã thực hiện
+              {doneLabel}
             </span>
           ) : (
-            <Button onClick={onConfirm}>{confirmLabel}</Button>
+            <Button type="button" onClick={onConfirm}>
+              {confirmLabel}
+            </Button>
           )}
           {onInspect && (
-            <Button variant="ghost" onClick={onInspect}>
+            <Button type="button" variant="ghost" onClick={onInspect}>
               {inspectLabel}
             </Button>
           )}

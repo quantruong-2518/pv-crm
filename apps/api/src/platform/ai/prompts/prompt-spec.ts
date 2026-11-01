@@ -15,8 +15,9 @@ export type FieldSpec = {
   sources: readonly string[]
   how: string
   format: string
-  /** When the value comes back with `confident: false`. */
-  unsureWhen: string
+  /** When the value comes back with `confident: false`; absent on a schema with
+   *  no such flag, and its line is then not rendered. */
+  unsureWhen?: string
   example: string
 }
 
@@ -46,7 +47,7 @@ function renderField(name: string, f: FieldSpec): string[] {
     `- Sources, in priority order: ${f.sources.map((s, i) => `(${i + 1}) ${s}`).join(' ')}`,
     `- How: ${f.how}`,
     `- Format: ${f.format}`,
-    `- confident is false when: ${f.unsureWhen}`,
+    ...(f.unsureWhen ? [`- confident is false when: ${f.unsureWhen}`] : []),
     `- Example: ${f.example}`,
   ]
 }

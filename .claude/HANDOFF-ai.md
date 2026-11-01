@@ -46,6 +46,16 @@ dấu bước xong; tiến độ đẩy qua SSE sẵn có; Hoàn tác nằm ở 
 https://claude.ai/artifact/CotaHRgTGAZ3JcfKSfeRtA. Khay dùng chung cho bước điền hàng loạt
 khi nạp sheet / quét ảnh (lượt sau nữa).
 
+**Báo cáo AI trên bản ghi trao đổi (ADR 0132) — đã dựng, chưa ship.** Trên bản ghi trao đổi
+còn mở, hai nút `Tạo tóm tắt` và `Tạo biên bản`: một lần bấm là một lần gọi model, đồng bộ
+(`POST /comms/debriefs/:id/ai-report`, tác vụ `comm-report`, timeout 25 giây), trả tóm tắt,
+biên bản, đánh giá và tối đa 3 bước kế tiếp. Chỉ là đề xuất, không lưu gì tới khi người bấm
+từng khối; biên bản lưu thành tệp `text/plain` đính kèm. Đọc ghi chú, lượt trao đổi, tệp
+text/DOCX/PDF/ảnh (tối đa 5 tệp, có trần tổng dung lượng); ghi âm chưa đọc. Tuyến `comm-report`
+tạo sẵn ở trạng thái tắt, chỉ bật sau khi có hồ sơ đánh giá chuyển dữ liệu (câu hỏi mở 139). Màn: điền lần đầu và kết thúc cuộc họp,
+không phải màn sửa lại và nhật ký mobile. Chưa lên production, chưa ship; không liên quan
+A-2 (A-2 cũng chưa ship). Thứ tự ship: migration 0158 trước API (0157 của A-2 đi trước), web sau API. Câu hỏi mở 137–140.
+
 **A-3 · Tìm nhiều liên hệ.** Người đại diện pháp luật (tra cứu ĐKKD), trang Ban lãnh đạo /
 Liên hệ, thông cáo của công ty; LinkedIn công khai chỉ tên + chức danh. Thêm vào khối liên
 hệ có dấu AI và nguồn, bỏ trùng tên/email/số. Canvas đã duyệt: artboard 4 của

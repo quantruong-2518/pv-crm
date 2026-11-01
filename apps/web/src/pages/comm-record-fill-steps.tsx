@@ -1,4 +1,4 @@
-import { useId, type Dispatch, type SetStateAction } from 'react'
+import { useId, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import { Input, Separator, Textarea } from '@pv/ui'
 import {
@@ -29,6 +29,7 @@ export function ContentStep({
   onTitle,
   onSummary,
   fileNote = 'không bắt buộc',
+  aid,
 }: {
   record: DebriefView
   /** Null hides the field. */
@@ -39,6 +40,8 @@ export function ContentStep({
   onSummary: (summary: string) => void
   /** The grey words after the files label. */
   fileNote?: string
+  /** Under the note box: the AI report on a first fill (ADR 0132). */
+  aid?: ReactNode
 }) {
   const titleId = useId()
   const summaryId = useId()
@@ -77,6 +80,7 @@ export function ContentStep({
           {COUNT.format(summary.length)} / {COUNT.format(DEBRIEF_SUMMARY_MAX)} ký tự
         </span>
       </div>
+      {aid}
       <Separator />
       <div className="flex min-w-0 flex-col gap-3">
         <span className={STEP_LABEL}>
@@ -96,15 +100,18 @@ export function EvaluationStep({
   picked,
   onPick,
   close,
+  aid,
 }: {
   heading: string
   vocab: UseQueryResult<CommVocabularyResponse>
   picked: Record<string, string>
   onPick: Dispatch<SetStateAction<Record<string, string>>>
   close: CloseStep
+  aid?: ReactNode
 }) {
   return (
     <CommStepCard index={1} title={heading}>
+      {aid}
       <CommEvaluation vocab={vocab} picked={picked} onPick={onPick} />
       {close.customer && (
         <TemperaturePick value={close.temperature} onPick={close.setTemperature} />
@@ -120,6 +127,7 @@ export function NextStepStep({
   close,
   draft,
   onDraft,
+  aid,
 }: {
   record: DebriefView
   heading: string
@@ -127,18 +135,23 @@ export function NextStepStep({
   close: CloseStep
   draft: StepDraft
   onDraft: (next: StepDraft) => void
+  /** Over the step fields, and only while they show. */
+  aid?: ReactNode
 }) {
   const { code } = record.subject
   return (
     <CommStepCard index={2} title={heading}>
       {close.takesStep ? (
         close.stepShown && (
-          <CommNextStepFields
-            kinds={kinds}
-            options={close.options}
-            draft={draft}
-            onDraft={onDraft}
-          />
+          <>
+            {aid}
+            <CommNextStepFields
+              kinds={kinds}
+              options={close.options}
+              draft={draft}
+              onDraft={onDraft}
+            />
+          </>
         )
       ) : close.target.isPending ? null : (
         <p className="text-muted-foreground m-0 text-[13px] leading-[1.6]">

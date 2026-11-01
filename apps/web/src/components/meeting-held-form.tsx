@@ -11,10 +11,12 @@ import {
 } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
+import { CommAiContent, CommAiEvaluation, CommAiSteps } from '@/components/comm-ai-report'
 import { CommEvaluation } from '@/components/comm-evaluation'
 import { CommFileDrop, CommFileList } from '@/components/comm-files'
 import { CommNextStepFields } from '@/components/comm-next-step-fields'
 import { Field } from '@/components/field-bits'
+import { MEETING_AI_WORDS, useCommAiReport } from '@/data/comm-ai-report'
 import { commVocabularyQuery } from '@/data/comm-vocabulary'
 import { EMPTY_STEP_DRAFT, evaluationBlockerOf, subjectKindLabel } from '@/data/comm-record-detail'
 import { useCloseStep } from '@/data/customer-close'
@@ -29,8 +31,8 @@ import { TemperaturePick } from './temperature-pick'
  *
  *  Attendance starts from the booking with everyone ticked: most people who
  *  were invited came, and unticking the one who did not is the honest effort.
- *  A guest nobody booked is added by name. Filled by hand — no AI pre-fill
- *  (ADR 0075 §6), so nothing here is proposed on the reader's behalf. */
+ *  A guest nobody booked is added by name. AI proposes on a press and waits for
+ *  another (ADR 0132); only the person's press moves a part into the form. */
 
 type Person = { key: string; name: string; note?: string; attended: boolean }
 type Host = Person & { actorId: string }
@@ -54,6 +56,7 @@ export function MeetingHeldForm({
   const close = useCloseMeeting()
   const step = useCloseStep(record.subject.code, record.stepTarget)
   const people = useAttendance(open, meeting)
+  const ai = useCommAiReport(record, MEETING_AI_WORDS)
   const [summary, setSummary] = useState('')
   const [picked, setPicked] = useState<Record<string, string>>({})
   const [draft, setDraft] = useState(EMPTY_STEP_DRAFT)
@@ -111,52 +114,43 @@ export function MeetingHeldForm({
       }
       width="lg"
       footer={
-        <div className="flex min-w-0 items-center justify-between gap-3">
-          <span
-            aria-live="polite"
-            className={
-              close.error
-                ? 'text-destructive-foreground min-w-0 text-[11.5px] leading-[1.5]'
-                : 'text-warning min-w-0 text-[11.5px] leading-[1.5]'
-            }
-            role={close.error ? 'alert' : undefined}
-          >
-            {message}
-          </span>
-          <div className="flex shrink-0 gap-2">
-            <Button size="lg" variant="ghost" type="button" onClick={onClose}>
-              Huỷ
-            </Button>
-            <Button
-              size="lg"
-              type="submit"
-              form={FORM_ID}
-              disabled={blocker !== null || close.isPending}
-            >
-              <Icon icon={Check} size={16} />
-              {close.isPending ? 'Đang lưu…' : 'Lưu kết quả buổi họp'}
-            </Button>
-          </div>
-        </div>
+        <HeldFooter
+          message={message}
+          failed={Boolean(close.error)}
+          blocked={blocker !== null}
+          saving={close.isPending}
+          onClose={onClose}
+        />
       }
     >
       <form id={FORM_ID} onSubmit={submit} noValidate className="flex min-w-0 flex-col gap-8">
-        <Field label="Tóm tắt buổi họp" note={`${summary.length}/${DEBRIEF_SUMMARY_MAX}`}>
-          <Textarea
-            value={summary}
-            rows={5}
-            autoGrow
-            maxLength={DEBRIEF_SUMMARY_MAX}
-            aria-label="Tóm tắt buổi họp"
-            placeholder="Hai bên đã thống nhất gì, khách cần gì tiếp theo."
-            onChange={(e) => setSummary(e.target.value)}
-          />
-        </Field>
+        <div className="flex min-w-0 flex-col gap-3">
+          <Field label="Tóm tắt buổi họp" note={`${summary.length}/${DEBRIEF_SUMMARY_MAX}`}>
+            <Textarea
+              value={summary}
+              rows={5}
+              autoGrow
+              maxLength={DEBRIEF_SUMMARY_MAX}
+              aria-label="Tóm tắt buổi họp"
+              placeholder="Hai bên đã thống nhất gì, khách cần gì tiếp theo."
+              onChange={(e) => setSummary(e.target.value)}
+            />
+          </Field>
+          {ai.allowed && <CommAiContent ai={ai} note={summary} onNote={setSummary} />}
+        </div>
 
         <AttendanceGroup people={people} />
 
         <section className="flex min-w-0 flex-col gap-4" aria-label="Kết quả">
           <SectionTitle size="md">Kết quả</SectionTitle>
+          {ai.allowed && (
+            <CommAiEvaluation
+              ai={ai}
+              criteria={vocab.data?.criteria ?? []}
+              picked={picked}
+              onPick={setPicked}
+            />
+          )}
           <CommEvaluation vocab={vocab} picked={picked} onPick={setPicked} />
           {step.customer && (
             <TemperaturePick value={step.temperature} onPick={step.setTemperature} />
@@ -167,12 +161,22 @@ export function MeetingHeldForm({
           <SectionTitle size="md">Bước tiếp theo</SectionTitle>
           {step.takesStep ? (
             step.stepShown && (
-              <CommNextStepFields
-                kinds={vocab.data?.stepKinds ?? []}
-                options={step.options}
-                draft={draft}
-                onDraft={setDraft}
-              />
+              <>
+                {ai.allowed && (
+                  <CommAiSteps
+                    ai={ai}
+                    options={step.options.data}
+                    draft={draft}
+                    onDraft={setDraft}
+                  />
+                )}
+                <CommNextStepFields
+                  kinds={vocab.data?.stepKinds ?? []}
+                  options={step.options}
+                  draft={draft}
+                  onDraft={setDraft}
+                />
+              </>
             )
           ) : step.target.isPending ? null : (
             <p className="text-muted-foreground m-0 text-[12px] leading-[1.6]">
@@ -190,6 +194,45 @@ export function MeetingHeldForm({
         </section>
       </form>
     </Drawer>
+  )
+}
+
+function HeldFooter({
+  message,
+  failed,
+  blocked,
+  saving,
+  onClose,
+}: {
+  message: string | null
+  failed: boolean
+  blocked: boolean
+  saving: boolean
+  onClose: () => void
+}) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <span
+        aria-live="polite"
+        className={
+          failed
+            ? 'text-destructive-foreground min-w-0 flex-1 basis-48 text-[11.5px] leading-[1.5]'
+            : 'text-warning min-w-0 flex-1 basis-48 text-[11.5px] leading-[1.5]'
+        }
+        role={failed ? 'alert' : undefined}
+      >
+        {message}
+      </span>
+      <div className="flex shrink-0 gap-2">
+        <Button size="lg" variant="ghost" type="button" onClick={onClose}>
+          Huỷ
+        </Button>
+        <Button size="lg" type="submit" form={FORM_ID} disabled={blocked || saving}>
+          <Icon icon={Check} size={16} />
+          {saving ? 'Đang lưu…' : 'Lưu kết quả buổi họp'}
+        </Button>
+      </div>
+    </div>
   )
 }
 

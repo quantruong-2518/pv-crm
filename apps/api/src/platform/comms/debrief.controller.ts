@@ -1,6 +1,7 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common'
+import { Body, Controller, Get, Header, HttpCode, Param, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  CommAiReportBody,
   CommRecordCreateBody,
   DebriefClose,
   DebriefEdit,
@@ -13,6 +14,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { CommReportService } from './comm-report.service'
 import { DebriefService } from './debrief.service'
 import { MeetingDebriefService } from './meeting-debrief.service'
 
@@ -20,12 +22,13 @@ import { MeetingDebriefService } from './meeting-debrief.service'
  *  `ThreadController` gives: `comm.view-content` cuts a field, not a request.
  *  No `scoped: true` either — the owner fence and the subject's reach are
  *  enforced in `DebriefService`, not by an `owner_id` cut a flag would promise.
- *  `target`, `pending` and `counts` come before `:id` so they are not read as ids. */
+ *  `target`, `pending`, `counts` and `ai-report` come before `:id` so they are not read as ids. */
 @Controller('comms/debriefs')
 export class DebriefController {
   constructor(
     private readonly debriefs: DebriefService,
     private readonly meetings: MeetingDebriefService,
+    private readonly reports: CommReportService,
   ) {}
 
   @Post()
@@ -56,6 +59,15 @@ export class DebriefController {
   @Need({ permission: 'comm.view' })
   counts(@CurrentActor() who: Actor) {
     return this.debriefs.counts(who)
+  }
+
+  /** Whether the AI report is on for this caller (ADR 0132), so the buttons stay
+   *  hidden rather than refuse. `no-store`: it depends on who asks and on today's limit. */
+  @Get('ai-report')
+  @Header('Cache-Control', 'private, no-store')
+  @Need({ permission: 'comm.view' })
+  aiReportStatus(@CurrentActor() who: Actor) {
+    return this.reports.status(who)
   }
 
   @Get(':id')
@@ -109,5 +121,18 @@ export class DebriefController {
     @Body(zod(MeetingDebriefClose)) body: MeetingDebriefClose,
   ) {
     return this.meetings.close(who, id, body)
+  }
+
+  /** The AI report of an open record (ADR 0132): a proposal, nothing is stored, so
+   *  200. The close gate and `comm.view-content` are in the service. */
+  @Post(':id/ai-report')
+  @HttpCode(200)
+  @Need({ permission: 'comm.view' })
+  aiReport(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(DebriefId)) id: string,
+    @Body(zod(CommAiReportBody)) body: CommAiReportBody,
+  ) {
+    return this.reports.report(who, id, body)
   }
 }

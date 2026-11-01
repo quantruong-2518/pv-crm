@@ -14,13 +14,14 @@ import { KpiPeriodKey } from './sales/kpi'
  *  Prompt and answer text are never stored. Decision: ADR 0102. */
 
 /** Closed list, widened by migration with the `ai_call.task` CHECK. */
-export const AiTask = z.enum(['lead-scan', 'lead-enrich'])
+export const AiTask = z.enum(['lead-scan', 'lead-enrich', 'comm-report'])
 export type AiTask = z.infer<typeof AiTask>
 
 /** Display labels only — never keys. */
 export const AI_TASK_LABEL: Record<AiTask, string> = {
   'lead-scan': 'Nạp lead từ ảnh',
   'lead-enrich': 'Tự điền lead',
+  'comm-report': 'Báo cáo liên hệ',
 }
 
 export const AiCallOutcome = z.enum(['ok', 'error'])

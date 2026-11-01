@@ -154,7 +154,8 @@ export function Drawer({
        chính panel. */
     const active = document.activeElement
     if (active instanceof HTMLElement && !panel.current?.contains(active)) opener.current = active
-    panel.current?.focus()
+    /* The effect reruns on every new `onClose`: it must not pull the caret out of a box. */
+    if (!panel.current?.contains(active)) panel.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
   }, [mounted, leaving, onClose, isTop])
 

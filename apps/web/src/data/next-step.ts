@@ -159,7 +159,7 @@ export function dayAfter(days: number): string {
 /** What picking a template does to the date: its default fills an empty box or
  *  replaces one an earlier pick filled, never a day a person chose. */
 export function dueOnPick(
-  template: StepTemplateOption,
+  template: Pick<StepTemplateOption, 'dueDays'>,
   due: string,
   dueAuto: boolean,
 ): { due: string; dueAuto: boolean } {

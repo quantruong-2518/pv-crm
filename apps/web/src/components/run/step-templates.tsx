@@ -32,7 +32,13 @@ export function FrameUnread({ error, onRetry }: { error: unknown; onRetry: () =>
         Không đọc được danh sách bước tiếp theo.{' '}
         {isApiError(error) ? userMessage(error) : 'Thử lại.'}
       </p>
-      <Button size="md" variant="secondary" className="pointer-coarse:h-12" onClick={onRetry}>
+      <Button
+        type="button"
+        size="md"
+        variant="secondary"
+        className="pointer-coarse:h-12"
+        onClick={onRetry}
+      >
         Thử lại
       </Button>
     </div>

@@ -1,4 +1,5 @@
 import type {
+  CommVocabularyResponse,
   CustomerTemperature,
   DebriefAnswerInput,
   DebriefEdit,
@@ -8,8 +9,9 @@ import type {
   MeetingAttendedGuest,
   MeetingAttendedHost,
   NextStepKind,
+  StepOptionsResponse,
 } from '@pv/contracts'
-import { canCloseMeetingOnBehalf, type Actor, type RoleId } from '@pv/engines'
+import { canCloseMeetingOnBehalf, type Actor, type ObjectKind, type RoleId } from '@pv/engines'
 import type { Db } from '@api/platform/db/db.module'
 import { denied } from '@api/platform/http/problem'
 import type { CommContact } from './comm-record.service'
@@ -63,9 +65,34 @@ export interface CommDebriefHook {
   /** Slot and title of booked meetings as sales holds them — the one ledger
    *  for when and what (0084). A meeting that no longer exists is absent. */
   meetingSlots(meetingIds: readonly string[]): Promise<Map<string, MeetingSlot>>
+  /** What an AI report of a record on this subject needs from the branch
+   *  (ADR 0132). Read-only, and a subject that takes no step is no error.
+   *  `meetingId` is the booked meeting behind the record, else null. */
+  reportContext(
+    who: Actor,
+    subjectCode: string,
+    meetingId: string | null,
+  ): Promise<CommReportContext>
 }
 
 export type MeetingSlot = { at: Date; endsAt: Date; title: string }
+
+/** `step` is null when this caller could set no step on the subject, so "takes
+ *  a step" and its options cannot disagree. `stateLabel` is null on a contract,
+ *  which keeps no single state. */
+export type CommReportContext = {
+  subject: { kind: ObjectKind; label: string; stateLabel: string | null }
+  vocabulary: CommVocabularyResponse
+  step: Pick<StepOptionsResponse, 'freeEntry' | 'templates'> | null
+  openStep: string | null
+  meeting: {
+    title: string
+    at: Date
+    goal: string | null
+    hosts: string[]
+    guests: string[]
+  } | null
+}
 
 /** `ownerId` is the record's owner — the one whose exchange it was, also when
  *  a superior closes on their behalf. An absent list keeps that side's

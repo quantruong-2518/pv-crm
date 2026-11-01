@@ -383,7 +383,7 @@ export class ThreadService {
    *  put an owner on a thing whose whole design says it has none. Nothing is
    *  lost: an unanchored thread is already reachable from no list, so this
    *  refuses a door that only somebody holding a loose UUID could be at. */
-  private async refuseUnreachableThread(who: Actor, threadId: string, tx?: Db): Promise<void> {
+  async refuseUnreachableThread(who: Actor, threadId: string, tx?: Db): Promise<void> {
     const codes = await this.repo.linkCodesOf(threadId, tx)
     if (codes.length === 0) {
       throw denied(

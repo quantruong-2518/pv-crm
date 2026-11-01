@@ -191,6 +191,7 @@ function FileRow({
       </span>
       {onDelete && (
         <Button
+          type="button"
           size="sm"
           variant="ghost"
           aria-label={`Xoá tệp ${file.name}`}

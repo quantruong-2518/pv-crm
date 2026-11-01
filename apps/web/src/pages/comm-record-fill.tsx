@@ -4,9 +4,16 @@ import type { DebriefClose, DebriefView } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { toastDone } from '@/app/toast'
 import { dmy, hm } from '@/lib/date'
+import {
+  CommAiContent,
+  CommAiEvaluation,
+  CommAiStatus,
+  CommAiSteps,
+} from '@/components/comm-ai-report'
 import { CommLateMark } from '@/components/comm-bits'
 import { CommRecordFrame } from '@/components/comm-record-frame'
 import { CommUnreachedDialog } from '@/components/comm-unreached-dialog'
+import { useCommAiReport } from '@/data/comm-ai-report'
 import {
   COMM_NOUN,
   useAnchorTurn,
@@ -27,13 +34,14 @@ import { BAR_BUTTON, CommFormBar, CommFormSteps, type FormProblem } from './comm
  *  jumps anywhere. A draft is kept in this browser only; the server stores the
  *  record when the owner confirms (ADR 0074 §2, 0075 §2).
  *
- *  Filled by hand — AI pre-fill is deferred (ADR 0075 §6), so there is no AI
- *  block here and nothing is proposed on the reader's behalf. */
+ *  AI proposes on a press and waits for another (ADR 0132): the report sits
+ *  beside this form, and only the owner's press moves a part into it. */
 
 export function CommFillWorkspace({ record }: { record: DebriefView }) {
   const confirm = useConfirmComm()
   const saved = useMemo(() => readCommDraft(record.id), [record.id])
   const form = useCommForm(record, saved ?? EMPTY_COMM_DRAFT)
+  const ai = useCommAiReport(record)
   const { close, at, go, titles } = form
   const [unreached, setUnreached] = useState(false)
 
@@ -123,7 +131,48 @@ export function CommFillWorkspace({ record }: { record: DebriefView }) {
         </CommFormBar>
       }
     >
-      <CommFormSteps record={record} form={form} gaps={gaps} />
+      <CommFormSteps
+        record={record}
+        form={form}
+        gaps={gaps}
+        ai={
+          ai.allowed
+            ? {
+                content: (
+                  <CommAiContent
+                    ai={ai}
+                    note={form.summary}
+                    onNote={form.setSummary}
+                    title={form.title}
+                    onTitle={form.setTitle}
+                  />
+                ),
+                evaluation: (
+                  <>
+                    <CommAiStatus ai={ai} />
+                    <CommAiEvaluation
+                      ai={ai}
+                      criteria={form.vocab.data?.criteria ?? []}
+                      picked={form.picked}
+                      onPick={form.setPicked}
+                    />
+                  </>
+                ),
+                nextStep: (
+                  <>
+                    <CommAiStatus ai={ai} />
+                    <CommAiSteps
+                      ai={ai}
+                      options={close.options.data}
+                      draft={form.draft}
+                      onDraft={form.setDraft}
+                    />
+                  </>
+                ),
+              }
+            : undefined
+        }
+      />
       <CommUnreachedDialog record={record} open={unreached} onClose={() => setUnreached(false)} />
     </CommRecordFrame>
   )

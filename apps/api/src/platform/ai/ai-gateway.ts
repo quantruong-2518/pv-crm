@@ -32,8 +32,15 @@ export const AI_CLIENTS = Symbol('pv.ai.clients')
 export type AiClients = Record<AiProvider, AiClient>
 
 /** `admitted`: the caller ran `check` when it accepted the work (a queued job),
- *  so `run` skips the quotas — work already accepted is never cut mid-batch. */
-export type AiCaller = { actorId: string | null; subjectCode: string | null; admitted?: boolean }
+ *  so `run` skips the quotas — work already accepted is never cut mid-batch.
+ *  `deadlineAt` (epoch ms): a caller holding a request open stops before Fly's proxy
+ *  drops it, so no attempt opens that could outlive this. */
+export type AiCaller = {
+  actorId: string | null
+  subjectCode: string | null
+  admitted?: boolean
+  deadlineAt?: number
+}
 export type AiResult<T> = { value: T; model: string; attempts: readonly AiAttempt[] }
 
 type Outcome<T> = { ok: true; value: T } | { ok: false; kind: AiFailureKind; message: string }
@@ -86,6 +93,10 @@ export class AiGateway {
     let retried = false
     let sawTransient = false
     for (;;) {
+      if (who.deadlineAt !== undefined && Date.now() + route.timeoutMs > who.deadlineAt) {
+        const message = `ai ${task}: no attempt fits the deadline after ${run.attempts.length}`
+        throw new AiTransientError(message, run.attempts)
+      }
       const model = models[index] as string
       const outcome = await this.attempt(run, model)
       if (outcome.ok) return { value: outcome.value, model, attempts: run.attempts }

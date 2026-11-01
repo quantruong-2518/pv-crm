@@ -12,6 +12,7 @@ import {
   type CommDebriefEditInput,
   type CommDebriefHook,
   type CommDebriefInput,
+  type CommReportContext,
   type MeetingHeld,
   type MeetingSlot,
   type PreparedDebrief,
@@ -31,6 +32,7 @@ import {
   CustomerTemperatureRepository,
   type CustomerRead,
 } from '../after-sale/customer-temperature.repository'
+import { readReportContext } from './comm-report-context'
 import { NextStepRepository, type NextStepRead } from './next-step.repository'
 import { assertNextDiffers, dealAddress, leadAddress, liveKind } from './next-step.rules'
 import { NextStepService } from './next-step.service'
@@ -215,6 +217,24 @@ export class NextStepDebriefHook implements CommDebriefHook {
 
   meetingSlots(meetingIds: readonly string[]): Promise<Map<string, MeetingSlot>> {
     return this.meetings.slots(meetingIds)
+  }
+
+  /** Step options from `reachable`, the read `judgeStep` trusts. A bought customer
+   *  gets none: its step is judged by the temperature the form picks after this
+   *  press, so nothing offered now is sure to pass the close (ADR 0132). */
+  async reportContext(
+    who: Actor,
+    subjectCode: string,
+    meetingId: string | null,
+  ): Promise<CommReportContext> {
+    const { stepTarget, customer } = await this.slot(who, subjectCode)
+    const [target] = customer ? [] : await this.reachable(who, [subjectCode])
+    const { steps, config, frame, meetings } = this
+    const openStep = stepTarget?.currentStep?.text ?? null
+    return readReportContext(
+      { steps, config, frame, meetings },
+      { subjectCode, meetingId, target, openStep },
+    )
   }
 
   /** `write` re-asks scope and liveness on the locked row; the permission is

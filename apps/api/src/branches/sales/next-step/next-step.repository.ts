@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common'
 import { LEAD_ACTIVE_STATES } from '@pv/contracts'
 import type { Actor } from '@pv/engines'
 import { DB, type Db } from '@api/platform/db/db.module'
-import { actor } from '@api/platform/db/platform.schema'
+import { actor, objectRef } from '@api/platform/db/platform.schema'
 import { configEntry } from '../config/config.schema'
 import { contact } from '../contact/contact.schema'
 import { contract } from '../contract/contract.schema'
@@ -121,6 +121,17 @@ export class NextStepRepository {
           leadScope(who, true),
         ),
       )
+  }
+
+  /** A subject's mirror row, whatever state it stands in and whoever asks.
+   *  Null is an unknown code; `state` is the raw key the branch mirrored. */
+  async subjectOf(code: string) {
+    const [row] = await this.db
+      .select({ kind: objectRef.kind, label: objectRef.label, state: objectRef.state })
+      .from(objectRef)
+      .where(eq(objectRef.code, code))
+      .limit(1)
+    return row ?? null
   }
 
   /** An open lead or deal by the book alone — whoever asks, whatever their

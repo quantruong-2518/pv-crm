@@ -1,4 +1,5 @@
 import { Module, type DynamicModule, type ModuleMetadata, type Type } from '@nestjs/common'
+import { AiModule } from '../ai/ai.module'
 import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
@@ -10,6 +11,7 @@ import { CommAttachmentService } from './comm-attachment.service'
 import { COMM_DEBRIEF_HOOK, type CommDebriefHook } from './comm-debrief.hook'
 import { CommLateSweeper } from './comm-late.sweeper'
 import { CommRecordModule } from './comm-record.module'
+import { CommReportService } from './comm-report.service'
 import {
   COMM_ATTACHMENT_CONSTRAINTS,
   DEBRIEF_CONSTRAINTS,
@@ -58,9 +60,16 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
  *
  *  `NotificationModule` for the hub alone: `CommLateSweeper` emits, and so
  *  does a debrief someone else confirms (ADR 0093 wave 2). No `exports`: a branch that opens a record imports
- *  `CommRecordModule`. */
+ *  `CommRecordModule`. `AiModule` for the AI report (ADR 0132); it knows no comms. */
 @Module({
-  imports: [AuditModule, EnginesModule, StorageModule, CommRecordModule, NotificationModule],
+  imports: [
+    AiModule,
+    AuditModule,
+    EnginesModule,
+    StorageModule,
+    CommRecordModule,
+    NotificationModule,
+  ],
   controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
   providers: [
     IdentityService,
@@ -71,6 +80,7 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     CommAttachmentService,
     CommAttachmentRepository,
     CommLateSweeper,
+    CommReportService,
   ],
 })
 export class CommsModule {

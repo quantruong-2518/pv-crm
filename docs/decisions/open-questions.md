@@ -607,3 +607,21 @@ Raised while moving the lead fill into a background job (ADR 0131).
 136.  **Should scan batches and the later bulk fill appear in the same tray?**
       Default: no, not in A-2; decide when the bulk fill is built.
       _(see ADR 0131 §10)_
+
+## Comm AI report (added 01/11/2026)
+
+Raised while adding the AI report to an open comm (ADR 0132).
+
+137.  **Should the report move to a background tray job once A-2 is live?** Not
+      done; it is synchronous with a 25 s timeout. _(see ADR 0132 §1)_
+
+138.  **Should the minutes also export as a .docx with a company template?** Not
+      done; they are saved as a `text/plain` attachment. _(see ADR 0132 §8)_
+
+139.  **Customer content from comms now goes to Google and Anthropic: does this
+      need the cross-border assessment (Luật 91/2025) before use on real
+      customers?** Open. _(see ADR 0132 Consequences)_
+
+140.  **Recordings: reading audio needs recording consent (ADR 0011;
+      `comms.consent` does not exist in code) and a test on about 20 real
+      Vietnamese recordings.** Audio is not read until then. _(see ADR 0132 §4)_
