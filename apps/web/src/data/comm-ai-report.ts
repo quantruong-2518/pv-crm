@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { queryOptions, useMutation, useQuery } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CommAiReport,
   CommAiReportStatus,
@@ -14,7 +14,12 @@ import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { cacheTier } from '@/app/query-client'
 import { dmy } from '@/lib/date'
-import { COMM_RECORDS_KEY, useAttachCommFile, type StepDraft } from '@/data/comm-record-detail'
+import {
+  COMM_RECORDS_KEY,
+  deleteCommFile,
+  uploadCommFile,
+  type StepDraft,
+} from '@/data/comm-record-detail'
 import { COMM_VIEW_NEED } from '@/data/comms'
 import { dueOnPick } from '@/data/next-step'
 
@@ -55,16 +60,29 @@ type Held = {
   /** The editable copy, here so it survives a switch to the other part. */
   minutes: string
   savedMinutes: string | null
+  /** Hand edits a new minutes press replaced before they were saved. */
+  editedMinutes: string | null
+}
+
+/** Already gone is what a replace wanted: the person may have removed it from the list. */
+async function dropFile(id: string, fileId: string) {
+  try {
+    await deleteCommFile(id, fileId)
+  } catch (error) {
+    if (!isApiError(error) || error.kind !== 'not-found') throw error
+  }
 }
 
 export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const permitted = useCan('comm.view-content') && record.closableByMe
   const status = useQuery({ ...commAiStatusQuery, enabled: permitted })
-  const attach = useAttachCommFile(record.id)
+  const client = useQueryClient()
   const [held, setHeld] = useState<Held | null>(null)
   /* A stack: a second summary taken must not cost the note kept from the first. */
   const [replaced, setReplaced] = useState<string[]>([])
   const [saveProblem, setSaveProblem] = useState<string | null>(null)
+  /* Outside `Held`: a save of a newer report still replaces the file this form saved. */
+  const [savedFile, setSavedFile] = useState<string | null>(null)
 
   const run = useMutation<CommAiReport, ApiError, { part: CommAiPart; note: string }>({
     mutationFn: ({ note }) =>
@@ -76,9 +94,10 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     onSuccess: (report, { part, note }) => {
       setSaveProblem(null)
       setHeld((before) => {
+        const edited = before && before.minutes !== before.report.minutes ? before : null
         /* A press for the summary was not asked to redo the minutes. */
-        const edited = before && before.minutes !== before.report.minutes
-        const kept = part === 'summary' && edited ? before : null
+        const kept = part === 'summary' ? edited : null
+        const lost = part === 'minutes' && edited?.savedMinutes !== edited?.minutes.trim()
         return {
           report,
           part,
@@ -86,9 +105,28 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
           summaryUsed: false,
           minutes: kept?.minutes ?? report.minutes,
           savedMinutes: kept?.savedMinutes ?? null,
+          editedMinutes: lost && edited ? edited.minutes : (before?.editedMinutes ?? null),
         }
       })
     },
+  })
+
+  const save = useMutation<string, ApiError, { text: string; replaces: string | null }>({
+    mutationFn: async ({ text, replaces }) => {
+      const file = new File([text], minutesFileName(record), { type: 'text/plain' })
+      const fileId = await uploadCommFile(record.id, file, 'text/plain')
+      /* New file first, so a failure never leaves the record with none. An old copy
+         that will not delete stays in the list, where the person can remove it. */
+      if (replaces) await dropFile(record.id, replaces).catch(() => undefined)
+      return fileId
+    },
+    onSuccess: (fileId, { text }) => {
+      setSavedFile(fileId)
+      setHeld((h) => h && { ...h, savedMinutes: text })
+    },
+    onError: (error) =>
+      setSaveProblem(isApiError(error) ? userMessage(error) : 'Không lưu được biên bản. Thử lại.'),
+    onSettled: () => void client.invalidateQueries({ queryKey: COMM_RECORDS_KEY }),
   })
 
   const ask = (part: CommAiPart, note: string) => {
@@ -109,38 +147,42 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     setHeld({ ...held, summaryUsed: true, notes: [...held.notes, summary] })
   }
 
-  const restoreNote = () => {
-    setReplaced((notes) => notes.slice(0, -1))
+  /** `note` is the box now. Corrections go to the bottom of the stack, so more
+   *  presses walk back through every version and none is lost. */
+  const restoreNote = (note: string) => {
+    const back = replaced.at(-1) ?? ''
+    const rest = replaced.slice(0, -1)
+    const corrected = ![back.trim(), held?.report.summary.trim(), ''].includes(note.trim())
+    setReplaced(corrected ? [note, ...rest] : rest)
     setHeld((h) => h && { ...h, summaryUsed: false })
-    return replaced.at(-1) ?? ''
+    return back
   }
 
   const setMinutes = (minutes: string) => setHeld((h) => h && { ...h, minutes })
 
+  const restoreMinutes = () =>
+    setHeld((h) =>
+      h?.editedMinutes
+        ? { ...h, part: 'minutes', minutes: h.editedMinutes, editedMinutes: null }
+        : h,
+    )
+
   const saveMinutes = () => {
-    if (!held || attach.isPending) return
+    if (!held || save.isPending) return
     const text = held.minutes.trim()
     if (text === '') return setSaveProblem('Biên bản đang trống.')
     setSaveProblem(null)
-    attach.mutate(
-      {
-        file: new File([text], minutesFileName(record), { type: 'text/plain' }),
-        mime: 'text/plain',
-      },
-      {
-        onSuccess: () => setHeld((h) => h && { ...h, savedMinutes: text }),
-        onError: (error) =>
-          setSaveProblem(
-            isApiError(error) ? userMessage(error) : 'Không lưu được biên bản. Thử lại.',
-          ),
-      },
-    )
+    save.mutate({ text, replaces: savedFile })
   }
 
   const saved = held?.savedMinutes ?? null
+  const canAsk = permitted && status.data?.available === true
 
   return {
-    allowed: permitted && status.data?.available === true,
+    /* Only asking needs the route: a daily limit reached after a press must not
+       take the report or the way back to a note. */
+    canAsk,
+    allowed: canAsk || held !== null || replaced.length > 0,
     words,
     /* Hidden while a press runs: its answer is about to replace these blocks. */
     report: run.isPending ? null : (held?.report ?? null),
@@ -156,9 +198,11 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     restoreNote,
     minutes: held?.minutes ?? '',
     setMinutes,
+    canRestoreMinutes: Boolean(held?.editedMinutes),
+    restoreMinutes,
     minutesSaved: saved !== null && saved === held?.minutes.trim(),
     minutesChangedSinceSave: saved !== null && saved !== held?.minutes.trim(),
-    savingMinutes: attach.isPending,
+    savingMinutes: save.isPending,
     saveProblem,
     saveMinutes,
   }
@@ -200,8 +244,8 @@ export function answersOnOffer(
   })
 }
 
-/** A bought customer's frame follows the temperature picked on screen, so a
- *  template the server allowed can be missing here; the form would refuse it. */
+/** The frame can move between the press and the pick, and the form would refuse
+ *  a step it no longer holds. */
 export const stepsOnOffer = (steps: readonly CommAiStep[], options: StepOptionsResponse) =>
   steps.filter(
     (step) => options.freeEntry || options.templates.some((t) => t.id === step.templateId),

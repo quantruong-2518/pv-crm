@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { Phone, Users, Whatsapp, type IconGlyph } from '@pv/ui'
 import { type ThreadChannel, type ThreadMessagesResponse } from '@pv/contracts'
 import { api, type ApiNeed } from '@/app/api'
-import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/sales-config'
+import { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/channels'
 
 /** The conversation book — the four doors under `/comms`, turn 1 of `comms`.
  *

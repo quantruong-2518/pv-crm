@@ -44,7 +44,7 @@ import { ThreadService } from './thread.service'
 
 const MAX_FILES = 5
 const PAST_SUMMARIES = 3
-/* Per press. Past the route's ceiling a call is refused, and no retry could ever pass. */
+/* Per press: the route sets no token ceiling, so these bound what one press sends. */
 const MAX_TEXT_CHARS = TRANSCRIPT_MAX
 /* Per press, on all its files: files go inline, and 15 MB is about 20 MB of base64. */
 const MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -87,7 +87,7 @@ export class CommReportService {
     @Optional() @Inject(COMM_DEBRIEF_HOOK) private readonly hook?: CommDebriefHook,
   ) {}
 
-  /** Asked fresh on every read: a route switch or a spent limit shows at once. */
+  /** Asked fresh on every read; the screen holds the answer for its cache tier. */
   async status(who: Actor): Promise<CommAiReportStatus> {
     try {
       await this.ai.check('comm-report', who.id)
@@ -154,8 +154,8 @@ export class CommReportService {
       files.parts.map((f) => f.part),
     )
 
-    /* Last before the call and after `check`: a press that sends nothing leaves no
-       line, and a call that fails has still sent this content to a vendor. */
+    /* Last before the call and after `check`: a refused press leaves no line, and a
+       call that fails may still have sent this content to a vendor. */
     await this.audit.write({
       actorId: who.id,
       action: 'ai-read',
@@ -232,7 +232,7 @@ export class CommReportService {
   /** Any failure, not only a missing object: the rest of the record still reads. */
   private async readFile(row: { storageKey: string; mime: string }): Promise<AiPart | null> {
     try {
-      return await partOf(row.mime, await this.storage.read(row.storageKey))
+      return partOf(row.mime, await this.storage.read(row.storageKey))
     } catch (error) {
       const kind = error instanceof Error ? error.name : 'unknown'
       this.log.warn(`comm report: ${row.mime} file left unread — ${kind}`)

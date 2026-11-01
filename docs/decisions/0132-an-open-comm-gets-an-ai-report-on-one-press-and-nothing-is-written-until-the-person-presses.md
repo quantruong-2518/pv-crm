@@ -45,18 +45,20 @@ search and no tools.
 - The record's attachments, read through `CommAttachmentRepository.listOf` and
   `StorageService.read`: `text/plain` as text capped at `TRANSCRIPT_MAX`
   characters; DOCX as text, same cap, read by unzipping `word/document.xml` to at
-  most 50 MB and scanning its `w:t` runs, because an XML parser builds a tree of
+  most 20 MB and scanning its `w:t` runs, because an XML parser builds a tree of
   every tag and a 9 KB upload took the API process down with `mammoth`; PDF and
-  images as file parts. Audio is not read and is named in `sources.unread`. An object missing
+  images as file parts, a PDF checked by its header and for `/Encrypt`, never
+  parsed, because a parser inflates its streams with no cap. Audio is not read and is named in `sources.unread`. An object missing
   from storage goes in `unread`.
 - At most 5 file reads, 10 MB of files and `TRANSCRIPT_MAX` characters of file
-  text per press, judged before a file is downloaded; the rest go in `unread`.
+  text per press, reads and bytes judged before a file is downloaded; the rest go
+  in `unread`.
   Turns stop at `TRANSCRIPT_MAX` characters, newest kept.
 - Context: the subject's kind, label and state; the last 3 confirmed summaries
   on the same subject; the open next step; for a meeting its title, time, goal,
   hosts and guests.
 
-The caps, the 50 MB and the 3-summary context are chosen values, not derived.
+The caps, the 20 MB and the 3-summary context are chosen values, not derived.
 The caps replace a token ceiling (§9); 10 MB because a 15 MB PDF is about 20 MB
 of base64 sent inline; 3 summaries give the model the recent thread without the
 whole history.
@@ -157,8 +159,8 @@ an `AiAction` (law 9):
 - **Minutes:** in an editable box, `confirmLabel` `Lưu vào tệp đính kèm`.
 - **Evaluation:** question and proposed answer, `confirmLabel`
   `Dùng đánh giá này`; fills only unanswered questions.
-- **Next step:** one block per suggestion, line = step text, due and its reason,
-  `confirmLabel` `Chọn bước này`. Pressing sets the step draft exactly
+- **Next step:** one `AiChoices` block, a row per suggestion with step text, due
+  and its reason, and a `Chọn bước này` button on each. Pressing sets the step draft exactly
   as `CommNextStepFields`' `pick` does for a template. This slice does not open
   the booking, quotation or composer screens.
 

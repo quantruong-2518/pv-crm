@@ -95,6 +95,8 @@ export class AiGateway {
     for (;;) {
       if (who.deadlineAt !== undefined && Date.now() + route.timeoutMs > who.deadlineAt) {
         const message = `ai ${task}: no attempt fits the deadline after ${run.attempts.length}`
+        /* A route timeout past the deadline lands here with no attempt and no ledger row. */
+        this.log.warn(message)
         throw new AiTransientError(message, run.attempts)
       }
       const model = models[index] as string

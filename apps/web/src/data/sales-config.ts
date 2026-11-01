@@ -1,14 +1,4 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Facebook,
-  Globe,
-  Linkedin,
-  Mail,
-  MessageCircle,
-  Send,
-  Smartphone,
-  type IconGlyph,
-} from '@pv/ui'
 import { type WaveChannel } from '@pv/engines/fixtures/das-vina'
 import {
   ActivityFreshnessResponse,
@@ -33,6 +23,8 @@ import { useCan } from '@/app/auth'
 import { cacheTier } from '@/app/query-client'
 import { contractKindsQuery } from '@/data/quotations-write'
 
+export { CHANNEL_ICON, CHANNEL_LABEL } from '@/data/channels'
+
 /** Cấu hình phòng kinh doanh — module 6. Kịch bản 2 · DAS Vina.
  *
  *  Mọi hằng số định hình dữ liệu của phòng gom về đúng một chỗ. Màn khác đọc
@@ -43,48 +35,6 @@ import { contractKindsQuery } from '@/data/quotations-write'
  *  `salesCatalogQuery` ở cuối file. Mục nào cũng phải trả lời được câu đó, kể cả
  *  mục chưa có giá trị nào (5.5): "chưa ai đặt ngưỡng" mà lại có ngần ấy lead
  *  đang chạy không hạn mới là thứ người xem cần biết. */
-
-/** Kênh gửi hiển thị bằng tên người đọc được (luật 14). Tên sản phẩm giữ nguyên
- *  tiếng Anh — "Zalo OA" không dịch thành "tài khoản chính thức Zalo".
- *
- *  Bảng này thuộc về mục 5.7, tức thuộc về màn Cấu hình. Module 1 hiện còn giữ
- *  một bản sao cục bộ; theo luật 1 của module này thì bản sao đó phải rút về
- *  đây khi ai đó chạm vào màn Chiến dịch lần sau — vì thế hằng số này export
- *  sẵn, chỗ còn thiếu chỉ là dòng import bên màn Chiến dịch. */
-export const CHANNEL_LABEL: Record<WaveChannel, string> = {
-  email: 'Email',
-  'zalo-oa': 'Zalo OA',
-  telegram: 'Telegram',
-  'in-app': 'Trong app',
-  linkedin: 'LinkedIn',
-  facebook: 'Facebook',
-  website: 'Website',
-}
-
-/** Icon định danh của từng kênh — nhìn là biết đợt đó gửi đi đâu, không phải
- *  đọc chữ rồi mới biết. Dùng ở MỌI chỗ web nhắc tới kênh, để một kênh chỉ có
- *  đúng một hình.
- *
- *  Bảng nằm ở tầng `data/` của app chứ không ở `@pv/ui`: "kênh nào là kênh gì"
- *  là kiến thức nghiệp vụ của phòng kinh doanh, còn thư viện chỉ biết nhận một
- *  `IconGlyph` qua props. Đẩy bảng này vào `@pv/ui` là bắt thư viện biết Zalo
- *  OA tồn tại (luật biên giới package · CLAUDE.md).
- *
- *  Truyền tên icon làm dữ liệu là hợp lệ với luật 11 — chỗ render vẫn phải đi
- *  qua `<Icon icon={...} />`, không ai render thẳng.
- *
- *  Bốn kênh E4 lấy hình của chính công cụ gửi (thư · tin nhắn · Telegram · app
- *  trên máy khách); ba kênh còn lại lấy logo nền tảng, vì chúng là chỗ ĐĂNG chứ
- *  không phải chỗ gửi — khác biệt đó là nợ treo số 2, đừng làm mờ nó đi. */
-export const CHANNEL_ICON: Record<WaveChannel, IconGlyph> = {
-  email: Mail,
-  'zalo-oa': MessageCircle,
-  telegram: Send,
-  'in-app': Smartphone,
-  linkedin: Linkedin,
-  facebook: Facebook,
-  website: Globe,
-}
 
 /** Bốn kênh E4 đã có đường thật. Ba kênh còn lại khai báo được nhưng chưa gửi
  *  được — nợ treo số 2 của docs, không lấp bằng cách giấu chúng đi. */

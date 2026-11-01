@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { AiAction, Button, Icon, Orbit, RotateCcw, Textarea } from '@pv/ui'
+import { AiAction, AiChoices, Button, Icon, Orbit, RotateCcw, Textarea } from '@pv/ui'
 import type { CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
 import { userMessage } from '@/app/api'
 import { dm } from '@/lib/date'
@@ -13,8 +13,8 @@ import {
 import type { StepDraft } from '@/data/comm-record-detail'
 
 /** The AI report on a comm's form (ADR 0132): the two buttons under the note,
- *  then one `AiAction` per part, each set where that part is filled in. A block
- *  only proposes; its confirm button is what moves anything into the form.
+ *  then one AI block per part, each set where that part is filled in. A block
+ *  only proposes; its button is what moves anything into the form.
  *
  *  Long text, so every block is the panel: a strip keeps the button in the row
  *  and leaves the words a narrow column on a phone. */
@@ -92,22 +92,32 @@ export function CommAiContent({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
-        <AskButton ai={ai} part="summary" note={note}>
-          Tạo tóm tắt
-        </AskButton>
-        <AskButton ai={ai} part="minutes" note={note}>
-          Tạo biên bản
-        </AskButton>
+      <div className="flex flex-wrap gap-2 empty:hidden">
+        {ai.canAsk && (
+          <>
+            <AskButton ai={ai} part="summary" note={note}>
+              Tạo tóm tắt
+            </AskButton>
+            <AskButton ai={ai} part="minutes" note={note}>
+              Tạo biên bản
+            </AskButton>
+          </>
+        )}
         {ai.canRestore && (
           <Button
             type="button"
             variant="ghost"
             className={TOUCH}
-            onClick={() => onNote(ai.restoreNote())}
+            onClick={() => onNote(ai.restoreNote(note))}
           >
             <Icon icon={RotateCcw} size={16} />
             Lấy lại {ai.words.note} cũ
+          </Button>
+        )}
+        {ai.canRestoreMinutes && (
+          <Button type="button" variant="ghost" className={TOUCH} onClick={ai.restoreMinutes}>
+            <Icon icon={RotateCcw} size={16} />
+            Lấy lại biên bản đã sửa
           </Button>
         )}
       </div>
@@ -245,34 +255,26 @@ export function CommAiSteps({
   if (steps.length === 0) return null
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {steps.map((step) => {
+    <AiChoices
+      choices={steps.map((step) => {
         const next = draftOfAiStep(step, draft, options)
-        return (
-          <AiAction
-            key={step.templateId ?? step.text}
-            variant="panel"
-            className={BLOCK}
-            suggestion={
-              <>
-                <strong className="block font-semibold">{next.text}</strong>
-                {next.due !== '' && (
-                  <span className="text-on-tint-primary-muted tnum block text-[12px]">
-                    Làm trước ngày {dm(next.due)}
-                  </span>
-                )}
-                <span className="mt-1 block">{step.reason}</span>
-              </>
-            }
-            basis={ai.basis}
-            empty="Chưa chọn bước này."
-            confirmLabel="Chọn bước này"
-            done={draft.text === next.text && draft.kindId === next.kindId}
-            doneLabel="Đã điền vào ô"
-            onConfirm={() => onDraft(next)}
-          />
-        )
+        return {
+          key: step.templateId ?? step.text,
+          label: next.text,
+          hint: (
+            <>
+              {next.due !== '' && <span className="tnum block">Làm trước ngày {dm(next.due)}</span>}
+              <span className="block">{step.reason}</span>
+            </>
+          ),
+          picked: draft.text === next.text && draft.kindId === next.kindId,
+          onPick: () => onDraft(next),
+        }
       })}
-    </div>
+      basis={ai.basis}
+      empty="Chưa chọn bước nào."
+      pickLabel="Chọn bước này"
+      pickedLabel="Đã điền vào ô"
+    />
   )
 }

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import {
+  AiChoices,
   AiFieldConflict,
   AiFieldMark,
   AiFillButton,
@@ -11,7 +12,7 @@ import {
 } from '@pv/ui'
 import { SpecCard } from './chrome/spec-card'
 
-/** Zone 02 · the AI fill family (M-21…M-24, M-27, O-12), set beside AIAction (M-09).
+/** Zone 02 · the AI family (M-21…M-24, M-27, M-28, O-12), set beside AIAction (M-09).
  *  Own file because zone-molecules is a catalog already past 800 lines; the
  *  cards return as a fragment so they flow in the zone's three-column grid.
  *  Copy and states follow the approved canvas "Theme kit · Component AI". */
@@ -56,9 +57,48 @@ function FlashDemo() {
   )
 }
 
+const DEMO_CHOICES = [
+  {
+    key: 'call',
+    label: 'Gọi lại chốt lịch khảo sát',
+    hint: 'Làm trước ngày mai. Khách hẹn trả lời trong tuần.',
+  },
+  { key: 'quote', label: 'Gửi báo giá bản sửa', hint: 'Khách hỏi lại giá phần lắp đặt.' },
+  { key: 'visit', label: 'Hẹn gặp tại nhà xưởng' },
+]
+
+/** Press a row to see the picked state; the other rows keep their buttons. */
+function AiChoicesDemo() {
+  const [picked, setPicked] = useState<string>()
+  return (
+    <AiChoices
+      choices={DEMO_CHOICES.map((choice) => ({
+        ...choice,
+        picked: picked === choice.key,
+        onPick: () => setPicked(choice.key),
+      }))}
+      basis="ghi chú · 3 lượt trao đổi · Biên bản khảo sát.pdf"
+      empty="Chưa chọn bước nào."
+      pickLabel="Chọn bước này"
+      pickedLabel="Đã điền vào ô"
+    />
+  )
+}
+
 export function AiFillCards() {
   return (
     <>
+      <SpecCard
+        code="M-28"
+        name="AiChoices"
+        note="nhiều đề xuất, một khối"
+        noteAccent
+        bodyClassName="p-4"
+        footer="một khối glass-ai-panel · mỗi hàng một nút, tablet 48px · một dòng Căn cứ · một dòng chưa chọn, ẩn khi đã chọn một hàng"
+      >
+        <AiChoicesDemo />
+      </SpecCard>
+
       <SpecCard
         code="M-21"
         name="AiFillButton"

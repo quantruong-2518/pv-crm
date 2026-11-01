@@ -1,5 +1,4 @@
 import { inflateRawSync } from 'node:zlib'
-import { PDFDocument } from 'pdf-lib'
 import { TRANSCRIPT_MAX } from '@pv/contracts'
 import type { AiPart } from '@api/platform/ai/ai-client'
 
@@ -8,8 +7,9 @@ import type { AiPart } from '@api/platform/ai/ai-client'
  *
  *  The mime is what the uploader declared, so it is checked against the bytes.
  *  A vendor refuses a file it cannot open, and that refusal is final for the
- *  whole press, so a bad file has to stop here. A password-protected PDF throws
- *  on load for the same reason: no vendor could read it either. */
+ *  whole press, so a bad file has to stop here. A PDF is checked, never parsed:
+ *  a parser inflates its streams with no cap, so a 10 KB file could fill the
+ *  process. A password-protected PDF stops here too: no vendor could read it. */
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -19,9 +19,11 @@ const IMAGE_MAGIC: Record<string, string> = {
   'image/jpeg': '\xff\xd8\xff',
   'image/webp': 'RIFF',
 }
+const WEBP_MARK = 'WEBP'
+const PDF_MAGIC = '%PDF-'
 
-/** Chosen value: far above the text of any real document. */
-const DOCX_MAX_INFLATED = 50 * 1024 * 1024
+/** Chosen value: `TRANSCRIPT_MAX` of text is a few MB of XML, and this is held in memory. */
+const DOCX_MAX_INFLATED = 20 * 1024 * 1024
 const DOCX_BODY = 'word/document.xml'
 const XML_ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
@@ -76,11 +78,10 @@ function docxText(xml: string): string {
     if (close < 0) break
     const next = xml.indexOf('<', close)
     const tag = xml.slice(at + 1, close)
-    if (tag === '/w:p') out.push('\n')
-    else if (next > close && (tag === 'w:t' || tag.startsWith('w:t '))) {
-      out.push(xml.slice(close + 1, next))
-    }
-    chars += out.at(-1)?.length ?? 0
+    const run = next > close && (tag === 'w:t' || tag.startsWith('w:t '))
+    const piece = tag === '/w:p' ? '\n' : run ? xml.slice(close + 1, next) : ''
+    out.push(piece)
+    chars += piece.length
     at = next
   }
   return out.join('').replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, unescapeXml)
@@ -92,17 +93,20 @@ function unescapeXml(whole: string, name: string): string {
   return String.fromCodePoint(parseInt(name.slice(hex ? 2 : 1), hex ? 16 : 10))
 }
 
+const startsWith = (bytes: Buffer, magic: string): boolean =>
+  bytes.toString('latin1', 0, magic.length) === magic
+
 /** Throws on a file that does not parse: the caller files it under `unread`. */
-export async function partOf(mime: string, bytes: Buffer): Promise<AiPart | null> {
+export function partOf(mime: string, bytes: Buffer): AiPart | null {
   /* `fatal`: a binary or UTF-16 file must not reach the model as mojibake. */
   if (mime === 'text/plain') return words(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
   if (mime === DOCX) return words(docxText(docxBody(bytes)))
   if (mime === 'application/pdf') {
-    await PDFDocument.load(bytes)
-    return { file: { mime, bytes } }
+    const readable = startsWith(bytes, PDF_MAGIC) && !bytes.includes('/Encrypt')
+    return readable ? { file: { mime, bytes } } : null
   }
   const magic = IMAGE_MAGIC[mime]
-  return magic && bytes.toString('latin1', 0, magic.length) === magic
-    ? { file: { mime, bytes } }
-    : null
+  const fits = magic !== undefined && startsWith(bytes, magic)
+  const webp = mime !== 'image/webp' || bytes.toString('latin1', 8, 12) === WEBP_MARK
+  return fits && webp ? { file: { mime, bytes } } : null
 }

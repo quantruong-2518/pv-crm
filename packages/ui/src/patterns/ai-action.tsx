@@ -38,6 +38,15 @@ export type AiActionProps = {
   className?: string
 }
 
+/** The AI block's tile: one mark, so the two blocks read as one family. */
+function AiTile() {
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-[linear-gradient(135deg,var(--primary),var(--brand-blue))]">
+      <Icon icon={Zap} size={16} strokeWidth={1.9} className="text-primary-foreground" />
+    </div>
+  )
+}
+
 export function AiAction({
   suggestion,
   basis,
@@ -64,9 +73,7 @@ export function AiAction({
       )}
     >
       <div className={variant === 'strip' ? 'flex items-center gap-3.5' : 'flex flex-col gap-3.5'}>
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-sm bg-[linear-gradient(135deg,var(--primary),var(--brand-blue))]">
-          <Icon icon={Zap} size={16} strokeWidth={1.9} className="text-primary-foreground" />
-        </div>
+        <AiTile />
 
         <div className="text-on-tint-primary flex-1 text-[13px] leading-[1.55]">
           {suggestion}
@@ -98,6 +105,86 @@ export function AiAction({
           Chữ nằm TRÊN nền đã nhuộm azure nên dùng nhóm `--on-tint-*` (luật 1),
           không phải `--muted-foreground` của nền màn. */}
       {done ? null : (
+        <p className="text-on-tint-primary-muted text-[11.5px] leading-[1.5]">{empty}</p>
+      )}
+    </div>
+  )
+}
+
+export type AiChoice = {
+  key: string
+  label: ReactNode
+  /** Under the label: the day, the reason. */
+  hint?: ReactNode
+  onPick: () => void
+  /** Shows `pickedLabel` in place of the row's button. */
+  picked?: boolean
+}
+
+export type AiChoicesProps = {
+  choices: readonly AiChoice[]
+  basis: string
+  basisLabel?: string
+  empty: ReactNode
+  pickLabel?: string
+  pickedLabel?: string
+  className?: string
+}
+
+/** M-28 · AiChoices — one AI block with several options, one button each.
+ *
+ *  Law 9 as in M-09: `basis`, `empty` and every `onPick` are required by type.
+ *  Several M-09 stacked repeat one basis line per block and push the form they
+ *  fill off the screen; these rows share one. Secondary buttons, because
+ *  a row of primaries leaves nothing to lead the eye. */
+export function AiChoices({
+  choices,
+  basis,
+  basisLabel = 'Căn cứ',
+  empty,
+  pickLabel = 'Chọn',
+  pickedLabel = 'Đã chọn',
+  className,
+}: AiChoicesProps) {
+  return (
+    <div
+      className={cn(
+        'glass-ai-panel wrap-break-word flex flex-col gap-3 rounded-lg px-5 py-4',
+        className,
+      )}
+    >
+      <AiTile />
+      <ul className="m-0 flex list-none flex-col gap-4 p-0">
+        {choices.map((choice) => (
+          <li key={choice.key} className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1 basis-48 text-[13px] leading-[1.55]">
+              <div className="text-on-tint-primary font-semibold">{choice.label}</div>
+              {choice.hint && (
+                <div className="text-on-tint-primary-muted text-[12px]">{choice.hint}</div>
+              )}
+            </div>
+            {choice.picked ? (
+              <span className="text-on-tint-success-strong text-[12.5px] font-semibold">
+                {pickedLabel}
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="secondary"
+                className="pointer-coarse:h-12 shrink-0"
+                onClick={choice.onPick}
+              >
+                {pickLabel}
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <small className="text-on-tint-primary-muted block text-[11.5px]">
+        {basisLabel}: {basis}
+      </small>
+      {/* As in M-09: once something is picked, this line would be untrue. */}
+      {choices.some((choice) => choice.picked) ? null : (
         <p className="text-on-tint-primary-muted text-[11.5px] leading-[1.5]">{empty}</p>
       )}
     </div>
