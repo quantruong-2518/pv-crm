@@ -78,24 +78,33 @@ export function CommFormSteps({
   )
 }
 
-const STICKY_BAR_VAR = '--sticky-bar-h'
+const STICKY_BAR_VAR = '--sticky-bar-clear'
 
 /** Sticky under the open card: what is still missing, then the buttons.
  *  Lifted over the bottom nav on a phone; on a laptop narrow enough that the
  *  column meets the assistant button, it stops short of it. */
 export function CommFormBar({ problem, children }: { problem: FormProblem; children: ReactNode }) {
   const bar = useRef<HTMLDivElement>(null)
-  /* The AI tray sits in this same corner: published so it floats above these buttons. */
+  /* The AI tray sits in this same corner. The distance from the screen bottom, not the
+     height: on a short step the bar rests higher up than the sticky offset. */
   useLayoutEffect(() => {
     const el = bar.current
     if (!el) return
     const root = document.documentElement
-    const publish = () => root.style.setProperty(STICKY_BAR_VAR, `${el.offsetHeight + 12}px`)
+    const publish = () => {
+      const clear = window.innerHeight - el.getBoundingClientRect().top + 12
+      root.style.setProperty(STICKY_BAR_VAR, `${clear}px`)
+    }
     publish()
     const watch = new ResizeObserver(publish)
     watch.observe(el)
+    watch.observe(document.body)
+    window.addEventListener('scroll', publish, { passive: true })
+    window.addEventListener('resize', publish)
     return () => {
       watch.disconnect()
+      window.removeEventListener('scroll', publish)
+      window.removeEventListener('resize', publish)
       root.style.removeProperty(STICKY_BAR_VAR)
     }
   }, [])

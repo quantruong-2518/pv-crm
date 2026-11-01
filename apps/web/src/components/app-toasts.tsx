@@ -17,12 +17,12 @@ consumeGoogleReturn()
 export function AppToasts() {
   const items = useToasts((s) => s.items)
   const dismiss = useToasts((s) => s.dismiss)
-  /* Stacks above the AI task tray, whose height is published as `--ai-tray-h` (height plus a gap). */
+  /* Stacks above the AI task tray (`--ai-tray-h`, its height plus a gap), which sits above a form's bar. */
   return (
     <ToastHost
       items={items}
       onDismiss={dismiss}
-      className="bottom-[calc(118px+var(--ai-tray-h,0px))] lg:bottom-[calc(24px+var(--ai-tray-h,0px))]"
+      className="bottom-[calc(max(118px,var(--sticky-bar-clear,0px))+var(--ai-tray-h,0px))] lg:bottom-[calc(max(24px,var(--sticky-bar-clear,0px))+var(--ai-tray-h,0px))]"
     />
   )
 }

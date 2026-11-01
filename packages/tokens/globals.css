@@ -68,7 +68,7 @@
 
   --radius: 0.375rem; /* 6px — panel */
   --ai-tray-h: 0px; /* AiTaskTray writes its height here so toasts stack above it */
-  --sticky-bar-h: 0px; /* a form's sticky bar writes its height here so the tray clears it */
+  --sticky-bar-clear: 0px; /* a form's sticky bar writes its distance from the screen bottom here */
 
   /* ---- text inside an already-tinted block ----
      Pebble Aurora colors such text with the status tone itself, so the
