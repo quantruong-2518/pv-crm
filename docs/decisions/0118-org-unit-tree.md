@@ -1,6 +1,6 @@
 # 0118 · One org tree — Company → Department → Team — versioned by month, replaces the KPI team roster from 12/2026
 
-Status: proposed (wave 2a of the KPI plan; supersedes 0101's team editor for months the tree covers)
+Status: accepted (wave 2a of the KPI plan; supersedes 0101's team editor for months the tree covers)
 Source: project owner's decisions of 22/10/2026: tiered targets from 12/2026 (Q1–Q4, Q10, Q11 at their defaults);
 Q4 one tree for KPI now and for lead/opportunity visibility later; the holders of `kpi.set-target` edit the tree;
 the director heads the company and heads of sales head departments, lifting 0101's ban on those two roles.

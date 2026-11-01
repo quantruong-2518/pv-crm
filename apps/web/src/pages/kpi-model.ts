@@ -146,7 +146,8 @@ const BILLION = 1_000_000_000
 export function printValue(unit: KpiUnit, value: number, compact = false): string {
   if (unit === 'money') {
     if (!compact) return vnd(value)
-    return Math.abs(value) >= BILLION ? billions(value, 1) : millions(value)
+    /* "750 tr", not "750,0 tr": the decimal says something only when it is not 0. */
+    return (Math.abs(value) >= BILLION ? billions(value, 1) : millions(value)).replace(',0 ', ' ')
   }
   if (unit === 'ratio') return `${num(value * 100)}%`
   if (unit === 'hours') return `${oneDecimal(value)} giờ`

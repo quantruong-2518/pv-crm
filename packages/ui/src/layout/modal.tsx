@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from '../icons'
 import { cn } from '../lib/cn'
@@ -31,6 +31,25 @@ export type ModalProps = {
   className?: string
 }
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** Tab wraps at the panel's edges: fields behind the scrim must stay out of reach. */
+function keepTabInside(event: KeyboardEvent, panel: HTMLElement) {
+  const inside = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)]
+  const first = inside[0]
+  const last = inside.at(-1)
+  const at = document.activeElement
+  if (!first || !last) event.preventDefault()
+  else if (event.shiftKey && (at === first || at === panel)) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && at === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 export function Modal({
   open,
   onClose,
@@ -53,6 +72,7 @@ export function Modal({
    *  opened from inside this panel (the mail guide drawer does exactly that)
    *  must take the keypress and leave the half-written form standing. */
   const isTop = useOverlayLayer(mounted && !leaving)
+  const titleId = useId()
 
   const shown = useRef({ title, subtitle, meta, headerAction, footer, children })
   if (open) shown.current = { title, subtitle, meta, headerAction, footer, children }
@@ -82,6 +102,7 @@ export function Modal({
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isTop()) onClose()
+      if (event.key === 'Tab' && isTop() && panel.current) keepTabInside(event, panel.current)
     }
     document.addEventListener('keydown', onKey)
     panel.current?.focus()
@@ -122,6 +143,7 @@ export function Modal({
         ref={panel}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         tabIndex={-1}
         onAnimationEnd={(event) => {
           if (event.target === event.currentTarget && leaving) setMounted(false)
@@ -139,7 +161,9 @@ export function Modal({
       >
         <header className="flex items-start gap-3 px-5 pb-4 pt-5 lg:px-6">
           <div className="min-w-0 flex-1">
-            <h2 className="font-display m-0 text-[18px] font-semibold">{view.title}</h2>
+            <h2 id={titleId} className="font-display m-0 text-[18px] font-semibold">
+              {view.title}
+            </h2>
             {view.subtitle && (
               <p className="text-muted-foreground m-0 mt-1 text-[11.5px] leading-[1.5]">
                 {view.subtitle}

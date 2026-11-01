@@ -86,7 +86,13 @@ export const cacheTier = {
  *  thì họ vào lại và thấy một màn trắng đang tải — tức là mất đúng thứ lớp khoá
  *  sinh ra để giữ. Đổi lại, dữ liệu cũ còn trong bộ nhớ sau lớp mờ; ai cần dọn
  *  thật thì bấm "Đăng xuất", và đường đó đi qua đúng nhánh đầu tiên dưới đây. */
+let owner = useSession.getState().actor?.id ?? null
+
+/* `owner` outlives the session: expired, one wrong password, then someone else signing
+   in goes actor A → null → B, and no single step shows two different people. */
 useSession.subscribe((now, before) => {
   if (before.status === 'signed-in' && now.status === 'guest') queryClient.clear()
-  else if (now.actor && before.actor && now.actor.id !== before.actor.id) queryClient.clear()
+  if (!now.actor) return
+  if (owner && owner !== now.actor.id) queryClient.clear()
+  owner = now.actor.id
 })

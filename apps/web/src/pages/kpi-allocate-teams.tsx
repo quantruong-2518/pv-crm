@@ -1,7 +1,7 @@
 import { Badge, Input, cn } from '@pv/ui'
-import type { KpiAllocation, KpiMetricDef } from '@pv/contracts'
+import type { KpiAllocation, KpiMetricDef, KpiUnit } from '@pv/contracts'
 import { NOTE } from './home-tiles'
-import { teamStatusOf, type TeamRow } from './kpi-allocate-model'
+import { teamStatusOf, typedOf, type TeamRow } from './kpi-allocate-model'
 import { DASH, UNIT_WORD, parseTyped, printShortMinus, printValue } from './kpi-model'
 
 /** The pieces of the allocation table that differ between a person's row and a
@@ -11,6 +11,14 @@ import { DASH, UNIT_WORD, parseTyped, printShortMinus, printValue } from './kpi-
  *  The keys and the saved-share lookup live in `kpi-allocate-model.ts`. */
 
 const NOTE_NUM = cn(NOTE, 'tnum font-num')
+
+/** On leaving the box, not while typing: regrouping mid-number would throw the caret. */
+function groupedOf(unit: KpiUnit, text: string): string {
+  const value = parseTyped(unit, text)
+  return typeof value === 'number' && (unit === 'money' || unit === 'count')
+    ? typedOf(unit, value)
+    : text
+}
 
 /** One figure: an input while the package is open, the saved number after. */
 export function ValueCell({
@@ -49,6 +57,10 @@ export function ValueCell({
             value={text}
             invalid={parseTyped(def.unit, text) === null}
             onChange={(e) => onChange(e.target.value)}
+            onBlur={() => {
+              const tidy = groupedOf(def.unit, text)
+              if (tidy !== text) onChange(tidy)
+            }}
           />
           {unit && <span className={cn(NOTE, 'shrink-0')}>{unit}</span>}
         </span>

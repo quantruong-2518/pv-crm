@@ -1,6 +1,6 @@
 # 0120 · KPI targets flow down the org tree from 12/2026: each head assigns the level below, people confirm, late levels get last month's figure
 
-Status: proposed (wave 2b of the KPI plan; for months from 2026-12 it replaces the approval parts of 0082 §5, 0098
+Status: accepted (wave 2b of the KPI plan; for months from 2026-12 it replaces the approval parts of 0082 §5, 0098
 and 0101)
 Source: project owner's decisions of 22/10/2026 (Q1–Q4, Q10, Q11 at their defaults) and 26/10/2026 (a fixed
 cutover month; units receive per role; a late level gets last month's target). The defaults page that held the
@@ -70,7 +70,7 @@ sent | superseded`, `by_default`, sent by/at) holds what the head of a unit hand
     line, and whom to write to: the sender, else the unit's head; nobody who has left, and never themself. The email
     leaves only by the person's own door among KPI doors. A send above 120% asks first, on the same figures the sum
     row prints; a send the page could not foresee still goes and the toast names it.
-13. **This widens §7, pending the owner's confirmation.** A head and their stand-in read last month's results of the people they assign to,
+13. **This widens §7 on purpose (owner 01/11/2026).** A head and their stand-in read last month's results of the people they assign to,
     judged on the tree of the month being assigned, even when no tree covers the month read: December's heads read
     October, where `GET :period/people/:actorId` still answers 403. A number cannot be split sensibly without it, and
     the page shows that one month only. A new head named in a later version reads the same once that version is open.
@@ -84,7 +84,6 @@ sent | superseded`, `by_default`, sent by/at) holds what the head of a unit hand
 - A missing previous figure is 0 with the flag, not a guess.
 - §12 reads the newest finished month, not P−1.
 - §12's contact is the sender, else the unit's head, and an email link: `platform.actor` holds no phone number.
-- §13's widening came from the trace of 01/11, not from the owner.
 - §12's last month may be negative: a month of refunds shows as it is, and a unit's sum counts it.
 - A holder with no reading adds nothing to a unit's figure; a tally with no records is a real 0.
 
