@@ -1,12 +1,14 @@
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import {
   isTieredPeriod,
   kpiMetricShare,
+  KpiAssignmentContact,
   KpiAssignmentMineResponse,
   KpiAssignmentPageResponse,
   KpiAssignmentTreeResponse,
   RoleId,
+  type KpiAssignmentActual,
   type KpiAssignmentUnitState,
   type KpiMetricDef,
   type KpiMonthClose,
@@ -22,14 +24,20 @@ import { spansOf } from '../performance/performance-period'
 import { targetSources } from './kpi-allocation.mapper'
 import { KpiAbsenceRepository } from './kpi-absence.repository'
 import { KpiAllocationRepository } from './kpi-allocation.repository'
-import { KpiAssignmentRepository } from './kpi-assignment.repository'
+import { KpiAllocationService } from './kpi-allocation.service'
+import { KpiAssignmentRepository, type KpiSetRow } from './kpi-assignment.repository'
 import {
+  actualsOver,
+  changedSince,
+  companyActuals,
   confirmedIn,
   deadlineOf,
   defaulted,
   draftOf,
+  holdersUnder,
   inForceOf,
   isCompany,
+  lastFinishedMonth,
   linesOf,
   needsSet,
   nodeOf,
@@ -48,6 +56,7 @@ import {
   type Previous,
 } from './kpi-assignment.mapper'
 import { KpiCloseRepository } from './kpi-close.repository'
+import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiConfigService } from './kpi-config.service'
 import { readsInTree } from './kpi-person-access'
 import { assertTieredMonth, nextMonth, vietnamToday } from './kpi-rules'
@@ -75,8 +84,19 @@ const unitRef = (tree: KpiOrgTree, unitId: string) => {
 const unitState = (set: { byDefault: boolean } | null) =>
   set ? (set.byDefault ? 'sent-by-default' : 'sent') : 'not-sent'
 
+/** Last month on a head's page: which month, one child's results, the company's own. */
+type LastMonth = {
+  period: KpiPeriodKey | null
+  of: (ids: readonly string[]) => KpiAssignmentActual[]
+  totals: KpiAssignmentActual[]
+}
+
+const NO_LAST_MONTH: LastMonth = { period: null, of: () => [], totals: [] }
+
 @Injectable()
 export class KpiAssignmentReader {
+  private readonly log = new Logger('sales.kpi')
+
   constructor(
     private readonly repo: KpiAssignmentRepository,
     private readonly teams: KpiTeamRepository,
@@ -87,6 +107,7 @@ export class KpiAssignmentReader {
     private readonly allocations: KpiAllocationRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
     private readonly absences: KpiAbsenceRepository,
+    private readonly packages: KpiAllocationService,
   ) {}
 
   /** Sequential reads: on a transaction handle they share one connection. */
@@ -126,19 +147,20 @@ export class KpiAssignmentReader {
       this.config.effectiveCatalog(),
       this.closes.of(period),
     ])
-    return this.pageOf(who, book, catalog[role], role, unit, monthClose)
+    return this.pageOf(who, book, catalog, role, unit, monthClose)
   }
 
   /** A draft shows its copied lines as the send would write them. */
   async pageOf(
     who: Actor,
     book: Book,
-    defs: readonly KpiMetricDef[],
+    catalog: KpiCatalog,
     role: RoleId,
     unitId: string,
     monthClose: KpiMonthClose,
   ): Promise<KpiAssignmentPageResponse> {
     const { tree, sets, period } = book
+    const defs = catalog[role]
     const today = vietnamToday()
     const node = nodeOf(tree, unitId)!
     const company = isCompany(tree, unitId)
@@ -155,6 +177,7 @@ export class KpiAssignmentReader {
     )
     const held = inForce ? linesOf(book, inForce.id) : []
     const due = deadlineOf(period, 'person')
+    const last = await this.lastMonth(who, book, catalog, role, unitId, today)
     return KpiAssignmentPageResponse.parse({
       period,
       role,
@@ -181,6 +204,7 @@ export class KpiAssignmentReader {
           kind: 'unit',
           unit: unitRef(tree, u),
           state: unitState(inForceOf(sets, role, u)),
+          lastActuals: last.of(holdersUnder(tree, role, u)),
         })),
         ...to.people.map((p) => ({
           kind: 'person',
@@ -190,10 +214,55 @@ export class KpiAssignmentReader {
             today,
             due,
           ),
+          lastActuals: last.of([p]),
         })),
       ],
       sums: sumsOf(defs, company ? totalsIn(shown) : received, shown),
+      lastActualPeriod: last.period,
+      lastActualTotals: last.totals,
     })
+  }
+
+  /** `figures` is the scorecard's own read, so a closed month answers from its frozen
+   *  copy. Asked for the holders under this unit alone; `people` says the same, or a
+   *  holder off the Sales roster would read a closed month as a live zero. */
+  private async lastMonth(
+    who: Actor,
+    book: Book,
+    catalog: KpiCatalog,
+    role: RoleId,
+    unitId: string,
+    today: string,
+  ): Promise<LastMonth> {
+    const defs = catalog[role]
+    const company = isCompany(book.tree, unitId)
+    /* Whole-book results stay behind `GET :period/company`'s own permission, so a
+       company seat without `performance.view` keeps the holders' sums alone. */
+    const wholeBook = company && this.access.allows(who, 'performance.view')
+    const shares = defs.map(kpiMetricShare)
+    if (!shares.includes('additive') && !(wholeBook && shares.includes('total')))
+      return NO_LAST_MONTH
+    const holders = holdersUnder(book.tree, role, unitId)
+    if (!company && holders.length === 0) return NO_LAST_MONTH
+    const period = lastFinishedMonth(book.period, today)
+    /* Draft and send land here after their commit: a throw would answer 500 for a send
+       that went through, and its retry `nothing-to-send`. These figures are only a hint. */
+    const figure = await this.packages
+      .figures(spansOf(period).current, [role], holders, catalog, {
+        people: holders.map((id) => ({ id })),
+      })
+      .catch((error: unknown) => {
+        this.log.error(`KPI last month ${period} for ${role} not read: ${String(error)}`)
+        return null
+      })
+    if (!figure) return NO_LAST_MONTH
+    const of = (actorId: string, key: KpiMetricDef['key']) => figure(role, actorId, key)
+    const shown = wholeBook ? defs : defs.filter((d) => kpiMetricShare(d) !== 'total')
+    return {
+      period,
+      of: (ids) => actualsOver(defs, ids, of),
+      totals: company ? companyActuals(shown, holders, of) : [],
+    }
   }
 
   /** The caller's own lines, plus the company's room totals of the role: that is
@@ -233,7 +302,23 @@ export class KpiAssignmentReader {
       confirmedAt: confirmed ? new Date(Math.max(...(stamps as number[]))).toISOString() : null,
       acceptedByDefault: own.some((l) => defaulted(l, today, due)),
       deadline: due,
+      changedFrom: from ? changedSince(book!, from.set, who.id) : [],
+      contact: from ? await this.contactFor(who, book!, from.set) : null,
     })
+  }
+
+  /** The sender, else the unit's head: the sweep sends nothing and a sender may have
+   *  left. Nobody writes to themself. */
+  private async contactFor(
+    who: Actor,
+    book: Book,
+    set: KpiSetRow,
+  ): Promise<KpiAssignmentContact | null> {
+    for (const id of [set.sentBy, headOf(book.tree, set.unitId)]) {
+      const contact = id && id !== who.id ? await this.repo.contactOf(id) : null
+      if (contact) return contact
+    }
+    return null
   }
 
   /** The director's assignment status screen: every unit that hands `role` down, in tree

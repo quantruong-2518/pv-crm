@@ -5,16 +5,12 @@ import {
   AppShell,
   Button,
   GlassCard,
-  Icon,
   MetaPill,
   ScreenHeader,
   ScreenLayout,
   SegmentedControl,
-  Send,
 } from '@pv/ui'
 import {
-  KPI_ASSIGNMENT_OVER_RATIO,
-  KPI_METRIC_LABEL,
   RoleId,
   isTieredPeriod,
   kpiAssignmentNeedsSet,
@@ -41,12 +37,14 @@ import {
   UNIT_PARAM,
   bodyOf,
   fieldsOf,
+  lateOver,
   liveSums,
   savedValues,
   setChip,
   statusHref,
   type Label,
 } from './kpi-assign-model'
+import { SendDown } from './kpi-assign-over-dialog'
 import { ReceivedCard } from './kpi-assign-received'
 import { ChildrenTable } from './kpi-assign-table'
 import { monthEnded, useMonthParam } from './kpi-model'
@@ -164,9 +162,7 @@ function RoleDesk({
       {
         onSuccess: ({ warnings }) => {
           setRefused([])
-          const over = warnings.map((w) => KPI_METRIC_LABEL[w.metricKey]).join(', ')
-          const ratio = Math.round(KPI_ASSIGNMENT_OVER_RATIO * 100)
-          toastDone('Đã gửi xuống', over ? `Vượt ${ratio}% mức nhận: ${over}` : undefined)
+          toastDone('Đã gửi xuống', lateOver(page, warnings, sums))
         },
         /* A race: the saved draft moved under the press; mark what the screen now reads short. */
         onError: (e) =>
@@ -216,10 +212,7 @@ function RoleDesk({
           >
             Lưu nháp
           </Button>
-          <Button className="pointer-coarse:h-12" disabled={!sendable} onClick={sendNow}>
-            <Icon icon={Send} size={16} />
-            Gửi xuống
-          </Button>
+          <SendDown page={page} defs={defs} sums={sums} disabled={!sendable} onSend={sendNow} />
         </>
       )}
     </>

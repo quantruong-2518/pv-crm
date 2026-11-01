@@ -7,9 +7,9 @@ import { DataTable, cn, type TableColumn, type TableRowModel } from '@pv/ui'
  *
  *  From `from` up the table renders as before, inside its own sideways scroll.
  *  Below it the first cell is the card's title, every other cell a label/value
- *  pair under its column header, `action` cells a row at the bottom. Only one
- *  tree is mounted (matchMedia), so a field is never in the DOM twice; what
- *  is typed lives in the screen's state and survives the switch.
+ *  pair under its column header, `action` cells a row at the bottom, a `null`
+ *  cell left out. Only one tree is mounted (matchMedia), so a field is never in
+ *  the DOM twice; what is typed lives in the screen's state and survives the switch.
  *
  *  It paints no glass: like DataTable it sits in a `<GlassCard variant="b">`
  *  (law 8); the cards are a light tint on that surface. */
@@ -22,7 +22,15 @@ export type StackColumn = TableColumn & {
 
 /** The row features a card can carry; `details` and `state` stay table-only.
  *  A row with `onOpen` is itself a button, so its cells hold no link or button. */
-export type StackRow = Pick<TableRowModel, 'id' | 'cells' | 'onOpen'>
+export type StackRow = Pick<TableRowModel, 'id' | 'cells' | 'onOpen'> & {
+  /** A card that crosses both columns at `md`, so it does not read as one more row. */
+  span?: boolean
+}
+
+/** The control edge for a box on a tinted surface. Box shadows do not stack, so the
+ *  edge steps aside for the invalid ring (0,1,0) and the focus ring (0,2,0): both
+ *  would lose to a selector this specific, and a bare `[&_input]` beats the first. */
+export const FIELD_EDGE = '[&_input:not([aria-invalid]):not(:focus-visible)]:shadow-control'
 
 /** Tailwind's own `md` and `lg`, so the switch lines up with the page grid. */
 const QUERY = { md: '(min-width: 48rem)', lg: '(min-width: 64rem)' } as const
@@ -54,7 +62,7 @@ function Card({ columns, row }: { columns: StackColumn[]; row: StackRow }) {
     row.onOpen?.()
   }
   return (
-    <li className="min-w-0">
+    <li className={cn('min-w-0', row.span && 'md:col-span-2')}>
       <div
         role={row.onOpen ? 'button' : undefined}
         tabIndex={row.onOpen ? 0 : undefined}
@@ -62,14 +70,16 @@ function Card({ columns, row }: { columns: StackColumn[]; row: StackRow }) {
         onKeyDown={row.onOpen ? onKeyDown : undefined}
         /* An input's fill matches this card's tint (≈1:1 in every theme), so it takes the control edge. */
         className={cn(
-          'bg-surface-ink/5 [&_input]:shadow-control flex h-full flex-col gap-3 rounded-lg p-4 text-[12.5px]',
+          'bg-surface-ink/5 flex h-full flex-col gap-3 rounded-lg p-4 text-[12.5px]',
+          FIELD_EDGE,
           row.onOpen && OPENABLE,
         )}
       >
         <div className="min-w-0 text-[13px]">{title}</div>
         <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-3 gap-y-2">
           {fields.map(({ cell, col }, i) => {
-            if (col?.stack === 'action') return null
+            /* Nothing to label: a sum row owes no state. */
+            if (col?.stack === 'action' || cell === null) return null
             const wide = col?.stack === 'wide'
             return (
               <div key={i} className={wide ? 'col-span-2 flex flex-col gap-1' : 'contents'}>

@@ -44,7 +44,7 @@ sent | superseded`, `by_default`, sent by/at) holds what the head of a unit hand
    copy the previous level as in §4. An unsent draft at the deadline is that same row: its lines are replaced by
    the default ones and it is sent in place. A default set is not held to §4's sum rule; the page flags it. The bell
    `kpi-assignment-late` goes to the head one level up; for the company head, to the target setters. A person who
-   has not confirmed by the 28th is shown "mặc định nhận" (the 0114 flag), not confirmed.
+   has not confirmed by the 28th is shown "Nhận mặc định" (the 0114 flag), not confirmed.
 7. **Seat and stand-in.** The head of a unit acts for its set. Away (0117) → the stand-in, else the heads above
    (`headsOver`, a pure walk over the tree version, in the platform org module), else the setters. Bells to a seat
    use the same walk. A head reads every person in their subtree for months the tree covers, even holding only
@@ -62,12 +62,31 @@ sent | superseded`, `by_default`, sent by/at) holds what the head of a unit hand
 11. **Two holes in the old doors are closed here**, since old months keep using them: the acknowledgement door writes
     its audit row like the allocation door does, and the room counter-resolve door refuses a team-tier counter.
 
+12. **What a head and a person read beside a figure** (owner's request of 01/11/2026 after the design review of the
+    screens; how it works is listed under the last heading).
+    The assignment page shows each child's result of the newest finished month, never P−1 while it runs: heads assign
+    on days 20–28, so P−1 would read about two-thirds of a month. A unit reads the sum of its current holders; a closed
+    month reads its frozen value; copied metrics show nothing. A person's confirm card shows the old value of a changed
+    line, and whom to write to: the sender, else the unit's head; nobody who has left, and never themself. The email
+    leaves only by the person's own door among KPI doors. A send above 120% asks first, on the same figures the sum
+    row prints; a send the page could not foresee still goes and the toast names it.
+13. **This widens §7, pending the owner's confirmation.** A head and their stand-in read last month's results of the people they assign to,
+    judged on the tree of the month being assigned, even when no tree covers the month read: December's heads read
+    October, where `GET :period/people/:actorId` still answers 403. A number cannot be split sensibly without it, and
+    the page shows that one month only. A new head named in a later version reads the same once that version is open.
+    Whole-book company figures stay behind `performance.view`.
+
 ## Defaults that are not the owner's
 
 - Ratio and duration metrics are not split (taken from PLAN and the 20/10 canvas notes, not from the Q3 wording).
 - Q10 (the closer earns the commission, 0110) is left to slice 2d; Q11 is read as the cutover month.
 - People confirm but cannot counter; a resend is locked once a level below has sent.
 - A missing previous figure is 0 with the flag, not a guess.
+- §12 reads the newest finished month, not P−1.
+- §12's contact is the sender, else the unit's head, and an email link: `platform.actor` holds no phone number.
+- §13's widening came from the trace of 01/11, not from the owner.
+- §12's last month may be negative: a month of refunds shows as it is, and a unit's sum counts it.
+- A holder with no reading adds nothing to a unit's figure; a tally with no records is a real 0.
 
 ## Consequences
 

@@ -180,6 +180,10 @@ export function printSigned(unit: KpiUnit, value: number, compact = false): stri
   return `${sign}${printValue(unit, Math.abs(value), compact)}`
 }
 
+/** `printShort` for a figure that may fall below zero: `printSigned`'s minus, no plus. */
+export const printShortMinus = (unit: KpiUnit, value: number) =>
+  value < 0 ? `\u2212${printShort(unit, -value)}` : printShort(unit, value)
+
 /** How the line prints: `tile` and `cell` differ in number format only (a table
  *  prints every dong, as its figure does); `heat` is the short form for a narrow cell. */
 export type AdjustmentForm = 'tile' | 'cell' | 'heat'

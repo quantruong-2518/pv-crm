@@ -2,7 +2,7 @@ import { Badge, Input, cn } from '@pv/ui'
 import type { KpiAllocation, KpiMetricDef } from '@pv/contracts'
 import { NOTE } from './home-tiles'
 import { teamStatusOf, type TeamRow } from './kpi-allocate-model'
-import { DASH, UNIT_WORD, parseTyped, printShort, printValue } from './kpi-model'
+import { DASH, UNIT_WORD, parseTyped, printShortMinus, printValue } from './kpi-model'
 
 /** The pieces of the allocation table that differ between a person's row and a
  *  team's row (ADR 0101): both are a figure per metric, but a team's figure is
@@ -20,6 +20,7 @@ export function ValueCell({
   text,
   saved,
   last,
+  lastLabel = 'Tháng trước',
   onChange,
 }: {
   def: KpiMetricDef
@@ -31,6 +32,8 @@ export function ValueCell({
   saved: number | null
   /** Last month's actual, when it could be read. */
   last: number | null
+  /** Which month `last` is; the tiered screens name it. */
+  lastLabel?: string
   onChange: (text: string) => void
 }) {
   const unit = UNIT_WORD[def.unit]
@@ -55,7 +58,9 @@ export function ValueCell({
         </span>
       )}
       {last !== null && (
-        <span className={NOTE_NUM}>Tháng trước đạt {printShort(def.unit, last)}</span>
+        <span className={NOTE_NUM}>
+          {lastLabel} đạt {printShortMinus(def.unit, last)}
+        </span>
       )}
     </span>
   )

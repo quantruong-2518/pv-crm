@@ -1,9 +1,11 @@
 import {
+  KPI_METRIC_LABEL,
   KpiAssignmentDraftBody,
   TIERED_FROM,
   kpiAssignmentSum,
   kpiMetricShare,
   vnDayOf,
+  type KpiAssignmentActual,
   type KpiAssignmentChild,
   type KpiAssignmentPageResponse,
   type KpiAssignmentPersonState,
@@ -41,6 +43,9 @@ export const statusHref = (period: string, role?: RoleId) =>
 /** Said wherever a month before the cutover meets a tiered door, or the reverse. */
 export const TIERED_SENTENCE = `Giao chỉ tiêu theo phòng ban và nhóm bắt đầu từ tháng ${Number(TIERED_FROM.slice(5))}/${TIERED_FROM.slice(0, 4)}.`
 
+/** Copied lines always carry the company's level, whichever unit hands them on. */
+export const COPIED_WORD = 'Áp chung cho cả công ty'
+
 export const KIND_WORD: Record<OrgUnitKind, string> = {
   company: 'Công ty',
   department: 'Phòng',
@@ -60,7 +65,7 @@ export const PERSON_STATE_LABEL: Record<KpiAssignmentPersonState, Label> = {
   'not-sent': { text: 'Chưa giao', tone: 'draft' },
   pending: { text: 'Chờ xác nhận', tone: 'running' },
   confirmed: { text: 'Đã xác nhận', tone: 'success' },
-  defaulted: { text: 'Mặc định nhận', tone: 'warning' },
+  defaulted: { text: 'Nhận mặc định', tone: 'warning' },
 }
 
 const DAY_MS = 86_400_000
@@ -91,6 +96,21 @@ export function setChip(page: KpiAssignmentPageResponse, closed: boolean): Label
   const left = leftText(deadline)
   if (left === null) return { text: `Quá hạn gửi ${dm(deadline)}`, tone: 'warning' }
   return { text: `Hạn gửi ${dm(deadline)} · ${left}`, tone: 'draft' }
+}
+
+/** The month of a period as a label, for a screen naming which month a figure is. */
+export const monthWord = (period: string) => `Tháng ${Number(period.slice(5))}`
+
+/** ValueCell's last-month props. No finished month or no figure prints nothing. */
+export function lastReading(
+  period: string | null,
+  actuals: readonly KpiAssignmentActual[],
+  metric: KpiMetricKey,
+) {
+  const value = actuals.find((a) => a.metricKey === metric)?.value
+  return period && value !== undefined
+    ? { last: value, lastLabel: monthWord(period) }
+    : { last: null }
 }
 
 /** A target as a person reads it: a lower-is-better one is a ceiling. */
@@ -197,11 +217,41 @@ export function liveSums(
   })
 }
 
-/** What the sum row says under its figures. */
-export function sumWord(def: KpiMetricDef, s: KpiAssignmentSum): Label {
+/** What the sums stand against: the company has nothing above it, so its card's own name. */
+export const receivedWord = (page: KpiAssignmentPageResponse) =>
+  page.unit.kind === 'company' ? 'chỉ tiêu công ty' : 'mức nhận'
+
+/** One wording for the dialog title and the toast line. */
+export const overTitle = (page: KpiAssignmentPageResponse) => `Tổng giao vượt ${receivedWord(page)}`
+
+/** The toast's second line: over metrics the server named and the dialog did not list,
+ *  because the sums on screen were stale. Listed ones were already answered. */
+export function lateOver(
+  page: KpiAssignmentPageResponse,
+  warnings: readonly KpiAssignmentSum[],
+  sums: readonly KpiAssignmentSum[],
+): string | undefined {
+  const listed = new Set(sums.filter((s) => s.flag === 'over').map((s) => s.metricKey))
+  const late = warnings.filter((w) => !listed.has(w.metricKey))
+  if (late.length === 0) return undefined
+  return `${overTitle(page)}: ${late.map((w) => KPI_METRIC_LABEL[w.metricKey]).join(', ')}`
+}
+
+/** Assigned over received, one wording for the sum row and the over dialog. */
+export const sumFigures = (def: KpiMetricDef, s: KpiAssignmentSum) =>
+  `${printValue(def.unit, s.assigned, true)} / ${printValue(def.unit, s.received, true)}`
+
+/** What the sum row says under its figures. Over states the excess, not the share. */
+export function sumWord(
+  page: KpiAssignmentPageResponse,
+  def: KpiMetricDef,
+  s: KpiAssignmentSum,
+): Label {
+  /* Nothing to measure against, so `0 / 0` is not a met target. */
+  if (s.received === 0) return { text: `Chưa có ${receivedWord(page)}`, tone: 'draft' }
   if (s.flag === 'below')
     return { text: `Thiếu ${printValue(def.unit, s.received - s.assigned, true)}`, tone: 'warning' }
   if (s.flag === 'over' && s.ratio !== null)
-    return { text: `Vượt ${Math.round(s.ratio * 100)}%`, tone: 'running' }
+    return { text: `Vượt ${Math.round((s.ratio - 1) * 100)}%`, tone: 'running' }
   return { text: 'Đủ', tone: 'success' }
 }

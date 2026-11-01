@@ -10,7 +10,7 @@ import {
   type KpiMetricKey,
 } from '@pv/contracts'
 import type { ApiError } from '@/app/api'
-import { StackTable, type StackColumn } from '@/components/stack-table'
+import { FIELD_EDGE, StackTable, type StackColumn } from '@/components/stack-table'
 import { dm } from '@/lib/date'
 import { NOTE } from './home-tiles'
 import { FailLine } from './kpi-allocate-parts'
@@ -22,26 +22,40 @@ import {
   assignHref,
   childId,
   keyOfChild,
+  lastReading,
+  receivedWord,
+  sumFigures,
   sumWord,
   type Fields,
 } from './kpi-assign-model'
-import { printValue } from './kpi-model'
 
 /** The right card of the assignment page: one row per child unit (its head
  *  under the name) and per direct member, one field per additive metric, the
- *  row's state last; under it, each additive metric's sum against what was
- *  received. A unit's name opens that unit's own page. Sits on `.glass-b` (law 8). */
+ *  row's state last. The last row sums each column against what was received,
+ *  so a sum stands under its own figures. A unit's name opens that unit's own
+ *  page. Sits on `.glass-b` (law 8). */
+
+const WHO_WIDTH = 200
+const FIGURE_WIDTH = 168
+const STATE_WIDTH = 140
+
+/* Every track plus the row's `gap-3` and `px-5`: a rounder floor clipped the state column. */
+const tableFloor = (metrics: number) =>
+  WHO_WIDTH + FIGURE_WIDTH * metrics + STATE_WIDTH + 12 * (metrics + 1) + 40
+
+/* The sum row's own weight: DataTable's row states all mean something else. */
+const SUM_TEXT = 'text-[14px] font-bold leading-5'
 
 /* On a card a field takes the full width, so the box is wide enough to type in. */
 const columnsOf = (defs: readonly KpiMetricDef[], editable: boolean): StackColumn[] => [
-  { header: 'Giao cho', width: 'minmax(200px,1.4fr)' },
+  { header: 'Giao cho', width: `minmax(${WHO_WIDTH}px,1.4fr)` },
   ...defs.map((def) => ({
     header: KPI_METRIC_LABEL[def.key],
-    width: 'minmax(168px,1fr)',
+    width: `minmax(${FIGURE_WIDTH}px,1fr)`,
     align: 'right' as const,
     stack: editable ? ('wide' as const) : undefined,
   })),
-  { header: 'Trạng thái', width: 'minmax(140px,0.8fr)', align: 'right' as const },
+  { header: 'Trạng thái', width: `minmax(${STATE_WIDTH}px,0.8fr)`, align: 'right' as const },
 ]
 
 function WhoCell({
@@ -83,28 +97,29 @@ function StateCell({ child, period }: { child: KpiAssignmentChild; period: strin
   const label = UNIT_STATE_LABEL[child.state]
   const due =
     child.state === 'not-sent' ? ` · hạn ${dm(kpiAssignmentDeadline(period, child.unit.kind))}` : ''
-  return <Badge tone={label.tone}>{`${label.text}${due}`}</Badge>
+  return <Badge tone={label.tone} className="tnum font-num">{`${label.text}${due}`}</Badge>
 }
 
-function SumLine({
+function SumCell({
+  page,
   def,
   sum,
   refused,
 }: {
+  page: KpiAssignmentPageResponse
   def: KpiMetricDef
   sum: KpiAssignmentSum
   /** Named by a refused send: the sum is short of what was received. */
   refused: boolean
 }) {
-  const word = sumWord(def, sum)
+  const word = sumWord(page, def, sum)
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <span className="text-[12.5px] font-semibold">{KPI_METRIC_LABEL[def.key]}</span>
-      <span className="tnum font-num text-[12.5px]">
-        {printValue(def.unit, sum.assigned, true)} / {printValue(def.unit, sum.received, true)}
-      </span>
-      <Badge tone={refused ? 'danger' : word.tone}>{word.text}</Badge>
-    </li>
+    <span className="flex min-w-0 flex-col items-end gap-1">
+      <span className={cn('tnum font-num', SUM_TEXT)}>{sumFigures(def, sum)}</span>
+      <Badge tone={refused ? 'danger' : word.tone} className="tnum font-num">
+        {word.text}
+      </Badge>
+    </span>
   )
 }
 
@@ -130,6 +145,7 @@ export function ChildrenTable({
   onEdit: (key: string, text: string) => void
 }) {
   const additive = additiveOf(defs)
+  const word = receivedWord(page)
   const cell = (child: KpiAssignmentChild, def: KpiMetricDef) => {
     const key = keyOfChild(child, def.key)
     const text = fields.textOf(key, def)
@@ -142,14 +158,40 @@ export function ChildrenTable({
         editable={editable}
         text={text}
         saved={saved.get(key) ?? null}
-        last={null}
+        {...lastReading(page.lastActualPeriod, child.lastActuals, def.key)}
         onChange={(t) => onEdit(key, t)}
       />
     )
   }
+  const sumCell = (def: KpiMetricDef) => {
+    const sum = sums.find((s) => s.metricKey === def.key)
+    return sum ? (
+      <SumCell key={def.key} page={page} def={def} sum={sum} refused={refused.includes(def.key)} />
+    ) : null
+  }
+  /* The state cell is `null`, so a card prints no bare label for it. */
+  const sumRows =
+    sums.length > 0
+      ? [
+          {
+            id: 'sum',
+            span: true,
+            cells: [
+              <span key="who" className={SUM_TEXT}>
+                Tổng giao / {word}
+              </span>,
+              ...additive.map(sumCell),
+              null,
+            ],
+          },
+        ]
+      : []
 
   return (
-    <GlassCard variant="b" className="flex min-w-0 flex-col gap-4 self-start py-4">
+    <GlassCard
+      variant="b"
+      className={cn('flex min-w-0 flex-col gap-4 self-start py-4', FIELD_EDGE)}
+    >
       {page.children.length === 0 ? (
         <p className={cn(NOTE, 'px-5')}>Không có đơn vị hay người nào giữ vai trò này.</p>
       ) : (
@@ -157,39 +199,23 @@ export function ChildrenTable({
           from="lg"
           flush
           rowHeight="min-h-16 py-2"
-          tableClassName={additive.length > 2 ? 'min-w-4xl' : 'min-w-2xl'}
+          tableStyle={{ minWidth: tableFloor(additive.length) }}
           columns={columnsOf(additive, editable)}
-          rows={page.children.map((child) => ({
-            id: `${child.kind}|${childId(child)}`,
-            cells: [
-              <WhoCell key="who" child={child} period={page.period} role={page.role} />,
-              ...additive.map((def) => cell(child, def)),
-              <StateCell key="state" child={child} period={page.period} />,
-            ],
-          }))}
+          rows={[
+            ...page.children.map((child) => ({
+              id: `${child.kind}|${childId(child)}`,
+              cells: [
+                <WhoCell key="who" child={child} period={page.period} role={page.role} />,
+                ...additive.map((def) => cell(child, def)),
+                <StateCell key="state" child={child} period={page.period} />,
+              ],
+            })),
+            ...sumRows,
+          ]}
         />
       )}
-      {sums.length > 0 && (
-        <section aria-label="Tổng giao so với mức nhận" className="flex flex-col gap-3 px-5">
-          <h3 className="text-muted-foreground text-[12px] font-semibold leading-4">
-            Tổng giao / mức nhận
-          </h3>
-          <ul className="flex flex-col gap-2">
-            {sums.flatMap((sum) => {
-              const def = additive.find((d) => d.key === sum.metricKey)
-              return def
-                ? [
-                    <SumLine
-                      key={def.key}
-                      def={def}
-                      sum={sum}
-                      refused={refused.includes(def.key)}
-                    />,
-                  ]
-                : []
-            })}
-          </ul>
-        </section>
+      {editable && sums.some((s) => s.flag === 'below') && (
+        <p className={cn(NOTE, 'px-5')}>Tổng giao phải đủ {word} mới gửi được.</p>
       )}
       {errors.some(Boolean) && (
         <div className="flex flex-col gap-1 px-5">

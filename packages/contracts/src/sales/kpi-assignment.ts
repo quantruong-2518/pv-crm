@@ -130,9 +130,25 @@ export const KpiAssignmentUnitRef = z.object({
   head: KpiTargetActor.nullable(),
 })
 
+/** A figure beside a box: last month's result, or a line's old value. Not an `amount`:
+ *  a month of refunds and adjustments ends below 0, and the head should see that. */
+export const KpiAssignmentActual = z.object({ metricKey: KpiMetricKey, value: z.number() })
+
+const lastActuals = z.array(KpiAssignmentActual).default([])
+
 export const KpiAssignmentChild = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('unit'), unit: KpiAssignmentUnitRef, state: KpiAssignmentUnitState }),
-  z.object({ kind: z.literal('person'), person: KpiTargetActor, state: KpiAssignmentPersonState }),
+  z.object({
+    kind: z.literal('unit'),
+    unit: KpiAssignmentUnitRef,
+    state: KpiAssignmentUnitState,
+    lastActuals,
+  }),
+  z.object({
+    kind: z.literal('person'),
+    person: KpiTargetActor,
+    state: KpiAssignmentPersonState,
+    lastActuals,
+  }),
 ])
 
 /** What the unit got from the level above, per metric of the role. */
@@ -195,12 +211,20 @@ export const KpiAssignmentPageResponse = z.object({
   resendLocked: z.boolean(),
   children: z.array(KpiAssignmentChild),
   sums: z.array(KpiAssignmentSum),
+  /** The finished month `lastActuals` read; `null` while none can be read. A month still
+   *  running would read short, and heads assign before P−1 ends (ADR 0120 §12). */
+  lastActualPeriod: KpiPeriodKey.nullable().default(null),
+  /** The company's own results of that month, beside the totals its head types. */
+  lastActualTotals: lastActuals,
 })
 
 export const KpiAssignmentSendResponse = KpiAssignmentPageResponse.extend({
   /** Sums above `KPI_ASSIGNMENT_OVER_RATIO`: sent anyway, shown once. */
   warnings: z.array(KpiAssignmentSum),
 })
+
+/** Who a person writes to about their target: the sender, or the head for a default set. */
+export const KpiAssignmentContact = z.object({ name: z.string().min(1), email: z.email() })
 
 export const KpiAssignmentMineResponse = z.object({
   period: KpiPeriodKey,
@@ -214,6 +238,9 @@ export const KpiAssignmentMineResponse = z.object({
   confirmedAt: Moment.nullable(),
   acceptedByDefault: z.boolean(),
   deadline: Day,
+  /** The value each changed line held in the version just before. */
+  changedFrom: z.array(KpiAssignmentActual).default([]),
+  contact: KpiAssignmentContact.nullable().default(null),
 })
 
 const count = z.number().int().nonnegative()
@@ -301,6 +328,8 @@ export type KpiAssignmentQuery = z.infer<typeof KpiAssignmentQuery>
 export type KpiAssignmentPageResponse = z.infer<typeof KpiAssignmentPageResponse>
 export type KpiAssignmentSendResponse = z.infer<typeof KpiAssignmentSendResponse>
 export type KpiAssignmentMineResponse = z.infer<typeof KpiAssignmentMineResponse>
+export type KpiAssignmentActual = z.infer<typeof KpiAssignmentActual>
+export type KpiAssignmentContact = z.infer<typeof KpiAssignmentContact>
 export type KpiAssignmentLevel = z.infer<typeof KpiAssignmentLevel>
 export type KpiAssignmentStep = z.infer<typeof KpiAssignmentStep>
 export type KpiAssignmentTreeUnit = z.infer<typeof KpiAssignmentTreeUnit>

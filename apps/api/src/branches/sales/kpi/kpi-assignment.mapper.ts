@@ -3,6 +3,8 @@ import {
   kpiAssignmentNeedsSet,
   kpiAssignmentSum,
   kpiMetricShare,
+  stepSalesPeriod,
+  type KpiAssignmentActual,
   type KpiAssignmentLine,
   type KpiAssignmentLineKind,
   type KpiAssignmentPersonState,
@@ -243,6 +245,70 @@ export function sumsOf(
 
 /** The contract's rule, under the name the doors and the sweep already call. */
 export const deadlineOf = kpiAssignmentDeadline
+
+/** The newest month that has ended, for "last month" beside a head's boxes: heads
+ *  assign on days 20–28 of P−1, so P−1 alone would read a month still running. */
+export function lastFinishedMonth(period: KpiPeriodKey, today: string): KpiPeriodKey {
+  const before = stepSalesPeriod(period, -1)
+  const finished = stepSalesPeriod(today.slice(0, 7), -1)
+  return before < finished ? before : finished
+}
+
+/** One month's figure; `null` is no reading, actor `''` the whole book (a room metric). */
+export type ActualOf = (actorId: string, key: KpiMetricKey) => number | null
+
+/** Holders without a reading add nothing; with none at all there is no figure, not a 0. */
+function sumOver(ids: readonly string[], key: KpiMetricKey, of: ActualOf): number | null {
+  const read = ids.flatMap((id) => of(id, key) ?? [])
+  return read.length > 0 ? read.reduce((n, v) => n + v, 0) : null
+}
+
+const actual = (metricKey: KpiMetricKey, value: number | null): KpiAssignmentActual[] =>
+  value === null ? [] : [{ metricKey, value }]
+
+/** What `ids` did on the metrics that add up; a copied level cannot be summed. */
+export const actualsOver = (
+  defs: readonly KpiMetricDef[],
+  ids: readonly string[],
+  of: ActualOf,
+): KpiAssignmentActual[] =>
+  defs
+    .filter((d) => kpiMetricShare(d) === 'additive')
+    .flatMap((d) => actual(d.key, sumOver(ids, d.key, of)))
+
+/** The company's own column: holders' sums, and room metrics as the whole book reads them. */
+export const companyActuals = (
+  defs: readonly KpiMetricDef[],
+  holders: readonly string[],
+  of: ActualOf,
+): KpiAssignmentActual[] =>
+  defs.flatMap((d) => {
+    const share = kpiMetricShare(d)
+    if (share === 'copied') return []
+    return actual(d.key, share === 'total' ? of('', d.key) : sumOver(holders, d.key, of))
+  })
+
+/** Against the version just before and on the value alone: an unanswered line still
+ *  changed, and a resend that keeps the value has nothing left to say. */
+export function changedSince(book: Book, set: KpiSetRow, personId: string): KpiAssignmentActual[] {
+  const before = book.sets
+    .filter(
+      (s) =>
+        s.role === set.role &&
+        s.unitId === set.unitId &&
+        s.status === 'superseded' &&
+        s.version < set.version,
+    )
+    .at(-1)
+  if (!before) return []
+  const own = (id: string) =>
+    linesOf(book, id).filter((l) => l.kind === 'person' && l.personId === personId)
+  const was = new Map(own(before.id).map((l) => [l.metricKey, l.value]))
+  return own(set.id).flatMap((l) => {
+    const value = was.get(l.metricKey)
+    return value === undefined || value === l.value ? [] : [{ metricKey: l.metricKey, value }]
+  })
+}
 
 /** A person's answer on their lines of one set (ADR 0120 §6, 0114's flag). */
 export function personState(

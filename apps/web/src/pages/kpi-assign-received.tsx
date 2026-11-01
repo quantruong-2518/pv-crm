@@ -5,9 +5,17 @@ import {
   type KpiAssignmentPageResponse,
   type KpiMetricDef,
 } from '@pv/contracts'
+import { FIELD_EDGE } from '@/components/stack-table'
 import { NOTE } from './home-tiles'
 import { ValueCell } from './kpi-allocate-teams'
-import { KIND_WORD, cellKey, printTarget, type Fields } from './kpi-assign-model'
+import {
+  COPIED_WORD,
+  KIND_WORD,
+  cellKey,
+  lastReading,
+  printTarget,
+  type Fields,
+} from './kpi-assign-model'
 import { parseTyped } from './kpi-model'
 
 /** The left card of the assignment page: what this unit received from the
@@ -26,7 +34,6 @@ function Received({
   page: KpiAssignmentPageResponse
   defs: readonly KpiMetricDef[]
 }) {
-  const word = KIND_WORD[page.unit.kind].toLowerCase()
   const of = (share: 'additive' | 'copied') =>
     page.received.flatMap((r) => {
       const def = defs.find((d) => d.key === r.metricKey)
@@ -52,7 +59,7 @@ function Received({
       ))}
       {copied.length > 0 && (
         <>
-          <h3 className={cn(SUBHEAD, 'mt-2')}>Áp chung cho cả {word}</h3>
+          <h3 className={cn(SUBHEAD, 'mt-2')}>{COPIED_WORD}</h3>
           <ul className="flex flex-col gap-2">
             {copied.map(({ def, value }) => (
               <li key={def.key} className={ROW}>
@@ -71,11 +78,13 @@ function Received({
 
 /** The company's own figure per metric: typed by its head, read by everyone else. */
 function CompanyTotals({
+  page,
   defs,
   editable,
   fields,
   onEdit,
 }: {
+  page: KpiAssignmentPageResponse
   defs: readonly KpiMetricDef[]
   editable: boolean
   fields: Fields
@@ -86,16 +95,16 @@ function CompanyTotals({
     const text = fields.textOf(key, def)
     const value = parseTyped(def.unit, text)
     return (
-      <li key={def.key} className={ROW}>
-        <span className="min-w-0 flex-1 text-[12.5px]">{KPI_METRIC_LABEL[def.key]}</span>
-        <span className="w-40 shrink-0">
+      <li key={def.key} className={cn(ROW, 'flex-wrap')}>
+        <span className="min-w-32 flex-1 text-[12.5px]">{KPI_METRIC_LABEL[def.key]}</span>
+        <span className="ml-auto w-40 shrink-0">
           <ValueCell
             def={def}
             label={KPI_METRIC_LABEL[def.key]}
             editable={editable}
             text={text}
             saved={typeof value === 'number' ? value : null}
-            last={null}
+            {...lastReading(page.lastActualPeriod, page.lastActualTotals, def.key)}
             onChange={(t) => onEdit(key, t)}
           />
         </span>
@@ -109,7 +118,7 @@ function CompanyTotals({
       {rest.length > 0 && <ul className="flex flex-col gap-2">{rest.map(row)}</ul>}
       {copied.length > 0 && (
         <>
-          <h3 className={cn(SUBHEAD, 'mt-2')}>Áp chung cho cả công ty</h3>
+          <h3 className={cn(SUBHEAD, 'mt-2')}>{COPIED_WORD}</h3>
           <ul className="flex flex-col gap-2">{copied.map(row)}</ul>
         </>
       )}
@@ -132,12 +141,18 @@ export function ReceivedCard({
 }) {
   const company = page.unit.kind === 'company'
   return (
-    <GlassCard className="flex flex-col gap-4 self-start p-6">
+    <GlassCard className={cn('flex flex-col gap-4 self-start p-6', FIELD_EDGE)}>
       <h2 className="text-[14px] font-semibold leading-5">
         {company ? 'Chỉ tiêu công ty' : `${KIND_WORD[page.unit.kind]} nhận`}
       </h2>
       {company ? (
-        <CompanyTotals defs={defs} editable={editable} fields={fields} onEdit={onEdit} />
+        <CompanyTotals
+          page={page}
+          defs={defs}
+          editable={editable}
+          fields={fields}
+          onEdit={onEdit}
+        />
       ) : (
         <Received page={page} defs={defs} />
       )}

@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, isNull, max, sql } from 'drizzle-orm'
 import { Inject, Injectable } from '@nestjs/common'
-import type { RoleId } from '@pv/contracts'
+import type { KpiAssignmentContact, RoleId } from '@pv/contracts'
 import { DB, type Db } from '@api/platform/db/db.module'
 import { actor } from '@api/platform/db/platform.schema'
 import {
@@ -61,6 +61,16 @@ export class KpiAssignmentRepository {
       .select()
       .from(kpiAssignmentLine)
       .where(inArray(kpiAssignmentLine.assignmentId, [...setIds]))
+  }
+
+  /** Apart from `sets` and the tree on purpose: of the KPI doors, only a person's own
+   *  lines carry an email. */
+  async contactOf(actorId: string): Promise<KpiAssignmentContact | null> {
+    const [row] = await this.db
+      .select({ name: actor.name, email: actor.email })
+      .from(actor)
+      .where(and(eq(actor.id, actorId), isNull(actor.disabledAt)))
+    return row ?? null
   }
 
   async nextVersion(tx: Db, period: string, role: RoleId, unitId: string): Promise<number> {

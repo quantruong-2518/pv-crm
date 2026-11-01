@@ -34,6 +34,7 @@ import {
   type Line,
 } from './kpi-assignment.mapper'
 import { KpiCloseRepository } from './kpi-close.repository'
+import type { KpiCatalog } from './kpi-config.overlay'
 import { KpiConfigService } from './kpi-config.service'
 import {
   assertTargetValues,
@@ -90,7 +91,8 @@ export class KpiAssignmentService {
     role: RoleId,
     body: KpiAssignmentDraftBody,
   ): Promise<KpiAssignmentPageResponse> {
-    const defs = await this.opening(period, role)
+    const catalog = await this.opening(period)
+    const defs = catalog[role]
     assertTargetValues(defs, body.lines, 'lines')
     await this.repo.run(async (tx) => {
       const book = await this.seat(tx, who, period, body.unitId)
@@ -119,7 +121,7 @@ export class KpiAssignmentService {
         lines: body.lines,
       })
     })
-    return this.answer(who, period, role, body.unitId, defs)
+    return this.answer(who, period, role, body.unitId, catalog)
   }
 
   /** The draft, or with none the copied lines alone, completed and sent (§3–§5). */
@@ -129,7 +131,8 @@ export class KpiAssignmentService {
     role: RoleId,
     unitId: string,
   ): Promise<KpiAssignmentSendResponse> {
-    const defs = await this.opening(period, role)
+    const catalog = await this.opening(period)
+    const defs = catalog[role]
     const today = vietnamToday()
     const warnings = await this.repo.run(async (tx) => {
       const book = await this.seat(tx, who, period, unitId)
@@ -181,7 +184,7 @@ export class KpiAssignmentService {
       )
       return sums.filter((s) => s.flag === 'over')
     })
-    return { ...(await this.answer(who, period, role, unitId, defs)), warnings }
+    return { ...(await this.answer(who, period, role, unitId, catalog)), warnings }
   }
 
   /** "I have my targets": every unanswered line of the role, until the 28th.
@@ -218,11 +221,11 @@ export class KpiAssignmentService {
     return this.reader.mine(who, period, role)
   }
 
-  /** The month rules every write shares, and the role's effective metrics. */
-  private async opening(period: KpiPeriodKey, role: RoleId): Promise<readonly KpiMetricDef[]> {
+  /** The month rules every write shares, and the effective catalog. */
+  private async opening(period: KpiPeriodKey): Promise<KpiCatalog> {
     assertTieredMonth(period)
     stillOpen(period)
-    return (await this.config.effectiveCatalog())[role]
+    return this.config.effectiveCatalog()
   }
 
   /** Under the roster lock: the tree as it stands, and the caller on the unit's seat. */
@@ -281,13 +284,13 @@ export class KpiAssignmentService {
     period: KpiPeriodKey,
     role: RoleId,
     unitId: string,
-    defs: readonly KpiMetricDef[],
+    catalog: KpiCatalog,
   ) {
     const [book, monthClose] = await Promise.all([
       this.reader.bookOf(period),
       this.closes.of(period),
     ])
-    return this.reader.pageOf(who, book, defs, role, unitId, monthClose)
+    return this.reader.pageOf(who, book, catalog, role, unitId, monthClose)
   }
 
   /** Same transaction as the rows. */

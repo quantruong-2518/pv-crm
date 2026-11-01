@@ -1,7 +1,8 @@
 # PLAN · KPI khép kín (22/10/2026)
 
 Thiết kế đích: https://claude.ai/artifact/BtqKiRSNRWhtMEAABj4FHu (sáu nguyên tắc, Q1–Q11, ma trận ngoại lệ, lộ trình).
-Trạng thái lượt trước: `.claude/HANDOFF-kpi.md`. Đợt 0 đã lấy migration **0133**, ADR **0112**
+Trang này không còn mở được từ 26/10: trước lát 2c và Đợt 3, 4 phải viết lại ma trận ngoại lệ và các câu Q5–Q9.
+Đợt 0 đã lấy migration **0133**, ADR **0112**
 (origin đã dùng 0128–0132 và ADR 0107–0111; ADR 0110 "hợp đồng thuộc người chốt" liên quan Q10).
 
 ## 1 · Vòng chuẩn cho MỘT lát
@@ -100,6 +101,9 @@ Cũng chốt 22/10: người giữ `kpi.set-target` sửa cây; Giám đốc đ�
 cấm hai vai này trong nhóm); công nợ quá hạn tính cho người thu tiền (`collector_id`, làm cùng 2d).
 Nợ: D2 tiền đã thu của HĐ thanh lý giữ nguyên, trừ phần hoàn ở ngày thanh lý (ADR mới thay 0107 §3); D1 mọi người
 duyệt đều vắng → vẫn báo người vắng, áp chung mọi pool việc chờ KPI. Kịch bản: `acceptance/kpi-n1.md`, `kpi-n2.md`.
+
+**Chỉnh màn 2b sau đánh giá (01/11):** canvas https://claude.ai/artifact/JszSbVbLYyR5w3zoJNkXzC đủ mọi trạng thái; ADR 0120
+§12–13, nghiệm thu `acceptance/kpi-2b-polish.md`; không có migration.
 
 **Mốc cứng:** nếu cắt từ tháng 12/2026 thì Giám đốc phải chốt số trước 20/11 → lát 2a + 2b phải lên production trước ~15/11.
 

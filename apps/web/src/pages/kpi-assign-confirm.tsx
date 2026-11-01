@@ -4,9 +4,10 @@ import { ArrowRight, Badge, Button, Check, GlassCard, Icon, cn } from '@pv/ui'
 import {
   KPI_METRIC_LABEL,
   kpiMetricShare,
-  type RoleId,
   type KpiAssignmentLine,
   type KpiAssignmentMineResponse,
+  type KpiMetricDef,
+  type RoleId,
 } from '@pv/contracts'
 import { toastDone } from '@/app/toast'
 import {
@@ -19,14 +20,23 @@ import { ROLE_LABEL } from '@/data/users'
 import { dm } from '@/lib/date'
 import { NOTE, TILE } from './home-tiles'
 import { FailLine } from './kpi-allocate-parts'
-import { TIERED_SENTENCE, assignHref, leftText, printTarget } from './kpi-assign-model'
+import {
+  COPIED_WORD,
+  PERSON_STATE_LABEL,
+  TIERED_SENTENCE,
+  assignHref,
+  leftText,
+  printTarget,
+} from './kpi-assign-model'
+import { NAME_LINK } from './kpi-company-forecast'
 import { SideFailure } from './kpi-me-parts'
+import { printValue } from './kpi-model'
 
 /** The tiered month on the personal KPI screen (ADR 0120 §5, §8): the lines handed to
  *  the reader for one role, a changed line flagged, a copied line marked as
- *  shared, and the one button that confirms them all by the 28th. Past the
- *  deadline or with nothing left the card states it; a 409 on the press only
- *  rereads the lines, whose own state then says so.
+ *  shared, the one button that confirms them all by the 28th, and who to write
+ *  to about them. Past the deadline or with nothing left the card states it; a
+ *  409 on the press only rereads the lines, whose own state then says so.
  *
  *  Also here: the head's door to the assignment page, and the note old target
  *  screens show on a tiered month instead of doors that would refuse. */
@@ -34,17 +44,16 @@ import { SideFailure } from './kpi-me-parts'
 const ROW = 'bg-surface-ink/5 flex min-h-14 items-center gap-3 rounded-lg px-3 py-2'
 
 function noteOf(
-  catalog: KpiCatalog,
   mine: KpiAssignmentMineResponse,
   line: KpiAssignmentLine,
+  def: KpiMetricDef,
 ): { text: string; changed: boolean } | null {
   if (line.kind === 'total') return { text: 'Chỉ tiêu cả công ty', changed: false }
-  /* A resend clears the answer only on lines whose value moved (§5). */
-  const answered = mine.lines.some((l) => l.kind === 'person' && l.confirmedAt)
-  if ((mine.version ?? 1) > 1 && answered && !line.confirmedAt)
-    return { text: 'Đã đổi, cần xác nhận lại', changed: true }
-  const def = catalog[mine.role].find((d) => d.key === line.metricKey)
-  return def && kpiMetricShare(def) === 'copied' ? { text: 'Áp chung', changed: false } : null
+  const before = mine.changedFrom.find((c) => c.metricKey === line.metricKey)
+  /* The bare figure: `printTarget` would add its ceiling word after the verb. */
+  if (before && !line.confirmedAt)
+    return { text: `Đổi từ ${printValue(def.unit, before.value, true)}`, changed: true }
+  return kpiMetricShare(def) === 'copied' ? { text: COPIED_WORD, changed: false } : null
 }
 
 function Answer({ mine, closed }: { mine: KpiAssignmentMineResponse; closed: boolean }) {
@@ -54,21 +63,21 @@ function Answer({ mine, closed }: { mine: KpiAssignmentMineResponse; closed: boo
 
   if (mine.confirmedAt)
     return (
-      <Badge tone="success" className="self-start">
+      <Badge tone="success" className="tnum font-num self-start">
         Đã xác nhận {dm(mine.confirmedAt)}
       </Badge>
     )
   if (mine.acceptedByDefault)
     return (
       <Badge tone="warning" className="self-start">
-        Mặc định nhận
+        {PERSON_STATE_LABEL.defaulted.text}
       </Badge>
     )
   if (!open || closed || left === null) return null
   return (
     <div className="flex flex-col gap-2">
       <p className={cn(NOTE, 'tnum font-num')}>
-        Hạn xác nhận {dm(mine.deadline)} · {left}.
+        Hạn xác nhận {dm(mine.deadline)} · {left}. Quá hạn sẽ tính là nhận mặc định.
       </p>
       <Button
         className="pointer-coarse:h-12 w-full sm:w-auto sm:self-start"
@@ -118,14 +127,14 @@ export function ConfirmCard({
         {data.lines.flatMap((line) => {
           const def = defOf(line)
           if (!def) return []
-          const note = noteOf(catalog, data, line)
+          const note = noteOf(data, line, def)
           return [
             <li key={`${line.kind}|${line.metricKey}`} className={ROW}>
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="text-[12.5px]">{KPI_METRIC_LABEL[line.metricKey]}</span>
                 {note &&
                   (note.changed ? (
-                    <Badge tone="warning" className="self-start">
+                    <Badge tone="warning" className="tnum font-num self-start">
                       {note.text}
                     </Badge>
                   ) : (
@@ -140,6 +149,14 @@ export function ConfirmCard({
         })}
       </ul>
       <Answer mine={data} closed={closed} />
+      {data.contact && !closed && (
+        <p className={NOTE}>
+          Thấy chưa đúng? Gửi thư cho{' '}
+          <a href={`mailto:${data.contact.email}`} className={NAME_LINK}>
+            {data.contact.name}
+          </a>
+        </p>
+      )}
     </GlassCard>
   )
 }
