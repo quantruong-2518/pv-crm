@@ -208,7 +208,7 @@ export function AiTaskTray({
       ref={box}
       aria-label={copy.title}
       className={cn(
-        'glass-overlay flex max-h-[min(640px,calc(100dvh-160px))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
+        'glass-overlay flex max-h-[min(640px,calc(100dvh-160px-var(--sticky-bar-clear,0px)))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
         corner,
       )}
     >
