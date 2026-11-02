@@ -3,6 +3,7 @@ import {
   USER_ACCESS_CHANGED,
   USER_PASSWORD_RESET,
   highestRank,
+  isAdmin,
   mayAdminister,
   type Actor,
   type RoleId as EngineRoleId,
@@ -243,7 +244,7 @@ export class UsersService {
   // Editing a person
   // -------------------------------------------------------------------------
 
-  /** Edit one person. Four rules, and every one of them is about not locking
+  /** Edit one person. Five rules, and every one of them is about not locking
    *  the company out of its own administration.
    *
    *  ------------------------------------------------------------------
@@ -274,6 +275,7 @@ export class UsersService {
    *  lock is one advisory lock rather than a row lock on everybody counted. */
   async patch(who: Actor, id: string, body: UserPatch): Promise<UserRow> {
     this.refuseSelfSabotage(who, id, body)
+    this.refuseLockBelowTopRank(who, body)
     const toId = body.handoverTo
     if (toId === id) throw invalid({ handoverTo: ['Chọn một người khác.'] }, RECEIVER_INVALID)
     /* Before the transaction: the vet reads on the pool, and PGlite has one connection. */
@@ -423,11 +425,11 @@ export class UsersService {
   async invite(who: Actor, id: string): Promise<InviteView> {
     const target = await this.repo.byId(id)
     if (!target) throw notFound('người dùng', id)
-    if (!mayAdminister(who.roleIds, target.roleIds)) {
-      throw denied(
-        'permission-denied',
-        'Bạn không gửi được thư đặt mật khẩu cho người có vai cao hơn bạn.',
-      )
+    /* Ahead of `sendInvite`, which posts outside any transaction. With mail off
+       the link comes back to the caller, so in a manager's hands it is a way
+       into this person's account. */
+    if (!isAdmin(who.roleIds)) {
+      throw denied('permission-denied', 'Chỉ Giám đốc mới gửi được thư đặt mật khẩu.')
     }
 
     /* A ticket for a locked account is a link that is dead the moment it is
@@ -495,8 +497,8 @@ export class UsersService {
    *  no reason. The self-service door is right there and does not have that
    *  failure mode.
    *
-   *  Refuses on anyone who outranks the caller: the password handed out here is
-   *  public, so without this it is a sign-in as the director. */
+   *  Top rank only: the password handed out here is public, so in a manager's
+   *  hands this door is a sign-in as anybody they may administer. */
   async resetPassword(who: Actor, id: string): Promise<UserRow> {
     const target = await this.repo.byId(id)
     if (!target) throw notFound('người dùng', id)
@@ -504,11 +506,8 @@ export class UsersService {
     if (who.id === id) {
       throw conflict('Bạn không tự đặt lại mật khẩu của chính mình ở đây. Dùng màn Đổi mật khẩu.')
     }
-    if (!mayAdminister(who.roleIds, target.roleIds)) {
-      throw denied(
-        'permission-denied',
-        'Bạn không đặt lại được mật khẩu của người có vai cao hơn bạn.',
-      )
+    if (!isAdmin(who.roleIds)) {
+      throw denied('permission-denied', 'Chỉ Giám đốc mới đặt lại được mật khẩu.')
     }
 
     await this.repo.run(async (tx) => {
@@ -570,8 +569,9 @@ export class UsersService {
    *
    *  Everything else on your own row is fine and stays fine: renaming yourself,
    *  relabelling your own job title, even narrowing your own `ownOnly` locks
-   *  nobody out — it costs you rows you can see, and any other administrator
-   *  can widen it back. You cannot: rule 3.
+   *  nobody out — it costs you rows you can see. Only somebody of your rank or
+   *  above holding the whole book can widen it back (rule 3), so a sole director
+   *  who narrows themselves stays narrowed.
    *
    *  The refusal is on the FIELD BEING PRESENT, not on it differing from what
    *  is already stored. A body that re-sends your current role is
@@ -595,7 +595,7 @@ export class UsersService {
 
     throw denied(
       'permission-denied',
-      `Bạn không tự đổi ${refused.join(' và ')} của chính mình. Nhờ quản trị viên khác làm.`,
+      `Bạn không tự đổi ${refused.join(' và ')} của chính mình. Nhờ Giám đốc làm.`,
     )
   }
 
@@ -653,17 +653,20 @@ export class UsersService {
     }
   }
 
-  /** RULE 3 · nobody reaches past their own rank and branches.
+  /** RULE 3 · nobody reaches past their own rank, branches and scope.
    *
    *  `user.manage` alone would otherwise be a way up: open a director account,
    *  promote a junior, or edit the director's row. Rank bounds the roles, the
    *  caller's own licences bound the branches, and only what a save ADDS counts,
    *  so a branch the director gave somebody survives a save by a lesser manager.
-   *  Own-only scope binds the caller alone: they can still give another person the
-   *  whole book, because `ownOnly` is not checked against theirs.
+   *  Scope follows the same line: an own-only caller cannot give anybody the whole
+   *  book, and a save leaving a whole-book person as they are widens nothing. Nor
+   *  can they add a role or branch to a seat ending whole-book: raised, it widens
+   *  them back.
    *
-   *  `target` is `null` on create, where every branch is added. Reads the locked
-   *  row on patch: `who` is a snapshot from before the lock was taken. */
+   *  `target` is `null` on create, where every branch is added and `ownOnly: false`
+   *  is a widening. Reads the locked row on patch: `who` is a snapshot from before
+   *  the lock was taken. */
   private refuseBeyondReach(
     who: Actor,
     target: ActorRow | null,
@@ -688,16 +691,33 @@ export class UsersService {
     if (target?.id === who.id && target.ownOnly && body.ownOnly === false) {
       throw denied(
         'permission-denied',
-        'Bạn không tự mở rộng phạm vi dữ liệu của chính mình. Nhờ quản trị viên khác làm.',
+        'Bạn không tự mở rộng phạm vi dữ liệu của chính mình. Nhờ Giám đốc làm.',
       )
+    }
+
+    const widensScope = body.ownOnly === false && (target?.ownOnly ?? true)
+    if (who.ownOnly && widensScope) {
+      throw denied('permission-denied', 'Bạn không có phạm vi Toàn bộ dữ liệu nên không cấp được.')
+    }
+
+    /* Role sets, not rank: marketing to sale is level and still adds `contract.view`. */
+    if (who.ownOnly && target && !(body.ownOnly ?? target.ownOnly)) {
+      const newRole = body.roleIds?.map(toEngineRole).some((r) => !target.roleIds.includes(r))
+      const newBranch = next.some((b) => !target.branches.includes(b))
+      if (newRole || newBranch) {
+        throw denied(
+          'permission-denied',
+          'Bạn không có phạm vi Toàn bộ dữ liệu nên không thêm được vai hoặc nhánh cho người này.',
+        )
+      }
     }
   }
 
   /** RULE 4 · nobody is raised on a password someone else knows.
    *
-   *  `resetPassword` lets a manager hand a junior the public default. Promoted
-   *  before they change it, the junior's row outranks that manager, who can then
-   *  sign in on it: rule 3 alone is walked round in two steps by two people.
+   *  `resetPassword` puts a junior on the public default. Promoted before they
+   *  change it, the junior's row outranks whoever else knows that string, who can
+   *  then sign in on it: rule 3 alone is walked round in two steps by two people.
    *  Reads the locked row, so the mark cannot be set between this and the save.
    *  An open invite is voided instead: refusing would stall a promotion for its
    *  seven days, and the link can simply be sent again. */
@@ -709,6 +729,17 @@ export class UsersService {
   private raisesRank(target: ActorRow, body: UserPatch): boolean {
     if (!body.roleIds) return false
     return highestRank(body.roleIds.map(toEngineRole)) > highestRank(target.roleIds)
+  }
+
+  /** RULE 5 · only the top rank locks or unlocks.
+   *
+   *  `disabled` is a field on PATCH, not a door of its own, so `@Need` cannot tell
+   *  it from a new job title. Refused on the field being present, like rule 1, so
+   *  a re-lock counts; and ahead of every read, so a refused press vets no
+   *  receiver, moves no work and cuts no session. */
+  private refuseLockBelowTopRank(who: Actor, body: UserPatch): void {
+    if (body.disabled === undefined || isAdmin(who.roleIds)) return
+    throw denied('permission-denied', 'Chỉ Giám đốc mới khoá hoặc mở khoá được tài khoản.')
   }
 
   // -------------------------------------------------------------------------

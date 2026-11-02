@@ -178,6 +178,9 @@ export const edge = platform.table(
  *  `INSERT` và `SELECT`. Một nhật ký sửa được là một nhật ký không trả lời
  *  được câu nó sinh ra để trả lời.
  *
+ *  One exception: `ai-read` rows are kept 12 months, then deleted (owner's
+ *  decision of 01/11, ADR 0134 question 142).
+ *
  *  E2 có `log()`/`trail()` in-memory dùng cho phía trình duyệt. Ở máy chủ, bản
  *  BỀN là bảng này — guard ghi thẳng vào đây, không đi qua mảng trong RAM của
  *  engine (mảng đó chết theo tiến trình, và có hai bản thì không bản nào là sự
@@ -195,7 +198,16 @@ export const audit = platform.table(
     code: text('code'),
     note: text('note'),
   },
-  (t) => [index('audit_code_idx').on(t.code), index('audit_actor_idx').on(t.actorId)],
+  (t) => [
+    index('audit_code_idx').on(t.code),
+    index('audit_actor_idx').on(t.actorId),
+    /* "Which `ai-read` rows are past 12 months" (the purge, the one DELETE this
+       table takes: owner's decision of 01/11, question 142) and "the newest
+       `ai-read` rows" (the read door, a backward scan). No other action asks. */
+    index('audit_ai_read_at_idx')
+      .on(t.at)
+      .where(sql`"action" = 'ai-read'`),
+  ],
 )
 
 // ---------------------------------------------------------------------------

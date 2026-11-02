@@ -7,6 +7,7 @@ import { AiGateway } from '@api/platform/ai/ai-gateway'
 import { AiLedger } from '@api/platform/ai/ai-ledger'
 import { AiRouteRepository } from '@api/platform/ai/ai-route.repository'
 import { AssistantRunner } from '@api/platform/assistant/assistant-loop'
+import { AssistantSummarizer } from '@api/platform/assistant/assistant-summary'
 import { AssistantToolGate, type AssistantTool } from '@api/platform/assistant/assistant-tools'
 import { AssistantRepository } from '@api/platform/assistant/assistant.repository'
 import {
@@ -17,7 +18,13 @@ import {
 import type { AuditRepository } from '@api/platform/audit/audit.repository'
 import type { Db } from '@api/platform/db/db.module'
 import { audit } from '@api/platform/db/platform.schema'
-import { newWitness, ScriptedClient, type Step, type Witness } from './scripted-client'
+import {
+  newWitness,
+  ScriptedClient,
+  type FoldStep,
+  type Step,
+  type Witness,
+} from './scripted-client'
 import type { World } from './world'
 
 /** One turn through the real runner, gateway, ledger, repository and audit, with a
@@ -31,6 +38,8 @@ export type Bench = {
   /** Primary vendor's script; `fallback` is the second model's. */
   script: readonly Step[]
   fallback?: readonly Step[]
+  /** Answers to the fold this turn sets off; its route is on only in `runner-summary`. */
+  folds?: readonly FoldStep[]
   loopLast?: boolean
   question?: string
   /** Added to the world's real tools. */
@@ -68,11 +77,36 @@ export function gatewayOf(world: World, clients: { gemini: AiClient; anthropic: 
   return new AiGateway(new AiRouteRepository(world.db), new AiLedger(), clients, world.db)
 }
 
-export function runnerOf(world: World, bench: Bench, gateway: AiGateway): AssistantRunner {
+/** The real summarizer, holding the fold the loop lets go of: a trail read before it
+ *  lands would call a fold that was still on its way a fold that never happened. */
+class HeldSummarizer extends AssistantSummarizer {
+  landed: Promise<void> = Promise.resolve()
+
+  override afterTurn(actorId: string, sessionId: string): Promise<void> {
+    this.landed = super.afterTurn(actorId, sessionId)
+    return this.landed
+  }
+}
+
+const summarizerOf = (world: World, gateway: AiGateway, audits?: AuditRepository) =>
+  new HeldSummarizer(
+    gateway,
+    new AiRouteRepository(world.db),
+    new AssistantRepository(world.db),
+    audits ?? world.audits,
+  )
+
+export function runnerOf(
+  world: World,
+  bench: Bench,
+  gateway: AiGateway,
+  summarizer: AssistantSummarizer = summarizerOf(world, gateway),
+): AssistantRunner {
   const tools = [...world.tools, ...(bench.extraTools ?? [])]
   const gate = new AssistantToolGate({ tools: () => tools }, world.gateAccess)
   const repo = new AssistantRepository(world.db)
-  return new AssistantRunner(gateway, repo, bench.audits ?? world.audits, gate, bench.clock)
+  const audits = bench.audits ?? world.audits
+  return new AssistantRunner(gateway, repo, audits, gate, bench.clock, summarizer)
 }
 
 export async function trailOf(
@@ -127,7 +161,7 @@ export async function runTurn(world: World, bench: Bench): Promise<Trail> {
   const witness = newWitness()
   const { observe: read } = bench
   const observe = read ? () => read(world.db) : undefined
-  const primary = new ScriptedClient(bench.script, witness, observe, bench.loopLast)
+  const primary = new ScriptedClient(bench.script, witness, observe, bench.loopLast, bench.folds)
   const second = new ScriptedClient(bench.fallback ?? [], witness, observe)
   const gateway = gatewayOf(world, { gemini: primary, anthropic: second })
   const sessionId = bench.sessionId ?? (await newSession(world.db, bench.who.id))
@@ -136,7 +170,8 @@ export async function runTurn(world: World, bench: Bench): Promise<Trail> {
     events.push(event)
     bench.onEvent?.(event)
   }
-  await runnerOf(world, bench, gateway).runTurn(
+  const summarizer = summarizerOf(world, gateway, bench.audits)
+  await runnerOf(world, bench, gateway, summarizer).runTurn(
     {
       who: bench.who,
       sessionId,
@@ -147,6 +182,7 @@ export async function runTurn(world: World, bench: Bench): Promise<Trail> {
     sink,
     bench.signal ?? new AbortController().signal,
   )
+  await summarizer.landed
   return trailOf(world, sessionId, witness, events)
 }
 
@@ -155,6 +191,7 @@ export async function runTurn(world: World, bench: Bench): Promise<Trail> {
 export function trailText(trail: Trail): string {
   return JSON.stringify({
     requests: trail.witness.seen.map((s) => s.request),
+    folds: trail.witness.folds,
     deltas: trail.witness.deltas,
     events: trail.events,
     messages: trail.messages,

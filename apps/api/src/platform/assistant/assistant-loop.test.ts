@@ -73,6 +73,16 @@ const tool = defineTool({
   }),
 })
 
+/* Same code as `read_x`: what a second tool on one record leaves in the trail. */
+const skim = defineTool({
+  name: 'skim_x',
+  description: 'Fake.',
+  input: Input,
+  doors: { lead: door(FakeDoors, 'lead') },
+  doorFor: () => 'lead',
+  run: async () => ({ data: {}, codes: ['LD-0001'], rowCount: 1, hidden: null }),
+})
+
 type Limits = AiLimits & { signal: AbortSignal }
 type Step =
   | Partial<AiRound>
@@ -133,7 +143,7 @@ const auditRepo = () => new AuditRepository(db)
 function runnerWith(client: Scripted, audits = auditRepo()) {
   const routes = new AiRouteRepository(db)
   const gateway = new AiGateway(routes, new AiLedger(), { gemini: client, anthropic: client }, db)
-  const gate = new AssistantToolGate({ tools: () => [tool] }, createAccessControl())
+  const gate = new AssistantToolGate({ tools: () => [tool, skim] }, createAccessControl())
   return new AssistantRunner(gateway, new AssistantRepository(db), audits, gate)
 }
 
@@ -200,7 +210,7 @@ describe('a round', () => {
     expect(seen).toEqual({ audits: 1, calls: 1 })
     expect(turn).toMatchObject({ state: 'done', endedBy: 'answer', rounds: 2 })
     expect(turn.body).toBe('Lead đang được chăm sóc.')
-    expect(turn.promptVersion).toBe('assistant@1')
+    expect(turn.promptVersion).toBe('assistant@3')
     expect(rows[0]).toMatchObject({ role: 'user', state: 'done' })
     expect(rows[0]!.finishedAt).not.toBeNull()
     /* The sink threw on every event and the turn still ran to its end. */
@@ -218,6 +228,7 @@ describe('a round', () => {
     expect(first!.messages[0]).toMatchObject({ role: 'user' })
     expect(JSON.stringify(first!.messages[0])).toContain('/leads/LD-0001')
     expect(first!.system).not.toContain('/leads/LD-0001')
+    expect(first!.system).toContain('contactInfoWithheld, or any text reads [withheld]')
 
     const [line] = await auditOf(turn.id)
     const [row] = await db
@@ -254,6 +265,34 @@ describe('a round', () => {
     expect(lines[0]!.note).toMatch(/^chặn assistant\.read_x · turn .+ · permission-denied$/)
     expect(JSON.stringify(client.requests[1]!.messages.at(-1))).toContain('not-allowed')
     expect(JSON.stringify(client.requests[1]!.messages)).not.toContain(STORED)
+  })
+
+  it('writes a second line when a search hit is opened', async () => {
+    const client = new Scripted([
+      toolRound('lead', 'skim_x'),
+      toolRound('lead'),
+      { text: 'Lead đang được chăm sóc.' },
+    ])
+    const { turn } = await ask(client)
+
+    const lines = await auditOf(turn.id)
+    expect(lines.map((l) => l.code)).toEqual(['LD-0001', 'LD-0001'])
+    expect(lines.every((l) => l.action === 'ai-read')).toBe(true)
+    const notes = lines.map((l) => l.note).sort()
+    expect(notes[0]).toContain('assistant.read_x ·')
+    expect(notes[1]).toContain('assistant.skim_x ·')
+  })
+
+  it('writes one line when one tool opens a record twice', async () => {
+    const read = { id: 'vendor-1', name: 'read_x', input: { kind: 'lead' } }
+    const client = new Scripted([
+      { calls: [read, { ...read, id: 'vendor-2' }], stop: 'tools' },
+      toolRound('lead'),
+      { text: 'Lead đang được chăm sóc.' },
+    ])
+    const { turn } = await ask(client)
+
+    expect(await auditOf(turn.id)).toHaveLength(1)
   })
 
   it('stores a tool name the table would refuse, so an invented one is no crash', async () => {

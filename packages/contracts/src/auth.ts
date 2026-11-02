@@ -119,6 +119,9 @@ export const Permission = z.enum([
    *  `platform.setting`, one permission for read and write both. */
   'setting.manage',
   'audit-log.view',
+  /** Read the trail of what the AI read. Not `audit-log.view`: it shows what each
+   *  person looked up, so account-executive stays out (ADR 0134, question 142). */
+  'ai-read.view',
   /** AI spend screen and unit prices — admin only, `director` by default. */
   'cost.view',
   'user.manage',

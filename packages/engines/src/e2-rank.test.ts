@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { canCloseMeetingOnBehalf, highestRank, mayAdminister, outranks, roleRank } from './e2-rank'
+import {
+  canCloseMeetingOnBehalf,
+  highestRank,
+  isAdmin,
+  mayAdminister,
+  outranks,
+  roleRank,
+} from './e2-rank'
 
 /** Locks the seniority ladder: the on-behalf rule is strict, so peers are false. */
 describe('e2-rank', () => {
@@ -54,6 +61,14 @@ describe('e2-rank', () => {
   it('mayAdminister with no roles anywhere compares 0 with 0', () => {
     expect(mayAdminister([], [], [])).toBe(true)
     expect(mayAdminister([], ['sale'])).toBe(false)
+  })
+
+  it('isAdmin is the top rank alone, read from the highest of several roles', () => {
+    expect(isAdmin(['director'])).toBe(true)
+    expect(isAdmin(['sale', 'director'])).toBe(true)
+    expect(isAdmin(['head-of-sales'])).toBe(false)
+    expect(isAdmin(['head-of-sales', 'account-executive'])).toBe(false)
+    expect(isAdmin([])).toBe(false)
   })
 
   it('closing a meeting needs a closer role AND a higher rank', () => {

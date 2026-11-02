@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common'
 import type { AccessControl, Actor } from '@pv/engines'
 import { LEAD_AI_JOB_STEPS, type LeadAiJobErrorKind, type LeadAiJobStepKey } from '@pv/contracts'
 import { AiTransientError, AiUnavailableError } from '@api/platform/ai/ai-errors'
+import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { busyCodeOf } from '@api/platform/http/db-error'
 import { BusyError, conflict, notFound, PvError } from '@api/platform/http/problem'
@@ -41,6 +42,7 @@ export class LeadAiFillRunner implements AiFillJobHandler {
     private readonly fills: LeadAiFillService,
     private readonly enricher: LeadEnricher,
     private readonly actors: ActorRepository,
+    private readonly audit: AuditRepository,
     @Inject(ACCESS) private readonly access: AccessControl,
   ) {}
 
@@ -79,6 +81,14 @@ export class LeadAiFillRunner implements AiFillJobHandler {
     const lists = await this.repo.industryLists()
     trail.done('read-lead', Date.now() - t0)
 
+    /* After every re-check, so a refused job leaves no line; a failed write sends
+       nothing. A retry that calls the vendor writes again: the data left again. */
+    await this.audit.write({
+      actorId: who.id,
+      action: 'ai-read',
+      code,
+      note: `lead.ai-fill ${job.id} · ${wanted.length} field(s) wanted`,
+    })
     /* Admitted at the press: work already accepted is never cut by the quota. */
     const caller = { actorId: who.id, subjectCode: code, admitted: true }
     const found = await this.enricher.suggest(row, wanted, caller, lists, trail.done)

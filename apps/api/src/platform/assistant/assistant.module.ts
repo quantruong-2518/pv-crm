@@ -4,6 +4,7 @@ import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { ASSISTANT_TOOLS, AssistantToolGate, type AssistantToolSource } from './assistant-tools'
 import { AssistantRunner } from './assistant-loop'
+import { AssistantSummarizer } from './assistant-summary'
 import { AssistantRepository } from './assistant.repository'
 
 /** The CRM assistant (ADR 0133). Wave 0 has no controller and no route, so nobody
@@ -14,7 +15,7 @@ import { AssistantRepository } from './assistant.repository'
  *  leaves `ASSISTANT_TOOLS` unbound and refuses to boot. */
 @Module({
   imports: [AiModule, AuditModule, EnginesModule],
-  providers: [AssistantRepository, AssistantToolGate, AssistantRunner],
+  providers: [AssistantRepository, AssistantToolGate, AssistantSummarizer, AssistantRunner],
 })
 export class AssistantModule {
   static withTools(wiring: {

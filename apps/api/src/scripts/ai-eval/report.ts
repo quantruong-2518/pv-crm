@@ -70,6 +70,11 @@ const PROVED = [
   'a hostile script gets refusal or bad-input, and no business table moves',
   'the caps, fallback timing, route-off, ledger, quota, audit order and failed-audit stop hold',
   'within a turn, tool text reaches the model only inside a per-turn delimiter',
+  'phone and email fields reach the model only for a holder of data.export, on the live grant, and never in a list',
+  'for anyone else a contact typed into free text reads [withheld] and the record says so',
+  'one ai-read line per tool and record in a turn',
+  'a fold keeps the mark, its audit line, the fence and the compare-and-set, and stores no digit, @ or unknown code',
+  'a stored summary comes back only inside its own block, and a dead turn stalls no fold',
 ]
 
 const NOT_PROVED = [
@@ -77,6 +82,7 @@ const NOT_PROVED = [
   'that a real model ignores injected text, refuses off-topic work or writes correct Vietnamese',
   'that a vendor accepts these requests: the Gemini and Anthropic paths were not called',
   'placeholder binding (D3), which is wave 1',
+  'that a stored summary is clean prose: a phone in words or a copied instruction stays, fenced',
 ]
 
 export function printProof(clean: boolean): void {

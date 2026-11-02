@@ -8,6 +8,7 @@ import { gateLine, printProof, say, Tally, type LiveResult } from './report'
 import { runnerAudit } from './runner-audit'
 import { runnerCaps } from './runner-caps'
 import { runnerGateway } from './runner-gateway'
+import { runnerSummary } from './runner-summary'
 import { scopeMatrix } from './scope-matrix'
 import { businessChecksum, moved, openWorld, type World } from './world'
 
@@ -37,6 +38,7 @@ async function scripted(
   await runnerCaps(world, tally)
   await runnerGateway(world, tally)
   await runnerAudit(world, tally)
+  await runnerSummary(world, tally)
   await scriptedCases(world, tally, cases)
   await tally.run('no-write', 'no business table moved in the scripted run', async (c) => {
     c.eq(moved(before, await businessChecksum(world.db)), [], 'tables that moved')

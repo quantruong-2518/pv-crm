@@ -223,11 +223,14 @@ export const PERMISSIONS = [
    *  things quietly. */
   'setting.manage',
   'audit-log.view',
+  /** Read the trail of what the AI read (`ai-read` rows). Apart from
+   *  `audit-log.view` because it shows what each person looked up (question 142). */
+  'ai-read.view',
   /** What the product spends on vendors (AI tokens first) — Admin · Costs —
    *  and the unit prices behind it. One key for both: the owner put the whole
    *  view in one person's hands (ADR 0102), so there is no reader to split off. */
   'cost.view',
-  /** Open an account, assign a role, lock somebody out — Admin · People.
+  /** Open an account, edit a person, assign a role — Admin · People.
    *
    *  One of the two WIDEST keys here, and wide in a way no other key is: whoever
    *  holds it can grant themselves every other permission simply by editing
@@ -236,9 +239,10 @@ export const PERMISSIONS = [
    *  need it, but because granting it to them grants the whole table.
    *
    *  The server adds a layer this list knows nothing about and should not: a
-   *  holder still cannot demote or lock THEMSELVES, and cannot remove the last
-   *  remaining holder. Those are rules about specific rows, so they live in the
-   *  service — the same reason axis 3 is not modelled here. */
+   *  holder still cannot demote THEMSELVES or remove the last remaining holder,
+   *  and locking, resetting a password and inviting also take the top rank. Those
+   *  are rules about specific rows and ranks, so they live in the service — the
+   *  same reason axis 3 is not modelled here. */
   'user.manage',
   /** Edit the role → permission matrix itself — Admin · Roles.
    *

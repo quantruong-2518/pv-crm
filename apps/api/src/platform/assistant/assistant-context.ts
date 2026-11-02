@@ -20,16 +20,29 @@ const VN_TIME = new Intl.DateTimeFormat('en-GB', {
 const PROMPT = renderPrompt(ASSISTANT)
 export const ASSISTANT_PROMPT_VERSION = PROMPT.prompt
 
+/** The fixed sentence of a turn that failed. It says nothing of the chat, so a fold
+ *  neither counts nor reads a row that holds only this. */
+export const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử lại sau ít phút.'
+
 /** A whole exchange of its own: the next line is a `user` one, and the fixed reply
- *  keeps the roles alternating. */
-const summaryLines = (summary: string): AiMessage[] => [
-  { role: 'user', text: `Summary of the earlier turns of this chat:\n${summary}` },
+ *  keeps the roles alternating.
+ *
+ *  Fenced because `user` is the role that directs the model, and a model wrote this
+ *  text after reading customer data (D5). The marker is per session, not per turn: a
+ *  new one each turn would change the prefix and miss the cache. It can be guessed
+ *  and still hold: a session id has digits, and stored text has none in its prose
+ *  (`withoutFigures`) and only codes in its records, so it cannot contain the marker. */
+const summaryLines = (sessionId: string, summary: string): AiMessage[] => [
+  {
+    role: 'user',
+    text: `Summary of the earlier turns of this chat:\n${fenced(`SUMMARY-${sessionId}`, { summary })}`,
+  },
   { role: 'assistant', text: 'OK.' },
 ]
 
 export function openingMessages(
   begun: TurnBegun,
-  turn: { who: Actor; question: string; screen: string | null; at: Date },
+  turn: { who: Actor; sessionId: string; question: string; screen: string | null; at: Date },
 ): AiMessage[] {
   const context = JSON.stringify({
     now: VN_TIME.format(turn.at),
@@ -38,7 +51,7 @@ export function openingMessages(
     record: begun.subject,
   })
   return [
-    ...(begun.summary ? summaryLines(begun.summary) : []),
+    ...(begun.summary ? summaryLines(turn.sessionId, begun.summary) : []),
     ...begun.history.map(({ role, body }) => ({ role, text: body })),
     { role: 'user', text: `${context}\n\n${turn.question}` },
   ]
@@ -61,6 +74,9 @@ export function requestOf(
     prompt: PROMPT.prompt,
   }
 }
+
+export const tokensOf = (data: object): number =>
+  Math.ceil(Buffer.byteLength(JSON.stringify(data), 'utf8') / 3)
 
 /** Crypto-random, and only called once data has been read: stored text cannot
  *  have been written to contain it (D5). */

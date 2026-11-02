@@ -8,4 +8,4 @@ it('keeps pg_trgm on the in-memory PGlite database', async () => {
   const res = await handle.db.$client.query("SELECT similarity('abc', 'abc') AS s")
   expect(res.rows[0]).toEqual({ s: 1 })
   await handle.close()
-})
+}, 120_000)

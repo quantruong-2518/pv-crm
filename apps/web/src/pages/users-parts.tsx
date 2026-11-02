@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Copy, Lock, Mail, RefreshCw, RotateCcw, Save, X } from '@pv/ui'
 import { Badge, Button, Checkbox, Drawer, Icon, Input, Kicker, MetaPill, cn } from '@pv/ui'
 import type { Branch, RoleId, UserRow } from '@pv/contracts'
+import { isAdmin } from '@pv/engines'
 import { userMessage, type ApiError, type FieldErrors } from '@/app/api'
+import { useSession } from '@/app/auth'
 import { toastDone } from '@/app/toast'
 import { dm, dmy } from '@/lib/date'
 import {
@@ -189,6 +191,13 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
   const invite = useInviteUser()
   const resetPassword = useResetUserPassword()
 
+  /* Lock, unlock, reset and invite are the director's alone; the server refuses
+     the rest, so they are not drawn at all. Scope may never be widened by
+     someone who has only their own: the box stays, ticked and dead. */
+  const me = useSession((s) => s.actor)
+  const admin = me ? isAdmin(me.roleIds) : false
+  const scopeFrozen = me?.ownOnly === true && (user?.ownOnly ?? true)
+
   /* Opening is a fresh start, every time. Keeping the last person's half-typed
      fields would mean the next account quietly inherits their role and
      branches — the same failure the MAS panel resets for, with worse
@@ -201,12 +210,12 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
     setRoleLabel(user?.role ?? '')
     setRoleIds(user?.roleIds ?? [DEFAULT_ROLE])
     setBranches(user ? withCore(user.branches) : [CORE_BRANCH])
-    setOwnOnly(user?.ownOnly ?? false)
+    setOwnOnly(user?.ownOnly ?? scopeFrozen)
     setLockedAt(user?.disabledAt ?? null)
     setErrors({})
     setFailure('')
     setLink('')
-  }, [open, user])
+  }, [open, user, scopeFrozen])
 
   const isMe = user !== null && user.id === meId
   const busy = create.isPending || save.isPending
@@ -387,7 +396,9 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
       subtitle={
         user
           ? 'Sửa vai, nhánh và phạm vi. Hòm thư không sửa được.'
-          : 'Sau khi lưu, gửi thư đặt mật khẩu để người này vào được.'
+          : admin
+            ? 'Sau khi lưu, gửi thư đặt mật khẩu để người này vào được.'
+            : undefined
       }
       /* The badge reads `lockedAt`, not `user.disabledAt`: the lock button can
          flip it while the panel stays open, and a header still saying "Đang
@@ -409,7 +420,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              {user ? (
+              {user && admin && (
                 <>
                   <Button
                     size="md"
@@ -433,9 +444,17 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
                     onClick={toggleLock}
                   />
                 </>
-              ) : (
+              )}
+              {user && !admin && !user.passwordSet && (
                 <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
-                  Lưu xong mới gửi được thư đặt mật khẩu.
+                  Nhờ Giám đốc gửi thư đặt mật khẩu.
+                </span>
+              )}
+              {!user && (
+                <span className="text-muted-foreground text-[11.5px] leading-[1.5]">
+                  {admin
+                    ? 'Lưu xong mới gửi được thư đặt mật khẩu.'
+                    : 'Lưu xong, nhờ Giám đốc gửi thư đặt mật khẩu.'}
                 </span>
               )}
             </div>
@@ -480,7 +499,9 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
             errors={errors.email}
             hint={
               mailboxFrozen
-                ? 'Không sửa được. Muốn đổi hòm thư, hãy khoá tài khoản này rồi mời địa chỉ mới.'
+                ? admin
+                  ? 'Không sửa được. Muốn đổi hòm thư, hãy khoá tài khoản này rồi mời địa chỉ mới.'
+                  : 'Không sửa được. Muốn đổi hòm thư, nhờ Giám đốc.'
                 : 'Hòm thư công ty. Thư đặt mật khẩu gửi tới đây.'
             }
           >
@@ -595,7 +616,13 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           <Checkbox
             checked={ownOnly}
             label={SCOPE_OWN_LABEL}
-            hint="Chỉ thấy lead và cơ hội do người này phụ trách."
+            disabled={scopeFrozen}
+            wrap
+            hint={
+              scopeFrozen
+                ? `Cần phạm vi ${scopeLabel(false)} mới bỏ được ô này.`
+                : 'Chỉ thấy lead và cơ hội do người này phụ trách.'
+            }
             onChange={(on) => {
               setOwnOnly(on)
               clearError('ownOnly')
@@ -609,7 +636,7 @@ export function UserDrawer({ open, onClose, user, meId }: UserDrawerProps) {
           )}
         </section>
       </form>
-      {user && (
+      {user && admin && (
         <HandoverDrawer
           user={user}
           holdings={holdings.holdings}
@@ -654,7 +681,7 @@ function LockButton({
   onClick: () => void
 }) {
   const why = isMe
-    ? 'Không tự khoá tài khoản của chính mình. Nhờ Giám đốc hoặc một Trưởng phòng khác.'
+    ? 'Không tự khoá tài khoản của chính mình. Nhờ một Giám đốc khác.'
     : locked
       ? 'Mở lại quyền đăng nhập cho tài khoản này.'
       : 'Chặn đăng nhập và đăng xuất tài khoản này ngay.'

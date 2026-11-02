@@ -202,9 +202,9 @@ export const resetPasswordText = {
   checkingLead: tr('Đang kiểm tra link.', 'Checking this link.', '링크를 확인하고 있습니다.'),
   deadTitle: tr('Link không dùng được', 'Link no longer works', '유효하지 않은 링크'),
   deadLead: tr(
-    'Link không hợp lệ hoặc đã hết hạn. Xin link mới.',
-    'This link is invalid or expired. Request a new one.',
-    '링크가 유효하지 않거나 만료되었습니다. 새 링크를 요청하세요.',
+    'Link không hợp lệ hoặc đã hết hạn. Xin link mới. Nếu đây là thư mời đầu tiên, nhờ Giám đốc gửi lại.',
+    'This link is invalid or expired. Request a new one. If this was your first invitation, ask the director to send it again.',
+    '링크가 유효하지 않거나 만료되었습니다. 새 링크를 요청하세요. 처음 받은 초대 메일이었다면 관리자에게 다시 보내 달라고 요청하세요.',
   ),
   requestNew: tr('Xin link mới', 'Request a new link', '새 링크 요청'),
   title: tr('Đặt mật khẩu mới', 'Set a new password', '새 비밀번호 설정'),

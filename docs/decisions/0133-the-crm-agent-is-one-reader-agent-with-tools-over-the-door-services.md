@@ -1,6 +1,6 @@
 # 0133 · The CRM Agent is one agent with tools over the door services, it reads until a card is pressed, and wave 0 builds the base
 
-Status: accepted (amends 0130: `PromptSpec.fields` for chat has no returned fields)
+Status: accepted (amends 0130: `PromptSpec.fields` for chat has no returned fields; amended by 0134: owner's answers to questions 141 to 153)
 Date: 2026-11-01
 Source: project owner's decisions in session, 01/11/2026; the full plan is the Claude doc https://claude.ai/artifact/1r7zdgWt8CBWWCK52DCvCR (not copied here; when it and the 28/10 design differ, the doc is right)
 
@@ -38,7 +38,7 @@ the button (law 9). No model-written SQL, no web tool, no send tool.
 | Pilot                  | The whole Sales department                                                                         |
 | Wrong answer           | The user presses "Báo câu trả lời sai"; an admin reads that answer only                            |
 | Cost ceiling           | No hard ceiling; tell the director when one person is at 3 times the average                       |
-| Hidden items           | Say "Có N mục bạn không có quyền xem", show no content                                             |
+| Hidden items           | Say "Có N mục bạn không có quyền xem", show no content (narrowed to books by 0134 §4)              |
 | Morning brief          | 08:00 Monday to Friday, Vietnam time, bell and email                                               |
 | Brief email            | Counts and an open-CRM button; customer names stay on the bell                                     |
 | Brief for a manager    | That person's own work only, subordinates not merged                                               |
@@ -81,7 +81,7 @@ voided by a promotion, so a link a manager holds cannot open a raised account.
 Why: a head of sales could raise themselves to director, and the agent reads
 whatever the account may read, so a wrong root permission leaks through it.
 Still open: `DEFAULT_PASSWORD` on peers and juniors; peers administering each
-other; a sole director with mail off has no in-app recovery.
+other (answered by 0134 §1); a sole director with mail off has no in-app recovery.
 
 **D2 · A tool is a gate, not a function.** Each tool names its door; the
 registry reads the need from it; a refused tool returns "not allowed" to the
@@ -91,7 +91,8 @@ to the model. A tool takes the actor first and calls only door
 methods that take the actor first, never sub-services. Input schemas are
 strict and carry no actor or owner id. Platform cannot import branches, so
 tools register through a token, as the comm-debrief hook does. Phone and email
-come only from a single-record read, never from a list. Wave 0 tools:
+come only from a single-record read, never from a list (reversed by 0134 §4: they
+always need `data.export`). Wave 0 tools:
 `search_records` and `get_record` (lead, opportunity, contract).
 Why: see 3.1; and a model-supplied id is an identity the model could forge.
 
@@ -106,7 +107,7 @@ tool with no records, or with hidden ones, gets one code-less row with counts;
 nothing returned and nothing hidden writes nothing. A blocked call also writes
 a refusal row, like `AccessGuard`. A read after a search hit in the same turn
 writes no second line, since dedupe is by code; that is a neighbour of open
-question 144. The row holds no question,
+question 144 (answered by 0134 §3). The row holds no question,
 argument, label or result. The write is awaited once per round, after tools
 return and before results enter the next model request; a failed write stops
 the turn and nothing reaches the model. No transaction is held across a model
@@ -199,6 +200,7 @@ prompt there are no returned fields, so that part is empty.
 ### 7 · Known limits
 
 - Wave 0 has `hidden` null on all four doors.
+- More limits from the owner's answers: 0134 Known limits.
 - History replays past answers as plain text outside the delimiter, with one
   prompt rule only.
 - The model-facing findings for wave 1 live in the Claude doc.
@@ -208,9 +210,9 @@ prompt there are no returned fields, so that part is empty.
 
 ## Consequences
 
-- Migration 0159. Ship order: migration before the API.
+- Migration 0159. Ship order: migration before the API (0134 adds 0160 after it).
 - Waves 1 to 5 each open only after the earlier gate passes; the plan doc holds
   the roadmap and the gates.
 - Customer content going to Google and Anthropic still needs the cross-border
   assessment (open question 139).
-- Open questions 141 to 153 hang on this decision.
+- Open questions 141 to 153 hang on this decision; all answered by 0134.

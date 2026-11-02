@@ -19,6 +19,8 @@ import {
   FIRST_CONTRACT,
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
+  TYPED_TAX_CODE,
+  TYPED_WEBSITE,
   WORDS,
   type ChainSpec,
 } from './seed-data'
@@ -55,6 +57,11 @@ const mirror = (code: string, kind: 'LD' | 'OP' | 'HĐ', label: string, ownerId:
   ownerId,
 })
 
+const typedText = (spec: ChainSpec, n: number): string => {
+  const { typedPhone, typedMail } = canariesOf(n)
+  return spec.typed ? ` gọi ${typedPhone}, mail ${typedMail}` : ''
+}
+
 function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
   const c = canariesOf(n)
   const state = spec.leadState ?? (spec.contract ? 'converted' : 'working')
@@ -63,7 +70,7 @@ function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
     company: spec.plants?.company ?? `Công ty ${word} ${c.company}`,
     legalName: spec.plants?.legalName ?? `Công ty TNHH ${word} ${c.legalName}`,
     address: spec.plants?.address ?? `Khu công nghiệp ${word} ${c.address}`,
-    pain: spec.plants?.pain ?? `Thiếu người vận hành ${c.pain}`,
+    pain: spec.plants?.pain ?? `Thiếu người vận hành ${c.pain}${typedText(spec, n)}`,
     mainProduct: spec.plants?.mainProduct ?? `Linh kiện ${word}`,
     contactName: `Chị ${c.contactName}`,
     contactTitle: spec.plants?.contactTitle ?? `Trưởng phòng ${c.contactTitle}`,
@@ -71,6 +78,7 @@ function leadValues(spec: ChainSpec, code: string, word: string, n: number) {
     phone: c.phone,
     ownerId: spec.leadOwner,
     state,
+    ...(spec.typed ? { taxCode: TYPED_TAX_CODE, website: TYPED_WEBSITE } : {}),
     ...(state === 'nurturing' ? { exitReason: 'no-budget', exitedAt: DUE } : {}),
     ...(spec.disabled ? { disabledAt: DUE, disabledBy: 'rival' } : {}),
   }
@@ -113,7 +121,7 @@ async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
     leadCode,
     state: 'open',
     name: spec.plants?.opportunityName ?? `Đơn ${word} ${c.opportunityName}`,
-    description: spec.plants?.description ?? `Mô tả ${c.description}`,
+    description: spec.plants?.description ?? `Mô tả ${c.description}${typedText(spec, n)}`,
     amount: CONTRACT_AMOUNT,
     currency: CONTRACT_CURRENCY,
     probability: 40,
@@ -143,7 +151,7 @@ async function seedChain(db: Db, spec: ChainSpec, n: number): Promise<Chain> {
     await db.insert(contractInstallment).values({
       contractCode: paperCode,
       no: 1,
-      label: `Đợt 1 ${c.installment}`,
+      label: `Đợt 1 ${c.installment}${typedText(spec, n)}`,
       share: 100,
       amount: CONTRACT_AMOUNT,
       due: DUE,

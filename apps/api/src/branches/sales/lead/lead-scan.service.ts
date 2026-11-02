@@ -17,6 +17,7 @@ import {
   type ScanUploadMime,
   type ScanUploadSlot,
 } from '@pv/contracts'
+import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { conflict, invalid, notFound, rateLimited } from '@api/platform/http/problem'
 import { NotificationHub } from '@api/platform/notification/notification.hub'
 import { StorageObjectMissingError, StorageService } from '@api/platform/storage/storage.service'
@@ -79,6 +80,7 @@ export class LeadScanService {
     @Inject(SCAN_ENQUEUE) private readonly queue: ScanEnqueue,
     private readonly hub: NotificationHub,
     private readonly ai: AiGateway,
+    private readonly audit: AuditRepository,
   ) {}
 
   /** The uploader hears what the worker or the sweeper did to their batch
@@ -314,13 +316,22 @@ export class LeadScanService {
     const file = claimed && (await this.repo.file(fileId))
     if (!claimed || !file) return
     const batch = await this.repo.batch(claimed.batchCode)
+    if (!batch) return
     let values: Parameters<LeadScanRepository['finishFile']>[2]
     try {
       const bytes = await this.storage.read(file.storageKey)
+      /* A failed write sends nothing. A redelivery that calls the vendor writes
+         again: the file left again. Size only; the file's name is content. */
+      await this.audit.write({
+        actorId: batch.createdBy,
+        action: 'ai-read',
+        code: claimed.batchCode,
+        note: `lead.scan ${fileId} · ${bytes.length} byte(s)`,
+      })
       const { extraction, tokensIn, tokensOut } = await this.reader.read({
         bytes,
         mime: file.mime,
-        who: { actorId: batch?.createdBy ?? null, subjectCode: claimed.batchCode },
+        who: { actorId: batch.createdBy, subjectCode: claimed.batchCode },
       })
       values = {
         state: isEmpty(extraction) ? 'EMPTY' : 'READ',

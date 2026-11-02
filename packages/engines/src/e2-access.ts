@@ -223,7 +223,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleId, readonly Permission[]> = {
    *  head of department — a decision about who reads them, not about what this
    *  seat can do. `user.manage` is withheld because deciding who gets in stays
    *  there too: rank caps what its holder could hand out (`mayAdminister`), but
-   *  it would still open accounts and reset passwords across this seat's peers. */
+   *  it would still open accounts and edit this seat's peers. */
   'account-executive': [
     'campaign.view',
     'campaign.edit',

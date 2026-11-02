@@ -48,7 +48,8 @@ import type { ResetMailer, ResetTicketIssued } from './reset-mailer'
  *
  *  All three are acceptable HERE and nowhere else, because this is the one
  *  letter whose recovery is free and instant: the person presses "Quên mật
- *  khẩu" again and a new ticket is issued. Compare a lead alert, which nobody
+ *  khẩu" again and a new ticket is issued (a person who never activated asks
+ *  the director instead). Compare a lead alert, which nobody
  *  can re-request because nobody knows it was owed — that is what the ledger
  *  exists for, and why moving this letter onto it would be trading a real
  *  security property for a retry the user can perform themselves.

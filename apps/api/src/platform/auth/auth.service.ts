@@ -354,9 +354,9 @@ export class AuthService {
    *  The controller answers 204 whatever happens here, so this method's job is
    *  to make sure the 204 costs the same and says the same thing for an address
    *  that exists and one that does not. A ticket is created only for a mailbox
-   *  that exists AND is not locked — sending a reset link to a locked account
-   *  would let somebody walk back in through the door an administrator just
-   *  shut.
+   *  that exists, is not locked and has a password: a link to a locked account
+   *  walks back through a shut door, and one to a never-activated account does
+   *  an invite's job with no administrator, on any mailbox a manager typed in.
    *
    *  The throttle counts EVERY call rather than only failures, because there is
    *  no failure to count: this endpoint cannot tell one outcome from the other
@@ -370,7 +370,7 @@ export class AuthService {
     this.throttle.fail(key, FORGOT_FREE_ATTEMPTS)
 
     const row = await this.repo.actorByEmail(email)
-    if (!row || row.disabledAt) return
+    if (!row || row.disabledAt || row.passwordHash === null) return
 
     await this.issueTicket(row, 'reset', RESET_TTL_MS, lang)
   }

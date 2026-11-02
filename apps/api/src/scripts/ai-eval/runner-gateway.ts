@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { AiVendorError } from '@api/platform/ai/ai-client'
+import { ASSISTANT_PROMPT_VERSION } from '@api/platform/assistant/assistant-context'
 import { runTurn } from './bench'
 import type { Tally } from './report'
 import { NAMED_SEATS } from './seed-data'
@@ -149,7 +150,9 @@ async function ledger(world: World, tally: Tally): Promise<void> {
       'each row carries the turn',
     )
     c.ok(
-      trail.ledger.every((l) => l.task === 'assistant' && l.promptVersion === 'assistant@1'),
+      trail.ledger.every(
+        (l) => l.task === 'assistant' && l.promptVersion === ASSISTANT_PROMPT_VERSION,
+      ),
       'task and prompt',
     )
     c.ok((trail.turn?.toolTokens ?? 0) > 0, 'the turn counts its tool tokens')

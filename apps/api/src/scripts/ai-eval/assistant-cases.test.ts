@@ -15,8 +15,11 @@ import {
   FIRST_LEAD,
   FIRST_OPPORTUNITY,
   MATRIX_CELLS,
+  PLANTED_PHONE,
   ROLE_SEATS,
   ROLES,
+  TYPED_TAX_CODE,
+  TYPED_WEBSITE,
   WORDS,
 } from './seed-data'
 
@@ -77,6 +80,16 @@ describe('the seed', () => {
     expect(CHAINS.length + planted).toBeLessThan(WORDS.length)
     const tokens = Object.values(canariesOf(7))
     expect(tokens.join(' ').match(CANARY)).toEqual(tokens)
+  })
+
+  it('plants a phone the canary pattern does not claim', () => {
+    expect(PLANTED_PHONE).toBe('0966123456')
+    expect(PLANTED_PHONE.match(CANARY)).toBeNull()
+  })
+
+  it('keeps company data phone-shaped, so the mask has something to leave alone', () => {
+    expect(TYPED_TAX_CODE).toBe('0312345678')
+    expect(TYPED_WEBSITE).toContain(TYPED_TAX_CODE)
   })
 })
 

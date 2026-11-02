@@ -13,11 +13,14 @@ import { AiGateway } from '../ai/ai-gateway'
 import { AuditRepository, type AuditEntry } from '../audit/audit.repository'
 import {
   ASSISTANT_PROMPT_VERSION,
+  CUT_SHORT,
   fenced,
   newFence,
   openingMessages,
   requestOf,
+  tokensOf,
 } from './assistant-context'
+import { AssistantSummarizer } from './assistant-summary'
 import { AssistantToolGate, notRun, type ToolVerdict } from './assistant-tools'
 import { AssistantRepository, type TurnBegun, type TurnRefused } from './assistant.repository'
 import type { AssistantToolCallValues } from './assistant.schema'
@@ -41,7 +44,6 @@ const CALLS_PER_ROUND = 6
 const PARALLEL_TOOLS = 3
 
 const WRITE_NOW = 'No more tool calls in this turn. Answer now from what you already have.'
-const CUT_SHORT = 'Trợ lý chưa trả lời được câu này. Thử lại sau ít phút.'
 const BUSY = 'Trợ lý đang bận. Thử lại sau ít phút.'
 
 const REFUSED: Record<TurnRefused['reason'], string> = {
@@ -95,7 +97,8 @@ type Turn = {
   cap: Cap | null
   /** Made once per turn, after the first data is read (D5). */
   fence: string | null
-  /** Codes with an `ai-read` line this turn: one line per record. */
+  /** Tool and code pairs with an `ai-read` line this turn: a search hit and an
+   *  opened record are two lines, so the trail tells a skim from a read of contacts. */
   audited: Set<string>
 }
 
@@ -116,9 +119,6 @@ const SHAPE = /[^a-z_]/g
 /** A model can invent a name, and the table's CHECK would turn that into a crash. */
 const storableName = (name: string): string =>
   name.toLowerCase().replace(SHAPE, '_').slice(0, 64) || 'unknown'
-
-const tokensOf = (data: object): number =>
-  Math.ceil(Buffer.byteLength(JSON.stringify(data), 'utf8') / 3)
 
 /* Postgres stores \u0000 in neither `text` nor `jsonb`, keys included. */
 const withoutNul = (text: string): string => text.replaceAll('\u0000', '')
@@ -177,8 +177,9 @@ function auditLines(turn: Turn, calls: readonly RoundCall[]): AuditEntry[] {
     const note = `assistant.${c.call.name} · turn ${turn.id} · call ${c.id}`
     if (c.denied) return [{ actorId, action: 'view', note: `chặn ${note} · ${c.denied}` }]
     if (c.outcome !== 'ok') return []
-    const fresh = c.codes.filter((code) => !turn.audited.has(code))
-    for (const code of fresh) turn.audited.add(code)
+    const read = (code: string) => `${c.call.name} ${code}`
+    const fresh = c.codes.filter((code) => !turn.audited.has(read(code)))
+    for (const code of fresh) turn.audited.add(read(code))
     const lines: AuditEntry[] = [...new Set(fresh)].map((code) => ({
       actorId,
       action: 'ai-read',
@@ -258,6 +259,7 @@ export class AssistantRunner {
     private readonly audit: AuditRepository,
     private readonly tools: AssistantToolGate,
     @Optional() @Inject(ASSISTANT_CLOCK) private readonly now: () => number = Date.now,
+    @Optional() private readonly summarizer?: AssistantSummarizer,
   ) {}
 
   /** Rejects only when the turn cannot be opened at all, and then no row stands. */
@@ -281,6 +283,8 @@ export class AssistantRunner {
       this.endOfError(turn, error),
     )
     await this.close(turn, endedBy)
+    /* Not awaited: `done` is out, and a fold holds neither the caller nor the next turn. */
+    void this.summarizer?.afterTurn(ctx.who.id, ctx.sessionId)
   }
 
   private open(ctx: TurnContext, begun: TurnBegun, emit: Turn['emit'], signal: AbortSignal): Turn {

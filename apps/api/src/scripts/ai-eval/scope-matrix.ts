@@ -1,7 +1,17 @@
 import { runTurn, trailText, type Trail } from './bench'
 import type { Check, Tally } from './report'
-import { askDoor, canariesIn, leaves, PROBES, type DoorAnswer, type Probe } from './scope-door'
+import { askDoor, canariesIn, leaves, PROBES, type DoorAnswer } from './scope-door'
 import { FACTS } from './scope-facts'
+import {
+  agreeOnReach,
+  contactsIn,
+  grantCases,
+  holdsExport,
+  maskedLeaves,
+  reachCoverage,
+  type Cell,
+  type ReachLog,
+} from './scope-reach'
 import { MATRIX_CELLS, NAMED_SEATS, ROLE_SEATS, ROLES, scopedSeatId, type Seat } from './seed-data'
 import type { Chain } from './seed'
 import { parrot, toolOutputs } from './scripted-client'
@@ -15,8 +25,6 @@ import type { World } from './world'
  *  Canaries: the forbidden set is per cell, all canaries less those the door itself
  *  showed that person. The director legitimately reads everything, so a fixed list
  *  would be wrong in both directions. */
-
-type Cell = { who: Seat; probe: Probe; chain: Chain }
 
 const SPECIAL: readonly { who: Seat; chains: readonly string[] }[] = [
   { who: NAMED_SEATS.saleA, chains: ['a', 'b'] },
@@ -91,24 +99,33 @@ function agreeOnRefusal(c: Check, door: DoorAnswer, trail: Trail): void {
   }
 }
 
-function agreeOnAnswer(c: Check, door: Extract<DoorAnswer, { ok: true }>, trail: Trail): void {
+function agreeOnAnswer(
+  c: Check,
+  door: Extract<DoorAnswer, { ok: true }>,
+  trail: Trail,
+  who: Seat,
+): void {
   const [row] = trail.toolRows
   c.eq(row?.outcome, 'ok', 'the tool must answer what the door answers')
   c.eq([...(row?.codes ?? [])].sort(), [...door.codes].sort(), 'tool and door name the same codes')
   c.eq(row?.rowCount, door.rows, 'tool and door count the same rows')
 
-  const allowed = new Set(leaves(JSON.parse(door.json)))
+  /* The mask stands in for a door string only where that string held a contact. */
+  const atDoor = leaves(JSON.parse(door.json))
+  const allowed = new Set(holdsExport(who) ? atDoor : [...atDoor, ...maskedLeaves(atDoor)])
   const [fence, body] = (toolOutputs(trail.witness.seen[1]?.request.messages ?? [])[0] ?? '').split(
     '\n',
   )
   c.ok(!!fence && !!body, 'the second request carries the tool result')
-  const handed = leaves(JSON.parse(body ?? '{}'))
+  /* The flag is the tool's word, not door data; `agreeOnReach` holds it to its value. */
+  const parsed = JSON.parse(body ?? '{}') as object
+  const handed = leaves({ ...parsed, contactInfoWithheld: null })
   const extra = handed.filter((leaf) => !allowed.has(leaf))
   c.eq(extra, [], 'the tool hands over nothing the door did not')
 
   const read = [...new Set(door.codes)].sort()
   const lines = trail.audits.filter((a) => a.action === 'ai-read' && a.code)
-  c.eq(lines.map((a) => a.code).sort(), read, 'one ai-read line per record read')
+  c.eq(lines.map((a) => a.code).sort(), read, 'one ai-read line per tool and record')
   if (door.rows === 0) c.eq(trail.audits, [], 'nothing returned, nothing written')
 }
 
@@ -116,19 +133,20 @@ function agreeOnAnswer(c: Check, door: Extract<DoorAnswer, { ok: true }>, trail:
 function noContactInList(c: Check, cell: Cell, trail: Trail): void {
   if (cell.probe !== 'search') return
   const sent = toolOutputs(trail.witness.seen[1]?.request.messages ?? []).join('')
-  const contacts = canariesIn(sent).filter((t) => t.startsWith('cnryem') || t.startsWith('0977'))
-  c.eq(contacts, [], 'phones and mails in a list')
+  c.eq(contactsIn(sent), [], 'phones and mails in a list')
 }
 
-async function runCell(world: World, c: Check, cell: Cell): Promise<DoorAnswer> {
+async function runCell(world: World, c: Check, cell: Cell, log: ReachLog): Promise<DoorAnswer> {
   const door = await askDoor(world, cell.who, cell.probe, cell.chain)
   const trail = await runTurn(world, {
     who: cell.who,
     script: [{ calls: [callOf(cell)] }, parrot],
   })
   c.eq(trail.turn?.endedBy, 'answer', 'the turn ends normally')
-  if (door.ok) agreeOnAnswer(c, door, trail)
-  else agreeOnRefusal(c, door, trail)
+  if (door.ok) {
+    agreeOnAnswer(c, door, trail, cell.who)
+    agreeOnReach(c, cell, door, trail, log)
+  } else agreeOnRefusal(c, door, trail)
   noContactInList(c, cell, trail)
 
   const shown = new Set(canariesIn(door.json))
@@ -164,10 +182,11 @@ export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
   })
   let allowed = 0
   let refused = 0
+  const reach: ReachLog = new Set()
   for (const cell of cells) {
     const name = `${cell.who.id} ${cell.probe} ${cell.chain.key}`
     await tally.run('scope-matrix', name, async (c) => {
-      const door = await runCell(world, c, cell)
+      const door = await runCell(world, c, cell, reach)
       if (door.ok) allowed += 1
       else refused += 1
     })
@@ -176,6 +195,8 @@ export async function scopeMatrix(world: World, tally: Tally): Promise<void> {
     c.ok(allowed > 30, `${allowed} allowed cells is not a matrix`)
     c.ok(refused > 30, `${refused} refused cells is not a matrix`)
   })
+  await reachCoverage(tally, reach)
+  await grantCases(world, tally, (c, cell, log) => runCell(world, c, cell, log))
   await noteSiblingContact(world, tally)
   for (const fact of FACTS) {
     const name = `fact: ${fact.who.id} ${fact.probe} ${fact.chain}`

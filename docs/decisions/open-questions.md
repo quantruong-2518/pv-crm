@@ -632,42 +632,70 @@ Raised while settling the CRM Agent and its wave 0 (ADR 0133).
 
 141.  **Should peers (two heads of sales) be able to reset or lock each other?**
       Default in code: yes (`>=`). _(see ADR 0133 D1)_
+      **Answered 01/11/2026: only an admin (`director`) locks, unlocks, resets a password or invites; ADR 0134 §1.**
 
 142.  **How long is the `ai-read` trail kept, and who reads it through what
       door?** `audit-log.view` also includes account-executive. _(see ADR 0133
       D4)_
+      **Answered 01/11/2026: 12 months, read through the new `ai-read.view` at `GET /audit/ai-reads`; ADR 0134 §3.**
 
 143.  **Should lead-enrich and the document scan also write `ai-read`?** Not
       done; only the agent's tools do. _(see ADR 0133 D4)_
+      **Answered 01/11/2026: yes, where the vendor call runs; ADR 0134 §3.**
 
 144.  **Do list rows count as AI reads?** Default: yes. _(see ADR 0133 D4)_
+      **Answered 01/11/2026: yes; opening a record writes one more, dedupe by (tool, code); ADR 0134 §3.**
 
 145.  **"Có N mục bạn không có quyền xem" can only come from books, since search
       and profile deliberately never count hidden rows. Narrow the closed
       decision to books?** _(see ADR 0133 §2)_
+      **Answered 01/11/2026: yes, narrowed to books; ADR 0134 §4.**
 
 146.  **For `ownOnly` users, do numbers show room-wide or own figures?** Wave 3.
       _(see ADR 0133 §2)_
+      **Answered 01/11/2026: the same as the screen, room counts and money refused; ADR 0134 §4.**
 
 147.  **Does taking multiple rows of contact data through the agent need
       `data.export`?** Wave 1. _(see ADR 0133 D2)_
+      **Answered 01/11/2026: always, even for one record; ADR 0134 §4.**
 
 148.  **Does the morning brief, Monday to Friday, include public holidays?**
       Acceptable as is? Wave 2. _(see ADR 0133 §2)_
+      **Answered 01/11/2026: yes, it goes out on public holidays; ADR 0134 §4.**
 
 149.  **The `assistant-deep` model is provisional, and the summary trigger is
       undecided.** _(see ADR 0133 D8)_
+      **Answered 01/11/2026: background compaction; `assistant-deep` stays until the keyed run; ADR 0134 §5.**
 
 150.  **Should the deal door show a Sale a contact sitting on another seller's
       lead?** `dealContacts` in `opportunity-facts.repository.ts` has no lead
       fence, while search fences the same contact. The agent repeats what the
       door shows, so decide before the pilot. _(see ADR 0133 D2)_
+      **Answered 01/11/2026: keep; a person already on a deal stays visible to its holder; ADR 0134 §4.**
 
 151.  **Should an own-only manager be unable to give someone else the whole
       book?** Today there is no own-only ceiling on others. _(see ADR 0133 D1)_
+      **Answered 01/11/2026: yes, nobody gives wider scope than their own; ADR 0134 §2.**
 
 152.  **Should a head of sales keep the right to reset or invite accounts
       holding branches they lack?** Dormant today. _(see ADR 0133 D1)_
+      **Answered 01/11/2026: only an admin does; ADR 0134 §1.**
 
 153.  **Should a read after a search hit in one turn write its own `ai-read`
       line?** _(see ADR 0133 D4)_
+
+      **Answered 01/11/2026: yes, search hits still write lines and opening a record writes one more; ADR 0134 §3.**
+
+154.  **Should admin also need whole-book scope?** An own-only director can reset
+      a whole-book account and read through it. Hypothetical today: no such
+      seat. _(see ADR 0134 §1)_
+
+155.  **Should a director get a bell when a head of sales opens an account?**
+      Nothing tells them; it can sit at "Chờ đặt mật khẩu". _(see ADR 0134 §1)_
+
+156.  **A pinned session keeps `assistant_tool_call.codes`, who read what, past
+      the 12 months of `ai-read`. Purge those codes at 12 months?**
+      _(see ADR 0134 §3)_
+
+157.  **A sole director who ticks own-only on themselves cannot be widened again
+      in the app.** _(see ADR 0134 §2)_

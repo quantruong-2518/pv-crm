@@ -15,7 +15,8 @@ import { NotificationSweeper } from './notification.sweeper'
  *  reports what happened through `announce`, and never learns what the rows
  *  look like. `RolesModule` for one question — which roles hold a permission
  *  today — so a role audience reads the same matrix the access guard does.
- *  `AuditModule` for the admin policy write (`/admin/notifications`, ADR 0093).
+ *  `AuditModule` for the admin policy write (`/admin/notifications`, ADR 0093)
+ *  and the sweeper's `ai-read` purge (question 142).
  *
  *  Listed in `app.module.ts` because it carries `/notifications`; a module
  *  that emits imports it again by name, the way `ApprovalModule` is. */

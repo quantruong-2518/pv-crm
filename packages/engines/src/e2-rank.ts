@@ -33,6 +33,13 @@ export const mayAdminister = (
 ): boolean =>
   highestRank(actorRoleIds) >= Math.max(highestRank(targetRoleIds), highestRank(nextRoleIds))
 
+const TOP_RANK = Math.max(...Object.values(ROLE_RANK))
+
+/** Sits at the top of the ladder. Locking and both password doors ask this rather
+ *  than `mayAdminister`: each can hand a manager another person's account, and
+ *  the agent reads whatever that account may read. Read from the table, not listed. */
+export const isAdmin = (roleIds: readonly RoleId[]): boolean => highestRank(roleIds) === TOP_RANK
+
 export const MEETING_CLOSER_ROLES: readonly RoleId[] = [
   'bd',
   'account-executive',

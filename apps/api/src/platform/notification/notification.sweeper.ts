@@ -5,6 +5,7 @@ import {
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common'
+import { AuditRepository } from '../audit/audit.repository'
 import { ENV, type Env } from '../config/env'
 import { NotificationRepository } from './notification.repository'
 
@@ -13,9 +14,14 @@ import { NotificationRepository } from './notification.repository'
  *  table holds what people still look at. Unread lines are never purged. */
 const KEEP_READ_DAYS = 90
 
+/** How long an `ai-read` audit line stays: the owner's call (question 142). */
+const KEEP_AI_READ_MONTHS = 12
+
 const SWEEP_EVERY_MS = 60 * 60_000
 
-/** Deletes read bell lines past `KEEP_READ_DAYS`.
+/** Deletes read bell lines past `KEEP_READ_DAYS`, and `ai-read` audit lines past
+ *  `KEEP_AI_READ_MONTHS` on the same tick: a timer of its own would be one more
+ *  Neon wake-up for a purge that needs none.
  *
  *  Self-timed: hourly and once at boot, off under
  *  `NODE_ENV=test`. Unlike it, only the worker process runs it: one pass an
@@ -30,6 +36,7 @@ export class NotificationSweeper implements OnApplicationBootstrap, OnApplicatio
 
   constructor(
     private readonly repo: NotificationRepository,
+    private readonly audit: AuditRepository,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -45,14 +52,21 @@ export class NotificationSweeper implements OnApplicationBootstrap, OnApplicatio
     this.timer = null
   }
 
-  /** Never rejects: a failed sweep leaves the rows for the next tick. */
   private async sweep(): Promise<void> {
+    const mark = new Date(Date.now() - KEEP_READ_DAYS * 24 * 60 * 60_000)
+    await this.purge('read notifications', () => this.repo.purgeReadBefore(mark))
+    await this.purge('ai-read audit lines', () => this.audit.purgeAiReads(KEEP_AI_READ_MONTHS))
+  }
+
+  /** Never rejects: a failed purge leaves its rows for the next tick, and leaves
+   *  the other purge running. */
+  private async purge(what: string, run: () => Promise<number>): Promise<void> {
     try {
-      const mark = new Date(Date.now() - KEEP_READ_DAYS * 24 * 60 * 60_000)
-      const removed = await this.repo.purgeReadBefore(mark)
-      if (removed > 0) this.log.log(`Purged ${removed} read notifications.`)
+      const removed = await run()
+      if (removed > 0) this.log.log(`Purged ${removed} ${what}.`)
     } catch (error: unknown) {
-      this.log.error(`Purge failed: ${error instanceof Error ? error.message : String(error)}`)
+      const reason = error instanceof Error ? error.message : String(error)
+      this.log.error(`Purge of ${what} failed: ${reason}`)
     }
   }
 }

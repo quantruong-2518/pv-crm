@@ -130,7 +130,7 @@ export class RolesService {
     )
     if (dropped.length === 0) return
     throw conflict(
-      `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình. Nhờ quản trị viên khác làm.`,
+      `Bạn không tự bỏ ${dropped.join(' và ')} khỏi vai của chính mình. Nhờ Giám đốc làm.`,
     )
   }
 

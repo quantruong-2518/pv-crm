@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common'
-import { and, count, desc, eq, gt, lt, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNull, lt, ne, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import type { AssistantEndedBy, AssistantMessageState, AssistantRecordKind } from '@pv/contracts'
 import { DB, type Db } from '../db/db.module'
+import { CUT_SHORT } from './assistant-context'
 import {
   assistantMessage,
   assistantSession,
@@ -16,10 +18,22 @@ const TURNS_PER_HOUR = 60
 /* Above the 60 s turn cap, so a live turn is never swept as a crash. */
 const STALE_AFTER = sql`now() - interval '90 seconds'`
 const LAST_HOUR = sql`now() - interval '1 hour'`
-/* Six turns, two rows each: every turn writes its user and assistant rows together. */
-const HISTORY_ROWS = 12
+/* The ceiling on replay: the summary route is seeded off, so nothing else bounds a chat. */
+const REPLAY_TURNS = 10
+/* Two rows a turn, doubled: a turn that died with no text takes rows and replays nothing. */
+const HISTORY_ROWS = REPLAY_TURNS * 4
 
 export type TurnLine = { role: 'user' | 'assistant'; body: string }
+
+/** An exchange with text on both sides; `seq` is its assistant row's, its last. */
+export type WholeTurn = { seq: number; question: string; answer: string }
+
+/** The summary, its mark, and the oldest turns the mark does not cover yet. */
+export type Unsummarised = {
+  summary: string | null
+  through: number | null
+  turns: readonly WholeTurn[]
+}
 
 export type TurnBegun = {
   ok: true
@@ -102,7 +116,9 @@ export class AssistantRepository {
         turnId: turn.id,
         summary,
         subject: subjectKind && subjectCode ? { kind: subjectKind, code: subjectCode } : null,
-        history: replayable(rows.filter((r) => r.seq > (summaryThrough ?? 0))),
+        history: replayable(rows.filter((r) => r.seq > (summaryThrough ?? 0)))
+          .slice(-REPLAY_TURNS)
+          .flatMap(linesOf),
       }
     })
   }
@@ -118,6 +134,60 @@ export class AssistantRepository {
   /** After the tools return: `outcome` is NOT NULL, so a call has no row before. */
   async recordToolCalls(rows: readonly AssistantToolCallValues[]): Promise<void> {
     if (rows.length > 0) await this.db.insert(assistantToolCall).values([...rows])
+  }
+
+  /** Oldest first, and `limit` counts whole turns, not rows: a run of dead turns holds
+   *  rows and no turn, so a row cap would hide the chat from the mark for good. The
+   *  mark cannot move past them on its own, because `summary_through` needs a summary:
+   *  a fold passes them when it lands. `null` = the session is gone. */
+  async unsummarised(sessionId: string, limit: number): Promise<Unsummarised | null> {
+    const [session] = await this.db
+      .select({ summary: assistantSession.summary, through: assistantSession.summaryThrough })
+      .from(assistantSession)
+      .where(eq(assistantSession.id, sessionId))
+    if (!session) return null
+    const answer = assistantMessage
+    const question = alias(assistantMessage, 'question')
+    const turns = await this.db
+      .select({ seq: answer.seq, question: question.body, answer: answer.body })
+      .from(answer)
+      .innerJoin(
+        question,
+        and(
+          eq(question.sessionId, answer.sessionId),
+          eq(question.role, 'user'),
+          eq(question.seq, sql`${answer.seq} - 1`),
+        ),
+      )
+      .where(
+        and(
+          eq(answer.sessionId, sessionId),
+          eq(answer.role, 'assistant'),
+          gt(answer.seq, session.through ?? 0),
+          ne(answer.body, CUT_SHORT),
+          sql`${answer.body} ~ '\\S' AND ${question.body} ~ '\\S'`,
+        ),
+      )
+      .orderBy(asc(answer.seq))
+      .limit(limit)
+    return { ...session, turns }
+  }
+
+  /** Compare-and-set: no lock is held across the model call, so `read` may be stale
+   *  by now, and then this answer is too. False = another fold landed first. */
+  async saveSummary(
+    sessionId: string,
+    read: number | null,
+    summary: string,
+    through: number,
+  ): Promise<boolean> {
+    const mark = assistantSession.summaryThrough
+    const saved = await this.db
+      .update(assistantSession)
+      .set({ summary, summaryThrough: through })
+      .where(and(eq(assistantSession.id, sessionId), read === null ? isNull(mark) : eq(mark, read)))
+      .returning({ id: assistantSession.id })
+    return saved.length > 0
   }
 
   /** `finished_at` in the same UPDATE: the table refuses a finished state without it. */
@@ -147,14 +217,18 @@ export class AssistantRepository {
 
 /** Oldest first, whole turns only. A turn that died before its first text has
  *  no answer, and a blank text block is a 400 at Anthropic. */
-function replayable(newestFirst: readonly (typeof assistantMessage.$inferSelect)[]): TurnLine[] {
-  const lines: TurnLine[] = []
+function replayable(newestFirst: readonly (typeof assistantMessage.$inferSelect)[]): WholeTurn[] {
+  const turns: WholeTurn[] = []
   for (const [i, row] of newestFirst.entries()) {
     const question = newestFirst[i + 1]
     if (row.role !== 'assistant' || question?.role !== 'user') continue
     if (row.body.trim() === '' || question.body.trim() === '') continue
-    lines.unshift({ role: 'assistant', body: row.body })
-    lines.unshift({ role: 'user', body: question.body })
+    turns.unshift({ seq: row.seq, question: question.body, answer: row.body })
   }
-  return lines
+  return turns
 }
+
+const linesOf = ({ question, answer }: WholeTurn): TurnLine[] => [
+  { role: 'user', body: question },
+  { role: 'assistant', body: answer },
+]

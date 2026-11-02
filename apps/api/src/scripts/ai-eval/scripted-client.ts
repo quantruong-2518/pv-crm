@@ -1,8 +1,10 @@
 import type {
+  AiAnswer,
   AiClient,
   AiConverseRequest,
   AiLimits,
   AiMessage,
+  AiRequest,
   AiRound,
 } from '@api/platform/ai/ai-client'
 
@@ -12,7 +14,11 @@ import type {
  *  Text goes through `onText` one delta at a time, exactly as a real stream does,
  *  so the turn's body is built by the runner and not handed back whole. A request
  *  is recorded before its step runs, and `observe` reads the database at that same
- *  moment: a row the observer does not see had not landed when the request left. */
+ *  moment: a row the observer does not see had not landed when the request left.
+ *
+ *  `generate` is a summary fold, the one thing here that is not a conversation. Its
+ *  requests are witnessed apart, and a fold with no answer scripted fails as a vendor
+ *  crash would, which a fold swallows, so a case reads `folds` rather than trusts it. */
 
 export type Said = {
   deltas?: readonly string[]
@@ -35,13 +41,17 @@ export type Seen = {
 
 export type Step = Said | ((seen: Seen, nth: number) => Said | Promise<Said>)
 
-export type Witness = { seen: Seen[]; deltas: string[] }
+/** What a fold's model returns, or what it does on the way to returning it. */
+export type FoldStep = object | ((request: AiRequest) => object | Promise<object>)
 
-export const newWitness = (): Witness => ({ seen: [], deltas: [] })
+export type Witness = { seen: Seen[]; deltas: string[]; folds: AiRequest[] }
+
+export const newWitness = (): Witness => ({ seen: [], deltas: [], folds: [] })
 
 export class ScriptedClient implements AiClient {
   readonly keyed = true
   private next = 0
+  private nextFold = 0
 
   constructor(
     private readonly steps: readonly Step[],
@@ -49,14 +59,25 @@ export class ScriptedClient implements AiClient {
     private readonly observe?: () => Promise<unknown>,
     /** The last step repeats, for a model that never stops calling. */
     private readonly loopLast = false,
+    private readonly folds: readonly FoldStep[] = [],
   ) {}
 
-  generate(): never {
-    throw new Error('ScriptedClient answers conversations only')
+  async generate(_model: string, request: AiRequest): Promise<AiAnswer> {
+    this.witness.folds.push(request)
+    const step = this.folds[this.nextFold++]
+    if (!step) throw new Error('the script has no answer for this fold')
+    const said = typeof step === 'function' ? await step(request) : step
+    return {
+      text: JSON.stringify(said),
+      complete: true,
+      finish: 'scripted',
+      tokensIn: 7,
+      tokensOut: 3,
+    }
   }
 
   countTokens(): never {
-    throw new Error('ScriptedClient answers conversations only')
+    throw new Error('ScriptedClient keeps no token count')
   }
 
   async converse(

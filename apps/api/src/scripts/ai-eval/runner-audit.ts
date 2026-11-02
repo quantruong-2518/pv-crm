@@ -32,6 +32,13 @@ class FailingAudits extends AuditRepository {
   }
 }
 
+/** Each `ai-read` line as `tool code`, sorted; the tool is the first word of its note. */
+const readsOf = (trail: Trail, code?: string): string[] =>
+  trail.audits
+    .filter((l) => l.action === 'ai-read' && (code === undefined || l.code === code))
+    .map((l) => `${/^assistant\.(\w+)/.exec(l.note ?? '')?.[1]} ${l.code}`)
+    .sort()
+
 async function order(world: World, tally: Tally): Promise<void> {
   const a = chainOf(world, 'a')
   await tally.run(GROUP, 'audit and tool rows are readable before the next request', async (c) => {
@@ -67,7 +74,7 @@ async function order(world: World, tally: Tally): Promise<void> {
     c.eq(trail.turn?.endedBy, 'crash', 'ended by')
     c.eq(canariesIn(trailText(trail)), [], 'nothing read reached anywhere')
   })
-  await tally.run(GROUP, 'one line per record in a turn, read twice or not', async (c) => {
+  await tally.run(GROUP, 'one line per tool and record in a turn, read twice or not', async (c) => {
     const trail = await runTurn(world, {
       who,
       script: [
@@ -76,7 +83,7 @@ async function order(world: World, tally: Tally): Promise<void> {
         { deltas: ['Xong.'] },
       ],
     })
-    c.eq(trail.audits.filter((l) => l.code === a.lead).length, 1, 'lines for one record')
+    c.eq(readsOf(trail, a.lead), [`get_record ${a.lead}`], 'lines for one tool and one record')
   })
   await tally.run(GROUP, 'nothing returned and nothing hidden writes no line', async (c) => {
     const trail = await runTurn(world, {
@@ -145,10 +152,29 @@ async function sideBySide(world: World, tally: Tally): Promise<void> {
       Array<string>(6).fill('ok'),
       'outcomes',
     )
+    const records = [a.contract, a.lead, a.opportunity]
     c.eq(
-      trail.audits.map((l) => l.code).sort(),
-      [a.contract, a.lead, a.opportunity].sort(),
-      'one line per record',
+      readsOf(trail),
+      ['get_record', 'search_records'].flatMap((tool) => records.map((r) => `${tool} ${r}`)).sort(),
+      'one line per tool and record, whatever was called twice',
+    )
+  })
+  await tally.run(GROUP, 'a search hit and a read of one record are two lines', async (c) => {
+    const trail = await runTurn(world, {
+      who,
+      script: [
+        { calls: [search] },
+        { calls: [readLead(a.lead)] },
+        { calls: [search] },
+        { calls: [readLead(a.lead)] },
+        { deltas: ['Xong.'] },
+      ],
+    })
+    c.eq(trail.toolRows.length, 4, 'every call ran')
+    c.eq(
+      readsOf(trail, a.lead),
+      [`get_record ${a.lead}`, `search_records ${a.lead}`],
+      'each tool once, across rounds',
     )
   })
 }
