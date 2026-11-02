@@ -122,13 +122,25 @@ function Failed({ answer, ask, busy }: AnswerProps) {
       : t(ERROR_COPY[failure.code])
     : t(C.notAnswered)
   const retry = !failure || RETRYABLE.has(failure.code)
+  const copy = () =>
+    void navigator.clipboard.writeText(answer.body).then(
+      () => toastDone(t(C.copied)),
+      () => toastFail(t(C.copyFailed)),
+    )
   return (
     <div className="flex flex-col gap-3">
-      {/* What arrived before the break stays readable, muted: it is not a whole answer. */}
+      {/* What arrived before the break is still AI text, so it keeps its basis and a button (law 9). */}
       {answer.body && (
-        <p className="text-muted-foreground m-0 whitespace-pre-line text-[13px] leading-[1.55]">
-          {answer.body}
-        </p>
+        <AiAction
+          variant="panel"
+          className={BLOCK}
+          suggestion={<span className="block whitespace-pre-line">{answer.body}</span>}
+          basis={basisOf(answer, lang)}
+          basisLabel={t(C.basisLabel)}
+          empty={t(C.readOnly)}
+          confirmLabel={t(C.copy)}
+          onConfirm={copy}
+        />
       )}
       <div
         role="alert"

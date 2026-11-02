@@ -142,7 +142,13 @@ export class AssistantService {
     for (const [key, entry] of this.whileRunning) {
       if (now - entry.at > RUNNING_CHECK_MS) this.whileRunning.delete(key)
     }
-    const key = [who.id, runningId, who.permissions.join(','), who.branches.join(',')].join('|')
+    const key = [
+      who.id,
+      runningId,
+      who.ownOnly,
+      who.permissions.join(','),
+      who.branches.join(','),
+    ].join('|')
     const held = this.whileRunning.get(key)
     if (held) return held.check
     const check = await fresh()

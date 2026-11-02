@@ -99,6 +99,14 @@ A right-hand panel on the existing Drawer and AiAction style, with no new
 - Figures in words pass.
 - "Đã báo sai" is not remembered after reopen.
 - Refs for linked codes cited in text get no chip.
+- **Must close before `assistant.use` widens past the director:** the re-check asks
+  only whether a record is still readable, not whether the reader still holds
+  `data.export`. An email in an answer has no digit, so it is stored as prose and
+  comes back on load, replay and in reports after `data.export` is lost.
+- The reports audit line names the page and a count, not which answers were read.
+- In reports the 400-code cap is shared by the whole page, not counted per chat,
+  so later rows can come back `unchecked`.
+- The reviewer sees the reporter's name, reason and note.
 
 ## Consequences
 

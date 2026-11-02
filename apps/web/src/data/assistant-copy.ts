@@ -183,12 +183,12 @@ type SampleId = 'open-deals' | 'open-leads' | 'next-steps' | 'week-steps' | 'ove
 
 const SAMPLE_COPY: Record<SampleId, Message> = {
   'open-deals': m(
-    'Cơ hội nào của tôi đang mở?',
+    'Cơ hội nào của tôi đang chạy?',
     'Which of my opportunities are open?',
     '제 영업 기회 중 진행 중인 것은 무엇인가요?',
   ),
   'open-leads': m(
-    'Lead nào của tôi đang mở?',
+    'Lead nào tôi đang phụ trách?',
     'Which of my leads are open?',
     '제 리드 중 진행 중인 것은 무엇인가요?',
   ),
