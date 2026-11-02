@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CommAiReport,
   CommAiReportStatus,
+  collapseSpaces,
   type CommAiAnswer,
+  type CommAiPart,
   type CommAiSources,
   type CommAiStep,
+  type CommAttachmentsResponse,
   type CommVocabularyResponse,
   type DebriefView,
   type StepOptionsResponse,
@@ -14,8 +17,10 @@ import { api, isApiError, userMessage, type ApiError } from '@/app/api'
 import { useCan } from '@/app/auth'
 import { cacheTier } from '@/app/query-client'
 import { dmy } from '@/lib/date'
+import { COMM_AI_JOB_FAILED, isCommJobActive, useCommAiJob } from '@/data/comm-ai-job'
 import {
   COMM_RECORDS_KEY,
+  commFilesQuery,
   deleteCommFile,
   uploadCommFile,
   type StepDraft,
@@ -28,9 +33,10 @@ import { dueOnPick } from '@/data/next-step'
  *  nothing in the form. Each part reaches the form through the person's press.
  *
  *  The hook is called at the workspace, not in a step card: the cards unmount
- *  as the stepper moves, and the report and the edited minutes must outlive them. */
-
-export type CommAiPart = 'summary' | 'minutes'
+ *  as the stepper moves, and the report and the edited minutes must outlive them.
+ *
+ *  A record with a recording asks through a background job (ADR 0135,
+ *  `data/comm-ai-job.ts`): the answer lands here the same way, whenever it comes. */
 
 /** What the form around the blocks calls its boxes; the blocks say the same word. */
 export type CommAiWords = { note: string; evaluation: string }
@@ -64,6 +70,30 @@ type Held = {
   editedMinutes: string | null
 }
 
+/** Where every report lands, whichever door it came through. */
+function heldWith(before: Held | null, report: CommAiReport, part: CommAiPart, note: string): Held {
+  const edited = before && before.minutes !== before.report.minutes ? before : null
+  /* A press for the summary was not asked to redo the minutes. */
+  const kept = part === 'summary' ? edited : null
+  const lost = part === 'minutes' && edited?.savedMinutes !== edited?.minutes.trim()
+  return {
+    report,
+    part,
+    notes: [note],
+    summaryUsed: false,
+    minutes: kept?.minutes ?? report.minutes,
+    savedMinutes: kept?.savedMinutes ?? null,
+    editedMinutes: lost && edited ? edited.minutes : (before?.editedMinutes ?? null),
+  }
+}
+
+/** Null without a recording. All ids, so a swapped recording reads as a new one. */
+const recordingsOf = ({ rows }: CommAttachmentsResponse) =>
+  rows
+    .filter((file) => file.mime.startsWith('audio/'))
+    .map((file) => file.id)
+    .join(' ') || null
+
 /** Already gone is what a replace wanted: the person may have removed it from the list. */
 async function dropFile(id: string, fileId: string) {
   try {
@@ -83,6 +113,26 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   const [saveProblem, setSaveProblem] = useState<string | null>(null)
   /* Outside `Held`: a save of a newer report still replaces the file this form saved. */
   const [savedFile, setSavedFile] = useState<string | null>(null)
+  /* The recordings the tick was given for: a word given for one does not cover another. */
+  const [noticed, setNoticed] = useState<string | null>(null)
+  const [jobProblem, setJobProblem] = useState<string | null>(null)
+
+  /* `permitted` also guards the cache, which a switched-off query still hands back.
+     The route comes first because each read of the file list files an audit line. */
+  const listenable = permitted && status.data?.recording === true
+  const files = useQuery({
+    ...commFilesQuery(record.id),
+    enabled: listenable,
+    select: recordingsOf,
+  })
+  const recordings = listenable ? (files.data ?? null) : null
+  const listens = recordings !== null
+  const { job, press } = useCommAiJob(record.id, permitted)
+
+  const land = useCallback((report: CommAiReport, part: CommAiPart, note: string) => {
+    setSaveProblem(null)
+    setHeld((before) => heldWith(before, report, part, note))
+  }, [])
 
   const run = useMutation<CommAiReport, ApiError, { part: CommAiPart; note: string }>({
     mutationFn: ({ note }) =>
@@ -91,25 +141,19 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
         need: COMM_VIEW_NEED,
         schema: CommAiReport,
       }),
-    onSuccess: (report, { part, note }) => {
-      setSaveProblem(null)
-      setHeld((before) => {
-        const edited = before && before.minutes !== before.report.minutes ? before : null
-        /* A press for the summary was not asked to redo the minutes. */
-        const kept = part === 'summary' ? edited : null
-        const lost = part === 'minutes' && edited?.savedMinutes !== edited?.minutes.trim()
-        return {
-          report,
-          part,
-          notes: [note],
-          summaryUsed: false,
-          minutes: kept?.minutes ?? report.minutes,
-          savedMinutes: kept?.savedMinutes ?? null,
-          editedMinutes: lost && edited ? edited.minutes : (before?.editedMinutes ?? null),
-        }
-      })
-    },
+    onSuccess: (report, { part, note }) => land(report, part, note),
   })
+
+  /* Once per job: a reopened form hydrates from it, a re-read must not undo what the
+     person did since. Layout effect: the old blocks must not paint between the
+     running state and the report. */
+  const landed = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!job || isCommJobActive(job) || landed.current === job.id) return
+    landed.current = job.id
+    if (job.state === 'FAILED') setJobProblem(job.error ?? COMM_AI_JOB_FAILED)
+    else if (job.report) land(job.report, job.part, job.note)
+  }, [job, land])
 
   const save = useMutation<string, ApiError, { text: string; replaces: string | null }>({
     mutationFn: async ({ text, replaces }) => {
@@ -131,9 +175,15 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
 
   const ask = (part: CommAiPart, note: string) => {
     const sent = note.trim()
-    if (held && held.part !== part && held.notes.includes(sent)) {
-      run.reset()
+    run.reset()
+    press.reset()
+    setJobProblem(null)
+    /* A job's note comes back as the server stored it, line breaks collapsed. */
+    const same = held?.notes.includes(sent) || held?.notes.includes(collapseSpaces(sent))
+    if (held && held.part !== part && same) {
       setHeld({ ...held, part })
+    } else if (listens) {
+      press.mutate({ part, note: sent })
     } else {
       run.mutate({ part, note: sent })
     }
@@ -176,7 +226,13 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
   }
 
   const saved = held?.savedMinutes ?? null
-  const canAsk = permitted && status.data?.available === true
+  /* Until the list is read a press could take the sync path past a recording. */
+  const filesKnown = !listenable || !files.isPending
+  const canAsk = permitted && filesKnown && (status.data?.available === true || listens)
+  const running = job && isCommJobActive(job) ? job.part : null
+  const pressed = run.isPending ? run.variables.part : press.isPending ? press.variables.part : null
+  const asking = pressed ?? running
+  const refusal = run.error ?? press.error
 
   return {
     /* Only asking needs the route: a daily limit reached after a press must not
@@ -185,13 +241,18 @@ export function useCommAiReport(record: DebriefView, words = FORM_WORDS) {
     allowed: canAsk || held !== null || replaced.length > 0,
     words,
     /* Hidden while a press runs: its answer is about to replace these blocks. */
-    report: run.isPending ? null : (held?.report ?? null),
+    report: asking ? null : (held?.report ?? null),
     part: held?.part ?? null,
     basis: held ? commAiBasis(held.report.sources, words.note) : '',
     summaryUsed: held?.summaryUsed ?? false,
-    /** The part a running press asked for; null when idle. */
-    asking: run.isPending ? run.variables.part : null,
-    error: run.error,
+    /** The part a running press or job asked for; null when idle. */
+    asking,
+    /** The running ask is a recording job, so the person need not wait on this screen. */
+    listening: press.isPending || running !== null,
+    error: refusal ? userMessage(refusal) : jobProblem,
+    needsNotice: listens,
+    notice: listens && noticed === recordings,
+    setNotice: (ticked: boolean) => setNoticed(ticked ? recordings : null),
     ask,
     summaryTaken,
     canRestore: replaced.length > 0,

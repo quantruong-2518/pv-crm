@@ -17,6 +17,7 @@ import { PERFORMANCE_KEY } from '@/data/home-charts'
 import { leadLabelOptionsQuery } from '@/data/lead-labels'
 import { LEAD_STATE_KEYS } from '@/data/lead-exit'
 import { LEAD_ORIGINS_KEY, STATS_KEY as LEAD_SOURCE_STATS_KEY } from '@/data/lead-origins'
+import { COMM_AI_JOBS_KEY } from '@/data/comm-ai-job'
 import { AI_JOBS_KEY } from '@/data/lead-ai-job'
 import { LEAD_SCAN_KEY } from '@/data/lead-scan'
 import { INDUSTRY_REPORT_KEY, leadIndustryOptionsQuery } from '@/data/industries'
@@ -89,7 +90,7 @@ const KEYS_OF_KIND: Record<EntityKind, readonly QueryKey[]> = {
   mail: [MAIL_RUN_KEY, LETTERS_KEY, CAMPAIGN_BOOK_KEY],
   campaign: [CAMPAIGN_BOOK_KEY, campaignTotalsQuery.queryKey, sourcesQuery.queryKey],
   scan: [LEAD_SCAN_KEY],
-  'ai-job': [AI_JOBS_KEY],
+  'ai-job': [AI_JOBS_KEY, COMM_AI_JOBS_KEY],
   config: [
     SALES_CONFIG_KEY,
     leadLabelOptionsQuery.queryKey,

@@ -35,12 +35,15 @@ export type AiClients = Record<AiProvider, AiClient>
 /** `admitted`: the caller ran `check` when it accepted the work (a queued job),
  *  so `run` skips the quotas — work already accepted is never cut mid-batch.
  *  `deadlineAt` (epoch ms): a caller holding a request open stops before Fly's proxy
- *  drops it, so no attempt opens that could outlive this. */
+ *  drops it, so no attempt opens that could outlive this.
+ *  `oneAttempt`: the first failure ends the call, for a request each attempt of
+ *  which bills a whole recording again; quotas count first attempts only (ADR 0135). */
 export type AiCaller = {
   actorId: string | null
   subjectCode: string | null
   admitted?: boolean
   deadlineAt?: number
+  oneAttempt?: boolean
 }
 export type AiResult<T> = { value: T; model: string; attempts: readonly AiAttempt[] }
 
@@ -104,9 +107,11 @@ export class AiGateway {
       const outcome = await this.attempt(run, model)
       if (outcome.ok) return { value: outcome.value, model, attempts: run.attempts }
       this.log.warn(`ai ${task}: ${model} ${outcome.kind} — ${outcome.message}`)
+      /* Told it has nothing left, so `nextStep` ends the call under its usual classes. */
+      const once = who.oneAttempt === true
       const step = nextStep(outcome.kind, {
-        canFallback: index + 1 < models.length,
-        retried,
+        canFallback: !once && index + 1 < models.length,
+        retried: once || retried,
         made: run.attempts.length,
         sawTransient,
       })
@@ -177,7 +182,7 @@ export class AiGateway {
       if (!(error instanceof AiVendorError)) throw error
       if (error.kind === 'refused') this.breaker.answered(model)
       else this.breaker.failed(model)
-      await this.record(run, model, null, 'error', Date.now() - started)
+      await this.record(run, model, error.spent ?? null, 'error', Date.now() - started)
       return failed(error)
     }
     this.breaker.answered(model)
@@ -187,18 +192,19 @@ export class AiGateway {
     return outcome
   }
 
-  /** `null` = no answer: the vendor refused, timed out or was unreachable. */
+  /** `null` = nothing reported: the vendor refused, timed out or was unreachable.
+   *  A stream that died reports what it had counted, and that much was billed. */
   private async record<T>(
     run: Run<T>,
     model: string,
-    answer: AiAnswer | null,
+    billed: Pick<AiAnswer, 'tokensIn' | 'tokensOut'> | null,
     outcome: AiAttempt['outcome'],
     latencyMs: number,
   ): Promise<void> {
     const call: AiAttempt = {
       model,
-      tokensIn: answer?.tokensIn ?? 0,
-      tokensOut: answer?.tokensOut ?? 0,
+      tokensIn: billed?.tokensIn ?? 0,
+      tokensOut: billed?.tokensOut ?? 0,
       outcome,
     }
     run.attempts.push(call)

@@ -88,7 +88,7 @@ function stopOf(finish: string, parts: readonly Part[]): AiRound['stop'] {
 
 /** `tokensIn` is the prompt count, which already holds the cached part. Clamped, as
  *  a count the vendor sent over would break the ledger's CHECK and lose the row. */
-const spentOf = (usage: GenerateContentResponseUsageMetadata): AiSpent => {
+export const spentOf = (usage: GenerateContentResponseUsageMetadata): AiSpent => {
   const tokensIn = usage.promptTokenCount ?? 0
   return {
     tokensIn,

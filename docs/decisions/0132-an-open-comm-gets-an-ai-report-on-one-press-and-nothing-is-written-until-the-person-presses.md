@@ -48,7 +48,7 @@ search and no tools.
   most 20 MB and scanning its `w:t` runs, because an XML parser builds a tree of
   every tag and a 9 KB upload took the API process down with `mammoth`; PDF and
   images as file parts, a PDF checked by its header and for `/Encrypt`, never
-  parsed, because a parser inflates its streams with no cap. Audio is not read and is named in `sources.unread`. An object missing
+  parsed, because a parser inflates its streams with no cap. Audio is not read and is named in `sources.unread`. **[Superseded by 0135: a recording is now read, by a job.]** An object missing
   from storage goes in `unread`.
 - At most 5 file reads, 10 MB of files and `TRANSCRIPT_MAX` characters of file
   text per press, reads and bytes judged before a file is downloaded; the rest go
@@ -65,7 +65,7 @@ whole history.
 
 With no source at all (no note, no turn text, no readable file) the door
 answers 409 `'Chưa có gì để AI đọc. Ghi chú hoặc tải tệp lên trước.'` With a
-recording alone, 409 `'AI chưa nghe được ghi âm. Ghi chú hoặc tải tệp chữ lên trước.'`
+recording alone, 409 `'AI chưa nghe được ghi âm. Ghi chú hoặc tải tệp chữ lên trước.'` **[Amended by 0135: a recording is a source for a job. This door still answers this 409, and the form takes the job path when the audio route is on.]**
 
 ### 5 · Gate = the close gate
 
@@ -173,5 +173,5 @@ The basis line comes from `CommAiSources` only: note, N turns, file names; then
   API; the web after the API.
 - Customer content from comms now goes to Google and Anthropic (open question
   139).
-- Audio is not read until recording consent exists (open question 140).
+- Audio is not read until recording consent exists (open question 140). **[Superseded by 0135.]**
 - Open questions 137–140 hang on this decision.

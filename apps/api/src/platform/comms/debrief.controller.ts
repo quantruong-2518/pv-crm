@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Header, HttpCode, Param, Post, Query } from '@nestjs/common'
 import type { Actor } from '@pv/engines'
 import {
+  CommAiJobBody,
   CommAiReportBody,
   CommRecordCreateBody,
   DebriefClose,
@@ -14,6 +15,7 @@ import {
 import { Need } from '@api/platform/access/need.decorator'
 import { zod } from '@api/platform/http/zod.pipe'
 import { CurrentActor } from '@api/platform/session/current-actor.decorator'
+import { CommAiJobService } from './comm-ai-job.service'
 import { CommReportService } from './comm-report.service'
 import { DebriefService } from './debrief.service'
 import { MeetingDebriefService } from './meeting-debrief.service'
@@ -29,6 +31,7 @@ export class DebriefController {
     private readonly debriefs: DebriefService,
     private readonly meetings: MeetingDebriefService,
     private readonly reports: CommReportService,
+    private readonly aiJobs: CommAiJobService,
   ) {}
 
   @Post()
@@ -134,5 +137,26 @@ export class DebriefController {
     @Body(zod(CommAiReportBody)) body: CommAiReportBody,
   ) {
     return this.reports.report(who, id, body)
+  }
+
+  /** A report from a recording (ADR 0135): a job, so 202, and nothing to wait on.
+   *  The same gate as `aiReport`, in the service. */
+  @Post(':id/ai-report/job')
+  @HttpCode(202)
+  @Need({ permission: 'comm.view' })
+  pressAiReportJob(
+    @CurrentActor() who: Actor,
+    @Param('id', zod(DebriefId)) id: string,
+    @Body(zod(CommAiJobBody)) body: CommAiJobBody,
+  ) {
+    return this.aiJobs.press(who, id, body)
+  }
+
+  /** The caller's latest job here, report included. `no-store` for `ai-report`'s reason. */
+  @Get(':id/ai-report/job')
+  @Header('Cache-Control', 'private, no-store')
+  @Need({ permission: 'comm.view' })
+  currentAiReportJob(@CurrentActor() who: Actor, @Param('id', zod(DebriefId)) id: string) {
+    return this.aiJobs.current(who, id)
   }
 }

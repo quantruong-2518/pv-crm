@@ -6,6 +6,7 @@ import { connectWithRetry } from '../db/connection-retry'
 import type { DbHandle } from '../db/create-db'
 import { EMAIL_QUEUE, EMAIL_QUEUE_DEAD } from '../mail/mail.contract'
 import { AI_FILL_CONCURRENCY, AI_FILL_QUEUE, AI_FILL_RETRY_LIMIT } from './ai-fill-jobs'
+import { COMM_AI_CONCURRENCY, COMM_AI_QUEUE, COMM_AI_RETRY_LIMIT } from './comm-ai-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -111,6 +112,7 @@ export async function createBoss(role: QueueRole, env: Env, handle: DbHandle): P
         SCAN_READ_CONCURRENCY +
         SCAN_COMMIT_CONCURRENCY +
         AI_FILL_CONCURRENCY +
+        COMM_AI_CONCURRENCY +
         3
       : 2
   }
@@ -254,4 +256,17 @@ async function ensureQueues(boss: PgBoss, env: Env, notify: boolean): Promise<vo
   }
   await boss.createQueue(AI_FILL_QUEUE, { policy: 'exclusive', ...aiFill })
   await boss.updateQueue(AI_FILL_QUEUE, aiFill)
+
+  const commAi: QueueSettings = {
+    retryLimit: COMM_AI_RETRY_LIMIT,
+    retryDelay: 10,
+    retryBackoff: true,
+    /* Above 3 attempts × `AI_RECORDING_TIMEOUT_MAX_MS`: an earlier expiry redelivers
+       a job still running, and the recording is billed twice. */
+    expireInSeconds: 1800,
+    retentionSeconds: 7 * DAY_SECONDS,
+    notify,
+  }
+  await boss.createQueue(COMM_AI_QUEUE, { policy: 'exclusive', ...commAi })
+  await boss.updateQueue(COMM_AI_QUEUE, commAi)
 }

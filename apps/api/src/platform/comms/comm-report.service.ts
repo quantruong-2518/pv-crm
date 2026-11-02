@@ -3,14 +3,17 @@ import type { AccessControl, Actor } from '@pv/engines'
 import {
   CommAiReportStatus,
   TRANSCRIPT_MAX,
+  type AiTask,
   type AiUnavailableReason,
   type CommAiReport,
   type CommAiReportBody,
+  type CommAiSources,
 } from '@pv/contracts'
 import { AiCallError, AiUnavailableError } from '@api/platform/ai/ai-errors'
 import type { AiPart } from '@api/platform/ai/ai-client'
 import { AiGateway, type AiCaller } from '@api/platform/ai/ai-gateway'
 import {
+  COMM_AUDIO_REPORT,
   COMM_REPORT,
   CommReportModelOutput,
   reportParts,
@@ -19,9 +22,15 @@ import { renderPrompt } from '@api/platform/ai/prompts/prompt-spec'
 import { AuditRepository } from '@api/platform/audit/audit.repository'
 import { ACCESS } from '@api/platform/engines/tokens'
 import { conflict, denied, rateLimited } from '@api/platform/http/problem'
+import type { AttachmentRowDb } from '@api/platform/storage/attachment.schema'
 import { StorageService } from '@api/platform/storage/storage.service'
 import { CommAttachmentRepository } from './comm-attachment.repository'
-import { COMM_DEBRIEF_HOOK, unconfirmable, type CommDebriefHook } from './comm-debrief.hook'
+import {
+  COMM_DEBRIEF_HOOK,
+  unconfirmable,
+  type CommDebriefHook,
+  type CommReportContext,
+} from './comm-debrief.hook'
 import { isAudio, partOf } from './comm-report.files'
 import { judgeReport } from './comm-report.judge'
 import { toObjectRef } from './comms.mapper'
@@ -40,7 +49,12 @@ import { ThreadService } from './thread.service'
  *  Turns and files are untrusted customer content: they travel inside the data
  *  block only (`reportParts`), and `judgeReport` decides what of the answer
  *  survives. Logs and the audit line carry counts and error classes, never
- *  content or a file name. No transaction: the call is held open for seconds. */
+ *  content or a file name. No transaction: the call is held open for seconds.
+ *
+ *  A record with a recording is heard by a job instead (ADR 0135): the runner
+ *  calls `prepareListening`, then `listen`, on the sources this door reads too. */
+
+export const NO_RECORDING = 'Liên hệ này chưa có ghi âm.'
 
 const MAX_FILES = 5
 const PAST_SUMMARIES = 3
@@ -68,7 +82,27 @@ type Files = {
   unread: string[]
   /** A recording is attached: it can be the reason nothing was readable. */
   recording: boolean
+  /** The one recording a listening job sends; null on the synchronous door. */
+  heard: AttachmentRowDb | null
 }
+
+type Turn = Awaited<ReturnType<ThreadRepository['messagesOf']>>[number]
+type Sources = { note: string | undefined; turns: Turn[]; files: Files }
+
+/** One call's input but the recording's bytes, and what the audit line counts. */
+type Brief = {
+  found: DebriefRead
+  context: CommReportContext
+  lists: object
+  data: object
+  fileParts: AiPart[]
+  sources: CommAiSources
+  fileCount: number
+  earlier: number
+}
+
+/** `prepareListening`'s answer, held for the one call that follows it. */
+export type Listening = { brief: Brief; recording: { mime: string; bytes: Buffer } }
 
 @Injectable()
 export class CommReportService {
@@ -89,29 +123,30 @@ export class CommReportService {
 
   /** Asked fresh on every read; the screen holds the answer for its cache tier. */
   async status(who: Actor): Promise<CommAiReportStatus> {
+    const available = await this.routeOn('comm-report', who)
+    const recording = await this.routeOn('comm-audio-report', who)
+    return CommAiReportStatus.parse({ available, recording })
+  }
+
+  private async routeOn(task: AiTask, who: Actor): Promise<boolean> {
     try {
-      await this.ai.check('comm-report', who.id)
-      return CommAiReportStatus.parse({ available: true })
+      await this.ai.check(task, who.id)
+      return true
     } catch (error) {
-      if (error instanceof AiUnavailableError) return CommAiReportStatus.parse({ available: false })
+      if (error instanceof AiUnavailableError) return false
       throw error
     }
   }
 
   async report(who: Actor, id: string, body: CommAiReportBody): Promise<CommAiReport> {
     const deadlineAt = Date.now() + PRESS_DEADLINE_MS
-    const hook = this.hook
-    if (!hook) throw new Error('comms: COMM_DEBRIEF_HOOK is not bound; no subject to report on')
-    const found = await this.gate(who, id, hook)
+    const found = await this.gate(who, id)
     await this.ai.check('comm-report', who.id).catch((error: unknown) => {
       throw refusal(error)
     })
 
-    const covered = (await this.threads.messagesOf(found.row.threadId)).filter(
-      (m) => m.createdAt >= found.row.createdAt,
-    )
-    const turns = latestTurns(covered)
-    const files = await this.readFiles(id)
+    const sources = await this.readSources(found, body.note, false)
+    const { turns, files } = sources
     if (!body.note && turns.length === 0 && files.texts.length + files.parts.length === 0) {
       throw conflict(
         files.recording
@@ -120,9 +155,84 @@ export class CommReportService {
       )
     }
 
+    const brief = await this.assemble(who, found, sources)
+    const parts = reportParts(brief.lists, brief.data, brief.fileParts)
+    await this.trailRead(who, brief)
+    const { row } = found
+    const model = await this.ask(parts, {
+      actorId: who.id,
+      subjectCode: row.subjectCode,
+      deadlineAt,
+    })
+    const report = judgeReport(model, brief.context, row.booked, brief.sources)
+    if (!report) throw busy()
+    return report
+  }
+
+  /** The job's read-sources step, after the same gate as the press. The largest
+   *  audio file is the one recording (vendor docs disagree on several per prompt);
+   *  its bytes are read last, so a record that fails above holds no memory. */
+  async prepareListening(who: Actor, id: string, note: string | undefined): Promise<Listening> {
+    const found = await this.gate(who, id)
+    const sources = await this.readSources(found, note, true)
+    const { heard } = sources.files
+    if (!heard) throw conflict(NO_RECORDING)
+    const brief = await this.assemble(who, found, sources)
+    const bytes = await this.storage.read(heard.storageKey)
+    return { brief, recording: { mime: heard.mime, bytes } }
+  }
+
+  /** The job's one model call. Raw gateway errors on purpose: the runner decides
+   *  from them, and the 429s are for a person waiting on a request. Null = nothing
+   *  usable survived `judgeReport`. Admitted at the press: never cut by a quota. */
+  async listen(who: Actor, { brief, recording }: Listening): Promise<CommAiReport | null> {
+    const { row } = brief.found
+    const parts = reportParts(brief.lists, brief.data, [...brief.fileParts, { recording }])
+    await this.trailRead(who, brief, ' · 1 recording')
+    /* Medium, not low: on a 2-hour meeting low dropped whole topics and every open point. */
+    const request = { ...renderPrompt(COMM_AUDIO_REPORT), parts, effort: 'medium' as const }
+    const caller = {
+      actorId: who.id,
+      subjectCode: row.subjectCode,
+      admitted: true,
+      oneAttempt: true,
+    }
+    const { value } = await this.ai.run('comm-audio-report', request, CommReportModelOutput, caller)
+    return judgeReport(value, brief.context, row.booked, brief.sources)
+  }
+
+  /** Last before the call and after `check`: a refused press leaves no line, and a
+   *  call that fails may still have sent this content to a vendor. */
+  private async trailRead(who: Actor, brief: Brief, recording = ''): Promise<void> {
+    const { found, sources, fileCount, earlier } = brief
+    await this.audit.write({
+      actorId: who.id,
+      action: 'ai-read',
+      code: found.row.subjectCode,
+      note: `comms.debrief ${found.row.id} · AI report · note ${sources.note ? 1 : 0} · ${sources.turns} turn(s) · ${fileCount} file(s) · ${sources.unread.length} unread · ${earlier} past summary(ies)${recording}`,
+    })
+  }
+
+  private async readSources(
+    found: DebriefRead,
+    note: string | undefined,
+    listening: boolean,
+  ): Promise<Sources> {
+    const covered = (await this.threads.messagesOf(found.row.threadId)).filter(
+      (m) => m.createdAt >= found.row.createdAt,
+    )
+    return {
+      note,
+      turns: latestTurns(covered),
+      files: await this.readFiles(found.row.id, listening),
+    }
+  }
+
+  private async assemble(who: Actor, found: DebriefRead, sources: Sources): Promise<Brief> {
+    const { note, turns, files } = sources
     const { row, thread } = found
     const meetingId = row.booked && thread.channel === 'meeting' ? thread.externalId : null
-    const context = await hook.reportContext(who, row.subjectCode, meetingId)
+    const context = await this.boundHook().reportContext(who, row.subjectCode, meetingId)
     const earlier = await this.earlierSummaries(who, found)
     const { subject, meeting, step, vocabulary } = context
     const lists = {
@@ -132,13 +242,14 @@ export class CommReportService {
       stepTemplates: step?.templates ?? [],
       stepKinds: step?.freeEntry ? vocabulary.stepKinds : [],
     }
+    const heardName = files.heard ? [files.heard.name] : []
     const data = {
       today: VN_DAY.format(new Date()),
       subject: { code: row.subjectCode, ...subject },
       channel: thread.channel,
       meeting: meeting && { ...meeting, at: VN_TIME.format(meeting.at) },
       openNextStep: context.openStep,
-      note: body.note ?? null,
+      note: note ?? null,
       turns: turns.map((m) => ({
         at: VN_TIME.format(m.at),
         from: m.direction === 'in' ? 'customer' : 'team',
@@ -146,42 +257,37 @@ export class CommReportService {
       })),
       earlierSummaries: earlier,
       fileTexts: files.texts,
-      attachedFiles: files.parts.map((f) => f.name),
+      attachedFiles: [...files.parts.map((f) => f.name), ...heardName],
     }
-    const parts = reportParts(
+    const fileNames = [...files.texts, ...files.parts].map((f) => f.name)
+    return {
+      found,
+      context,
       lists,
       data,
-      files.parts.map((f) => f.part),
-    )
+      fileParts: files.parts.map((f) => f.part),
+      sources: {
+        note: !!note,
+        turns: turns.length,
+        files: [...fileNames, ...heardName],
+        unread: files.unread,
+      },
+      fileCount: fileNames.length,
+      earlier: earlier.length,
+    }
+  }
 
-    /* Last before the call and after `check`: a refused press leaves no line, and a
-       call that fails may still have sent this content to a vendor. */
-    await this.audit.write({
-      actorId: who.id,
-      action: 'ai-read',
-      code: row.subjectCode,
-      note: `comms.debrief ${id} · AI report · note ${body.note ? 1 : 0} · ${turns.length} turn(s) · ${files.texts.length + files.parts.length} file(s) · ${files.unread.length} unread · ${earlier.length} past summary(ies)`,
-    })
-    const model = await this.ask(parts, {
-      actorId: who.id,
-      subjectCode: row.subjectCode,
-      deadlineAt,
-    })
-    const report = judgeReport(model, context, row.booked, {
-      note: !!body.note,
-      turns: turns.length,
-      files: [...files.texts, ...files.parts].map((f) => f.name),
-      unread: files.unread,
-    })
-    if (!report) throw busy()
-    return report
+  private boundHook(): CommDebriefHook {
+    if (this.hook) return this.hook
+    throw new Error('comms: COMM_DEBRIEF_HOOK is not bound; no subject to report on')
   }
 
   /** The doors this answer stands in for: the close gate, the content right, the
    *  thread's own read and the close's `unconfirmable`. `closable` alone lets an
    *  owner past reach so a hand-over cannot strand their record, which is no
    *  ground to hand them what those doors refuse them. */
-  private async gate(who: Actor, id: string, hook: CommDebriefHook): Promise<DebriefRead> {
+  async gate(who: Actor, id: string): Promise<DebriefRead> {
+    const hook = this.boundHook()
     const found = await this.records.closable(who, id)
     const { threadId, subjectCode } = found.row
     if (!this.access.allows(who, 'comm.view-content')) {
@@ -207,12 +313,15 @@ export class CommReportService {
   /** In declared order. Both caps count a read when it is tried, not when it
    *  succeeds, and `row.bytes` is checked before the download: they bound what one
    *  press pulls into memory, whatever the files turn out to hold. */
-  private async readFiles(id: string): Promise<Files> {
-    const files: Files = { texts: [], parts: [], unread: [], recording: false }
+  private async readFiles(id: string, listening: boolean): Promise<Files> {
+    const rows = (await this.attachments.listOf(id)).map((r) => r.row)
+    const heard = listening ? largestAudio(rows) : null
+    const files: Files = { texts: [], parts: [], unread: [], recording: false, heard }
     let chars = 0
     let bytes = 0
     let reads = 0
-    for (const { row } of await this.attachments.listOf(id)) {
+    for (const row of rows) {
+      if (row === heard) continue
       files.recording ||= isAudio(row.mime)
       const tried = !isAudio(row.mime) && reads < MAX_FILES && bytes + row.bytes <= MAX_FILE_BYTES
       if (tried) {
@@ -259,6 +368,14 @@ export class CommReportService {
   }
 }
 
+const largestAudio = (rows: readonly AttachmentRowDb[]): AttachmentRowDb | null =>
+  rows
+    .filter((row) => isAudio(row.mime))
+    .reduce<AttachmentRowDb | null>(
+      (best, row) => (best && best.bytes >= row.bytes ? best : row),
+      null,
+    )
+
 /** Newest first as read, oldest first as sent: a long thread keeps its latest turns. */
 function latestTurns<T extends { bodyText: string | null }>(messages: readonly T[]): T[] {
   let chars = 0
@@ -278,11 +395,11 @@ function latestTurns<T extends { bodyText: string | null }>(messages: readonly T
 const busy = () => rateLimited('AI đang bận. Thử lại sau ít phút.')
 
 /** Any other error comes back as it went in. */
-const refusal = (error: unknown): unknown =>
+export const refusal = (error: unknown): unknown =>
   error instanceof AiUnavailableError ? REFUSED[error.reason]() : error
 
 /** The scan and fill split: off is a setting (409), a limit passes on its own (429). */
-const REFUSED: Record<AiUnavailableReason, () => Error> = {
+export const REFUSED: Record<AiUnavailableReason, () => Error> = {
   disabled: () => conflict('Chưa bật AI báo cáo. Báo quản trị viên.'),
   'no-key': () => conflict('Chưa bật AI báo cáo. Báo quản trị viên.'),
   'user-limit': () => rateLimited('Bạn đã hết lượt AI báo cáo trong 24 giờ qua. Thử lại sau.'),

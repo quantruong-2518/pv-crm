@@ -36,8 +36,8 @@ export const aiRoute = platform.table(
     /** `AiTask`, copied by hand: a new task kind must be a migration a person reads. */
     check(
       'ai_route_task_known',
-      sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report', 'assistant', 'assistant-deep',
-                     'assistant-summary', 'assistant-brief')`,
+      sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report', 'comm-audio-report', 'assistant',
+                     'assistant-deep', 'assistant-summary', 'assistant-brief')`,
     ),
     /** The two vendors' prefixes, copied by hand like `AiModel` in the contract. */
     check('ai_route_primary_model_known', sql`"primary_model" ~ '^(claude|gemini)-[a-z0-9.-]+$'`),
@@ -52,7 +52,14 @@ export const aiRoute = platform.table(
     ),
     check('ai_route_max_tokens_in_positive', sql`"max_tokens_in" IS NULL OR "max_tokens_in" > 0`),
     check('ai_route_max_tokens_out_positive', sql`"max_tokens_out" > 0`),
-    check('ai_route_timeout_range', sql`"timeout_ms" BETWEEN 1 AND 90000`),
+    /** `AI_TIMEOUT_MAX_MS` and `AI_RECORDING_TIMEOUT_MAX_MS`, copied by hand. Keyed on
+     *  the task, not one wider cap: each bound keeps three attempts under that
+     *  task's queue expiry, so a long wait elsewhere would redeliver and bill twice. */
+    check(
+      'ai_route_timeout_range',
+      sql`"timeout_ms" BETWEEN 1 AND 90000
+          OR ("task" = 'comm-audio-report' AND "timeout_ms" BETWEEN 1 AND 540000)`,
+    ),
     check('ai_route_daily_calls_not_negative', sql`"daily_calls_per_user" >= 0`),
     check('ai_route_daily_budget_not_negative', sql`"daily_token_budget" >= 0`),
   ],

@@ -76,8 +76,8 @@ export const aiCall = platform.table(
     /** `AiTask`, copied by hand: a new task kind must be a migration a person reads. */
     check(
       'ai_call_task_known',
-      sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report', 'assistant', 'assistant-deep',
-                     'assistant-summary', 'assistant-brief')`,
+      sql`"task" IN ('lead-scan', 'lead-enrich', 'comm-report', 'comm-audio-report', 'assistant',
+                     'assistant-deep', 'assistant-summary', 'assistant-brief')`,
     ),
     check('ai_call_outcome_known', sql`"outcome" IN ('ok', 'error')`),
     check('ai_call_tokens_in_not_negative', sql`"tokens_in" >= 0`),

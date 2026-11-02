@@ -1,13 +1,12 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import { AiAction, AiChoices, Button, Icon, Orbit, RotateCcw, Textarea } from '@pv/ui'
-import type { CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
-import { userMessage } from '@/app/api'
+import { AiAction, AiChoices, Button, Checkbox, Icon, Orbit, RotateCcw, Textarea } from '@pv/ui'
+import type { CommAiPart, CommVocabularyResponse, StepOptionsResponse } from '@pv/contracts'
+import { message, useI18n } from '@/app/i18n'
 import { dm } from '@/lib/date'
 import {
   answersOnOffer,
   draftOfAiStep,
   stepsOnOffer,
-  type CommAiPart,
   type CommAiReportState,
 } from '@/data/comm-ai-report'
 import type { StepDraft } from '@/data/comm-record-detail'
@@ -42,7 +41,7 @@ function AskButton({
       type="button"
       variant="secondary"
       className={TOUCH}
-      disabled={ai.asking !== null}
+      disabled={ai.asking !== null || (ai.needsNotice && !ai.notice)}
       onClick={() => ai.ask(part, note)}
     >
       <Icon icon={Orbit} size={16} />
@@ -54,17 +53,26 @@ function AskButton({
 /** Under the buttons, and over the other cards too: the stepper can leave the
  *  first card while a press runs, and the answer lands where nobody is looking. */
 export function CommAiStatus({ ai }: { ai: CommAiReportState }) {
+  const { t } = useI18n()
   if (ai.asking) {
     return (
       <p role="status" className="text-muted-foreground m-0 text-[12.5px] leading-[1.6]">
-        AI đang đọc, có thể mất tới một phút.
+        {ai.listening
+          ? t(
+              message(
+                'AI đang nghe ghi âm, mất vài phút.',
+                'AI is listening to the recording. This takes a few minutes.',
+                'AI가 녹음을 듣는 중입니다. 몇 분 걸립니다.',
+              ),
+            )
+          : 'AI đang đọc, có thể mất tới một phút.'}
       </p>
     )
   }
   if (!ai.error) return null
   return (
     <p role="alert" className="text-destructive-foreground m-0 text-[12.5px] leading-[1.6]">
-      {userMessage(ai.error)}
+      {ai.error}
     </p>
   )
 }
@@ -83,6 +91,7 @@ export function CommAiContent({
   title?: string
   onTitle?: (title: string) => void
 }) {
+  const { t } = useI18n()
   const take = () => {
     if (!ai.report) return
     ai.summaryTaken(note)
@@ -92,6 +101,22 @@ export function CommAiContent({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      {ai.needsNotice && (
+        <Checkbox
+          className="pointer-coarse:min-h-12 -mx-3"
+          wrap
+          checked={ai.notice}
+          onChange={ai.setNotice}
+          /* Three languages: an attestation must be readable by whoever gives it. */
+          label={t(
+            message(
+              'Tôi xác nhận mọi người trong ghi âm đã được báo trước',
+              'I confirm everyone on the recording was told beforehand',
+              '녹음에 포함된 모든 사람에게 미리 알렸음을 확인합니다',
+            ),
+          )}
+        />
+      )}
       <div className="flex flex-wrap gap-2 empty:hidden">
         {ai.canAsk && (
           <>

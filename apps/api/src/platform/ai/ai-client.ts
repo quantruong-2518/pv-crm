@@ -12,7 +12,12 @@
 
 import type { AiFailureKind } from './ai-policy'
 
-export type AiPart = { text: string } | { file: { mime: string; bytes: Buffer } }
+/** `recording`: audio too large to travel inline, up to 50 MB (ADR 0135). Only
+ *  Gemini takes one, through its Files API. */
+export type AiPart =
+  | { text: string }
+  | { file: { mime: string; bytes: Buffer } }
+  | { recording: { mime: string; bytes: Buffer } }
 /** `webSearch`: the model may search the web first. Known debt: both vendors
  *  bill each search on top of tokens, and the ledger records tokens only.
  *  `readPages`: it may also open the URLs it is given or finds (Gemini URL

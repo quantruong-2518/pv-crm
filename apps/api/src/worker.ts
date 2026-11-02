@@ -27,6 +27,7 @@ import { OpportunityModule } from './branches/sales/opportunity/opportunity.modu
 import { OpportunityMailComposer } from './branches/sales/opportunity/opportunity-mail.composer'
 import { OpportunityMailSentHook } from './branches/sales/opportunity/opportunity-mail-sent.hook'
 import { SessionSweeper } from './platform/auth/session.sweeper'
+import { CommAiJobSweeper } from './platform/comms/comm-ai-job.sweeper'
 import { MailModule } from './platform/mail/mail.module'
 import { GmailThreadSweeper } from './platform/mail/gmail-thread.sweeper'
 import { MailRunSweeper } from './platform/mail/mail-run.sweeper'
@@ -42,6 +43,14 @@ import {
   type AiFillJob,
   type AiFillJobHandler,
 } from './platform/queue/ai-fill-jobs'
+import {
+  COMM_AI_CONCURRENCY,
+  COMM_AI_JOB_HANDLER,
+  COMM_AI_QUEUE,
+  COMM_AI_RETRY_LIMIT,
+  type CommAiJobHandler,
+  type CommAiJobPayload,
+} from './platform/queue/comm-ai-jobs'
 import {
   SCAN_COMMIT_CONCURRENCY,
   SCAN_COMMIT_QUEUE,
@@ -152,6 +161,7 @@ async function bootstrap(): Promise<void> {
   const overdue = app.get(ContractOverdueSweeper)
   const leadScans = app.get(LeadScanSweeper)
   const aiJobs = app.get(LeadAiJobSweeper)
+  const commAiJobs = app.get(CommAiJobSweeper)
   const sessions = app.get(SessionSweeper)
 
   /* `boss.start()` và hai `createQueue` đã chạy trong provider `BOSS`: tiến
@@ -236,6 +246,15 @@ async function bootstrap(): Promise<void> {
     },
   )
 
+  const commAi = app.get<CommAiJobHandler>(COMM_AI_JOB_HANDLER)
+  await boss.work(
+    COMM_AI_QUEUE,
+    { ...scanPoll, includeMetadata: true, localConcurrency: COMM_AI_CONCURRENCY },
+    async ([job]: JobWithMetadata<CommAiJobPayload>[]) => {
+      if (job) await commAi.run(job.data.jobId, { final: job.retryCount >= COMM_AI_RETRY_LIMIT })
+    },
+  )
+
   /* ------------------------------------------------------------------
      BA LƯỢT QUÉT, MỘT ĐỒNG HỒ
      ------------------------------------------------------------------
@@ -302,6 +321,7 @@ async function bootstrap(): Promise<void> {
   const sweepOverdue = pass('Contract overdue sweep failed', () => overdue.sweep())
   const sweepLeadScans = pass('Lead scan sweep failed', () => leadScans.sweep())
   const sweepAiJobs = pass('AI fill sweep failed', () => aiJobs.sweep())
+  const sweepCommAiJobs = pass('Comm report sweep failed', () => commAiJobs.sweep())
   const sweepSessions = pass('Session sweep failed', () => sessions.sweep())
   const sweep = setInterval(() => {
     sweepRelay()
@@ -316,6 +336,7 @@ async function bootstrap(): Promise<void> {
     sweepOverdue()
     sweepLeadScans()
     sweepAiJobs()
+    sweepCommAiJobs()
     sweepSessions()
   }, env.PV_QUEUE_POLL_SECONDS * 1_000)
   /* Đừng giữ tiến trình sống chỉ vì cái đồng hồ này. */
@@ -325,6 +346,7 @@ async function bootstrap(): Promise<void> {
     `Worker đã lên · ${EMAIL_QUEUE} · ${env.PV_EMAIL_WORKER_CONCURRENCY} luồng · ` +
       `${SCAN_READ_QUEUE} · ${SCAN_READ_CONCURRENCY} readers · ` +
       `${AI_FILL_QUEUE} · ${AI_FILL_CONCURRENCY} fillers · ` +
+      `${COMM_AI_QUEUE} · ${COMM_AI_CONCURRENCY} listener · ` +
       `poll ${env.PV_QUEUE_POLL_SECONDS}s · gửi thật: ${env.PV_EMAIL_ENABLED ? 'BẬT' : 'tắt'}`,
   )
 
@@ -367,10 +389,17 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', close)
 }
 
-/** Under Fly's kill countdown (5 min by default) and above the mail queue's 60 s
- *  expiry, but below the scan (300 s) and `lead.ai-fill` (600 s) ones, by choice:
- *  a deploy mid-fill stops waiting here, the job stays active, and pg-boss
- *  redelivers it once it expires — a fill shows up to 600 s late, never lost. */
+/** How long `boss.stop` waits for running jobs. Above the mail queue's 60 s expiry,
+ *  below the scan (300 s), `lead.ai-fill` (600 s) and `comm.ai-report` (1800 s) ones,
+ *  by choice: past it pg-boss fails what still runs (`failWip`), and a job with a
+ *  retry left comes back after its queue's delay, 10 s with backoff.
+ *
+ *  `fly.toml` sets no `kill_timeout`, so Fly's default decides whether this wait
+ *  ends at all. A kill that comes first skips `failWip`, and the job stays active
+ *  until its queue's expiry instead: late, never lost.
+ *
+ *  Either way a `comm.ai-report` delivery past the model call only writes FAILED:
+ *  the recording is never billed twice. */
 const SHUTDOWN_TIMEOUT_MS = 90_000
 
 /* A Neon rejection while pg-boss connects no longer reaches here —

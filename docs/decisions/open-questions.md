@@ -625,6 +625,10 @@ Raised while adding the AI report to an open comm (ADR 0132).
 140.  **Recordings: reading audio needs recording consent (ADR 0011;
       `comms.consent` does not exist in code) and a test on about 20 real
       Vietnamese recordings.** Audio is not read until then. _(see ADR 0132 §4)_
+      Updated 02/11/2026 (ADR 0135): audio is now read by a job. The consent
+      part stays open: a tick at the press stands in, proposed and not ruled on
+      by the owner, and is not a `comms.consent` row. The test on about 20 real
+      recordings has not been done: one has. _(see ADR 0135 §2, §3)_
 
 ## CRM Agent (added 01/11/2026)
 
@@ -699,3 +703,31 @@ Raised while settling the CRM Agent and its wave 0 (ADR 0133).
 
 157.  **A sole director who ticks own-only on themselves cannot be widened again
       in the app.** _(see ADR 0134 §2)_
+
+## Comm recording report (added 02/11/2026)
+
+Raised while adding the recording to the comm AI report (ADR 0135).
+
+158.  **Is streaming enough, or should undici be added with `headersTimeout` 0?**
+      Streaming is on the recording path only. A 2-hour recording took 24 s of
+      model time, far from the 300 s cut. _(see ADR 0135 Deviations)_
+
+159.  **Which audio types does Gemini accept?** `audio/webm`, `audio/mp4` and
+      `audio/x-m4a` are untested against the vendor. _(see ADR 0135 §3)_
+
+160.  ~~Should the route door refuse `maxTokensIn` and a fallback on this task?~~
+      Decided: it refuses both. _(see ADR 0135 §4)_
+
+161.  **Memory is about twice the recording on a 512 MB worker.** Is that safe
+      for the largest recordings? _(see ADR 0135 §3)_
+
+162.  **A deploy in the middle of the call leaves the tray spinning.** `fly.toml`
+      sets no `kill_timeout`, so the worker may be killed before its stop wait ends;
+      the job then stays active until the 30 min expiry and ends FAILED, unbilled.
+      The uploaded file stays at Google until it expires by itself. Set a longer
+      `kill_timeout`? _(see ADR 0135 §6)_
+
+163.  **Audio token pricing in `ai-cost` is unchecked.** _(see ADR 0135 §4)_
+
+164.  **Could repeated recording timeouts trip the model breaker for other tasks
+      sharing `gemini-3.8-flash` in the worker?** _(see ADR 0135 §5)_

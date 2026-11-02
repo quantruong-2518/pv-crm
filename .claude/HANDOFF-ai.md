@@ -35,6 +35,15 @@ Chủ dự án trả lời câu hỏi mở 141 đến 153 (ADR 0134) và kéo 14
 Câu hỏi mở mới: 154 đến 157. Chưa có lượt gọi AI nào trên v206, nên ghi `ai_call` với cột mới
 chưa được thử thật trên production.
 
+## Ghi âm trong báo cáo liên hệ (ADR 0135, 02/11/2026)
+
+Đã dựng trên nhánh `comm-audio-report`, chưa lên production. Migration 0161 chưa lên Neon. Tuyến
+`comm-audio-report` seed TẮT; bật bằng `PUT /ai/routes/comm-audio-report`. Mới thử thật một bản
+ghi 2 giờ (ADR 0135 §3), chưa đối chiếu với buổi họp. Phần đồng ý ghi âm (một ô tick lúc bấm) mới là đề xuất, chưa được chủ dự án duyệt.
+
+**Thứ tự:** migrate 0159, 0160 và 0161 lên Neon trước khi deploy API; deploy API trước web, vì web đọc
+`CommAiReportStatus.recording`. Câu hỏi mở 158–164 nằm ở `docs/decisions/open-questions.md`.
+
 ## Nợ còn mở
 
 - Migration dọn dẹp (một lần, sau khi bản API mới chạy ổn): xoá `lead.category`,

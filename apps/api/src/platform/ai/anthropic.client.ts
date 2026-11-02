@@ -138,6 +138,7 @@ const schemaInstruction = (schema: object) =>
 function blocksOf(request: AiRequest): ContentBlockParam[] {
   return request.parts.map((p): ContentBlockParam => {
     if ('text' in p) return { type: 'text', text: p.text }
+    if ('recording' in p) throw new AiVendorError('refused', 'anthropic: no audio input')
     const data = p.file.bytes.toString('base64')
     if (p.file.mime === 'application/pdf') {
       return { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }

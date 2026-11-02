@@ -28,13 +28,21 @@ export type AiUnavailableReason = z.infer<typeof AiUnavailableReason>
  *  Copied by hand into the CHECK `ai_route_timeout_range`. */
 export const AI_TIMEOUT_MAX_MS = 90_000
 
+/** One recording: a two-hour meeting is minutes of model time. The task makes one
+ *  attempt (ADR 0135 §6), which fits under `comm.ai-report`'s 30 min job expiry. */
+export const AI_RECORDING_TIMEOUT_MAX_MS = 540_000
+
+export const aiTimeoutMaxMs = (task: AiTask): number =>
+  task === 'comm-audio-report' ? AI_RECORDING_TIMEOUT_MAX_MS : AI_TIMEOUT_MAX_MS
+
 /** `0` on a daily limit means no limit; `maxTokensIn: null` means input is not counted. */
 const AiRouteFields = z.object({
   primaryModel: AiModel,
   fallbackModel: AiModel.nullable(),
   maxTokensIn: z.number().int().positive().nullable(),
   maxTokensOut: z.number().int().positive(),
-  timeoutMs: z.number().int().positive().max(AI_TIMEOUT_MAX_MS),
+  /** Capped per task by `aiTimeoutMaxMs`: the body does not name its task. */
+  timeoutMs: z.number().int().positive().max(AI_RECORDING_TIMEOUT_MAX_MS),
   dailyCallsPerUser: z.number().int().nonnegative(),
   /** Rolling 24 h, whole task. */
   dailyTokenBudget: z.number().int().nonnegative(),

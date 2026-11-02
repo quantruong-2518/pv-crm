@@ -172,6 +172,13 @@ export const DEBRIEF_CONSTRAINTS: ConstraintBook = {
     fields: ['answers'],
     message: 'Câu hỏi và câu trả lời đánh giá không được để trống.',
   },
+
+  /** `comms.ai_job`, in this book because a job is one press on one debrief (ADR 0135).
+   *  The press that lost the race fixes nothing in its own form, so no field. */
+  ai_job_one_active_uq: {
+    kind: 'conflict',
+    message: 'Liên hệ này đang có việc AI chạy.',
+  },
 }
 
 /** A comm file's fences (`platform.attachment`, migration 0075). The contract

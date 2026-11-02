@@ -4,7 +4,15 @@ import { AuditModule } from '../audit/audit.module'
 import { EnginesModule } from '../engines/engines.module'
 import { registerConstraints } from '../http/db-error'
 import { NotificationModule } from '../notification/notification.module'
+import { CommAiQueueModule } from '../queue/comm-ai-enqueue'
+import { COMM_AI_JOB_HANDLER, type CommAiJobHandler } from '../queue/comm-ai-jobs'
+import { SessionModule } from '../session/session.module'
 import { StorageModule } from '../storage/storage.module'
+import { CommAiJobController } from './comm-ai-job.controller'
+import { CommAiJobRepository } from './comm-ai-job.repository'
+import { CommAiJobRunner } from './comm-ai-job.runner'
+import { CommAiJobService } from './comm-ai-job.service'
+import { CommAiJobSweeper } from './comm-ai-job.sweeper'
 import { CommAttachmentController } from './comm-attachment.controller'
 import { CommAttachmentRepository } from './comm-attachment.repository'
 import { CommAttachmentService } from './comm-attachment.service'
@@ -60,7 +68,9 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
  *
  *  `NotificationModule` for the hub alone: `CommLateSweeper` emits, and so
  *  does a debrief someone else confirms (ADR 0093 wave 2). No `exports`: a branch that opens a record imports
- *  `CommRecordModule`. `AiModule` for the AI report (ADR 0132); it knows no comms. */
+ *  `CommRecordModule`. `AiModule` for the AI report (ADR 0132); it knows no comms.
+ *  `CommAiQueueModule` and `SessionModule` for the report's job (ADR 0135): the
+ *  press enqueues, the runner re-reads the presser. */
 @Module({
   imports: [
     AiModule,
@@ -69,8 +79,16 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     StorageModule,
     CommRecordModule,
     NotificationModule,
+    CommAiQueueModule,
+    SessionModule,
   ],
-  controllers: [IdentityController, ThreadController, DebriefController, CommAttachmentController],
+  controllers: [
+    IdentityController,
+    ThreadController,
+    DebriefController,
+    CommAttachmentController,
+    CommAiJobController,
+  ],
   providers: [
     IdentityService,
     IdentityRepository,
@@ -81,6 +99,19 @@ registerConstraints(COMM_ATTACHMENT_CONSTRAINTS)
     CommAttachmentRepository,
     CommLateSweeper,
     CommReportService,
+    CommAiJobRepository,
+    CommAiJobService,
+    CommAiJobRunner,
+    /* Ticked by `worker.ts`, like `LeadAiJobSweeper`. */
+    CommAiJobSweeper,
+    /* What `worker.ts` runs for `comm.ai-report`: `platform/queue` cannot name comms. */
+    {
+      provide: COMM_AI_JOB_HANDLER,
+      inject: [CommAiJobRunner],
+      useFactory: (runner: CommAiJobRunner): CommAiJobHandler => ({
+        run: (jobId, attempt) => runner.run(jobId, attempt),
+      }),
+    },
   ],
 })
 export class CommsModule {
