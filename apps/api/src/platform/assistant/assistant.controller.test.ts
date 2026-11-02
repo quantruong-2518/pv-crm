@@ -793,7 +793,7 @@ describe('reporting a wrong answer', () => {
       .where(
         and(
           eq(audit.actorId, director.id),
-          eq(audit.note, 'assistant.reports · page 1 · 1 answer(s)'),
+          eq(audit.note, `assistant.reports · page 1 · 1 answer(s) read: ${second.turn!.id}`),
         ),
       )
     expect(line).toMatchObject({ action: 'view', code: null })

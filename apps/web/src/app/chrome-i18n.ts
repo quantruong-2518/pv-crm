@@ -37,9 +37,9 @@ export const CHROME_ENTRY_COPY: Record<string, { label: Message; description?: M
   '/admin/assistant-reports': {
     label: m('Câu trả lời bị báo sai', 'Reported answers', '신고된 답변'),
     description: m(
-      'Câu trả lời của Trợ lý mà người dùng báo sai',
-      'Assistant answers reported as wrong',
-      '잘못되었다고 신고된 도우미 답변',
+      'Xem ai báo câu nào sai và vì sao',
+      'See who reported which answer, and why',
+      '누가 어떤 답변을 왜 신고했는지 봅니다',
     ),
   },
   '/admin/lead-origins': {

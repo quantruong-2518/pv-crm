@@ -178,7 +178,7 @@ export class AssistantService {
 
   /** Other people's chat text, so each answer is re-checked as the reader, its whole
    *  chat up to it, and a shut one leaves with no question, answer or note. One
-   *  audit line per page, before the rows leave, as `ThreadService.trailContentRead`.
+   *  audit line per page, before the rows leave, naming each answer read.
    *  `hidden` is 0: a shut row is still listed, marked. */
   async reports(who: Actor, q: AssistantReportQuery): Promise<AssistantReportResponse> {
     const { rows, total } = await this.sessions.reports(q.page, q.size)
@@ -200,9 +200,9 @@ export class AssistantService {
         unchecked: shut === 'unchecked',
       }
     })
-    const read = shown.filter((r) => !r.withheld && !r.unchecked).length
+    const read = rows.filter((r) => !check.shut.has(r.messageId)).map((r) => r.messageId)
     if (rows.length > 0) {
-      const note = `assistant.reports · page ${q.page} · ${read} answer(s)`
+      const note = `assistant.reports · page ${q.page} · ${read.length} answer(s) read: ${read.join(', ') || 'none'}`
       await this.audit.write({ actorId: who.id, action: 'view', note })
     }
     return { rows: shown, total, hidden: 0 }

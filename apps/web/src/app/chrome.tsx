@@ -211,7 +211,7 @@ const ADMIN_ENTRIES: SettingsEntry[] = [
   {
     icon: MessageSquare,
     label: 'Câu trả lời bị báo sai', // i18n-ignore
-    description: 'Câu trả lời của Trợ lý mà người dùng báo sai', // i18n-ignore
+    description: 'Xem ai báo câu nào sai và vì sao', // i18n-ignore
     path: '/admin/assistant-reports',
     permission: 'assistant.review',
     group: 'admin',

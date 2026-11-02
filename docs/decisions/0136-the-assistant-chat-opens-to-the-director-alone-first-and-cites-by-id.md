@@ -107,7 +107,6 @@ A right-hand panel on the existing Drawer and AiAction style, with no new
   reports) by the reader's live `data.export`. Phone and mail shapes become
   `[withheld]` (`assistant-contact.ts`), which the web shows in the reader's
   language. A contact spelled out in words still passes, as on the tool path.
-- The reports audit line names the page and a count, not which answers were read.
 - In reports the 400-code cap is shared by the whole page, not counted per chat,
   so later rows can come back `unchecked`.
 - The reviewer sees the reporter's name, reason and note.

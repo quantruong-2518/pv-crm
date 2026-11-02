@@ -18,9 +18,9 @@ const m = message
 export const ASSISTANT_COPY = {
   title: m('Trợ lý', 'Assistant', '도우미'),
   subline: m(
-    'Trả lời trong phạm vi quyền của bạn · chỉ về PV One',
-    'Answers within your access · PV One only',
-    '내 권한 범위 안에서 답변 · PV One 관련만',
+    'Chỉ trả lời về dữ liệu bạn được xem trong PV One',
+    'Only answers about PV One data you can see',
+    'PV One에서 내가 볼 수 있는 데이터에 대해서만 답합니다',
   ),
   close: m('Đóng', 'Close', '닫기'),
   newChat: m('Cuộc trò chuyện mới', 'New chat', '새 대화'),
@@ -34,20 +34,16 @@ export const ASSISTANT_COPY = {
   question: m('Câu hỏi', 'Question', '질문'),
   send: m('Gửi', 'Send', '보내기'),
   tryAsking: m('Hỏi thử một câu', 'Try asking', '이렇게 물어보세요'),
-  aiLabel: m('AI gợi ý', 'AI answer', 'AI 답변'),
+  aiLabel: m('Trợ lý trả lời', 'Assistant answer', '도우미 답변'),
   basisLabel: m('Căn cứ', 'Based on', '근거'),
-  readOnly: m(
-    'Chỉ đọc, chưa thay đổi gì.',
-    'Read only. Nothing was changed.',
-    '읽기 전용이며 아무것도 바꾸지 않았습니다.',
-  ),
+  readOnly: m('Chưa thay đổi gì cả.', 'Nothing was changed.', '아무것도 바꾸지 않았습니다.'),
   copy: m('Sao chép', 'Copy', '복사'),
   copied: m('Đã sao chép câu trả lời', 'Answer copied', '답변을 복사했습니다'),
-  copyFailed: m('Không chép được', 'Could not copy', '복사하지 못했습니다'),
+  copyFailed: m('Không sao chép được', 'Could not copy', '복사하지 못했습니다'),
   report: m('Báo câu trả lời sai', 'Report a wrong answer', '잘못된 답변 신고'),
   reportNote: m('Ghi thêm (không bắt buộc)', 'Add a note (optional)', '메모 추가 (선택)'),
   reportSend: m('Gửi', 'Send', '보내기'),
-  reported: m('Đã báo sai', 'Reported', '신고함'),
+  reported: m('Đã gửi báo sai', 'Report sent', '신고를 보냈습니다'),
   cancel: m('Huỷ', 'Cancel', '취소'),
   withheld: m('Không còn quyền xem', 'You no longer have access', '더 이상 볼 권한이 없습니다'),
   stop: m('Dừng', 'Stop', '중지'),
@@ -56,7 +52,7 @@ export const ASSISTANT_COPY = {
     'Could not stop. Try again.',
     '중지하지 못했습니다. 다시 시도하세요.',
   ),
-  stopped: m('Đã dừng.', 'Stopped.', '중지했습니다.'),
+  stopped: m('Đã dừng trả lời.', 'Stopped answering.', '답변을 중지했습니다.'),
   notAnswered: m(
     'Chưa trả lời được câu này.',
     'This question was not answered.',
@@ -73,9 +69,9 @@ export const ASSISTANT_COPY = {
   name: m('Tên', 'Name', '이름'),
   answered: m('Trợ lý đã trả lời.', 'The assistant answered.', '도우미가 답했습니다.'),
   unchecked: m(
-    'Chưa kiểm lại được quyền xem.',
-    'Your access could not be checked again.',
-    '열람 권한을 다시 확인하지 못했습니다.',
+    'Không hiện được câu trả lời này nữa.',
+    'This answer can no longer be shown.',
+    '이 답변은 더 이상 표시할 수 없습니다.',
   ),
 } as const
 
@@ -252,7 +248,7 @@ const SUGGESTION_COPY: Record<AssistantSuggestionKey, Worded> = {
     label: m('Cơ hội sắp chốt', 'Deals closing soon', '곧 마감될 영업 기회'),
     question: () =>
       m(
-        'Cơ hội nào của tôi sắp đến ngày dự kiến chốt?',
+        'Cơ hội nào của tôi sắp đến ngày chốt dự kiến?',
         'Which of my opportunities are near their expected close date?',
         '예상 마감일이 가까운 제 영업 기회는 무엇인가요?',
       ),
@@ -285,8 +281,17 @@ const SUGGESTION_COPY: Record<AssistantSuggestionKey, Worded> = {
       ),
   },
   'open-first-hit': {
-    label: m('Mở kết quả đầu tiên', 'Open the first result', '첫 번째 결과 열기'),
-    question: (code) => m(`Mở giúp tôi ${code}.`, `Open ${code} for me.`, `${code}를 열어 주세요.`),
+    label: m(
+      'Xem chi tiết kết quả đầu tiên',
+      'Details of the first result',
+      '첫 번째 결과 자세히 보기',
+    ),
+    question: (code) =>
+      m(
+        `Cho tôi xem chi tiết ${code}.`,
+        `Show me the details of ${code}.`,
+        `${code}의 자세한 내용을 보여 주세요.`,
+      ),
   },
 }
 

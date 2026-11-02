@@ -28,7 +28,8 @@ import { SessionList } from './assistant-sessions'
  *
  *  A new conversation has no session until the server names one; the page then
  *  puts it in the address. On a phone the list gives way to an open session.
- *  Its ContextRail (law 10) is the conversation's own: subject, then records named. */
+ *  Its ContextRail (law 10) is the conversation's own: subject, then records named.
+ *  No rail on the list alone or on a chat that names no record: there is nothing to open. */
 
 const TOUCH = 'pointer-coarse:h-12'
 /** The box stays in reach while the thread scrolls: docked over BottomNav below `lg`, and

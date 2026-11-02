@@ -6,7 +6,7 @@ import { message, useI18n } from '@/app/i18n'
 import { SettingsShell } from '@/components/settings-shell'
 import { TableFooter } from '@/components/table-bits'
 import { reportsQuery } from '@/data/assistant'
-import { ASSISTANT_COPY as C, REASON_COPY, shownText } from '@/data/assistant-copy'
+import { REASON_COPY, shownText } from '@/data/assistant-copy'
 import { QueryBlock } from './kpi-parts'
 
 /** One Core · Admin · answers of the CRM assistant someone reported as wrong
@@ -20,9 +20,9 @@ const m = message
 const COPY = {
   title: m('Câu trả lời bị báo sai', 'Reported answers', '신고된 답변'),
   description: m(
-    'Câu trả lời của Trợ lý mà người dùng báo sai.',
-    'Assistant answers that people reported as wrong.',
-    '사용자가 잘못되었다고 신고한 도우미 답변입니다.',
+    'Xem ai báo câu nào sai và vì sao.',
+    'See who reported which answer, and why.',
+    '누가 어떤 답변을 왜 신고했는지 봅니다.',
   ),
   what: m('danh sách báo sai', 'reported answers', '신고 목록'),
   none: m(
@@ -33,6 +33,16 @@ const COPY = {
   question: m('Câu hỏi', 'Question', '질문'),
   answer: m('Câu trả lời', 'Answer', '답변'),
   note: m('Ghi chú', 'Note', '메모'),
+  withheld: m(
+    'Bạn không có quyền xem cuộc trò chuyện này.',
+    'You do not have access to this chat.',
+    '이 대화를 볼 권한이 없습니다.',
+  ),
+  unchecked: m(
+    'Không hiện được câu trả lời này.',
+    'This answer cannot be shown.',
+    '이 답변을 표시할 수 없습니다.',
+  ),
 }
 
 const SIZE = 20
@@ -86,7 +96,7 @@ function ReportItem({ row }: { row: AssistantReportRow }) {
       {/* The reviewer reads no further than their own scope: a hidden chat says why. */}
       {row.withheld || row.unchecked ? (
         <p className="text-muted-foreground m-0 text-[13px]">
-          {t(row.withheld ? C.withheld : C.unchecked)}
+          {t(row.withheld ? COPY.withheld : COPY.unchecked)}
         </p>
       ) : (
         <dl className="m-0 grid gap-2 text-[13px] leading-[1.55] sm:grid-cols-[112px_minmax(0,1fr)]">

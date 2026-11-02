@@ -195,7 +195,7 @@ function Answered({ answer, last, busy, ask, openPath }: AnswerProps) {
               </span>
             )}
             {answer.refs.length > 0 && answer.refs.length < 3 && (
-              <span className="mt-3 flex flex-wrap gap-2">
+              <span className="mt-3 flex flex-wrap gap-x-2 gap-y-6">
                 {answer.refs.map((ref) => (
                   <RefChip key={`${ref.kind}:${ref.code}`} refItem={ref} openPath={openPath} />
                 ))}
