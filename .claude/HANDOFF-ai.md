@@ -37,12 +37,11 @@ chưa được thử thật trên production.
 
 ## Ghi âm trong báo cáo liên hệ (ADR 0135, 02/11/2026)
 
-Đã dựng trên nhánh `comm-audio-report`, chưa lên production. Migration 0161 chưa lên Neon. Tuyến
-`comm-audio-report` seed TẮT; bật bằng `PUT /ai/routes/comm-audio-report`. Mới thử thật một bản
-ghi 2 giờ (ADR 0135 §3), chưa đối chiếu với buổi họp. Phần đồng ý ghi âm (một ô tick lúc bấm) mới là đề xuất, chưa được chủ dự án duyệt.
-
-**Thứ tự:** migrate 0159, 0160 và 0161 lên Neon trước khi deploy API; deploy API trước web, vì web đọc
-`CommAiReportStatus.recording`. Câu hỏi mở 158–164 nằm ở `docs/decisions/open-questions.md`.
+Đã lên production 02/11/2026: commit 218822fa, Neon 0161, Fly v207, web Vercel. Tuyến
+`comm-audio-report` đã bật theo lệnh chủ dự án (Gemini 3.8 Flash, không dự phòng, effort medium,
+540 giây, 20 lượt mỗi người mỗi ngày). Mới thử thật một bản ghi 2 giờ (ADR 0135 §3), chưa đối
+chiếu với buổi họp, chưa chạy qua worker thật. Ô xác nhận đã báo ghi âm đang chạy thật, nhưng vẫn
+là đề xuất chủ dự án chưa chốt. Câu hỏi mở 158–164 nằm ở `docs/decisions/open-questions.md`.
 
 ## Nợ còn mở
 
