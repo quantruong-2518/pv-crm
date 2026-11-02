@@ -19,6 +19,7 @@ import {
   useCommAiJobs,
   useDismissFinishedCommAiJobs,
 } from '@/data/comm-ai-job'
+import { useAssistantShown } from '@/data/assistant-live'
 import { inlineLabel } from '@/data/lead-ai-fill'
 import {
   isActive,
@@ -302,6 +303,7 @@ export function AiTaskTrayHost() {
   const jobs = useAiJobs()
   const open = useAiTray((s) => s.open)
   const setOpen = useAiTray((s) => s.setOpen)
+  const assistantShown = useAssistantShown()
   const press = usePressAiFill()
   const undo = useUndoAiJob()
   const clear = useDismissFinishedAiJobs()
@@ -360,6 +362,7 @@ export function AiTaskTrayHost() {
       open={open}
       onOpenChange={setOpen}
       onClearDone={clearDone}
+      aboveAssistant={assistantShown}
       copy={{
         title: t(message('Việc AI', 'AI tasks', 'AI 작업')),
         running: (n) => t(message(`${n} đang chạy`, `${n} running`, `${n}건 진행 중`)),

@@ -222,11 +222,16 @@ useSession.subscribe((now) => {
 /** The chrome's three doors (top bar, round button, bottom nav): present only
  *  when the server says the assistant is on for this person. On `/assistant`
  *  they go to the page's own box rather than open a second conversation. */
-export function useAssistantEntry(): (() => void) | undefined {
-  const { pathname } = useLocation()
+/** Whether the entry shows, with no router hook, so a host outside the router can ask. */
+export function useAssistantShown(): boolean {
   const actor = useSession((s) => s.actor)
   const allowed = access.check(actor, USE_NEED).ok
   const { data } = useQuery({ ...availabilityQuery, enabled: allowed })
-  if (!allowed || !data?.enabled) return undefined
+  return allowed && data?.enabled === true
+}
+
+export function useAssistantEntry(): (() => void) | undefined {
+  const { pathname } = useLocation()
+  if (!useAssistantShown()) return undefined
   return pathname === '/assistant' ? () => focusComposer('page') : () => openAssistant(pathname)
 }

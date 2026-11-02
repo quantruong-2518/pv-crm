@@ -96,6 +96,8 @@ export type AiTaskTrayProps = {
   onClearDone: () => void
   /** Drop the fixed corner placement (theme kit only). */
   inline?: boolean
+  /** The round assistant button holds the corner from `lg`: stack above it, not on it. */
+  aboveAssistant?: boolean
   /** Wording the screen owns: pill, header and the clear button. */
   copy: {
     title: string
@@ -149,6 +151,7 @@ export function AiTaskTray({
   onOpenChange,
   onClearDone,
   inline = false,
+  aboveAssistant = false,
   copy,
 }: AiTaskTrayProps) {
   const box = useRef<HTMLDivElement>(null)
@@ -179,7 +182,13 @@ export function AiTaskTray({
   /* Under overlays (50) like ActionBanner, over the nav (40). */
   const corner = inline
     ? ''
-    : 'fixed right-4 bottom-[max(calc(84px+env(safe-area-inset-bottom)+16px),var(--sticky-bar-clear,0px))] z-[45] lg:right-4 lg:bottom-[max(24px,var(--sticky-bar-clear,0px))]'
+    : cn(
+        'fixed bottom-[max(calc(84px+env(safe-area-inset-bottom)+16px),var(--sticky-bar-clear,0px))] right-4 z-[45]',
+        /* The button is 60px at 32px from the corner; 16px of air above it. */
+        aboveAssistant
+          ? 'lg:bottom-[max(108px,var(--sticky-bar-clear,0px))] lg:right-8'
+          : 'lg:bottom-[max(24px,var(--sticky-bar-clear,0px))] lg:right-4',
+      )
 
   if (!open) {
     return (
@@ -209,6 +218,7 @@ export function AiTaskTray({
       aria-label={copy.title}
       className={cn(
         'glass-overlay flex max-h-[min(640px,calc(100dvh-160px-var(--sticky-bar-clear,0px)))] w-[min(400px,calc(100vw-32px))] flex-col overflow-hidden rounded-lg',
+        aboveAssistant && 'lg:max-h-[min(640px,calc(100dvh-240px-var(--sticky-bar-clear,0px)))]',
         corner,
       )}
     >

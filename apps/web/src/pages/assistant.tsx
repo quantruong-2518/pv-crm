@@ -32,10 +32,10 @@ import { SessionList } from './assistant-sessions'
  *  No rail on the list alone or on a chat that names no record: there is nothing to open. */
 
 const TOUCH = 'pointer-coarse:h-12'
-/** The box stays in reach while the thread scrolls: docked over BottomNav below `lg`, and
- *  narrowed between `lg` and `xl` so the round assistant button does not cover the send button. */
+/** The box stays in reach while the thread scrolls: docked over BottomNav below `lg`. The
+ *  round assistant button is not drawn on this screen, so nothing covers the send button. */
 const DOCK =
-  'glass-overlay sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 rounded-lg px-4 py-3 lg:bottom-6 lg:max-xl:w-[calc(100%-72px)]'
+  'glass-overlay sticky bottom-[calc(84px+env(safe-area-inset-bottom)+12px)] z-20 rounded-lg px-4 py-3 lg:bottom-6'
 /** Following the thread stops above the docked box, not behind it. */
 const END_MARGIN = 'scroll-mb-[calc(84px+env(safe-area-inset-bottom)+96px)] lg:scroll-mb-[120px]'
 

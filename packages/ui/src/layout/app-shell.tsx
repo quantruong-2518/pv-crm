@@ -55,6 +55,8 @@ export type AppShellProps = {
   children: ReactNode
   /** Không truyền thì khung KHÔNG vẽ nút Trợ lý nổi — xem lý do ở chỗ render. */
   onOpenAssistant?: () => void
+  /** The assistant's own screen drops the round button: it would sit on its send button. */
+  hideAssistantFab?: boolean
   onNavigate?: (key: BottomNavKey) => void
   /** Something to act on now, floating at bottom-centre — see `ActionBanner`.
    *  `@pv/ui` only draws from props; it does not know this is an overdue
@@ -72,6 +74,7 @@ export function AppShell({
   subBar,
   children,
   onOpenAssistant,
+  hideAssistantFab = false,
   onNavigate,
   banners,
   onDismissBanner,
@@ -100,7 +103,7 @@ export function AppShell({
           còn trống. Một nút 60px sáng azure ở góc phải dưới mà bấm không ra gì
           tệ hơn hẳn việc không có nút: nó hứa một màn không tồn tại, và nó hứa
           trên MỌI màn. Có màn rồi thì màn truyền hàm vào, nút tự hiện lại. */}
-      {onOpenAssistant ? (
+      {onOpenAssistant && !hideAssistantFab ? (
         <AssistantFab
           onClick={onOpenAssistant}
           label={header.assistantLabel ? `${header.assistantLabel} AI` : undefined}

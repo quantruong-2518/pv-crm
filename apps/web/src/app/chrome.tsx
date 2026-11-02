@@ -823,6 +823,7 @@ export function useAppChrome(opts: { searchPlaceholder?: string } = {}) {
     lockedNav: openAssistant ? LOCKED_NAV.filter((key) => key !== 'assistant') : LOCKED_NAV,
     onNavigate,
     onOpenAssistant: openAssistant,
+    hideAssistantFab: pathname === '/assistant',
     subBar: <MeetingCountdownBar today={meetingToday} />,
     banners: overdueBanners.items,
     onDismissBanner: overdueBanners.dismiss,
